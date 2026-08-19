@@ -1,35 +1,172 @@
-name: publish
+name: ci
 
-# Triggered by pushing a semver tag (v1.1.0, v1.1.1, v2.0.0, …). Tag must
-# match the version in package.json — the workflow verifies this and aborts
-# on mismatch so you can't accidentally publish 1.1.0 from a 1.0.x branch.
+# Still .github/workflows/publish.yml: two tests read this file by that exact
+# path to assert the npm rename dance is real (global-alias-name.test.ts,
+# stub-global-upgrade.test.ts), so the filename is load-bearing even though the
+# workflow now does more than publish.
+#
+# Two jobs, one workflow, because the gate has to be a real one: `publish`
+# declares `needs: test`, which is the only construct that makes a matrix leg
+# able to *stop* a release. A separate workflow could report the same red X and
+# publish anyway.
+#
+#   test     — every push to main, every pull request, and every tag.
+#   publish  — tags (v1.1.0, v1.1.1, v2.0.0, …) and manual dispatch only. The
+#              tag must match the version in package.json; the job verifies
+#              this and aborts on mismatch so you can't accidentally publish
+#              1.1.0 from a 1.0.x branch.
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
+  pull_request:
   # Also allow a manual run from the Actions tab — handy for re-publishing
   # after a transient npm outage. Picks up the version from package.json.
+  # Still runs `test` first: a publish that can skip the suite is not gated.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  # ── The gate ────────────────────────────────────────────────────────────
+  # Three legs, because this suite does not test the same thing on all three.
+  #
+  #   ubuntu-latest   17 sites gated `skipIf(process.platform === "win32")`
+  #                   run here, plus the `runIf(posix)` and `skipIf(!posix)`
+  #                   families — the widest coverage of the three.
+  #   windows-latest  the whole reason for the matrix. Those 17 sites are
+  #                   *skipped* here, and in exchange the one site gated
+  #                   `skipIf(process.platform !== "win32")` — the drive-colon
+  #                   case in cc-project-slug.test.ts — finally executes. It
+  #                   had never run on any runner before this file, because
+  #                   every CI run this repo had ever done was Linux. Windows
+  #                   is also where this repo's recurring bugs live: .cmd shim
+  #                   resolution, cmd.exe quoting, kill-tree, atomic rename.
+  #   macos-latest    the account machinery is macOS-specific — cswap reads
+  #                   the Keychain item `Claude Code-credentials` — and macOS
+  #                   is the only leg with a case-insensitive filesystem, so
+  #                   it is the only one that can catch a path-casing bug.
+  #                   It is also the platform the repo is developed on, which
+  #                   is an argument for *keeping* it: a contributor or an
+  #                   agent working from Linux otherwise gets no signal at all
+  #                   on the platform the maintainer actually ships from.
+  #
+  # Runner minutes on GitHub-hosted runners are free for public repositories
+  # on every OS, so there is no budget argument for trimming a leg.
+  # No explicit `name:` — a constant one would label all three legs identically
+  # and make them indistinguishable as required status checks. The default
+  # gives `test (ubuntu-latest)`, `test (windows-latest)`, `test (macos-latest)`.
+  test:
+    strategy:
+      # One platform's failure must not cancel the others. Without this, a
+      # Windows break hides whether Linux was fine, and the first thing you
+      # want on a red matrix is to know how far the damage reaches.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # A safety net against a hung child process, not a flake allowance. The
+    # suite is ~1 minute on a dev machine; 20 leaves generous headroom while
+    # still killing a wedged run long before the 6-hour default.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Built before the suite on purpose. theme-first-paint.test.ts asserts
+      # the bootstrap script survives Vite's HTML transform *in the real
+      # artifact*, and skips itself when dist/web/index.html is absent — so
+      # without this step that assertion silently disappears, which is the
+      # same class of problem as the missing test job itself.
+      - name: Build web bundle
+        run: npm run build
+
+      # `npm test` verbatim, so CI runs what a contributor runs, plus a JSON
+      # report on the side for the assertion below. The default reporter still
+      # prints to the log as usual.
+      - name: Run tests
+        run: npm test -- --reporter=default --reporter=json --outputFile.json=vitest-report.json
+
+      # #376's sharpest point. Exactly one test in the suite is gated
+      # `skipIf(process.platform !== "win32")` — cc-project-slug.test.ts:63,
+      # the drive-colon and backslash case — and "skipped" and "passed" are
+      # both green, so a Windows leg could report success while that test
+      # carried on never running. This step reads the JSON report and fails if
+      # vitest says anything other than `passed`, which turns the acceptance
+      # criterion into something that stays true rather than something that
+      # was observed once.
+      #
+      # `!cancelled()` rather than the default `success()`: when the suite is
+      # red for an unrelated reason, whether the Windows-only test ran is
+      # exactly what you still want to know.
+      #
+      # The report lands under src/web because vitest resolves --outputFile
+      # against its own root, which vite.config.ts sets to src/web.
+      - name: Assert the Windows-only test actually ran
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { existsSync, readFileSync } from "node:fs";
+            const path = "src/web/vitest-report.json";
+            const wanted = "turns the drive colon and the backslashes into dashes";
+            if (!existsSync(path)) {
+              console.log("::error::no vitest report at " + path + " — the suite never got as far as running");
+              process.exit(1);
+            }
+            const report = JSON.parse(readFileSync(path, "utf8"));
+            const hit = report.testResults
+              .flatMap((file) => file.assertionResults)
+              .find((test) => test.title === wanted);
+            if (!hit) {
+              console.log("::error::" + wanted + " — not present in the report at all");
+              process.exit(1);
+            }
+            console.log(wanted + " -> " + hit.status);
+            if (hit.status !== "passed") {
+              console.log("::error::the Windows-only test did not run: vitest reported " + hit.status);
+              process.exit(1);
+            }
+          '
+
+  # ── The release ─────────────────────────────────────────────────────────
   publish:
+    # Every leg. `needs` on a matrix job waits for all of them and requires all
+    # of them to have succeeded, so a red Windows leg blocks the release even
+    # though fail-fast: false let the other two finish.
+    needs: test
+    # The workflow now runs on pushes and pull requests too; this keeps the
+    # publish job itself on exactly the two triggers it had before.
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write   # required for `npm publish --provenance`
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
 
       - name: Verify tag matches package.json
-        if: github.event_name == 'push'
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           TAG_VERSION="${GITHUB_REF_NAME#v}"
