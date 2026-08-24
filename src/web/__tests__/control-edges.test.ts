@@ -30,6 +30,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -308,50 +309,37 @@ function tsxFiles(dir: string): string[] {
   });
 }
 
-const TSX = tsxFiles(web).map(p => readFileSync(p, "utf8")).join("\n");
+/** Every component, as [name relative to src/web, source]. Read one at a time
+ *  rather than joined into one string, which is what this file used to do: a
+ *  scan that runs off the end of one file must not reach into the next, and a
+ *  message that can name the file is worth more than one that cannot. Forward
+ *  slashes so a Windows run reports the same name a mac one does. */
+const COMPONENTS: Array<[string, string]> = tsxFiles(web)
+  .map(p => [p.slice(web.length).replaceAll("\\", "/"), readFileSync(p, "utf8")]);
 
 /**
- * The attribute text of every `<button>`, `<input>`, `<select>` and `<a>`.
+ * Every `<button>`, `<input>`, `<select>` and `<a>` the components open.
  *
- * #378: this was `/<(button|input|select|a)\b([^>]*)>/`, which stops at the
- * first `>` — including the one in `onClick={() => …}`. A control whose
- * className happens to be written after an arrow attribute would have its class
- * silently dropped out of `interactive`, and with it every rule that class
- * names would drop out of the exhaustiveness check below. No control in this
- * app does that today, which is exactly why it is worth fixing now rather than
- * on the day one does. So the scan counts braces and tracks quotes and stops at
- * the `>` that actually closes the tag.
+ * The scanner is `./tsx-scan`'s now rather than this file's own, for the two
+ * reasons #513 gives. It strips comments before it looks for markup — an
+ * English possessive in a line comment used to open a string that nothing in
+ * the tag ever closed, after which the scan spent its whole budget harvesting
+ * other elements' classes into this one's attribute text — and it says when a
+ * scan reached that budget instead of handing back a truncated tag that looks
+ * exactly like a long one.
+ *
+ * #378's fix is still in there: braces are counted and quotes tracked, so the
+ * `>` in `onClick={() => …}` does not end a tag early.
  */
-function openTags(source: string): string[] {
-  const out: string[] = [];
-  for (const head of source.matchAll(/<(button|input|select|a)\b/g)) {
-    const start = head.index + head[0].length;
-    // A tag longer than this is a runaway scan off an unbalanced brace in a
-    // comment, not markup — the longest real one in this app is under 900.
-    const limit = Math.min(source.length, start + 4000);
-    let depth = 0, quote = "", i = start;
-    for (; i < limit; i++) {
-      const c = source[i];
-      if (quote) { if (c === quote) quote = ""; continue; }
-      if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
-      if (c === "{") depth++;
-      else if (c === "}") depth--;
-      else if (c === ">" && depth === 0) break;
-    }
-    out.push(source.slice(start, i));
-  }
-  return out;
-}
+const TAGS = COMPONENTS.flatMap(([file, src]) =>
+  openTags(src, ["button", "input", "select", "a"]).map(t => ({ ...t, file })));
+
+/** The tags the scan could not finish. Empty, and a test below says so by name. */
+const RUNAWAYS = TAGS.filter(t => t.ranAway).map(t => `${t.file}:${t.line} <${t.name}`);
 
 /** Every class the components put on one of those four tags. */
 const INTERACTIVE = new Set<string>();
-for (const attrs of openTags(TSX)) {
-  for (const m of attrs.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
-    for (const c of (m[1] ?? m[2]).replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) {
-      if (c && !c.endsWith("-")) INTERACTIVE.add(c);
-    }
-  }
-}
+for (const tag of TAGS) for (const c of classesIn(tag.attrs)) INTERACTIVE.add(c);
 
 const escapeClass = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const MARKS = [...INTERACTIVE].map(c => new RegExp(`\\.${escapeClass(c)}(?![\\w-])`));
@@ -480,6 +468,141 @@ const RING_RULES = RULES.filter(rule => {
   if (borderColourIn(rule.body) !== null) return false;
   const ring = ringColourIn(rule.body);
   return ring !== null && ring !== "transparent";
+});
+
+describe("the scan everything below is built on (#513)", () => {
+  it("reads every control in the app without running off the end of one", () => {
+    // A runaway is the failure this file could least afford and the one it had
+    // no way to report: the scan hits its budget, the truncated window is
+    // pushed as though it were a tag, and whatever markup it swallowed hands
+    // its classes to a control that never carried them. The sweep can then pass
+    // having examined the wrong element. Named here, so it cannot be quiet.
+    expect(RUNAWAYS, "a tag scan ran away — the classes it collected belong to something else")
+      .toEqual([]);
+    // Not a vacuous check: the app really does have controls to find, and they
+    // really are spread across the components rather than sitting in one file.
+    expect(TAGS.length).toBeGreaterThan(60);
+    expect(new Set(TAGS.map(t => t.file)).size).toBeGreaterThan(5);
+  });
+
+  it("takes the comments out of the source before it looks for markup", () => {
+    // The pre-pass, asked of the file the issue counted. Sixteen comment lines
+    // in `AccountsPanel.tsx` carry an apostrophe today; they are benign only
+    // because of where its buttons happen to sit, which is a property of this
+    // week's markup and not of the scanner. All sixteen stay exactly as their
+    // author wrote them, and none of them reaches the scan.
+    const panel = COMPONENTS.find(([name]) => name === "components/AccountsPanel.tsx")![1];
+    const commentsWithApostrophes = panel.split("\n")
+      .filter(line => /^\s*(\/\/|\*)/.test(line) && line.includes("'"));
+    expect(commentsWithApostrophes.length,
+      "the fixture is gone — this file no longer proves anything").toBeGreaterThanOrEqual(10);
+    const bare = withoutComments(panel);
+    expect(bare.split("\n").filter(line => /^\s*\/\//.test(line))).toEqual([]);
+    // Including the ones written after code on the same line, which is the case
+    // every hand-rolled stripper in this suite drops a line-filter on and
+    // misses — and this file's own example of one carries an apostrophe.
+    expect(panel).toContain("// unix ms — claude-swap's next planned read");
+    expect(bare).not.toContain("next planned read");
+    // Prose is dropped; the markup and the strings around it are not. An
+    // apostrophe in JSX text is prose the browser renders, not a string
+    // literal, and it has to survive without swallowing what follows it.
+    expect(bare.split("\n").length).toBe(panel.split("\n").length);
+    expect(bare).toContain("Couldn't read the account store.");
+  });
+
+  it("closes a quote at the end of a line, because a string cannot span one", () => {
+    // The rule that lets prose have apostrophes at all. JSX text is not
+    // JavaScript — `Couldn't read the account store.` is a sentence a browser
+    // renders — so an apostrophe in it is not a string opening. Read as one it
+    // would swallow every comment after it and hand the scanner back the exact
+    // hazard the pre-pass exists to remove. A `'` or `"` still open at a newline
+    // was never a string, and closes there; a template literal really can span
+    // lines, so a backtick is exempt.
+    const prose = ["<span>Couldn't read the account store.</span>", "// this note has to go"].join("\n");
+    expect(withoutComments(prose)).not.toContain("this note has to go");
+    const template = ["const s = `line one", "// not a comment: still inside the literal", "`;"].join("\n");
+    expect(withoutComments(template)).toContain("not a comment");
+  });
+
+  it("reads a button through the apostrophe in the comment inside it", () => {
+    // The exact shape #512 hit, reduced.
+    const source = [
+      '<button',
+      '  className="the-control"',
+      '  onClick={() => {',
+      "    // Shift-click restores the user's own hooks.",
+      '    restore();',
+      '  }}',
+      '>x</button>',
+      '<div className="somewhere-else" />',
+    ].join("\n");
+    const [tag] = openTags(source, ["button"]);
+    expect(tag.ranAway).toBe(false);
+    expect(classesIn(tag.attrs)).toEqual(["the-control"]);
+    expect(tag.attrs).not.toContain("somewhere-else");
+  });
+
+  it("does not let a `>` written in prose end the tag early", () => {
+    // The quiet half of #513 and the worse one. Nothing runs away here: the
+    // scan simply stops at the wrong `>`, the className written after it is
+    // never seen, and the control drops out of `INTERACTIVE` — so every rule
+    // that class names drops out of the exhaustiveness check too, and the sweep
+    // passes having examined one control fewer than it believes.
+    const source = [
+      '<button',
+      '  // a note about the > sign',
+      '  className="the-control"',
+      '>x</button>',
+    ].join("\n");
+    const [tag] = openTags(source, ["button"]);
+    expect(tag.ranAway).toBe(false);
+    expect(classesIn(tag.attrs)).toEqual(["the-control"]);
+  });
+
+  it("does not let an unbalanced brace in prose swallow the rest of the file", () => {
+    // The hazard the old budget comment named, kept as a case rather than as a
+    // sentence. An unmatched `{` in a comment holds the depth above zero, so no
+    // later `>` closes anything and the scan spends its budget on other
+    // people's markup.
+    const source = [
+      '<button',
+      '  // was: onClick={() => setOpen(true)',
+      '  className="the-control"',
+      '>x</button>',
+      '<div className="somewhere-else" />',
+    ].join("\n");
+    const [tag] = openTags(source, ["button"]);
+    expect(tag.ranAway).toBe(false);
+    expect(classesIn(tag.attrs)).toEqual(["the-control"]);
+    expect(tag.attrs).not.toContain("somewhere-else");
+  });
+
+  it("does not let a lone backtick in prose run past the end of the tag", () => {
+    // A template literal is the one quote that may span lines, so an unclosed
+    // one in a comment is the shape that survives every other rule here.
+    const source = [
+      '<button className="the-control"',
+      '  // the shape it replaced was `btn ${x}',
+      '>x</button>',
+      '<div className="somewhere-else" />',
+    ].join("\n");
+    const [tag] = openTags(source, ["button"]);
+    expect(tag.ranAway).toBe(false);
+    expect(classesIn(tag.attrs)).toEqual(["the-control"]);
+  });
+
+  it("says a scan ran away rather than handing back somebody else's classes", () => {
+    // What is left once comments are gone: a tag that genuinely never closes.
+    // The answer is a flag and an empty attribute string, not a truncated
+    // window — attributes read out of a runaway are not this tag's, and
+    // returning them is the mis-attribution the whole issue is about.
+    const source = `<button className={\`unterminated\n${"x".repeat(TAG_BUDGET)}\n<div className="somewhere-else" />`;
+    const [tag] = openTags(source, ["button"]);
+    expect(tag.ranAway).toBe(true);
+    expect(tag.attrs).toBe("");
+    expect(tag.line).toBe(1);
+    expect(classesIn(tag.attrs)).toEqual([]);
+  });
 });
 
 describe("the contrast maths, against the two ends everybody knows", () => {
