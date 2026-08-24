@@ -20,6 +20,24 @@
 # applies to, so a file it decides is binary is copied through untouched; the
 # PNG below is called out anyway, because a hero screenshot silently corrupted
 # by an EOL conversion is not a failure any test here would report.
+#
+# One thing `text=auto` will NOT do, and it is the usual reason this rule looks
+# like it did nothing: a file ALREADY IN GIT WITH CRLF is exempt from
+# conversion on both checkin and checkout, `eol` included. Adding this file
+# fixes nothing for such content — `git add --renormalize .` does, once, from a
+# clean tree. There is none here: `git ls-files --eol` reports `i/lf` for all
+# 323 tracked files and `-text` for the screenshot, so this rule takes effect
+# on the next checkout everywhere and rewrites nothing that is committed.
 * text=auto eol=lf
 
 *.png binary
+
+# The exceptions, ahead of anyone adding one. cmd.exe genuinely wants CRLF: a
+# batch file with LF endings can exit silently, and `goto`/`call` label
+# resolution breaks outright, because the scan for a label's end is defined
+# around \r\n. PowerShell tolerates LF and is conventionally CRLF. The repo has
+# none of these today, and the day it grows one is exactly the day nobody will
+# remember that the rule above applies to it too.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

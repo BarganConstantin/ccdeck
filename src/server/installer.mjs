@@ -174,23 +174,48 @@ async function readSettingsForWrite(p) {
   return { settings: parsed, raw };
 }
 
-// Rename over an open file is the one thing Windows does differently here. The
-// call itself is atomic (MoveFileEx with MOVEFILE_REPLACE_EXISTING), but it
-// fails outright while another process holds the target open — and a virus
-// scanner or the search indexer opens files the instant they are written, for a
-// few milliseconds at a time. Retrying a sharing violation a handful of times
-// turns that into a successful install. POSIX never hits this path, and a real
-// permission error just costs an extra fraction of a second before it surfaces.
+// Rename over an open file is the one thing Windows does differently here.
+// libuv's rename is one MoveFileExW with MOVEFILE_REPLACE_EXISTING and nothing
+// else — no retry, no MOVEFILE_COPY_ALLOWED — and MoveFileEx honours share
+// modes: it fails outright while ANY other handle is open on the source or the
+// target without FILE_SHARE_DELETE. A virus scanner or the search indexer opens
+// files the instant they are written, so the target is briefly untouchable on a
+// perfectly healthy machine. Node has declined to paper over this (nodejs/node
+// #29481, closed wontfix: "not something that's really under Node's or libuv's
+// control"), and libuv reverted its own four-attempt ladder for the same
+// reason. So the policy lives here, where the stakes are known.
+//
+// The ladder is 10 attempts over ~1.4s, and the second number is the one that
+// matters. It used to be 5 over 200ms, which is comfortably enough for the
+// indexer and not enough for a scanner: the argument on libuv#2098 for
+// reverting their retry was in part that an AV hold can outlast 2s, and 200ms
+// of patience on a hold like that is the same as none.
+//
+// What that thinness cost is not an install. codex-auth.mjs stages a REFRESH
+// TOKEN through this call, the old one is spent server-side by the time it runs,
+// and a rename that gives up too early destroys the only copy of the new
+// credential — the deck reports refresh_rejected and the user has to run
+// `codex login` again. Trading a second of latency against that is not close.
+// The comparison points: steno retries a rename 10 times at 100ms, npm's
+// bin-links 5 times at 500ms exponential, and write-file-atomic does not retry
+// at all (npm/write-file-atomic#227).
+//
+// POSIX never hits this path, and a genuinely permanent permission error costs
+// that second and a half once, on a path that was already failing.
 const RENAME_RETRY_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
 
-async function renameWithRetry(from, to, attempts = 5) {
+async function renameWithRetry(from, to, attempts = 10) {
   for (let attempt = 1; ; attempt++) {
     try {
       await rename(from, to);
       return;
     } catch (err) {
       if (attempt >= attempts || !RENAME_RETRY_CODES.has(err?.code)) throw err;
-      await delay(20 * attempt);
+      // Linear: 30, 60, 90 … 270ms, ~1.4s across the nine waits. Linear rather
+      // than exponential because the holds this exists for are short and
+      // frequent, and a doubling ladder spends its whole budget on the last
+      // two waits.
+      await delay(30 * attempt);
     }
   }
 }

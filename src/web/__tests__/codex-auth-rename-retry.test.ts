@@ -191,7 +191,12 @@ describe("a rename that keeps failing", () => {
   it("reports the refresh as rejected rather than claiming success", async () => {
     // The credential is genuinely dead here — the old refresh token was spent to
     // get one that never landed — so the only honest answer is "re-login".
-    fsCtl.faults.push("EPERM", "EPERM", "EPERM", "EPERM", "EPERM");
+    // More faults than any retry ladder this repo would plausibly carry. The
+    // count used to be exactly the five renameWithRetry then allowed, which
+    // made this test a statement about the ladder's LENGTH rather than about
+    // what happens when retrying never helps — widen the ladder and the test
+    // silently starts asserting the opposite of its own name.
+    for (let i = 0; i < 100; i++) fsCtl.faults.push("EPERM");
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await forceCodexRefresh();
