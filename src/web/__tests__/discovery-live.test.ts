@@ -46,7 +46,7 @@ const {
   keepDiscovery: (o: {
     port: number; workspace?: string; token?: string; intervalMs?: number;
     onState?: (s: State) => void;
-  }) => { file: string; check: () => Promise<State>; stop: () => void };
+  }) => { file: string; check: () => Promise<State>; stop: () => Promise<State | null> };
 };
 
 type State = { ok: boolean; rewritten: boolean; file: string; error: Error | null };
@@ -80,13 +80,35 @@ const read = () => JSON.parse(readFileSync(FILE, "utf8")) as Record<string, unkn
  * last handle closes, a few milliseconds later. That is what took this whole
  * file out on the first Windows run: not a test, a teardown.
  *
- * `maxRetries` is the answer Node ships for exactly this and documents by name:
- * EBUSY, EMFILE, ENFILE, ENOTEMPTY and EPERM are retried with a linear backoff.
- * Ten attempts 20ms apart is 200ms of patience in the worst case and zero cost
- * in the ordinary one, where the first attempt succeeds.
+ * `maxRetries` is the answer Node ships for it and documents by name — EBUSY,
+ * EMFILE, ENFILE, ENOTEMPTY and EPERM, retried with a linear backoff — and it
+ * is not sufficient on its own. Those retries wrap the unlink and the rmdir;
+ * the FIRST thing rimrafSync does with a path is lstat it, and an EPERM there
+ * goes to the Windows fix-up (a chmod, which fails the same way on a
+ * delete-pending name) and is rethrown without ever reaching the retry loop.
+ * That is how this failed a second time after maxRetries was added.
+ *
+ * So the loop is out here as well, around the whole call. Both are kept: the
+ * inner one is cheaper for the common case and the outer one covers the lstat
+ * the inner one never sees.
  */
-const remove = (path: string) =>
-  rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+function remove(path: string): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (attempt >= 20 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES" && code !== "ENOTEMPTY")) throw err;
+      // Synchronous, because this runs from beforeEach/afterAll and from inside
+      // a finally — none of which can await. A handle Windows is closing takes
+      // microseconds; 20 × 25ms is half a second of patience for something that
+      // has never needed more than one.
+      const until = Date.now() + 25;
+      while (Date.now() < until) { /* waiting out a delete Windows has not finished */ }
+    }
+  }
+}
 
 const wipe = () => remove(FILE);
 const sleep = (ms: number) => new Promise<void>(done => { setTimeout(done, ms); });
@@ -280,7 +302,7 @@ describe("the deck's registration while it runs", () => {
       expect(await until(() => seen.length >= 2)).toBe(true);
       expect(seen[1]).toMatchObject({ ok: true, rewritten: true, file: FILE });
     } finally {
-      keep.stop();
+      await keep.stop();
     }
   });
 
@@ -295,7 +317,7 @@ describe("the deck's registration while it runs", () => {
       await sleep(120); // ~12 ticks, none of which has anything to report
       expect(seen).toHaveLength(1);
     } finally {
-      keep.stop();
+      await keep.stop();
     }
   });
 
@@ -309,7 +331,7 @@ describe("the deck's registration while it runs", () => {
       const [a, b] = await Promise.all([keep.check(), keep.check()]);
       expect(a).toBe(b); // one run, one answer — not two writes and two verdicts
     } finally {
-      keep.stop();
+      await keep.stop();
     }
   });
 
@@ -319,10 +341,43 @@ describe("the deck's registration while it runs", () => {
   it("stops re-asserting once stopped", async () => {
     const keep = keepDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN, intervalMs: 10 });
     await keep.check();
-    keep.stop();
+    await keep.stop();
     wipe();
     await sleep(120);
     expect(existsSync(FILE)).toBe(false);
+  });
+
+  // The half of "stopped first" that clearInterval does not cover, and the one
+  // the shutdown path in bin/deck.js actually depends on.
+  //
+  // stop() ends the NEXT tick. A tick that started a moment earlier is inside
+  // writeFileAtomic — a temp file, an fsync, a rename, and on Windows up to
+  // 200ms of renameWithRetry while a scanner holds the target. Unlink while
+  // that is in flight and the write lands afterwards: the deck is gone and its
+  // registration is still on disk, naming a port nothing is listening on, which
+  // is precisely the stale record hooks must never post to. So stop() answers
+  // with the check in flight and shutdown awaits it.
+  it("hands back the check already in flight, so a shutdown can wait for it", async () => {
+    const keep = keepDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN, intervalMs: 10 });
+    // Started, deliberately not awaited: this is the tick that shutdown races.
+    const flight = keep.check();
+
+    const stopped = keep.stop();
+    expect(stopped).toBeInstanceOf(Promise);
+    // The same check, not a second one — awaiting stop() must not start work.
+    expect(await stopped).toBe(await flight);
+
+    // And with it awaited, the unlink is the last word on the file.
+    wipe();
+    await sleep(120);
+    expect(existsSync(FILE)).toBe(false);
+  });
+
+  it("is safe to stop when nothing is in flight, and safe to stop twice", async () => {
+    const keep = keepDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN, intervalMs: 10 });
+    await keep.check();
+    expect(await keep.stop()).toBe(null);
+    expect(await keep.stop()).toBe(null);
   });
 });
 
@@ -357,7 +412,7 @@ describe("a deck that cannot write its discovery file", () => {
       expect(seen[seen.length - 1]).toMatchObject({ ok: true, rewritten: true });
       expect(read()).toMatchObject({ pid: process.pid, port: PORT, token: TOKEN });
     } finally {
-      keep.stop();
+      await keep.stop();
       remove(FILE);
     }
   });

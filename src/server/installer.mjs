@@ -500,6 +500,20 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
  * The interval is unref'd, so it never keeps a finished process alive, and
  * `stop()` must be called before the file is removed on shutdown — otherwise
  * the next tick would put it straight back.
+ *
+ * `stop()` ANSWERS WITH THE CHECK ALREADY IN FLIGHT, and shutdown has to await
+ * it. Clearing the interval stops the next tick; it does nothing about the one
+ * that started a moment ago and is currently inside writeFileAtomic. That tick
+ * finishes after the unlink and re-creates the file — exactly the "leave the
+ * file behind for the hooks to find once nothing is listening" that stopping
+ * first is supposed to prevent, reached by the one route stopping first does
+ * not cover. The window is a rename and an fsync on POSIX; on Windows it is
+ * that plus renameWithRetry's ladder, up to 200ms of sleeping while a scanner
+ * holds the target — the platform the retry was written for is the platform
+ * where the race is twenty times wider.
+ *
+ * `run()` never rejects (every failure is a state), so awaiting this cannot
+ * throw and cannot outlast one bounded check.
  */
 export function keepDiscovery({ port, workspace, token, persist = null, codex = true, intervalMs = 5000, onState = null } = {}) {
   // null until the first outcome, which therefore always differs and is always
@@ -533,7 +547,12 @@ export function keepDiscovery({ port, workspace, token, persist = null, codex = 
   const timer = setInterval(() => { check(); }, intervalMs);
   timer.unref?.();
 
-  return { file: discoveryPath(), check, stop: () => clearInterval(timer) };
+  const stop = () => {
+    clearInterval(timer);
+    return inFlight ?? Promise.resolve(null);
+  };
+
+  return { file: discoveryPath(), check, stop };
 }
 
 // CLAUDE_EVENTS used to ride along here (#383). It is the events list of the
