@@ -26,6 +26,7 @@ import AccountsPanel from "./components/AccountsPanel";
 import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFailureId } from "./restart";
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
+import KeyboardHelp from "./components/KeyboardHelp";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
@@ -757,6 +758,10 @@ function Inner() {
   /** Whether the Clear confirmation is up. Clear truncates the server's event
    *  log, so nothing destructive happens until this dialog is answered. */
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  /** Whether the shortcuts sheet is up. Deliberately not persisted: it is a
+   *  reference someone reaches for and closes again, and a deck that reopened
+   *  it on every refresh would be answering a question nobody asked twice. */
+  const [keyHelpOpen, setKeyHelpOpen] = useState(false);
   const dismissedSummariesRef = useRef<Set<string>>(loadDismissedSummaries());
   /** Left sidebar (session list) visibility — persisted across refresh. */
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
@@ -818,6 +823,55 @@ function Inner() {
     } catch { /* server unreachable */ }
     finally { setSoundBusy(false); }
   }, [soundOn]);
+
+  /** Put the user's own sound hooks back. The switch sets aside any hook of
+   *  theirs that would fire on the same Stop event — two sounds per turn is
+   *  worse than none — and this is the undo. It writes to the same endpoint the
+   *  toggle does and re-reads afterwards for the same reason. */
+  const restoreParkedHooks = useCallback(() => {
+    setSoundBusy(true);
+    fetch("/api/sound-hook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "restore" }),
+    }).then(() => fetch("/api/sound-hook"))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) { setSoundOn(d.enabled === true); setSoundParked(d.parked ?? 0); } })
+      .catch(() => {})
+      .finally(() => setSoundBusy(false));
+  }, []);
+
+  /** The single door to the sound switch, in the shape requestClear already
+   *  established for the one other control that answers to two devices.
+   *
+   *  `withShift` is true for a shift-click on the button and for Shift+M, and
+   *  it means the same thing on both: put the parked hooks back if there are
+   *  any, otherwise do what an unmodified press does. The mouse gesture came
+   *  first and shipped alone — no key, no control of its own, and a mention in
+   *  a tooltip that only appears once something is already parked, which is a
+   *  recovery reachable by mouse and by nothing else (#510's shape exactly).
+   *  Giving it a key was the alternative to giving it a button, and the button
+   *  is the thing this topbar spent a release removing.
+   *
+   *  Reads `soundParked` through a ref because the window keydown listener is
+   *  registered once and must not be torn down and rebuilt every time the
+   *  server re-reports the count. */
+  const soundParkedRef = useRef(soundParked);
+  soundParkedRef.current = soundParked;
+  const activateSound = useCallback((withShift: boolean) => {
+    if (withShift && soundParkedRef.current > 0) { restoreParkedHooks(); return; }
+    toggleSound();
+  }, [restoreParkedHooks, toggleSound]);
+  // `toggleSound` is rebuilt whenever the switch changes state, so the window
+  // keydown listener — registered exactly once, on purpose — reads the current
+  // one through a ref rather than listing it as a dependency and re-subscribing.
+  const activateSoundRef = useRef(activateSound);
+  activateSoundRef.current = activateSound;
+  /** null until /api/sound-hook has answered. The button is not drawn in that
+   *  window and the key must not fire in it either: there is no state to
+   *  invert yet, and "not false" would post `enabled: true` on a guess. */
+  const soundOnRef = useRef(soundOn);
+  soundOnRef.current = soundOn;
 
   // ── version drift ─────────────────────────────────────────────────────────
   // A deck upgraded while it was running keeps executing the old code, silently
@@ -1936,7 +1990,13 @@ function Inner() {
   const clearConfirmOpenRef = useRef(clearConfirmOpen);
   clearConfirmOpenRef.current = clearConfirmOpen;
   const modalOpenRef = useRef(false);
-  modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null || summaryFor != null;
+  // The shortcuts sheet counts, for the reason clearActionFor gives: a clear
+  // prompt raised over another dialog is two things competing for one Escape.
+  // It cannot normally happen from the keyboard — the sheet holds focus and a
+  // focused control keeps its own keys — but a click on the sheet's own prose
+  // drops focus to <body>, and from there a stray "c" would reach Clear.
+  modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
+    || summaryFor != null || keyHelpOpen;
 
   /** The single door to Clear. Both the toolbar button and the "c" shortcut
    *  come through here, so the confirmation cannot hold for one and not the
@@ -2133,6 +2193,26 @@ function Inner() {
       if (e.key === "j" || e.key === "J") stepAgent(1);
       if (e.key === "k" || e.key === "K") stepAgent(-1);
       if (e.key === "t" || e.key === "T") setTheme(t => (t === "dark" ? "light" : "dark"));
+      // The last topbar control to get a key, and the only one that reads
+      // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
+      // keyboard sends the upper case for the same press — and this one does
+      // too for the toggle; what Shift adds is the keyboard's version of the
+      // shift-click that puts the user's own parked hooks back, which was a
+      // recovery with no key, no control and no home outside a tooltip. Same
+      // control, same modifier, same outcome: activateSound is the one door
+      // both devices come through, so the two can never drift apart.
+      // Guarded exactly the way A is, plus the state the button waits for:
+      // without Claude Code there is no hook to install, and before the first
+      // /api/sound-hook answers there is nothing to invert.
+      if (e.key === "m" || e.key === "M") {
+        if (providersRef.current.claude && soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+      }
+      // The way in that does not depend on already knowing the way in. `?` is
+      // the convention, it was unbound, and it is the one key on this list that
+      // a user who knows nothing about the deck might still try. Everything it
+      // opens is written down in key-help.ts, held against this handler by a
+      // test, so the sheet cannot fall behind the keys again.
+      if (e.key === "?") setKeyHelpOpen(o => !o);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -2677,25 +2757,18 @@ function Inner() {
             {providers.claude && soundOn !== null && (
               <button
                 className="btn icon-btn"
-                onClick={(e) => {
-                  // Shift-click restores the user's own hooks. A modifier
-                  // rather than another button: it is a one-off recovery, not a
-                  // control that earns permanent space in the toolbar.
-                  if (e.shiftKey && soundParked > 0) {
-                    setSoundBusy(true);
-                    fetch("/api/sound-hook", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "restore" }),
-                    }).then(() => fetch("/api/sound-hook"))
-                      .then(r => r.ok ? r.json() : null)
-                      .then(d => { if (d?.ok) { setSoundOn(d.enabled === true); setSoundParked(d.parked ?? 0); } })
-                      .catch(() => {})
-                      .finally(() => setSoundBusy(false));
-                    return;
-                  }
-                  toggleSound();
-                }}
+                /* Shift-click restores the user's own hooks. A modifier rather
+                   than another button: it is a one-off recovery, not a control
+                   that earns permanent space in the toolbar. It is no longer a
+                   modifier and nothing else, though — M presses this button and
+                   Shift+M is this gesture, through the same activateSound, and
+                   the sheet under ? writes both of them down. A gesture that
+                   exists only in the source is not a feature that shipped.
+                   The handler used to be spelled out here, at 1,450 characters
+                   of the longest opening tag in the app. It is a callback now
+                   for the reason above and for one more: TAG_BUDGET in
+                   tsx-scan.ts is measured against this tag. */
+                onClick={(e) => activateSound(e.shiftKey)}
                 disabled={soundBusy}
                 title={finishSoundTitle(providers, { on: soundOn, clash: soundClash, parked: soundParked })}
                 /* The name a screen reader announces, and it names the CLI too.
@@ -3204,6 +3277,32 @@ function Inner() {
                 <path d="M10.3 10.6v6.8M13.7 10.6v6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
               </svg>
             </ControlButton>
+            {/* The one thing on screen that says the keyboard exists.
+                It is here and not in the topbar, deliberately. The bar was cut
+                back to identity, status and settings this week and the canvas
+                verbs moved down into this stack; a control that opens a
+                reference about the canvas is the same kind of thing. What it
+                buys over the list in the detail rail is that it is always
+                there: the rail draws its shortcuts only while nothing is
+                selected, and it can be closed outright, so on the deck a user
+                actually works in there is no other affordance at all.
+                A glyph rather than a word, like the four above it, and the key
+                is in the tooltip the way every other control on this deck
+                names its own. */}
+            <ControlButton
+              onClick={() => setKeyHelpOpen(o => !o)}
+              title="Keyboard shortcuts (?)"
+              aria-label="Open the keyboard shortcuts"
+              aria-haspopup="dialog"
+            >
+              {/* A question mark drawn rather than typed: the stack's other
+                  four are strokes at 14px and a glyph from the body face would
+                  sit a weight and a baseline away from them. */}
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+                <path d="M8.6 8.4a3.5 3.5 0 1 1 4.6 3.35c-.85.3-1.2 1-1.2 1.85v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <path d="M12 18.4v.2" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+              </svg>
+            </ControlButton>
           </Controls>
           <MiniMap
             zoomable
@@ -3281,6 +3380,13 @@ function Inner() {
           }}
         />
       )}
+      {/* Before the clear prompt and after everything else, which is where a
+          reference belongs: it may paint over a tool inspector somebody opened
+          the sheet on top of, and it must not paint over the one dialog that is
+          waiting for an answer. Escape agrees with the paint order — the prompt
+          carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
+          before arrival. */}
+      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening
           over a modal, but a modal can still arrive over it. */}
@@ -3372,6 +3478,16 @@ function EmptyDetail({ count, workspace }: { count: number; workspace: string | 
       )}
       <h3 style={{ marginTop: 4 }}>Shortcuts</h3>
       <div className="shortcuts">
+        {/* First, because it is the row that makes the other rows findable —
+            and the only one here that stays reachable once this panel is gone.
+            This list draws while nothing is selected and the rail is open,
+            which is the first ten seconds of a deck and none of the rest of it;
+            `?` opens the complete sheet from anywhere, including from a canvas
+            with forty agents on it and one of them selected. The rows below are
+            still the short version on purpose: they are what a new deck needs
+            to move around, not the reference. key-help.test.ts holds every cap
+            here against the sheet, so the two cannot come to disagree. */}
+        <div className="sc"><kbd>?</kbd><span>all shortcuts</span></div>
         <div className="sc"><kbd>drag</kbd><span>move a node</span></div>
         {/* Two rows the keyboard needed and the list never had: Tab reaches the
             cards and Enter is what a click on one does, and Esc is the way back

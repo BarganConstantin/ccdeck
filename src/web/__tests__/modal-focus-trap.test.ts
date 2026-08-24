@@ -258,11 +258,14 @@ describe("which overlay holds Tab", () => {
   });
 });
 
-// ── what each of the six overlays does with it ──────────────────────────────
+// ── what each of the seven overlays does with it ────────────────────────────
 
-describe("the deck's six overlays", () => {
-  it("has found all six, so a new one cannot skip this file", () => {
-    expect(MODALS.length).toBe(6);
+describe("the deck's seven overlays", () => {
+  it("has found all seven, so a new one cannot skip this file", () => {
+    // Six until #511 added the shortcuts sheet. Raising the number is how a
+    // dialog joins the sweep, not how one is excused from it: every assertion
+    // below is asked of the newcomer unchanged.
+    expect(MODALS.length).toBe(7);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -283,15 +286,16 @@ describe("the deck's six overlays", () => {
     }
   });
 
-  it("now says aria-modal on all six, because all six mean it", () => {
-    // It was on four. It is a claim about the rest of the document, so it was
-    // wrong on all four and missing on the two that behaved no differently.
+  it("now says aria-modal on all of them, because all of them mean it", () => {
+    // It was on four of the six. It is a claim about the rest of the document,
+    // so it was wrong on all four and missing on the two that behaved no
+    // differently.
     for (const f of MODALS) {
       expect(`${f}: ${dialogTag(read(f)).includes('aria-modal="true"')}`).toBe(`${f}: true`);
     }
   });
 
-  it("takes focus on open, in all six", () => {
+  it("takes focus on open, in every one of them", () => {
     // Either the modal names its own first stop, or the hook takes the dialog's
     // first control. What none of them may do any more is nothing.
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
@@ -303,8 +307,9 @@ describe("the deck's six overlays", () => {
   });
 
   it("lands the tool modal's default on its ×, which is its first control", () => {
-    // The one modal that names no focusRef, because the hook's own default is
-    // already the right answer there — and this is what makes that true.
+    // One of the two modals that name no focusRef — the shortcuts sheet is the
+    // other, for the same reason — because the hook's own default is already
+    // the right answer there, and this is what makes that true.
     const firstButton = (/<button(?:=>|[^>])*>/.exec(code(read("ToolModal.tsx"))) ?? [""])[0];
     expect(firstButton).toContain('aria-label="Close (Esc)"');
   });
