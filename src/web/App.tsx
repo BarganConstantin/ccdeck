@@ -2678,24 +2678,9 @@ function Inner() {
               <button
                 className="btn icon-btn"
                 onClick={(e) => {
-                  // Shift-click restores the hooks the user wrote. A modifier
+                  // Shift-click restores the user's own hooks. A modifier
                   // rather than another button: it is a one-off recovery, not a
                   // control that earns permanent space in the toolbar.
-                  //
-                  // Written without an apostrophe, and that is not a style
-                  // choice. control-edges.test.ts identifies a control by
-                  // scanning from `<button` to the `>` that closes the tag,
-                  // counting braces and tracking quotes — and a lone apostrophe
-                  // in a line comment inside a JSX brace opens a string that
-                  // nothing in the tag ever closes. The scan then spends its
-                  // whole 4000-character budget past the end of this button and
-                  // harvests every className it passes as though each one
-                  // belonged to this control. That was harmless while the button
-                  // sat third in a flat row of eight; grouping the bar into runs
-                  // moved it to the end, which brought the connection banner and
-                  // the version banner inside the window and had the sweep
-                  // demand an accessible edge from two things that are not
-                  // controls at all.
                   if (e.shiftKey && soundParked > 0) {
                     setSoundBusy(true);
                     fetch("/api/sound-hook", {
