@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import AddAccountDialog from "./AddAccountDialog";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
+import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import {
@@ -264,6 +265,20 @@ export default function AccountsPanel({ onClose }: Props) {
   // Nothing else on screen says so — both accounts simply appear where they
   // were not — so the slot row says it, in the block that did it.
   const [swapNote, setSwapNote] = useState<SwapNote | null>(null);
+  // What the slot picker is SHOWING, which is no longer what the store holds.
+  // A select fires `change` on any keystroke that matches an option, so a
+  // single `s` used to move an account and, into a taken slot, a second one
+  // with it (#516). The picker proposes now and the button beside it commits.
+  // Null is the account own slot, which is where the picker opens; only one
+  // manage block is ever open, so one draft covers the panel.
+  const [slotDraft, setSlotDraft] = useState<number | null>(null);
+  // Which block just had its slot control pressed with nothing to send. Same
+  // transient confirmation `save` gives an alias that was already stored.
+  const [slotDone, setSlotDone] = useState<number | null>(null);
+  // The same two for the auto-switch threshold, which had the same defect with
+  // a setting write on the other end. Null follows whatever the store holds.
+  const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
+  const [thresholdSaved, setThresholdSaved] = useState(false);
 
   // A reload the user asked for, and the same one on a timer. Only the forced
   // half touches `reloading`: a poll blinking the ↻ every 15 seconds would read
@@ -356,6 +371,12 @@ export default function AccountsPanel({ onClose }: Props) {
   // one claude-swap measures against — so this costs nothing to show and
   // answers the question the threshold setting otherwise leaves hanging.
   const threshold = auto?.settings["autoswitch.threshold"]?.value ?? "90";
+  // The percentage the picker is showing, which is a proposal until it is
+  // saved. The live number below races the STORED one, because that is the
+  // number claude-swap actually measures against — an unsaved pick moves
+  // nothing and must not move the warning colour either.
+  const thresholdPick = thresholdDraft ?? threshold;
+  const thresholdCtl = thresholdCommit(thresholdPick, threshold);
   const activeAcct = data?.accounts?.find(a => a.active);
   const activePct = activeAcct?.lanes.length
     ? Math.max(...activeAcct.lanes.map(l => l.pct))
@@ -434,7 +455,47 @@ export default function AccountsPanel({ onClose }: Props) {
       setSwapNote(next.swapNote);
       const note = next.swapNote;
       if (note) window.setTimeout(() => setSwapNote(n => (n === note ? null : n)), SWAP_NOTE_MS);
+      // The account is where the picker said, so the picker has nothing left to
+      // propose. A refused move keeps the draft: the block stays open on the
+      // pick the user made, ready to be pressed again under the failure box.
+      setSlotDraft(null);
     }
+    return out;
+  };
+
+  /**
+   * Act on the slot showing in the picker, because the user said so.
+   *
+   * This is the whole of #516. A `<select>` changes value on a keystroke and
+   * fires `change` for it, so the picker cannot be the thing that acts — one
+   * `s` matched `slot 3 · swap` by type-ahead and traded two accounts with no
+   * confirmation and no undo. The press is the decision now, and slotCommit
+   * decides what the press means from the choice alone.
+   *
+   * Both endings confirm, which is what `save` does one row above: a pick that
+   * is already where the account lives has nothing to send and is not a
+   * failure, and a pick that moved it is answered by the block following the
+   * account into its new slot.
+   */
+  const doSlot = async (from: number, to: number, commit: PickerCommit) => {
+    if (commit.sends) {
+      const out = await doMove(from, to);
+      if (!out?.ok) return;
+    }
+    setSlotDone(from);
+    window.setTimeout(() => setSlotDone(n => (n === from ? null : n)), SAVED_MS);
+  };
+
+  /** The same rule for the threshold: the picker proposes, `save` stores it. */
+  const doThreshold = async (pick: string, commit: PickerCommit) => {
+    if (commit.sends) {
+      const out = await post({ action: "setting", key: "autoswitch.threshold", value: pick }, "threshold");
+      await load(true);
+      if (!out?.ok) return;
+      setThresholdDraft(null);
+    }
+    setThresholdSaved(true);
+    window.setTimeout(() => setThresholdSaved(false), SAVED_MS);
   };
 
   return (
@@ -542,6 +603,8 @@ export default function AccountsPanel({ onClose }: Props) {
                     setShareCopied(false);
                     setSwapNote(null);
                     setAliasSaved(null);
+                    setSlotDraft(null);
+                    setSlotDone(null);
                   }}>⋯</button>
                 {a.active
                   ? <span className="ap-badge-active">● active</span>
@@ -656,7 +719,48 @@ export default function AccountsPanel({ onClose }: Props) {
                     >{aliasSaved === a.num ? "saved" : "save"}</button>
                   </div>
 
-                  {/* Three verbs on one line. They were three labelled rows —
+                  {/* The picker and the press that acts on it, paired the way
+                      the alias field above is paired with `save`. It had been
+                      alone on the verb row, acting on its own `change` — which
+                      a `<select>` fires for a keystroke as readily as for a
+                      pick, so one letter matched an option by type-ahead and
+                      moved an account, and into a taken slot moved a second one
+                      nobody pointed at (#516). Nothing is sent until the button
+                      is pressed, and the button says which of the two it will
+                      do. */}
+                  {(() => {
+                    const choices = slotChoices((data.accounts ?? []).map(x => x.num), a.num);
+                    const picked = slotShowing(choices, slotDraft, a.num);
+                    const commit = slotCommit(choices, picked, a.num);
+                    return (
+                      <div className="ap-manage-slot">
+                        <label className="vis-hidden" htmlFor={`ap-slot-${a.num}`}>Slot</label>
+                        <span className="ap-field">
+                          <select
+                            id={`ap-slot-${a.num}`}
+                            value={String(picked)}
+                            disabled={busy != null}
+                            onChange={e => setSlotDraft(Number(e.target.value))}
+                          >
+                            {/* `rotation order` named the number and never the
+                                effect; `swaps if the slot is taken` named the
+                                effect and left the reader to work out which
+                                slots those were — all of them but the last. On
+                                the options, the warning sits on the choice that
+                                carries it and the one harmless move is visible
+                                as the exception. */}
+                            {choices.map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
+                          </select>
+                        </span>
+                        <button type="button" className="ap-manage-btn" disabled={busy != null}
+                          title={commit.title}
+                          onClick={() => doSlot(a.num, picked, commit)}
+                        >{slotDone === a.num ? commit.done : commit.label}</button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Two verbs on one line. They were three labelled rows —
                       `slot`, `share` and a `remove` under its own rule — each
                       one a control with a word introducing it and a sentence
                       explaining it. None of the three needed either once the
@@ -664,24 +768,6 @@ export default function AccountsPanel({ onClose }: Props) {
                       the consequence per option, and a button called `share` is
                       not clarified by being told it is the share row. */}
                   <div className="ap-manage-acts">
-                    <label className="vis-hidden" htmlFor={`ap-slot-${a.num}`}>Slot</label>
-                    <span className="ap-field">
-                      <select
-                        id={`ap-slot-${a.num}`}
-                        value={String(a.num)}
-                        disabled={busy != null}
-                        onChange={e => doMove(a.num, Number(e.target.value))}
-                      >
-                        {/* `rotation order` named the number and never the
-                            effect; `swaps if the slot is taken` named the effect
-                            and left the reader to work out which slots those
-                            were — all of them but the last. On the options, the
-                            warning sits on the choice that carries it and the
-                            one harmless move is visible as the exception. */}
-                        {slotChoices((data.accounts ?? []).map(x => x.num), a.num)
-                          .map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
-                      </select>
-                    </span>
                     <button type="button" className="ap-manage-btn" disabled={busy != null}
                       /* It said "carries a live login and expires in 10
                          minutes", which reads as a lock with a timer on it. The
@@ -814,16 +900,25 @@ export default function AccountsPanel({ onClose }: Props) {
                   {activePct != null && (
                     <span className={`ap-auto-now${nearTrigger ? " near" : ""}`}>{Math.round(activePct)}%</span>
                   )}
+                  {/* The same pairing as the slot picker, for the same reason:
+                      this select wrote a setting per keystroke, `8` then `7`
+                      landing two writes (#516). Smaller blast radius, and it
+                      would have been the one control in the panel still acting
+                      on a key. */}
                   <span className="ap-field" title="Switch once the active account passes this much of its limit">
                     <select
                       aria-label="Switch threshold"
-                      value={threshold}
+                      value={thresholdPick}
                       disabled={busy != null}
-                      onChange={e => post({ action: "setting", key: "autoswitch.threshold", value: e.target.value }, "threshold").then(() => load(true))}
+                      onChange={e => setThresholdDraft(e.target.value)}
                     >
                       {THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
                     </select>
                   </span>
+                  <button type="button" className="ap-manage-btn" disabled={busy != null}
+                    title={thresholdCtl.title}
+                    onClick={() => doThreshold(thresholdPick, thresholdCtl)}
+                  >{thresholdSaved ? thresholdCtl.done : thresholdCtl.label}</button>
 
                   {/* Always a control, never a read-out. An earlier version
                       hid the toggle whenever a terminal loop was detected, on

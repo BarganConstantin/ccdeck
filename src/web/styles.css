@@ -4997,6 +4997,14 @@ button.tool.clickable:last-child { border-bottom: none; }
   align-items: center;
   gap: 10px;
   min-height: 24px;
+  /* The cluster gained a `save` in #516 — the threshold picker stopped writing
+     a setting on its own `change` and needs a press to act on — and it no
+     longer fits beside the title: 87px of caption and 10px of gap left 162px,
+     against the 193px the four controls now measure. Wrapping is the answer
+     rather than shrinking any of them, and it was already overdue: at 288px the
+     three-control version cleared this line by 19px, which a classic 15px
+     scrollbar on Windows and Linux took all but 4px of. */
+  flex-wrap: wrap;
 }
 .ap-auto-ctl {
   margin-left: auto;
@@ -5444,34 +5452,51 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   padding-top: 8px;
   border-top: 1px dashed var(--line-soft);
 }
-/* Two lines: what the account is called, then what can be done to it. It was
-   four — a 34px label gutter, a sentence of explanation and a control on each
-   of three rows, plus a fourth row under a rule holding one button — which
-   spent most of a 259px column introducing controls that could introduce
-   themselves. The labels are gone from the screen, not from the markup, and
-   the explanations moved onto the things they were explaining: the slot
-   picker's own options, and a button whose word is already its verb.
+/* Three lines: what the account is called, where it sits, then what can be
+   done to it. It was four — a 34px label gutter, a sentence of explanation and
+   a control on each of three rows, plus a fourth row under a rule holding one
+   button — which spent most of a 259px column introducing controls that could
+   introduce themselves. #325 cut that to two by taking the labels off the
+   screen (not out of the markup) and moving the explanations onto the things
+   they were explaining: the slot picker's own options, and a button whose word
+   is already its verb. Measured in the panel at its real 288px, 128px of block
+   became 64px.
 
-   Measured in the panel at its real 288px: 128px of block became 64px, with
-   both rows still ending on x273. */
-.ap-manage-name, .ap-manage-acts {
+   The third line is #516 buying back one of those rows on purpose. The slot
+   picker used to act on its own `change`, which a <select> fires for a
+   keystroke, so it needed a commit control beside it — and the verb row had
+   31px of slack, measured, against the 55px that control and its gap want.
+   Pairing it with its own line is also what it should have looked like: it is
+   a field with a press that acts on it, which is the shape of the name row
+   directly above it, and all three rows still end on the same x. */
+.ap-manage-name, .ap-manage-slot, .ap-manage-acts {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .ap-manage-input { flex: 1; }
+/* The picker takes the line and the press sits at the end of it, so the slot
+   row ends where `save` above it and `remove` below it do. A <select> is sized
+   by its widest option and would otherwise stop 100px short. `min-width: 0`
+   is the same guard `.ap-manage-input` carries: on Windows and Linux a classic
+   scrollbar takes 15px off this column and an intrinsic floor would push the
+   button out rather than let the box narrow. */
+.ap-manage-slot .ap-field { flex: 1; min-width: 0; }
+.ap-manage-slot .ap-field select { width: 100%; }
 /* Removing an account cannot be undone. It sat 6px from `share` before #325,
-   then on a row of its own 14px below it; here `margin-left: auto` puts 47px of
-   nothing between them — measured at the panel's 288px, and more than three
-   times the separation the extra row bought.
+   then on a row of its own 14px below it; here `margin-left: auto` puts the
+   whole rest of the row between them — 47px when the slot picker still shared
+   this line, 102px since #516 gave the picker its own, both measured at the
+   panel's 288px and both more than the separation the extra row bought.
 
-   The pinned width is the safety half. `remove` is 57px of text and `confirm`
-   is 58px, so 62px holds both and the button cannot resize as it arms — one
-   that grew would move out from under the second click, the one click that has
-   to land where the user aimed it. It is also why the armed word is `confirm`
-   and not `confirm remove`: that measures 99px, which with the select and
-   `share` totals 258px in a 259px column. The row would have fit by one pixel
-   and the separation above would have been gone. */
+   The pinned width is the safety half, and it is the half that has nothing to
+   do with how much room the row has. `remove` is 57px of text and `confirm` is
+   58px, so 62px holds both and the button cannot resize as it arms — one that
+   grew would move out from under the second click, the one click that has to
+   land where the user aimed it. The armed word stays `confirm` rather than
+   `confirm remove` for the same reason it always was: 99px is most of a 259px
+   column, and a control that wide leaves the distance above it with nothing to
+   be measured in. */
 .ap-manage-acts .ap-manage-btn.danger { margin-left: auto; min-width: 62px; }
 .ap-manage-hint { color: var(--text-dim); font-size: 10px; min-width: 0; }
 /* The one thing the block ever has to announce rather than label: a move that

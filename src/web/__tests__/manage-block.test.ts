@@ -431,20 +431,30 @@ describe("the ⋯ that opens all of it (2.5.8, and touch)", () => {
   });
 });
 
-describe("two rows, and the labels off the screen", () => {
+describe("flex rows, and the labels off the screen", () => {
   it("keeps no label gutter and no row grid at all", () => {
     // #325 put the three rows on a `34px minmax(0,1fr) auto` grid so they ended
     // on one x. The gutter is what went next: 34px of every 259px row spent
     // naming a control that names itself, on three rows, plus a fourth under a
-    // rule for one button. Two flex lines now — name, then verbs.
+    // rule for one button. Flex lines now — name, slot, then verbs.
+    //
+    // The count is not what this pins and never was; the gutter and the grid
+    // are. #516 took the slot picker off the verb row and gave it a line of its
+    // own, because a <select> that fires `change` on a keystroke cannot be the
+    // thing that acts and the commit control it needs did not fit — so the row
+    // is a field and a press, which is the name row's shape one line up. What
+    // must not come back is a column of words introducing controls that name
+    // themselves.
     expect(bare).not.toMatch(/\.ap-manage-row\b/);
     expect(bare).not.toMatch(/\.ap-manage-label\b/);
     expect(bare).not.toMatch(/\.ap-manage-foot\b/);
     expect(panelCode).not.toMatch(/ap-manage-row|ap-manage-label|ap-manage-foot/);
-    for (const row of [".ap-manage-name", ".ap-manage-acts"]) {
+    for (const row of [".ap-manage-name", ".ap-manage-slot", ".ap-manage-acts"]) {
       expect(decl(row, "display"), row).toBe("flex");
     }
+    // The field takes the line in both, so every row ends on the same x.
     expect(decl(".ap-manage-input", "flex")).toBe("1");
+    expect(decl(".ap-manage-slot .ap-field", "flex")).toBe("1");
   });
 
   it("separates the irreversible action by distance, not by a rule of its own", () => {
@@ -549,9 +559,12 @@ describe("microcopy (#325's eighth finding)", () => {
   });
 
   it("does not duplicate the notice #327 already shows after a swap", () => {
-    // A <select> commits on change, so there is no moment between "picked" and
-    // "happened" for a predictive hint to occupy. The line above is the rule
-    // that holds before any pick; this one is the fact after one.
+    // There IS a moment between "picked" and "happened" since #516 — the pick
+    // sits in the picker until the button is pressed — and it is still not a
+    // second line of prose. What holds it is the commit control itself, which
+    // reads `swap` for exactly the picks the options mark `· swap`; the sentence
+    // spelling out which second account moves is that button's title. So this
+    // line stays the one thing said in the block: the fact, after the move.
     expect(panelCode).toMatch(/swapped with slot \{swapNote\.displaced\}/);
     expect([...panelCode.matchAll(/swapped with slot/g)]).toHaveLength(1);
   });
