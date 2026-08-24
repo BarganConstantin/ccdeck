@@ -46,26 +46,38 @@
 export interface LaneLike { pct: number }
 
 export interface LaneSplit<T> {
-  /** The window that runs out first, which is the one worth reading. */
+  /** The lane the row shows at rest: the first one the server sent. */
   binding: T | null;
   /** The rest, in the order the server sent them. */
   rest: T[];
+  /** The fullest lane, when it is NOT the one being shown. Null otherwise.
+   *
+   *  The row used to lead with this one, because it is the window that decides
+   *  when auto-switch trips. It leads with the first lane instead now — `5h` on
+   *  every account that has one — because that is the window people read the
+   *  account by, and a row whose label changed from `5h` to `7d` when the
+   *  pressure moved made the column unscannable. Nothing is lost: when a hidden
+   *  lane is fuller than the shown one, the disclosure says so and says which. */
+  fuller: T | null;
 }
 
 /**
- * The binding lane, and everything behind it.
+ * The lane the row leads with, and everything behind it.
  *
  * One function rather than two, so the row and its disclosure cannot disagree
- * about which lane is showing: `rest` is defined as "the lanes that are not the
- * one `binding` picked", not as "the lanes after a sort".
+ * about which lane is showing: `rest` is defined as "the lanes after the first",
+ * not as "the lanes after a sort". The server's order is the product's order —
+ * `5h`, then `7d`, then a lane per scoped model — and nothing here reorders it,
+ * so the label under an account is the same label tomorrow.
  */
 export function laneSplit<T extends LaneLike>(lanes: readonly T[]): LaneSplit<T> {
+  if (lanes.length === 0) return { binding: null, rest: [], fuller: null };
+  const [binding, ...rest] = lanes;
   let at = -1;
-  for (let i = 0; i < lanes.length; i++) {
-    if (at < 0 || lanes[i].pct > lanes[at].pct) at = i;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i].pct > binding.pct && (at < 0 || rest[i].pct > rest[at].pct)) at = i;
   }
-  if (at < 0) return { binding: null, rest: [] };
-  return { binding: lanes[at], rest: lanes.filter((_, i) => i !== at) };
+  return { binding, rest, fuller: at < 0 ? null : rest[at] };
 }
 
 /**
@@ -75,10 +87,25 @@ export function laneSplit<T extends LaneLike>(lanes: readonly T[]): LaneSplit<T>
  * control that opens nothing is worse than no control. The count is on the
  * closed state because that is where it answers a question — how much is not
  * being shown — and off the open state, where the answer is on screen.
+ *
+ * When a hidden window is fuller than the one on show, it takes the label
+ * instead of the count. The row leads with `5h` so the column stays readable,
+ * which means the window that actually decides when auto-switch trips can be
+ * the one folded away — and a row reading a calm 40% while 7d sits at 79% would
+ * be the panel lying by omission. The count is the weaker of the two facts and
+ * it survives in the hover sentence, so nothing is dropped. One line either
+ * way: `.ap-meta` is a 9px footer that already wraps on an errored row, and two
+ * facts side by side is what would push it over.
  */
-export function moreLabel(rest: number, open: boolean): string | null {
+export function moreLabel(
+  rest: number,
+  open: boolean,
+  fuller?: { label: string; pct: number } | null,
+): string | null {
   if (rest < 1) return null;
-  return open ? "fewer" : `${rest} more`;
+  if (open) return "fewer";
+  if (fuller) return `${fuller.label} ${Math.round(fuller.pct)}%`;
+  return `${rest} more`;
 }
 
 /**
@@ -99,7 +126,8 @@ export function lanesTitle(
 ): string {
   const lead = headroom == null
     ? "No usage has been collected for this account yet."
-    : `${Math.round(headroom)}% left on ${bindingLabel ?? "the tightest window"}, which is the window that runs out first.`;
+    : `${Math.round(headroom)}% left on the window that runs out first${
+        bindingLabel ? `, and this row leads with ${bindingLabel}` : ""}.`;
   const other = rest === 1 ? "the other window" : `the other ${rest} windows`;
   return `${lead} ${open ? "Hide" : "Show"} ${other}.`;
 }

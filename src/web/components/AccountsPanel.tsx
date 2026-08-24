@@ -653,9 +653,9 @@ export default function AccountsPanel({ onClose }: Props) {
       ) : (
         <>
           {data.accounts?.map(a => {
-            const { binding, rest } = laneSplit(a.lanes);
+            const { binding, rest, fuller } = laneSplit(a.lanes);
             const lanesOpen = openLanes.includes(a.num);
-            const more = moreLabel(rest.length, lanesOpen);
+            const more = moreLabel(rest.length, lanesOpen, fuller);
             return (
             <div key={a.num} className={`ap-account${a.active ? " active" : ""}`}>
               <div className="ap-account-head">

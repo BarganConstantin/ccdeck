@@ -51,30 +51,49 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 const lane = (id: string, pct: number) => ({ id, pct });
 
-describe("the lane that binds", () => {
-  it("is the highest one, whatever order the server sent them in", () => {
-    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 9)]).binding!.id).toBe("7d");
+describe("the lane the row leads with", () => {
+  it("is the first one the server sent, whatever the numbers say", () => {
+    // The row used to lead with the fullest lane. It led with a different label
+    // from one poll to the next, which is exactly what a column of accounts
+    // cannot afford: the eye finds a row by the shape it had last time. The
+    // server's order is the product's order — `5h`, then `7d`, then a lane per
+    // scoped model — and the row now inherits it unchanged.
+    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 9)]).binding!.id).toBe("5h");
     expect(laneSplit([lane("5h", 91), lane("7d", 44)]).binding!.id).toBe("5h");
-    expect(laneSplit([lane("5h", 0), lane("7d", 0), lane("opus", 1)]).binding!.id).toBe("opus");
+    expect(laneSplit([lane("5h", 0), lane("7d", 0), lane("opus", 1)]).binding!.id).toBe("5h");
+    // An account with no 5h reading leads with whatever the server did send.
+    expect(laneSplit([lane("7d", 3), lane("opus", 99)]).binding!.id).toBe("7d");
   });
 
-  it("resolves a tie to the earlier lane, so the row cannot flicker between two equal numbers", () => {
-    // The roster reloads every fifteen seconds and two windows sitting on the
-    // same percentage for a while is ordinary — 0% and 0% is the whole of a
-    // fresh account. A `>=` scan would hand the row a different label on every
-    // poll for as long as the tie lasted.
-    const tied = [lane("5h", 40), lane("7d", 40), lane("opus", 40)];
-    for (let i = 0; i < 20; i++) expect(laneSplit(tied).binding!.id).toBe("5h");
-    expect(laneSplit(tied).rest.map(l => l.id)).toEqual(["7d", "opus"]);
+  it("cannot change label between two polls, whatever moves underneath it", () => {
+    // The property the old highest-wins rule could not offer: the same roster
+    // read twenty times, with the pressure moving between the windows, still
+    // leads with the same lane every time.
+    for (let i = 0; i <= 20; i++) {
+      const lanes = [lane("5h", i * 5), lane("7d", 100 - i * 5), lane("opus", (i * 13) % 100)];
+      expect(laneSplit(lanes).binding!.id, `poll ${i}`).toBe("5h");
+    }
   });
 
   it("hands back everything else in the order it arrived, never sorted", () => {
-    // A row whose single bar changes its label from `5h` to `7d` is telling the
-    // reader the binding window moved, which is worth knowing. A list that
-    // re-sorts itself under them while they are reading it is not — and the two
-    // would look identical from one poll to the next.
+    // A list that re-sorts itself under the reader while they are reading it is
+    // not information. `rest` is defined as the lanes after the first, so it
+    // cannot be a sort by construction rather than by promise.
     const lanes = [lane("5h", 10), lane("7d", 90), lane("opus", 55), lane("sonnet", 70)];
-    expect(laneSplit(lanes).rest.map(l => l.id)).toEqual(["5h", "opus", "sonnet"]);
+    expect(laneSplit(lanes).rest.map(l => l.id)).toEqual(["7d", "opus", "sonnet"]);
+  });
+
+  it("names the fullest hidden lane, and only when it really is fuller", () => {
+    // What the change costs and how it is paid back. The window that decides
+    // when auto-switch trips can now be one of the folded ones, so the split
+    // reports it and the disclosure wears it. Null whenever the lane on show is
+    // already the fullest, so the row says nothing it does not have to.
+    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 9)]).fuller!.id).toBe("7d");
+    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 91)]).fuller!.id).toBe("opus");
+    expect(laneSplit([lane("5h", 91), lane("7d", 44)]).fuller).toBeNull();
+    expect(laneSplit([lane("5h", 40), lane("7d", 40)]).fuller).toBeNull();  // a tie is not fuller
+    expect(laneSplit([lane("5h", 3)]).fuller).toBeNull();
+    expect(laneSplit([]).fuller).toBeNull();
   });
 
   it("is total over the lane counts the server can actually produce", () => {
@@ -84,7 +103,7 @@ describe("the lane that binds", () => {
     expect(server).toMatch(/lane\("five_hour", "5h"/);
     expect(server).toMatch(/lane\("seven_day", "7d"/);
     expect(server).toMatch(/\.map\(\(s, i\) => lane\(`scoped-\$\{i\}`/);
-    expect(laneSplit([])).toEqual({ binding: null, rest: [] });
+    expect(laneSplit([])).toEqual({ binding: null, rest: [], fuller: null });
     const one = laneSplit([lane("5h", 3)]);
     expect(one.binding!.id).toBe("5h");
     expect(one.rest).toEqual([]);
@@ -92,7 +111,7 @@ describe("the lane that binds", () => {
       const lanes = Array.from({ length: n }, (_, i) => lane(`l${i}`, i * 7 % 100));
       const split = laneSplit(lanes);
       expect(split.rest.length, `${n} lanes`).toBe(Math.max(0, n - 1));
-      if (n) expect(Math.max(...lanes.map(l => l.pct))).toBe(split.binding!.pct);
+      if (n) expect(split.binding!.id, `${n} lanes`).toBe(lanes[0].id);
       // Nothing is lost and nothing is duplicated.
       const back = [...(split.binding ? [split.binding] : []), ...split.rest].map(l => l.id).sort();
       expect(back, `${n} lanes`).toEqual(lanes.map(l => l.id).sort());
@@ -104,9 +123,14 @@ describe("the lane that binds", () => {
     // silence: if that arithmetic ever changes, the row is showing a lane the
     // headroom in its own tooltip is not about.
     expect(server).toMatch(/headroom: lanes\.length \? Math\.max\(0, 100 - Math\.max\(\.\.\.lanes\.map\(l => l\.pct\)\)\) : null/);
+    // The headroom is still about the fullest window, and the row no longer
+    // leads with that window — so the two can disagree, and the split has to
+    // say which lane the headroom is about. Whichever of `binding` and `fuller`
+    // is the fullest is the one it belongs to.
     for (const lanes of [[lane("a", 12), lane("b", 88)], [lane("a", 0)], [lane("a", 100), lane("b", 3)]]) {
       const headroom = Math.max(0, 100 - Math.max(...lanes.map(l => l.pct)));
-      expect(100 - laneSplit(lanes).binding!.pct).toBe(headroom);
+      const { binding, fuller } = laneSplit(lanes);
+      expect(100 - (fuller ?? binding!).pct).toBe(headroom);
     }
   });
 });
@@ -127,8 +151,11 @@ describe("what the disclosure says", () => {
 
   it("leads its sentence with the headroom the panel had never rendered", () => {
     const shut = lanesTitle(19, "5h", 2, false);
-    expect(shut).toMatch(/^19% left on 5h/);
-    expect(shut).toMatch(/runs out first/);
+    // The headroom is about the fullest window; the row leads with the first.
+    // Since those can now be different lanes, the sentence says both rather
+    // than naming one and letting the reader assume it is the other.
+    expect(shut).toMatch(/^19% left on the window that runs out first/);
+    expect(shut).toMatch(/leads with 5h/);
     expect(shut).toMatch(/Show the other 2 windows\./);
     expect(lanesTitle(19, "5h", 2, true)).toMatch(/Hide the other 2 windows\./);
     // One window reads as one window rather than as "1 windows".
@@ -143,7 +170,7 @@ describe("what the disclosure says", () => {
 describe("the row renders one lane, and the panel reads the same function", () => {
   it("no longer maps every lane straight into the row", () => {
     expect(panelCode).not.toMatch(/a\.lanes\.map\(l => <LaneBar/);
-    expect(panelCode).toMatch(/const \{ binding, rest \} = laneSplit\(a\.lanes\);/);
+    expect(panelCode).toMatch(/const \{ binding, rest, fuller \} = laneSplit\(a\.lanes\);/);
     expect(panelCode).toMatch(/<LaneBar lane=\{binding\} nowSec=\{nowSec\} \/>/);
     // The rest exist only while the row is open.
     expect(panelCode).toMatch(/\{lanesOpen && rest\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} \/>\)\}/);
@@ -181,7 +208,7 @@ describe("the row renders one lane, and the panel reads the same function", () =
     const meta = /<div className="ap-meta">([\s\S]*?)<\/div>\s*\n\s*\{menuFor/.exec(panelCode)![1];
     expect(meta).toMatch(/className="ap-lanes-more"/);
     expect(meta).toMatch(/\{more && \(/);
-    expect(panelCode).toMatch(/const more = moreLabel\(rest\.length, lanesOpen\);/);
+    expect(panelCode).toMatch(/const more = moreLabel\(rest\.length, lanesOpen, fuller\);/);
   });
 
   it("draws it in the tier the footer already speaks, not as a fourth control language", () => {
