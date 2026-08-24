@@ -15,6 +15,16 @@
 // the title still says both, since resuming a deck whose stream is dead is a
 // thing a user will otherwise try.
 //
+// The count then came the rest of the way in. Pause was the last text button in
+// a bar every other control had been reduced or removed from, and it is a
+// canvas verb like the two that left in #527 — it freezes the canvas — so it
+// went down to the React Flow control stack with Re-arrange and Clear. The one
+// thing holding it back was the state it carried: `Resume · 42 held` is a
+// control reporting a queue, and no glyph can do that. It did not have to. The
+// pill already knew the number — its title has counted the queue since #504 —
+// so the label says it now, and the fact stops being split between a pill at
+// one end of the bar and a button at the other.
+//
 // Out of App.tsx because the precedence between the two flags is the whole
 // rule, and there is no DOM here to render a pill in.
 
@@ -22,6 +32,24 @@ export interface StatusPill {
   /** Modifier class on `.pill`, and the word it shows. */
   tone: "live" | "paused" | "dead";
   label: string;
+  /**
+   * The longest label THIS TONE can ever show, for the pill to reserve.
+   *
+   * Per tone rather than one string for all three, and the difference is the
+   * whole of what is being bought. What moves on its own is the count: while
+   * the deck is paused it climbs unbidden, up to once a second, and every digit
+   * it gains would walk the machine meter, the tokens and the cost along with
+   * it — the pill leads the readout run, so everything after it is downstream
+   * of its width. That is #504 one bar over. What does NOT move on its own is
+   * the tone: `live` becomes `paused` because somebody pressed Space, and
+   * `dead` arrives with a banner that redraws the top of the page anyway.
+   * Pinning all three to `paused · 99+` would spend that worst case
+   * permanently — measured, a resting `live` pill goes from 49.89px to 102.64px
+   * and holds the extra 52.75px for as long as the deck is running — to still
+   * the one transition a user causes by hand. So each tone reserves its own
+   * worst case, and the count never moves anything.
+   */
+  widest: string;
   title: string;
 }
 
@@ -31,17 +59,18 @@ export function heldEvents(held: number): string {
   return `${n} event${n === 1 ? "" : "s"}`;
 }
 
-/** The point past which the BUTTON stops counting and says "99+" (#504).
+/** The point past which the PILL stops counting and says "99+" (#504).
  *
- *  Only the button. The count is exact everywhere it does not change the shape
- *  of a control — the button's own title says it in full, and so does the
- *  pill's. What the cap buys is a label whose length is bounded by
- *  construction: without it `held` walks 9 → 10 → 100 → 1000 and the string
- *  gains a character at each boundary, which on a content-sized button is a
- *  control that changes width while you are reading it. A ceiling is not the
- *  whole fix — the box is pinned as well, see PAUSE_WIDEST_LABEL — but it is
- *  the half that means the widest label is a string this file can name rather
- *  than a limit somebody has to guess at.
+ *  Only the pill — the button that used to carry this cap has left the bar, and
+ *  the reasoning came with it unchanged, because it was never about which
+ *  element the string sat in. The count is exact everywhere it does not change
+ *  the shape of something: the pill's own title says it in full. What the cap
+ *  buys is a label whose length is bounded by construction. Without it `held`
+ *  walks 9 → 10 → 100 → 1000 and the string gains a character at each boundary,
+ *  which on a content-sized element is a box that changes width while you are
+ *  reading it. A ceiling is not the whole fix — the box is pinned as well, see
+ *  `widest` above — but it is the half that means the widest label is a string
+ *  this file can name rather than a limit somebody has to guess at.
  *
  *  99 rather than 999: past a hundred held events the exact figure has stopped
  *  being actionable — "a lot arrived, resuming will take a moment" is the whole
@@ -50,25 +79,38 @@ export function heldEvents(held: number): string {
  *  not the deck ever reaches it. */
 export const HELD_LABEL_CAP = 99;
 
-/** The held count as the button writes it: exact to the cap, "99+" past it. */
+/** The held count as the pill writes it: exact to the cap, "99+" past it. */
 export function heldShort(held: number): string {
   const n = Math.max(0, Math.floor(held));
   return n > HELD_LABEL_CAP ? `${HELD_LABEL_CAP}+` : String(n);
 }
 
-/** The longest label pauseButton can ever return.
+/** The accessible name of the pause control, in BOTH states.
  *
- *  Rendered invisibly inside the button, in the same grid cell as the live
- *  label, so the control measures itself against its own worst case in
- *  whatever font the platform hands it. A `min-width` in pixels would have
- *  been this sheet's usual idiom and is the wrong tool here: the number would
- *  be measured in -apple-system on the machine that wrote it and applied to
- *  Segoe UI on Windows and whatever fontconfig picks on Linux, where a wider
- *  face simply overruns it and the reflow comes back. Deriving the string from
- *  HELD_LABEL_CAP rather than spelling it out is the other half — the ghost
- *  and the labels cannot drift apart, because a change to the cap rewrites
- *  both. */
-export const PAUSE_WIDEST_LABEL = `Resume · ${HELD_LABEL_CAP}+ held`;
+ *  It does not flip to "Resume", and that is the price of reporting state as
+ *  state. The control carries `aria-pressed`, which a reader announces as a
+ *  property of a name that stays put — "Pause the canvas, toggle button,
+ *  pressed" is a sentence; "Resume the canvas, toggle button, pressed" is two
+ *  contradictory halves. The same rule the sound switch in the bar above
+ *  follows: a stable name, the state in the attribute the tree reads. What flips
+ *  is `pauseTitle` below, which is a description and is allowed to be one. */
+export const PAUSE_LABEL = "Pause the canvas";
+
+/** The pause control's tooltip. The half that does flip.
+ *
+ *  The label is capped and the title is not, which is the whole of the split:
+ *  the pill's label sits in a box whose width the readouts after it depend on,
+ *  and a tooltip can be any length it likes. So the pill says "99+" and this
+ *  says "231 events".
+ *
+ *  These are the three sentences the topbar button carried, unchanged, for the
+ *  reason #527 gave when it moved Re-arrange and Clear: the strings a user
+ *  already knows survive the move, and only the box around them changes. */
+export function pauseTitle(s: { paused: boolean; held: number }): string {
+  if (!s.paused) return "Pause live updates — events keep arriving and are applied when you resume (Space)";
+  if (s.held <= 0) return "Nothing has arrived since you paused. Resume to follow the canvas again (Space)";
+  return `${heldEvents(s.held)} arrived while paused and will be applied in order when you resume (Space)`;
+}
 
 /**
  * The half of the status pill's `title` that exists nowhere else on the page,
@@ -110,11 +152,27 @@ export function outageSentence(s: { connected: boolean; paused: boolean }): stri
   return "The canvas is paused as well — Space resumes it, but nothing new arrives until the stream is back.";
 }
 
+/** The paused pill counts its queue in the label as well as the title.
+ *
+ *  `paused · 42`, and no separator at all at zero: a pause that has held
+ *  nothing is not a queue of length nought, it is a queue that has not started,
+ *  and "paused · 0" would be a number drawing attention to itself for having
+ *  nothing to report. The box does not collapse with the text — `widest` keeps
+ *  it — so dropping the separator costs no movement.
+ *
+ *  Deliberately NOT the button's `Resume · 42 held` wording. That string had to
+ *  name a verb, because it was printed on the thing you press; this one is a
+ *  readout, and what a readout owes is the state and the number. The unit is
+ *  not lost with the verb — it moves to the title, which has room for "42
+ *  events held until you resume" and no box to fit it in. */
+const pausedLabel = (held: number) => (held > 0 ? `paused · ${heldShort(held)}` : "paused");
+
 export function statusPill(s: { connected: boolean; paused: boolean; held: number }): StatusPill {
   if (!s.connected) {
     return {
       tone: "dead",
       label: "offline",
+      widest: "offline",
       title: s.paused
         ? "SSE disconnected — and the canvas is paused, so resuming will not bring events back until it reconnects"
         : "SSE disconnected",
@@ -123,27 +181,17 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
   if (s.paused) {
     return {
       tone: "paused",
-      label: "paused",
+      label: pausedLabel(s.held),
+      // Every label this tone can render is `paused · ` plus one of "0".."99"
+      // or "99+", and "99+" is "99" with one more glyph on the end — so with
+      // tabular figures on the box, no other label can be wider. That is an
+      // argument from construction rather than from a measurement, which is
+      // what a string shipped to three font stacks needs.
+      widest: `paused · ${HELD_LABEL_CAP}+`,
       title: s.held > 0
         ? `Connected — ${heldEvents(s.held)} held until you resume (Space)`
         : "Connected — updates held until you resume (Space)",
     };
   }
-  return { tone: "live", label: "live", title: "Receiving events" };
-}
-
-/** The Pause/Resume button. The count belongs to the queue, so it is said in
- *  the queue's terms rather than left as a number beside a verb.
- *
- *  The label is capped and the title is not, which is the whole of the split:
- *  the label sits in a box whose width other controls depend on, and the title
- *  is a tooltip that can be any length it likes. So the button says "99+" and
- *  the tooltip says "231 events". */
-export function pauseButton(s: { paused: boolean; held: number }): { label: string; title: string } {
-  if (!s.paused) return { label: "Pause", title: "Pause live updates — events keep arriving and are applied when you resume (Space)" };
-  if (s.held <= 0) return { label: "Resume", title: "Nothing has arrived since you paused. Resume to follow the canvas again (Space)" };
-  return {
-    label: `Resume · ${heldShort(s.held)} held`,
-    title: `${heldEvents(s.held)} arrived while paused and will be applied in order when you resume (Space)`,
-  };
+  return { tone: "live", label: "live", widest: "live", title: "Receiving events" };
 }

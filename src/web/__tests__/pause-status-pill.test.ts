@@ -14,8 +14,21 @@
 // These pin the three-state pill, the precedence between disconnected and
 // paused, and the fact that every place the held queue is counted also says
 // what it is counting.
+//
+// The count has since come the whole way in. The button that carried it left
+// the topbar for the canvas control stack — it is a canvas verb like the two
+// that went in #527, and the only thing that had held it back was the state it
+// printed, which is a job a glyph cannot do. It did not have to: the pill had
+// been counting the same queue in its title since this file was written, so the
+// label says it now and the fact stops being split across two ends of a row.
+// What that costs is a box whose width the readouts after it depend on, and the
+// cases below are the half of the answer that can be called from node — the
+// label, its cap, and the ghost string the pill reserves. The other half is
+// geometry and lives in topbar-interaction.test.ts.
 import { describe, it, expect } from "vitest";
-import { heldEvents, pauseButton, statusPill } from "../status-pill";
+import {
+  HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL, pauseTitle, statusPill,
+} from "../status-pill";
 
 describe("the status pill", () => {
   it("says live only while the deck is connected and following the stream", () => {
@@ -28,7 +41,7 @@ describe("the status pill", () => {
   it("says paused, not live, once the canvas is frozen", () => {
     const pill = statusPill({ connected: true, paused: true, held: 12 });
     expect(pill.tone).toBe("paused");
-    expect(pill.label).toBe("paused");
+    expect(pill.label).toBe("paused · 12");
   });
 
   it("explains that a paused deck is still connected, and how many events that has held", () => {
@@ -56,34 +69,101 @@ describe("the status pill", () => {
   });
 });
 
-describe("the pause button", () => {
-  it("gives the held count a unit instead of leaving a bare number beside a verb", () => {
-    expect(pauseButton({ paused: true, held: 42 }).label).toBe("Resume · 42 held");
+describe("the count, now that the pill is the thing that carries it", () => {
+  it("puts the queue in the label and not only in the tooltip", () => {
+    // The half that moved. `Resume · 42 held` was printed on a button at the far
+    // end of the bar while the pill five hundred pixels to the left said only
+    // `paused` — one fact, two elements, and a user reading either one alone
+    // getting half of it.
+    expect(statusPill({ connected: true, paused: true, held: 42 }).label).toBe("paused · 42");
   });
 
-  it("says in full what the number means, where the title used to be generic", () => {
-    const btn = pauseButton({ paused: true, held: 42 });
-    expect(btn.title).toBe("42 events arrived while paused and will be applied in order when you resume (Space)");
-    expect(btn.title).not.toBe("Pause/resume live updates (Space)");
+  it("drops the separator at zero, rather than printing a nought", () => {
+    // A pause that has held nothing is not a queue of length zero, it is a
+    // queue that has not started. `paused · 0` would be a number asking to be
+    // read for having nothing to say. The box does not collapse with it — see
+    // `widest` below — so this costs no movement.
+    expect(statusPill({ connected: true, paused: true, held: 0 }).label).toBe("paused");
   });
 
-  it("drops the count when nothing has arrived, rather than showing a zero", () => {
-    const btn = pauseButton({ paused: true, held: 0 });
-    expect(btn.label).toBe("Resume");
-    expect(btn.title).toContain("Nothing has arrived since you paused");
+  it("caps the label and never the title, which is the whole of the split", () => {
+    // The label sits in a box the readouts after it depend on; a tooltip can be
+    // any length it likes. So the pill says "99+" and the sentence says "231
+    // events" — the unit that was the other finding this file was written for.
+    expect(statusPill({ connected: true, paused: true, held: HELD_LABEL_CAP }).label)
+      .toBe(`paused · ${HELD_LABEL_CAP}`);
+    expect(statusPill({ connected: true, paused: true, held: HELD_LABEL_CAP + 1 }).label)
+      .toBe(`paused · ${HELD_LABEL_CAP}+`);
+    expect(statusPill({ connected: true, paused: true, held: 999999 }).label)
+      .toBe(`paused · ${HELD_LABEL_CAP}+`);
+    expect(statusPill({ connected: true, paused: true, held: 231 }).title).toContain(heldEvents(231));
   });
 
-  it("promises, while running, that pausing loses nothing", () => {
-    const btn = pauseButton({ paused: false, held: 0 });
-    expect(btn.label).toBe("Pause");
-    expect(btn.title).toContain("applied when you resume");
+  it("reserves the widest label its own tone can reach, and nobody else's", () => {
+    // Per tone, and that is the decision rather than an implementation detail.
+    // The count climbs unbidden and would walk every readout after the pill;
+    // the TONE changes because a user pressed Space. Pinning all three to
+    // `paused · 99+` would spend that worst case permanently to still the one
+    // transition somebody causes by hand.
+    expect(statusPill({ connected: true, paused: false, held: 0 }).widest).toBe("live");
+    expect(statusPill({ connected: false, paused: false, held: 0 }).widest).toBe("offline");
+    for (const held of [0, 1, 9, 10, 42, 99, 100, 150, 999, 123456]) {
+      expect(statusPill({ connected: true, paused: true, held }).widest).toBe(`paused · ${HELD_LABEL_CAP}+`);
+    }
+  });
+
+  it("cannot be overrun by any label it will actually render", () => {
+    // The ghost has to be an upper bound by CONSTRUCTION, not by measurement —
+    // it is shipped to three font stacks. Every paused label is `paused · `
+    // plus one of "0".."99" or "99+", and "99+" is "99" with one more glyph on
+    // the end, so with tabular figures on the box nothing can be wider. This is
+    // that argument as arithmetic.
+    const counts = new Set<string>();
+    for (const held of [0, 1, 2, 9, 10, 11, 42, 98, 99, 100, 101, 150, 999, 1000, 123456]) {
+      const pill = statusPill({ connected: true, paused: true, held });
+      expect(pill.label.length, `"${pill.label}" is longer than the box`)
+        .toBeLessThanOrEqual(pill.widest.length);
+      expect(pill.label.startsWith("paused"), pill.label).toBe(true);
+      counts.add(pill.label.replace(/^paused(?: · )?/, ""));
+    }
+    // Only one form carries three characters where the count goes, and it is
+    // the capped one. Everything else is at most two digits.
+    expect([...counts].filter(c => c.length > 2)).toEqual([`${HELD_LABEL_CAP}+`]);
+    expect(heldShort(HELD_LABEL_CAP + 1)).toBe(`${HELD_LABEL_CAP}+`);
   });
 
   it("counts one event in the singular, everywhere the queue is named", () => {
     expect(heldEvents(1)).toBe("1 event");
     expect(heldEvents(2)).toBe("2 events");
     expect(heldEvents(0)).toBe("0 events");
-    expect(pauseButton({ paused: true, held: 1 }).title).toContain("1 event arrived");
+    expect(pauseTitle({ paused: true, held: 1 })).toContain("1 event arrived");
     expect(statusPill({ connected: true, paused: true, held: 1 }).title).toContain("1 event held");
+  });
+});
+
+describe("the pause control, which is a glyph on the canvas now", () => {
+  it("keeps the three sentences the button carried, unchanged", () => {
+    // #527's rule when it moved Re-arrange and Clear: the strings a user
+    // already knows survive the move, and only the box around them changes.
+    expect(pauseTitle({ paused: true, held: 42 }))
+      .toBe("42 events arrived while paused and will be applied in order when you resume (Space)");
+    expect(pauseTitle({ paused: true, held: 0 })).toContain("Nothing has arrived since you paused");
+    expect(pauseTitle({ paused: false, held: 0 })).toContain("applied when you resume");
+  });
+
+  it("names the key in every one of them, because the key is how it is used", () => {
+    for (const paused of [true, false]) {
+      for (const held of [0, 7]) expect(pauseTitle({ paused, held })).toContain("(Space)");
+    }
+  });
+
+  it("does not flip its accessible name, because the state is in aria-pressed", () => {
+    // A toggle announces as a name plus a property. "Pause the canvas, toggle
+    // button, pressed" is a sentence; "Resume the canvas, toggle button,
+    // pressed" is two halves contradicting each other. The name is a constant
+    // for exactly that reason, and it is the title that flips.
+    expect(PAUSE_LABEL).toBe("Pause the canvas");
+    expect(PAUSE_LABEL).not.toMatch(/resume/i);
+    expect(pauseTitle({ paused: true, held: 0 })).not.toBe(pauseTitle({ paused: false, held: 0 }));
   });
 });

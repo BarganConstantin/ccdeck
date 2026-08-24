@@ -598,9 +598,12 @@ button:focus-visible { outline-offset: 1px; }
   box-shadow: 0 0 7px var(--warn);
   animation: pulse 2.4s infinite;
 }
-/* The three runs of controls, and the distance between runs rather than between
+/* The runs of controls, and the distance between runs rather than between
    buttons — the 8px that used to be this rule's gap now lives on .action-run,
    one step down, where it says "these two are the same kind of thing".
+   Three runs when this rule was written and two since Pause left for the canvas
+   control stack; the 18px is a claim about the seam between two runs and does
+   not care how many there are.
    `flex: none` is the deliberate half. Every flex item shrinks by default, so
    under compression the bar used to take width from whatever gave first, which
    included the controls. It never should: a readout that has been squeezed off
@@ -618,52 +621,6 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   gap: 8px;
 }
-
-/* One box for three labels (#504).
-   Pause is the only control in this bar whose content changes, and it changes
-   by a lot: `Pause`, `Resume` and `Resume · 99+ held` are 60, 71 and 133 pixels
-   of the same button at this font. It was content-sized — horizontal padding
-   and nothing else — so pressing Space resized it, and it kept resizing as the
-   held count crossed 9, 99, 999.
-   What that moved is worth stating precisely, because the obvious answer is
-   wrong: it is NOT the eight buttons after it. `.actions` is `flex: none` on a
-   `space-between` bar, so the three control runs stay pinned to the right edge
-   and none of them shifts. What moves is this button itself — 45px left at
-   1470, measured — and the selected-agent ribbon, which slides by half the
-   delta because the free space is split between the two gaps around it. A
-   control that walks out from under the pointer at the moment it changes what
-   it does is the defect either way.
-   No transition, deliberately, and the reason is the same one that made the
-   `.sd-core-fill` conversion worth doing: easing this means easing `width`,
-   which is layout, runs on the main thread, and would owe reduced motion an
-   answer under this sheet's own rules. A smoothly animated reflow is still a
-   reflow.
-   `inline-grid` with one named cell, so the invisible widest label and the live
-   one stack rather than sit side by side. The button therefore measures itself
-   against its own worst case in whatever font the platform supplies, which a
-   pixel `min-width` cannot do — see PAUSE_WIDEST_LABEL for why that mattered
-   more than the shorter rule it replaced.
-   `tabular-nums` is the last of it. The box no longer moves, but the label is
-   centred inside it, so without equal-width digits `Resume · 11 held` and
-   `Resume · 99 held` would still shuffle the text a pixel or two within a box
-   that is standing still. */
-.topbar .actions .pause-btn {
-  display: inline-grid;
-  grid-template-areas: "pause-label";
-  align-items: center;
-  justify-items: center;
-  font-variant-numeric: tabular-nums;
-}
-.topbar .actions .pause-widest,
-.topbar .actions .pause-label {
-  grid-area: pause-label;
-  white-space: nowrap;
-}
-/* Out of the picture and out of the accessible tree — `visibility: hidden`
-   removes it from both, and the `aria-hidden` on the element says so a second
-   time for anything that reads the markup rather than the computed style. All
-   it contributes is its width. */
-.topbar .actions .pause-widest { visibility: hidden; }
 
 /* Selected-agent ribbon — context chip that follows you across the canvas
    when an agent is selected. Click → fit-view to that agent. The × on
@@ -1277,6 +1234,53 @@ button:focus-visible { outline-offset: 1px; }
 .topbar .status .pill::before {
   transition: background-color 200ms ease, box-shadow 200ms ease;
 }
+/* One box, every count (#504, relocated).
+   The pill leads the readout strip, so its width is upstream of the machine
+   meter, the tokens and the cost — everything to its right slides when it
+   grows. That did not matter while the label was one of three fixed words. It
+   matters now that the paused label carries the held queue, because the queue
+   climbs on its own: `paused · 9` → `paused · 10` is a digit nobody asked for
+   and three readouts moving because of it.
+   `inline-grid` with one named cell, so the invisible widest label and the live
+   one stack instead of sitting side by side, and the box measures its own worst
+   case in whatever face the platform supplies. A pixel `min-width` is this
+   sheet's usual idiom and is the wrong tool for a string: the number would be
+   measured in the font this machine renders and shipped to Segoe UI on Windows
+   and to whatever fontconfig picks on Linux, where a wider face overruns it and
+   the reflow comes back. The same argument #504 made for the button that used
+   to carry this count, and the same technique.
+   The ghost is per TONE, not one string for all three — see `widest` in
+   status-pill.ts. `live` reserves `live`, so the resting pill is exactly as
+   wide as its own word.
+   `justify-items: start` rather than centre, which is where the button
+   differed: the dot is at the left and the word is anchored to it, so the slack
+   at zero held opens where the count will appear rather than splitting either
+   side of a word that then shifts.
+   `tabular-nums` is what makes the ghost an upper bound rather than a good
+   guess: every label is `paused · ` plus at most two digits, or `99+`, which is
+   two digits and one more glyph. Equal-width figures turn that into arithmetic.
+   No transition on the box, deliberately, for the reason `.sd-core-fill` was
+   converted: easing a box means easing `width`, which is layout, runs on the
+   main thread and would owe reduced motion an answer under this sheet's own
+   rules. A smoothly animated reflow is still a reflow. */
+.topbar .status .pill .pill-box {
+  display: inline-grid;
+  grid-template-areas: "pill-label";
+  align-items: center;
+  justify-items: start;
+  font-variant-numeric: tabular-nums;
+}
+.topbar .status .pill .pill-widest,
+.topbar .status .pill .pill-label {
+  grid-area: pill-label;
+  white-space: nowrap;
+}
+/* Out of the picture and out of the accessible tree — `visibility: hidden`
+   removes it from both, and the `aria-hidden` on the element says so a second
+   time for anything that reads the markup rather than the computed style. All
+   it contributes is its width. */
+.topbar .status .pill .pill-widest { visibility: hidden; }
+
 /* Live was the weakest-drawn of the three states, which is backwards for the
    one that means "everything else on this bar is true": alone among them it
    carried no fill at all, and its border alpha was 0.25 where the other two are
@@ -1454,15 +1458,18 @@ button.btn:active:not(:disabled) { transform: scale(0.97); }
    The EDGE cannot: 1.79:1 on white made the app's only filled button the one
    with the least perceivable outline of the three .btn variants. */
 button.btn.primary { background: var(--accent-dim); color: var(--text); border-color: var(--accent); }
-/* Was rgba(252,211,77,0.5) with a light override at rgba(180,83,9,0.55) — two
-   hand-mixed alphas for one idea, and the light one measured 2.18:1 at the
-   bottom of the topbar gradient. One token-derived value at the 85% every
-   --warn boundary in this sheet uses, and the override goes with it. */
-button.btn.warn {
-  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
-  color: var(--warn);
-}
-button.btn.warn:hover { border-color: var(--warn); color: var(--warn); }
+/* `button.btn.warn` was here, and it is gone rather than kept for later. Its
+   only wearer was the Resume half of the topbar Pause button, and that control
+   has left the bar for the canvas control stack — where the paused state is
+   drawn as a fill on `.react-flow__controls-button[aria-pressed="true"]`, not
+   as an amber outline on a text button. What the rule was worth is not lost:
+   the 85% it settled on is the number every --warn boundary in this sheet
+   still uses, `.topbar .waiting-stat` and `.topbar .brand button.v.stale`
+   among them, and the reasoning for it is written on the first of those.
+   Left in place it would have been a selector nothing can match — the exact
+   shape dead-css.test.ts exists to catch, in the one direction that file
+   admits it cannot see. */
+
 /* The confirm half of the Clear dialog. It is the only .btn that carries the
    error colour, so the answer that truncates the event log can never be
    mistaken for the one that walks away — the same signal .ap-manage-btn.danger
@@ -2238,6 +2245,53 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    boundary is absent — so only the hover fill moves, because --bg-soft gave it
    nothing to show on white. */
 .react-flow__controls-button:hover { background: var(--ctl-fill); }
+/* The one toggle in a stack of commands, drawn the way this deck draws the
+   toggles it already had: the fill goes to the state colour and the glyph
+   inverts with it, which is #370's finding applied to a second surface. Every
+   other button in this column reports nothing between presses because there is
+   nothing to report; Pause is a setting that stays on, so it needs a resting
+   appearance that says which of its two states it is in.
+   Amber rather than the accent, because amber is what "the canvas is frozen"
+   is drawn in everywhere else on this deck — `.pill.paused` at the other end of
+   the topbar and the dot beside it. The two used to be a matched pair with the
+   Resume button between them; the pair survives the move.
+   Measured on --panel, which is the only bed this stack has: the fill stands
+   12.55:1 off it in dark and 5.43:1 in light, and the glyph reads 13.56:1 /
+   4.79:1 on top of the fill — visible as a block and legible as a mark. The
+   step is a POLARITY inversion in both themes, not a hue shift: --text on
+   --panel is lighter than its bed in dark and darker in light, and --bg on
+   --warn is the opposite in each. That is the one channel greyscale and every
+   colour vision deficiency keep.
+   Keyed on the ARIA attribute, so the pixels and the accessibility tree are one
+   fact and a control cannot look pressed while announcing nothing — the same
+   rule `button.btn.icon-btn[aria-pressed="true"]` states for the bar.
+   No `cursor`, no `:active`, no transition of its own: this is React Flow's own
+   button class with a state added, and the press, the pointer feedback and the
+   reduced-motion answer are whatever that class already had. A new pressable
+   name here would owe all five of the obligations canvas-motion.test.ts
+   enumerates, and none of them would be buying anything. */
+.react-flow__controls-button[aria-pressed="true"] {
+  background: var(--warn);
+  color: var(--bg);
+  fill: var(--bg);
+}
+/* The pressed state repaints the background, which is the only channel the
+   unpressed hover one rule up has — so without this a pressed Pause answers the
+   pointer with nothing at all. #370 hit the same wall on the topbar toggles and
+   answered it with a halo. A halo cannot work here: the stack around these
+   buttons is `overflow: hidden`, and it would clip one against the group edge.
+   An INSET keyline instead, in the glyph colour, which is the idiom
+   `.sysmeter[aria-expanded="true"]` already uses two hundred rules up. It adds
+   rather than replaces: the fill and the glyph are untouched, so every ratio
+   measured above is exactly what it was, and one value serves both themes
+   because --bg is already the colour the glyph inverted to. Shifting the fill
+   was the other option and it is the one that would have needed two values —
+   mixing the amber toward --text moves it 1.24:1 in light and 1.00:1 in dark,
+   where --warn and --text sit at the same luminance, and mixing it toward --bg
+   takes the light glyph from 4.79:1 to 3.74:1 to buy the same step. */
+.react-flow__controls-button[aria-pressed="true"]:hover {
+  box-shadow: inset 0 0 0 2px var(--bg);
+}
 
 /* ---------------- agent node ---------------- */
 
