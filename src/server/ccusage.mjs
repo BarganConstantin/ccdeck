@@ -610,7 +610,15 @@ function discardDamagedInstall(runner, err) {
   if (!cannotLoadModule(err?.message)) return false;
   _repairedThisRun = true;
   try {
-    rmSync(PKG_DIR, { recursive: true, force: true });
+    // maxRetries because of what has just happened: the deck ran `node <entry>`
+    // out of this very directory a moment ago, and on Windows a file any handle
+    // still holds cannot be deleted — the unlink marks it delete-pending, the
+    // name stays, and rmdir on the parent answers ENOTEMPTY. A child still
+    // exiting is exactly that handle. Node retries EBUSY, EMFILE, ENFILE,
+    // ENOTEMPTY and EPERM with a linear backoff when asked to; unasked, it
+    // tries once and gives up, which turned a repairable install into the
+    // permanent failure below.
+    rmSync(PKG_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 25 });
   } catch {
     // Windows holds a lock on a file inside a directory being removed more
     // readily than POSIX does, and a half-removed install is still a resolvable
