@@ -30,15 +30,24 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { slotChoices } from "../account-move";
 import { slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
+import { withoutComments } from "./tsx-scan";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 
 /** The same file with its comments gone. The prose here quotes the handler it
  *  retired — explaining why `onChange` could not be the commit needs the old
- *  shape on the page — so a search for it has to read the markup only. */
-const panelCode = panel
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
+ *  shape on the page — so a search for it has to read the markup only.
+ *
+ *  #513: shared with control-edges.test.ts rather than written out again. The
+ *  line filter this used to be kept a comment written AFTER code on the same
+ *  line, and `handlers` below is the same character walk that file had — brace
+ *  counting with quote tracking and no notion of a comment — so an apostrophe
+ *  in one of those trailing comments opens a string that nothing closes and the
+ *  scan runs to the end of the file. `AccountsPanel.tsx` has exactly one such
+ *  comment (`// unix ms — claude-swap's next planned read`) and it is harmless
+ *  only because it sits above every handler in the file, which is a fact about
+ *  today's markup rather than about this test. */
+const panelCode = withoutComments(panel);
 
 /**
  * The body of every `attr={…}` in the source, brace-matched.
