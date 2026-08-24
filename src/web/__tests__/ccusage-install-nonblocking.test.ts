@@ -33,6 +33,10 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+// On Windows npm is a .cmd shim launched through cmd.exe, so `install` is a
+// word inside one quoted command line rather than an element of `args` — see
+// spawned-argv.ts.
+import { spawnedArgv } from "./spawned-argv";
 
 /** How long one `npm install` takes in this file, on either path. Long enough
  *  that a freeze of that length cannot be mistaken for scheduler jitter, short
@@ -243,7 +247,7 @@ describe("the boot-time ccusage install", () => {
     expect.soft(first).toEqual({ state: "installing" });
     expect.soft(second).toEqual({ state: "installing" });
     await until(() => npm.finished >= 1, "the install to finish");
-    expect.soft(calls.filter(c => c.args.includes("install"))).toHaveLength(1);
+    expect.soft(calls.filter(c => spawnedArgv(c).includes("install"))).toHaveLength(1);
     said.done();
   });
 });

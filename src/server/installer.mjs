@@ -93,11 +93,17 @@ const LEGACY_DIRS = ["ccgraph", "agent-flow", "agent-dag"];
  * caller chose — and is quoted anyway, because that is not a property worth
  * re-deriving at every reading.
  *
- * Exported, with the node path injectable, so the escaping can be checked
- * against a path the test names rather than against whatever ran the suite.
+ * Exported, with the node path AND the platform injectable, so the escaping can
+ * be checked against a path the test names rather than against whatever ran the
+ * suite — and against the rule of a platform that suite is not running on. The
+ * two rules are genuinely different (POSIX single quotes, cmd.exe doubled
+ * double quotes), so without the second parameter the only assertion a test can
+ * make is the one its own OS happens to produce, which is how this went five
+ * releases with the Windows half of it never once executed.
  */
-export function hookCommand(installedHookPath, provider, node = process.execPath) {
-  const q = (s) => shellQuoteArg(s);
+export function hookCommand(installedHookPath, provider, node = process.execPath,
+                            platform = process.platform) {
+  const q = (s) => shellQuoteArg(s, platform);
   return `${q(node)} ${q(installedHookPath)} --provider ${q(provider)}`;
 }
 

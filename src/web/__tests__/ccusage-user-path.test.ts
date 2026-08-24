@@ -26,6 +26,12 @@ import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// npm and npx are .cmd shims on Windows, so their arguments arrive quoted
+// inside one cmd.exe line rather than as elements of `args`. Read raw, the
+// `includes("install")` checks below answer false there for a spawn that
+// plainly did install something — and the three that assert `false` would be
+// satisfied by a predicate that can never be true. See spawned-argv.ts.
+import { spawnedArgv } from "./spawned-argv";
 import { explainCcusageFailure } from "../admin-failure";
 // @ts-expect-error — .mjs server module, no types
 import { pathLookup, shimPath } from "../../server/exec.mjs";
@@ -312,8 +318,8 @@ describe("a ccusage the user installed themselves", () => {
 
     await fetchCcusageDaily({ since: "20260502" });
 
-    expect(calls.some(c => c.args.includes("install"))).toBe(false);
-    expect(calls.some(c => c.args.includes("ccusage@latest"))).toBe(false);
+    expect(calls.some(c => spawnedArgv(c).includes("install"))).toBe(false);
+    expect(calls.some(c => spawnedArgv(c).includes("ccusage@latest"))).toBe(false);
   });
 
   it("makes AGENTS_DECK_NO_INSTALL=1 a configuration that can actually work", async () => {
@@ -386,8 +392,8 @@ describe("a ccusage the user installed themselves", () => {
     const { value: res } = await quietly(() => fetchCcusageDaily({ since: "20260507" }));
 
     expect(res.ok).toBe(true);
-    expect(calls.some(c => c.args.includes("install"))).toBe(true);
-    expect(calls.some(c => c.args.includes("ccusage@latest"))).toBe(true);
+    expect(calls.some(c => spawnedArgv(c).includes("install"))).toBe(true);
+    expect(calls.some(c => spawnedArgv(c).includes("ccusage@latest"))).toBe(true);
   });
 });
 
@@ -595,7 +601,7 @@ describe("the boot row", () => {
     // the first restart, and would spend a download saying so.
     ccusageOnPath();
     primeCcusage();
-    expect(calls.some(c => c.args.includes("install"))).toBe(false);
+    expect(calls.some(c => spawnedArgv(c).includes("install"))).toBe(false);
   });
 
   it("keeps reporting the managed install first, so an existing deck's boot is unchanged", () => {

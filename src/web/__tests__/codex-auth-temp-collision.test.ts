@@ -100,10 +100,22 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 // homedir(), which reads $HOME on POSIX and %USERPROFILE% on Windows. All of
 // them — plus CLAUDE_CONFIG_DIR, which the installer module it imports resolves
 // the same way — point inside a temp dir BEFORE the module loads, so nothing
-// here can read or replace the developer's own Codex credentials. realpathSync
+// here can read or replace the developer's own Codex credentials. A realpath
 // because persistAuth resolves symlinks and macOS hands out /var/folders temp
 // dirs that really live under /private.
-const FAKE_HOME = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-codex-temp-")));
+//
+// `.native`, and this is not a preference. fs.realpathSync is a JavaScript walk
+// that resolves symlinks and nothing else; fs.promises.realpath — which is what
+// persistAuth calls — goes to uv_fs_realpath, and on Windows that ALSO expands
+// 8.3 short names. os.tmpdir() there answers with the short form, so the two
+// disagreed by a whole path: the sandbox was pinned at
+// C:\Users\RUNNER~1\AppData\Local\Temp\… while every write persistAuth staged
+// arrived as C:\Users\runneradmin\AppData\Local\Temp\…, the guard below refused
+// all of them, and eight tests in this file and its neighbour reported the
+// atomic-write behaviour as broken when it had not been reached at all.
+// realpathSync.native is the same call the product makes, so the two agree by
+// construction; on POSIX it resolves the same /private/var macOS needs.
+const FAKE_HOME = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-codex-temp-")));
 const CODEX_DIR = join(FAKE_HOME, ".codex");
 const AUTH = join(CODEX_DIR, "auth.json");
 mkdirSync(CODEX_DIR, { recursive: true });

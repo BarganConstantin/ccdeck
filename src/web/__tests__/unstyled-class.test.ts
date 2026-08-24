@@ -82,7 +82,12 @@ function classTokens(src: string): string[] {
 const files = components(web);
 const styled = (name: string) => new RegExp(`\\.${name}(?![\\w-])`).test(css);
 const composed = (name: string) => name.endsWith("-");
-const tokens = new Map(files.map(f => [f.slice(web.length), classTokens(readFileSync(f, "utf8"))]));
+/** A file's name relative to src/web, always with forward slashes. `components`
+ *  builds its paths with node:path, so on Windows the key would come out as
+ *  `components\AccountsPanel.tsx` — a name no lookup below spells and no
+ *  failure message would read the way the others do. */
+const relative = (f: string) => f.slice(web.length).replaceAll("\\", "/");
+const tokens = new Map(files.map(f => [relative(f), classTokens(readFileSync(f, "utf8"))]));
 
 describe("every class the markup hard-codes", () => {
   it("has a rule in the stylesheet behind it", () => {

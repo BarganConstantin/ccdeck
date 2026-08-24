@@ -23,6 +23,11 @@ import { describe, it, expect, afterAll, beforeAll, beforeEach, vi } from "vites
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// npm and npx go through cmd.exe on Windows, where their arguments arrive
+// quoted inside one command line rather than as elements of `args` — see
+// spawned-argv.ts. The rebuild assertions below ask what ran, not how the
+// platform spelled it.
+import { spawnedArgv } from "./spawned-argv";
 import { CCUSAGE_REASONS, explainCcusageFailure } from "../admin-failure";
 // @ts-expect-error — .mjs server module, no types
 import { oneLine } from "../../server/term.mjs";
@@ -422,8 +427,8 @@ describe("a managed install that resolves but cannot run", () => {
     // The damaged copy is gone, so the next boot installs a fresh one.
     expect(existsSync(join(PKG_DIR, "package.json"))).toBe(false);
     // It really did try the managed entry first, and really did run again after.
-    expect(calls[0].args.some(a => a.endsWith("cli.js"))).toBe(true);
-    expect(calls.some(c => c.args.includes("ccusage@latest") && !c.args.includes("install"))).toBe(true);
+    expect(spawnedArgv(calls[0]).some(a => a.endsWith("cli.js"))).toBe(true);
+    expect(calls.some(c => spawnedArgv(c).includes("ccusage@latest") && !spawnedArgv(c).includes("install"))).toBe(true);
   });
 
   it("repairs at most once per process, so a rebuild that fails cannot loop", async () => {
@@ -445,6 +450,6 @@ describe("a managed install that resolves but cannot run", () => {
     // and a rebuilt entry point — and neither is here, because the guard that
     // allows one of those per process was spent by the case before this one.
     expect(calls).toHaveLength(2);
-    for (const c of calls) expect(c.args.some(a => a.endsWith("cli.js"))).toBe(true);
+    for (const c of calls) expect(spawnedArgv(c).some(a => a.endsWith("cli.js"))).toBe(true);
   });
 });

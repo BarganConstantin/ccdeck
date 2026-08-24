@@ -67,7 +67,28 @@ const TOKEN = randomBytes(32).toString("hex");
 const WORKSPACE = "";
 
 const read = () => JSON.parse(readFileSync(FILE, "utf8")) as Record<string, unknown>;
-const wipe = () => rmSync(FILE, { recursive: true, force: true });
+
+/**
+ * Deleting on Windows, where a delete is not immediate.
+ *
+ * Every write in this file is an atomic one — a temp file, then a rename — and
+ * `keepDiscovery` schedules them on a timer. On POSIX a delete that lands in
+ * the middle of that is invisible: the name goes, the open handle keeps
+ * working. Windows has no such thing. A file with a handle still on it enters
+ * "delete pending", and every further open of that name — INCLUDING the lstat
+ * `rm -r` does on its way through the directory — fails with EPERM until the
+ * last handle closes, a few milliseconds later. That is what took this whole
+ * file out on the first Windows run: not a test, a teardown.
+ *
+ * `maxRetries` is the answer Node ships for exactly this and documents by name:
+ * EBUSY, EMFILE, ENFILE, ENOTEMPTY and EPERM are retried with a linear backoff.
+ * Ten attempts 20ms apart is 200ms of patience in the worst case and zero cost
+ * in the ordinary one, where the first attempt succeeds.
+ */
+const remove = (path: string) =>
+  rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+
+const wipe = () => remove(FILE);
 const sleep = (ms: number) => new Promise<void>(done => { setTimeout(done, ms); });
 
 /** Wait for a condition, or give up — never a bare sleep long enough to be slow. */
@@ -95,7 +116,7 @@ afterAll(() => {
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
   restore("CLAUDE_CONFIG_DIR", prevClaudeConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  remove(FAKE_HOME);
 });
 
 describe("a discovery file that goes missing under a running deck", () => {
@@ -331,13 +352,13 @@ describe("a deck that cannot write its discovery file", () => {
       expect(seen).toHaveLength(1);
 
       // Once the obstruction is gone the deck registers and reports the recovery.
-      rmSync(FILE, { recursive: true, force: true });
+      remove(FILE);
       expect(await until(() => seen.length >= 2)).toBe(true);
       expect(seen[seen.length - 1]).toMatchObject({ ok: true, rewritten: true });
       expect(read()).toMatchObject({ pid: process.pid, port: PORT, token: TOKEN });
     } finally {
       keep.stop();
-      rmSync(FILE, { recursive: true, force: true });
+      remove(FILE);
     }
   });
 });

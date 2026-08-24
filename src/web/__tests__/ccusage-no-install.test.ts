@@ -10,6 +10,11 @@ import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// Every question below is "what did the deck run", and on Windows npm and npx
+// are .cmd shims whose arguments arrive quoted inside one cmd.exe line rather
+// than as elements of `args`. See the note in spawned-argv.ts: read raw, a
+// `not.toContain("install")` there is satisfied by a check that can never fail.
+import { spawnedArgv } from "./spawned-argv";
 
 // Every spawn is recorded and none is executed, so a regression that reaches
 // the install path shows up as a recorded `npm install` instead of actually
@@ -105,10 +110,10 @@ describe("fetchCcusageDaily under AGENTS_DECK_NO_INSTALL=1", () => {
 
     expect(primeCcusage()).toEqual({ state: "present", version: "1.0.0" });
     // The installed copy is what ran, and npm was never consulted.
-    expect(calls.some(c => c.args.some(a => a.endsWith("cli.js")))).toBe(true);
+    expect(calls.some(c => spawnedArgv(c).some(a => a.endsWith("cli.js")))).toBe(true);
     for (const c of calls) {
-      expect(c.args).not.toContain("view");    // `npm view ccusage version`
-      expect(c.args).not.toContain("install"); // background upgrade
+      expect(spawnedArgv(c)).not.toContain("view");    // `npm view ccusage version`
+      expect(spawnedArgv(c)).not.toContain("install"); // background upgrade
     }
   });
 });
@@ -120,11 +125,11 @@ describe("fetchCcusageDaily without the opt-out", () => {
 
     await fetchCcusageDaily({ since: "20260103" });
 
-    const install = calls.find(c => c.args.includes("install"));
+    const install = calls.map(spawnedArgv).find(argv => argv.includes("install"));
     expect(install).toBeDefined();
-    expect(install!.args).toContain("ccusage@latest");
+    expect(install!).toContain("ccusage@latest");
     // Belt and braces: the install this test provokes was aimed at the temp
     // home, so no test in this file could have touched the real one.
-    expect(install!.args[install!.args.indexOf("--prefix") + 1]).toContain(FAKE_HOME);
+    expect(install![install!.indexOf("--prefix") + 1]).toContain(FAKE_HOME);
   });
 });

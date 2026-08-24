@@ -14,6 +14,7 @@ import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cmdTokens, spawnedArgv } from "./spawned-argv";
 
 // Nothing real is executed: every spawn is recorded and answered with a fake
 // child that prints an empty usage report, so no test here can install or run
@@ -99,17 +100,21 @@ afterAll(() => {
 
 beforeEach(() => { calls.length = 0; });
 
-/**
- * The single command-line argument cmd.exe is handed, back as the list npx will
- * actually see. The whole line is itself wrapped in quotes, the way `cmd /c`
- * wants it, so that pair comes off before the per-argument ones are read.
- */
-function cmdTokens(line: string) {
-  const inner = line.replace(/^"/, "").replace(/"$/, "");
-  return [...inner.matchAll(/"([^"]*)"/g)].map(m => m[1]);
-}
-
 const DAILY = ["daily", "--json", "--since", "20260101"];
+
+// Where npx.cmd is, pretended to. The Windows shim lookup asks the real
+// filesystem (#456) and so answers differently per machine: an absolute path on
+// a Windows runner, the bare name on a Linux or macOS one that has no npx.cmd
+// to find. `deps` is the seam fallbackSpec already carries for exactly this, so
+// the command line asserted below is the same one on all three platforms — and
+// it is the one that matters, because the absolute path is the fix for #456.
+const WIN_NODE_DIR = "C:\\Program Files\\nodejs";
+const WIN_NPX = `${WIN_NODE_DIR}\\npx.cmd`;
+const WIN_DEPS = {
+  execPath: `${WIN_NODE_DIR}\\node.exe`,
+  pathEnv: "C:\\Windows\\system32",
+  exists: (p: string) => p === WIN_NPX,
+};
 
 describe("the ccusage npx fallback command line", () => {
   it("spawns npx directly, with the argument vector intact, off Windows", () => {
@@ -122,7 +127,7 @@ describe("the ccusage npx fallback command line", () => {
   });
 
   it("routes the .cmd shim through cmd.exe with every argument quoted on Windows", () => {
-    const { file, args, opts } = fallbackSpec(DAILY, "win32");
+    const { file, args, opts } = fallbackSpec(DAILY, "win32", WIN_DEPS);
 
     expect(file.toLowerCase()).toContain("cmd");
     expect(args.slice(0, 3)).toEqual(["/d", "/s", "/c"]);
@@ -131,6 +136,16 @@ describe("the ccusage npx fallback command line", () => {
     // `npx.cmd`, not `npx`: only a .cmd/.bat name routes through cmd.exe at all,
     // and a bare `npx` cannot be spawned on Windows without a shell to apply
     // PATHEXT — asking for it would trade the injection for an ENOENT.
+    expect(cmdTokens(args[3])).toEqual([WIN_NPX, "-y", "ccusage@latest", ...DAILY]);
+  });
+
+  it("falls back to the bare shim name when nothing on that machine answers", () => {
+    // The deliberate half of #456's fix: a layout the lookup cannot see is left
+    // exactly as well off as it was before there was a lookup, with cmd.exe's
+    // own PATH search still getting its turn. Asserted here because the runner
+    // this file used to be written against — a POSIX one, where no npx.cmd can
+    // ever be found — was silently exercising only this branch.
+    const { args } = fallbackSpec(DAILY, "win32", { ...WIN_DEPS, exists: () => false });
     expect(cmdTokens(args[3])).toEqual(["npx.cmd", "-y", "ccusage@latest", ...DAILY]);
   });
 
@@ -145,8 +160,8 @@ describe("the ccusage npx fallback command line", () => {
 
     // Windows: each argument is separately quoted into the cmd.exe line, so the
     // `;`, the `&` and the space stay inside their own token.
-    const win = fallbackSpec(nasty, "win32");
-    expect(cmdTokens(win.args[3])).toEqual(["npx.cmd", "-y", "ccusage@latest", ...nasty]);
+    const win = fallbackSpec(nasty, "win32", WIN_DEPS);
+    expect(cmdTokens(win.args[3])).toEqual([WIN_NPX, "-y", "ccusage@latest", ...nasty]);
   });
 });
 
@@ -158,7 +173,13 @@ describe("what fetchCcusageDaily actually spawns", () => {
 
     await fetchCcusageDaily({ since: "20260201" });
 
-    const run = calls.find(c => JSON.stringify(c.args).includes("ccusage@latest") && !c.args.includes("install"));
+    // The npx fallback, not the failed `npm install` that precedes it. Both
+    // carry "ccusage@latest", and on Windows both arrive as one cmd.exe line —
+    // so "not an install" has to be asked of the argument vector rather than of
+    // the array spawn happened to be handed. `daily` is the fallback's own
+    // word; no install command line has ever had it.
+    const run = calls.map(c => ({ c, argv: spawnedArgv(c) }))
+      .find(({ argv }) => argv.includes("ccusage@latest") && argv.includes("daily"))?.c;
     expect(run).toBeDefined();
 
     // `--by-agent` since #431 — the run asks ccusage not to merge Claude Code's
@@ -185,7 +206,7 @@ describe("what fetchCcusageDaily actually spawns", () => {
     await fetchCcusageDaily({ since: "20260202" });
     delete process.env.AGENTS_DECK_NO_INSTALL;
 
-    const run = calls.find(c => c.args.some(a => a.endsWith("cli.js")));
+    const run = calls.find(c => spawnedArgv(c).some(a => a.endsWith("cli.js")));
     expect(run).toBeDefined();
     // `node <entry> daily --json --since …` — the healthy path, and the reason
     // the hole was closed on most machines most of the time.

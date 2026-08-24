@@ -16,7 +16,6 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-term-layout-"));
 const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME"] as const;
@@ -48,7 +47,13 @@ const {
   termColumns, visibleWidth, wordmark, WORDMARK_WIDTH,
 } = term as any;
 
-const TERM_MJS = fileURLToPath(new URL("../../server/term.mjs", import.meta.url));
+// The URL, not the path. The child process below imports this module by name,
+// and an ESM specifier that is an absolute Windows path — `C:\…\term.mjs` —
+// is not a specifier Node will resolve: only a file:// URL is, which is why
+// pathToFileURL exists. On POSIX both spellings work, so this went unnoticed
+// until the suite ran on Windows and the three cursor tests failed with an
+// empty stdout from a child that had never started.
+const TERM_URL = new URL("../../server/term.mjs", import.meta.url).href;
 const LABELS = [
   "workspace", "Claude hooks", "Codex sessions", "claude-swap", "accounts",
   "ccusage", "update", "server ready", "log",
@@ -234,7 +239,7 @@ describe("restoring the cursor", () => {
   const runChild = (body: string, expectFail: boolean) => {
     const file = sandboxed("cursor-child.mjs");
     writeFileSync(file, `
-import { CURSOR_HIDE, CURSOR_SHOW } from ${JSON.stringify(TERM_MJS)};
+import { CURSOR_HIDE, CURSOR_SHOW } from ${JSON.stringify(TERM_URL)};
 let hidden = true;
 const showCursor = () => { if (hidden) { hidden = false; process.stdout.write(CURSOR_SHOW); } };
 process.stdout.write(CURSOR_HIDE);

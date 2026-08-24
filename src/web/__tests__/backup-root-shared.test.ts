@@ -33,6 +33,21 @@ vi.mock("node:os", async (importOriginal) => {
 const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-store-home-"));
 const FAKE_XDG = mkdtempSync(join(tmpdir(), "ccdeck-store-xdg-"));
 const FAKE_OVERRIDE = mkdtempSync(join(tmpdir(), "ccdeck-store-override-"));
+
+// A value the Linux rule calls absolute — the rule being `startsWith("/")`,
+// which is the whole of "absolute" on the only platform that branch runs on.
+//
+// It is a string and never a directory, because on Windows the two cannot be
+// the same thing: every real path there begins with a drive letter, so a temp
+// directory handed to XDG_DATA_HOME is "relative" by this rule and the resolver
+// correctly ignores it. Asserting the rule needs no filesystem, so the two
+// tests that assert it use this and the two that need a real store keep
+// FAKE_XDG. What that costs on Windows is written down at the one place it
+// matters, in "agree on the store an absolute XDG_DATA_HOME names" below.
+//
+// Nothing is ever created here: every test that reads it only asks backupRoot()
+// what it would answer, and seedStore() refuses any root outside the sandboxes.
+const ABSOLUTE_XDG = "/var/lib/ccdeck-absolute-xdg";
 const prevEnv = {
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
@@ -94,13 +109,20 @@ afterAll(() => {
 describe("where the claude-swap store is", () => {
   it("obeys CLAUDE_SWAP_BACKUP ahead of everything else", () => {
     process.env.CLAUDE_SWAP_BACKUP = FAKE_OVERRIDE;
-    process.env.XDG_DATA_HOME = FAKE_XDG;
+    // An XDG value the resolver would otherwise honour, so this is precedence
+    // over a live rule rather than over one that was going to be ignored.
+    process.env.XDG_DATA_HOME = ABSOLUTE_XDG;
     expect(backupRoot()).toBe(FAKE_OVERRIDE);
   });
 
   it("puts the store under an absolute XDG_DATA_HOME", () => {
-    process.env.XDG_DATA_HOME = FAKE_XDG;
-    expect(backupRoot()).toBe(join(FAKE_XDG, "claude-swap"));
+    // ABSOLUTE_XDG, not FAKE_XDG. This asserts the resolver and touches no
+    // disk, so it can name a path that is absolute by the rule under test —
+    // and on Windows no real directory ever is: every one of them starts with
+    // a drive letter, which is why this read as "relative" there and answered
+    // with the home fallback. See the constant for the rest of it.
+    process.env.XDG_DATA_HOME = ABSOLUTE_XDG;
+    expect(backupRoot()).toBe(join(ABSOLUTE_XDG, "claude-swap"));
   });
 
   it("ignores a relative XDG_DATA_HOME, which the spec calls invalid", () => {
@@ -121,6 +143,14 @@ describe("the accounts reader and the add-detector", () => {
   });
 
   it("agree on the store an absolute XDG_DATA_HOME names", async () => {
+    // A real directory, because both halves have to find the same file on disk
+    // — which is the property #252 broke and the reason this file exists.
+    //
+    // On Windows that directory cannot also satisfy the Linux "absolute" rule,
+    // so there the resolver ignores it and both halves land on the home
+    // fallback instead. That is still one root read by two readers, which is
+    // what is being pinned; the branch it arrives through is checked by the
+    // resolver tests above, which use a path shaped the way Linux means it.
     process.env.XDG_DATA_HOME = FAKE_XDG;
     seedStore();
     expect((await readStore()).slots).toEqual(["1"]);
