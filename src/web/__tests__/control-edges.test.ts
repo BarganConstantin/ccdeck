@@ -372,7 +372,11 @@ const CONTROLS: Control[] = [
   // different question from this edge against this fill — is toggle-state.test.ts'.
   { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
   { at: 'button.btn.icon-btn[aria-expanded="true"]', beds: [...TOPBAR, "--panel"] },
-  { at: "button.btn.warn", fillFrom: "button.btn", states: ["button.btn.warn:hover"], beds: [...TOPBAR, "--panel"] },
+  // `button.btn.warn` was swept here until the topbar Pause button, its only
+  // wearer, moved to the canvas control stack. The rule is gone from the sheet
+  // rather than kept unworn, so there is nothing left to measure — and the
+  // exhaustiveness check at the bottom of this describe is what would say so if
+  // it came back.
   { at: "button.btn.danger", fillFrom: "button.btn", states: ["button.btn.danger:hover"], beds: ["--panel"] },
   { at: ".topbar .waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
   // The skip link (#381). It is only ever on screen while it holds focus, and

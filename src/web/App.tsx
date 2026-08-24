@@ -51,7 +51,7 @@ import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./versio
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import { outageSentence, PAUSE_WIDEST_LABEL, pauseButton, statusPill } from "./status-pill";
+import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 import { fmtTokens } from "./token-format";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -2471,11 +2471,39 @@ function Inner() {
               that is worth a live region has one of its own, below. */}
           <span className="status">
             {/* Three states, not two. Read through the gate rather than a
-                counter of its own: the queue is the thing being reported. */}
+                counter of its own: the queue is the thing being reported.
+                The count is in the LABEL now, not only the title. It used to be
+                printed on the Pause button at the far end of the bar, and that
+                button has gone down to the canvas control stack where the other
+                canvas verbs went in #527 — so one fact stopped being split
+                across two ends of a row, and the pill, which already knew the
+                number, says it.
+                The ghost below is what keeps that free. The pill LEADS this
+                strip, so its width is upstream of everything after it — the
+                machine meter, the token total, the dollar figure: a count going
+                9 → 10 would walk all three, which is #504 one bar over, and the
+                count moves on its own where a label never did. A copy of the
+                widest label this tone can reach sits in the same grid cell as
+                the live one, so the box measures its own worst case in whatever
+                font the platform hands it. The alternative was a min-width in
+                pixels, which is the wrong tool for a string — the number would
+                be measured in the face this machine renders and shipped to
+                Segoe UI and to whatever fontconfig picks, where a wider face
+                overruns it and the reflow is back.
+                aria-hidden AND visibility: hidden on the ghost, so it is out of
+                the accessible tree twice over. The pill has no name of its own
+                to protect — it is an unfocusable span, see the tab-stop note in
+                topbar-interaction.test.ts — but it does have a title, and a
+                reader that walks the markup should not find the word twice. */}
             {(() => {
               const pill = statusPill({ connected: live, paused, held: pauseRef.current.size });
               return (
-                <span className={`pill ${pill.tone}`} title={pill.title}>{pill.label}</span>
+                <span className={`pill ${pill.tone}`} title={pill.title}>
+                  <span className="pill-box">
+                    <span className="pill-widest" aria-hidden>{pill.widest}</span>
+                    <span className="pill-label">{pill.label}</span>
+                  </span>
+                </span>
               );
             })()}
             {/* Machine state, not session state — the only readout in this strip
@@ -2618,53 +2646,26 @@ function Inner() {
               separates this whole group from the readout: control to control,
               run to run, role to role. Every one of those numbers was already
               in the sheet.
-              The runs are Pause; the three disclosures ($ , accounts, history);
-              and the two persisted settings (sound, theme). Only one control
-              moved to get there — sound, from third to sixth. It is a setting
-              written to disk, not a panel that opens, so it never belonged in
-              the disclosure run; and taking it out drops the worst case from
-              three adjacent accent-filled buttons to two, since aria-pressed
-              and aria-expanded paint the same fill.
-              Re-layout and Clear are gone from here entirely. They are canvas
-              verbs and they are on the canvas now, in the React Flow control
-              stack beside Recenter — the same place `F` already had no topbar
-              button of its own. */}
-          <div className="action-run">
-            {/* One box, three labels (#504).
-                This control is the only one in the bar whose content changes,
-                and it changes by a lot: Pause, Resume, and Resume with a count
-                on it are 60, 71 and 133 pixels of the same button. It is not
-                the eight buttons after it that move — .actions is flex: none
-                against a space-between bar, so the icon runs stay pinned to the
-                right edge — it is the button itself and the selected-agent
-                ribbon, which slides by half the delta because the free space is
-                shared between the two gaps. Measured at 1470: pressing Space
-                walks the button 45px left and the ribbon 28px, and every digit
-                the held count gains walks both again.
-                The ghost below is what pins it. The alternative was a min-width
-                in pixels, which is the usual idiom in this sheet and is the
-                wrong tool for a string: the number would be measured in the font
-                this machine renders and shipped to Segoe UI and fontconfig,
-                where a wider face overruns it and the reflow is back. A hidden
-                copy of the widest label in the same grid cell measures itself,
-                in whatever font arrives, on every platform this deck runs on.
-                No apostrophe anywhere in this comment, deliberately, and the
-                sound button at the end of the bar spells out why: the tag
-                scanner in control-edges.test.ts tracks quotes, and a lone
-                apostrophe inside a JSX brace opens a string nothing closes.
-                aria-hidden AND visibility: hidden, so it is out of the
-                accessible name twice over: the button still announces Pause or
-                Resume and only its box is fixed. */}
-            {(() => {
-              const btn = pauseButton({ paused, held: pauseRef.current.size });
-              return (
-                <button className={`btn pause-btn ${paused ? "warn" : ""}`} onClick={togglePause} title={btn.title}>
-                  <span className="pause-widest" aria-hidden>{PAUSE_WIDEST_LABEL}</span>
-                  <span className="pause-label">{btn.label}</span>
-                </button>
-              );
-            })()}
-          </div>
+              The runs are the three disclosures ($ , accounts, history) and the
+              two persisted settings (sound, theme). Only one control moved to
+              get there — sound, from third to sixth. It is a setting written to
+              disk, not a panel that opens, so it never belonged in the
+              disclosure run; and taking it out drops the worst case from three
+              adjacent accent-filled buttons to two, since aria-pressed and
+              aria-expanded paint the same fill.
+              Re-layout, Clear and now Pause are gone from here entirely. All
+              three are canvas verbs and they are on the canvas, in the React
+              Flow control stack beside Recenter — the same place `F` already
+              had no topbar button of its own. Pause was held back a release
+              because it carried a count no glyph can print; the pill at the
+              other end of this bar carries it instead, which is what let the
+              last text button in the row go.
+              Two runs now, so the 18px between them draws one seam rather than
+              two. Nothing else in the bar moved: `.actions` is `flex: none` on
+              a `space-between` header, so the icon runs were pinned to the
+              right edge before and are pinned there still — what the removal
+              gives back is width in the middle, where the selected-agent ribbon
+              and the readouts share it. */}
           <div className="action-run">
             {/* aria-expanded, not aria-pressed. This shows and hides a region
                 that follows it in the DOM and it leaves focus exactly where it
@@ -3228,6 +3229,49 @@ function Inner() {
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
                 <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" strokeWidth="2" />
                 <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+            </ControlButton>
+            {/* The last control out of the topbar, and the only toggle in this
+                stack. Second rather than first: Recenter above it belongs beside
+                the zoom and fit buttons it repeats a job of, and these two are
+                the reversible, often-pressed pair — putting Pause here keeps the
+                one control that destroys something at the far end of the column
+                from the one a hand comes back to.
+                It reports its state, which none of its four neighbours has to.
+                They are one-shot commands and a glyph is a complete account of
+                what a command does; this one is a setting that stays on, so
+                there is a fact about it that is true between presses and a user
+                has to be able to read it. aria-pressed is how this deck says
+                that — the sound switch in the bar above is the same shape of
+                control and has carried it since #370 — and it is not
+                aria-expanded, because nothing is disclosed: no region appears,
+                the canvas simply stops repainting.
+                Which is also why the glyph does NOT flip to a play triangle.
+                The media-player convention prints the ACTION on the button, and
+                that convention contradicts aria-pressed rather than completing
+                it: an eye reading a triangle is told the canvas is frozen and
+                the button will play, while a reader hearing Pause plus pressed
+                is told the same fact the other way round. One mark, then, with
+                the state carried in the one channel both audiences read —
+                the same choice the two panel toggles make with their own
+                unchanging glyphs.
+                That channel is a polarity inversion and not a hue: --text on
+                --panel at rest becomes --bg on --warn when pressed, a luminance
+                step a greyscale screen, a photocopy and every colour vision
+                deficiency all still read. Amber because amber is what a frozen
+                canvas is drawn in everywhere else on this deck — the pill at the
+                other end of the bar and the dot inside it — and the pill and
+                this control were a matched pair before it moved. */}
+            <ControlButton
+              onClick={togglePause}
+              title={pauseTitle({ paused, held: pauseRef.current.size })}
+              aria-label={PAUSE_LABEL}
+              aria-pressed={paused}
+            >
+              {/* two upright bars — the pause mark, drawn as strokes so it sits
+                  at the weight of the four glyphs around it */}
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+                <path d="M9 5.5v13M15 5.5v13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
               </svg>
             </ControlButton>
             {/* Down from the topbar. Both of these are canvas verbs —
