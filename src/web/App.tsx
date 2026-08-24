@@ -50,7 +50,7 @@ import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./versio
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import { pauseButton, statusPill } from "./status-pill";
+import { outageSentence, PAUSE_WIDEST_LABEL, pauseButton, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 import { fmtTokens } from "./token-format";
 // The detail panel used to spell both of these out inline — an elapsed clock a
@@ -2550,11 +2550,37 @@ function Inner() {
               stack beside Recenter — the same place `F` already had no topbar
               button of its own. */}
           <div className="action-run">
+            {/* One box, three labels (#504).
+                This control is the only one in the bar whose content changes,
+                and it changes by a lot: Pause, Resume, and Resume with a count
+                on it are 60, 71 and 133 pixels of the same button. It is not
+                the eight buttons after it that move — .actions is flex: none
+                against a space-between bar, so the icon runs stay pinned to the
+                right edge — it is the button itself and the selected-agent
+                ribbon, which slides by half the delta because the free space is
+                shared between the two gaps. Measured at 1470: pressing Space
+                walks the button 45px left and the ribbon 28px, and every digit
+                the held count gains walks both again.
+                The ghost below is what pins it. The alternative was a min-width
+                in pixels, which is the usual idiom in this sheet and is the
+                wrong tool for a string: the number would be measured in the font
+                this machine renders and shipped to Segoe UI and fontconfig,
+                where a wider face overruns it and the reflow is back. A hidden
+                copy of the widest label in the same grid cell measures itself,
+                in whatever font arrives, on every platform this deck runs on.
+                No apostrophe anywhere in this comment, deliberately, and the
+                sound button at the end of the bar spells out why: the tag
+                scanner in control-edges.test.ts tracks quotes, and a lone
+                apostrophe inside a JSX brace opens a string nothing closes.
+                aria-hidden AND visibility: hidden, so it is out of the
+                accessible name twice over: the button still announces Pause or
+                Resume and only its box is fixed. */}
             {(() => {
               const btn = pauseButton({ paused, held: pauseRef.current.size });
               return (
-                <button className={`btn ${paused ? "warn" : ""}`} onClick={togglePause} title={btn.title}>
-                  {btn.label}
+                <button className={`btn pause-btn ${paused ? "warn" : ""}`} onClick={togglePause} title={btn.title}>
+                  <span className="pause-widest" aria-hidden>{PAUSE_WIDEST_LABEL}</span>
+                  <span className="pause-label">{btn.label}</span>
                 </button>
               );
             })()}
@@ -2732,7 +2758,31 @@ function Inner() {
             ? restartMode === "npx"
               ? "Fetching the new version with npx — this can take a minute…"
               : `Restarting ${PRODUCT}…`
-            : `Lost connection to the ${PRODUCT} server. Reconnecting…`}
+            : (() => {
+                // The one sentence on this page that was reachable by mouse and
+                // by nothing else (#510). It lived in the title of the status
+                // pill, on a non-focusable span that Chrome reports as
+                // role=generic name="" description="SSE disconnected" — a
+                // description with no name to hang off, which screen readers do
+                // not reliably announce and no keyboard can go and ask for.
+                // It arrives here rather than on a focusable pill because this
+                // banner already owns the announcement path for exactly this
+                // condition: it is a role="alert", it fires the moment the
+                // stream dies, and unlike the version banner beside it it has
+                // no dismiss control, so it is on screen for precisely as long
+                // as the thing it describes. That is the property the pill was
+                // being kept for, and the banner already had it.
+                // Nothing is added while the canvas is running: the sentence
+                // above already says the connection is gone. What was missing
+                // is what the two states mean together.
+                const outage = outageSentence({ connected: live, paused });
+                return (
+                  <>
+                    {`Lost connection to the ${PRODUCT} server. Reconnecting…`}
+                    {outage && <span className="conn-sub">{outage}</span>}
+                  </>
+                );
+              })()}
         </div>
       ) : noticeOpen && notice ? (
         // Both banners want grid row 2, and a dead connection is the more
