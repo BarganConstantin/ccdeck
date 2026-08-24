@@ -3,3 +3,6 @@ dist
 *.log
 .DS_Store
 .claude/
+# Written by the CI test step (`--outputFile.json`), under src/web because
+# vitest resolves it against its own root. Never wanted in a commit.
+vitest-report.json

@@ -827,11 +827,18 @@ async function shutdown(code = 0) {
     // deck that is on its way out, and leave the file behind for the hooks to
     // find once nothing is listening.
     //
+    // AWAITED, because clearing the interval only stops the NEXT tick. A tick
+    // that started a moment ago is inside the atomic write, and it re-creates
+    // the file after the unlink — the same stale registration, reached by the
+    // one route "stop first" does not cover. stop() answers with that check, so
+    // this waits for it and then removes what it wrote. Bounded: one check,
+    // which never rejects.
+    //
     // Guarded on its own, because a discovery file this process cannot remove is
     // a nuisance the next boot's stale sweep clears up — worth carrying on to
     // the orderly close below rather than skipping to the abrupt one.
     try {
-      discovery?.stop();
+      await discovery?.stop();
       if (discoveryFile) await removeDiscovery(discoveryFile);
     } catch { /* the sweep at the next boot gets it */ }
     // No server yet means nothing to drain and nothing to hand the port over to,

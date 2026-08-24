@@ -106,7 +106,16 @@ async function readTokenSeries(filePath) {
     if (pending) foldTokenLine(series, pending);
     return series.length ? series : null;
   } catch { return null; }
-  finally { fd?.close().catch(() => {}); }
+  // AWAITED. A close scheduled and abandoned means this function resolves while
+  // the descriptor is still open, and on Windows a file with any handle on it
+  // cannot be deleted: the unlink marks it delete-pending, the name stays in
+  // the directory, and the next rmdir of the parent fails with ENOTEMPTY. The
+  // deck sweeps its own rollout copies, and the suite tears down a sandbox full
+  // of them — this is how "the read is finished" stops being a lie about the
+  // handle. Awaiting in a finally costs one microtask and cannot change what is
+  // returned. Errors stay swallowed: a close that fails is nothing a reader can
+  // act on.
+  finally { await fd?.close().catch(() => {}); }
 }
 
 // Tokens spent within [windowStartMs, now]: the last cumulative snapshot minus

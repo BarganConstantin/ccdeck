@@ -193,13 +193,19 @@ describe("App", () => {
 });
 
 describe("the built output", () => {
-  it("carries the bootstrap ahead of the bundle", () => {
+  // Hoisted out of the test body so the missing-artifact case can be a *visible*
+  // skip. It used to be `if (!existsSync(dist)) return;` inside the test, which
+  // reports green and silent — indistinguishable from having actually checked
+  // the artifact, on every machine that had not run a build. CI builds before
+  // it runs the suite (.github/workflows/publish.yml), so this never skips
+  // there; locally it now says so in the reporter instead of pretending.
+  const dist = fileURLToPath(new URL("../../../dist/web/index.html", import.meta.url));
+
+  it.skipIf(!existsSync(dist))("carries the bootstrap ahead of the bundle", () => {
     // Vite copies an attribute-less inline script through verbatim and injects
     // its own tags around it, but "verbatim" is a claim about a tool, so it is
     // checked against the real artifact when one is on disk. `npm run build`
     // runs from prepublishOnly, so the publish path always has one.
-    const dist = fileURLToPath(new URL("../../../dist/web/index.html", import.meta.url));
-    if (!existsSync(dist)) return;
     const built = readFileSync(dist, "utf8");
     expect(bootstrapOf(built).body).toContain(THEME_KEY);
     expect(bootstrapOf(built).at).toBeLessThan(built.indexOf('<script type="module"'));

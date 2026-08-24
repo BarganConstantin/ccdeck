@@ -51,11 +51,13 @@ const SOUND_HINTS = [/\bafplay\b/i, /Media\.SoundPlayer/i, /\bpaplay\b/i, /\bapl
  *
  * Same shape and same reasoning as installer.mjs's hookCommand — see the note
  * there — kept separate because this entry takes no `--provider` and is written
- * to a different key. Exported, with the node path injectable, so the escaping
- * is checked against a path the test names.
+ * to a different key. Exported, with the node path and the platform injectable,
+ * for the reason hookCommand gives: the two quoting rules are different, and a
+ * test that cannot name a platform can only ever assert its own.
  */
-export function soundHookCommand(notifyPath, node = process.execPath) {
-  return `${shellQuoteArg(node)} ${shellQuoteArg(notifyPath)}`;
+export function soundHookCommand(notifyPath, node = process.execPath,
+                                 platform = process.platform) {
+  return `${shellQuoteArg(node, platform)} ${shellQuoteArg(notifyPath, platform)}`;
 }
 
 /**

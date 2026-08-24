@@ -258,7 +258,12 @@ export async function bootstrapUv() {
   } catch (err) {
     return { ok: false, reason: "error", detail: String(err?.message ?? err).slice(0, 200) };
   } finally {
-    await rm(staging, { recursive: true, force: true }).catch(() => {});
+    // maxRetries for the reason the ccusage repair gives: the archive was just
+    // unpacked here and `partial` was just run out of it, and on Windows a file
+    // a handle has not finished releasing cannot be deleted — the directory
+    // then refuses to go with ENOTEMPTY. Litter rather than a failure, since
+    // this is swallowed, but litter in the user's home that nothing else sweeps.
+    await rm(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 25 }).catch(() => {});
     if (partial) await rm(partial, { force: true }).catch(() => {});
   }
 }

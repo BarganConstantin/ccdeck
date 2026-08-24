@@ -96,25 +96,41 @@ describe("the hook command written into settings.json", () => {
 
   it.runIf(posix)("is one command with three arguments, whatever the path contains", () => {
     for (const path of NASTY) {
-      const cmd = hookCommand(path, "claude", NODE);
+      const cmd = hookCommand(path, "claude", NODE, "linux");
       // Read back through a shell the way the host CLI will read it: `printf
       // '%s\0'` writes one NUL-terminated field per argument, so this is the
       // argv the hook would actually receive. NUL rather than newline because
       // one of the paths below contains a newline, and splitting on that would
       // report the shell's correct answer as a failure.
-      const argv = shellArgv(cmd.replace(shellQuoteArg(NODE), "printf-args"));
+      const argv = shellArgv(cmd.replace(shellQuoteArg(NODE, "linux"), "printf-args"));
       expect(argv, path).toEqual(["printf-args", path, "--provider", "claude"]);
     }
   });
 
   it("no longer wraps a path in double quotes and calls it escaped", () => {
-    const cmd = hookCommand("/home/a$(id)b/hook.js", "claude", NODE);
+    // The platform is named rather than inherited. The two rules are different
+    // — POSIX single quotes, cmd.exe doubled double quotes — so a test that let
+    // process.platform decide would assert the POSIX rule on Linux and macOS
+    // and then fail on Windows for producing the correct Windows answer, which
+    // is exactly what it did the first time this suite ran there.
+    const cmd = hookCommand("/home/a$(id)b/hook.js", "claude", NODE, "linux");
     expect(cmd).not.toContain('"/home/a$(id)b/hook.js"');
     expect(cmd).toContain("'/home/a$(id)b/hook.js'");
     // The provider was not quoted at all. It is a PROVIDERS key rather than
     // anything a caller chose, so this is belt and braces — and belt and braces
     // is what stops the next argument added here being the loose one.
     expect(cmd).toContain("--provider 'claude'");
+  });
+
+  it("uses cmd.exe's rule on Windows, where single quotes are not quoting", () => {
+    // Windows is the platform this repo's hook bugs actually come from, and
+    // until the CI matrix existed this half of the escaper had never run
+    // anywhere. cmd.exe treats `'` as an ordinary character, so the POSIX form
+    // would leave a path with a space in it split across two arguments.
+    const cmd = hookCommand("C:\\Users\\John Smith\\hook.js", "claude",
+      "C:\\Program Files\\nodejs\\node.exe", "win32");
+    expect(cmd).toBe('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\John Smith\\hook.js" --provider "claude"');
+    expect(cmd).not.toContain("'");
   });
 });
 
@@ -123,15 +139,22 @@ describe("the sound hook command", () => {
 
   it.runIf(posix)("is one command with one argument, whatever the path contains", () => {
     for (const path of NASTY) {
-      const cmd = soundHookCommand(path, NODE);
-      const argv = shellArgv(cmd.replace(shellQuoteArg(NODE), "printf-args"));
+      const cmd = soundHookCommand(path, NODE, "linux");
+      const argv = shellArgv(cmd.replace(shellQuoteArg(NODE, "linux"), "printf-args"));
       expect(argv, path).toEqual(["printf-args", path]);
     }
   });
 
   it("no longer wraps a path in double quotes and calls it escaped", () => {
-    const cmd = soundHookCommand("/home/a`id`b/notify.js", NODE);
+    const cmd = soundHookCommand("/home/a`id`b/notify.js", NODE, "linux");
     expect(cmd).not.toContain('"/home/a`id`b/notify.js"');
     expect(cmd).toContain("'/home/a`id`b/notify.js'");
+  });
+
+  it("uses cmd.exe's rule on Windows, the same as the forwarder entry", () => {
+    const cmd = soundHookCommand("C:\\Users\\John Smith\\notify.js",
+      "C:\\Program Files\\nodejs\\node.exe", "win32");
+    expect(cmd).toBe('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\John Smith\\notify.js"');
+    expect(cmd).not.toContain("'");
   });
 });

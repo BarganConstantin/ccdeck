@@ -12,6 +12,7 @@ import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cmdTokens } from "./spawned-argv";
 
 // Nothing is executed: every spawn is recorded and refused, so a regression
 // cannot install anything onto the machine running the suite.
@@ -74,21 +75,27 @@ afterAll(() => {
 
 beforeEach(() => { calls.length = 0; });
 
-/**
- * The single command-line argument cmd.exe is handed, back as the list npm will
- * actually see. The whole line is itself wrapped in quotes, the way `cmd /c`
- * wants it, so that pair comes off before the per-argument ones are read.
- */
-function cmdTokens(line: string) {
-  const inner = line.replace(/^"/, "").replace(/"$/, "");
-  return [...inner.matchAll(/"([^"]*)"/g)].map(m => m[1]);
-}
+// Where npm.cmd is, pretended to. The Windows shim lookup asks the real
+// filesystem (#456), so its answer is a property of the machine running the
+// suite: an absolute path on a Windows runner, and the bare `npm.cmd` fallback
+// on a Linux or macOS one, where no npm.cmd can ever be found. `deps` is the
+// seam installSpec already carries for exactly this. Pinning it means this file
+// asserts one command line on all three platforms, and asserts the one that
+// matters — a shim launched by bare name computes `%~dp0` from the deck's
+// working directory and goes looking for npm-cli.js there.
+const WIN_NODE_DIR = "C:\\Program Files\\nodejs";
+const WIN_NPM = `${WIN_NODE_DIR}\\npm.cmd`;
+const WIN_DEPS = {
+  execPath: `${WIN_NODE_DIR}\\node.exe`,
+  pathEnv: "C:\\Windows\\system32",
+  exists: (p: string) => p === WIN_NPM,
+};
 
 describe("the ccusage install command line", () => {
   it("keeps a home path with a space in one argument on Windows", () => {
     expect(PREFIX).toContain(" "); // the whole point of this file
 
-    const { file, args, opts } = installSpec("latest", "win32");
+    const { file, args, opts } = installSpec("latest", "win32", WIN_DEPS);
 
     // Routed through cmd.exe the way Node's own shell mode does it, but with
     // each argument quoted here rather than pasted together.
@@ -98,11 +105,22 @@ describe("the ccusage install command line", () => {
     // And never `shell: true`, which is what concatenated them in the first place.
     expect(opts.shell).toBeUndefined();
 
-    // npm.cmd sees the prefix as a single argument, spaces and all.
-    expect(cmdTokens(args[3])).toEqual(["npm.cmd", ...INSTALL_ARGS]);
+    // npm.cmd sees the prefix as a single argument, spaces and all — and is
+    // named by its full path, which is #456's half of the same command line.
+    expect(cmdTokens(args[3])).toEqual([WIN_NPM, ...INSTALL_ARGS]);
     // The regression: unquoted, npm read --prefix as the first word only and
     // the remainder as another package to install.
     expect(args[3]).not.toContain(`--prefix ${PREFIX}`);
+  });
+
+  it("falls back to the bare shim name when nothing on that machine answers", () => {
+    // The deliberate half of #456's fix: a layout the lookup cannot see is left
+    // exactly as well off as it was before there was a lookup, with cmd.exe's
+    // own PATH search still getting its turn. Worth its own line because a
+    // POSIX runner — where no npm.cmd can ever be found — used to reach this
+    // branch and only this one, while appearing to assert the other.
+    const { args } = installSpec("latest", "win32", { ...WIN_DEPS, exists: () => false });
+    expect(cmdTokens(args[3])).toEqual(["npm.cmd", ...INSTALL_ARGS]);
   });
 
   it("spawns npm directly, with the argument vector intact, off Windows", () => {

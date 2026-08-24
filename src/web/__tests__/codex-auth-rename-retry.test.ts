@@ -71,9 +71,21 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 // them — plus CLAUDE_CONFIG_DIR, which the installer module this now imports
 // resolves the same way — point inside a temp dir BEFORE the module loads, so
 // nothing here can read or replace the developer's own Codex credentials.
-// realpathSync because persistAuth resolves symlinks and macOS hands out
+// A realpath because persistAuth resolves symlinks and macOS hands out
 // /var/folders temp dirs that really live under /private.
-const FAKE_HOME = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-codex-auth-")));
+//
+// `.native`, and this is not a preference. fs.realpathSync is a JavaScript walk
+// that resolves symlinks and nothing else; fs.promises.realpath — which is what
+// persistAuth calls — goes to uv_fs_realpath, and on Windows that ALSO expands
+// 8.3 short names. os.tmpdir() there answers with the short form, so the two
+// disagreed by a whole path: the sandbox was pinned at
+// C:\Users\RUNNER~1\AppData\Local\Temp\… while every write persistAuth staged
+// arrived as C:\Users\runneradmin\AppData\Local\Temp\…, the guard below refused
+// all of them, and eight tests in this file and its neighbour reported the
+// atomic-write behaviour as broken when it had not been reached at all.
+// realpathSync.native is the same call the product makes, so the two agree by
+// construction; on POSIX it resolves the same /private/var macOS needs.
+const FAKE_HOME = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-codex-auth-")));
 const CODEX_DIR = join(FAKE_HOME, ".codex");
 const AUTH = join(CODEX_DIR, "auth.json");
 mkdirSync(CODEX_DIR, { recursive: true });
@@ -179,7 +191,12 @@ describe("a rename that keeps failing", () => {
   it("reports the refresh as rejected rather than claiming success", async () => {
     // The credential is genuinely dead here — the old refresh token was spent to
     // get one that never landed — so the only honest answer is "re-login".
-    fsCtl.faults.push("EPERM", "EPERM", "EPERM", "EPERM", "EPERM");
+    // More faults than any retry ladder this repo would plausibly carry. The
+    // count used to be exactly the five renameWithRetry then allowed, which
+    // made this test a statement about the ladder's LENGTH rather than about
+    // what happens when retrying never helps — widen the ladder and the test
+    // silently starts asserting the opposite of its own name.
+    for (let i = 0; i < 100; i++) fsCtl.faults.push("EPERM");
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await forceCodexRefresh();
