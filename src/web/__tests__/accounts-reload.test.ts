@@ -142,8 +142,21 @@ describe("the panel's reload path", () => {
     expect(clientMs).toBeGreaterThanOrEqual(serverMs);
   });
 
-  it("disables the ↻ and says so while a reload the user asked for is in flight", () => {
-    expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,200}disabled=\{reloading\}/);
+  it("marks the ↻ busy and says so while a reload the user asked for is in flight", () => {
+    // It used to read `disabled={reloading}`, and that is the defect #518
+    // measured over CDP: Chrome drops focus when the focused element becomes
+    // disabled, so pressing ↻ with the keyboard sent focus to `<body>` on every
+    // reload — worst on the one control a user presses repeatedly while
+    // watching a quota recover.
+    //
+    // It takes `pressProps` now like every other control in the panel, with its
+    // own in-flight flag passed in: inert while somebody ELSE is working, busy
+    // and still focusable while the reload is its own. The guard is unchanged —
+    // the button is still not a way to fire two reloads at once — and the glyph
+    // still says which of the two states it is in, which is the half of this
+    // assertion that was never about `disabled`.
+    expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}\{\.\.\.pressProps\("reload", reloading\)\}/);
+    expect(panel).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
     expect(panel).toContain('{reloading ? "…" : "↻"}');
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.

@@ -12,6 +12,8 @@ import AddAccountDialog from "./AddAccountDialog";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
+import { laneSplit, lanesTitle, moreLabel } from "../lane-view";
+import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import {
@@ -240,9 +242,11 @@ interface Props { onClose: () => void }
 export default function AccountsPanel({ onClose }: Props) {
   const [data, setData] = useState<AccountsData | null>(null);
   const [auto, setAuto] = useState<AutoStatus | null>(null);
+  // The tag of the one request the panel has out, or null. A switch is one of
+  // them now rather than a flag of its own: #518 needs every control to answer
+  // the same question — "is somebody else working" — and two flags cannot.
   const [busy, setBusy] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
-  const [switching, setSwitching] = useState<number | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const timerRef = useRef<number | null>(null);
@@ -279,6 +283,57 @@ export default function AccountsPanel({ onClose }: Props) {
   // a setting write on the other end. Null follows whatever the store holds.
   const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
   const [thresholdSaved, setThresholdSaved] = useState(false);
+  // Which rows have their other quota windows open. Every row opens collapsed,
+  // including the active one: uniform rows are what makes a column scannable,
+  // and a default that depended on state would make the panel's resting height
+  // depend on which account happens to be live. More than one may be open —
+  // comparing two accounts is exactly what this panel is for.
+  const [openLanes, setOpenLanes] = useState<number[]>([]);
+
+  // The same fact as `busy`, where a handler can read it without waiting for a
+  // render. #518 leaves the working control enabled, so a second press reaches
+  // the handler and the handler is what has to refuse it.
+  const busyRef = useRef<string | null>(null);
+  /** Take the panel's one request slot, or refuse the press. */
+  const claim = useCallback((tag: string) => {
+    if (!pressAccepted(busyRef.current)) return false;
+    busyRef.current = tag;
+    setBusy(tag);
+    return true;
+  }, []);
+  const release = useCallback(() => { busyRef.current = null; setBusy(null); }, []);
+
+  /**
+   * The two attributes #518 puts on every control that a request makes inert.
+   *
+   * Spread rather than written out per button, because the whole of that fix is
+   * that there is ONE answer: inert while somebody else is working, busy and
+   * still focusable while it is your own request. A control that spelled either
+   * half by hand would be the second answer the issue asks against.
+   */
+  const pressProps = (tag: string, working = false) => {
+    const s = pressState(busy, tag);
+    return { disabled: s.disabled, "aria-busy": s.busy || working };
+  };
+
+  /**
+   * Focus the nearest control that outlived the press.
+   *
+   * Only when focus was actually dropped — a user who tabbed somewhere else
+   * while the request was out is left where they put themselves. After the
+   * frame, because the control being rescued from is unmounted by a React
+   * commit and rAF is the first moment the document is certain to be the one
+   * the reader is looking at.
+   */
+  const rescueFocus = useCallback((row: number | null) => {
+    window.requestAnimationFrame(() => {
+      if (!focusDropped(document.activeElement?.tagName ?? null)) return;
+      for (const sel of rescueSelectors(row)) {
+        const el = document.querySelector<HTMLElement>(sel);
+        if (el) { el.focus(); return; }
+      }
+    });
+  }, []);
 
   // A reload the user asked for, and the same one on a timer. Only the forced
   // half touches `reloading`: a poll blinking the ↻ every 15 seconds would read
@@ -310,7 +365,7 @@ export default function AccountsPanel({ onClose }: Props) {
 
   /** Every auto-switch control is one POST; they all reload afterwards. */
   const post = useCallback(async (body: Record<string, unknown>, tag: string) => {
-    setBusy(tag);
+    if (!claim(tag)) return null;
     setFailure(null);
     try {
       const res = await fetch("/api/cswap-auto", {
@@ -327,13 +382,13 @@ export default function AccountsPanel({ onClose }: Props) {
       setFailure({ text: "server unreachable" });
       return null;
     } finally {
-      setBusy(null);
+      release();
     }
-  }, []);
+  }, [claim, release]);
 
   /** Every store-changing action is one POST to the same route. */
   const admin = useCallback(async (body: Record<string, unknown>, tag: string) => {
-    setBusy(tag);
+    if (!claim(tag)) return null;
     setFailure(null);
     try {
       const res = await fetch("/api/claude-accounts/admin", {
@@ -350,9 +405,9 @@ export default function AccountsPanel({ onClose }: Props) {
       setFailure({ text: "server unreachable" });
       return null;
     } finally {
-      setBusy(null);
+      release();
     }
-  }, []);
+  }, [claim, release]);
 
   useEffect(() => {
     load(true);
@@ -378,13 +433,14 @@ export default function AccountsPanel({ onClose }: Props) {
   const thresholdPick = thresholdDraft ?? threshold;
   const thresholdCtl = thresholdCommit(thresholdPick, threshold);
   const activeAcct = data?.accounts?.find(a => a.active);
-  const activePct = activeAcct?.lanes.length
-    ? Math.max(...activeAcct.lanes.map(l => l.pct))
-    : null;
+  // The same binding lane every row shows, from the same function. This used to
+  // be a second `Math.max` written out here, which is one of the two places the
+  // panel did the arithmetic the row was leaving to the reader.
+  const activePct = laneSplit(activeAcct?.lanes ?? []).binding?.pct ?? null;
   const nearTrigger = activePct != null && activePct >= Number(threshold) - 15;
 
   const doSwitch = async (num: number) => {
-    setSwitching(num);
+    if (!claim(`switch-${num}`)) return;
     setFailure(null);
     try {
       const res = await fetch("/api/claude-accounts/switch", {
@@ -398,7 +454,12 @@ export default function AccountsPanel({ onClose }: Props) {
     } catch {
       setFailure({ text: "server unreachable" });
     } finally {
-      setSwitching(null);
+      release();
+      // A switch that landed replaces this button with the `active` marker,
+      // which is a span and cannot hold focus. One that failed leaves the
+      // button standing, still focused, and this is a no-op — the rescue only
+      // fires when focus was actually dropped. See panel-press.ts.
+      rescueFocus(num);
     }
   };
 
@@ -459,6 +520,10 @@ export default function AccountsPanel({ onClose }: Props) {
       // propose. A refused move keeps the draft: the block stays open on the
       // pick the user made, ready to be pressed again under the failure box.
       setSlotDraft(null);
+      // The block followed its account into the slot it moved to, so the button
+      // that was pressed was unmounted and re-mounted a row away. Focus lands
+      // on the disclosure of the row the account is in now.
+      rescueFocus(next.menuFor);
     }
     return out;
   };
@@ -517,8 +582,19 @@ export default function AccountsPanel({ onClose }: Props) {
           <button type="button" className="glyph-btn ap-add" onClick={() => setAddOpen(true)}
             aria-label="Add an account"
             title="Sign in to another Claude account, or paste one shared from another deck">+</button>
+          {/* #518: this used to be `disabled={reloading}`, which disabled the
+              control the press came from and dropped focus to the document
+              body on every reload. It is inert while somebody ELSE is working and busy while
+              its own request is out — the same two attributes every control in
+              the panel takes from pressProps — and the glyph goes on saying
+              which of the two it is.
+              `reloading` is a second flag rather than the panel request slot
+              because a reload is fired by the poll and by every other action
+              too, and a reload that took the slot would disable the control
+              that had just fired it — which is the defect, one step further
+              along. */}
           <button type="button" className="glyph-btn ap-refresh" onClick={() => load(true)}
-            disabled={reloading} aria-label="Reload accounts"
+            {...pressProps("reload", reloading)} aria-label="Reload accounts"
             title="Reload from claude-swap">{reloading ? "…" : "↻"}</button>
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close accounts panel" title="Close (A)">×</button>
         </div>
@@ -576,22 +652,31 @@ export default function AccountsPanel({ onClose }: Props) {
         </div>
       ) : (
         <>
-          {data.accounts?.map(a => (
-            <div key={a.num} className={`ap-account${a.active ? " active" : ""}${a.disabled ? " disabled" : ""}`}>
+          {data.accounts?.map(a => {
+            const { binding, rest } = laneSplit(a.lanes);
+            const lanesOpen = openLanes.includes(a.num);
+            const more = moreLabel(rest.length, lanesOpen);
+            return (
+            <div key={a.num} className={`ap-account${a.active ? " active" : ""}`}>
               <div className="ap-account-head">
                 <span className="ap-num">{a.num}</span>
-                {/* The alias is now clipped with an ellipsis so a long one
+                {/* Both of these are clipped with an ellipsis so a long one
                     cannot widen the panel, which means the row can be showing
-                    less than the whole name — so the whole name goes in a
-                    title. `.ap-email` beside it has carried one since it was
-                    given the same treatment. */}
+                    less than the whole string — so each one carries its own
+                    whole value in a title. The email used to carry the ORG
+                    name there instead (#517), which meant the identifier could
+                    be down to four characters with the full value recoverable
+                    nowhere: an 18-character alias engages the 40% clamp on
+                    `.ap-alias` and leaves the address 31.98px, measured. */}
                 {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-                <span className="ap-email" title={a.org ?? undefined}>{a.email}</span>
+                <span className="ap-email" title={a.email ?? undefined}>{a.email}</span>
                 {/* aria-controls only while the block exists: an IDREF that
                     resolves to nothing is not a relationship, it is a dangling
                     pointer, and closed is exactly when there is nothing to
-                    point at. */}
-                <button type="button" className={`ap-more${menuFor === a.num ? " on" : ""}`}
+                    point at. The id is what focus falls back to when a press
+                    unmounts its own control — see panel-press.ts. */}
+                <button type="button" id={`ap-more-${a.num}`}
+                  className={`ap-more${menuFor === a.num ? " on" : ""}`}
                   aria-label={`Manage account ${a.num}`} aria-expanded={menuFor === a.num}
                   aria-controls={menuFor === a.num ? `ap-manage-${a.num}` : undefined}
                   title="Share, rename, move, remove"
@@ -606,22 +691,50 @@ export default function AccountsPanel({ onClose }: Props) {
                     setSlotDraft(null);
                     setSlotDone(null);
                   }}>⋯</button>
-                {a.active
-                  ? <span className="ap-badge-active">● active</span>
-                  : (
-                    <button
-                      type="button"
-                      className="btn ap-switch"
-                      disabled={switching != null || a.disabled}
-                      onClick={() => doSwitch(a.num)}
-                      title={a.disabled ? "Held out of rotation" : `Switch to ${a.alias ?? a.email}`}
-                    >{switching === a.num ? "…" : "switch"}</button>
-                  )}
+                {/* Three tiers, and they were inverted. The panel exists to say
+                    which account is live, and that fact was carried by a wash
+                    measuring 1.12:1 in dark while the `switch` it repeats on
+                    every OTHER row was a 30px bordered box. So state is a
+                    filled chip — 10.85:1 dark and 5.93:1 light against the
+                    panel, 9.35:1 and 5.13:1 against the pill it replaces one
+                    row down — and the verb drops to the small outlined pill
+                    that `save`, `share` and `remove` already use. The dot is
+                    gone with the box: a filled chip does not need a dot inside
+                    it, and the word is what keeps this out of colour-alone
+                    territory.
+                    Held out gets a word of its own for the same reason (#519).
+                    It replaces `switch` rather than sitting beside it, because
+                    a switch to a held-out account is refused — a control that
+                    can never act is worse than no control — and the way back
+                    into rotation is in the footer below, now on every held-out
+                    row rather than only while something is rotating. */}
+                {a.active && <span className="ap-badge-active">active</span>}
+                {a.disabled && <span className="ap-badge-held">held out</span>}
+                {!a.active && !a.disabled && (
+                  <button
+                    type="button"
+                    className="ap-manage-btn ap-switch"
+                    {...pressProps(`switch-${a.num}`)}
+                    onClick={() => doSwitch(a.num)}
+                    title={`Switch to ${a.alias ?? a.email}`}
+                  >{busy === `switch-${a.num}` ? "…" : "switch"}</button>
+                )}
               </div>
 
-              {a.lanes.length > 0
-                ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} />)
-                : <div className="ap-hint">No usage recorded yet.</div>}
+              {/* One lane at rest: the one that runs out first, which is the
+                  only one that decides anything. The group keeps its id in both
+                  states — unlike the manage block above, whose target does not
+                  exist while it is closed — so the disclosure below points at
+                  it unconditionally. See lane-view.ts for why the rest are not
+                  re-sorted. */}
+              <div className="ap-lanes" id={`ap-lanes-${a.num}`}>
+                {binding
+                  ? <>
+                      <LaneBar lane={binding} nowSec={nowSec} />
+                      {lanesOpen && rest.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} />)}
+                    </>
+                  : <div className="ap-hint">No usage recorded yet.</div>}
+              </div>
 
               {/* Freshness is load-bearing here, not a footnote: an account
                   that has been rate-limited for hours still shows its last
@@ -645,18 +758,40 @@ export default function AccountsPanel({ onClose }: Props) {
                     </>
                   );
                 })()}
-                {/* Holding an account out of rotation only matters when
-                    something is rotating, so the control appears with it. */}
-                {(auto?.enabled || auto?.external) && !a.active && (
+                {/* The row footer is where the other windows are opened from,
+                    because it is the line that exists on every row and is empty
+                    most of the time. The count is the whole label: it says how
+                    much is not being shown, which is the question a collapsed
+                    row raises. */}
+                {more && (
+                  <button
+                    type="button"
+                    className="ap-lanes-more"
+                    aria-expanded={lanesOpen}
+                    aria-controls={`ap-lanes-${a.num}`}
+                    title={lanesTitle(a.headroom, binding?.label ?? null, rest.length, lanesOpen)}
+                    onClick={() => setOpenLanes(open =>
+                      open.includes(a.num) ? open.filter(n => n !== a.num) : [...open, a.num])}
+                  >{more}</button>
+                )}
+                {/* Holding an account out only matters when something is
+                    rotating, so `hold out` appears with it. Putting one BACK is
+                    not conditional on anything: #519 found that with
+                    auto-switch off a held-out account was signalled by a 0.6
+                    opacity and nothing else, and the one control that would
+                    undo it was the control not being rendered. The word is the
+                    chip up in the head row now, so what is left here is the
+                    verb. */}
+                {(((auto?.enabled || auto?.external) && !a.active) || a.disabled) && (
                   <button
                     type="button"
                     className="ap-rotate"
-                    disabled={busy != null}
+                    {...pressProps(`rot-${a.num}`)}
                     onClick={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`).then(() => load(true))}
                     title={a.disabled
                       ? "Return this account to auto-rotation"
                       : "Hold this account out of auto-rotation"}
-                  >{a.disabled ? "held out" : "in rotation"}</button>
+                  >{a.disabled ? "put back" : "hold out"}</button>
                 )}
                 {/* A bare "9m ago" under a stack of percentages does not say
                     what happened 9 minutes ago — and the honest answer is not
@@ -713,7 +848,7 @@ export default function AccountsPanel({ onClose }: Props) {
                          only when the block opens, so this fires exactly then. */
                       autoFocus
                     />
-                    <button type="button" className="ap-manage-btn" disabled={busy != null}
+                    <button type="button" className="ap-manage-btn" {...pressProps(`alias-${a.num}`)}
                       onClick={() => doAlias(a.num, a.alias)}
                       title="A short name to show instead of the email"
                     >{aliasSaved === a.num ? "saved" : "save"}</button>
@@ -739,7 +874,7 @@ export default function AccountsPanel({ onClose }: Props) {
                           <select
                             id={`ap-slot-${a.num}`}
                             value={String(picked)}
-                            disabled={busy != null}
+                            {...pressProps(`move-${a.num}`)}
                             onChange={e => setSlotDraft(Number(e.target.value))}
                           >
                             {/* `rotation order` named the number and never the
@@ -752,7 +887,7 @@ export default function AccountsPanel({ onClose }: Props) {
                             {choices.map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
                           </select>
                         </span>
-                        <button type="button" className="ap-manage-btn" disabled={busy != null}
+                        <button type="button" className="ap-manage-btn" {...pressProps(`move-${a.num}`)}
                           title={commit.title}
                           onClick={() => doSlot(a.num, picked, commit)}
                         >{slotDone === a.num ? commit.done : commit.label}</button>
@@ -768,7 +903,7 @@ export default function AccountsPanel({ onClose }: Props) {
                       the consequence per option, and a button called `share` is
                       not clarified by being told it is the share row. */}
                   <div className="ap-manage-acts">
-                    <button type="button" className="ap-manage-btn" disabled={busy != null}
+                    <button type="button" className="ap-manage-btn" {...pressProps(`share-${a.num}`)}
                       /* It said "carries a live login and expires in 10
                          minutes", which reads as a lock with a timer on it. The
                          share is plain text with the account's token inside and
@@ -795,7 +930,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     <button
                       type="button"
                       className={`ap-manage-btn danger${confirmRemove === a.num ? " armed" : ""}`}
-                      disabled={busy != null}
+                      {...pressProps(`rm-${a.num}`)}
                       title={confirmRemove === a.num
                         ? "This deletes the stored credentials for this account"
                         : "Remove this account from claude-swap"}
@@ -806,7 +941,14 @@ export default function AccountsPanel({ onClose }: Props) {
                           return;
                         }
                         setConfirmRemove(null);
-                        admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(() => { setMenuFor(null); load(true); });
+                        admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(() => {
+                          setMenuFor(null);
+                          load(true);
+                          // The row this button lived on is gone, so there is
+                          // no local anchor left and focus falls to the panel
+                          // reload — see rescueSelectors in panel-press.ts.
+                          rescueFocus(null);
+                        });
                       }}
                     >{confirmRemove === a.num ? "confirm" : "remove"}</button>
                   </div>
@@ -840,7 +982,7 @@ export default function AccountsPanel({ onClose }: Props) {
                               offering a dead end. That is the only thing the
                               expiry does — see shareExpiry — and it is a
                               statement about the dialog, not about the copy. */}
-                          <button type="button" className="ap-manage-btn" disabled={busy != null}
+                          <button type="button" className="ap-manage-btn" {...pressProps(`share-${a.num}`)}
                             onClick={async () => {
                               if (dead) {
                                 setShareCopied(false);
@@ -880,18 +1022,29 @@ export default function AccountsPanel({ onClose }: Props) {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {/* ── auto-switch ── */}
           {auto?.ok && (
             <div className="ap-auto">
-              {/* Title, live number, threshold and switch on one line. The
-                  section is two facts and one control; stacked over three rows
-                  it read like a form, and the row label ("switch when") only
-                  restated the title. Left to right it now says what it is,
-                  where you are, where it trips, and whether it is armed. */}
+              {/* The four things on this line had no rank between them: the
+                  name of the section, the number saying where you are, the
+                  control saying where it trips and the switch saying whether it
+                  is armed all sat at one altitude, separated by one 10px gap.
+                  Rank is bought with distance rather than with a new size or a
+                  rule — the title takes the line, the controls take the next
+                  one 8px under it, and the on/off switch is pushed to the far
+                  edge of that line because it is a different decision from the
+                  threshold beside it. 8 and 6 are the panel ladder, not the
+                  topbar one.
+                  A real h3 rather than a span, under the h2 the panel header
+                  carries: this is a section of the panel and a reader walking
+                  headings should find it. `margin: 0` in the sheet, because the
+                  UA sheet gives it 1em and that would put the title back on a
+                  line of its own by accident rather than on purpose. */}
               <div className="ap-auto-head">
-                <span className="ap-auto-title">Auto-switch</span>
+                <h3 className="ap-auto-title">Auto-switch</h3>
 
                 <span className="ap-auto-ctl">
                   {/* The live number belongs next to the threshold it is
@@ -909,13 +1062,13 @@ export default function AccountsPanel({ onClose }: Props) {
                     <select
                       aria-label="Switch threshold"
                       value={thresholdPick}
-                      disabled={busy != null}
+                      {...pressProps("threshold")}
                       onChange={e => setThresholdDraft(e.target.value)}
                     >
                       {THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
                     </select>
                   </span>
-                  <button type="button" className="ap-manage-btn" disabled={busy != null}
+                  <button type="button" className="ap-manage-btn" {...pressProps("threshold")}
                     title={thresholdCtl.title}
                     onClick={() => doThreshold(thresholdPick, thresholdCtl)}
                   >{thresholdSaved ? thresholdCtl.done : thresholdCtl.label}</button>
@@ -932,7 +1085,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     className={`ap-auto-state${auto.enabled ? " live" : ""}`}
                     role="switch"
                     aria-checked={auto.enabled}
-                    disabled={busy != null}
+                    {...pressProps("enable")}
                     onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
                     title={auto.enabled
                       ? "Stop switching accounts automatically"
@@ -982,8 +1135,12 @@ export default function AccountsPanel({ onClose }: Props) {
             </div>
           )}
 
+          {/* The line named an actor the reader has already met on every row
+              (`collected 9m ago`) and in the auto-switch note, and buried the
+              one fact only this line carries: these numbers do not keep
+              themselves up to date. Consequence first, actor not at all. */}
           <p className="ap-footnote" title="Anthropic's usage endpoint allows roughly 28–30 requests per hour per account, shared by every tool on this machine — polling it from here would rate-limit your account. So the deck never fetches: it asks claude-swap to collect while this panel is open, at most once every three minutes, and claude-swap decides whether that touches the network at all.">
-            Collected by claude-swap while this panel is open.
+            These numbers only update while this panel is open.
           </p>
         </>
       )}

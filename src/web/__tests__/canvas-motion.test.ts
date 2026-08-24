@@ -276,6 +276,12 @@ const PRESSES: Press[] = [
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
+  // The account row's own disclosure — the control that opens the quota windows
+  // the row is not showing. Written in `.ap-rotate`'s language one line up
+  // because it belongs to the same tier, and it joins the convention here for
+  // the reason #355 gave: a 9px word with no box is still a thing being
+  // pressed, and 0.97 of a word is the visible number.
+  [".ap-lanes-more:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".detail-reopen:active", "0.94", "transform"],
