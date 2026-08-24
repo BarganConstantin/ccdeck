@@ -392,8 +392,23 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     // than matching the literal — the number this test cares about is what
     // actually composites, and reading it through :root is what keeps this file
     // honest if the token ever moves.
+    //
+    // #518 moved WHICH request dims it without moving when. The attribute used
+    // to read `disabled={busy != null}`, which reached the control the press
+    // had just come from — and Chrome drops focus when the focused element
+    // becomes disabled, so every primary action in this panel sent the keyboard
+    // to `<body>`. It reads `{...pressProps(tag)}` now: inert while SOMEBODY
+    // ELSE is working, and `aria-busy` rather than `disabled` while the request
+    // is its own. Nothing about the resting state changed, which is what this
+    // test is for — the button is still never disabled by its draft matching
+    // the store, and the busy dimming is still the same token at the same value.
     expect(panel).not.toMatch(/aliasDraft\.trim\(\)\s*===/);
-    expect(panel).toMatch(/className="ap-manage-btn" disabled=\{busy != null\}/);
+    expect(panel).toMatch(/className="ap-manage-btn" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
+    // The one place the rule is written, so it cannot be spelled two ways.
+    expect(panel).toMatch(/const s = pressState\(busy, tag\);/);
+    expect(panel).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
+    // And no control in the panel goes inert any other way.
+    expect(panel).not.toMatch(/disabled=\{busy/);
     expect(decl(".ap-manage-btn:disabled", "opacity")).toBe("var(--dim-off)");
     const dimOff = parseFloat(/--dim-off:\s*([\d.]+)/.exec(css)![1]);
     expect(dimOff).toBe(0.6);

@@ -4799,11 +4799,33 @@ button.tool.clickable:last-child { border-bottom: none; }
   padding: 9px var(--panel-inset) 8px;
   border-bottom: 1px solid var(--line-soft);
 }
-/* The active account is the one answer the panel exists to give, so it reads
-   before any text does — as a tint across the whole row rather than a colored
-   stripe down its edge, which marks the boundary instead of the row. */
-.ap-account.active { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.ap-account.disabled { opacity: var(--dim-off); }
+/* The tint is not the state channel and never could have been. At the 6% it
+   shipped at it measured 1.118:1 against the panel in dark and 1.091:1 in light
+   — invisible as a signal — while lifting the bed enough that --muted on it
+   dropped to 4.208:1, under 1.4.3, taking `.ap-num`, `.ap-email`,
+   `.ap-lane-label`, `.ap-lane-reset`, `.ap-age` and the `.ap-more` glyph with
+   it (#519). There is no percentage that fixes both halves: 50% is where the
+   wash finally reaches 3:1 and its own text is at 1.307:1 by then.
+
+   So the word `active` in the head row carries the state, and what is left here
+   is a hint of warmth that says which row you are on once you already know. At
+   2% every one of those tiers is back at 4.547:1 in dark (7.652:1 and 5.615:1
+   in light), and the row still reads as a different row.
+
+   The `color-mix(in srgb, var(--accent) N%, transparent)` shape is load-bearing
+   beyond appearance: type-ladder.test.ts and control-edges.test.ts both parse
+   this declaration with a non-null assertion to build the bed they measure the
+   row against, and would throw rather than fail if it were written any other
+   way.
+
+   `.ap-account.disabled` used to sit here at `opacity: var(--dim-off)`, which
+   drew every tier on a held-out row at 2.495:1 — and that token means "this
+   control cannot be operated right now", which was untrue of the row. The row
+   is not a control: its `⋯` opens, its lanes are the numbers you are deciding
+   on, and the control that puts the account back into rotation lives on it. The
+   held-out state is a word in the head row now, beside where `active` puts its
+   own, and nothing on the row is dimmed that a reader could still use. */
+.ap-account.active { background: color-mix(in srgb, var(--accent) 2%, transparent); }
 
 .ap-account-head {
   display: flex;
@@ -4863,10 +4885,60 @@ button.tool.clickable:last-child { border-bottom: none; }
   min-width: 0;
   flex: 1;
 }
-.ap-badge-active { font-size: 10px; color: var(--accent); flex-shrink: 0; }
-/* Same dead 10px as `.ap-refresh` above, and gone for the same reason. */
-.ap-switch { padding: 1px 7px; flex-shrink: 0; }
+/* The panel exists to answer one question and this is the answer, so it is the
+   loudest thing in the row: a filled accent chip at 10.855:1 against the panel
+   in dark and 5.934:1 in light, against the 1.118:1 the wash it replaces was
+   managing, and 9.345:1 / 5.129:1 against the outlined `switch` pill it sits
+   one row above. Its own word reads --bg on --accent at 11.724:1 / 5.241:1,
+   which is the same fill-and-invert `.ap-manage-btn.danger.armed` uses for the
+   other state in this panel that has to be unmissable.
+   The `●` went with the box. A filled chip does not need a dot inside it to say
+   it is a state, and the word — not the colour — is what keeps this out of
+   1.4.1 territory. */
+.ap-badge-active {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+/* Held out is the row's other state and gets the same slot and the same shape,
+   in neutral: a wash of the control fill rather than the accent, with the word
+   at --text — 11.148:1 dark and 16.357:1 light on that fill. Not `--muted`,
+   which lands at 4.05:1 on the same bed and is the trap the control tokens
+   carry a note about. No border, so it cannot be mistaken for the pill beside
+   it and so it stays out of the control sweep, which is what it is: a marker,
+   not a thing to press. */
+.ap-badge-held {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.5;
+}
+/* Same dead 10px as `.ap-refresh` above, and gone for the same reason. The
+   padding went the same way in the density pass: `switch` dropped from
+   `button.btn` to `.ap-manage-btn`, the small-verb pill `save`, `share` and
+   `remove` already use, and that rule is later in the sheet at the same
+   specificity, so a padding declared here could only ever lose to it. What is
+   left is the one thing this class still does — the pill must not be squeezed
+   by the email flexing beside it. */
+.ap-switch { flex-shrink: 0; }
 
+/* The lanes as one group, so the disclosure in the footer has something to
+   point `aria-controls` at in both states. Unlike the manage block, whose
+   target genuinely does not exist while it is closed, this box is always in the
+   document and only its contents change — so the IDREF is unconditional there,
+   which is the same rule reaching the opposite answer. */
+.ap-lanes {
+  display: flex;
+  flex-direction: column;
+}
 .ap-lane {
   display: grid;
   grid-template-columns: 30px 1fr 32px;
@@ -4901,10 +4973,22 @@ button.tool.clickable:last-child { border-bottom: none; }
 .ap-lane-reset { grid-area: reset; font-size: 9px; color: var(--text-dim); }
 .ap-lane-reset:empty { display: none; }
 
+/* The row footer, and the one line that grows: a failure and its fix, the
+   disclosure for the windows the row is not showing, the rotation preference
+   and the freshness stamp can all be on it at once. It never wrapped, so it
+   overflowed instead — measured on the errored row before the disclosure was
+   added to it, at 271px of content in a 259px box, which the panel absorbed
+   only because the overhang fell inside its own 14px inset. One more control on
+   that line took the panel itself to 300/287 and started a sideways scrollbar,
+   which is the defect panel-overflow.test.ts exists for. Wrapping is the answer
+   rather than truncating any of them: every item here is either a failure, a
+   control or the age, and none of those is the one to drop. The row gap is 4
+   and the column gap is 8, both steps on this panel's own ladder. */
 .ap-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px 8px;
   margin-top: 5px;
   font-size: 9px;
   color: var(--muted);
@@ -4989,31 +5073,39 @@ button.tool.clickable:last-child { border-bottom: none; }
   padding: 12px var(--panel-inset) 11px;
   border-top: 1px solid var(--line);
 }
-/* One line: name on the left, the whole control cluster on the right. Nothing
-   follows it unless there is something to say, so the bottom margin belongs to
-   whatever comes next rather than to the head. */
+/* Two lines, and the second one is the only line with controls on it.
+   The four things here — the name of the section, the live percentage, the
+   threshold and its commit, and the on/off switch — used to sit on one row at
+   one altitude separated by a single 10px gap, so nothing said which was the
+   heading, which was a reading and which was a control. #516 had already forced
+   the row to wrap (the threshold gained a commit control and the four measured
+   193px against the 162px left beside an 87px caption), so it was two lines in
+   practice and one line in the sheet, breaking wherever the width happened to
+   run out.
+   Now it is two lines on purpose. The title takes the first, the controls take
+   the second 8px under it, and inside that line the pair that belongs together
+   — the picker and the press that commits it — sits at 6px while the on/off
+   switch is pushed to the far edge by `margin-left: auto`. That is the same
+   trick `remove` uses in the manage block: separation by distance rather than
+   by a rule or a colour, and 8 and 6 are steps on this panel's own 4/6/8/10
+   ladder rather than the topbar's. */
 .ap-auto-head {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 24px;
-  /* The cluster gained a `save` in #516 — the threshold picker stopped writing
-     a setting on its own `change` and needs a press to act on — and it no
-     longer fits beside the title: 87px of caption and 10px of gap left 162px,
-     against the 193px the four controls now measure. Wrapping is the answer
-     rather than shrinking any of them, and it was already overdue: at 288px the
-     three-control version cleared this line by 19px, which a classic 15px
-     scrollbar on Windows and Linux took all but 4px of. */
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
 }
 .ap-auto-ctl {
-  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 6px;
 }
+/* A real <h3> since the density pass, under the panel header's <h2>: a reader
+   walking headings should be able to find this section. Everything below was
+   already what it rendered as a <span>; `margin: 0` is the one line the promotion
+   needs, because the UA sheet gives an h3 1em top and bottom and that would put
+   a line and a half of air where the 8px above is doing the work. */
 .ap-auto-title {
+  margin: 0;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
@@ -5025,6 +5117,10 @@ button.tool.clickable:last-child { border-bottom: none; }
    glance, the word confirms it. Same shape whether it's ours or external, so
    the eye doesn't have to relearn the corner. */
 .ap-auto-state {
+  /* The far edge of the control line. Whether the loop is armed at all is a
+     different decision from where it trips, and the whole of the rest of the
+     row between them is what says so. */
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -5225,6 +5321,28 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-rotate:active:not(:disabled) { transform: scale(0.97); }
 .ap-rotate:disabled { cursor: default; opacity: var(--dim-off); }
 
+/* The row's other quota windows, opened from the footer the row already had.
+   Written in `.ap-rotate`'s language on purpose — 9px, no box, a dotted rule
+   under the word — because it belongs to the same tier: neither of these is an
+   action on the account, both are the reader saying how they want the row to
+   read. --muted rather than --text-dim so it holds 4.547:1 on the active row
+   as well as 4.70:1 on the panel, which is where every 9px tier in this footer
+   now sits. */
+.ap-lanes-more {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lanes-more:hover { color: var(--accent); }
+.ap-lanes-more:active { transform: scale(0.97); }
+
 .ap-footnote {
   margin: 0;
   padding: 9px 14px 2px;
@@ -5418,8 +5536,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    remove. It used to be `opacity: 0` until the row was hovered — on a touch
    device, a door with no handle — and it measured 25x16, under 2.5.8's 24x24
    floor on the short side. Now a real 24x24 target, legible before it is
-   touched: 4.70:1 dark and 5.78:1 light against --panel, lifting to --text
-   under the pointer. Quiet is carried by size and colour, not by absence —
+   touched: 4.70:1 dark and 5.78:1 light against --panel, and 4.547:1 / 5.615:1
+   on the ACTIVE row, which is the bed one of these is always on and the number
+   this comment used to leave out — at the 6% the row was tinted at, it was
+   4.208:1 there (#519). It lifts to --text under the pointer. Quiet is carried
+   by size and colour, not by absence —
    fading it to 0.35 instead would leave the glyph at 1.63:1, which is the same
    defect the pills above have just been lifted out of. */
 .ap-more {
@@ -5889,6 +6010,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   button.ap-auto-state:active:not(:disabled),
   .ap-field select:active:not(:disabled),
   .ap-rotate:active:not(:disabled),
+  .ap-lanes-more:active,
   .aa-tab:active { transform: none; }
   /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot

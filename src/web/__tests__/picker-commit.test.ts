@@ -238,10 +238,20 @@ describe("both commit controls are reachable and named", () => {
     // greys out whenever the pick matches the store would spend the block's
     // opening state disabled, which is the 1.98:1 finding manage-block.test.ts
     // exists to hold down.
+    //
+    // `disabled={busy != null}` is how that was written until #518, and it is
+    // not how it is written now: that expression disabled the control the press
+    // had come from, and Chrome drops focus when the focused element becomes
+    // disabled. `pressProps` is the one place the panel decides — inert while
+    // somebody else is working, `aria-busy` while the request is your own — so
+    // what is asserted is that both commit controls take it from there and that
+    // neither of them has grown an opinion about `sends`.
     for (const attrs of panelCode.split("<button").slice(1)) {
       if (!/commit\.label|thresholdCtl\.label/.test(attrs.slice(0, 600))) continue;
-      expect(attrs.slice(0, 600)).toMatch(/disabled=\{busy != null\}/);
-      expect(attrs.slice(0, 600)).not.toMatch(/disabled=\{[^}]*sends/);
+      expect(attrs.slice(0, 600)).toMatch(/\{\.\.\.pressProps\(/);
+      expect(attrs.slice(0, 600)).not.toMatch(/disabled=/);
+      expect(attrs.slice(0, 600)).not.toMatch(/aria-busy=/);
+      expect(attrs.slice(0, 600)).not.toMatch(/\{\.\.\.pressProps\([^)]*sends/);
     }
   });
 });

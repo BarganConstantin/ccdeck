@@ -321,10 +321,21 @@ describe("the account alias in the accounts panel row", () => {
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
-    // Truncation without a title is deletion. The email beside it has had one
-    // since it was given the same treatment.
+    // Truncation without a title is deletion, and it was deletion here: the
+    // rule above was written for both spans and only the alias followed it.
+    // `.ap-email` passed `a.org`, so the string that says WHICH ACCOUNT this is
+    // had no recovery path at all, and `undefined` for the accounts with no
+    // organisation meant most rows had no tooltip on it either (#517).
+    //
+    // The measurement is what makes it a bug rather than a tidiness: with an
+    // 18-character alias engaging the 40% clamp asserted above, the email box
+    // is 31.98px — about four characters and an ellipsis of a 55-character
+    // address. Both spans carry their own whole value now.
     expect(accounts).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(accounts).toMatch(/<span className="ap-email" title=\{a\.org \?\? undefined\}>/);
+    expect(accounts).toMatch(/<span className="ap-email" title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    // And the org is not quietly promoted into the same attribute: two values
+    // in one tooltip is how the identifier lost it in the first place.
+    expect(accounts).not.toMatch(/className="ap-email"[^>]*a\.org/);
   });
 
   it("bounds the rename field at the store's own limit, not at a smaller round number", () => {

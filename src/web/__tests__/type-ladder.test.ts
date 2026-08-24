@@ -344,9 +344,19 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
 
 /** Every rule that dims because a control cannot be operated or because what it
  *  shows is out of date — the two idioms #379 separated. A `:disabled` rule is
- *  the attribute spelling; `.ap-account.disabled` and `.v.checking` are the two
- *  class spellings of the same thing. */
-const INACTIVE = /:disabled|\.ap-account\.disabled|button\.v\.checking/;
+ *  the attribute spelling; `.v.checking` is the class spelling of the same
+ *  thing, on a button whose own attribute cannot carry it.
+ *
+ *  `.ap-account.disabled` was listed here as a third spelling and it was never
+ *  one. #519 measured what it did: 0.6 across a whole account row put six text
+ *  tiers at 2.495:1, on a row that is not a control and is not inert — its `⋯`
+ *  opens the manage block, its lanes are the numbers the reader is deciding on,
+ *  and the control that puts the account back into rotation lives on it. The
+ *  token means "this control cannot be operated right now" and none of that was
+ *  true, so the rule is gone and the state is a word in the row head instead.
+ *  The floor below moves by exactly one with it: eleven readers, all of them
+ *  controls, which is what the number was standing in for. */
+const INACTIVE = /:disabled|button\.v\.checking/;
 
 /** …but not the rules that fire only when the control is NOT inactive. The
  *  sheet spells hover-while-enabled as `:hover:not(:disabled)`, which mentions
@@ -369,7 +379,12 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // with nothing different to say. Every one of them reads the token now.
     const inactive = opacities.filter(o =>
       INACTIVE.test(o.selector) && !NOT_INACTIVE.test(o.selector));
-    expect(inactive.length).toBeGreaterThanOrEqual(12);
+    expect(inactive.length).toBeGreaterThanOrEqual(11);
+    // Every one of them is a CONTROL, which is the claim the count is standing
+    // in for and the one `.ap-account.disabled` was quietly breaking: a whole
+    // row is not a control, and dimming one said "you cannot operate this" of
+    // six text tiers and three working buttons (#519).
+    for (const o of inactive) expect(o.selector, o.selector).toMatch(/:disabled|button\./);
     for (const o of inactive) expect(o.value, o.selector).toBe("var(--dim-off)");
     // No `:disabled` rule anywhere still writes one of the four literals the
     // report found, which is the assertion that would have caught this drift.
