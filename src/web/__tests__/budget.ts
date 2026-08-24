@@ -20,17 +20,28 @@
 // the check does not need the event loop until the case has already let go
 // of it.
 //
-// What it measures is the number the reporter prints. Vitest's own per-case
-// duration runs from just before `beforeEach` to just after `afterEach`, and so
-// does this — a `beforeEach` that takes eleven seconds is eleven seconds a
-// reader watching the run has to wait for that case, whichever budget the
-// framework would file it under.
+// What it measures is what the reporter prints. Vitest's own per-case duration
+// runs from just before `beforeEach` to just after `afterEach`, and so does
+// this — a `beforeEach` that takes eleven seconds is eleven seconds a reader
+// watching the run has to wait for that case, whichever budget the framework
+// would file it under.
+//
+// It reads the clock through a reference taken at module load, before any test
+// can reach it. Three suites here call `vi.useFakeTimers()`, which replaces the
+// global `Date` outright: a case that moved the system clock forty days to
+// watch a quota window reset would otherwise be reported as having taken forty
+// days. All three put the real timers back before this hook runs, so today the
+// reference changes nothing — and depending on that would be depending on a
+// habit rather than on a rule.
 //
 // Registered from vite.config.ts as a setup file, so it applies to every case
 // in the suite rather than to the file somebody remembered to add it to.
-import { afterEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { withoutComments } from "./tsx-scan";
+
+/** The real clock, captured before a test can fake it. */
+const realNow = Date.now;
 
 /** The project default, if the running config cannot be read. Kept in step with
  *  vite.config.ts by a test — see test-budget.test.ts, which fails if the two
@@ -121,15 +132,27 @@ export function overrunMessage(name: string, took: number, budget: number, fileB
   ].join(" ");
 }
 
+/** When each case started, by task id — one entry at a time in a sequential
+ *  run, and correct even if a suite ever goes concurrent. Registered here, so
+ *  it runs before any hook a test file writes for itself. */
+const startedAt = new Map<string, number>();
+
+beforeEach(context => {
+  const task = (context as { task?: any }).task;
+  if (task?.id) startedAt.set(task.id, realNow());
+});
+
 afterEach(context => {
   const task = (context as { task?: any }).task;
-  const result = task?.result;
-  if (!result?.startTime) return;
-  // A case that has already failed does not need a second opinion about why.
-  if (result.state === "fail") return;
+  const started = task?.id ? startedAt.get(task.id) : undefined;
+  if (task?.id) startedAt.delete(task.id);
+  if (started === undefined) return;
+  // A case that has already failed does not need a second opinion about why —
+  // including one vitest's own timeout already caught.
+  if (task.result?.state === "fail") return;
   const fileBudget = statedFor(task?.file?.filepath);
   const budget = Math.max(configuredTestTimeout(), fileBudget);
-  const took = Date.now() - result.startTime;
+  const took = realNow() - started;
   if (took <= budget) return;
   throw new Error(overrunMessage(task.name ?? "this case", took, budget, fileBudget));
 });
