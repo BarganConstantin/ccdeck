@@ -171,6 +171,10 @@ describe("the modals themselves", () => {
     const withBackdrop = sources.filter(([, src]) => /className="[a-z-]*backdrop"/.test(src));
     expect(withBackdrop.map(([name]) => name).sort()).toEqual([
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      // #511's shortcuts sheet. Naming it here is how it enters the rule below
+      // rather than how it escapes one: the loop that follows asks the same
+      // question of every file in this list.
+      "KeyboardHelp.tsx",
       "SessionSummary.tsx", "ToolModal.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {

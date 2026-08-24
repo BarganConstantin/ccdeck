@@ -4071,6 +4071,32 @@ button.tool.clickable:last-child { border-bottom: none; }
    the destructive answer is never the default one. */
 .clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* ---------------- keyboard shortcuts sheet ---------------- */
+
+/* A reference rather than an inspector: two narrow columns of cap and sentence,
+   so it wants none of .modal's 820px and rather more than the clear prompt's
+   440. Everything else it needs — the entrance, the dim behind it, the fade
+   that replaces both under reduced motion — is .modal-backdrop's and .modal's
+   already, which is the whole reason this sheet is built out of them. */
+.modal.key-help { width: min(560px, 92vw); }
+/* The caption over each group of rows. The tool inspector says the same thing
+   with `.modal-section h4` and keeps it: h4 belongs to the three dialogs that
+   already had one, so this sheet's groups are h3 and bring their own rule
+   rather than joining that selector list and changing what it means. */
+.kh-group {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+/* The first caption is already 16px under the note, which is .modal-body's own
+   gap; the margin above is the air BETWEEN groups and there is nothing above
+   this one to be between. */
+.kh-group:first-child { margin-top: 0; }
+
 /* ---------------- session-end summary modal ---------------- */
 
 .session-summary { width: min(720px, 92vw); }

@@ -248,9 +248,13 @@ export interface FinishSoundState {
  * anyone off, and the deck does not draw the button at all without Claude Code.
  */
 export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
+  // The key in parentheses is how every other control on this bar names its
+  // own. This one had none until #511: it was the last topbar control with a
+  // control and no shortcut, which made it the odd one out under either of the
+  // two models the deck could have committed to.
   const lead = s.on
-    ? "Sound on turn finish: on — click to remove the hook"
-    : "Sound on turn finish: off — click to add a Stop hook";
+    ? "Sound on turn finish: on — click to remove the hook (M)"
+    : "Sound on turn finish: off — click to add a Stop hook (M)";
 
   // First, ahead of the settings.json footnotes below: those are about hooks the
   // user wrote, and this is about which of their turns the switch covers at all.
@@ -264,9 +268,16 @@ export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
     ? `\n\n${s.clash} sound hook${s.clash > 1 ? "s" : ""} of your own in settings.json also run${s.clash > 1 ? "" : "s"} here.`
     : "";
 
+  // The one recovery on this deck that exists nowhere else, and until #511 it
+  // was reachable by mouse and by nothing else — this sentence, in a tooltip,
+  // and only once something was already parked. It has a key now (Shift+M) and
+  // a line in the shortcuts sheet under `?`, so a keyboard user has a route and
+  // a reader who has parked nothing can still find out that the switch does
+  // this at all. The mouse wording is unchanged, because it is what a person
+  // who is already here reads.
   const parked = s.parked > 0
     ? `\n\n${s.parked} of your own sound hook${s.parked > 1 ? "s were" : " was"} set aside so this switch actually controls the sound. ` +
-      `Nothing was deleted — shift-click to put ${s.parked > 1 ? "them" : "it"} back.`
+      `Nothing was deleted — shift-click to put ${s.parked > 1 ? "them" : "it"} back (Shift+M does the same).`
     : "";
 
   return lead + scope + clash + parked;
