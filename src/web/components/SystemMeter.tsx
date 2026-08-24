@@ -314,7 +314,14 @@ function SystemPanel({ sys, usageOpen, onClose }: { sys: Snapshot; usageOpen: bo
           <div className="sd-cores" style={{ "--n": perCore.length } as React.CSSProperties}>
             {perCore.map((v, i) => (
               <span key={i} className="sd-core" title={`core ${i + 1}: ${v}%`}>
-                <span className="sd-core-fill" style={{ height: `${Math.max(2, v)}%` }} />
+                {/* A fraction of a full-height column, not a height (#505).
+                    One element per core, restyled every 3 seconds while this
+                    panel is open, so the difference between a composited
+                    transform and a relayout is multiplied by the core count.
+                    The 2% floor is unchanged and means the same thing it always
+                    did: an idle core still draws a sliver, so an empty column
+                    reads as "nothing running" rather than "no data". */}
+                <span className="sd-core-fill" style={{ transform: `scaleY(${Math.max(2, v) / 100})` }} />
               </span>
             ))}
           </div>

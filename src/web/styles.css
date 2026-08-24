@@ -518,11 +518,26 @@ button:focus-visible { outline-offset: 1px; }
 /* Version drift lives here permanently. The banner can be dismissed; the fact
    that this process is running superseded code cannot, so the chip keeps
    carrying it — and clicking brings the banner back. */
+/* 24px on the short side (#509). It measured 53.55 x 21.94 — the width was never
+   the problem and the height was 11px of type at 1.45 leading plus 2px of
+   padding plus two 1px borders, which lands 2.06px under the floor the rest of
+   this sheet holds itself to.
+   `min-height` rather than more padding, because padding is the wrong lever for
+   2px: a third pixel top and bottom would take the chip to 23.94 and still miss,
+   and a fourth would take it to 25.94 and overshoot by two. The floor is the
+   thing being asked for, so the floor is what the rule says. `align-items:
+   center` was already here, so the label stays optically centred as the box
+   grows around it.
+   The 2px is worth spending and the issue is right about why: this chip is the
+   only permanent surface that tells you the running process is superseded. The
+   drift banner can be dismissed and this cannot, which makes it the last thing
+   in the deck that should be hard to hit. */
 .topbar .brand button.v {
   display: inline-flex;
   align-items: center;
   flex: none;
   gap: 5px;
+  min-height: 24px;
   padding: 2px 7px;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -604,6 +619,52 @@ button:focus-visible { outline-offset: 1px; }
   gap: 8px;
 }
 
+/* One box for three labels (#504).
+   Pause is the only control in this bar whose content changes, and it changes
+   by a lot: `Pause`, `Resume` and `Resume · 99+ held` are 60, 71 and 133 pixels
+   of the same button at this font. It was content-sized — horizontal padding
+   and nothing else — so pressing Space resized it, and it kept resizing as the
+   held count crossed 9, 99, 999.
+   What that moved is worth stating precisely, because the obvious answer is
+   wrong: it is NOT the eight buttons after it. `.actions` is `flex: none` on a
+   `space-between` bar, so the three control runs stay pinned to the right edge
+   and none of them shifts. What moves is this button itself — 45px left at
+   1470, measured — and the selected-agent ribbon, which slides by half the
+   delta because the free space is split between the two gaps around it. A
+   control that walks out from under the pointer at the moment it changes what
+   it does is the defect either way.
+   No transition, deliberately, and the reason is the same one that made the
+   `.sd-core-fill` conversion worth doing: easing this means easing `width`,
+   which is layout, runs on the main thread, and would owe reduced motion an
+   answer under this sheet's own rules. A smoothly animated reflow is still a
+   reflow.
+   `inline-grid` with one named cell, so the invisible widest label and the live
+   one stack rather than sit side by side. The button therefore measures itself
+   against its own worst case in whatever font the platform supplies, which a
+   pixel `min-width` cannot do — see PAUSE_WIDEST_LABEL for why that mattered
+   more than the shorter rule it replaced.
+   `tabular-nums` is the last of it. The box no longer moves, but the label is
+   centred inside it, so without equal-width digits `Resume · 11 held` and
+   `Resume · 99 held` would still shuffle the text a pixel or two within a box
+   that is standing still. */
+.topbar .actions .pause-btn {
+  display: inline-grid;
+  grid-template-areas: "pause-label";
+  align-items: center;
+  justify-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.topbar .actions .pause-widest,
+.topbar .actions .pause-label {
+  grid-area: pause-label;
+  white-space: nowrap;
+}
+/* Out of the picture and out of the accessible tree — `visibility: hidden`
+   removes it from both, and the `aria-hidden` on the element says so a second
+   time for anything that reads the markup rather than the computed style. All
+   it contributes is its width. */
+.topbar .actions .pause-widest { visibility: hidden; }
+
 /* Selected-agent ribbon — context chip that follows you across the canvas
    when an agent is selected. Click → fit-view to that agent. The × on
    the right clears selection without leaving the topbar. */
@@ -684,11 +745,53 @@ button:focus-visible { outline-offset: 1px; }
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+/* 24 x 24 of target around an 18px glyph (#509).
+   It measured 18 x 18, under the floor SC 2.5.8 sets and this sheet argues for
+   three separate times — at `.ver-close`, at `.detail-reopen` and at `.ap-more`
+   — and it is the one control here that cannot use the standard's own escape
+   hatch. That exception excuses an undersized target when a 24px circle centred
+   on it touches no other target; this × sits INSIDE `.selected-ribbon`, and the
+   ribbon is itself a button, so the circle intersects a target by construction
+   and always will. It is also the miss with the worst consequence in the bar:
+   the thing behind it fits the view to the agent, which moves the whole canvas.
+
+   The box stays 18px and the target is drawn around it, which is NOT the
+   `.sysmeter` technique the issue proposed and is the same idea one step
+   further. Padding plus a negative margin is right for that meter because the
+   meter paints nothing at rest — grow its box and there is no fill to grow with
+   it. This glyph fills a disc on hover, and the trap is specific and was
+   measured rather than guessed at: `background` is a SHORTHAND, so the
+   `background: var(--line)` in the hover rule below resets `background-clip`
+   to `border-box` however carefully the resting rule set it to `content-box`.
+   The disc came out 24px instead of 18 — 407 painted pixels against 203, a
+   third wider under the pointer — while every computed style still read
+   correctly. A pseudo-element has no such coupling: it is a transparent box
+   that exists only to be hit, the glyph keeps its own 18px geometry, and the
+   paint is provably identical because nothing about the painted element
+   changed. Verified by rendering both rules and diffing: 0 pixels differ at
+   rest and 0 hovered, in both themes.
+   `position: relative` is here for the pseudo-element to anchor to, and is the
+   only declaration this rule gained. */
 .selected-ribbon .selected-close {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 18px; height: 18px;
+  /* Or the 24px above is only true on a wide screen. `width: 18px` sets this
+     item's base size and nothing was stopping it from shrinking below it: a
+     flex item defaults to `flex-shrink: 1` with `min-width: auto`, which
+     resolves to the min-content of a single × — 8.67px. Swept across viewports
+     with a worst-case ribbon (a 19-character agent name, a cost with a rate and
+     a +2 chip), the close measured 17.72px at 1400, 14.28px at 1300 and 8.67px
+     at 1200, and the target drawn around it shrinks with it. #509 measured this
+     control at 1470, where it is intact, so the report says 18 × 18 and the
+     shrink is a second defect underneath the first one.
+     `flex: none` rather than `flex-shrink: 0`, which is the same thing here and
+     is the spelling `.topbar .actions` and `.topbar .brand` already use for
+     "this does not give". What gives instead is the label, which ellipses, and
+     that is the order #508 chose. */
+  flex: none;
   border-radius: 999px;
   color: var(--muted);
   font-size: 14px;
@@ -696,6 +799,21 @@ button:focus-visible { outline-offset: 1px; }
   cursor: pointer;
   transition: background 120ms, color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The target. 3px of reach on every side, which takes an 18px glyph to 24px and
+   leaves the hit area 4px inside the ribbon's own right edge — it never spills
+   over the boundary onto the canvas behind. A pointer event landing on a
+   pseudo-element is delivered to the element that owns it, so this needs no
+   markup and no handler of its own.
+   `border-radius: inherit` makes it a circle rather than a square, which is
+   what `.glyph-btn` already resolved for the four bare closes: at this size the
+   sheet's answer to SC 2.5.8 is a 24px circle, and one control drawing a square
+   target under a round glyph would be the odd one out for no reason. */
+.selected-ribbon .selected-close::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
 }
 .selected-ribbon .selected-close:hover { background: var(--line); color: var(--text); }
 .selected-ribbon .selected-close:active { transform: scale(0.94); }
@@ -767,15 +885,59 @@ button:focus-visible { outline-offset: 1px; }
   margin: -5px -7px;
   border-radius: 6px;
   /* The press eases back rather than snapping — the convention every other
-     pressable control in this sheet follows (#355). */
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+     pressable control in this sheet follows (#355). The ring below joins the
+     wash on the same 120ms, so the two channels arrive together; box-shadow is
+     in this sheet's STILL set and owes reduced motion nothing. */
+  transition: background 120ms, box-shadow 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 /* Two bars and a number look like a readout, so nothing about the resting state
    says "press me". The fill on hover is what the other icon controls in this bar
-   already do, and holding it while the panel is up keeps the panel visibly
-   attached to the thing that opened it. */
-.topbar .status .sysmeter:hover,
-.topbar .status .sysmeter[aria-expanded="true"] { background: var(--line); }
+   already do. */
+.topbar .status .sysmeter:hover { background: var(--line); }
+/* The panel is open — and until #507 this was the SAME DECLARATION as the hover
+   above, one rule with two selectors, so pointing at a closed meter and opening
+   it produced the identical picture and the control could not tell you whether
+   the thing it opens was already on screen. The wash it shared was --line, which
+   is 1.14:1 and 1.19:1 against the two ends of the topbar gradient in dark and
+   1.60:1 / 1.41:1 in light — a fifth of the 3:1 WCAG 1.4.11 asks of a non-text
+   state, while every other disclosure in this bar sits at 5.24-11.33:1 because
+   #370 inverted them. This one escaped that sweep for a structural reason rather
+   than a considered one: #370 targeted `button.btn.icon-btn` and a meter is not
+   one, so toggle-state.test.ts could not reach it. It can now — the sweep names
+   this control by hand.
+
+   The icon buttons' answer does NOT transfer, and finding out why is the work
+   this issue asked for. Their polarity inversion fills the box with --accent and
+   flips the glyph to --bg, which works because a glyph is one shape in one
+   colour. This box is 50x24 of GRAPHIC: a sparkline whose rects are painted
+   `fill="var(--accent)"` with an opacity ramp, and a memory bar whose track is
+   --line and whose fill is --accent, or --warn past 90%. An --accent bed puts
+   the trace and the memory fill at 1.00:1 against their own background — the
+   whole readout vanishes — and the warning state is worse than vanished: --warn
+   on --accent measures 1.16:1 in dark and 1.09:1 in light, so the one colour in
+   this control that means "look at this" would be the least visible thing on it
+   at exactly the moment it fires.
+   Repainting the graphic to --bg to follow the fill fixes the first and cannot
+   fix the second without giving up the hue that IS the warning.
+
+   So the constraint #370 established is met in the other channel it left open.
+   A ring, drawn inset so no geometry moves — this box is 50x24 because
+   `padding: 5px 7px` and `margin: -5px -7px` were measured to make it exactly
+   that, and a border would have eaten a pixel of the padding and shifted the
+   trace. --accent against the two ends of the bare bar is 10.85:1 / 11.33:1 in
+   dark and 5.93:1 / 5.24:1 in light; against the --line wash it sits on when the
+   pointer is also there, 9.55:1 dark and 3.72:1 light. All eight clear 3:1, and
+   they clear it in greyscale too — accent is far lighter than the bar in dark
+   and far darker in light, so the step is luminance and not hue, which is the
+   one thing #370 said had to survive.
+   And it costs the graphic nothing: the bed under the trace is unchanged, so
+   the sparkline, the memory bar and the --warn state read exactly as they did.
+
+   Two channels across two states, which is what makes all four distinguishable
+   without a third rule: hover paints the wash, open draws the ring, and an open
+   meter under the pointer has both. */
+.topbar .status .sysmeter[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
 /* Same separator the stats draw between themselves — the meter sits in that run
    and should not look welded to its neighbour.
    Drawn on the stat AFTER the meter rather than on the meter itself, which is
@@ -985,11 +1147,46 @@ button:focus-visible { outline-offset: 1px; }
   border-radius: 2px;
   overflow: hidden;
 }
+/* scaleY, not height — the conversion `.sd-fill` two rules down already had and
+   this one was missed (#505).
+   `height` is a layout property: every change runs layout, paint and composite
+   on the main thread. This is the rule where that costs the most in the whole
+   sheet, and by a wide margin: `.sd-fill` is one element per memory row, this is
+   one element PER CORE — twelve on the machine it was written on, more on a
+   workstation — and the panel resamples every 3 seconds for as long as it is
+   open. So the rule that was converted runs a handful of times per tick and the
+   one that was not ran twelve or more.
+
+   The track is `align-items: flex-end` with `overflow: hidden`, which is what
+   made this less mechanical than the sibling: a scaleY is only the same picture
+   as a height if the box being scaled is the full height of the track to begin
+   with. So `height: 100%` is load-bearing rather than tidy — it is what turns
+   the flex-end alignment into a no-op and gives the transform a full column to
+   take a fraction of — and `transform-origin: bottom` is what keeps the fraction
+   anchored where flex-end used to put it. Verified against the current build
+   rather than reasoned, because the issue was right that this one wanted looking
+   at: all twelve columns land within 0.01px of where `height` put them, and a
+   1x capture of the whole strip differs by 160 pixels out of 6500 — one to three
+   rows of edge antialiasing at each column's own top edge, plus two pixels at
+   each bottom corner. It is a rasterisation difference and not a positional one:
+   it survives setting the radius to zero, so it is the blend along the free edge
+   rather than the corner rounding, and every other row of every column is
+   identical. The three sides that touch the track are clipped by the track's own
+   2px radius either way.
+   Nothing else reads this element's box: SystemMeter writes the value and the
+   sheet draws it, and no measurement anywhere depends on the fill's real height.
+
+   The reduced-motion answer at the foot of this section covers both rules with
+   one `transition: none`, so it neutralises `transform` here exactly as it
+   neutralised `height` — confirmed by rendering with the preference on, not
+   assumed from the fact that the selector is still listed. */
 .sysdetail .sd-core-fill {
   width: 100%;
+  height: 100%;
   background: var(--accent);
   border-radius: 2px;
-  transition: height 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: bottom;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sd-row + .sd-row { margin-top: 9px; }
@@ -1169,10 +1366,19 @@ button:focus-visible { outline-offset: 1px; }
    role="status" beside it, so the chip stays a plain button.
    The `margin-right: 6px` it used to carry is gone with .status's — .readout's
    24px is the boundary now, and this chip is the last thing in that group. */
+/* And 24px on the short side here too (#509), by 0.06 of a pixel. It measured
+   81.89 x 23.94 — a font-metric artefact of 3px of padding on an 11px line box,
+   not something a user could see. It is fixed in the same pass anyway, for the
+   reason the floor is worth having at all: this is the deck's alarm, the one
+   number in the bar you are meant to click, and it should not be the single
+   control sitting a rounding error under the line the sheet draws for itself.
+   `min-height`, not a fourth pixel of padding: 0.06px of growth against 2px, and
+   the same lever the version chip above takes for the same miss. */
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 24px;
   padding: 3px 9px;
   border-radius: 999px;
   background: transparent;
@@ -1455,6 +1661,19 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   background: var(--err);
   box-shadow: 0 0 8px var(--err);
   animation: pulse 1.2s infinite;
+}
+/* The sentence that used to be reachable only by hovering the status pill
+   (#510), rendered here because this banner already announces and already
+   stays. Drawn as the version banner draws its own second clause: the alarm
+   colour belongs to the dot and to the headline, and the explanation under it
+   is running text. --text rather than --muted for the same reason .ver-banner
+   gives — this is the row that tells the user what to do about an outage, and
+   it is the worst place in the deck to make somebody squint. Measured on the
+   banner's own wash at both ends of its gradient: 11.54:1 / 13.99:1 dark,
+   13.25:1 / 16.72:1 light. */
+.conn-banner .conn-sub {
+  color: var(--text);
+  font-weight: 400;
 }
 
 /* ---------------- version-drift banner ---------------- */
