@@ -42,42 +42,67 @@
 // claude-swap has no reading for it. Everything below is written for n, and 0
 // and 1 are the cases with an answer of their own.
 
-/** The only part of a lane this file needs. */
-export interface LaneLike { pct: number }
+/** The only parts of a lane this file needs. `id` is the server's, and the
+ *  `scoped-` prefix is its own contract — claude-accounts.mjs builds
+ *  `five_hour`, `seven_day` and one `scoped-N` per model. */
+export interface LaneLike { pct: number; id?: string }
+
+/** A per-model breakdown rather than one of the account's own windows. */
+function isScoped(l: LaneLike): boolean {
+  return typeof l.id === "string" && l.id.startsWith("scoped-");
+}
 
 export interface LaneSplit<T> {
-  /** The lane the row shows at rest: the first one the server sent. */
-  binding: T | null;
-  /** The rest, in the order the server sent them. */
+  /** The account's own quota windows, in the order the server sent them:
+   *  `5h`, then `7d`. Both stay on the resting row — they are the two numbers
+   *  an account is read by, and folding either one away made the reader open a
+   *  disclosure to answer the question the panel exists for. */
+  shown: T[];
+  /** The per-model lanes, folded. These are a breakdown of the windows above
+   *  rather than a third and fourth window, and an account can have any number
+   *  of them, so they are what the disclosure is for. */
   rest: T[];
-  /** The fullest lane, when it is NOT the one being shown. Null otherwise.
+  /** The fullest folded lane, when it is fuller than every lane on show.
+   *  Null otherwise.
    *
-   *  The row used to lead with this one, because it is the window that decides
-   *  when auto-switch trips. It leads with the first lane instead now — `5h` on
-   *  every account that has one — because that is the window people read the
-   *  account by, and a row whose label changed from `5h` to `7d` when the
-   *  pressure moved made the column unscannable. Nothing is lost: when a hidden
-   *  lane is fuller than the shown one, the disclosure says so and says which. */
+   *  The row leads with the windows rather than with whatever is fullest, so
+   *  the lane that decides when auto-switch trips can be one of the folded
+   *  ones. When it is, the disclosure says which and how full, because a row
+   *  showing two calm numbers over a hidden hot one would be the panel lying by
+   *  omission. */
   fuller: T | null;
+  /** The fullest lane of all, shown or folded — the one `headroom` is about. */
+  peak: T | null;
 }
 
 /**
- * The lane the row leads with, and everything behind it.
+ * What the row shows at rest, and what its disclosure holds.
+ *
+ * The cut is by kind, not by count or by size: the account's own windows stay,
+ * the per-model breakdown folds. That is what makes the resting row the same
+ * shape on every account and the same shape tomorrow — a cut by size re-labels
+ * itself whenever the pressure moves, and a cut by count shows a model lane on
+ * an account the server had no `7d` reading for.
  *
  * One function rather than two, so the row and its disclosure cannot disagree
- * about which lane is showing: `rest` is defined as "the lanes after the first",
- * not as "the lanes after a sort". The server's order is the product's order —
- * `5h`, then `7d`, then a lane per scoped model — and nothing here reorders it,
- * so the label under an account is the same label tomorrow.
+ * about what is showing: `rest` is defined as the complement of `shown`, not as
+ * a second filter that could drift from it.
  */
 export function laneSplit<T extends LaneLike>(lanes: readonly T[]): LaneSplit<T> {
-  if (lanes.length === 0) return { binding: null, rest: [], fuller: null };
-  const [binding, ...rest] = lanes;
-  let at = -1;
-  for (let i = 0; i < rest.length; i++) {
-    if (rest[i].pct > binding.pct && (at < 0 || rest[i].pct > rest[at].pct)) at = i;
+  const shown = lanes.filter(l => !isScoped(l));
+  const rest  = lanes.filter(l => isScoped(l));
+  // An account whose windows the server had no reading for still has to show
+  // something, so a roster of nothing but model lanes leads with them rather
+  // than rendering an empty row over a full disclosure.
+  const head = shown.length ? shown : rest;
+  const tail = shown.length ? rest : [];
+  const top  = head.reduce<T | null>((a, b) => (a && a.pct >= b.pct ? a : b), null);
+  let fuller: T | null = null;
+  for (const l of tail) {
+    if (top && l.pct <= top.pct) continue;
+    if (!fuller || l.pct > fuller.pct) fuller = l;
   }
-  return { binding, rest, fuller: at < 0 ? null : rest[at] };
+  return { shown: head, rest: tail, fuller, peak: fuller ?? top };
 }
 
 /**
@@ -120,14 +145,13 @@ export function moreLabel(
  */
 export function lanesTitle(
   headroom: number | null,
-  bindingLabel: string | null,
+  peakLabel: string | null,
   rest: number,
   open: boolean,
 ): string {
   const lead = headroom == null
     ? "No usage has been collected for this account yet."
-    : `${Math.round(headroom)}% left on the window that runs out first${
-        bindingLabel ? `, and this row leads with ${bindingLabel}` : ""}.`;
+    : `${Math.round(headroom)}% left on ${peakLabel ?? "the window that runs out first"}, which is the one that runs out first.`;
   const other = rest === 1 ? "the other window" : `the other ${rest} windows`;
   return `${lead} ${open ? "Hide" : "Show"} ${other}.`;
 }

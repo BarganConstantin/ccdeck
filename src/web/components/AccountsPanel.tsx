@@ -421,10 +421,12 @@ export default function AccountsPanel({ onClose }: Props) {
     return () => window.clearInterval(t);
   }, []);
 
-  // How close the active account is to tripping the rule. Both numbers are
-  // already on screen — the binding lane is whichever is highest, same as the
-  // one claude-swap measures against — so this costs nothing to show and
-  // answers the question the threshold setting otherwise leaves hanging.
+  // How close the active account is to tripping the rule. `peak` is the fullest
+  // lane of all, shown or folded, which is the one claude-swap measures against
+  // — the same lane `headroom` is about. The row leads with the windows rather
+  // than with the fullest, so this is deliberately NOT the lane the row shows
+  // first; taking that one would have this readout disagree with the rule it
+  // describes on any account whose model lane is the hot one.
   const threshold = auto?.settings["autoswitch.threshold"]?.value ?? "90";
   // The percentage the picker is showing, which is a proposal until it is
   // saved. The live number below races the STORED one, because that is the
@@ -433,10 +435,11 @@ export default function AccountsPanel({ onClose }: Props) {
   const thresholdPick = thresholdDraft ?? threshold;
   const thresholdCtl = thresholdCommit(thresholdPick, threshold);
   const activeAcct = data?.accounts?.find(a => a.active);
-  // The same binding lane every row shows, from the same function. This used to
+  // The same fullest lane the rows measure against, from the same function.
+  // This used to
   // be a second `Math.max` written out here, which is one of the two places the
   // panel did the arithmetic the row was leaving to the reader.
-  const activePct = laneSplit(activeAcct?.lanes ?? []).binding?.pct ?? null;
+  const activePct = laneSplit(activeAcct?.lanes ?? []).peak?.pct ?? null;
   const nearTrigger = activePct != null && activePct >= Number(threshold) - 15;
 
   const doSwitch = async (num: number) => {
@@ -653,7 +656,7 @@ export default function AccountsPanel({ onClose }: Props) {
       ) : (
         <>
           {data.accounts?.map(a => {
-            const { binding, rest, fuller } = laneSplit(a.lanes);
+            const { shown, rest, fuller, peak } = laneSplit(a.lanes);
             const lanesOpen = openLanes.includes(a.num);
             const more = moreLabel(rest.length, lanesOpen, fuller);
             return (
@@ -728,9 +731,9 @@ export default function AccountsPanel({ onClose }: Props) {
                   it unconditionally. See lane-view.ts for why the rest are not
                   re-sorted. */}
               <div className="ap-lanes" id={`ap-lanes-${a.num}`}>
-                {binding
+                {shown.length
                   ? <>
-                      <LaneBar lane={binding} nowSec={nowSec} />
+                      {shown.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} />)}
                       {lanesOpen && rest.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} />)}
                     </>
                   : <div className="ap-hint">No usage recorded yet.</div>}
@@ -769,7 +772,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     className="ap-lanes-more"
                     aria-expanded={lanesOpen}
                     aria-controls={`ap-lanes-${a.num}`}
-                    title={lanesTitle(a.headroom, binding?.label ?? null, rest.length, lanesOpen)}
+                    title={lanesTitle(a.headroom, peak?.label ?? null, rest.length, lanesOpen)}
                     onClick={() => setOpenLanes(open =>
                       open.includes(a.num) ? open.filter(n => n !== a.num) : [...open, a.num])}
                   >{more}</button>

@@ -1,5 +1,5 @@
-// An account row printed every quota window it had, and only one of them ever
-// decided anything.
+// An account row printed every quota window it had, and a scoped model lane for
+// each model on top of that.
 //
 // Measured in headless Chrome against the real stylesheet, panel at its shipped
 // 288px, three accounts each with `5h`, `7d` and one scoped model lane:
@@ -9,26 +9,35 @@
 //   three blocks + chrome  665.85px   against 761px of panel on an 813px screen
 //   scrolls at             4 accounts
 //
-// After: every block 98.59px, active and inactive alike, three of them plus
-// chrome 479.05px, and the scrollbar starts at 7 accounts instead of 4.
+// What comes off the resting row is the per-model breakdown, not a window. The
+// cut is by KIND, and that is the whole of the design: the account's own
+// windows — `5h`, then `7d` — stay, and the `scoped-N` lanes fold. Two earlier
+// shapes were tried and both were worse, for reasons this file pins:
 //
-// What was removed is repetition, not information. Only the HIGHEST lane
-// decides anything — it is the window that runs out first and the one
-// claude-swap measures its auto-switch threshold against — and the server
-// already knew which: `claude-accounts.mjs` ships
+//   by size  — lead with whatever is fullest. A row whose label changed from
+//              `5h` to `7d` when the pressure moved is a row the eye has to
+//              re-find on every poll, and a column of accounts is read by shape.
+//   by count — keep the first two. Shows a model lane on an account the server
+//              had no `7d` reading for, which is a window that does not exist
+//              dressed as one that does.
+//
+// The cut by kind is the only one that gives every account the same resting
+// shape today AND the same one tomorrow.
+//
+// It costs something and the cost is paid explicitly. The lane that decides
+// when auto-switch trips is the FULLEST one — `claude-accounts.mjs` ships
 // `headroom: 100 - Math.max(...lanes.map(l => l.pct))` with the comment "the
-// number that decides whether this account is worth switching to", the panel
-// declared the field on its `Account` interface, and nothing ever read it.
-// Meanwhile the panel computed the same `Math.max` again, further down, for the
-// auto-switch readout. So the row was printing three numbers and leaving the
-// reader to perform a max() the component was already performing twice.
+// number that decides whether this account is worth switching to" — and after
+// this cut that lane can be one of the folded ones. So `laneSplit` reports
+// `peak` (the fullest of all, which is what `headroom` is about) and `fuller`
+// (the fullest folded one, but only when it beats everything on show), the
+// disclosure wears `fuller` instead of a count, and the auto-switch readout
+// takes `peak` rather than a second `Math.max` written out by hand.
 //
-// This file holds the two halves of the fix. The pure half is lane-view.ts,
-// swept rather than sampled. The other half is read out of the markup, because
-// a pure function that is right about lanes it is never handed is the failure
-// mode this repo has already shipped once: the panel must render ONE lane at
-// rest, put the rest behind a disclosure that really points at them, and take
-// the auto-switch readout from the same function the rows use.
+// This file holds both halves. The pure half is lane-view.ts, swept rather than
+// sampled. The other half is read out of the markup, because a pure function
+// that is right about lanes it is never handed is the failure mode this repo
+// has already shipped once.
 //
 // Plain node, no DOM, so the second half reads AccountsPanel.tsx as text the
 // way manage-block.test.ts and picker-commit.test.ts do.
@@ -51,86 +60,102 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 const lane = (id: string, pct: number) => ({ id, pct });
 
-describe("the lane the row leads with", () => {
-  it("is the first one the server sent, whatever the numbers say", () => {
-    // The row used to lead with the fullest lane. It led with a different label
-    // from one poll to the next, which is exactly what a column of accounts
-    // cannot afford: the eye finds a row by the shape it had last time. The
-    // server's order is the product's order — `5h`, then `7d`, then a lane per
-    // scoped model — and the row now inherits it unchanged.
-    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 9)]).binding!.id).toBe("5h");
-    expect(laneSplit([lane("5h", 91), lane("7d", 44)]).binding!.id).toBe("5h");
-    expect(laneSplit([lane("5h", 0), lane("7d", 0), lane("opus", 1)]).binding!.id).toBe("5h");
-    // An account with no 5h reading leads with whatever the server did send.
-    expect(laneSplit([lane("7d", 3), lane("opus", 99)]).binding!.id).toBe("7d");
+describe("what the resting row shows", () => {
+  it("keeps both of the account's own windows, and folds the model lanes", () => {
+    const { shown, rest } = laneSplit([
+      lane("five_hour", 12), lane("seven_day", 44), lane("scoped-0", 9), lane("scoped-1", 3),
+    ]);
+    expect(shown.map(l => l.id)).toEqual(["five_hour", "seven_day"]);
+    expect(rest.map(l => l.id)).toEqual(["scoped-0", "scoped-1"]);
   });
 
-  it("cannot change label between two polls, whatever moves underneath it", () => {
-    // The property the old highest-wins rule could not offer: the same roster
-    // read twenty times, with the pressure moving between the windows, still
-    // leads with the same lane every time.
+  it("cuts by kind, so the numbers never decide what is on the row", () => {
+    // The same roster read twenty times with the pressure moving between the
+    // windows and the models: the resting row is the same two lanes every time.
     for (let i = 0; i <= 20; i++) {
-      const lanes = [lane("5h", i * 5), lane("7d", 100 - i * 5), lane("opus", (i * 13) % 100)];
-      expect(laneSplit(lanes).binding!.id, `poll ${i}`).toBe("5h");
+      const { shown } = laneSplit([
+        lane("five_hour", i * 5),
+        lane("seven_day", 100 - i * 5),
+        lane("scoped-0", (i * 13) % 100),
+      ]);
+      expect(shown.map(l => l.id), `poll ${i}`).toEqual(["five_hour", "seven_day"]);
     }
   });
 
-  it("hands back everything else in the order it arrived, never sorted", () => {
-    // A list that re-sorts itself under the reader while they are reading it is
-    // not information. `rest` is defined as the lanes after the first, so it
-    // cannot be a sort by construction rather than by promise.
-    const lanes = [lane("5h", 10), lane("7d", 90), lane("opus", 55), lane("sonnet", 70)];
-    expect(laneSplit(lanes).rest.map(l => l.id)).toEqual(["7d", "opus", "sonnet"]);
+  it("shows one window when that is all the server sent, not a model beside it", () => {
+    // The case a first-two cut gets wrong: no 7d reading, so a by-count rule
+    // would put a model lane in a window's place.
+    const { shown, rest } = laneSplit([lane("five_hour", 20), lane("scoped-0", 90)]);
+    expect(shown.map(l => l.id)).toEqual(["five_hour"]);
+    expect(rest.map(l => l.id)).toEqual(["scoped-0"]);
   });
 
-  it("names the fullest hidden lane, and only when it really is fuller", () => {
-    // What the change costs and how it is paid back. The window that decides
-    // when auto-switch trips can now be one of the folded ones, so the split
-    // reports it and the disclosure wears it. Null whenever the lane on show is
-    // already the fullest, so the row says nothing it does not have to.
-    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 9)]).fuller!.id).toBe("7d");
-    expect(laneSplit([lane("5h", 12), lane("7d", 44), lane("opus", 91)]).fuller!.id).toBe("opus");
-    expect(laneSplit([lane("5h", 91), lane("7d", 44)]).fuller).toBeNull();
-    expect(laneSplit([lane("5h", 40), lane("7d", 40)]).fuller).toBeNull();  // a tie is not fuller
-    expect(laneSplit([lane("5h", 3)]).fuller).toBeNull();
+  it("falls back to the model lanes rather than rendering an empty row", () => {
+    // Nothing but scoped lanes is not a shape the server is expected to
+    // produce, but an empty row over a full disclosure would be worse than
+    // showing them, so the fallback is stated rather than left to chance.
+    const { shown, rest } = laneSplit([lane("scoped-0", 4), lane("scoped-1", 8)]);
+    expect(shown.map(l => l.id)).toEqual(["scoped-0", "scoped-1"]);
+    expect(rest).toEqual([]);
+  });
+
+  it("never reorders either half", () => {
+    const lanes = [lane("five_hour", 10), lane("seven_day", 90), lane("scoped-0", 55), lane("scoped-1", 70)];
+    const { shown, rest } = laneSplit(lanes);
+    expect(shown.map(l => l.id)).toEqual(["five_hour", "seven_day"]);
+    expect(rest.map(l => l.id)).toEqual(["scoped-0", "scoped-1"]);
+  });
+
+  it("names the fullest folded lane, and only when it really is fuller", () => {
+    // What the cut costs, and how it is paid back.
+    const hot = laneSplit([lane("five_hour", 12), lane("seven_day", 44), lane("scoped-0", 91)]);
+    expect(hot.fuller!.id).toBe("scoped-0");
+    expect(hot.peak!.id).toBe("scoped-0");
+
+    const calm = laneSplit([lane("five_hour", 12), lane("seven_day", 88), lane("scoped-0", 9)]);
+    expect(calm.fuller).toBeNull();
+    expect(calm.peak!.id).toBe("seven_day");
+
+    // A tie is not fuller: the row is already showing that number.
+    expect(laneSplit([lane("five_hour", 40), lane("scoped-0", 40)]).fuller).toBeNull();
+    expect(laneSplit([lane("five_hour", 3)]).fuller).toBeNull();
     expect(laneSplit([]).fuller).toBeNull();
+    expect(laneSplit([]).peak).toBeNull();
   });
 
   it("is total over the lane counts the server can actually produce", () => {
     // Not three, and never was: claude-accounts.mjs builds `5h`, `7d` and one
-    // lane per scoped model, dropping any window it has no reading for. Zero
-    // and one are the two the row answers differently.
+    // lane per scoped model, dropping any window it has no reading for.
     expect(server).toMatch(/lane\("five_hour", "5h"/);
     expect(server).toMatch(/lane\("seven_day", "7d"/);
     expect(server).toMatch(/\.map\(\(s, i\) => lane\(`scoped-\$\{i\}`/);
-    expect(laneSplit([])).toEqual({ binding: null, rest: [], fuller: null });
-    const one = laneSplit([lane("5h", 3)]);
-    expect(one.binding!.id).toBe("5h");
-    expect(one.rest).toEqual([]);
+    expect(laneSplit([])).toEqual({ shown: [], rest: [], fuller: null, peak: null });
     for (let n = 0; n <= 12; n++) {
-      const lanes = Array.from({ length: n }, (_, i) => lane(`l${i}`, i * 7 % 100));
+      const lanes = [
+        lane("five_hour", 11), lane("seven_day", 22),
+        ...Array.from({ length: n }, (_, i) => lane(`scoped-${i}`, i * 7 % 100)),
+      ];
       const split = laneSplit(lanes);
-      expect(split.rest.length, `${n} lanes`).toBe(Math.max(0, n - 1));
-      if (n) expect(split.binding!.id, `${n} lanes`).toBe(lanes[0].id);
+      expect(split.shown.length, `${n} models`).toBe(2);
+      expect(split.rest.length, `${n} models`).toBe(n);
       // Nothing is lost and nothing is duplicated.
-      const back = [...(split.binding ? [split.binding] : []), ...split.rest].map(l => l.id).sort();
-      expect(back, `${n} lanes`).toEqual(lanes.map(l => l.id).sort());
+      const back = [...split.shown, ...split.rest].map(l => l.id).sort();
+      expect(back, `${n} models`).toEqual(lanes.map(l => l.id).sort());
     }
   });
 
   it("agrees with the headroom the server ships, which is the same max()", () => {
     // The server's own line, quoted here so the two cannot drift apart in
-    // silence: if that arithmetic ever changes, the row is showing a lane the
-    // headroom in its own tooltip is not about.
+    // silence. `peak` is the lane that arithmetic is about, whether it is one
+    // of the two on the row or one of the folded ones.
     expect(server).toMatch(/headroom: lanes\.length \? Math\.max\(0, 100 - Math\.max\(\.\.\.lanes\.map\(l => l\.pct\)\)\) : null/);
-    // The headroom is still about the fullest window, and the row no longer
-    // leads with that window — so the two can disagree, and the split has to
-    // say which lane the headroom is about. Whichever of `binding` and `fuller`
-    // is the fullest is the one it belongs to.
-    for (const lanes of [[lane("a", 12), lane("b", 88)], [lane("a", 0)], [lane("a", 100), lane("b", 3)]]) {
+    for (const lanes of [
+      [lane("five_hour", 12), lane("seven_day", 88)],
+      [lane("five_hour", 0)],
+      [lane("five_hour", 12), lane("seven_day", 20), lane("scoped-0", 97)],
+    ]) {
       const headroom = Math.max(0, 100 - Math.max(...lanes.map(l => l.pct)));
-      const { binding, fuller } = laneSplit(lanes);
-      expect(100 - (fuller ?? binding!).pct).toBe(headroom);
+      expect(100 - laneSplit(lanes).peak!.pct).toBe(headroom);
     }
   });
 });
@@ -154,8 +179,11 @@ describe("what the disclosure says", () => {
     // The headroom is about the fullest window; the row leads with the first.
     // Since those can now be different lanes, the sentence says both rather
     // than naming one and letting the reader assume it is the other.
-    expect(shut).toMatch(/^19% left on the window that runs out first/);
-    expect(shut).toMatch(/leads with 5h/);
+    // Names the lane the headroom is about, which after the by-kind cut can be
+    // one of the folded ones — so the sentence says which rather than letting
+    // the reader assume it is one of the two on the row.
+    expect(shut).toMatch(/^19% left on 5h/);
+    expect(shut).toMatch(/runs out first/);
     expect(shut).toMatch(/Show the other 2 windows\./);
     expect(lanesTitle(19, "5h", 2, true)).toMatch(/Hide the other 2 windows\./);
     // One window reads as one window rather than as "1 windows".
@@ -167,17 +195,17 @@ describe("what the disclosure says", () => {
   });
 });
 
-describe("the row renders one lane, and the panel reads the same function", () => {
-  it("no longer maps every lane straight into the row", () => {
+describe("the row renders the windows, and the panel reads the same function", () => {
+  it("maps the split rather than the whole roster", () => {
     expect(panelCode).not.toMatch(/a\.lanes\.map\(l => <LaneBar/);
-    expect(panelCode).toMatch(/const \{ binding, rest, fuller \} = laneSplit\(a\.lanes\);/);
-    expect(panelCode).toMatch(/<LaneBar lane=\{binding\} nowSec=\{nowSec\} \/>/);
+    expect(panelCode).toMatch(/const \{ shown, rest, fuller, peak \} = laneSplit\(a\.lanes\);/);
+    expect(panelCode).toMatch(/\{shown\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} \/>\)\}/);
     // The rest exist only while the row is open.
     expect(panelCode).toMatch(/\{lanesOpen && rest\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} \/>\)\}/);
   });
 
   it("takes the auto-switch readout from the same place instead of a second Math.max", () => {
-    expect(panelCode).toMatch(/const activePct = laneSplit\(activeAcct\?\.lanes \?\? \[\]\)\.binding\?\.pct \?\? null;/);
+    expect(panelCode).toMatch(/const activePct = laneSplit\(activeAcct\?\.lanes \?\? \[\]\)\.peak\?\.pct \?\? null;/);
     expect(panelCode).not.toMatch(/Math\.max\(\.\.\.activeAcct/);
   });
 
