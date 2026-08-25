@@ -47,6 +47,7 @@ import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separat
 import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, sessionHue, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor } from "./minimap";
+import { isUserViewportGesture } from "./viewport-intent";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 import { emptyScope } from "./scope";
@@ -1264,6 +1265,12 @@ function Inner() {
     if (!restoredViewport) return;
     const id = window.setTimeout(() => {
       try { rf.setViewport(restoredViewport, { duration: 0 }); } catch {}
+      // Stamped like every other viewport the deck asks for. This one never
+      // needed it while onMoveStart was the only signal, because a programmatic
+      // setViewport carries no source event and never reached it; onMove does
+      // see it, and an unstamped restore would read as the user's first gesture
+      // and switch auto-fit off before they had touched anything.
+      lastFitTimeRef.current = Date.now();
     }, 60);
     return () => window.clearTimeout(id);
   }, [rf, restoredViewport]);
@@ -1454,6 +1461,25 @@ function Inner() {
   // when a new session arrives and dagre shifts everything off-screen.
   const lastInteractRef = useRef(0);
   const markInteract = useCallback(() => { lastInteractRef.current = Date.now(); }, []);
+  // When a press or a wheel last landed anywhere inside the canvas element,
+  // which contains the pane, the Controls stack and the minimap alike.
+  //
+  // This is the half of "the user took the wheel" that React Flow cannot tell
+  // us: a minimap pan and a Controls zoom move the viewport through the store,
+  // so they reach onMove with no source event and are indistinguishable there
+  // from a fit the deck asked for itself. They are distinguishable here — a
+  // gesture starts with the user touching something, and no programmatic fit
+  // does. See viewport-intent.ts for the rule that reads it.
+  const lastCanvasInputRef = useRef(0);
+  const markCanvasInput = useCallback(() => { lastCanvasInputRef.current = Date.now(); }, []);
+  /** Every input the rule in viewport-intent.ts needs, read at the moment a
+   *  viewport change arrives. */
+  const viewportMove = useCallback((sourceEvent: unknown) => ({
+    hasSourceEvent: !!sourceEvent,
+    at: Date.now(),
+    lastDeckFitAt: lastFitTimeRef.current,
+    lastCanvasInputAt: lastCanvasInputRef.current,
+  }), []);
   // Sticky "user took the wheel" flag. Once the user manually pans, zooms,
   // or drags a node, autofitting is suspended until they hit the recenter
   // button. Persisted so a refresh respects the user's preference.
@@ -3047,6 +3073,25 @@ function Inner() {
         className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}`}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
+        /* The three that say a human is working this canvas right now. They
+           are here, on the canvas as a whole, rather than on the two controls
+           that need them, because a handler per control is a list that has to
+           be kept complete and #578 is what an incomplete one costs: React
+           Flow's own zoom buttons and minimap moved the viewport and nothing
+           here noticed. Everything that moves the viewport on a user's
+           behalf lives inside this element — the pane, the Controls
+           stack, the minimap — so one listener at the top of it covers the
+           controls the deck mounts today and the ones it mounts next.
+           Capture, for the reason releasePointerFocus above is: React Flow
+           calls stopImmediatePropagation() on the pane's press, so a bubbling
+           handler here would never see the gesture that matters most.
+           Press AND release, because a Controls button only calls zoomIn() on
+           the click, which is the release — hold + for two seconds and a
+           press-only stamp would have gone stale by the time the zoom lands.
+           Not pointermove: see CANVAS_INPUT_WINDOW_MS. */
+        onPointerDownCapture={markCanvasInput}
+        onPointerUpCapture={markCanvasInput}
+        onWheelCapture={markCanvasInput}
       >
         {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} />}
         {presentCats.length > 1 && (
@@ -3113,16 +3158,24 @@ function Inner() {
             selectAgent(n.id, e.shiftKey);
           }}
           onPaneClick={() => clearSelection()}
-          onMoveStart={() => {
-            // React Flow fires this for animated programmatic viewport
-            // changes too, not just user gestures — so our own fit was
-            // switching auto-fit off the first time it ran, permanently and
-            // silently. Ignore anything that lands during a fit we started.
-            if (Date.now() - lastFitTimeRef.current < 1200) return;
-            disableAutoFit();
+          onMoveStart={e => {
+            // The pane's own gesture, and only ever that: React Flow drops a
+            // move with no source event before this callback is reached. Kept
+            // alongside onMove because d3-zoom raises `start` on the press and
+            // `zoom` only once the transform actually changes, so this is the
+            // earlier of the two for a drag that begins on the canvas.
+            if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
           }}
-          onMove={(_, vp) => {
+          onMove={(e, vp) => {
             markInteract();
+            // The signal that cannot lose a gesture. Unlike onMoveStart above,
+            // this fires for a viewport moved through the store as well — the
+            // minimap's pan and wheel, the Controls' + and −, and whatever the
+            // library adds next — all of which arrive with no source event and
+            // used to slip past the disable entirely (#578). Which of those is
+            // the user and which is a fit the deck asked for is the one
+            // question viewport-intent.ts answers.
+            if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
             // Debounce viewport persistence — pan/zoom fires many times
             // per gesture, but we only need the final state.
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
