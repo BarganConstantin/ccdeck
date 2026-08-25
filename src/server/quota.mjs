@@ -174,6 +174,11 @@ let _cacheAt  = 0;
 let _inflight = null;   // deduplicates concurrent CLI probes
 let _lastGood = null;   // last result that had real quota percentages
 let _lastSelfPollAt = 0;
+// Which account the readings below are about — as a counter, because the
+// account's identity is not something this module holds. invalidateQuotaCache
+// bumps it; every write in _doFetch is stamped with the value that was current
+// when that read STARTED. See publish().
+let _generation = 0;
 
 const CACHE_MS = 60_000;
 
@@ -430,8 +435,44 @@ export async function fetchClaudeQuota({ force = false } = {}) {
   // good result with 0%).
   if (_inflight) return _inflight;
 
-  _inflight = _doFetch(now, force).finally(() => { _inflight = null; });
-  return _inflight;
+  // `_inflight === mine` rather than a bare clear: invalidateQuotaCache drops
+  // `_inflight` so the next caller starts a read that knows the account moved,
+  // and that read installs its own promise here. A read from before the switch
+  // finishing afterwards would otherwise clear the NEW one on its way out,
+  // letting a third caller spawn a second concurrent probe — which is the very
+  // thing this slot exists to prevent.
+  const mine = _doFetch(now, force, _generation)
+    .finally(() => { if (_inflight === mine) _inflight = null; });
+  _inflight = mine;
+  return mine;
+}
+
+/**
+ * Write a reading into the caches, unless the account moved while it was being
+ * taken.
+ *
+ * Every one of _doFetch's writes happens after at least one await — a store
+ * read, a 15-second HTTPS call, up to three `claude --print /usage` spawns with
+ * 1.2s between them — and invalidateQuotaCache clears variables, which does
+ * nothing to a function that is already running and still holds the old
+ * account's answer in a local. So a switch landing mid-flight was followed,
+ * milliseconds later, by the pre-switch reading being written straight back over
+ * the cleared cache: the invalidation looked like it worked and was undone
+ * before anyone could observe it.
+ *
+ * The fetch is deliberately NOT cancelled. Whoever asked for it is still owed an
+ * answer, and the reading is not wrong — it is simply about an account that is
+ * no longer active, which makes it a fine return value and a bad cached one.
+ * `_lastGood` gets the same guard, and needs it more: it is the half that
+ * survives the result cache's minute and comes back under a "stale" label for as
+ * long as the store has nothing to say about the new account.
+ */
+function publish(gen, result, at, { good = false } = {}) {
+  if (gen !== _generation) return result;
+  _cache   = result;
+  _cacheAt = at;
+  if (good) _lastGood = result;
+  return result;
 }
 
 /**
@@ -510,7 +551,7 @@ async function _execOnce(bin) {
   return { cliOk, parsed: parseUsageText(combined) };
 }
 
-async function _doFetch(now, force = false) {
+async function _doFetch(now, force = false, gen = _generation) {
   // Source 1: claude-swap's store. Free, and already paid for.
   let store = await storeQuota();
 
@@ -527,9 +568,7 @@ async function _doFetch(now, force = false) {
     // throttle inside is shared with the accounts panel, so two open panels
     // ask no more often than one.
     if (!force) requestCollection().catch(() => {});
-    _cache = store; _cacheAt = now;
-    _lastGood = store;
-    return store;
+    return publish(gen, store, now, { good: true });
   }
 
   // Nothing usable in the store. Everything below spends the user's budget, so
@@ -542,24 +581,16 @@ async function _doFetch(now, force = false) {
     // and then reverted to 23% (from a 48-minute-old store row) on the very
     // next poll, because the store had not moved.
     const held = freshest(store, _lastGood);
-    if (held) {
-      const result = { ...held, stale: true };
-      _cache = result; _cacheAt = now;
-      return result;
-    }
+    if (held) return publish(gen, { ...held, stale: true }, now);
     const result = { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
-    _cache = result; _cacheAt = now - (CACHE_MS - 5_000);
-    return result;
+    return publish(gen, result, now - (CACHE_MS - 5_000));
   }
   _lastSelfPollAt = now;
 
   // Source 2: OAuth usage API — instant, exact, no cold-start gap.
   const api = await fetchOAuthUsage();
   if (api) {
-    const result = { ok: true, ...api, source: "api", fetchedAt: now };
-    _cache = result; _cacheAt = now;
-    _lastGood = result;
-    return result;
+    return publish(gen, { ok: true, ...api, source: "api", fetchedAt: now }, now, { good: true });
   }
 
   // Source 3: parse `claude --print /usage` CLI output.
@@ -580,10 +611,7 @@ async function _doFetch(now, force = false) {
 
   // Got real quota lines — cache normally and remember as last-known-good.
   if (parsed) {
-    const result = { ok: true, ...parsed, source: "cli", fetchedAt: now };
-    _cache = result; _cacheAt = now;
-    _lastGood = result;
-    return result;
+    return publish(gen, { ok: true, ...parsed, source: "cli", fetchedAt: now }, now, { good: true });
   }
 
   // No quota lines after retries. If we've ever seen real values, keep showing
@@ -594,10 +622,7 @@ async function _doFetch(now, force = false) {
   // vouches for numbers this branch already knows are stale. Short-cache so we
   // retry the CLI again soon.
   if (_lastGood) {
-    const result = { ..._lastGood, stale: true };
-    _cache = result;
-    _cacheAt = now - (CACHE_MS - 5_000);
-    return result;
+    return publish(gen, { ..._lastGood, stale: true }, now - (CACHE_MS - 5_000));
   }
 
   // Never had good data. CLI ran but lines absent → treat as genuine <1%.
@@ -606,9 +631,7 @@ async function _doFetch(now, force = false) {
     ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
         week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
     : { ok: false, fetchedAt: now };
-  _cache = result;
-  _cacheAt = now - (CACHE_MS - 5_000);
-  return result;
+  return publish(gen, result, now - (CACHE_MS - 5_000));
 }
 
 /**
@@ -633,9 +656,29 @@ async function _doFetch(now, force = false) {
  * the shared request budget, and one that reset it would make switching a way to
  * hammer it. Until the store answers for the new account, "no reading yet" is
  * the honest thing to serve.
+ *
+ * Clearing the three variables is not enough on its own, because a fetch that is
+ * already running is not a variable. `_doFetch` writes `_cache` and `_lastGood`
+ * AFTER its awaits, so one that read the store before the switch and resolves
+ * after it put the previous account's numbers back into both, undoing this call
+ * from the other side of an await — and callers arriving in that window were
+ * handed the same in-flight promise rather than a read that knows the account
+ * moved. The window is real: a forced fetch goes through nudgeAndReread, which
+ * sleeps REREAD_TRIES * REREAD_GAP_MS = 2.4 seconds by construction, comfortably
+ * longer than a `cswap switch`.
+ *
+ * So the generation counter moves too. Every write in `_doFetch` is stamped with
+ * the generation that was current when that read started, and publish() drops
+ * any write whose stamp is stale — the fetch still resolves, and whoever asked
+ * for it still gets its answer, but that answer no longer becomes this module's.
+ * `_inflight` is released for the same reason: the next caller must start a read
+ * of its own rather than join one that is describing the account the deck just
+ * left.
  */
 export function invalidateQuotaCache() {
   _cache = null;
   _cacheAt = 0;
   _lastGood = null;
+  _generation++;
+  _inflight = null;
 }
