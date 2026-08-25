@@ -1701,6 +1701,18 @@ const MAX_TRACKED_SESSIONS = 256;
 
 function forgetSession(sid) {
   modelBySession.delete(sid);
+  // The two the session-naming work added (#520/#522) and did not list here.
+  // Both are keyed by session id and nothing else ever removed an entry, which
+  // is the exact leak the comment above says this mechanism exists to end —
+  // every sibling cache is capped at MAX_TRACKED_SESSIONS and these two were
+  // not. The functional half is worse than the leak: nameBySession gates the
+  // SessionNamed emit on "has this changed", so a live session evicted past the
+  // cap and then heard from again re-emits its model (modelBySession was
+  // cleared) and never re-emits its name. A tab that connects after the event
+  // ring has rolled past the original SessionNamed shows that session unnamed
+  // for the rest of its life.
+  nameBySession.delete(sid);
+  lastNameReadAt.delete(sid);
   modelLastReadAt.delete(sid);
   lastUsageReadAt.delete(sid);
   lastContextReadAt.delete(sid);
@@ -3217,6 +3229,31 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/clear") {
       events.length = 0;
       if (persistPath) truncate(persistPath, 0).catch(() => {});
+      // Drop the caches that gate an emit on "has this changed", because the
+      // client is about to forget what they are comparing against: __clear makes
+      // the reducer return a fresh state, so every session's name and every
+      // subagent's model label go with it. maybeResolveSessionName then computes
+      // the same signature, takes its early return, and emits nothing — so the
+      // card falls back to cwd/prompt for the rest of that session while the
+      // server is sitting on the name.
+      //
+      // The root model survives without help because pushEvent stamps
+      // `raw.model` on every payload; there is no equivalent stamp for the name
+      // or for a subagent's model, which is why those two are listed and the
+      // rest of the per-session state is not.
+      //
+      // The rule, for the next cache that gates an emit: anything answering
+      // "has this changed" has to appear in BOTH places that mean the client no
+      // longer has it — here, and in forgetSession.
+      nameBySession.clear();
+      modelBySession.clear();
+      // The read stamps go with them. Clearing only the signatures would leave
+      // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
+      // would not be re-read at all and the name would stay missing until the
+      // throttle expired — a clear followed by a keystroke is exactly when a
+      // user is watching.
+      lastNameReadAt.clear();
+      modelLastReadAt.clear();
       pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal");
       return send(res, 200, { ok: true });
     }
