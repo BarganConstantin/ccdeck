@@ -167,7 +167,17 @@ describe("the boundary the rename must not cross", () => {
       .map(n => readFileSync(join(serverDir, n), "utf8"))
       .concat(read("bin", "deck.js"), read("bin", "agent-dag.js"), read("hook", "hook.js"))
       .join("\n");
-    const named = new Set([...text.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)].map(m => m[1]));
+    // `process.env.` OR a bare `env.`, because the second spelling is now the
+    // common one: every resolver this repo makes testable takes `env` as a
+    // parameter defaulting to process.env, so that it can be asked the Windows
+    // question from a Mac. quotaClaudeBin has that shape and so, since #570,
+    // does adminClaudeBin — which is what caught this: AGENTS_DECK_CLAUDE went
+    // on being read exactly as before and this sweep stopped being able to see
+    // it, which would have let a genuine rename through on the next module that
+    // took a parameter. Matching the looser form costs nothing here: the
+    // assertion is that each of these names IS present, and the one exclusion
+    // below is keyed on the name rather than on the count.
+    const named = new Set([...text.matchAll(/(?:process\.)?\benv\.([A-Z][A-Z0-9_]*)/g)].map(m => m[1]));
     for (const v of [
       "AGENT_DAG_PORT", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CSWAP", "AGENTS_DECK_INTERNAL",
       "AGENTS_DECK_NO_DOWNLOAD", "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_INSTALL",

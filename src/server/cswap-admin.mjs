@@ -17,10 +17,13 @@
 // first account's record. Nothing upstream prevents it, so every mutation here
 // goes through one mutex.
 import { AsyncLocalStorage } from "node:async_hooks";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import { looksMissing, run, runDetached, runInteractive } from "./exec.mjs";
+import { looksMissing, pathLookup, run, runDetached, runInteractive } from "./exec.mjs";
 import { backupRoot, invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
+import { claudeCliCandidates } from "./claude-dir.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -77,8 +80,79 @@ export function withStoreLock(fn) {
 // import, remove, rename, reorder — failed with cmd.exe's "is not recognized",
 // while the read-only half of the panel worked, because it was already using
 // the resolver. Reported from Windows on 2026-08-14.
+
+/**
+ * Which `claude` the account surface runs: the configured one, else the first
+ * candidate this machine actually has, else the bare name.
+ *
+ * WHY THIS IS NOT `AGENTS_DECK_CLAUDE ?? "claude"` ANY MORE (#570). That was
+ * the whole of this module's resolution, and it feeds every child the accounts
+ * panel starts — `claude auth status --json` for `currentIdentity`, and the
+ * `claude auth login` whose output the sign-in dialog reads a link out of. On a
+ * machine whose `claude` is at `~/.local/bin/claude` but whose deck was started
+ * from something that never sourced a shell rc — a LaunchAgent, a systemd user
+ * unit, pm2, a desktop shortcut — the bare name is an ENOENT, so the login
+ * child is dead within milliseconds, the flow reports `no_url`, and the dialog
+ * shows "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE
+ * to its full path." That sentence is a real remedy and it is why this was a
+ * smaller bug than #553; it is still a request to spell out a path the deck had
+ * already found for itself, because `hasClaudeInstalled()` stat'ed that exact
+ * file at boot to decide this was a Claude machine, and since #553 the quota
+ * panel beside this one runs the same binary without being told anything.
+ *
+ * SO IT READS THE SAME LIST, ON THE SAME TERMS #553 SETTLED ON. The list is
+ * `claudeCliCandidates` in claude-dir.mjs, whose other two readers are
+ * `hasClaudeInstalled()` — the boot question this module's whole surface hangs
+ * off — and `quotaClaudeBin` in quota.mjs. This is the same question at a third
+ * site, so nothing here is decided again:
+ *
+ *   - AGENTS_DECK_CLAUDE first, and it is the one thing that skips the list
+ *     entirely. It is documented in the README as "full path to the `claude`
+ *     CLI", it is what the failure message above tells people to set, and
+ *     someone who set it has already been through this once — second-guessing
+ *     them with a stat would be answering a question they have closed. An empty
+ *     value reads as unset, the way `AGENTS_DECK_CSWAP` does in cswapBin.
+ *   - Then the candidate list's own order, unchanged: PATH first on POSIX, the
+ *     two known install directories first on Windows. Preferring a different
+ *     copy would silently change which binary signs somebody in on every
+ *     machine that has two, and a `claude auth login` that suddenly runs a
+ *     different binary is a credential path, not a detail.
+ *   - The bare name is only answered with when PATH actually holds it, and
+ *     `pathLookup` is a yes/no gate rather than the path it found, so spawn's
+ *     own resolution — and, on Windows, exec.mjs's PATHEXT walk, since `claude`
+ *     there is `claude.exe` or `claude.cmd` and never the bare word — stays in
+ *     charge of the PATH case exactly as before.
+ *   - The absolute candidates are stat'ed only once PATH has come up empty, so
+ *     the common case costs one stat rather than a directory walk. Against what
+ *     follows it — a whole Claude Code process, and a browser sign-in a human
+ *     is walking through — that is not a cost worth naming.
+ *
+ * Pure, with the platform, environment, home directory and existence check all
+ * parameters, so the Windows branch is checkable from the platforms this repo
+ * is actually developed on. Exported for that test rather than for a caller
+ * (#383): `claudeBin` below is the only one, and it hands back the real
+ * machine's answer.
+ */
+export function adminClaudeBin(platform = process.platform, env = process.env,
+                               home = homedir(), exists = existsSync) {
+  if (env.AGENTS_DECK_CLAUDE) return env.AGENTS_DECK_CLAUDE;
+  const sep = platform === "win32" ? "\\" : "/";
+  // process.env is case-insensitive on Windows; an injected plain object in a
+  // test is not, and %Path% is how the variable is actually spelled there.
+  const pathEnv = env.PATH ?? env.Path ?? env.path ?? "";
+  for (const c of claudeCliCandidates(platform, env, home)) {
+    if (c.includes(sep)) { if (exists(c)) return c; }
+    else if (pathLookup(c, platform, { pathEnv, exists })) return c;
+  }
+  // Nothing on PATH and nothing at any known install directory. The bare name
+  // is still the right last resort — POSIX `execvp` and cmd.exe's own search
+  // both deserve their turn at a layout no list here knows — and the ENOENT it
+  // produces is what failureText turns into the AGENTS_DECK_CLAUDE sentence.
+  return "claude";
+}
+
 async function claudeBin() {
-  return process.env.AGENTS_DECK_CLAUDE ?? "claude";
+  return adminClaudeBin();
 }
 
 /** Slot → email for everything currently in the store, plus the active slot. */
