@@ -13,6 +13,7 @@ import { commandOutput, explainCommandFailure, explainFailure } from "../admin-f
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { laneSplit, lanesTitle, moreLabel } from "../lane-view";
+import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
@@ -288,7 +289,14 @@ export default function AccountsPanel({ onClose }: Props) {
   // and a default that depended on state would make the panel's resting height
   // depend on which account happens to be live. More than one may be open —
   // comparing two accounts is exactly what this panel is for.
-  const [openLanes, setOpenLanes] = useState<number[]>([]);
+  //
+  // Held by ACCOUNT and not by slot, which is the whole of #542: a swap trades
+  // two slot numbers and this set, unlike the manage block, never went through
+  // manageAfterMove — so the disclosure stayed on the number and expanded a row
+  // belonging to somebody else. laneKey names the account instead; see
+  // lane-open.ts, which also says why a fifth ManageState field would not have
+  // been enough.
+  const [openLanes, setOpenLanes] = useState<string[]>([]);
 
   // The same fact as `busy`, where a handler can read it without waiting for a
   // render. #518 leaves the working control enabled, so a second press reaches
@@ -351,7 +359,17 @@ export default function AccountsPanel({ onClose }: Props) {
         fetch(`/api/claude-accounts${force ? "?refresh=1" : ""}`, { signal: ctl.signal }),
         fetch("/api/cswap-auto", { signal: ctl.signal }),
       ]);
-      if (accts.ok)    setData(await accts.json());
+      if (accts.ok) {
+        const fresh: AccountsData = await accts.json();
+        setData(fresh);
+        // An account that was removed while its lanes were open would otherwise
+        // keep its place in the set until the panel is unmounted, ready to
+        // reopen itself on whoever signs that address back in. The roster is
+        // the only thing that knows an account has gone, so the roster is where
+        // the set is trimmed. Unchanged in and unchanged out when nobody left,
+        // which is every poll but one.
+        setOpenLanes(open => knownLanes(open, fresh.accounts));
+      }
       if (autoRes.ok)  setAuto(await autoRes.json());
       const verdict = explainReload([await answered(accts), await answered(autoRes)]);
       setFailure(prev => nextFailure(prev, verdict));
@@ -657,7 +675,7 @@ export default function AccountsPanel({ onClose }: Props) {
         <>
           {data.accounts?.map(a => {
             const { shown, rest, fuller, peak } = laneSplit(a.lanes);
-            const lanesOpen = openLanes.includes(a.num);
+            const lanesOpen = openLanes.includes(laneKey(a));
             const more = moreLabel(rest.length, lanesOpen, fuller);
             return (
             <div key={a.num} className={`ap-account${a.active ? " active" : ""}`}>
@@ -773,8 +791,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     aria-expanded={lanesOpen}
                     aria-controls={`ap-lanes-${a.num}`}
                     title={lanesTitle(a.headroom, peak?.label ?? null, rest.length, lanesOpen)}
-                    onClick={() => setOpenLanes(open =>
-                      open.includes(a.num) ? open.filter(n => n !== a.num) : [...open, a.num])}
+                    onClick={() => setOpenLanes(open => toggleLane(open, a))}
                   >{more}</button>
                 )}
                 {/* Holding an account out only matters when something is
