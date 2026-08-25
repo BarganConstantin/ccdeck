@@ -212,7 +212,71 @@ export function loginState() {
   return { state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null };
 }
 
+/**
+ * What an address may be made of before it becomes an argv element.
+ *
+ * NOT AN RFC 5322 PARSER, and it should not be read as one. RFC 5322 permits
+ * quoted local parts, spaces inside them, comments in parentheses and bracketed
+ * address literals; a regex that accepted all of that would accept precisely the
+ * shapes this exists to keep out. The job here is narrower and worth stating
+ * plainly: keep a FLAG-SHAPED or WHITESPACE-BEARING string out of a spawn's
+ * argument vector. Anything it wrongly refuses is an address nobody has ever
+ * typed into this dialog; anything it wrongly accepts is inert as an argument,
+ * which is the only property being defended. Whether the address exists is
+ * Anthropic's question, asked a moment later by the CLI itself.
+ *
+ * `--email` was the field the alias allowlist below missed. `email.includes("@")`
+ * was the whole of its validation and the value came straight off the request
+ * body, so the two residuals exec.mjs documents were both reachable through it
+ * on Windows, where `claude` is a `.cmd` shim and the vector goes through
+ * `cmd.exe /d /s /c`: an interior newline is a command separator inside that one
+ * quoted line, and `%USERPROFILE%` expands inside quotes with no escape
+ * available. `"a@b\ncalc.exe"` and `"%USERPROFILE%@x"` both satisfy
+ * `includes("@")`, and both are payloads alias-charset.test.ts already pins as
+ * refused for the other field.
+ *
+ * The leading-character rule is the same argv-position rule ALIAS_OK now carries.
+ * `-x@y.z` starts with a dash, so a child parser reads it as an option rather
+ * than as the value of `--email`, and what happens next depends entirely on
+ * which options that CLI happens to define.
+ */
+const EMAIL_OK =
+  /^[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+
+// The SMTP forward-path limit. The pattern above bounds each PIECE — 64 for the
+// local part, 63 per label — and a domain may carry any number of labels, so
+// without this the whole is unbounded. A bound belongs here for the reason
+// ALIAS_OK has one: on Windows the value ends up inside a single cmd.exe command
+// line, which has a hard length limit of its own.
+const EMAIL_MAX_LENGTH = 254;
+
+/**
+ * The `--email` value `claude auth login` should be given, or a refusal.
+ *
+ * Three answers rather than two, and the third is the one that matters: `null`
+ * means NO ADDRESS WAS OFFERED, which is the only shape the deck's own dialog
+ * sends (`AddAccountDialog` posts a bare `{action:"login"}`) and which must stay
+ * an ordinary sign-in with no flag appended. A value that is present and
+ * unusable is refused outright instead of being quietly dropped: dropping it
+ * would run a DIFFERENT sign-in from the one that was asked for and call it a
+ * success, and this route is reachable by anything holding the deck token.
+ */
+function loginEmailArg(email) {
+  if (email == null) return { ok: true, email: null };
+  if (typeof email !== "string") return { ok: false };
+  const clean = email.trim();
+  if (!clean) return { ok: true, email: null };
+  if (clean.length > EMAIL_MAX_LENGTH || !EMAIL_OK.test(clean)) return { ok: false };
+  return { ok: true, email: clean };
+}
+
 export async function startLogin({ email } = {}) {
+  // Argv position is settled first, before any state moves. A refusal here must
+  // not cancel a sign-in that is already running — the caller asked for
+  // something the deck will not do, and the flow already in flight is not part
+  // of that bargain.
+  const wanted = loginEmailArg(email);
+  if (!wanted.ok) return { ok: false, reason: "bad_email", ...loginState() };
   // Registering is the half that writes to the store; interrupting it would
   // leave an account half-recorded, so that one is refused. A flow merely
   // waiting for a code is not precious — it is most often the one abandoned by
@@ -225,7 +289,7 @@ export async function startLogin({ email } = {}) {
     await cancelLogin();
   }
   if (!_starting) {
-    _starting = spawnLogin(email).finally(() => { _starting = null; });
+    _starting = spawnLogin(wanted.email).finally(() => { _starting = null; });
   }
   const flow = await _starting;
 
@@ -277,7 +341,10 @@ async function spawnLogin(email) {
   const identity = await currentIdentity();
 
   const args = ["auth", "login"];
-  if (typeof email === "string" && email.includes("@")) args.push("--email", email);
+  // Already through loginEmailArg, which is the only caller's boundary: this is
+  // either an address that cannot be read as a flag or null, and null is the
+  // ordinary case.
+  if (email) args.push("--email", email);
 
   const child = runInteractive(await claudeBin(), args, { timeout: LOGIN_TIMEOUT_MS });
   // A sign-in outlives the request that started it, so it can also outlive the
@@ -600,8 +667,34 @@ export async function removeAccount(num) {
  * list, and it closes the unbounded-length half too: an alias is a short name
  * shown instead of an email, so 64 characters is not a constraint anyone meets
  * by accident.
+ *
+ * The leading `(?!-)` is the half that allowlist missed, and it is not about
+ * quoting at all — it is about ARGV POSITION, which no amount of quoting fixes
+ * because the value arrives intact and is then read as syntax by the CHILD.
+ * `-` is in the character class, so `--unset` matched, and
+ * `setAlias(3, "--unset")` built ["alias", "3", "--unset"] — character for
+ * character claude-swap's own command for CLEARING an alias. Its `_alias_command`
+ * hands that vector to argparse, which sets `unset=True` and leaves `alias_name`
+ * as None; the store dropped the name, cswap printed "Removed alias for
+ * Account 3", exited 0, and the deck reported the rename as a success. Any other
+ * `-x` spelling is consumed the same way — `-h` prints help and exits 0, which
+ * also arrives here as a rename that worked.
+ *
+ * argparse does honour `--` as an end-of-options separator, so
+ * ["alias", "3", "--", "--unset"] would reach `set_alias` as data. It is
+ * deliberately not used: the separator only helps for the one child whose parser
+ * we can read, `claude auth login` is the other spawn on this route and its
+ * parser is not ours to verify, and a value the deck refuses outright cannot be
+ * mangled by a CLI that changes its mind later. The validator is the guard.
+ *
+ * Refusing a leading dash rather than requiring a leading alphanumeric is the
+ * narrower rule, and it is the one the hazard actually describes: `.env` and
+ * `_work` are ordinary positional arguments to every parser involved, while
+ * `acme-corp` — the one dash-bearing name in alias-charset.test.ts's list of
+ * names people use — keeps working because only the FIRST character is
+ * constrained.
  */
-const ALIAS_OK = /^[A-Za-z0-9 ._-]{1,64}$/;
+const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
 
 export async function setAlias(num, alias) {
   const n = Number(num);
