@@ -237,10 +237,42 @@ describe("upgradeCommand — the command must match how this copy was installed"
   // upgrade notice never rendered — and the "this is a checkout" explanation
   // lived inside that notice, with nowhere to appear. The lookup now runs
   // everywhere; only the command differs.
-  it("tells a checkout to pull and rebuild, never to npm i -g over it", () => {
-    // dist/ is built, not shipped, so a pull alone leaves the old bundle.
-    expect(upgradeCommand(process.cwd())).toBe("git pull && npm run build");
-  });
+  // Both shapes git leaves behind, built here rather than read off the machine
+  // running the suite (#587).
+  //
+  // This case used to pass `process.cwd()`, which is not the package root — it
+  // is the directory `npm test` was typed in. Running the same file from
+  // src/web, in a clean unmodified checkout, failed it: `vitest --root .` there
+  // reports its own directory as the cwd, that directory has no `.git`, and the
+  // deck correctly answered `npm i -g`. The case was asserting about somebody's
+  // shell. Copying the tree without `.git` — an extracted tarball, a Dockerfile
+  // whose `COPY . .` skips it, a source download — failed it the same way, with
+  // a message that reads like a self-update regression and never mentions the
+  // one thing that actually happened.
+  //
+  // What it was also failing to assert is the shape. The repo's own root is the
+  // MAIN worktree, so `.git` there is a directory, the same as every fabricated
+  // fixture in the suite — the environment dependency bought nothing that a
+  // sandbox did not already prove, and hid the file shape completely.
+  for (const [what, plant] of [
+    ["a clone, whose .git is a directory", (dir: string) => mkdirSync(join(dir, ".git"))],
+    // One `gitdir:` line naming a repository elsewhere: a linked worktree or a
+    // submodule. Nothing reads the line, so the native path is safe on all
+    // three platforms.
+    ["a worktree, whose .git is a file", (dir: string) => writeFileSync(join(dir, ".git"), `gitdir: ${join(dir, "..", "wt")}\n`)],
+  ] as const) {
+    it(`tells ${what} to pull and rebuild, never to npm i -g over it`, () => {
+      const root = mkdtempSync(join(tmpdir(), "ccdeck-checkout-"));
+      try {
+        writeFileSync(join(root, "package.json"), JSON.stringify({ name: "agents-deck", version: "1.33.0" }));
+        plant(root);
+        // dist/ is built, not shipped, so a pull alone leaves the old bundle.
+        expect(upgradeCommand(root)).toBe("git pull && npm run build");
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
 
   it("still names npx for an npx cache", () => {
     // No metadata to read at that path, so it falls back to the package name
