@@ -23,8 +23,24 @@ const PAYLOAD = Buffer.from(`#!/fake/uv ${VERSION}\n${"x".repeat(4096)}`);
 const ARCHIVE = Buffer.from("archive bytes; extraction is mocked");
 const ARCHIVE_SHA = createHash("sha256").update(ARCHIVE).digest("hex");
 const EXE = process.platform === "win32" ? "uv.exe" : "uv";
-// bootstrapUv unpacks into this directory, named after its own pid.
-const STAGING = join(tmpdir(), `agents-deck-uv-${process.pid}`);
+
+/**
+ * Where bootstrapUv unpacked, read out of the extract command it issued.
+ *
+ * It used to be computable here — `join(tmpdir(), `agents-deck-uv-${pid}`)` —
+ * and that predictability was half of #551: on Linux tmpdir() is world-writable
+ * `/tmp`, so another account could pre-create the directory and plant the file
+ * that gets executed. Staging is a mkdtemp under the user's own tools directory
+ * now, so its name is not knowable in advance, and the honest way to find it is
+ * the way the real tar would: it is in the arguments.
+ */
+function stagingFrom(cmd: string, args: string[]): string {
+  if (cmd === "tar") return args[3];                        // -xzf <archive> -C <dest>
+  const m = /-DestinationPath '((?:[^']|'')*)'/.exec(args[3] ?? "");
+  if (!m) throw new Error(`test: no -DestinationPath in ${args[3]}`);
+  return m[1].replace(/''/g, "'");
+}
+let staged: string | null = null;
 
 // Nothing is spawned and nothing is fetched. `run` answers from a table — the
 // copy under test is identified by its name, since the temp file is the only
@@ -43,7 +59,8 @@ vi.mock("../../server/exec.mjs", () => ({
   run: async (cmd: string, args: string[] = []) => {
     // Stand-in for `tar -xzf` on POSIX and Expand-Archive on Windows.
     if (cmd === "tar" || cmd === "powershell.exe") {
-      const inner = join(STAGING, `uv-${VERSION}-fake-target`);
+      staged = stagingFrom(cmd, args);
+      const inner = join(staged, `uv-${VERSION}-fake-target`);
       mkdirSync(inner, { recursive: true });
       writeFileSync(join(inner, EXE), PAYLOAD);
       return ok("");
@@ -119,8 +136,8 @@ const strays = () => readdirSync(UV_DIR).filter(name => name !== EXE);
 
 beforeEach(() => {
   rmSync(UV_DIR, { recursive: true, force: true });
-  rmSync(STAGING, { recursive: true, force: true });
   mkdirSync(UV_DIR, { recursive: true });
+  staged = null;
   existingRuns.is = true;
   copyRuns.is = true;
   spawned.length = 0;
@@ -134,8 +151,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
+  // Staging lives under FAKE_HOME now, so the one removal covers both.
   rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(STAGING, { recursive: true, force: true });
 });
 
 describe("a uv left over from an earlier run", () => {
@@ -214,5 +231,49 @@ describe("the downloaded binary reaches its final name in one step", () => {
 
     expect(res.ok).toBe(true);
     expect(statSync(BIN).mode & 0o111).toBe(0o111);
+  });
+});
+
+describe("where the archive is unpacked", () => {
+  // #551. The staging directory was `join(tmpdir(), `agents-deck-uv-${pid}`)`,
+  // created with `mkdir(..., { recursive: true })` — which does not fail on a
+  // directory that already exists.
+  //
+  // On macOS tmpdir() is a per-user /var/folders/…/T and on Windows it is inside
+  // the profile, so the module header's promise that nothing lands outside a
+  // directory the deck owns held on both. On Linux tmpdir() is /tmp, mode 1777,
+  // writable by every account on the box.
+  //
+  // Three things then lined up: the name was derived from a pid and so cheap to
+  // blanket in advance; findUv returns a depth-0 file before it recurses, while
+  // the real uv sits one level down inside the archive's versioned directory, so
+  // a planted file won deterministically rather than by racing; and the SHA-256
+  // is computed on the downloaded buffer and never on the extracted file, so it
+  // did not cover the thing that gets executed — copied, chmod 0755, run, and
+  // renamed to the permanent name every later run trusts.
+
+  it("is inside the user's own tools directory, not the system temp dir", async () => {
+    const r = await bootstrapUv();
+    expect(r).toMatchObject({ ok: true });
+    expect(staged, "nothing recorded an extract command").toBeTruthy();
+    expect(staged!.startsWith(join(FAKE_HOME, ".agents-deck", "tools"))).toBe(true);
+    // Deliberately not `expect(staged).not.toStartWith(tmpdir())`: FAKE_HOME is
+    // itself a mkdtemp under tmpdir, so that assertion is false here and would
+    // be false for the wrong reason. What the fix is about is not the string
+    // "tmp" — it is that the directory sits inside a tree this user owns and
+    // that the deck created, rather than in the shared 1777 one every account on
+    // a Linux box can write to. The assertion above is that property.
+  });
+
+  it("has a name nobody can work out in advance", async () => {
+    // mkdtemp, not a pid. The old name was knowable to any local account that
+    // could read /proc or simply try every plausible pid.
+    await bootstrapUv();
+    expect(staged).not.toContain(String(process.pid));
+  });
+
+  it("is gone afterwards, wherever it was", async () => {
+    await bootstrapUv();
+    expect(existsSync(staged!)).toBe(false);
   });
 });

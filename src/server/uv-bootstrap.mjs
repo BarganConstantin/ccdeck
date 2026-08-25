@@ -7,17 +7,18 @@
 // narrower thing instead: fetch one named release artifact from Astral's own
 // GitHub releases, check it against the SHA-256 that release publishes beside
 // it, and unpack it inside ~/.agents-deck. Nothing is executed until it has
-// been verified, nothing lands outside a directory the deck already owns, and
-// deleting that directory undoes all of it.
+// been verified, nothing lands outside a directory the deck already owns — the
+// staging directory included, which is what #551 was about — and deleting that
+// directory undoes all of it.
 //
 // It is still a network fetch of an executable, so it only happens when there
 // is no other way: uv, pipx, and python -m pipx have all already been ruled out
 // by the caller. AGENTS_DECK_NO_INSTALL=1 disables it along with everything else.
 import { createHash } from "node:crypto";
-import { mkdir, writeFile, rm, chmod, readdir, copyFile, open } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, rm, chmod, readdir, copyFile, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { run } from "./exec.mjs";
 // The same rename used to replace settings.json, for the same reason: on
 // Windows a rename over an existing file fails outright while any other process
@@ -91,10 +92,11 @@ async function download(url, { asText = false } = {}) {
  * Inside single quotes PowerShell expands nothing, so a doubled quote is both
  * the only escape it has and the only one needed. Windows filenames cannot
  * contain `"`, `<`, `>` or `|`, but they can contain an apostrophe — and the
- * archive lands under os.tmpdir(), which on Windows is inside the user's own
- * profile: C:\Users\O'Brien\AppData\Local\Temp. Pasted in raw, that apostrophe
- * ended the string mid-path and Expand-Archive died of a syntax error, so uv
- * could never be bootstrapped on an account whose owner has that name.
+ * archive lands under the user's own profile either way, which is where an
+ * apostrophe comes from: C:\Users\O'Brien\.agents-deck\tools. Pasted in raw,
+ * that apostrophe ended the string mid-path and Expand-Archive died of a syntax
+ * error, so uv could never be bootstrapped on an account whose owner has that
+ * name.
  */
 const psQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
@@ -194,7 +196,9 @@ export async function bootstrapUv() {
   const version = await latestVersion();
   const base = `${DOWNLOAD_BASE}/${version}/${asset}`;
 
-  const staging = join(tmpdir(), `agents-deck-uv-${process.pid}`);
+  // Created inside the try, because it is created rather than merely named:
+  // see the mkdtemp below for why that distinction is the whole fix.
+  let staging = null;
   // Set while a half-finished binary exists under a name of its own, cleared the
   // moment it is renamed into place; the finally below removes whatever is left.
   let partial = null;
@@ -214,7 +218,35 @@ export async function bootstrapUv() {
     const actual = createHash("sha256").update(archive).digest("hex");
     if (actual !== expected) return { ok: false, reason: "checksum_mismatch" };
 
-    await mkdir(staging, { recursive: true });
+    // ── where the archive is unpacked, and why it is not the system temp dir ──
+    //
+    // This used to be `join(tmpdir(), `agents-deck-uv-${process.pid}`)`, created
+    // with `mkdir(..., { recursive: true })` — which does not fail on a
+    // directory that is already there.
+    //
+    // On macOS tmpdir() is a per-user `/var/folders/…/T` and on Windows it is
+    // inside the profile, so the header's promise held on both. On Linux it is
+    // `/tmp`, mode 1777, writable by every account on the box. The comment two
+    // hundred lines up reasons carefully about tmpdir() being inside the user's
+    // profile ON WINDOWS and never asks the Linux question.
+    //
+    // Three things then line up. The name is derived from a pid, so it is
+    // cheap to blanket the whole plausible range in advance. `findUv` returns a
+    // depth-0 file before it recurses, while the genuine uv always sits one
+    // level down inside the archive's versioned directory — so a planted
+    // `/tmp/agents-deck-uv-<pid>/uv` wins deterministically rather than by
+    // racing. And the SHA-256 above is computed on the downloaded buffer, never
+    // on the extracted file, so it does not cover the thing that is executed.
+    // What followed was a copy, a chmod 0755, a `--version` run, a rename to
+    // the permanent name and reuse of that name forever.
+    //
+    // `mkdtemp` under TOOL_DIR fixes all three at once: the directory is inside
+    // a tree the user already owns, its name is unpredictable, and mkdtemp
+    // CREATES — it cannot be handed a directory somebody else made. findUv's
+    // ordering is left alone deliberately; it is not wrong on its own, and it
+    // stops being reachable once nobody else can write here.
+    await mkdir(TOOL_DIR, { recursive: true });
+    staging = await mkdtemp(join(TOOL_DIR, "uv-staging-"));
     const archivePath = join(staging, asset);
     await writeFile(archivePath, archive);
     if (!(await extract(archivePath, staging))) return { ok: false, reason: "extract_failed" };
@@ -263,7 +295,7 @@ export async function bootstrapUv() {
     // a handle has not finished releasing cannot be deleted — the directory
     // then refuses to go with ENOTEMPTY. Litter rather than a failure, since
     // this is swallowed, but litter in the user's home that nothing else sweeps.
-    await rm(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 25 }).catch(() => {});
+    if (staging) await rm(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 25 }).catch(() => {});
     if (partial) await rm(partial, { force: true }).catch(() => {});
   }
 }
