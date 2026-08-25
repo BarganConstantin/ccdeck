@@ -75,10 +75,12 @@ export const REASONS: Record<string, string> = {
   wrong_version: `that share was made by a newer ${PRODUCT}`,
   expired: "that share has expired — make a new one",
   import_failed: "claude-swap refused the import",
-  // The alias field is the only free text this route accepts, so it is the only
-  // one that can be refused for its spelling. Naming the allowed characters is
-  // the difference between a rule and a wall.
-  bad_value: "an alias can only use letters, numbers, spaces, dots, dashes and underscores, up to 64 characters",
+  // The two free-text fields this route accepts, so the two that can be refused
+  // for their spelling. Naming the allowed characters is the difference between
+  // a rule and a wall — and the leading dash gets said out loud in both, since
+  // "acme-corp is fine but -acme is not" is not a rule anyone would guess.
+  bad_value: "an alias can only use letters, numbers, spaces, dots, dashes and underscores, up to 64 characters, and cannot start with a dash",
+  bad_email: "that does not look like an email address — it cannot contain spaces or start with a dash",
 };
 
 /**
