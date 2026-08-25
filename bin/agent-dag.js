@@ -39,8 +39,8 @@ import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
 import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
-  bareSpecName, claimRestartFailureKey, clearRestartFailure, installedVersion, lastKnownLatest,
-  npxRestartSpec, readRestartFailure, recordRestartFailure, successorRoot,
+  bareSpecName, claimRestartFailureKey, clearRestartFailure, installedName, installedVersion,
+  lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure, successorRoot,
 } from "../src/server/self-update.mjs";
 import { dieOfSignal, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, unicodeOK } from "../src/server/term.mjs";
@@ -202,6 +202,43 @@ function withoutPortAndOpen(args) {
   return out;
 }
 
+/**
+ * Which package an npx upgrade here names, and the spec that installs it — or
+ * null when this deck was not started by npx and there is nothing to re-run.
+ *
+ * One function because there is one answer, and the worker above us reaches it
+ * independently: `upgradeName` in self-update.mjs resolves the npx case as
+ * `bareSpecName(npxRestartSpec(pkgRoot, installedName(pkgRoot)))`, and
+ * everything registry-shaped on that side — the dist-tag it fetched, the marker
+ * it cached the answer in, the failure note the browser reads — is keyed by it.
+ * This supervisor keyed the same four things off `npxRestartSpec(PKG_ROOT)`
+ * with the module's own default, which is the literal string "agents-deck".
+ *
+ * Both read `_npx/<hash>/package.json`, so they agreed for as long as that
+ * metadata was readable, and #340 made the disagreement matter when it is not:
+ * the three names are one tarball now, so the manifest under a `npx ccdeck` run
+ * genuinely says `ccdeck` where it once always said `agents-deck`. A cache
+ * directory written by an npm whose `_npx.packages` layout differs — or a
+ * truncated file — split the two apart: the worker asked npm about `ccdeck` and
+ * read `.restart-failed-ccdeck-<pid>` while this process wrote
+ * `.restart-failed-agents-deck-<pid>`, took `lastKnownLatest("agents-deck")`
+ * off a marker nobody had written — so `target` was null and upgradeAttempt's
+ * per-target cap degraded to "any failure counts" — and relaunched
+ * `npx -y agents-deck@latest`, moving a `npx ccdeck` user onto a different
+ * published name. The note went where the browser never looks, which is the
+ * exact class of bug NOTE_PREFIX's naming exists to prevent.
+ *
+ * So the fallback is the name npm's rename wrote into this build's own manifest,
+ * which is what the worker falls back to as well. Read on each call rather than
+ * once at import for the reason installedVersion gives: the manifest is a file
+ * on disk, and this process outlives more than one of them.
+ */
+function npxUpgrade() {
+  const self = installedName(PKG_ROOT);
+  const spec = npxRestartSpec(PKG_ROOT, self);
+  return spec ? { spec, pkgName: bareSpecName(spec) ?? self } : null;
+}
+
 /** The note the browser reads, written by the only process that knows why an
  *  upgrade did not happen. `failedAt` is when the FETCH failed, which a refusal
  *  restating an earlier failure carries forward — see upgradeAttempt. */
@@ -241,11 +278,11 @@ async function prefetchUpgrade(worker) {
   if (stopping || fetching || attempting) return;
   const reply = (msg) => { try { worker.send?.(msg); } catch { /* the worker is gone */ } };
 
-  const spec = npxRestartSpec(PKG_ROOT);
+  const upgrade = npxUpgrade();
   // Not an npx run after all, so there is nothing to fetch and the files on
   // disk are already the newest this deck can reach.
-  if (!spec) { reply({ type: "upgrade-refused", error: "this deck was not started by npx" }); return; }
-  const pkgName = bareSpecName(spec) ?? "agents-deck";
+  if (!upgrade) { reply({ type: "upgrade-refused", error: "this deck was not started by npx" }); return; }
+  const { spec, pkgName } = upgrade;
   // What the banner offered, straight off the marker the version check writes.
   // The note is keyed by it so that "this exact version already failed here" is
   // a question anything can answer — and so a newer release clears the slate.
@@ -298,8 +335,12 @@ async function prefetchUpgrade(worker) {
  * down), and someone has to bring the working copy back when it does.
  */
 function launchNpx() {
-  const spec = npxRestartSpec(PKG_ROOT);
-  if (!spec) { launch(true); return; } // not an npx run after all
+  const upgrade = npxUpgrade();
+  if (!upgrade) { launch(true); return; } // not an npx run after all
+  // The same package prefetchUpgrade fetched and the worker asked npm about —
+  // one answer, so the spec that is run, the note that records it and the
+  // marker its target came from all name one package. See npxUpgrade.
+  const { spec, pkgName } = upgrade;
   // Our two are appended, so the originals are dropped rather than left to be
   // overridden — `--port 4317 --no-open --port 4317 --no-open` works, but it is
   // what the next person reads in `ps`.
@@ -312,7 +353,6 @@ function launchNpx() {
   // A retry answers for itself: whatever the last attempt left on disk is about
   // to be replaced by this attempt's outcome, and leaving it there would keep
   // the browser showing an old failure over a running fetch.
-  const pkgName = bareSpecName(spec) ?? "agents-deck";
   clearRestartFailure(pkgName);
 
   // No "fetching…" line here any more: prefetchUpgrade printed it and the

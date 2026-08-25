@@ -36,17 +36,53 @@ function players() {
   return [
     ["canberra-gtk-play", ["--id", "complete"]],
     ...(wav ? [["paplay", [wav]], ["aplay", [wav]]] : []),
-    // Last resort: the terminal bell. Silent under many configs, but costs
-    // nothing to try and works over SSH where no audio device exists.
-    ["printf", ["\\a"]],
   ];
+}
+
+/**
+ * The last resort, and the reason it is not in the list above: a terminal bell
+ * is one byte, and a byte is not something to spawn a process for.
+ *
+ * It used to be `["printf", ["\a"]]`, spawned like every other candidate — with
+ * `stdio: "ignore"`. So the BEL went to /dev/null, which is the one place a
+ * bell cannot ring. Worse than useless: `printf` exists on a headless Linux or
+ * SSH box, so the spawn SUCCEEDED, no `error` event fired, and on the exact
+ * machine the comment claimed it was for — no canberra-gtk-play, no freedesktop
+ * sounds, so a candidate list of one — the hook was silently inert, and a
+ * working install looked identical to no install at all. It could not run on
+ * Windows either: `printf` is a shell builtin there, not a program.
+ *
+ * Inheriting stdio would not have fixed it. This process is a Stop hook, so its
+ * stdout is Claude Code's pipe rather than the user's terminal, and a BEL
+ * written into a pipe is a stray byte in a log file — into THIS pipe it is a
+ * stray byte in the channel Claude Code reads a hook's answer from. So the bell
+ * is written only when our own stdout is a terminal, which is precisely when it
+ * IS the terminal the user is looking at: the hook run by hand, or by any
+ * runner that hands it the tty. Everywhere else the sound is simply the players
+ * above, and this function does nothing rather than claiming a capability this
+ * process does not have.
+ *
+ * Not tied to a platform, unlike the candidate it replaces: a console beeps on
+ * all three, and the branch that reaches here is whichever list ran out.
+ */
+function bell() {
+  try {
+    // U+0007 BEL. One write, no child, nothing to fall back to after it.
+    if (process.stdout.isTTY) process.stdout.write("\u0007");
+  } catch { /* a closed stdout is not worth an exception at the end of a turn */ }
 }
 
 // Try each candidate until one starts without ENOENT. Detached and unref'd so
 // the hook returns immediately — Claude Code waits on hook processes, and a
 // two-second sound should not be two seconds of latency at the end of a turn.
+//
+// Running out of candidates is where the bell belongs, rather than being one:
+// it is reached on every platform whose players are missing — a Mac with no
+// system sounds, a Windows without PowerShell, the headless Linux box the old
+// `printf` entry was written for — instead of only at the end of the one list
+// it used to sit in.
 function play(candidates, i = 0) {
-  if (i >= candidates.length) return;
+  if (i >= candidates.length) { bell(); return; }
   const [cmd, args] = candidates[i];
   try {
     const child = spawn(cmd, args, { stdio: "ignore", detached: true, shell: false });
