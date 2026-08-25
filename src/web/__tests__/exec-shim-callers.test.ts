@@ -84,8 +84,10 @@ function windowsLineFor(name: string, args: string[], deps: unknown) {
 
 describe("the Windows command line each run/runInteractive/runDetached caller produces", () => {
   // The two callers that are certainly hitting this on the reporting machine.
-  // claudeBin() in cswap-admin.mjs is `AGENTS_DECK_CLAUDE ?? "claude"`, so the
-  // name that reaches the helpers is the bare word.
+  // adminClaudeBin() in cswap-admin.mjs reads the same candidate list as
+  // quotaClaudeBin since #570, so on a machine with neither install directory
+  // the name that reaches the helpers is still the bare word — which is the
+  // case this section is about.
   const CLAUDE_SHIM = `${APPDATA_NPM}\\claude.cmd`;
 
   it("names claude.cmd by its full path for the quota poll — #360's 3s call", () => {
