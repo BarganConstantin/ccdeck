@@ -111,12 +111,43 @@ function cpuPercent() {
   return Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
 }
 
+/**
+ * The locale every child of this module is parsed in.
+ *
+ * Not a preference — a correctness requirement. Every command spawned here has
+ * its output read by a regex, and every one of those regexes reads a number
+ * with a `.` in it. `ps` and `sysctl` honour LC_NUMERIC, so on a machine set to
+ * de_DE, fr_FR, ru_RU or pt_BR — comma is the decimal separator for most of
+ * Europe and Latin America — the same commands print:
+ *
+ *     ps      1   0,2  0,0 /sbin/launchd
+ *     sysctl  total = 8192,00M  used = 7189,75M  free = 1002,25M
+ *
+ * and the parsers matched nothing at all. Not partially: `parsePsProcesses`
+ * `continue`s on every row, so the process panel was permanently empty, and
+ * `swapFromSysctl` returned null, so the macOS swap meter was permanently
+ * blank. Silently, with nothing in the log, on a machine where everything else
+ * worked.
+ *
+ * Forcing the locale rather than teaching the parsers to read a comma is the
+ * fix that scales: it makes the OUTPUT invariant, which is what every parser
+ * here was written against and what every parser added later will assume. The
+ * comma tolerance below is defence in depth for the case where a sandbox strips
+ * the environment, not the primary answer.
+ *
+ * Meaningless on Windows, where the branches are PowerShell piped through
+ * ConvertTo-Json and already culture-invariant — and harmless there for the
+ * same reason.
+ */
+const C_LOCALE = { LC_ALL: "C", LANG: "C" };
+
 /** Run a command and resolve its stdout, or null. Never rejects, never inherits
- *  a shell, and is killed rather than allowed to hang the sampler. */
+ *  a shell, never inherits a locale, and is killed rather than allowed to hang
+ *  the sampler. */
 function run(file, args, timeoutMs = 2_000) {
   return new Promise(resolve => {
     let child;
-    try { child = spawn(file, args, { windowsHide: true }); }
+    try { child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...C_LOCALE } }); }
     catch { return resolve(null); }
     let out = "";
     const timer = setTimeout(() => { try { child.kill(); } catch {} resolve(null); }, timeoutMs);
@@ -207,10 +238,15 @@ async function readAvailable(platform = process.platform) {
  */
 export function swapFromSysctl(text) {
   const unit = s => {
-    const m = /^([\d.]+)([KMG])?$/i.exec(s);
+    // `,` as well as `.`: C_LOCALE should mean this never arrives, and a parser
+    // that fails closed on a whole continent's default is not a thing to leave
+    // resting on one environment variable. Safe to accept both here because
+    // sysctl formats with printf's %f, which never groups thousands — so a
+    // comma in this field can only ever be the decimal point.
+    const m = /^([\d.,]+)([KMG])?$/i.exec(s);
     if (!m) return null;
     const mult = { k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[(m[2] || "M").toLowerCase()] ?? 1;
-    return Math.round(Number(m[1]) * mult);
+    return Math.round(Number(m[1].replace(",", ".")) * mult);
   };
   const total = unit(/total\s*=\s*(\S+)/i.exec(String(text ?? ""))?.[1] ?? "");
   const used = unit(/used\s*=\s*(\S+)/i.exec(String(text ?? ""))?.[1] ?? "");
@@ -320,9 +356,14 @@ export function parsePsProcesses(text, limit = TOP_N) {
   const lines = String(text ?? "").trim().split("\n");
   const out = [];
   for (const line of lines.slice(1)) {           // drop the header row
-    const m = /^\s*(\d+)\s+([\d.]+)\s+([\d.]+)\s+(.+?)\s*$/.exec(line);
+    // Both separators, for the reason swapFromSysctl gives: C_LOCALE is the
+    // fix, and this is what keeps a stripped environment from emptying the
+    // panel. `%CPU` and `%MEM` are percentages printed with %.1f, so a comma in
+    // either can only be the decimal point.
+    const m = /^\s*(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+(.+?)\s*$/.exec(line);
     if (!m) continue;
-    out.push({ pid: Number(m[1]), cpu: Number(m[2]), mem: Number(m[3]), name: m[4] });
+    const num = v => Number(v.replace(",", "."));
+    out.push({ pid: Number(m[1]), cpu: num(m[2]), mem: num(m[3]), name: m[4] });
     if (out.length >= limit) break;
   }
   return out;
