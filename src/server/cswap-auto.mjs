@@ -166,6 +166,12 @@ export async function externalAutoRunning() {
 let _timer   = null;
 let _lastTick = null;
 let _enabled  = false;
+// Set the instant startLoop is entered and cleared when it settles, because
+// `_timer` cannot do that job: it is assigned AFTER an await, and the window in
+// between is what #537 was. See startLoop.
+let _starting = false;
+// The tick in flight, so the interval can skip rather than stack. See tick.
+let _ticking = null;
 
 async function loadState() {
   try { return JSON.parse(await readFile(STATE_PATH, "utf8")); } catch { return {}; }
@@ -183,7 +189,7 @@ async function tickInterval() {
   return Math.max(MIN_INTERVAL_S, Number.isFinite(raw) ? raw : 60) * 1000;
 }
 
-async function tick() {
+async function runTick() {
   // Re-check each time: the user can start their own loop at any point, and
   // the deck should fall silent rather than compete with it.
   if (await externalAutoRunning()) {
@@ -194,11 +200,66 @@ async function tick() {
   _lastTick = { at: Date.now(), ...result };
 }
 
+/**
+ * One tick at a time, whatever the interval is.
+ *
+ * The interval floor is 15 seconds (MIN_INTERVAL_S, and SETTINGS allows exactly
+ * that), while a single tick can legitimately take 8 for externalAutoRunning's
+ * `Get-CimInstance`/`ps` plus 120 for runAutoTick's own timeout. Nothing capped
+ * the fan-out, so a slow `cswap auto --once` — one that is refreshing a token
+ * and switching an account — could have eight copies of itself running against
+ * each other two minutes later, each with a PowerShell process beside it on
+ * Windows. `_lastTick` was then written by whichever finished last rather than
+ * by the most recent tick, so the panel's "last tick" could go backwards.
+ *
+ * A skipped tick is not a lost one: the next interval is at most 15 seconds
+ * away, and the work this schedules is idempotent by design.
+ */
+function tick() {
+  if (_ticking) return _ticking;
+  _ticking = runTick().finally(() => { _ticking = null; });
+  return _ticking;
+}
+
+/**
+ * Start the deck-managed loop, at most once.
+ *
+ * `if (_timer) return` looked like a guard and was not one: `_timer` is assigned
+ * after `await tickInterval()`, which shells out to `cswap config`, so two
+ * callers could both be past the check before either had set it. Two ways in
+ * during that window, both reachable from the UI:
+ *
+ *   - enable then disable, a few hundred milliseconds apart. The disable set
+ *     `_enabled = false` and called stopLoop, which cleared nothing because
+ *     `_timer` was still null — and then the enable came back and installed the
+ *     interval. autoStatus() reported `enabled: false` and the toggle read off
+ *     while every tick went on running `cswap auto --once`, which switches the
+ *     user's live Claude account. A control that says it is off while it moves
+ *     credentials is the worst shape this bug could take.
+ *
+ *   - two enables (a double click, or two tabs). Two intervals, only the second
+ *     reachable from `_timer`, so the first could never be cleared again for the
+ *     life of the process.
+ *
+ * initCswapAuto is a third way in: index.mjs fires it unawaited while the server
+ * is already accepting requests.
+ *
+ * `_starting` is set before the await, so the guard covers the whole function.
+ * `_enabled` is re-read after it, because the answer may have changed while this
+ * was waiting on a subprocess — and a loop that installs itself after the user
+ * has turned it off is the same defect from the other side.
+ */
 async function startLoop() {
-  if (_timer) return;
-  const ms = await tickInterval();
-  _timer = setInterval(() => { tick().catch(() => {}); }, ms);
-  _timer.unref?.();
+  if (_timer || _starting) return;
+  _starting = true;
+  try {
+    const ms = await tickInterval();
+    if (!_enabled) return;   // turned off while we were asking cswap
+    _timer = setInterval(() => { tick().catch(() => {}); }, ms);
+    _timer.unref?.();
+  } finally {
+    _starting = false;
+  }
   tick().catch(() => {});   // don't make the user wait a full interval for the first one
 }
 
