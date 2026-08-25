@@ -12,6 +12,88 @@ let _cache = null;
 let _cacheAt = 0;
 const CACHE_MS = 60_000;
 
+// ── what a forced read may cost ─────────────────────────────────────────────
+// Until #600 the cache above was the whole of the admission control here, and
+// `force` walked straight past it. That made one GET worth a full week of the
+// rollout tree: listRolloutFiles(WINDOW_7D_MS) and then a read of every file it
+// returns. Measured on this repo's machine against 280 rollouts of ~90KB — a
+// week of ordinary use — one forced call is 685ms, 280 file opens and a peak of
+// four descriptors. Nothing bounded how many of those calls ran at once, and
+// the cost scaled exactly linearly: 16 concurrent forced reads were 4,480 opens
+// and 64 descriptors, 128 were 35,840 opens, 512 descriptors and 54.7s.
+//
+// Reads on this server are deliberately open — `isTrustedRead` does not apply
+// the `Sec-Fetch-Site` test that `isTrustedMutation` does, because a cross-site
+// read of `http://127.0.0.1:4317` is an ordinary top-level navigation — so any
+// page the user has open could run
+//
+//     for (;;) fetch("http://127.0.0.1:4317/api/codex-usage?refresh=1",
+//                    { mode: "no-cors" });
+//
+// and get one of those scans per request. MAX_PARALLEL_READS below bounds the
+// fan-out WITHIN one call, and it exists because opening a week of rollouts at
+// once risked EMFILE — which readTokenSeries swallows into `return null`, a
+// silent undercount rather than an error. Unbounded calls let that EMFILE back
+// in through the door the pool does not cover.
+//
+// The two things between a caller and a scan are the ones quota.mjs established
+// and codex-quota.mjs adopted in #597, spelled the same way in all three:
+//
+//   _inflight     — callers that overlap wait on the one scan already running,
+//                   `force` included. What ?refresh=1 asks for is a reading
+//                   newer than the cache, and a scan in progress is one, so
+//                   joining it costs nothing and is offered before the floor.
+//   FORCE_POLL_MS — the minimum interval between two scans WE pay for.
+//                   `_inflight` deduplicates callers that overlap and nothing
+//                   else, so a caller that waits for one scan to settle and then
+//                   asks again was a fresh week of the disk every time.
+//
+// This module has neither of the extra parts its two siblings carry, and
+// deliberately: there is no upstream backend to rate-limit us, so no cooldown,
+// and nothing outside this file invalidates the cache, so no generation guard.
+let _inflight = null;
+
+// Stamped when a scan STARTS rather than when it lands: what the floor rations
+// is the walk of the disk, and one that is still running has already been paid
+// for.
+let _lastScanAt = 0;
+
+// quota.mjs's number, and codex-quota.mjs's, for the reason those two give it:
+// "The refresh button may beat that floor, but not turn into a poll loop when
+// held down." Three routes within a few lines of each other in the router have
+// no business disagreeing about what `?refresh=1` costs.
+const FORCE_POLL_MS = 60_000;
+
+/**
+ * Whether we may walk a week of the rollout tree right now.
+ *
+ * Exported for tests, for the same reason quota.mjs exports `maySelfPoll` and
+ * codex-quota.mjs exports `mayFetchQuota`: this is the rule, it is pure, and it
+ * is worth pinning down away from the scan it guards.
+ */
+export function mayScanUsage({ now, lastScanAt }) {
+  return now - lastScanAt >= FORCE_POLL_MS;
+}
+
+/**
+ * The answer to a read the floor refused.
+ *
+ * A reading, not an error. The panel draws this number from `codexUsage?.ok &&
+ * window7d.sessionCount > 0`, so an `{ ok: false }` refusal would make the token
+ * line vanish for a minute — the deck teaching itself a new failure mode in
+ * order to defend against a loop nobody ran. `stale` is the flag quota.mjs and
+ * codex-quota.mjs both use for exactly this, and `fetchedAt` keeps the moment
+ * the DATA was read rather than the moment of the read that was refused, so an
+ * age label drawn from it never vouches for a scan that did not happen.
+ */
+function heldReading(now) {
+  if (_cache) return { ..._cache, stale: true };
+  // Only reachable before the first scan has ever landed — every outcome below
+  // is cached, failures included, and a scan that is still running is served by
+  // `_inflight` — and spelled the way codex-quota.mjs spells the same state.
+  return { ok: false, reason: "waiting", fetchedAt: now };
+}
+
 const WINDOW_5H_MS  = 5 * 60 * 60 * 1000;
 const WINDOW_7D_MS  = 7 * 24 * 60 * 60 * 1000;
 
@@ -206,10 +288,24 @@ function emptyWindow() {
   return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, totalTokens: 0, sessionCount: 0 };
 }
 
-export async function fetchCodexUsage({ force = false } = {}) {
+export function fetchCodexUsage({ force = false } = {}) {
   const now = Date.now();
-  if (!force && _cache && now - _cacheAt < CACHE_MS) return _cache;
+  if (!force && _cache && now - _cacheAt < CACHE_MS) return Promise.resolve(_cache);
+  // Offered before the floor: a scan that has not finished yet is a reading
+  // newer than the cache, which is what refresh asked for, and joining it costs
+  // nothing.
+  if (_inflight) return _inflight;
+  if (!mayScanUsage({ now, lastScanAt: _lastScanAt })) return Promise.resolve(heldReading(now));
+  _lastScanAt = now;
+  // A bare clear rather than quota.mjs's `_inflight === mine` check: that guard
+  // is there because invalidateQuotaCache drops the slot mid-flight, and this
+  // module has no invalidator to race with. If one is ever added, it needs the
+  // same check adding with it.
+  _inflight = scanCodexUsage(now).finally(() => { _inflight = null; });
+  return _inflight;
+}
 
+async function scanCodexUsage(now) {
   const w5h  = emptyWindow();
   const w7d  = emptyWindow();
   const start5h = now - WINDOW_5H_MS;
