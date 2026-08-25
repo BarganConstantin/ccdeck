@@ -64,10 +64,31 @@ if (flags.version) {
 
 if (flags.uninstall) {
   const { uninstallHooks, hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
-  const claude = await uninstallHooks({ provider: "claude" });
-  console.log(claude.changed
-    ? `${PRODUCT}: hooks removed from ${claude.settingsPath}`
-    : `${PRODUCT}: no Claude hooks to remove`);
+  // Anything that could not be taken out. An uninstall that removed nothing
+  // because it could not read the file has not uninstalled anything, and both
+  // the wording and the exit code have to say so: a user who is told it worked
+  // and still has our hooks firing on every event is worse off than one who is
+  // told it failed, because they have stopped looking.
+  let refused = false;
+  // Files already reported as unparseable. The Claude hooks and the sound hook
+  // live in the SAME settings.json, so a stray comma refuses both, and printing
+  // the whole path-plus-parser-error twice buries the one line that differs —
+  // which of our two installations is still in there.
+  const named = new Set();
+  /** Report one provider's outcome. `ok` first — see uninstallHooks. */
+  const report = (res, label) => {
+    if (res.ok === false) {
+      refused = true;
+      named.add(res.settingsPath);
+      console.error(`${PRODUCT}: ${label} hooks NOT removed — ${res.settingsPath} could not be read as JSON (${res.why}).`);
+      console.error(`${PRODUCT}: the __agent-dag hook entries are still in that file and keep firing on every ${label} event.`);
+      return;
+    }
+    console.log(res.changed
+      ? `${PRODUCT}: hooks removed from ${res.settingsPath}`
+      : `${PRODUCT}: no ${label} hooks to remove`);
+  };
+  report(await uninstallHooks({ provider: "claude" }), "Claude");
   // The sound toggle is a second entry in the same file, marked
   // __agent-dag-sound rather than __agent-dag, and uninstallHooks does not know
   // that mark — so it used to be left behind, playing on every turn after the
@@ -77,18 +98,25 @@ if (flags.uninstall) {
   const { uninstallSoundHook } = await import(pathToFileURL(join(PKG_ROOT, "src/server/sound-hook.mjs")).href);
   const sound = await uninstallSoundHook();
   if (sound.ok === false) {
-    console.error(`${PRODUCT}: sound hook left in place — ${sound.message}`);
+    refused = true;
+    console.error(named.has(sound.settingsPath)
+      ? `${PRODUCT}: the sound hook is still in that file too.`
+      : `${PRODUCT}: sound hook left in place — ${sound.message}`);
   } else {
     if (sound.removed) console.log(`${PRODUCT}: sound hook removed`);
     if (sound.restored) console.log(`${PRODUCT}: restored ${sound.restored} of your own sound hook(s)`);
   }
   if (hasCodexInstalled()) {
-    const codex = await uninstallHooks({ provider: "codex" });
-    console.log(codex.changed
-      ? `${PRODUCT}: hooks removed from ${codex.settingsPath}`
-      : `${PRODUCT}: no Codex hooks to remove`);
+    report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
-  process.exit(0);
+  // The remedy last and once, after every symptom above it, rather than once
+  // per refusal in the middle of the list.
+  if (named.size > 0) {
+    console.error(`${PRODUCT}: repair the JSON (or move the file aside), then run \`${PRODUCT} --uninstall\` again.`);
+  }
+  // Non-zero when any half of it refused, so `ccdeck --uninstall && …` and every
+  // CI step that runs this stops on the failure instead of continuing past it.
+  process.exit(refused ? 1 : 0);
 }
 
 const port = Number(flags.port ?? process.env.AGENT_DAG_PORT ?? 4317);
