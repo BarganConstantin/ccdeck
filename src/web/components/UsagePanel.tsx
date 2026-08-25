@@ -366,6 +366,20 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
     return () => window.clearInterval(t);
   }, []);
+  // Both memos below key on `state.revision`, not on `state.lastSeq`. The
+  // `state` prop is `stateRef.current` and `applyEvent` mutates it in place, so
+  // its identity never moves after mount and the second dep is the whole of
+  // what decides whether either of these recomputes. `lastSeq` answers "when did
+  // the last envelope arrive", which is a different question from "has anything
+  // in here changed": the four periodic sweeps mutate this same object every
+  // 250ms tick and move only `revision` — see the note on GraphState.
+  //
+  // This one carries `now` as well, because `burnRate` divides by wall-clock
+  // elapsed and has to keep counting while nothing arrives. That third dep is
+  // also what hid the wrong second one: `now` is a fresh Date.now() every tick,
+  // so this recomputed four times a second whatever `lastSeq` said, and the
+  // headline strip stayed honest through a prune by luck rather than by rule.
+  // `bySessions` below has no clock in it, and it is the one that went stale.
   const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
     const modelMap = new Map<string, ModelRow>();
     const totalCostAcc: CostBreakdown = { total: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -433,8 +447,19 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
       totalTokens: { in: totalIn, out: totalOut, cacheR: totalCacheR, cacheC: totalCacheC },
       burnRate,
     };
-  }, [state, state.lastSeq, now]);
+  }, [state, state.revision, now]);
 
+  // No clock in these deps, and none wanted — every figure in a row is a running
+  // total, not an elapsed time. That made this the one memo in the panel with
+  // nothing to mask the wrong dependency, and #575 is what it cost: on a quiet
+  // deck `pruneDoneSessions` evicts a finished session two minutes after it
+  // ends, the canvas drops its cards and the strip above drops its dollars, and
+  // these rows kept theirs — so the "By session" table summed past the total
+  // printed over it and no click would reconcile the two, because the next
+  // envelope that would have moved `lastSeq` never came. `s.state` froze the
+  // same way: `sweepStaleSessions` settles a killed terminal's root to `done` at
+  // ninety minutes, and the row's dot stayed green and its hidden word stayed
+  // "active" for as long as the tab was open.
   const bySessions = useMemo((): SessionRow[] => {
     const roots: SessionRow[] = [];
     /** A session's tokens that no rate could be applied to, counted per agent
@@ -473,7 +498,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
       .sort((a, b) => (b.cost - a.cost)
         || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)))
       .slice(0, 12);
-  }, [state, state.lastSeq]);
+  }, [state, state.revision]);
 
   const hasCost = totalCost.total > 0;
   const totalTokenSum = totalTokens.in + totalTokens.out;
