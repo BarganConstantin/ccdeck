@@ -85,6 +85,8 @@ import {
   upgradeBlock, upgradeCommand, upgradeMode, upgradeName,
 } from "../../server/self-update.mjs";
 
+import { spawnedArgv } from "./spawned-argv";
+
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
 
@@ -189,7 +191,14 @@ function npmArgv(pkgRoot: string): string[] {
   // later call with `already` until this one settles — so the fake reports the
   // clean exit npm would have, and the next test starts from an idle module.
   spawns[0].child.emit("close", 0);
-  return spawns[0].args;
+  // Through spawnedArgv, because since #535 this vector has two shapes. On
+  // POSIX npm is a real executable and the arguments are the array as given; on
+  // Windows npm is a .cmd shim, so the whole call arrives as cmd.exe's own
+  // `/d /s /c` plus one quoted string — and reading `.args` there returned
+  // ["/d","/s","/c",…] to a test asking which package npm was told to install.
+  // The program itself is dropped: every assertion here is about the arguments,
+  // and on Windows the program is cmd.exe rather than npm.
+  return spawnedArgv(spawns[0]).slice(1);
 }
 
 beforeEach(() => { spawns.length = 0; });
