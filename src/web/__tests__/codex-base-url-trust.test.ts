@@ -83,6 +83,16 @@ describe("isCredentialHost", () => {
   });
 });
 
+// #580 put a floor under forced reads: two `force: true` calls inside
+// FORCE_POLL_MS are one request upstream, and the second is answered from the
+// cache without asking anyone. Every case below is written as "a forced read that
+// goes out and is refused at the destination", so each is given a minute of its
+// own instead of inheriting the previous case's. The clock is moved rather than
+// waited on, the way read-cost-ceiling.test.ts moves it.
+let skew = 0;
+const FROZEN_AT = Date.now();
+vi.spyOn(Date, "now").mockImplementation(() => FROZEN_AT + skew);
+
 describe("fetchCodexQuota against an untrusted base URL", () => {
   const realFetch = globalThis.fetch;
   let calls: string[] = [];
@@ -98,6 +108,7 @@ describe("fetchCodexQuota against an untrusted base URL", () => {
 
   afterAll(() => {
     globalThis.fetch = realFetch;
+    vi.restoreAllMocks();
     for (const k of ["HOME", "USERPROFILE", "CODEX_HOME"]) {
       if (prevEnv[k] === undefined) delete process.env[k];
       else process.env[k] = prevEnv[k];
@@ -105,7 +116,11 @@ describe("fetchCodexQuota against an untrusted base URL", () => {
     rmSync(DIR, { recursive: true, force: true });
   });
 
-  beforeEach(() => { calls = []; vi.spyOn(console, "error").mockImplementation(() => {}); });
+  beforeEach(() => {
+    calls = [];
+    skew += 5 * 60_000;   // see the note above the describe
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
 
   it("makes no request at all when config.toml points somewhere else", async () => {
     config('chatgpt_base_url = "http://127.0.0.1:9/"\n');

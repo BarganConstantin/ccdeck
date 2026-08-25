@@ -64,6 +64,29 @@ export async function readCswapConfig() {
   return out;
 }
 
+/**
+ * What the model list may be made of before it becomes an argv element.
+ *
+ * The character class is the same one this field has always had — a
+ * comma-separated list of plain model names, bounded at 120 — with the one rule
+ * #543 wrote down at cswap-admin.mjs's EMAIL_OK added to the front: *"The
+ * leading-character rule is the same argv-position rule ALIAS_OK now carries."*
+ *
+ * This is the THIRD free-text field to reach an argument vector and the first
+ * one that pass missed, because it lives in a different module. It is not a
+ * different question. `{ key: "autoswitch.model", value: "-h" }` produced
+ * `cswap config set autoswitch.model -h`; argparse on the other side reads the
+ * leading dash as an option rather than as data, prints help, exits 0 — so
+ * `r.ok` is true and the deck reports a setting saved that was never written,
+ * after which the panel's optimistic value disagrees with the next read (#584).
+ *
+ * Only the first character is constrained, so `claude-3-5-sonnet` and every
+ * other dash-bearing model name still works. cswap-argv-position.test.ts
+ * enumerates every field this rule covers, so a fourth cannot be added without
+ * one.
+ */
+const MODEL_LIST_OK = /^(?!-)[A-Za-z0-9 ,._-]{1,120}$/;
+
 /** Validate against SETTINGS, then hand to `cswap config set`. */
 export async function setCswapConfig(key, value) {
   const spec = SETTINGS[key];
@@ -80,7 +103,7 @@ export async function setCswapConfig(key, value) {
   } else {
     // Model names: a comma-separated list of plain words, or "all".
     str = String(value ?? "").trim();
-    if (str && !/^[A-Za-z0-9 ,._-]{1,120}$/.test(str)) return { ok: false, reason: "bad_value" };
+    if (str && !MODEL_LIST_OK.test(str)) return { ok: false, reason: "bad_value" };
   }
 
   const r = await run(await cswapBin(), ["config", "set", key, str]);
