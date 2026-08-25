@@ -63,6 +63,39 @@
   --session-edge-l: 72%;       /* live parent→child edge — a 2px stroke, 3:1 */
   --session-edge-idle-l: 55%;  /* settled edge — 1.5px, same floor */
   --mcp-dot-l: 65%;            /* the unknown-server burst stripe + the MCP chip's edge */
+  /* The usage-history chart's eight series colours (#583). Same boundary #330
+     drew for the session hues, one class of colour further along: modelColor()
+     and agentColor() know which family a band belongs to, the cascade knows
+     which canvas it is drawn on, and until now a single literal hex in a .tsx
+     was deciding both. Those hexes were picked against THIS panel — four of
+     them are byte-identical to the dark --accent, --ok, --warn and --err — and
+     on white they measured 1.40 to 2.56 against --panel, every one of them
+     under the 3:1 that 1.4.11 asks of a graphic you have to read to understand
+     the content, which a bar in a bar chart is by definition.
+     So the mapping stays in TypeScript and the VALUES come from here, handed to
+     the inline style as a var() string. That is the move #357 already made for
+     --edge-transition, and it is the only one available, because an inline
+     style outranks every selector this sheet could write — a `.uh-bar-seg`
+     rule cannot repaint a background the component itself set.
+     These dark values are the shipped ones byte for byte, so nothing on this
+     canvas moves; the light block re-tunes all eight. Both are swept by
+     usage-series-contrast.test.ts against --panel, --bg-soft, and the --line
+     track the two meters draw their fills on.
+     Eight mutually distinguishable luminances are not available at any tuning:
+     a chain of n colours each 3:1 from the next needs (L + 0.05) to span
+     3^(n-1), and 3^3 = 27 already exceeds the 21 sRGB allows, so four is
+     impossible and eight is not close. The pairwise floor is bought with
+     geometry instead — the hairline at .uh-bar-seg and .uh-agent-seg — and the
+     3:1 each colour clears against --panel is exactly what makes that hairline
+     visible against whichever two bands it happens to separate. */
+  --usage-purple: #c4b5fd;   /* opus, and Claude Code's own band */
+  --usage-blue: #7dd3fc;     /* sonnet */
+  --usage-green: #86efac;    /* haiku, and Copilot */
+  --usage-amber: #fcd34d;    /* gpt-5 */
+  --usage-red: #fca5a5;      /* gpt */
+  --usage-indigo: #a5b4fc;   /* gemini */
+  --usage-orange: #fdba74;   /* codex */
+  --usage-zinc: #94a3b8;     /* everything neither function recognises */
   color-scheme: dark;
 }
 
@@ -131,6 +164,33 @@
   --session-edge-l: 30%;       /* 3.25:1 worst hue on the canvas */
   --session-edge-idle-l: 36%;  /* 3.24:1 */
   --mcp-dot-l: 32%;            /* 3.38:1 */
+  /* The same eight bands, re-tuned for white — the whole of #583's first half.
+     Polarity inverts exactly as it does for the session tiers above: on this
+     bed a series reads by being DARKER than the paper it is drawn on, so every
+     value here is a deep hue where the dark block carries a pastel.
+     Three beds, because these colours land on three: --panel and --bg-soft
+     (both #ffffff here, but not in dark) for the day bars and every legend
+     swatch, and the --line track that .uh-model-bar and .uh-agent-bar draw
+     their fills over — the tightest of the three at #c8cdd6, and the one that
+     matters most, since a partial fill's boundary against its track is how the
+     length of a meter is read at all.
+     Worst readings in the set: green at 5.42 on the paper and 3.39 on the
+     track, orange at 5.52 and 3.46. The hues are also spread by CIE76 ΔE, not
+     only by luminance, because a stack of bands is told apart by hue first and
+     a contrast ratio only says each band can be seen at all — the closest pair
+     here is blue against zinc at 29.3, where the dark set's closest is purple
+     against indigo at 9.6. Under a colour vision deficiency some pair always
+     collapses (the shipped dark set puts purple and blue 2.8 apart for a
+     deuteranope), which is precisely why the fix cannot be a palette alone and
+     the segment hairline below is load-bearing rather than decorative. */
+  --usage-purple: #7e22ce;
+  --usage-blue: #0369a1;
+  --usage-green: #157a3a;
+  --usage-amber: #7a5c00;
+  --usage-red: #be123c;
+  --usage-indigo: #3730a3;
+  --usage-orange: #b0490c;
+  --usage-zinc: #4a5260;
   color-scheme: light;
 }
 
@@ -4912,7 +4972,38 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 .uh-range-btn:hover { color: var(--text); }
 .uh-range-btn:active { transform: scale(0.97); }
-.uh-range-btn.on { background: var(--accent-dim); color: var(--text); }
+/* #583's second half. The selected range used to add exactly two declarations
+   to the rest state — an --accent-dim wash and a lift from --muted to --text —
+   and neither of them reached 3:1 against what it sits on. The wash is 1.392:1
+   over the --bg-soft track in light and 1.895:1 in dark; the word's step is
+   2.403:1 and 2.752:1. There was no third channel: no border, no weight, no
+   geometry. So the modal opened on 30d, you pressed 90d, and nothing on the
+   strip could tell you afterwards which of the four the chart was showing.
+   Both of those numbers had already been priced and refused elsewhere in this
+   sheet. #370 replaced a 1.37:1 hue shift on the topbar toggles, and
+   toggle-state.test.ts holds .cat-filter's 2.40:1 / 2.75:1 colour step to be
+   insufficient on its own — which is why `off` also gets a line-through. This
+   strip got neither fix, only the wash.
+   The answer is #370's, unchanged: polarity, not a louder tint. The fill goes
+   to the accent itself and the label inverts with it — 5.93:1 light and
+   11.33:1 dark for the chip against the bare track, with the label at 5.24:1
+   and 11.72:1 on top of it. A luminance inversion is the one channel that
+   survives greyscale, every colour vision deficiency, and a later re-tune of
+   whichever hue --accent happens to be, because it does not depend on the two
+   colours differing in hue at all.
+   Keyed on aria-pressed rather than on the `on` class it used to carry, for the
+   reason the icon-button rule gives: the pixels and the accessibility tree are
+   then the same fact, and a chip cannot look selected while announcing nothing.
+   The class is gone from the markup with it. */
+.uh-range-btn[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+/* `.uh-range-btn:hover` repaints the label in --text, which on the accent fill
+   is 1.72:1 in dark — so the pressed chip has to out-specify the hover it
+   inherits, the same way the topbar's pressed toggle does. It buys no lift of
+   its own: the strip is 2px of padding around 2px-gapped chips, so the halo
+   that rule uses would collide with both neighbours, and the pressed chip is
+   already the loudest thing in the group. The press still answers through
+   `:active`, which scales every chip in the strip. */
+.uh-range-btn[aria-pressed="true"]:hover { color: var(--bg); }
 /* #380 deleted a 13px font-size here that `button.btn.icon-btn`'s 14px had
    always beaten, and left the width, height and padding standing as dead by the
    same arithmetic. The class set is `glyph-btn uh-reload` now and all three are
@@ -4977,7 +5068,13 @@ button.tool.clickable:last-child { border-bottom: none; }
   display: flex; height: 6px; border-radius: 3px;
   background: var(--line); overflow: hidden; margin-bottom: 7px;
 }
-.uh-agent-seg { height: 100%; }
+/* The same cut, turned ninety degrees — this bar stacks sideways (#583). Its
+   segments meet edge to edge exactly as the day bars' do, and Claude's purple
+   against Codex's orange is the 1.10:1 pair, so the split this row was built
+   for needs the same hairline to be a split at all. `-1px 0 0` puts it on the
+   leading edge, and .uh-agent-bar's `overflow: hidden` swallows the first
+   segment's copy against the rounded end. */
+.uh-agent-seg { height: 100%; box-shadow: -1px 0 0 var(--panel); }
 .uh-agent-keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--muted); }
 .uh-agent-key { display: inline-flex; align-items: center; gap: 5px; }
 .uh-agent-cost { color: var(--text); font-variant-numeric: tabular-nums; }
@@ -5061,7 +5158,26 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 2px 2px 0 0; overflow: hidden;
   transition: height 300ms ease;
 }
-.uh-bar-seg { width: 100%; }
+/* A cut between stacked bands, in the modal's own paper (#583).
+   The palette above can make every band visible against the panel; what it
+   cannot do is make eight bands 3:1 from each other, because the arithmetic
+   forbids it past three. So the day with Sonnet and a Codex model drew two
+   segments 1.01:1 apart with nothing in between — one band, and the split the
+   chart exists to show simply gone, for anyone reading it in greyscale, on a
+   projector, or with achromatopsia. That is 1.4.1 and not 1.4.11: the defect is
+   that colour was the ONLY channel, not that any one colour was too quiet.
+   A shadow rather than a border, because the height of a segment is a
+   percentage of a day's cost and `box-sizing: border-box` would have taken the
+   hairline out of that height — on a $0.01 band inside a $600 day the border
+   IS the band, and the segment would have been drawn as a line of panel colour
+   instead of as its own hue. `0 -1px 0` is outside the box and costs the
+   segment nothing; it is the neighbour above that gives up the pixel. The
+   topmost band paints its cut over the bar's own top edge, where .uh-bar's
+   `overflow: hidden` clips it away, so no bar grows a lid.
+   In --panel on purpose: every series colour clears 3:1 against --panel in both
+   themes, so the same floor that makes a band visible makes this line visible
+   against whichever two bands it lands between. One measurement, two jobs. */
+.uh-bar-seg { width: 100%; box-shadow: 0 -1px 0 var(--panel); }
 /* 9px, the sheet's floor, not the 8px this was alone in writing. It was the one
    declaration in the file below the smallest size anything else is set in, and
    an 8px monospace date under a chart is the label that says which bar you are

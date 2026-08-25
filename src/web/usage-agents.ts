@@ -101,14 +101,21 @@ export function dayAgentSummary(agents: readonly AgentDay[] | undefined): string
  * only way to tell two rows apart — and inventing a hue by hashing an id would
  * put unreadable-against-the-panel colours on screen to solve a case nobody has
  * yet reported.
+ *
+ * The palette is five `var(--usage-…)` names rather than five hexes as of #583,
+ * for the reason `modelColor` spells out: the literals here were the dark
+ * canvas's pastels, an inline `style` is unreachable from the sheet, and on
+ * white they were 1.40:1 to 2.56:1 against the panel they were drawn on. The
+ * mapping is still this function's; only the values moved to :root, where each
+ * theme answers for its own.
  */
 export function agentColor(id: string): string {
   switch (id.toLowerCase()) {
-    case "claude": return "#c4b5fd";  // purple, as the Claude models are drawn
-    case "codex": return "#fdba74";   // orange, as the Codex models are drawn
-    case "gemini": return "#a5b4fc";  // indigo, matching modelColor's gemini
-    case "copilot": return "#86efac"; // green
-    default: return "#94a3b8";        // zinc — the same fallback modelColor uses
+    case "claude": return "var(--usage-purple)";  // as the Claude models are drawn
+    case "codex": return "var(--usage-orange)";   // as the Codex models are drawn
+    case "gemini": return "var(--usage-indigo)";  // matching modelColor's gemini
+    case "copilot": return "var(--usage-green)";
+    default: return "var(--usage-zinc)";          // the same fallback modelColor uses
   }
 }
 
