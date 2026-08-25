@@ -243,9 +243,84 @@ async function requestUsage(base, auth) {
 // to race over the single-use refresh token.
 let _inflight = null;
 
+// ── what a forced read may cost ────────────────────────────────────────────
+// The floor between two reads WE pay for, and it is the same number and the
+// same rule quota.mjs gives the Claude half — see FORCE_POLL_MS and maySelfPoll
+// there. The two routes are four lines apart in the router and had no business
+// disagreeing about what `?refresh=1` costs.
+//
+// `force` used to mean "skip the cache", and the cache was the ONLY thing
+// between a caller and chatgpt.com. `_inflight` deduplicates callers that
+// overlap and nothing else, so a caller that waits for one fetch to settle and
+// then asks again got a fresh round trip every time — two authenticated HTTPS
+// GETs carrying the user's live ChatGPT session, as fast as the round trip
+// allows, from any page the user happens to have open (#580). Reads on this
+// server are deliberately open (isTrustedRead), so "any page" is the real
+// threat model rather than a hypothetical one.
+//
+// The sharper half is the credential rather than the traffic. On a 401
+// doFetchCodexQuota spends the SINGLE-USE refresh token via forceCodexRefresh,
+// and `staleAccessToken` only stops that happening twice for the same rejected
+// token — every turn re-reads auth.json and sees the token the previous turn
+// rotated to, so a backend that keeps answering 401 rotated a fresh credential
+// once per request, racing the Codex CLI for each one. codex-auth.mjs's own
+// EXPIRY_SKEW_MS comment says what losing that race costs the user: a
+// `refresh_token_reused` that reads as "your login is broken", recoverable only
+// with `codex login`.
+const FORCE_POLL_MS = 60_000;
+
+// Set from a 429 or a rejected refresh: a backend that is refusing us must not
+// be asked once per request, whoever is asking. Same shape as quota.mjs's
+// _rateLimitedUntil, which is likewise never beaten by force.
+let _rateLimitedUntil = 0;
+const COOLDOWN_MS = 5 * 60_000;
+
+// Stamped when a fetch STARTS rather than when it lands: what the floor is
+// rationing is the round trip, and one that is still in flight has already been
+// paid for.
+let _lastFetchAt = 0;
+
+/**
+ * Whether we may spend a request of the user's ChatGPT session right now.
+ *
+ * Exported for tests, for the same reason quota.mjs exports maySelfPoll: this
+ * is the rule, it is pure, and it is worth pinning down away from the fetch it
+ * guards.
+ */
+export function mayFetchQuota({ now, lastFetchAt, rateLimitedUntil }) {
+  if (now < rateLimitedUntil) return false;
+  return now - lastFetchAt >= FORCE_POLL_MS;
+}
+
+/**
+ * The answer to a read the floor refused.
+ *
+ * A reading, not an error — a user who clicks ↻ twice in a second must get the
+ * numbers they already have rather than a red hint, which is exactly what
+ * quota.mjs does with `{ ...held, stale: true }`. The timestamp stays the one
+ * the data was fetched at, so the panel's age label keeps telling the truth
+ * instead of vouching for a reading it did not take.
+ */
+function heldReading(now) {
+  if (_cache) return { ..._cache, stale: true };
+  // Only reachable before the first fetch has ever landed — `finish` caches
+  // every outcome, failures included — and spelled the way the Claude side
+  // spells the same two states.
+  return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
+}
+
 export function fetchCodexQuota({ force = false } = {}) {
-  if (!force && _cache && Date.now() - _cacheAt < CACHE_MS) return Promise.resolve(_cache);
-  _inflight ??= doFetchCodexQuota().finally(() => { _inflight = null; });
+  const now = Date.now();
+  if (!force && _cache && now - _cacheAt < CACHE_MS) return Promise.resolve(_cache);
+  // Joining a run already in flight costs nothing, so it is offered before the
+  // floor: what refresh asks for is a reading newer than the cache, and a fetch
+  // that has not landed yet is one.
+  if (_inflight) return _inflight;
+  if (!mayFetchQuota({ now, lastFetchAt: _lastFetchAt, rateLimitedUntil: _rateLimitedUntil })) {
+    return Promise.resolve(heldReading(now));
+  }
+  _lastFetchAt = now;
+  _inflight = doFetchCodexQuota().finally(() => { _inflight = null; });
   return _inflight;
 }
 
@@ -256,6 +331,13 @@ async function doFetchCodexQuota() {
   // shortens the effective TTL for no reason.
   const finish = (r) => { _cache = r; _cacheAt = Date.now(); return r; };
   const fail   = (reason) => finish({ ok: false, reason, fetchedAt: started });
+  // A refusal we were told about, rather than one we inferred: back off further
+  // than the ordinary floor before asking again. `retry-after` is honoured when
+  // the backend sends one, because it knows better than the constant does.
+  const cooldown = (res) => {
+    const after = parseInt(res?.headers?.get?.("retry-after") ?? "", 10);
+    _rateLimitedUntil = Date.now() + (Number.isFinite(after) ? after * 1000 : COOLDOWN_MS);
+  };
 
   let auth, base, res;
   try {
@@ -294,12 +376,22 @@ async function doFetchCodexQuota() {
     // destroyed.
     if (res.status === 401) {
       const refreshed = await forceCodexRefresh(auth.accessToken);
-      if (!refreshed.ok) return fail(refreshed.reason);
+      if (!refreshed.ok) {
+        // The credential is gone and only `codex login` brings it back, so
+        // rotating another single-use token at the next request would burn the
+        // one the CLI is still holding. Wait.
+        if (refreshed.reason === "refresh_rejected") cooldown(null);
+        return fail(refreshed.reason);
+      }
       auth = refreshed;
       res  = await requestUsage(base, auth);
     }
 
     if (!res.ok) {
+      // A second 401 means the token we just rotated to was rejected as well —
+      // the case that turned into one rotation per request. 429 is the backend
+      // saying the same thing in the ordinary way.
+      if (res.status === 401 || res.status === 429) cooldown(res);
       return fail(res.status === 401 ? "refresh_rejected" : `http_${res.status}`);
     }
   } catch (err) {

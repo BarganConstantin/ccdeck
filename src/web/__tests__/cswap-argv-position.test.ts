@@ -1,5 +1,5 @@
-// Two values on the accounts route could still decide their own position in an
-// argument vector, which is a different bug from the one alias-charset.test.ts
+// Three values the deck hands to a CLI could still decide their own position in
+// an argument vector, which is a different bug from the one alias-charset.test.ts
 // closed and is not fixed by any amount of quoting.
 //
 // That file is about what a SHELL would do with a value: `%VAR%`, an unbalanced
@@ -34,6 +34,41 @@
 //     `includes("@")`. Both are payloads the alias tests already pin as refused
 //     for the other field.
 //
+//   • `autoswitch.model` is the THIRD field of this shape and it was not part of
+//     that pass, because it lives in another module (#584).
+//     `setCswapConfig`'s free-text branch tested
+//     `/^[A-Za-z0-9 ,._-]{1,120}$/`, whose character class admits a dash and
+//     admits it in first position, and the value then reaches
+//     `run(await cswapBin(), ["config", "set", key, str])` as its own argv
+//     element. `{ key: "autoswitch.model", value: "-h" }` built
+//     `cswap config set autoswitch.model -h`; argparse ate the `-h`, printed
+//     help and exited 0, so `r.ok` was true and the deck reported a setting
+//     saved that was never written. Verified live against the installed
+//     claude-swap rather than reasoned about.
+//
+// ── the census, which is the point of the #584 half ─────────────────────────
+//
+// This file was thorough about the two fields #543 named and asked nothing about
+// how many fields there are, so a third one in a different module was never a
+// case. That is the gap rather than a flaw in the cases: what was missing is
+// something that COUNTS.
+//
+// So the first block below derives the list rather than restating it. It reads
+// the three modules that spawn claude-swap, finds every `run` / `runInteractive`
+// / `runDetached` call, resolves each argument vector — through a `const`, a
+// ternary and an `args.push(…)` where it has to — and classifies every element
+// as one of three things: a fixed word, a slot number (`String(n)`, and every
+// setter that produces one is asked for a flag-shaped slot below), or a value
+// somebody typed. The values somebody typed are the whole population of this
+// file, and the census asserts that population is exactly the one the battery
+// exercises. A FOURTH field is a new name in that list, and a new name fails the
+// census before anyone has to notice it by review.
+//
+// The auto-switch settings are enumerated the same way, out of `SETTINGS`
+// itself: every key whose type is neither `number` nor `enum` falls through to
+// the free-text branch, so the battery runs over each of them by construction
+// and a fifth setting of that shape arrives already covered.
+//
 // ── why the test is shaped this way ─────────────────────────────────────────
 //
 // `node:child_process` is mocked rather than `exec.mjs`, which is the difference
@@ -65,7 +100,7 @@
 // validator rejects must reach NO subprocess, which is asserted as an empty
 // recording rather than as a well-quoted one.
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EventEmitter } from "node:events";
@@ -191,6 +226,10 @@ vi.mock("node:child_process", async () => {
 // @ts-expect-error — plain JS module, no types
 const admin = await import("../../server/cswap-admin.mjs");
 const { setAlias, startLogin, cancelLogin, readStore } = admin;
+// The third module with a value of its own in a cswap argument vector, and the
+// one #543 never reached.
+// @ts-expect-error — plain JS module, no types
+const { setCswapConfig } = await import("../../server/cswap-auto.mjs");
 
 // Belt and braces. If any override above were ignored — or overridden again by a
 // developer's own environment — the store would resolve somewhere in the real
@@ -441,5 +480,309 @@ describe("an email that would be read as a flag, or as a second command", () => 
 
     expect(spawns.length, "the refusal spawned nothing of its own").toBe(before);
     expect(admin.loginState().state, "and the live flow is untouched").toBe("awaiting_code");
+  });
+});
+
+// ── the census ──────────────────────────────────────────────────────────────
+// Everything from here down is #584: not a third field's worth of cases, but the
+// count that makes a fourth field impossible to add quietly.
+
+/** Split `text` on the commas that are not inside brackets, parens or quotes. */
+function splitTop(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0, quote: string | null = null, start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === "," && depth === 0) { out.push(text.slice(start, i)); start = i + 1; }
+  }
+  out.push(text.slice(start));
+  return out.map(s => s.trim()).filter(Boolean);
+}
+
+/** The arguments of the call whose opening `(` sits at `open`, as source text. */
+function callArgs(src: string, open: number): string[] {
+  let depth = 0, quote: string | null = null;
+  for (let i = open; i < src.length; i++) {
+    const c = src[i];
+    if (quote) { if (c === "\\") i++; else if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") {
+      if (--depth === 0) return splitTop(src.slice(open + 1, i));
+    }
+  }
+  throw new Error("unbalanced call — the scanner is out of step with the source");
+}
+
+/** A top-level `a ? b : c`, as its two arms, or null when there is none. */
+function ternaryArms(text: string): [string, string] | null {
+  let depth = 0, quote: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) { if (c === "\\") i++; else if (c === quote) quote = null; continue; }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === "?" && depth === 0) {
+      let inner = 0, q: string | null = null;
+      for (let j = i + 1; j < text.length; j++) {
+        const e = text[j];
+        if (q) { if (e === "\\") j++; else if (e === q) q = null; continue; }
+        if (e === '"' || e === "'" || e === "`") { q = e; continue; }
+        if (e === "(" || e === "[" || e === "{") inner++;
+        else if (e === ")" || e === "]" || e === "}") inner--;
+        else if (e === ":" && inner === 0) return [text.slice(i + 1, j), text.slice(j + 1)];
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * One argument vector, reduced to the expressions its elements are written as.
+ *
+ * Resolved through the three shapes the deck actually uses and no further: an
+ * array literal, a `const` holding one — including a ternary between two of them
+ * — and the `args.push("--email", email)` that `spawnLogin` appends. Anything
+ * else comes back as itself and lands in the census as a slot somebody has to
+ * account for, which is the safe direction: an expression this cannot read must
+ * never be quietly called constant.
+ */
+function argvElements(expr: string, src: string, at: number): string[] {
+  const text = expr.trim();
+  if (text.startsWith("[")) return splitTop(text.slice(1, -1));
+  const arms = ternaryArms(text);
+  if (arms) return [...argvElements(arms[0], src, at), ...argvElements(arms[1], src, at)];
+  if (!/^[A-Za-z_$][\w$]*$/.test(text)) return [text];
+
+  // A bare name: take the nearest declaration above the call, then every push
+  // between the two.
+  const decl = new RegExp(`(?:const|let|var)\\s+${text}\\s*=`, "g");
+  let from = -1;
+  for (const d of src.slice(0, at).matchAll(decl)) from = d.index! + d[0].length;
+  if (from < 0) return [text];
+  const elements = argvElements(src.slice(from, src.indexOf(";", from)), src, from);
+  for (const p of src.slice(from, at).matchAll(new RegExp(`${text}\\.push\\s*\\(`, "g"))) {
+    elements.push(...callArgs(src, from + p.index! + p[0].length - 1));
+  }
+  return elements;
+}
+
+/** A string literal with nothing interpolated into it — a fixed word. */
+function isFixedWord(e: string): boolean {
+  const t = e.trim();
+  if (/^(["'])(?:[^\\]|\\.)*\1$/s.test(t)) return true;
+  const arms = ternaryArms(t);
+  return arms ? isFixedWord(arms[0]) && isFixedWord(arms[1]) : false;
+}
+
+/** `String(n)` — a slot number on its way to argv, never free text. */
+const isSlotNumber = (e: string): boolean => /^String\([A-Za-z_$][\w$]*\)$/.test(e.trim());
+
+/** The three modules that put a value of the deck's into claude-swap's argv. */
+const CSWAP_MODULES = ["cswap-auto.mjs", "cswap-admin.mjs", "claude-accounts.mjs"] as const;
+
+const moduleSource = (name: string) =>
+  readFileSync(new URL(`../../server/${name}`, import.meta.url), "utf8");
+
+/**
+ * Every argv element in those modules that is neither a fixed word nor a slot
+ * number, as `<module>:<the name it is written as>`.
+ */
+function typedValueSlots(): string[] {
+  const found = new Set<string>();
+  for (const name of CSWAP_MODULES) {
+    const src = moduleSource(name);
+    // `run`, `runInteractive`, `runDetached` — never `_holder.run` and never the
+    // `run` of an import list, hence the lookbehind and the `(`.
+    for (const m of src.matchAll(/(?<![.\w$])(runInteractive|runDetached|run)\s*\(/g)) {
+      const open = m.index! + m[0].length - 1;
+      const args = callArgs(src, open);
+      if (args.length < 2) continue;
+      for (const el of argvElements(args[1], src, m.index!)) {
+        if (isFixedWord(el) || isSlotNumber(el)) continue;
+        found.add(`${name}:${el}`);
+      }
+    }
+  }
+  return [...found].sort();
+}
+
+/**
+ * The census, restated by hand — and the only hand-written half of it. What the
+ * scan above supplies is COMPLETENESS: every name it finds has to be in here,
+ * and every name in here has to still be out there.
+ */
+const TYPED_VALUE_SLOTS: Record<string, { guard: "free-text" | "allowlist"; what: string }> = {
+  "cswap-admin.mjs:clean": { guard: "free-text", what: "the account alias" },
+  "cswap-admin.mjs:email": { guard: "free-text", what: "the sign-in address, after --email" },
+  "cswap-auto.mjs:str":    { guard: "free-text", what: "the auto-switch model list" },
+  // Not free text: `SETTINGS[key]` is a lookup, so a key that is not one of the
+  // five the deck writes is refused before `str` is even looked at.
+  "cswap-auto.mjs:key":    { guard: "allowlist", what: "the auto-switch setting name" },
+};
+
+/**
+ * The auto-switch settings that reach argv as free text, read out of `SETTINGS`
+ * rather than listed here: `setCswapConfig` sends `number` down one branch and
+ * `enum` down another, and EVERYTHING ELSE falls through to the model-list
+ * branch. So the question this parse asks is the question the code asks.
+ */
+function freeTextSettingKeys(): string[] {
+  const src = moduleSource("cswap-auto.mjs");
+  const from = src.indexOf("const SETTINGS = {");
+  if (from < 0) throw new Error("SETTINGS is gone or renamed — the census is blind");
+  const block = src.slice(from, src.indexOf("};", from));
+  const keys: string[] = [];
+  for (const m of block.matchAll(/"([^"]+)":\s*\{\s*type:\s*"([^"]+)"/g)) {
+    if (m[2] !== "number" && m[2] !== "enum") keys.push(m[1]);
+  }
+  if (!keys.length) throw new Error("no free-text setting at all — the parse has drifted");
+  return keys;
+}
+
+/** One value the deck lets somebody type into an argument vector. */
+type TypedField = {
+  slot: string;
+  what: string;
+  /** The refusal this route answers with — each has its own word for it. */
+  reason: string;
+  set: (value: unknown) => Promise<{ ok: boolean; reason?: string }>;
+  /** Ordinary values that must keep working, and the vector each has to produce. */
+  accepted: { value: string; argv: string[] }[];
+};
+
+const FIELDS: TypedField[] = [
+  {
+    slot: "cswap-admin.mjs:clean",
+    what: "the account alias",
+    reason: "bad_value",
+    set: (value) => setAlias(1, value),
+    accepted: [
+      { value: "acme-corp", argv: ["alias", "1", "acme-corp"] },
+      { value: "day job", argv: ["alias", "1", "day job"] },
+    ],
+  },
+  {
+    slot: "cswap-admin.mjs:email",
+    what: "the sign-in address, after --email",
+    reason: "bad_email",
+    set: (email) => startLogin({ email }),
+    accepted: [
+      {
+        value: "ana.pop+work@example.co.uk",
+        argv: ["auth", "login", "--email", "ana.pop+work@example.co.uk"],
+      },
+    ],
+  },
+  // One per free-text setting, derived rather than named, so a fifth one of that
+  // shape arrives with this battery already pointed at it.
+  ...freeTextSettingKeys().map((key): TypedField => ({
+    slot: "cswap-auto.mjs:str",
+    what: `the ${key} value`,
+    reason: "bad_value",
+    set: (value) => setCswapConfig(key, value),
+    accepted: [
+      { value: "all", argv: ["config", "set", key, "all"] },
+      // The comma is why this field's character class is wider than ALIAS_OK's
+      // and it has to survive the fix: the field is a comma-separated LIST.
+      { value: "opus,sonnet", argv: ["config", "set", key, "opus,sonnet"] },
+      // Interior dashes are ordinary here — every real model name carries them —
+      // and so is the space after the comma.
+      {
+        value: "claude-3-5-sonnet-20241022, claude-opus-4-1",
+        argv: ["config", "set", key, "claude-3-5-sonnet-20241022, claude-opus-4-1"],
+      },
+    ],
+  })),
+];
+
+/**
+ * Values a child's own parser reads as an option rather than as data. `-h` is
+ * the sharpest of them for the reason the alias block above gives: argparse
+ * prints help and exits ZERO, so the deck reports a write that never happened as
+ * a success. The padded spelling is here because every one of these fields trims
+ * before it validates, which is what makes `"  -h  "` flag-shaped by the time it
+ * reaches argv.
+ */
+const FLAG_SHAPED = ["-h", "--help", "-x", "--debug", "-", "--", "--unset", "-all", "  -h  "];
+
+describe("every value the deck lets somebody type into a cswap argument vector", () => {
+  it("is one of the ones this file exercises, and there are no others", () => {
+    // The assertion that would have caught #584 the day it was written, and the
+    // one that catches the fourth field. A new name in a vector — in any of the
+    // three modules, through a const, a ternary or a push — is a new entry here,
+    // and adding it means answering which guard it carries.
+    expect(typedValueSlots()).toEqual(Object.keys(TYPED_VALUE_SLOTS).sort());
+  });
+
+  it("has a guard the battery below actually drives, rather than one merely named", () => {
+    const driven = new Set(FIELDS.map(f => f.slot));
+    const free = Object.entries(TYPED_VALUE_SLOTS)
+      .filter(([, v]) => v.guard === "free-text")
+      .map(([slot]) => slot);
+    for (const slot of free) expect(driven, slot).toContain(slot);
+    // Two before #584, three after it. The number is asserted so that deleting a
+    // field's cases cannot quietly shrink the population being counted.
+    expect(free).toHaveLength(3);
+  });
+
+  it("refuses a setting name that is itself flag-shaped, which is the allowlist half", async () => {
+    // `key` is the one typed value that is NOT free text: it indexes SETTINGS, so
+    // it can only ever be one of five fixed words, and a dash never reaches argv
+    // through it.
+    for (const key of FLAG_SHAPED) {
+      expect(await setCswapConfig(key, "opus"), key).toEqual({ ok: false, reason: "unknown_setting" });
+    }
+    expect(spawns).toHaveLength(0);
+  });
+
+  it("refuses a flag-shaped slot number too, which is the other class of element", async () => {
+    // `String(n)` is the third thing an argv element can be, and the census waves
+    // it through on the strength of these bounds. `String(-1)` is "-1", which is
+    // exactly as flag-shaped as "-h" — so the bound is what keeps it out.
+    for (const n of ["-1", -1, "-h", 0, 1000, 1.5, NaN]) {
+      expect(await setAlias(n, "ok"), String(n)).toEqual({ ok: false, reason: "bad_account" });
+      expect(await admin.removeAccount(n), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(await admin.shareAccount(n), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(await admin.moveAccount(n, 2), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(await admin.moveAccount(1, n), String(n)).toMatchObject({ ok: false, reason: "bad_slot" });
+    }
+    expect(spawns).toHaveLength(0);
+  });
+});
+
+describe.each(FIELDS)("$what", (field) => {
+  it("refuses every leading dash before anything is spawned", async () => {
+    for (const value of FLAG_SHAPED) {
+      const label = `${field.what} · ${JSON.stringify(value)}`;
+      expect(await field.set(value), label).toMatchObject({ ok: false, reason: field.reason });
+      expect(spawns.length, label).toBe(0);
+    }
+  });
+
+  it("still passes an ordinary value through as one element, where the CLI reads it", async () => {
+    for (const { value, argv } of field.accepted) {
+      spawns.length = 0;
+      expect(await field.set(value), value).toMatchObject({ ok: true });
+      // Through spawnedArgv: on Windows the tool is a `.cmd` shim and the whole
+      // call is one quoted cmd.exe line, so `.args` would read ["/d","/s","/c",…].
+      // A value carrying a space or a comma is ONE element in both shapes.
+      //
+      // `toContainEqual` rather than an index, because a route may spawn more
+      // than the one call under test — startLogin reads `claude auth status
+      // --json` first — and which of them comes back first is not this file's
+      // question. That the vector exists exactly as written is.
+      expect(recorded(), value).toContainEqual(argv);
+      await cancelLogin();
+    }
   });
 });
