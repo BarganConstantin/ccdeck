@@ -2528,7 +2528,10 @@ function Inner() {
                 topbar-interaction.test.ts — but it does have a title, and a
                 reader that walks the markup should not find the word twice. */}
             {(() => {
-              const pill = statusPill({ connected: live, paused, held: pauseRef.current.size });
+              const pill = statusPill({
+                connected: live, paused,
+                held: pauseRef.current.size, dropped: pauseRef.current.dropped,
+              });
               return (
                 <span className={`pill ${pill.tone}`} title={pill.title}>
                   <span className="pill-box">
@@ -3300,7 +3303,7 @@ function Inner() {
                 this control were a matched pair before it moved. */}
             <ControlButton
               onClick={togglePause}
-              title={pauseTitle({ paused, held: pauseRef.current.size })}
+              title={pauseTitle({ paused, held: pauseRef.current.size, dropped: pauseRef.current.dropped })}
               aria-label={PAUSE_LABEL}
               aria-pressed={paused}
             >

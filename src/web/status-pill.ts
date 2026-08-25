@@ -27,6 +27,14 @@
 //
 // Out of App.tsx because the precedence between the two flags is the whole
 // rule, and there is no DOM here to render a pill in.
+//
+// #547 gave the paused tone a third thing to say. The hold behind it is now
+// bounded — see PAUSE_QUEUE_LIMIT in pause.ts — and a bounded hold that has
+// filled up is showing the user a truncated view of what happened while they
+// were away. Silently dropping events under a pill that still reads `paused ·
+// 99+` would be a worse bug than the unbounded queue that was fixed, so the
+// overflow gets the label, outranks the count in both titles, and takes the
+// tone's reserved width with it.
 
 export interface StatusPill {
   /** Modifier class on `.pill`, and the word it shows. */
@@ -43,7 +51,7 @@ export interface StatusPill {
    * of its width. That is #504 one bar over. What does NOT move on its own is
    * the tone: `live` becomes `paused` because somebody pressed Space, and
    * `dead` arrives with a banner that redraws the top of the page anyway.
-   * Pinning all three to `paused · 99+` would spend that worst case
+   * Pinning all three to the paused tone's worst case would spend it
    * permanently — measured, a resting `live` pill goes from 49.89px to 102.64px
    * and holds the extra 52.75px for as long as the deck is running — to still
    * the one transition a user causes by hand. So each tone reserves its own
@@ -106,8 +114,18 @@ export const PAUSE_LABEL = "Pause the canvas";
  *  These are the three sentences the topbar button carried, unchanged, for the
  *  reason #527 gave when it moved Re-arrange and Clear: the strings a user
  *  already knows survive the move, and only the box around them changes. */
-export function pauseTitle(s: { paused: boolean; held: number }): string {
+export function pauseTitle(s: { paused: boolean; held: number; dropped?: number }): string {
   if (!s.paused) return "Pause live updates — events keep arriving and are applied when you resume (Space)";
+  // The overflow outranks the count, because it is the sentence that changes
+  // what the user should do about it: a pause holding 42 events will be applied
+  // whole, and a pause that has started dropping will not. Said in full here
+  // for the reason the exact count is — a tooltip has room, and the label the
+  // box has to fit does not.
+  const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
+  if (dropped > 0) {
+    return `The pause is full — ${heldEvents(s.held)} held and ${dropped} older `
+      + `${dropped === 1 ? "one" : "ones"} already dropped. Resume to follow the canvas again (Space)`;
+  }
   if (s.held <= 0) return "Nothing has arrived since you paused. Resume to follow the canvas again (Space)";
   return `${heldEvents(s.held)} arrived while paused and will be applied in order when you resume (Space)`;
 }
@@ -165,9 +183,25 @@ export function outageSentence(s: { connected: boolean; paused: boolean }): stri
  *  readout, and what a readout owes is the state and the number. The unit is
  *  not lost with the verb — it moves to the title, which has room for "42
  *  events held until you resume" and no box to fit it in. */
-const pausedLabel = (held: number) => (held > 0 ? `paused · ${heldShort(held)}` : "paused");
+/** What the pill reads once the hold has overflowed — and the widest label the
+ *  paused tone can render, one glyph past `paused · 99+`. That glyph is the
+ *  whole cost of the change and it is charged to the paused tone alone: `live`,
+ *  the tone the deck rests in, reserves nothing extra. */
+const PAUSED_FULL = "paused · full";
 
-export function statusPill(s: { connected: boolean; paused: boolean; held: number }): StatusPill {
+const pausedLabel = (held: number, dropped: number) => {
+  // A hold that has hit its ceiling has stopped being a queue you can read a
+  // number off. The count is pinned at the limit while events fall off the
+  // back of it, so `paused · 99+` there would be a figure that is no longer
+  // measuring anything — and worse, it would look exactly like the deep pause
+  // one event earlier, which is still going to be applied whole. `full` is the
+  // one true thing to say: at capacity, and dropping. See PAUSE_QUEUE_LIMIT.
+  if (dropped > 0) return PAUSED_FULL;
+  return held > 0 ? `paused · ${heldShort(held)}` : "paused";
+};
+
+export function statusPill(s: { connected: boolean; paused: boolean; held: number; dropped?: number }): StatusPill {
+  const dropped = Math.max(0, Math.floor(s.dropped ?? 0));
   if (!s.connected) {
     return {
       tone: "dead",
@@ -181,16 +215,22 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
   if (s.paused) {
     return {
       tone: "paused",
-      label: pausedLabel(s.held),
-      // Every label this tone can render is `paused · ` plus one of "0".."99"
-      // or "99+", and "99+" is "99" with one more glyph on the end — so with
-      // tabular figures on the box, no other label can be wider. That is an
-      // argument from construction rather than from a measurement, which is
-      // what a string shipped to three font stacks needs.
-      widest: `paused · ${HELD_LABEL_CAP}+`,
-      title: s.held > 0
-        ? `Connected — ${heldEvents(s.held)} held until you resume (Space)`
-        : "Connected — updates held until you resume (Space)",
+      label: pausedLabel(s.held, dropped),
+      // Every label this tone can render is `paused · ` plus one of "0".."99",
+      // "99+" or "full", and "full" is the longest of those — so the ghost is
+      // that one, unconditionally, whether or not this particular pill has
+      // overflowed. Reserving it only when it is showing would put the box
+      // back in the business of resizing under a state that changes on its own,
+      // which is the thing this field exists to prevent. That is an argument
+      // from construction rather than from a measurement, which is what a
+      // string shipped to three font stacks needs.
+      widest: PAUSED_FULL,
+      title: dropped > 0
+        ? `Connected — the pause is full at ${heldEvents(s.held)}; the oldest are being dropped `
+          + `as new ones arrive. Resume to catch up (Space)`
+        : s.held > 0
+          ? `Connected — ${heldEvents(s.held)} held until you resume (Space)`
+          : "Connected — updates held until you resume (Space)",
     };
   }
   return { tone: "live", label: "live", widest: "live", title: "Receiving events" };
