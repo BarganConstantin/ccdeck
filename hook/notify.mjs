@@ -2,6 +2,14 @@
 // Plays a short sound when Claude Code finishes a turn. Installed by
 // agents-deck as a Stop hook and toggled from the deck's topbar.
 //
+// The `.mjs` is load-bearing and this file must not be renamed back. It is
+// copied to <claude config dir>/agent-dag/, where no package.json sits above it
+// to declare a format, so a `.js` there is CommonJS and the `import` below is a
+// SyntaxError on every Node that does not detect module syntax by default —
+// which is every Node before v20.19.0 and v22.7.0, well inside the package's own
+// `engines: ">=18"`. See the note above NOTIFY_NAME in src/server/sound-hook.mjs.
+// Its neighbour hook.js is CommonJS for the same reason read the other way.
+//
 // The platform check happens HERE, at run time, rather than in the settings
 // entry that invokes it. Hand-written sound hooks are almost always a single
 // OS-specific command — `afplay` on a Mac, a PowerShell one-liner on Windows —

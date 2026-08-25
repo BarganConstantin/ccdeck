@@ -366,6 +366,29 @@ export async function installHooks({ provider = "claude" } = {}) {
     current.hooks[evt] = cleaned;
   }
 
+  // The finish sound is the deck's second installed script, and until this line
+  // it was the only one nothing ever re-installed. dedupeOurEntries does not
+  // touch it — isOurEntry knows `__agent-dag` and the entry is marked
+  // `__agent-dag-sound` — so the loop above carried a stale entry straight
+  // through, and nothing anywhere looked at the file that entry names. See
+  // reassertSoundHook: it re-asserts the script only where our Stop entry is
+  // already present, so a user who turned the sound off does not get it back,
+  // and it mutates `current` rather than writing, so the comparison below is
+  // still what decides whether settings.json is touched at all.
+  //
+  // Imported here rather than at the top of the file because sound-hook.mjs
+  // imports this module — installScript, writeFileAtomic and readSettingsForWrite
+  // all live here — and a static import would close that into a cycle. Claude
+  // only: the sound entry is one line in Claude Code's settings.json and there
+  // is no Codex equivalent.
+  let sound = { present: false };
+  let sweepLegacySoundScript = null;
+  if (provider === "claude") {
+    const soundHook = await import("./sound-hook.mjs");
+    sweepLegacySoundScript = soundHook.sweepLegacySoundScript;
+    sound = await soundHook.reassertSoundHook(current);
+  }
+
   // Every launch reinstalls, and on all but the first the entries are already
   // there and identical. Writing anyway is pure downside: it is one more chance
   // to be interrupted mid-write, and one more window in which a change Claude
@@ -374,7 +397,11 @@ export async function installHooks({ provider = "claude" } = {}) {
   const next = JSON.stringify(current, null, 2) + "\n";
   const changed = next !== before;
   if (changed) await writeFileAtomic(cfg.settingsPath, next);
-  return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed };
+  // After the write, never before it: the `notify.js` an older deck installed is
+  // what a live session's cached command still names until the new entry is on
+  // disk, and deleting it early turns a stale sound into a missing module.
+  if (sound.present) await sweepLegacySoundScript();
+  return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed, sound };
 }
 
 /**

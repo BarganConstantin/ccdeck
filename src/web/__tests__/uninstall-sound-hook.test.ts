@@ -1,7 +1,7 @@
 // Reported: `agents-deck --uninstall` left the deck's sound hook installed.
 // uninstallHooks only recognises the `__agent-dag` mark the event forwarders
 // carry, and the sound entry is marked `__agent-dag-sound` with a command
-// pointing at notify.js — so it survived, and a sound kept playing on every turn
+// pointing at notify.mjs — so it survived, and a sound kept playing on every turn
 // after the deck was supposedly gone. Worse, turning the toggle on parks the
 // user's own afplay/PowerShell Stop hooks in ~/.agents-deck/parked-sound-hooks.json
 // and only the running deck UI can put them back; once uninstalled, hooks the
@@ -106,7 +106,7 @@ describe("agents-deck --uninstall", () => {
     // Nothing of the deck's is left in the file — not the event forwarders, and
     // not the sound entry that used to keep playing after "uninstall".
     expect(JSON.stringify(after)).not.toContain("__agent-dag");
-    expect(JSON.stringify(after)).not.toContain("notify.js");
+    expect(JSON.stringify(after)).not.toContain("notify.mjs");
     // Their own hook is back where they wrote it, byte for byte.
     expect(after.hooks.Stop).toEqual([USER_SOUND_HOOK]);
     expect(readParked()).toHaveLength(0);

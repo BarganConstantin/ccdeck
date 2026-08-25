@@ -146,15 +146,15 @@ describe("the sound hook command", () => {
   });
 
   it("no longer wraps a path in double quotes and calls it escaped", () => {
-    const cmd = soundHookCommand("/home/a`id`b/notify.js", NODE, "linux");
-    expect(cmd).not.toContain('"/home/a`id`b/notify.js"');
-    expect(cmd).toContain("'/home/a`id`b/notify.js'");
+    const cmd = soundHookCommand("/home/a`id`b/notify.mjs", NODE, "linux");
+    expect(cmd).not.toContain('"/home/a`id`b/notify.mjs"');
+    expect(cmd).toContain("'/home/a`id`b/notify.mjs'");
   });
 
   it("uses cmd.exe's rule on Windows, the same as the forwarder entry", () => {
-    const cmd = soundHookCommand("C:\\Users\\John Smith\\notify.js",
+    const cmd = soundHookCommand("C:\\Users\\John Smith\\notify.mjs",
       "C:\\Program Files\\nodejs\\node.exe", "win32");
-    expect(cmd).toBe('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\John Smith\\notify.js"');
+    expect(cmd).toBe('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\John Smith\\notify.mjs"');
     expect(cmd).not.toContain("'");
   });
 });
