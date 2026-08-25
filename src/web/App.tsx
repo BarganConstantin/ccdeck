@@ -24,7 +24,7 @@ import UsagePanel from "./components/UsagePanel";
 import SystemMeter from "./components/SystemMeter";
 import AccountsPanel from "./components/AccountsPanel";
 import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFailureId } from "./restart";
-import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget } from "./shortcuts";
+import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -1989,6 +1989,11 @@ function Inner() {
   // commit sees the dialogs that were just drawn.
   const clearConfirmOpenRef = useRef(clearConfirmOpen);
   clearConfirmOpenRef.current = clearConfirmOpen;
+  // The same treatment for the shortcuts sheet, because `?` is a toggle and the
+  // gate below has to be able to tell "the sheet is the modal" from "a modal is
+  // open" — the first still answers `?`, the second must not stack a second one.
+  const keyHelpOpenRef = useRef(keyHelpOpen);
+  keyHelpOpenRef.current = keyHelpOpen;
   const modalOpenRef = useRef(false);
   // The shortcuts sheet counts, for the reason clearActionFor gives: a clear
   // prompt raised over another dialog is two things competing for one Escape.
@@ -2163,6 +2168,33 @@ function Inner() {
       // / still reaches the search box while a card holds focus, which is the
       // whole point of being able to tab onto one.
       if (intent.nodeId == null && ownsKeystroke(target)) return;
+      // A modal is on screen, and focus is not necessarily inside it.
+      //
+      // The gate above asks the FOCUSED ELEMENT whether it owns the keystroke,
+      // which is the right question for a text field and the wrong one here:
+      // use-modal-dismiss.ts states outright that "clicking a paragraph of modal
+      // text drops focus on <body>", and BODY is in neither KEY_OWNING_TAGS nor
+      // KEY_OWNING_ROLES. So reading a tool call's JSON payload, then pressing a
+      // letter, ran that letter against the canvas behind the scrim.
+      //
+      // R is the one that hurt: handleRelayout clears every pin, every stored
+      // position and both localStorage keys, so an arrangement the user built by
+      // hand was gone with no undo — and they did not see it happen until they
+      // closed the modal. H stacked a second modal over the first, Space paused
+      // the stream, A/U/L opened panels underneath.
+      //
+      // This is not a new rule, it is the rule `c` already had: the comment on
+      // modalOpenRef above describes this exact focus path, and the fix was
+      // applied to the clear path alone. modalOpenRef was already computed and
+      // already correct; it just had one caller.
+      //
+      // `?` is the exception, and only for the sheet itself. It is advertised as
+      // a toggle, so it has to be able to close what it opened; over any OTHER
+      // modal it would stack a second one, which is what this gate is for.
+      // Escape is unaffected — it is answered further up, through modalStack.
+      if (shortcutBlocked({
+        key: e.key, modalOpen: modalOpenRef.current, sheetOpen: keyHelpOpenRef.current,
+      })) return;
       if (e.key === " ") { e.preventDefault(); togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();

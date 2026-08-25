@@ -111,3 +111,35 @@ export function ownsKeystroke(t: FocusTarget | null | undefined): boolean {
   const roles = typeof t.role === "string" ? t.role.trim().toLowerCase() : "";
   return roles !== "" && roles.split(/\s+/).some(r => KEY_OWNING_ROLES.has(r));
 }
+
+/**
+ * Whether a canvas-level shortcut must stay out of the way because a modal is
+ * on screen.
+ *
+ * `ownsKeystroke` above asks the FOCUSED ELEMENT whether it owns the key, which
+ * is the right question for a text field and the wrong one for a dialog.
+ * use-modal-dismiss.ts states it outright: "clicking a paragraph of modal text
+ * drops focus on `<body>`" — and BODY is in neither KEY_OWNING_TAGS nor
+ * KEY_OWNING_ROLES. So reading a tool call's JSON payload and then pressing a
+ * letter ran that letter against the canvas behind the scrim.
+ *
+ * R was the one that hurt. It clears every pin, every stored position and both
+ * localStorage keys, so an arrangement built by hand was gone with no undo — and
+ * the user did not see it happen until they closed the modal. H stacked a second
+ * modal over the first; Space paused the stream; A, U and L opened panels
+ * underneath.
+ *
+ * The rule is not new: it is the one `c` already had. What was missing is that
+ * it had exactly one caller.
+ *
+ * `?` is the single exception and only for the sheet itself, because it is
+ * advertised as a toggle and has to be able to close what it opened. Over any
+ * other modal it would stack a second one, which is the thing being prevented.
+ * Escape is not on this path at all — it is answered through modalStack.
+ */
+export function shortcutBlocked(
+  { key, modalOpen, sheetOpen }: { key: string; modalOpen: boolean; sheetOpen: boolean },
+): boolean {
+  if (!modalOpen) return false;
+  return !(key === "?" && sheetOpen);
+}
