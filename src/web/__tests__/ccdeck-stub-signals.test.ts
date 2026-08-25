@@ -286,32 +286,35 @@ describe("a second signal, from somebody who is done waiting", () => {
     // SIGTERM instead, which can only be the second signal cancelling the first
     // and going straight out.
     //
-    // Identity says that ONLY if the order the two signals were sent is the order
-    // the stub handled them, and for two kills a tenth of a millisecond apart
-    // that is not a given. This case went red on ubuntu on an unrelated commit
-    // (#528), so the premise was measured on the runner it failed on — 4-core
-    // ubuntu-latest, sending SIGHUP then SIGTERM back to back, sixty runs a
-    // round. The stub's own dispatcher ran SIGTERM's handler FIRST in 3 runs out
-    // of 60, and again in 3 out of 60 with sixteen CPU hogs beside it: this is
-    // the delivery order, not something load does to it.
+    // Identity says that ONLY if the order the two signals were SENT is the order
+    // the stub HANDLED them, and for two kills a tenth of a millisecond apart
+    // that is not a given. This case went red on the ubuntu leg of a commit that
+    // changed one comment (#528), so the premise was measured on the runner it
+    // failed on — 4-core ubuntu-latest, the two kills back to back, with the
+    // stub's own dispatch order recorded from inside its process:
+    //
+    //     300 runs · 9 failed · 9 dispatched in reverse
+    //
+    // Every failure was a reversal and every reversal was a failure, so there is
+    // no second mechanism here. It is also not a load effect: 3 in 60 idle and 3
+    // in 60 with sixteen CPU hogs alongside. Roughly one run in thirty, and the
+    // whole suite runs this file once.
     //
     // A reversed pair still exercises the cancel path perfectly — the second
     // signal to arrive still clears the pending forward and still goes straight
     // out — it just goes out as SIGHUP, which is character for character the
     // failure this case exists to catch. The assertion was sound and its premise
-    // was not, which is why re-running made it green and why the person who saw
-    // it had no reason to suspect their own commit.
+    // was not, which is why re-running made it green and why whoever saw it had
+    // no reason to suspect their own commit.
     //
     // So the second signal is sent only once the stub has been SEEN handling the
-    // first. That is not a longer timeout — it removes the pair the kernel could
-    // reorder, because at no point are two signals in flight. The stub announces
-    // nothing on its own, so the handshake comes over the OBSERVER preload at the
-    // top of this file, on the stdout `ready` already comes back on.
+    // first. That is not a longer timeout — it leaves nothing to reorder, because
+    // at no point are two signals in flight. The stub announces nothing on its
+    // own, so the handshake comes over the OBSERVER preload at the top of this
+    // file, on the stdout `ready` already comes back on. Same probe, same runner,
+    // same 300 runs, waiting for the handshake instead:
     //
-    // What remains is the stub's own clock: the forward is scheduled 2000ms after
-    // the first signal, and the handshake is a round trip through this process,
-    // so a box that stalled that long between the two would still see the timer
-    // win. Measured at zero in 120 runs, against 6 reversals in the same 120.
+    //     300 runs · 0 failed · 0 dispatched in reverse
     const { stub, log } = layout("impatient");
     const { child, deckPid, handled } = start(stub, { preload: OBSERVER });
     await deckPid;
