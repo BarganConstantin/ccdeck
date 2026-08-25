@@ -16,8 +16,9 @@
 // Plain node throughout: the assertions are module namespaces, source text and
 // pure functions, and nothing here renders.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { categoryFor, TOOL_CATEGORY } from "../tool-taxonomy";
@@ -70,13 +71,38 @@ describe("the symbols #383 took off their modules' public surface", () => {
 
 describe("everything those symbols decide still gets decided", () => {
   it("still tells a git checkout to pull instead of installing over it", async () => {
-    // isGitCheckout, reached the way the deck reaches it. This repo is a
-    // checkout, so its own root is the fixture.
+    // isGitCheckout, reached the way the deck reaches it — but on a fixture this
+    // test builds, not on the repo it happens to be running in (#587).
+    //
+    // The comment here used to read "this repo is a checkout, so its own root is
+    // the fixture", and that was two mistakes in one sentence. It made the suite
+    // unrunnable outside a git checkout — copy the tree without `.git` and this
+    // case goes red with `expected 'npm i -g agents-deck@latest' to be 'git pull
+    // && npm run build'`, which names a self-update regression rather than the
+    // missing `.git` that actually happened. And the repo's own root is the MAIN
+    // worktree, where `.git` is a directory, so what it pinned was the one shape
+    // every other fixture in the suite already pinned. Both shapes are built
+    // below: a directory for a clone, and the one-line file git writes for a
+    // linked worktree or a submodule, which is what this repo is worked in.
     const { upgradeCommand } = await import("../../server/self-update.mjs") as {
       upgradeCommand: (root: string) => string;
     };
-    expect(upgradeCommand(fileURLToPath(new URL("../../../", import.meta.url))))
-      .toBe("git pull && npm run build");
+    const sandbox = mkdtempSync(join(tmpdir(), "ccdeck-export-surface-git-"));
+    try {
+      for (const plant of [
+        (dir: string) => mkdirSync(join(dir, ".git")),
+        // Nothing parses the gitdir line, so the native path join builds here —
+        // backslashes and a drive letter on Windows — is safe on all three.
+        (dir: string) => writeFileSync(join(dir, ".git"), `gitdir: ${join(dir, "..", "wt")}\n`),
+      ]) {
+        const root = mkdtempSync(join(sandbox, "checkout-"));
+        writeFileSync(join(root, "package.json"), JSON.stringify({ name: "agents-deck", version: "1.33.0" }));
+        plant(root);
+        expect(upgradeCommand(root)).toBe("git pull && npm run build");
+      }
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
   });
 
   it("still finds Claude Code by its binary alone", async () => {

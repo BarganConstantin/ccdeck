@@ -48,7 +48,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { upgradeName } from "../../server/self-update.mjs";
+import { upgradeCommand, upgradeName } from "../../server/self-update.mjs";
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-one-package-"));
 const prevEnv = {
@@ -212,10 +212,27 @@ const GLOBAL = plant(join(SANDBOX, "global", "lib", "node_modules", "ccdeck"), {
 });
 
 // A maintainer's own tree. Nothing was installed, so nothing can be re-run.
+//
+// Two of them, because git leaves two different things behind and both are a
+// checkout (#587). An ordinary clone gets a `.git` DIRECTORY; a linked worktree
+// or a submodule gets a `.git` FILE whose whole content is one `gitdir:` line
+// naming the real repository elsewhere. Only the first was ever built here — as
+// it was in every other fixture in the suite — so the file shape, which is the
+// shape this repo's own agents run in, had never once reached this code.
 const CHECKOUT = plant(join(SANDBOX, "checkout"), {
   manifest: { name: "agents-deck", version: "1.33.88" },
 });
 mkdirSync(join(CHECKOUT, ".git"), { recursive: true });
+
+const WORKTREE = plant(join(SANDBOX, "worktree"), {
+  manifest: { name: "agents-deck", version: "1.33.88" },
+});
+// The path is built with join, so it carries the host's own separator and, on
+// Windows, a drive letter. Nothing parses it — the predicate stats the entry and
+// stops — which is exactly what makes the rule the same on all three platforms.
+const WORKTREE_GITDIR = join(SANDBOX, "worktree-main", ".git", "worktrees", "wt");
+mkdirSync(WORKTREE_GITDIR, { recursive: true });
+writeFileSync(join(WORKTREE, ".git"), `gitdir: ${WORKTREE_GITDIR}\n`);
 
 describe("an npx deck whose cache metadata cannot be read", () => {
   it("fetches the package the worker asked npm about, not the module's default", async () => {
@@ -274,11 +291,21 @@ describe("a deck that npx did not start", () => {
     expect(upgradeName(GLOBAL)).toBe("ccdeck");
   });
 
-  it("names no package for a git checkout, where there is nothing to install", async () => {
-    const run = await runDeck(CHECKOUT);
-    expect(run.out).toContain("REPLY upgrade-refused this deck was not started by npx");
-    expect(run.log).toEqual([]);
-    expect(run.noteFile).toBeNull();
-    expect(upgradeName(CHECKOUT)).toBe("agents-deck");
-  });
+  for (const [what, root] of [
+    ["a git clone", () => CHECKOUT],
+    ["a linked worktree, whose .git is a file", () => WORKTREE],
+  ] as const) {
+    it(`names no package for ${what}, where there is nothing to install`, async () => {
+      const run = await runDeck(root());
+      expect(run.out).toContain("REPLY upgrade-refused this deck was not started by npx");
+      expect(run.log).toEqual([]);
+      expect(run.noteFile).toBeNull();
+      expect(upgradeName(root())).toBe("agents-deck");
+      // The name alone does not discriminate here — a checkout and a plain
+      // global install of the same manifest both answer `agents-deck`, so a row
+      // that stopped at the line above would pass whatever the deck decided
+      // this tree was. The command is where the two answers differ.
+      expect(upgradeCommand(root())).toBe("git pull && npm run build");
+    });
+  }
 });

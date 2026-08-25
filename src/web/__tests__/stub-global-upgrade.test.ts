@@ -103,6 +103,26 @@ afterAll(() => {
 
 const VERSION = "1.33.147";
 
+/** Writes the `.git` git itself would have written, in whichever of its two
+ *  shapes is asked for: a directory for a clone, a one-line file naming the
+ *  real repository for a linked worktree or a submodule (#587). Nothing reads
+ *  the line, so the native path join produces here is safe on all three
+ *  platforms. */
+function plantDotGit(dir: string, worktree: boolean) {
+  if (!worktree) { mkdirSync(join(dir, ".git"), { recursive: true }); return; }
+  const real = join(dir, "..", ".git", "worktrees", "wt");
+  mkdirSync(real, { recursive: true });
+  writeFileSync(join(dir, ".git"), `gitdir: ${real}\n`);
+}
+
+/** The two shapes, and the sentence each adds to a test name. Both checkout
+ *  cases below run over both — before #587 they only ever ran over the first,
+ *  which is the shape this repo is LEAST often worked in. */
+const GIT_SHAPES = [
+  ["an ordinary clone", false],
+  ["a linked worktree, whose .git is a file", true],
+] as const;
+
 /**
  * Writes one real install layout under a fresh sandbox directory and returns
  * the pkgRoot the deck would be running out of — the directory that holds the
@@ -118,6 +138,9 @@ const VERSION = "1.33.147";
  *   "project" — a package that merely depends on the deck and runs it out of
  *               its own node_modules. Identical in shape to the stub layout,
  *               and the reason the rule cannot be "read the name above us".
+ *
+ * `.git` is planted separately, by plantDotGit — it belongs to none of these
+ * four shapes and can sit on any of them.
  */
 function layout(
   shape: "stub" | "global" | "npx" | "project",
@@ -278,24 +301,26 @@ describe("the install shapes that were already right, and stay untouched", () =>
     expect(spawns, "npx must never reach npm i -g").toHaveLength(0);
   });
 
-  it("still tells a checkout to pull, and installs nothing over the working copy", () => {
-    const pkgRoot = layout("global");
-    mkdirSync(join(pkgRoot, ".git"), { recursive: true });
-    expect(upgradeName(pkgRoot)).toBe("agents-deck");
-    expect(upgradeCommand(pkgRoot)).toBe("git pull && npm run build");
-    expect(startUpgrade({ pkgRoot })).toMatchObject({ ok: false, reason: "git_checkout" });
-    expect(spawns).toHaveLength(0);
-  });
+  for (const [what, worktree] of GIT_SHAPES) {
+    it(`still tells ${what} to pull, and installs nothing over the working copy`, () => {
+      const pkgRoot = layout("global");
+      plantDotGit(pkgRoot, worktree);
+      expect(upgradeName(pkgRoot)).toBe("agents-deck");
+      expect(upgradeCommand(pkgRoot)).toBe("git pull && npm run build");
+      expect(startUpgrade({ pkgRoot })).toMatchObject({ ok: false, reason: "git_checkout" });
+      expect(spawns).toHaveLength(0);
+    });
 
-  it("says the same about a checkout that happens to sit inside a node_modules", () => {
-    // A checkout linked into a project — `npm link`, or a workspace — is still
-    // the maintainer's own tree, and the git test has to outrank the layout
-    // one or the deck would offer to publish over their working copy.
-    const pkgRoot = layout("stub");
-    mkdirSync(join(pkgRoot, ".git"), { recursive: true });
-    expect(upgradeName(pkgRoot)).toBe("agents-deck");
-    expect(upgradeCommand(pkgRoot)).toBe("git pull && npm run build");
-  });
+    it(`says the same about ${what} that happens to sit inside a node_modules`, () => {
+      // A checkout linked into a project — `npm link`, or a workspace — is still
+      // the maintainer's own tree, and the git test has to outrank the layout
+      // one or the deck would offer to publish over their working copy.
+      const pkgRoot = layout("stub");
+      plantDotGit(pkgRoot, worktree);
+      expect(upgradeName(pkgRoot)).toBe("agents-deck");
+      expect(upgradeCommand(pkgRoot)).toBe("git pull && npm run build");
+    });
+  }
 });
 
 describe("a package that merely depends on the deck is not one of its names", () => {

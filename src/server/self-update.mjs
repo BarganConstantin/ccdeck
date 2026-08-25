@@ -154,7 +154,16 @@ export function isNpxInstall(pkgRoot) {
  *  returning "git pull && npm run build", `upgradeName` refusing to move a
  *  checkout onto a published alias, and `startUpgrade` refusing with
  *  `git_checkout`. A test importing the predicate would restate what those three
- *  already prove, one level further from the behaviour a user can see. */
+ *  already prove, one level further from the behaviour a user can see.
+ *
+ *  `existsSync` and not a directory test, deliberately (#587). Git writes `.git`
+ *  as a directory only for an ordinary clone; a linked worktree and a submodule
+ *  each get a FILE whose whole content is one `gitdir:` line, and all three are
+ *  checkouts nobody may install over. Nothing here reads that line, which is
+ *  also what keeps the rule identical on Windows, where the path inside it
+ *  carries a drive letter and backslashes. Both shapes are covered in
+ *  worktree-git-file-587.test.ts and beside every checkout fixture in the
+ *  suite — narrowing this to `.isDirectory()` fails them. */
 function isGitCheckout(pkgRoot) {
   try { return existsSync(join(pkgRoot, ".git")); } catch { return false; }
 }
