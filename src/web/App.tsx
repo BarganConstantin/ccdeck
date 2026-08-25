@@ -2112,7 +2112,7 @@ function Inner() {
         // — every modal listened on window too, so the tool modal shut and the
         // selection behind it vanished with it. The modals queue in
         // modal-dismiss.ts now and only the topmost answers.
-        const outcome = escapeOutcome({ overlayOpen: modalStack.depth() > 0, typing: isTypingTarget(target) });
+        const outcome = escapeOutcome({ overlayOpen: modalStack.depth() > 0, panelOnTop: modalStack.topIsPanel(), typing: isTypingTarget(target) });
         if (outcome === "dismiss") modalStack.dismissTop();
         else if (outcome === "blur") el?.blur();
         else {

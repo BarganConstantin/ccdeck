@@ -29,6 +29,17 @@ export type Dismisser = () => void;
  *  drawn that way. */
 export const CONFIRM_LAYER = 1;
 
+/** The layer of a docked panel that answers Escape without being a dialog — the
+ *  machine detail, which the topbar meter discloses into the right rail.
+ *
+ *  Below the modals, and not by arrival order: a panel whose open state is
+ *  restored from localStorage is on the stack before any dialog exists, but a
+ *  panel the user opened a moment ago would otherwise outrank a tool modal
+ *  raised over it, and Escape would take the instruments down while the dialog
+ *  the user is reading stayed up. Layer settles that once, the way CONFIRM_LAYER
+ *  settles the clear prompt over a session summary. */
+export const PANEL_LAYER = -1;
+
 interface Entry {
   dismiss: Dismisser;
   layer: number;
@@ -49,6 +60,12 @@ export interface DismissStack {
   isTop(dismiss: Dismisser): boolean;
   /** How many overlays are on screen. */
   depth(): number;
+  /** Whether the overlay Escape would close is a docked panel rather than a
+   *  dialog — PANEL_LAYER, and nothing above it. escapeOutcome needs the
+   *  distinction because a panel does not cover the page: a text field
+   *  somewhere else is still the thing the user is working in, and Escape
+   *  belongs to it first. False when the stack is empty. */
+  topIsPanel(): boolean;
 }
 
 export function createDismissStack(): DismissStack {
@@ -88,6 +105,10 @@ export function createDismissStack(): DismissStack {
     depth() {
       return entries.length;
     },
+    topIsPanel() {
+      const t = top();
+      return t != null && t.layer === PANEL_LAYER;
+    },
   };
 }
 
@@ -101,20 +122,49 @@ export interface EscapeContext {
   overlayOpen: boolean;
   /** Focus is in text the user is writing. */
   typing: boolean;
+  /** The overlay on top is a docked panel rather than a dialog — see
+   *  PANEL_LAYER and DismissStack.topIsPanel. Optional, and absent means "a
+   *  dialog", because that is what every overlay on this stack was until the
+   *  machine panel joined it. */
+  panelOnTop?: boolean;
 }
 
 /** The three things Escape can mean, exactly one of which happens. */
 export type EscapeOutcome = "dismiss" | "blur" | "clear-selection";
 
-/** Precedence, not a list of things that all fire. The old handler blurred the
- *  field and cleared the canvas selection while the modal on screen was closing
- *  itself on the very same press. An overlay outranks a text field because a
- *  dialog that closes on Escape from inside its own input is what the sign-in
- *  dialog already did, and a keyboard user pressing Escape in a dialog means
- *  the dialog. */
+/**
+ * Precedence, not a list of things that all fire. The old handler blurred the
+ * field and cleared the canvas selection while the modal on screen was closing
+ * itself on the very same press.
+ *
+ * Every surface on the deck that answers Escape, strongest claim first:
+ *
+ *   1. a DIALOG — tool, context, usage history, session summary, sign-in, the
+ *      shortcuts sheet, the clear prompt. It covers the page behind a scrim, so
+ *      a press means the dialog even from inside the dialog's own text field:
+ *      that is what the sign-in dialog already did, and a keyboard user
+ *      pressing Escape in a dialog means the dialog. Two dialogs at once are
+ *      ranked against each other by layer then arrival, in the stack itself.
+ *   2. TEXT the user is writing — the accounts panel's alias field is the one
+ *      that is reachable with no dialog up. Escape there means "leave the
+ *      field", and it outranks a panel because a panel covers nothing: it is
+ *      docked beside the canvas, and the field is where the user's hands are.
+ *   3. a DOCKED PANEL that registered a dismisser — today only the machine
+ *      detail, whose × has always promised "Close (Esc)" (#545). Before this it
+ *      promised a key that fell through to case 4 and threw away the canvas
+ *      selection instead, which is the whole of the bug.
+ *   4. the CANVAS — release focus, clear the selection. The default, and the
+ *      only case that touches the selection at all.
+ *
+ * The session list and the usage and accounts panels are deliberately NOT case
+ * 3: they advertise a letter (L, U, A) that toggles them, register nothing
+ * here, and their close buttons name that letter rather than Esc. The machine
+ * meter has no letter, which is why its × named Esc in the first place.
+ */
 export function escapeOutcome(ctx: EscapeContext): EscapeOutcome {
-  if (ctx.overlayOpen) return "dismiss";
+  if (ctx.overlayOpen && !ctx.panelOnTop) return "dismiss";
   if (ctx.typing) return "blur";
+  if (ctx.overlayOpen) return "dismiss";
   return "clear-selection";
 }
 

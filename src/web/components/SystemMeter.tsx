@@ -23,6 +23,7 @@
 // and cores, not ratios.
 import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
+import { modalStack, PANEL_LAYER } from "../modal-dismiss";
 
 /** Matches the server's CPU cadence, so the meter advances one bucket per poll
  *  rather than redrawing the same frame or skipping one. */
@@ -172,6 +173,40 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
   const [open, setOpen] = useState<boolean>(loadOpen);
   useEffect(() => { saveOpen(open); }, [open]);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+
+  // The × says "Close (Esc)", so Escape has to close it (#545).
+  //
+  // It said that while nothing listened: the panel registered no dismisser, so
+  // App.tsx's handler fell through to its last case and cleared the canvas
+  // selection instead — the panel stayed up and the arrangement the user had
+  // just built by shift-clicking was gone. A control that names a key must
+  // answer that key or stop naming it, and this one is a dismissible surface
+  // like the dialogs, so it answers.
+  //
+  // Registered at PANEL_LAYER rather than the modals' default, because this is
+  // still not a dialog: it is docked beside the canvas with no scrim and no
+  // focus trap, a modal raised over it outranks it whatever order they opened
+  // in, and a text field elsewhere on the page keeps the key while the user is
+  // typing in it. escapeOutcome in modal-dismiss.ts is where that whole order
+  // is written down.
+  //
+  // Only while it is open. The stack is a list of what is on screen, and an
+  // entry left behind by a closed panel would silently eat the Escape that
+  // belongs to the canvas.
+  useEffect(() => {
+    if (!open) return;
+    return modalStack.push(() => {
+      // Focus goes back to the disclosure button only when the press came from
+      // inside the panel — read before setOpen, since React has not unmounted
+      // anything yet. Moving it unconditionally would park the keyboard on a
+      // <button>, and a focused control owns every bare key (shortcuts.ts), so
+      // Escape would have closed the panel and killed the next j, f or space.
+      const inside = panelRef.current?.contains(document.activeElement) ?? false;
+      setOpen(false);
+      if (inside) btnRef.current?.focus();
+    }, PANEL_LAYER);
+  }, [open]);
 
   // Before the first reading the meter holds its slot and draws its two empty
   // tracks. Two separate rules are at work and they pull in opposite
@@ -269,7 +304,7 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
           CPU {cpu.toFixed(0)} percent, memory {memory.usedPct.toFixed(0)} percent used
         </span>
       </button>
-      {open && <SystemPanel sys={sys} usageOpen={usageOpen} onClose={() => { setOpen(false); btnRef.current?.focus(); }} />}
+      {open && <SystemPanel sys={sys} usageOpen={usageOpen} panelRef={panelRef} onClose={() => { setOpen(false); btnRef.current?.focus(); }} />}
     </span>
   );
 }
@@ -287,8 +322,22 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
  * It also means the two panels queue rather than overlap: with usage open this
  * sits to its left, and with usage closed it takes the slot usage would have
  * had. One rail, read right to left, nothing stacked on top of anything.
+ *
+ * Escape is the one place it does NOT follow the usage panel, and #545 is why:
+ * usage advertises U on its close button and this one has no letter to
+ * advertise, so its × named Esc from the day it shipped. The registration that
+ * makes that true is in SystemMeter above, at PANEL_LAYER so a dialog still
+ * outranks it.
  */
-function SystemPanel({ sys, usageOpen, onClose }: { sys: Snapshot; usageOpen: boolean; onClose: () => void }) {
+function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
+  sys: Snapshot;
+  usageOpen: boolean;
+  /** Held by SystemMeter, which owns `open` and the disclosure button: its
+   *  Escape dismisser asks this whether the press came from inside the panel
+   *  before it decides where focus lands. */
+  panelRef: React.RefObject<HTMLElement>;
+  onClose: () => void;
+}) {
   const procs = useProcesses(true);
 
   const { memory, swap, perCore, loadavg, cores, uptimeSec, platform } = sys;
@@ -299,7 +348,7 @@ function SystemPanel({ sys, usageOpen, onClose }: { sys: Snapshot; usageOpen: bo
   const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
 
   return (
-    <aside className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
+    <aside ref={panelRef} className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
       <div className="sd-head">
         <span className="sd-title">This machine</span>
         <span className="sd-sub">up {uptime(uptimeSec)} · {cores} cores</span>
