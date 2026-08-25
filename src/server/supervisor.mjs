@@ -97,6 +97,42 @@ export function signalExitAction(signal, platform = process.platform, numbers = 
  *
  * `proc` is a parameter so the whole sequence can be driven in a test child.
  */
+/**
+ * What to say when the upgrade that just succeeded took this install with it,
+ * or null when that is not what happened.
+ *
+ * `npm i -g ccdeck` performed before #340 nests the deck inside a launcher
+ * package. Upgrading such an install now writes the deck itself over that
+ * launcher, and npm's reify removes everything that was underneath — including
+ * the directory this supervisor and its worker are running from. The process
+ * survives, because everything it needs is already loaded. The next spawn does
+ * not: bin/deck.js is a path, and npm has just deleted it.
+ *
+ * That reached the user as `could not start …/bin/deck.js: ENOENT` and an exit
+ * 1 — a dead deck and an errno, one click after an upgrade that reported
+ * success. Nothing was broken. The new version is on the machine, and the
+ * command they typed already points at it, because npm rewrote the bin shim in
+ * the same install. The only thing missing was a sentence saying so.
+ *
+ * Deliberately not a hand-off. This process could spawn the successor's worker
+ * instead, and that would be a new worker under an old supervisor — a pair
+ * nothing has ever tested together, decided at the worst possible moment. One
+ * command the user runs themselves is the smaller promise and the one that
+ * cannot go wrong.
+ *
+ * Pure, and given its two filesystem answers rather than asking for them,
+ * because the state it describes only ever exists in a process whose own files
+ * were deleted after it started — which no test can produce by spawning one.
+ */
+export function replacedNote({ workerExists, moved, product = "ccdeck", command = "ccdeck" }) {
+  if (workerExists || !moved) return null;
+  return [
+    `${product}: the upgrade replaced this install, so it cannot restart in place.`,
+    `  the new version is in ${moved}`,
+    `  run \`${command}\` again to start it`,
+  ].join("\n");
+}
+
 export function dieOfSignal(signal, proc = process) {
   const { reraise, code } = signalExitAction(signal, proc.platform);
   if (reraise) {

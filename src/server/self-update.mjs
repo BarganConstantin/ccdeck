@@ -113,9 +113,24 @@ function readManifest(dir) {
 
 /** Version currently written in the package's own package.json. Deliberately
  *  read fresh on every call: that is the whole point — it changes under a
- *  running process when npm replaces the install. */
+ *  running process when npm replaces the install.
+ *
+ *  And sometimes the directory changes with it. A `npm i -g ccdeck` performed
+ *  before #340 left the deck nested inside a launcher package; upgrading such an
+ *  install now writes the flat tarball over that launcher, and npm's reify takes
+ *  the nested copy — the one this process is running out of — with it. Reading
+ *  our own manifest then answers null, which pickNotice reads as "nothing is
+ *  installed" and turns into the same upgrade offered forever, with the restart
+ *  notice this module exists for never firing at all.
+ *
+ *  The version is not lost, it moved one directory up. successorRoot is where
+ *  to, and it answers null in every layout where nothing moved — so the normal
+ *  case still reads exactly one manifest. */
 export function installedVersion(pkgRoot) {
-  const v = readManifest(pkgRoot)?.version;
+  const own = readManifest(pkgRoot);
+  if (typeof own?.version === "string") return own.version;
+  const moved = successorRoot(pkgRoot);
+  const v = moved ? readManifest(moved)?.version : null;
   return typeof v === "string" ? v : null;
 }
 
@@ -245,8 +260,9 @@ export function npxRestartSpec(pkgRoot, name = "agents-deck") {
 /** Every name this deck is published under.
  *
  *  `agents-deck` and `agent-dag` are one tarball published twice — see
- *  .github/workflows/publish.yml, which renames it between the two — and
- *  `ccdeck` is the stub that depends on it. The same three strings as
+ *  .github/workflows/publish.yml, which renames it between the two — and since
+ *  #340 `ccdeck` is a third rename of the same tarball rather than a launcher
+ *  package in front of it. The same three strings as
  *  invoked-as.mjs's COMMANDS, and deliberately not that list: this is the set
  *  of npm PACKAGES a `npm i -g` may name, that is the set of bin commands a
  *  user may type. They are equal only because the rename made them so, and a
@@ -330,6 +346,43 @@ export function hostPackage(pkgRoot, name = "agents-deck") {
   return host ? { root, name: host } : null;
 }
 
+/**
+ * The directory that holds this install's code AFTER an upgrade replaced it,
+ * or null when nothing has been replaced.
+ *
+ * One layout produces this and it is a transitional one. Before #340, `npm i -g
+ * ccdeck` installed a launcher package with the deck nested inside it:
+ *
+ *     <prefix>/lib/node_modules/ccdeck/                     the launcher
+ *     <prefix>/lib/node_modules/ccdeck/node_modules/agents-deck/   pkgRoot
+ *
+ * upgradeName reads the host's declared dependency and correctly answers
+ * `ccdeck`, so the upgrade runs `npm i -g ccdeck@latest` — which since #340
+ * installs the deck itself over the host directory and removes everything that
+ * was under it, including pkgRoot. The process keeps running (POSIX keeps an
+ * open inode alive, and the modules are already loaded) out of a directory that
+ * no longer exists.
+ *
+ * Deliberately NOT hostPackage. That function recognises a host by the
+ * dependency it declares on us, and the whole point here is that the host has
+ * just stopped declaring one — it is no longer a launcher, it is the deck. What
+ * identifies it instead is its name, confined to the three we publish, for the
+ * same reason installedName confines its answer: this decides what a version
+ * report says about the user's machine, and a directory that merely happens to
+ * sit above us is not evidence.
+ *
+ * Guarded on our own manifest being unreadable, so nothing changes for an
+ * install that is intact — including the ordinary nested layout before it is
+ * upgraded, where pkgRoot answers for itself and this is never consulted.
+ */
+export function successorRoot(pkgRoot) {
+  if (readManifest(pkgRoot)) return null;
+  const root = hostRoot(pkgRoot);
+  if (!root) return null;
+  const name = readManifest(root)?.name;
+  return typeof name === "string" && ALIAS_PACKAGES.includes(name) ? root : null;
+}
+
 /** The package an upgrade would actually install here — the only package worth
  *  asking npm about.
  *
@@ -372,7 +425,21 @@ export function upgradeName(pkgRoot, name = "agents-deck") {
   // the deck is nested one level down inside a package it is not named after,
   // and this build's own name for `npm i -g agents-deck` and `npm i -g
   // agent-dag`, where the deck IS the whole package and nothing is above it.
-  return hostPackage(pkgRoot, self)?.name ?? self;
+  //
+  // successorRoot is the third case, and it is the second half of the same
+  // question. Once that stub install HAS been upgraded, the host has stopped
+  // declaring a dependency on us — which is the only thing hostPackage
+  // recognises a host by — so this fell through to `self`, and `self` is the
+  // fallback `agents-deck` because our own manifest went with the directory.
+  // The user was then shown `npm i -g agents-deck@latest`: a different package,
+  // a second global tree, and their `ccdeck` binary left exactly where it was.
+  // That is #358 verbatim, arriving through the upgrade that was supposed to be
+  // the end of it. The successor's own manifest names it, and that name is what
+  // the next upgrade has to install.
+  const host = hostPackage(pkgRoot, self)?.name;
+  if (host) return host;
+  const moved = successorRoot(pkgRoot);
+  return moved ? installedName(moved, self) : self;
 }
 
 /** The exact line the user can paste, for the way THIS copy was installed. */
@@ -725,7 +792,15 @@ export function upgradeBlock(pkgRoot) {
   // reason upgradeName is: the host is recognised by the dependency it declares
   // on us, and "us" is whatever the manifest here says — `agents-deck` under the
   // stub npm publishes today, but nothing in this rule should assume that.
-  const target = hostPackage(pkgRoot, installedName(pkgRoot))?.root ?? pkgRoot;
+  //
+  // successorRoot covers the case after such an upgrade has run: pkgRoot is
+  // gone, so hostPackage cannot recognise a host that no longer declares us,
+  // and asking accessSync about a deleted directory answers ENOENT — which this
+  // function reported as `not_writable`, telling the user their npm prefix was
+  // read-only when it was not.
+  const target = hostPackage(pkgRoot, installedName(pkgRoot))?.root
+    ?? successorRoot(pkgRoot)
+    ?? pkgRoot;
   return upgradeBlockedReason({
     git: isGitCheckout(pkgRoot),
     npx: isNpxInstall(pkgRoot),
