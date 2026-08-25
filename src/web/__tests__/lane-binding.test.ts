@@ -213,8 +213,10 @@ describe("the row renders the windows, and the panel reads the same function", (
     // Uniform rows are what makes a column scannable, and a default that
     // depended on state would make the panel's resting height depend on which
     // account happens to be live. Measured: 98.59px per block either way.
-    expect(panelCode).toMatch(/useState<number\[\]>\(\[\]\)/);
-    expect(panelCode).toMatch(/const lanesOpen = openLanes\.includes\(a\.num\);/);
+    expect(panelCode).toMatch(/useState<string\[\]>\(\[\]\)/);
+    // Keyed by the account rather than by its slot — see lane-open.ts and
+    // lane-identity.test.ts. The empty default is what this case is about.
+    expect(panelCode).toMatch(/const lanesOpen = openLanes\.includes\(laneKey\(a\)\);/);
     expect(panelCode).not.toMatch(/openLanes.*a\.active|a\.active.*openLanes/);
   });
 
