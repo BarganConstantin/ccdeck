@@ -2891,9 +2891,13 @@ function Inner() {
                   and exists only once an install has started, so before the
                   first click the fallback is the whole of what it says — and a
                   hardcoded `agents-deck` was wrong for every `npm i -g ccdeck`,
-                  where the install names the stub instead. `version.command` is
-                  the server's own answer to the same question, correct in every
-                  install shape, and the same string the copy button carries. */}
+                  which back then installed a launcher package of its own. #340
+                  removed that launcher, and the argument survives it: the name
+                  to reinstall is still whichever of the three the user typed,
+                  and this component has no way to know which. `version.command`
+                  is the server's own answer to the same question, correct in
+                  every install shape, and the same string the copy button
+                  carries. */}
               {version?.upgradeMode === "install" && upgradeState !== "failed" && (
                 <button type="button" className="ver-act" onClick={startUpgrade}
                   disabled={upgradeState === "running" || upgradeState === "done"}

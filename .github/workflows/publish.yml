@@ -1,9 +1,9 @@
 name: ci
 
-# Still .github/workflows/publish.yml: two tests read this file by that exact
-# path to assert the npm rename dance is real (global-alias-name.test.ts,
-# stub-global-upgrade.test.ts), so the filename is load-bearing even though the
-# workflow now does more than publish.
+# Still .github/workflows/publish.yml: global-alias-name.test.ts reads this file
+# by that exact path to assert the npm rename dance is real — all three names,
+# since #340 — so the filename is load-bearing even though the workflow now does
+# more than publish.
 #
 # Two jobs, one workflow, because the gate has to be a real one: `publish`
 # declares `needs: test`, which is the only construct that makes a matrix leg
@@ -183,26 +183,45 @@ jobs:
       - name: Build web bundle
         run: npm run build
 
-      # Publish under BOTH names from the same build/tarball: the legacy name
-      # (agent-dag) first so existing installs always update, then the primary
-      # name (agents-deck). Each publish is idempotent — it skips if that
-      # version is already on the registry — so the workflow is safe to re-run
-      # (e.g. after fixing token scope) without erroring on the already-shipped
-      # name. The two steps are independent: a failure in one does not block
-      # the other.
-      - name: Publish to npm (agent-dag, legacy alias)
+      # Publish the SAME build under all three names, by renaming the manifest
+      # between publishes. That is what `agent-dag` has always been — not a stub
+      # but this tarball with `name` set to the name it first shipped as — and
+      # #340 is the same treatment finally reaching the name we promote.
+      #
+      # ccdeck used to be the odd one out: a nine-line launcher package that
+      # depended on `agents-deck` and spawned its bin. It worked, and it cost
+      # three things. `npx ccdeck` downloaded two packages instead of one, pinned
+      # to an exact version, so a half-propagated release could leave the outer
+      # one resolvable and the inner one not. `npm deprecate agents-deck` was
+      # unusable, because npm prints deprecation warnings for transitive
+      # dependencies and every `npx ccdeck` user would have seen a warning for a
+      # package they never chose. And the name the user typed was lost through
+      # the spawn, so a globally installed `ccdeck` reported argv[1] belonging to
+      # the old package.
+      #
+      # The issue proposed inverting the arrow — ccdeck real, the other two
+      # stubs. That would have moved the launcher rather than removed it, and
+      # imported every bug the launcher has had (#351 global layout, #358 and
+      # #378 resolution, signal forwarding, the exit code) onto two more names.
+      # A third rename costs none of it.
+      #
+      # ccdeck goes FIRST: if a later step fails, the name every surface tells
+      # people to run is the one already on the registry, not the one left
+      # behind. Each step is independent and idempotent — it skips a version
+      # already published, so the workflow is safe to re-run after a token or
+      # registry problem without erroring on the names that made it through.
+      - name: Publish to npm (ccdeck)
         run: |
           VERSION=$(node -p "require('./package.json').version")
           # npm view prints the version string if published, empty otherwise
           # (and exits 0 either way for an existing package) — so test the
           # OUTPUT, not the exit code.
-          EXISTING=$(npm view "agent-dag@$VERSION" version 2>/dev/null || true)
+          EXISTING=$(npm view "ccdeck@$VERSION" version 2>/dev/null || true)
           if [ -n "$EXISTING" ]; then
-            echo "agent-dag@$VERSION already published — skipping."
+            echo "ccdeck@$VERSION already published — skipping."
           else
-            npm pkg set name=agent-dag
+            npm pkg set name=ccdeck
             npm publish --provenance --access public
-            npm pkg set name=agents-deck
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -221,18 +240,16 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to npm (ccdeck, stub alias)
+      - name: Publish to npm (agent-dag, legacy alias)
         if: ${{ !cancelled() }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          cd ccdeck
-          npm pkg set version="$VERSION"
-          npm pkg set dependencies.agents-deck="$VERSION"
-          EXISTING=$(npm view "ccdeck@$VERSION" version 2>/dev/null || true)
+          EXISTING=$(npm view "agent-dag@$VERSION" version 2>/dev/null || true)
           if [ -n "$EXISTING" ]; then
-            echo "ccdeck@$VERSION already published — skipping."
+            echo "agent-dag@$VERSION already published — skipping."
           else
-            npm publish --access public
+            npm pkg set name=agent-dag
+            npm publish --provenance --access public
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -241,9 +258,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          CCDECK_VERSION=$(node -p "require('./ccdeck/package.json').version")
           echo "### Published v$VERSION :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- https://www.npmjs.com/package/agents-deck/v/$VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- https://www.npmjs.com/package/ccdeck/v/$VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- https://www.npmjs.com/package/agents-deck/v/$VERSION (alias)" >> $GITHUB_STEP_SUMMARY
           echo "- https://www.npmjs.com/package/agent-dag/v/$VERSION (legacy alias)" >> $GITHUB_STEP_SUMMARY
-          echo "- https://www.npmjs.com/package/ccdeck/v/$CCDECK_VERSION (stub alias)" >> $GITHUB_STEP_SUMMARY
