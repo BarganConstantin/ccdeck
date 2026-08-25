@@ -67,6 +67,68 @@ const LEGACY_MARKER = join(MARKER_DIR, ".self-update-check");
 // names are two different questions and must not be answered with one answer.
 const _inflight = new Map();
 
+// ── what a forced check may cost ─────────────────────────────────────────────
+//
+// `_inflight` deduplicates callers that OVERLAP and nothing else. `checkDue`
+// answers `true` on `force` before it asks anything else, so a caller that
+// waited for one check to settle and then asked again got a fresh
+// `https://registry.npmjs.org/…/dist-tags` every time. Reads on this server are
+// deliberately open — `isTrustedRead` does not apply the `Sec-Fetch-Site` test
+// that `isTrustedMutation` does, because a cross-site read of
+// `http://127.0.0.1:4317` is an ordinary top-level navigation — so
+//
+//     (async function spin() {
+//       for (;;) await fetch("http://127.0.0.1:4317/api/version?refresh=1",
+//                            { mode: "no-cors" });
+//     })();
+//
+// from any page the user had open was one registry request per turn, as fast as
+// the round trip allows, and every so often two of them: `runCheck` confirms a
+// tag it has not seen before against the version document. The requests are
+// small — the whole reason the dist-tags endpoint is used here rather than the
+// packument — but they leave the user's address, carrying the user-agent this
+// deck sets, and they are aimed at a third party rather than at the machine the
+// loop is running on. That makes it #580's shape with the cost pointed
+// outwards, which if anything is the worse direction.
+//
+// Nothing above this line was going to stop it. The hour is written to a marker
+// FILE, and `force` walks past it; `first` walks past it too; and on a machine
+// where `~/.agents-deck` cannot be written `writeMarker` swallows the failure,
+// so `checkDue` sees "never checked" on every single call and the hour is not
+// really there at all.
+//
+// So the floor sits under all of it, in this process's own memory, between the
+// last rule that admitted a check and the request it admitted. It is quota.mjs's
+// number and codex-quota.mjs's and codex-usage.mjs's — the five routes in this
+// deck's router that accept `?refresh=1` and can pay for it have no business
+// disagreeing about what it costs.
+const FORCE_POLL_MS = 60_000;
+
+// Stamped when a check STARTS rather than when npm answers, because what the
+// floor rations is the request. Per package name, like `_inflight` and like the
+// markers: two names are two different questions, and one of them being asked
+// is not a reason to refuse the other. Deliberately in memory rather than on
+// disk — the marker is shared by every deck running that package and this is
+// about what THIS process is sending.
+const _lastAskAt = new Map();
+
+/**
+ * Whether we may spend a registry request right now.
+ *
+ * Exported for tests, for the same reason quota.mjs exports `maySelfPoll`,
+ * codex-quota.mjs `mayFetchQuota` and codex-usage.mjs `mayScanUsage`: this is
+ * the rule, it is pure, and it is worth pinning down away from the request it
+ * guards.
+ */
+export function mayAskNpm({ now, lastAskAt }) {
+  // A stamp from the future is a clock that moved, not a check that just ran —
+  // the same case `checkDue` answers twice below with `> now`, and the same
+  // answer. Without it, a machine whose clock corrects backwards by an hour
+  // would go an hour without a version check.
+  if (lastAskAt > now) return true;
+  return now - lastAskAt >= FORCE_POLL_MS;
+}
+
 // ── version comparison ───────────────────────────────────────────────────────
 
 /** True when `a` sorts before `b`. Numeric-segment compare — non-numeric
@@ -678,7 +740,8 @@ export function checkDue({ at, failedAt, pendingAt, now, first = false, force = 
  *  cached answer immediately when the window has not elapsed.
  *
  *  `force` skips the window: the first call in this process, and an explicit
- *  "check now" from the UI. */
+ *  "check now" from the UI. What it does not skip is FORCE_POLL_MS — see
+ *  mayAskNpm, and the note above it for what a forced call used to cost. */
 async function latestOnNpm(name, now, force = false) {
   const m = readMarker(name);
   const key = markerFileName(name);
@@ -687,8 +750,18 @@ async function latestOnNpm(name, now, force = false) {
   if (!checkDue({ at: m?.at, failedAt: m?.failedAt, pendingAt: m?.pendingAt, now, first, force })) {
     return m?.version ?? null;
   }
+  // Offered before the floor: a check that has not answered yet is a lookup
+  // newer than the marker, which is what refresh asked for, and joining it costs
+  // nothing.
   const inflight = _inflight.get(key);
   if (inflight) return inflight;
+  // The floor, under every rule above it. A refused check is answered with the
+  // version we already hold — the same string an ordinary cached call returns,
+  // carrying the marker's own `checkedAt` rather than the moment of the read
+  // that was refused, so /api/version reports exactly what it reported a moment
+  // ago and no surface learns a new failure mode from being asked twice.
+  if (!mayAskNpm({ now, lastAskAt: _lastAskAt.get(key) ?? 0 })) return m?.version ?? null;
+  _lastAskAt.set(key, now);
   const run = runCheck(name, m, now)
     // Record the outcome, not just the moment, and record it against THIS
     // package: only an answer stamps `at`; a failure takes the short retry
