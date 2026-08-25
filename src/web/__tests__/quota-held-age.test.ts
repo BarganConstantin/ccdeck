@@ -57,6 +57,12 @@ vi.mock("../../server/exec.mjs", () => ({
     cli.calls.push([cmd, ...args]);
     return { ok: true, code: 0, killed: false, timedOut: false, stdout: cli.stdout, stderr: cli.stderr };
   },
+  // quotaClaudeBin asks PATH whether the bare `claude` is really there before it
+  // falls back to the install directories it knows (#553). Answering yes is what
+  // keeps this file's subject — what the poller does with the CLI's OUTPUT —
+  // independent of whether the machine running the suite happens to have a
+  // claude in ~/.local/bin. No child process is reachable through it either.
+  pathLookup: (name: string) => `/usr/bin/${name}`,
 }));
 
 type Quota = {

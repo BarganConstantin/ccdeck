@@ -29,7 +29,7 @@
 // cooldown; 1 is not, because it is a local file read.
 import { activeAccountUsage, requestCollection } from "./claude-accounts.mjs";
 import { claudeCliCandidates, claudeConfigDir } from "./claude-dir.mjs";
-import { run } from "./exec.mjs";
+import { pathLookup, run } from "./exec.mjs";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -356,15 +356,69 @@ function parseUsageText(raw) {
  *
  *  Exported, with everything it touches injectable, so the Windows branch is
  *  testable from the platforms this repo is actually developed on.
+ *
+ *  WHY THE BARE NAME HAS TO EARN ITS PLACE (#553). This used to be a `.find`
+ *  over `!c.includes(sep) || exists(c)`, which reads as "a bare name always
+ *  answers, a full path only when it is there". On Windows that is harmless —
+ *  the bare name is LAST in the list — but on POSIX it is FIRST, so the `||`
+ *  short-circuited on candidate one and `exists` was never called even once:
+ *  `~/.local/bin/claude`, `/usr/local/bin/claude` and `/opt/homebrew/bin/claude`
+ *  were in a list nothing ever read. The user this broke is the one
+ *  claude-dir.mjs names out loud: Claude Code installed by the official
+ *  installer, so the binary is at `~/.local/bin/claude`, and the deck launched
+ *  from something whose PATH never sourced a shell rc — a LaunchAgent, a
+ *  systemd user unit, pm2, a desktop shortcut. `hasClaudeInstalled()` stats the
+ *  absolute paths and says yes, so hooks install and the Claude surface turns
+ *  on; every `claude --print /usage` spawn is then a bare-name ENOENT logged as
+ *  `quota: claude CLI failed`. On macOS there is no `.credentials.json` to fall
+ *  back to (the token is in the Keychain, #360), so the quota panel simply stays
+ *  dark on a machine that plainly has Claude Code. The identical install on
+ *  Windows worked, because there the ordering already said what this now says.
+ *
+ *  WHICH WINS. The candidate list's own order decides, unchanged on both
+ *  platforms — PATH first on POSIX, the two known install directories first on
+ *  Windows — because the ordering question here is the one getRunner in
+ *  ccusage.mjs already answered: preferring a different copy would silently
+ *  change which binary runs on every machine that has two, and a deck that
+ *  works today must not start running a `claude` it has never run. A user with
+ *  a current claude on PATH via nvm/mise/volta and a stale one left in
+ *  `~/.local/bin` keeps getting the one their own shell gives them. All that
+ *  changes is that a bare name is now only ANSWERED WITH when PATH actually
+ *  holds it, which is the same rule claudeCliOnDisk in claude-dir.mjs has
+ *  always applied to this very list — the two readers of one list can no longer
+ *  disagree about whether the deck can run what it says is installed.
+ *
+ *  WHAT IT COSTS. One PATH walk, stopping at the first hit, and only for the
+ *  bare candidate; the absolute paths are stat'ed only once PATH has come up
+ *  empty. That is the trade ccusage.mjs already priced for the same shape of
+ *  question — "a handful of stats, once per uncached fetch, against a process
+ *  spawn that follows it" — and here the spawn that follows is a whole Claude
+ *  Code process measured at ~3s, behind the SELF_POLL_MS floor.
+ *
+ *  `pathLookup` is used as a yes/no gate rather than for the path it found, on
+ *  purpose: answering with the bare name keeps spawn's own resolution (and, on
+ *  Windows, exec.mjs's PATHEXT candidate walk) in charge of the PATH case
+ *  exactly as before, so a PATH entry that merely LOOKS like a hit — a
+ *  directory named `claude` — cannot become the answer.
  */
 export function quotaClaudeBin(platform = process.platform, env = process.env,
                                home = homedir(), exists = existsSync) {
   const sep = platform === "win32" ? "\\" : "/";
-  // A bare name is left to spawn's own PATH lookup (and, on Windows, to the
-  // PATHEXT walk exec.mjs does by hand); a full path is only worth naming when
-  // it is actually there.
-  return claudeCliCandidates(platform, env, home)
-    .find(c => !c.includes(sep) || exists(c)) ?? "claude";
+  // process.env is case-insensitive on Windows; an injected plain object in a
+  // test is not, and %Path% is how the variable is actually spelled there.
+  const pathEnv = env.PATH ?? env.Path ?? env.path ?? "";
+  for (const c of claudeCliCandidates(platform, env, home)) {
+    // A full path is worth a single stat; a bare name means "ask PATH", which
+    // is pathLookup's walk — PATHEXT included, since `claude` on Windows is
+    // spelled `claude.exe` or `claude.cmd` and never the bare word.
+    if (c.includes(sep)) { if (exists(c)) return c; }
+    else if (pathLookup(c, platform, { pathEnv, exists })) return c;
+  }
+  // Nothing on PATH and nothing at any known install directory. The bare name
+  // is still the right last resort — POSIX `execvp` and cmd.exe's own search
+  // both deserve their turn at a layout no list here knows — and the ENOENT it
+  // produces is what `quota: claude CLI failed` reports.
+  return "claude";
 }
 
 export async function fetchClaudeQuota({ force = false } = {}) {
