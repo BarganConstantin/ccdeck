@@ -609,7 +609,7 @@ function maybeResolveUsage(payload) {
 // The emit is what is actually kept rare, and it is gated on a CHANGE: with 685
 // records carrying 2 distinct values, a per-pass emit would be ~683 events
 // saying nothing. Sessions that never get named emit nothing at all.
-const nameBySession = new Map();        // sid -> `${agentName} ${aiTitle}`
+const nameBySession = new Map();        // sid -> `${agentName}\0${aiTitle}`
 const lastNameReadAt = new Map();       // sid -> ms timestamp
 const pendingNameReads = new Set();     // sid currently being read
 
@@ -637,7 +637,7 @@ function maybeResolveSessionName(payload) {
   readSessionNamingFromTranscript(tp)
     .then(naming => {
       if (!naming) return;
-      const sig = `${naming.agentName ?? ""} ${naming.aiTitle ?? ""}`;
+      const sig = `${naming.agentName ?? ""}\u0000${naming.aiTitle ?? ""}`;
       if (nameBySession.get(sid) === sig) return;
       nameBySession.set(sid, sig);
       pushEvent({
