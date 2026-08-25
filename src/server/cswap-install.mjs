@@ -14,7 +14,7 @@ import { run, runDetached } from "./exec.mjs";
 // file already imports itself.
 import { isOlder } from "./self-update.mjs";
 import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { join, posix as posixPath, win32 as winPath } from "node:path";
 import { homedir } from "node:os";
 
@@ -132,6 +132,137 @@ export function cswapCandidates(platform = process.platform, env = process.env, 
     dirs.push("/opt/homebrew/bin", "/usr/local/bin");
   }
   return dirs.map(d => join(d, exe));
+}
+
+// The distribution name, which is what both installers key their directories on
+// — `cswap` is only the console script.
+const PKG = "claude-swap";
+
+/** True when `child` is `dir` or lives under it, in `platform`'s path flavour. */
+function underDir(child, dir, platform) {
+  const { sep, normalize } = platform === "win32" ? winPath : posixPath;
+  const norm = p => {
+    // Windows paths compare case-insensitively, and `C:\x\` and `C:\x` are one
+    // directory.
+    let s = normalize(String(p));
+    if (platform === "win32") s = s.toLowerCase();
+    return s.length > 1 && s.endsWith(sep) ? s.slice(0, -sep.length) : s;
+  };
+  const c = norm(child), d = norm(dir);
+  return c === d || c.startsWith(d + sep);
+}
+
+/**
+ * Where `uv tool install claude-swap` puts the tool's own venv.
+ *
+ * UV_TOOL_DIR wins outright; otherwise uv's persistent data directory, which is
+ * `$XDG_DATA_HOME/uv` or `~/.local/share/uv` on Unix — macOS included, uv does
+ * not use `~/Library` — and `%APPDATA%\uv\data` on Windows. The `data` segment
+ * is Windows-only and is not optional there.
+ */
+function uvToolVenvs(platform, env, home) {
+  const { join } = platform === "win32" ? winPath : posixPath;
+  if (env.UV_TOOL_DIR) return [join(env.UV_TOOL_DIR, PKG)];
+  if (platform === "win32") {
+    const appData = env.APPDATA || join(home, "AppData", "Roaming");
+    return [join(appData, "uv", "data", "tools", PKG)];
+  }
+  return [join(env.XDG_DATA_HOME || join(home, ".local", "share"), "uv", "tools", PKG)];
+}
+
+/**
+ * Where `pipx install claude-swap` puts the package's venv.
+ *
+ * Read off pipx's own `paths.py`: the venvs are always `<home>/venvs`, and the
+ * home is PIPX_HOME when set, else the first EXISTING legacy fallback
+ * (`~/.local/pipx`, plus `~/pipx` on Windows), else platformdirs'
+ * `user_data_path("pipx")`. Since what gets asked here is whether one specific
+ * venv is on disk, every candidate home can simply be tried rather than
+ * replaying pipx's precedence.
+ *
+ * platformdirs on Windows appends the app name twice when no author is given,
+ * which pipx does not give — `%LOCALAPPDATA%\pipx\pipx`, not `%LOCALAPPDATA%\
+ * pipx`. That doubled segment is real and is the whole path on a modern
+ * Windows pipx.
+ */
+function pipxVenvs(platform, env, home) {
+  const { join } = platform === "win32" ? winPath : posixPath;
+  if (env.PIPX_HOME) return [join(env.PIPX_HOME, "venvs", PKG)];
+  const homes = [join(home, ".local", "pipx")];
+  if (platform === "win32") {
+    homes.push(join(home, "pipx"));
+    homes.push(join(env.LOCALAPPDATA || join(home, "AppData", "Local"), "pipx", "pipx"));
+  } else if (platform === "darwin") {
+    homes.push(join(home, "Library", "Application Support", "pipx"));
+  } else {
+    homes.push(join(env.XDG_DATA_HOME || join(home, ".local", "share"), "pipx"));
+  }
+  return homes.map(h => join(h, "venvs", PKG));
+}
+
+function realpathOrSelf(p) {
+  try { return realpathSync(p); } catch { return p; }
+}
+
+/**
+ * Which installer OWNS the claude-swap this machine runs — "uv", "pipx", or
+ * null when nothing offered here does, or when the evidence is ambiguous.
+ *
+ * The daily upgrade used to be handed to `findInstaller()`, which returns the
+ * first tool that answers `--version`. That is the right question when choosing
+ * something to install WITH and the wrong one when upgrading something already
+ * installed: on a machine with uv present and claude-swap installed some other
+ * way — a `pip install --user` copy, which #574 taught cswapBin to find, or a
+ * pipx one — the upgrade went to uv, which answers
+ *
+ *     error: Failed to upgrade claude-swap
+ *       Caused by: `claude-swap` is not installed; run `uv tool install …`
+ *
+ * and pipx, given someone else's package, answers "Package is not installed.
+ * Expected to find <PIPX_HOME>/venvs/claude-swap, but it does not exist." Both
+ * go through runDetached, which reads no output and waits for no exit, so the
+ * refusal reached nobody while ensureCswap still reported "upgrading" and the
+ * marker was already burned for the day. The version never moved and the deck
+ * said it was moving, every launch, forever.
+ *
+ * Two signals, strongest first. The executable the deck actually runs, with its
+ * symlinks followed, sitting inside one installer's directory is decisive —
+ * that is the POSIX case, where both installers link `~/.local/bin/cswap` at
+ * their own venv. Windows copies the launcher instead, so there the layout
+ * question is asked directly: exactly one of the two venv directories exists.
+ * Zero means nothing offered here owns it — a `pip install --user` copy is the
+ * common shape, and `installers()` deliberately refuses to offer bare pip — and
+ * two means the machine has both and the resolved path did not say which is on
+ * PATH. Both answer null, because a silent boot is better than a daily sentence
+ * that is not true.
+ *
+ * Pure, and platform/env/home/filesystem all arrive as arguments, for the reason
+ * cswapCandidates gives: a Windows layout has to be checkable from a Mac.
+ */
+export function cswapOwner(bin, platform = process.platform, env = process.env, home = homedir(), {
+  exists = existsSync,
+  realpath = realpathOrSelf,
+} = {}) {
+  const roots = [
+    ...uvToolVenvs(platform, env, home).map(dir => ({ owner: "uv", dir })),
+    ...pipxVenvs(platform, env, home).map(dir => ({ owner: "pipx", dir })),
+  ];
+
+  // cswapBin answers the bare word whenever PATH resolved it, and a bare word
+  // points at no layout at all — only a path can be followed.
+  if (typeof bin === "string" && /[\\/]/.test(bin)) {
+    // BOTH sides get resolved, or the comparison is between two spellings of one
+    // directory rather than between two directories. A symlinked home is the
+    // ordinary way that happens — /var → /private/var on macOS, a network or
+    // container-mounted profile on Linux — and it would silently turn the
+    // strongest signal here into no signal at all.
+    const real = realpath(bin);
+    const hit = roots.find(r => underDir(real, realpath(r.dir), platform));
+    if (hit) return hit.owner;
+  }
+
+  const owners = new Set(roots.filter(r => exists(r.dir)).map(r => r.owner));
+  return owners.size === 1 ? [...owners][0] : null;
 }
 
 let _bin = null;
@@ -257,11 +388,20 @@ async function safePythons() {
  * derivation did not recognise fell through to `-m pipx upgrade` — so the
  * bundled uv, which is the only installer present on a machine that had neither
  * uv nor pipx nor a usable python, was asked to run a pipx command it rejects.
+ *
+ * Every entry also carries the `owner` it speaks for, which is what an upgrade
+ * is matched against. It is a field rather than something read back off `via`
+ * because deriving behaviour from that label is precisely what went wrong the
+ * first time: three of these five spellings are one uv and two are one pipx,
+ * and a fourth spelling arriving later must not silently mean "pipx" by
+ * default. Several entries can share an owner — the bundled uv upgrades what
+ * the system uv installed and vice versa, since both read UV_TOOL_DIR — so the
+ * probe still decides WHICH of an owner's spellings runs.
  */
 async function installers() {
   const out = [
-    { cmd: "uv",   probe: ["--version"], args: ["tool", "install", "claude-swap"], upgrade: ["tool", "upgrade", "claude-swap"], via: "uv" },
-    { cmd: "pipx", probe: ["--version"], args: ["install", "claude-swap"],         upgrade: ["upgrade", "claude-swap"],         via: "pipx" },
+    { cmd: "uv",   probe: ["--version"], args: ["tool", "install", "claude-swap"], upgrade: ["tool", "upgrade", "claude-swap"], via: "uv",   owner: "uv" },
+    { cmd: "pipx", probe: ["--version"], args: ["install", "claude-swap"],         upgrade: ["upgrade", "claude-swap"],         via: "pipx", owner: "pipx" },
   ];
   // A uv fetched on an earlier run counts as installed tooling from here on.
   const own = existingBootstrappedUv();
@@ -272,6 +412,7 @@ async function installers() {
       args: ["tool", "install", "claude-swap"],
       upgrade: ["tool", "upgrade", "claude-swap"],
       via: "uv (bundled)",
+      owner: "uv",
     });
   }
   for (const py of await safePythons()) {
@@ -281,6 +422,7 @@ async function installers() {
       args: ["-m", "pipx", "install", "claude-swap"],
       upgrade: ["-m", "pipx", "upgrade", "claude-swap"],
       via: `${py} -m pipx`,
+      owner: "pipx",
     });
   }
   return out;
@@ -360,17 +502,30 @@ async function latestOnPypi() {
  * take tens of seconds, which is not a thing to put in front of the server
  * starting. The running copy keeps working; the new one is there next launch.
  *
- * The command line comes from the installer entry rather than from its label:
- * runDetached captures nothing, so an upgrade aimed at the wrong tool fails
- * where nobody can see it while the caller still reports "upgrading".
+ * The command line comes from the installer entry rather than from its label,
+ * and the ENTRY comes from cswapOwner rather than from whichever tool answers a
+ * probe first: runDetached captures nothing, so an upgrade aimed at the wrong
+ * tool fails where nobody can see it while the caller still reports
+ * "upgrading". Those are the two halves of "aimed at the wrong tool" — a right
+ * argv sent to a tool that does not own the package is just as invisible as a
+ * wrong argv, and was the longer-lived of the two.
  */
 function upgradeInBackground({ cmd, upgrade }) {
   runDetached(cmd, upgrade);
 }
 
-/** Whichever Python tool installer is available, or null. */
-async function findInstaller() {
-  for (const { cmd, probe, upgrade, via } of await installers()) {
+/**
+ * A runnable spelling of the installer that OWNS this claude-swap, or null.
+ *
+ * The owner is decided from the install layout before anything is probed, and
+ * only that owner's entries are then tried — so a uv sitting on a machine whose
+ * claude-swap came from pipx is skipped rather than handed an upgrade it will
+ * refuse. A null owner probes nothing at all: there is no tool here to ask.
+ */
+async function findUpgrader(owner) {
+  if (!owner) return null;
+  for (const { cmd, probe, upgrade, via, owner: speaksFor } of await installers()) {
+    if (speaksFor !== owner) continue;
     if ((await run(cmd, probe, { timeout: 8_000 })).ok) return { cmd, upgrade, via };
   }
   return null;
@@ -396,7 +551,12 @@ export async function ensureCswap() {
     touchMarker();
     const latest = await latestOnPypi();
     if (latest && existing !== "installed" && isOlder(existing, latest)) {
-      const found = await findInstaller();
+      // Who owns it, not what is installed on the machine: an upgrade aimed at
+      // a tool that never installed this package is refused where runDetached
+      // cannot see it, and "upgrading" would then be a sentence printed daily
+      // about nothing. When nobody offered here owns it, "present" is the whole
+      // truth and is what gets said.
+      const found = await findUpgrader(cswapOwner(await cswapBin()));
       if (found) {
         upgradeInBackground(found);
         return { state: "upgrading", version: existing, latest, via: found.via };
