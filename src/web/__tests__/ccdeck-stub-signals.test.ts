@@ -26,9 +26,10 @@
 // installed and no npx runs.
 //
 // Everything here waits on an event — the fake deck announcing itself, the stub
-// exiting — and never on a sleep, because #343 is what a fixed sleep costs on a
-// box running twenty other things. The one deadline that cannot be an event is
-// the Windows case, which is an assertion that nothing happens; see it there.
+// handling a signal, the stub exiting — and never on a sleep, because #343 is
+// what a fixed sleep costs on a box running twenty other things. The one
+// deadline that cannot be an event is the Windows case, which is an assertion
+// that nothing happens; see it there.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -51,6 +52,25 @@ process.env.CLAUDE_CONFIG_DIR = join(SANDBOX, ".claude");
 process.env.CODEX_HOME = join(SANDBOX, ".codex");
 
 const SHIPPED = fileURLToPath(new URL("../../../ccdeck/bin/ccdeck.js", import.meta.url));
+
+// A channel the stub does not otherwise have: it forwards signals but announces
+// nothing, so there is no way to know from out here that one has been handled.
+// Loaded with `--require`, this registers before the stub's own module and so
+// runs first for every signal; the announcement is deferred to setImmediate so
+// the stub's listener — which runs in the same synchronous emit, immediately
+// after this one — has provably already decided what to do with the signal
+// before the line is written. See the impatient case for what needs it.
+//
+// It changes nothing under test. The stub already listens for all three, so no
+// default action is being suppressed that was not suppressed before, and
+// dieOfSignal drops every listener on a signal before it re-raises, so this
+// cannot swallow one.
+const OBSERVER = join(SANDBOX, "announce-signals.cjs");
+writeFileSync(
+  OBSERVER,
+  'for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"])\n'
+    + '  process.on(sig, () => setImmediate(() => console.log("stub-handled " + sig)));\n',
+);
 
 // The stub's own constant. A forward it schedules lands two seconds after the
 // signal, so every wait below has to be generously past that and none of them is
@@ -144,21 +164,37 @@ function start(stub: string, opts: { detached?: boolean; preload?: string } = {}
   let out = "", err = "";
   child.stdout!.setEncoding("utf8").on("data", (chunk) => { out += chunk; });
   child.stderr!.setEncoding("utf8").on("data", (chunk) => { err += chunk; });
-  const deckPid = new Promise<number>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`the fake deck never announced itself. stdout: ${out} stderr: ${err}`)),
-      20_000,
-    );
-    const look = () => {
-      const found = out.match(/ready (\d+)/);
-      if (!found) return;
-      clearTimeout(timer);
-      child.stdout!.off("data", look);
-      resolve(Number(found[1]));
-    };
-    child.stdout!.on("data", look);
-  });
-  return { child, deckPid };
+  /**
+   * Settles once `pattern` has appeared on the stub's stdout — which the deck
+   * inherits, so one pipe carries both of them.
+   *
+   * `look()` is called once up front because a caller can ask for a line that
+   * has already arrived: the deck's pid is waited on before anything else, but
+   * a signal handshake is asked for mid-test, by which point `out` may already
+   * hold the answer and no further 'data' event is coming.
+   */
+  const online = (pattern: RegExp, what: string, ms = 20_000) =>
+    new Promise<RegExpMatchArray>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.stdout!.off("data", look);
+        reject(new Error(`${what}. stdout: ${out} stderr: ${err}`));
+      }, ms);
+      const look = () => {
+        const found = out.match(pattern);
+        if (!found) return;
+        clearTimeout(timer);
+        child.stdout!.off("data", look);
+        resolve(found);
+      };
+      child.stdout!.on("data", look);
+      look();
+    });
+
+  const deckPid = online(/ready (\d+)/, "the fake deck never announced itself").then((m) => Number(m[1]));
+  /** Settles once the stub has finished dispatching `sig`. Needs OBSERVER. */
+  const handled = (sig: string) =>
+    online(new RegExp(`stub-handled ${sig}\\b`), `the stub never handled ${sig}`);
+  return { child, deckPid, handled };
 }
 
 /**
@@ -249,11 +285,39 @@ describe("a second signal, from somebody who is done waiting", () => {
     // the only path the deck would be sent SIGHUP two seconds later. It is sent
     // SIGTERM instead, which can only be the second signal cancelling the first
     // and going straight out.
+    //
+    // Identity says that ONLY if the order the two signals were sent is the order
+    // the stub handled them, and for two kills a tenth of a millisecond apart
+    // that is not a given. This case went red on ubuntu on an unrelated commit
+    // (#528), so the premise was measured on the runner it failed on — 4-core
+    // ubuntu-latest, sending SIGHUP then SIGTERM back to back, sixty runs a
+    // round. The stub's own dispatcher ran SIGTERM's handler FIRST in 3 runs out
+    // of 60, and again in 3 out of 60 with sixteen CPU hogs beside it: this is
+    // the delivery order, not something load does to it.
+    //
+    // A reversed pair still exercises the cancel path perfectly — the second
+    // signal to arrive still clears the pending forward and still goes straight
+    // out — it just goes out as SIGHUP, which is character for character the
+    // failure this case exists to catch. The assertion was sound and its premise
+    // was not, which is why re-running made it green and why the person who saw
+    // it had no reason to suspect their own commit.
+    //
+    // So the second signal is sent only once the stub has been SEEN handling the
+    // first. That is not a longer timeout — it removes the pair the kernel could
+    // reorder, because at no point are two signals in flight. The stub announces
+    // nothing on its own, so the handshake comes over the OBSERVER preload at the
+    // top of this file, on the stdout `ready` already comes back on.
+    //
+    // What remains is the stub's own clock: the forward is scheduled 2000ms after
+    // the first signal, and the handshake is a round trip through this process,
+    // so a box that stalled that long between the two would still see the timer
+    // win. Measured at zero in 120 runs, against 6 reversals in the same 120.
     const { stub, log } = layout("impatient");
-    const { child, deckPid } = start(stub);
+    const { child, deckPid, handled } = start(stub, { preload: OBSERVER });
     await deckPid;
 
     process.kill(child.pid as number, "SIGHUP");
+    await handled("SIGHUP");
     process.kill(child.pid as number, "SIGTERM");
 
     expect(await exited(child)).toEqual({ code: 0, signal: null });
