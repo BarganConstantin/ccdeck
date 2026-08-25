@@ -133,10 +133,6 @@ function stripBom(text) {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-async function readJsonSafe(p) {
-  try { return JSON.parse(stripBom(await readFile(p, "utf8"))); } catch { return null; }
-}
-
 function unreadableSettings(p, why) {
   const err = new Error(
     `${p} could not be read as JSON (${why}). Refusing to overwrite it — ` +
@@ -144,6 +140,11 @@ function unreadableSettings(p, why) {
   );
   err.code = "SETTINGS_UNREADABLE";
   err.settingsPath = p;
+  // The bare reason, without the path and without the remedy sentence, so a
+  // caller that wants to phrase its own advice — `--uninstall` does; "run
+  // ccdeck again" is the wrong instruction there — does not have to take this
+  // message apart with a regex to get at the only part it cannot re-derive.
+  err.why = why;
   return err;
 }
 
@@ -376,11 +377,56 @@ export async function installHooks({ provider = "claude" } = {}) {
   return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed };
 }
 
+/**
+ * Take our forwarders back out of one provider's settings file.
+ *
+ * Returns `{ok: true, changed}` when the file was read — `changed` says whether
+ * anything of ours was in it — and `{ok: false, reason: "settings_unreadable"}`
+ * when it was not. Callers must look at `ok` FIRST: `changed: false` on a
+ * refusal is the literal truth about the disk and a lie about the question
+ * being asked, because the hooks are still in there.
+ *
+ * That conflation is what this used to ship. The read was readJsonSafe, which
+ * turned every parse and IO failure into `null`, so a settings.json with one
+ * stray comma — the exact file readSettingsForWrite was written to protect —
+ * came back indistinguishable from a clean machine with none of our hooks in
+ * it. `--uninstall` printed "no Claude hooks to remove" and exited 0 while all
+ * ten `__agent-dag` entries sat in the file, spawning node on every tool call
+ * of every session, for a deck the user had been told was gone. The other half
+ * of the same command already knew better: uninstallSoundHook reads through
+ * readSettingsForWrite and says so out loud, so one command gave two opposite
+ * verdicts about one file and the load-bearing one was the one that lied.
+ *
+ * So the read is the same read the install does, and for the same reason. A
+ * file we cannot parse is a file whose contents we cannot reproduce, and this
+ * function rewrites the whole thing — every permission, env var, model pin and
+ * hand-written hook in it. Refusing leaves it byte for byte as it was found and
+ * hands the user something they can act on; guessing would either destroy it or
+ * quietly do nothing. Only ENOENT is genuinely empty, and readSettingsForWrite
+ * already answers that with `{}`, which falls through to `changed: false`.
+ */
 export async function uninstallHooks({ provider = "claude" } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
-  const current = await readJsonSafe(cfg.settingsPath);
-  if (!current?.hooks) return { changed: false, provider };
+  let current;
+  try {
+    ({ settings: current } = await readSettingsForWrite(cfg.settingsPath));
+  } catch (err) {
+    if (err?.code !== "SETTINGS_UNREADABLE") throw err;
+    // Same shape uninstallSoundHook answers with, so bin/deck.js reports both
+    // halves of `--uninstall` the same way instead of one of them inventing a
+    // second vocabulary for the identical condition on the identical file.
+    return {
+      ok: false,
+      reason: "settings_unreadable",
+      changed: false,
+      provider,
+      settingsPath: cfg.settingsPath,
+      why: err.why ?? err.message,
+      message: err.message,
+    };
+  }
+  if (!current?.hooks) return { ok: true, changed: false, provider, settingsPath: cfg.settingsPath };
   let changed = false;
   for (const evt of Object.keys(current.hooks)) {
     const cleaned = dedupeOurEntries(current.hooks[evt]);
@@ -389,7 +435,7 @@ export async function uninstallHooks({ provider = "claude" } = {}) {
     else current.hooks[evt] = cleaned;
   }
   if (changed) await writeFileAtomic(cfg.settingsPath, JSON.stringify(current, null, 2) + "\n");
-  return { changed, provider, settingsPath: cfg.settingsPath };
+  return { ok: true, changed, provider, settingsPath: cfg.settingsPath };
 }
 
 /** True when ~/.codex/ exists — the CLI's default answer to whether the Codex
