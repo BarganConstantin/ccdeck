@@ -191,6 +191,35 @@ describe("lastMeaningfulLine", () => {
     expect(lastMeaningfulLine(log)).toContain("permission denied");
   });
 
+  it("quotes the error, not the version banner, when node crashed inside npm", () => {
+    // #535's failure shape. A bare `npm.cmd` through cmd.exe leaves `%~dp0` at
+    // the deck's working directory, so npm's shim cannot find its own payload
+    // and what comes back is a Node crash dump rather than an npm log. Its LAST
+    // line is `Node.js v22.11.0`, and that was the entire explanation the
+    // upgrade banner gave the user.
+    const dump = [
+      "node:internal/modules/cjs/loader:1228",
+      "  throw err;",
+      "  ^",
+      "",
+      "Error: Cannot find module 'C:\\Users\\vceban\\node_modules\\npm\\bin\\npm-cli.js'",
+      "Require stack:",
+      "- C:\\Users\\vceban\\AppData\\Roaming\\npm\\npm.cmd",
+      "    at Function._resolveFilename (node:internal/modules/cjs/loader:1225:15)",
+      "  code: 'MODULE_NOT_FOUND',",
+      "  requireStack: []",
+      "}",
+      "",
+      "Node.js v22.11.0",
+    ].join("\n");
+    const line = lastMeaningfulLine(dump);
+    expect(line).toContain("Cannot find module");
+    expect(line).not.toContain("Node.js v");
+    // And not a require-stack path either: those survive the noise list because
+    // they are not shaped like furniture, and they sit after the sentence.
+    expect(line).not.toMatch(/^- /);
+  });
+
   it("is empty rather than misleading when there is nothing to report", () => {
     expect(lastMeaningfulLine("")).toBe("");
     expect(lastMeaningfulLine(null)).toBe("");

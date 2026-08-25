@@ -26,7 +26,7 @@ import { accessSync, constants as FS, existsSync, mkdirSync, readdirSync, readFi
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { killTree } from "./exec.mjs";
+import { killTree, shimPath, spawnSpec } from "./exec.mjs";
 
 // Once an hour, not once a day.
 //
@@ -730,12 +730,49 @@ export function pickNotice({ running, installed, latest }) {
 
 // ── installing ───────────────────────────────────────────────────────────────
 
-// npm is a .cmd shim on Windows, which spawn can only launch through a shell.
-// Everywhere else shell:false — with a shell, Node warns that arguments are
-// concatenated rather than escaped. Same pair the ccusage installer uses.
-const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
-const NPM_SHELL = process.platform === "win32";
 const INSTALL_TIMEOUT_MS = 300_000; // a cold global install on a slow line
+
+/**
+ * What `spawn` gets for `npm install -g <target>@latest`.
+ *
+ * This was the last caller still spelling it the way #362 and #456 were written
+ * to remove: `spawn("npm.cmd", args, { shell: true })`, with a comment claiming
+ * it was "the same pair the ccusage installer uses". ccusage stopped using that
+ * pair when #456 fixed it, and this one was never revisited — it does not go
+ * through `run`/`runInteractive`/`runDetached`, so #457's sweep of their callers
+ * could not see it and exec-shim-callers.test.ts never listed it.
+ *
+ * Both halves of the old spelling were wrong on Windows and only one of them
+ * bites today.
+ *
+ * The one that bites: a `.cmd` shim locates its payload relative to `%~dp0`,
+ * the drive and path of the command token cmd.exe was handed, and a BARE
+ * `npm.cmd` carries no directory — so `%~dp0` came out as the deck's working
+ * directory and npm's shim went looking for `node_modules\npm\bin\npm-cli.js`
+ * underneath it. A user with a global install, deck started from
+ * `C:\Users\vceban`, clicks Update now and npm dies with `Cannot find module
+ * 'C:\Users\vceban\node_modules\npm\bin\npm-cli.js'` — on a machine whose npm
+ * is perfectly healthy, and where typing the same command at the same prompt
+ * works. shimPath is the answer, and `?? "npm.cmd"` keeps a layout it cannot see
+ * exactly as well off as it was.
+ *
+ * The one that does not, yet: `shell: true` makes Node join file and args with
+ * single spaces and no quoting. These arguments contain no spaces, so it has
+ * never mattered here — but it is the #362 defect sitting one argument away, and
+ * spawnSpec removes it by quoting every token into the cmd.exe line.
+ *
+ * POSIX is untouched: `npm` there is a real executable, isBatch is false, and
+ * the vector goes to spawn exactly as it always has.
+ *
+ * Exported for tests: the platform is a parameter so the Windows command line
+ * can be checked from any OS, and `deps` stands in for the Windows filesystem
+ * the shim lookup asks about. The same shape ccusage.mjs's installSpec has.
+ */
+export function upgradeSpec(target, platform = process.platform, deps) {
+  const args = ["install", "-g", `${target}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"];
+  const file = platform === "win32" ? (shimPath("npm.cmd", deps) ?? "npm.cmd") : "npm";
+  return { ...spawnSpec(file, args, platform), plain: args };
+}
 
 /**
  * Why an in-app upgrade would be wrong here, or null when it is fine.
@@ -1009,13 +1046,17 @@ export function startUpgrade({ pkgRoot, name = "agents-deck" }) {
   // there wrote a tree this process never reads, so the version on disk never
   // moved and the same update was offered forever.
   const target = upgradeName(pkgRoot, name);
-  const args = ["install", "-g", `${target}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"];
-  const command = `npm ${args.join(" ")}`;
+  const spec = upgradeSpec(target);
+  // The LOGICAL vector, not the cmd.exe line: this string is shown to the user
+  // and is the one they can paste. `cmd /d /s /c "…"` is an implementation
+  // detail of how this platform reaches npm, and pasting it would be advice
+  // about the deck rather than about their install.
+  const command = `npm ${spec.plain.join(" ")}`;
   _upgrade = { state: "running", command, error: null, at: Date.now() };
 
   let child;
   try {
-    child = spawn(NPM, args, { shell: NPM_SHELL, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    child = spawn(spec.file, spec.args, { ...spec.opts, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   } catch (err) {
     _upgrade = { state: "failed", command, error: err?.message ?? String(err), at: Date.now() };
     return { ok: false, reason: "spawn_failed", command };
@@ -1030,7 +1071,7 @@ export function startUpgrade({ pkgRoot, name = "agents-deck" }) {
 
   // The deadline states the outcome itself, and only then kills.
   //
-  // npm is a .cmd shim on Windows and is therefore spawned through a shell, so
+  // npm is a .cmd shim on Windows and is therefore spawned through cmd.exe, so
   // `child` is cmd.exe and npm itself is a grandchild — a plain kill would
   // report the install as timed out while it carried on writing to
   // node_modules. killTree is what reaches it (taskkill /T there, the same
@@ -1083,12 +1124,55 @@ export function startUpgrade({ pkgRoot, name = "agents-deck" }) {
   return { ok: true, command };
 }
 
-/** npm's real complaint is usually the last non-empty, non-decorative line. */
+// The furniture around a Node crash, none of which is the reason anything
+// failed. npm's own log needs none of this — it is `npm ERR!` lines and a rule —
+// but the two get mixed the moment the thing npm's shim tried to load is
+// missing, which is what #535's bare `npm.cmd` produced on every attempt.
+const CRASH_NOISE = [
+  /^\s*at\s/,                                  // stack frames
+  /^\s*\^+\s*$/,                                // the caret under the throw
+  /^node:internal\//,                           // the frame node leads with
+  /^\s*throw\s/,
+  /^Node\.js v/,                                // the last line, and the one that was quoted
+  /^\s*[{}]\s*$/,                               // the error object's braces
+  /^\s*(code|errno|syscall|path|requireStack|stack):/,
+  /^Require stack:/,
+  /^-+$/,
+  /^A complete log/,
+];
+
+/** npm's real complaint, for the banner: the last line that is not furniture.
+ *
+ *  Last rather than first, and that is the whole reason this is not npx.mjs's
+ *  summariser under another name. The two read different documents. npm's log
+ *  opens with its codes — `code EACCES`, `syscall mkdir` — and ends with the
+ *  sentence a person can act on, so the last line wins. An npx failure is a Node
+ *  crash dump, which opens with the sentence and ends with a stack, a brace and
+ *  a version banner, so the first signal line wins there. Sharing one function
+ *  would mean picking one of those and being wrong about the other half the
+ *  time; sharing the NOISE list would be the copy this comment exists instead
+ *  of.
+ *
+ *  What was wrong was not the rule but its list. `lastMeaningfulLine` dropped
+ *  `npm ERR!` prefixes, rules and "A complete log", and nothing else — so when
+ *  #535's spawn failed with a MODULE_NOT_FOUND dump, the last surviving line was
+ *  `Node.js v22.11.0`, and that string was the entire explanation the UI gave
+ *  for a failed upgrade. */
 export function lastMeaningfulLine(text) {
   const lines = String(text ?? "").split(/\r?\n/)
     .map(l => l.replace(/^npm (ERR!|WARN)\s*/, "").trim())
-    .filter(l => l && !/^-+$/.test(l) && !/^A complete log/.test(l));
-  return lines.length ? lines[lines.length - 1].slice(0, 300) : "";
+    .filter(l => l && !CRASH_NOISE.some(re => re.test(l)));
+  if (!lines.length) return "";
+  // A line that names an error outranks a later line that does not, because
+  // what survives the filter after one is usually its context rather than its
+  // successor: `Require stack:` is furniture, but the paths listed under it are
+  // not shaped like furniture and would otherwise be the last thing standing.
+  // Still the LAST such line, not the first — npm's own log builds up to its
+  // sentence, and picking the first would answer `code EACCES` where the next
+  // line says which directory and why.
+  const named = lines.filter(l => /(^|\s)[A-Za-z]*Error:/.test(l));
+  const pick = named.length ? named[named.length - 1] : lines[lines.length - 1];
+  return pick.slice(0, 300);
 }
 
 /** Full answer for GET /api/version. Never throws, and answers the local half
