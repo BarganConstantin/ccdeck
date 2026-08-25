@@ -30,7 +30,8 @@ import KeyboardHelp from "./components/KeyboardHelp";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
-import { pruneStaleEntries, measuredNodeIds } from "./prune";
+import { pruneSelection, pruneStaleEntries, measuredNodeIds } from "./prune";
+import { spotlightUnion } from "./spotlight";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { createPauseGate } from "./pause";
@@ -456,35 +457,6 @@ const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
 /** The detail panel's name for the shared bucket lookup. Kept as a local alias
  *  purely so the call sites below read the way they always have. */
 const detailCategoryFor = categoryFor;
-
-/** Compute the spotlight lineage for an agent — itself plus every ancestor
- *  (chain of parentIds) and every descendant (transitive). When no agent
- *  is selected this returns null (no spotlight). */
-function spotlightLineage(state: GraphState, selectedId: string | null): Set<string> | null {
-  if (!selectedId) return null;
-  const set = new Set<string>([selectedId]);
-  // Walk up ancestors
-  let cursor: string | undefined = selectedId;
-  while (cursor) {
-    const a = state.agents.get(cursor);
-    if (!a?.parentId) break;
-    if (set.has(a.parentId)) break;
-    set.add(a.parentId);
-    cursor = a.parentId;
-  }
-  // Walk down descendants (BFS over parentId)
-  let added = true;
-  while (added) {
-    added = false;
-    for (const a of state.agents.values()) {
-      if (a.parentId && set.has(a.parentId) && !set.has(a.id)) {
-        set.add(a.id);
-        added = true;
-      }
-    }
-  }
-  return set;
-}
 
 function snapshotToFlow(
   state: GraphState,
@@ -1384,6 +1356,13 @@ function Inner() {
       // Keep the canvas to the last few finished sessions, so a long day of
       // work doesn't bury the running ones under everything already done.
       if (pruneDoneSessions(stateRef.current, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS)) changed = true;
+      // And the selection along with them, so it never names an agent that has
+      // been evicted (#576). Run unconditionally rather than under `changed`:
+      // a `__clear` over SSE empties the map through applyEvent, which this
+      // tick never hears about. Both updaters return their previous value when
+      // there is nothing to drop, so React bails out and no render happens.
+      setSelectedIds(prev => pruneSelection(prev, stateRef.current.agents));
+      setPrimarySelectedId(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));
       if (changed) rerender();
     }, 250);
     return () => clearInterval(id);
@@ -1687,15 +1666,10 @@ function Inner() {
   // Union spotlight set — lineage of every selected agent merged. Multi-
   // select widens the spotlight without losing the "follow the chain"
   // semantics for a single click.
-  const spotlightSet = useMemo<Set<string> | null>(() => {
-    if (selectedIds.size === 0) return null;
-    const union = new Set<string>();
-    for (const id of selectedIds) {
-      const l = spotlightLineage(stateRef.current, id);
-      if (l) for (const x of l) union.add(x);
-    }
-    return union.size > 0 ? union : null;
-  }, [stateRef.current, stateRef.current.revision, selectedIds]);
+  const spotlightSet = useMemo<Set<string> | null>(
+    () => spotlightUnion(stateRef.current, selectedIds),
+    [stateRef.current, stateRef.current.revision, selectedIds],
+  );
 
   // The visibility set drives BOTH the React Flow nodes prop and the
   // burst overlay's render gate — single source of truth so the two
