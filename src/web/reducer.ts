@@ -118,6 +118,28 @@ export interface GraphState {
    *  envelopes carry. Stays null while talking to a server too old to stamp it. */
   seqEpoch: string | null;
   totalEvents: number;
+  /**
+   * How many times anything in here has changed. The one honest answer to
+   * "should a memo recompute", and the reason it exists rather than `lastSeq`
+   * being used for that.
+   *
+   * `applyEvent` mutates in place and returns the same object, so the state's
+   * identity never moves and a `useMemo` keyed on it depends on its second dep
+   * alone. That dep was `lastSeq` — which only the envelope path writes. The
+   * four periodic sweeps below mutate the same state and never touch it, so
+   * every memo keyed that way kept its cached value after a sweep had changed
+   * the thing it was computing from.
+   *
+   * The visible cost was the alarm surfaces. sweepStaleSessions exists to clear
+   * a `waiting` block left by a terminal that died mid-prompt — its own comment
+   * names the tab title and the favicon as the reason it was written — and the
+   * memos feeding those two never recomputed, so on a quiet deck the title, the
+   * favicon and the amber chip announced the block forever.
+   *
+   * Bumped by every writer, which is the whole contract: a mutation that does
+   * not move this is a mutation nothing on screen will notice.
+   */
+  revision: number;
 }
 
 export function initialState(): GraphState {
@@ -129,6 +151,7 @@ export function initialState(): GraphState {
     lastSeq: 0,
     seqEpoch: null,
     totalEvents: 0,
+    revision: 0,
   };
 }
 
@@ -529,6 +552,18 @@ function releaseToolIds(state: GraphState, a: AgentNodeData): void {
  *  evicting a root with six subagents to get one node back under the cap removes
  *  seven. That is the trade `pruneDoneSessions` has always made for the same
  *  reason, and undershooting a memory bound is the harmless direction. */
+/** Record that a sweep changed something, and pass its answer through.
+ *
+ *  Every sweep here returns a boolean the caller uses to decide whether to
+ *  re-render, and every one of them used to return it without moving anything a
+ *  memo could see — see `revision` on GraphState for what that cost. One helper
+ *  rather than four `state.revision += 1` lines, so the next sweep written here
+ *  has an obvious thing to return through and no way to half-do it. */
+function bump(state: GraphState, changed: boolean): boolean {
+  if (changed) state.revision += 1;
+  return changed;
+}
+
 export function pruneOldAgents(state: GraphState, now: number, cap: number, graceMs: number): boolean {
   if (state.agents.size <= cap) return false;
   // Evictable on its own terms: finished, and finished long enough ago that it
@@ -574,7 +609,7 @@ export function pruneOldAgents(state: GraphState, now: number, cap: number, grac
     for (const k of kids) drop(k.id);
     drop(c.id);
   }
-  return removed > 0;
+  return bump(state, removed > 0);
 }
 
 /** Keep at most `cap` finished sessions on the board, dropping the ones that
@@ -656,7 +691,7 @@ export function pruneDoneSessions(state: GraphState, now: number, cap: number, g
     over--;
     removed = true;
   }
-  return removed;
+  return bump(state, removed);
 }
 
 /** Finalise every in-flight tool call belonging to a CLAUDE session that has
@@ -798,7 +833,7 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
       }
     }
   }
-  return changed;
+  return bump(state, changed);
 }
 
 /**
@@ -957,7 +992,7 @@ export function sweepStaleSessions(state: GraphState, now: number, maxMs: number
     // for the sessions this is not about.
     state.activeSubagentStack.delete(root.sessionId);
   }
-  return changed;
+  return bump(state, changed);
 }
 
 /** The two `notification_type` values Claude Code emits, as the chore each one
@@ -1104,11 +1139,16 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   const name = p.hook_event_name ?? "Unknown";
 
   if (name === "__clear") {
-    return { ...initialState(), lastSeq: env.seq, seqEpoch: state.seqEpoch };
+    // A new object, so identity alone already tells every memo to recompute —
+    // but the counter carries on rather than restarting, because a memo that
+    // cached at revision 7 must not be handed a fresh 0 and conclude nothing
+    // has happened since.
+    return { ...initialState(), lastSeq: env.seq, seqEpoch: state.seqEpoch, revision: state.revision + 1 };
   }
 
   state.totalEvents += 1;
   state.lastSeq = env.seq;
+  state.revision += 1;
 
   const sessionId = p.session_id ?? "unknown";
 

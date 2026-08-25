@@ -1646,7 +1646,7 @@ function Inner() {
     }
     ids.sort();
     return `${ids.join("|")}#sv${sizeVersion}.${domSizeVersion}`;
-  }, [stateRef.current, stateRef.current.lastSeq, now, sizeVersion, domSizeVersion]);
+  }, [stateRef.current, stateRef.current.revision, now, sizeVersion, domSizeVersion]);
 
   // Persist the arrangement whenever it changes, not only when the user drags.
   // Auto-placed nodes are part of what gets restored on reload, so a session
@@ -1695,7 +1695,7 @@ function Inner() {
       if (l) for (const x of l) union.add(x);
     }
     return union.size > 0 ? union : null;
-  }, [stateRef.current, stateRef.current.lastSeq, selectedIds]);
+  }, [stateRef.current, stateRef.current.revision, selectedIds]);
 
   // The visibility set drives BOTH the React Flow nodes prop and the
   // burst overlay's render gate — single source of truth so the two
@@ -1703,7 +1703,7 @@ function Inner() {
   // when an agent was filtered out via one path but not the other).
   const visibleAgentIds = useMemo<Set<string>>(
     () => computeVisibleIds(stateRef.current, now),
-    [stateRef.current, stateRef.current.lastSeq, now],
+    [stateRef.current, stateRef.current.revision, now],
   );
 
   // Width of the canvas column, not the window: the side panels come and go,
@@ -1842,7 +1842,7 @@ function Inner() {
       );
       return flow;
     },
-    [stateRef.current, stateRef.current.lastSeq, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick],
   );
 
   // Invisible per-session drag-handle nodes. One per session, sized to the
@@ -1935,7 +1935,7 @@ function Inner() {
     }
     // Stable order: same as DETAIL_CAT_EMOJI declaration order.
     return (Object.keys(DETAIL_CAT_EMOJI) as DetailCategory[]).filter(c => set.has(c));
-  }, [stateRef.current, stateRef.current.lastSeq]);
+  }, [stateRef.current, stateRef.current.revision]);
   useEffect(() => {
     if (presentCats.length <= 1) { setCatBarOccluded(false); return; }
     let timer = 0;
@@ -2240,11 +2240,11 @@ function Inner() {
    *  than a passing one. */
   const waitingSessions = useMemo(
     () => blockedSessions(stateRef.current.agents.values()),
-    [stateRef.current, stateRef.current.lastSeq],
+    [stateRef.current, stateRef.current.revision],
   );
   const runningSessions = useMemo(
     () => runningSessionCount(stateRef.current.agents.values()),
-    [stateRef.current, stateRef.current.lastSeq],
+    [stateRef.current, stateRef.current.revision],
   );
   // The tab strip — the only surface of this deck that is on screen while the
   // deck is not. The rule lives in ambient.ts, where it can be tested; this is
@@ -2320,7 +2320,7 @@ function Inner() {
       costCacheW += c.cacheWrite;
     }
     return { inT, outT, cacheR, cacheC, sum: inT + outT, cost: { total: costSum, input: costInput, output: costOutput, cacheRead: costCacheR, cacheWrite: costCacheW } };
-  }, [stateRef.current, stateRef.current.lastSeq]);
+  }, [stateRef.current, stateRef.current.revision]);
 
   return (
     <div className="app">
