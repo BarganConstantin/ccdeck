@@ -31,6 +31,7 @@
 // Everything else the deck does still lives in bin/deck.js. This file must stay
 // boring: it is the one process that is never replaced.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,9 +40,9 @@ import { invokedAs } from "../src/server/invoked-as.mjs";
 import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, installedVersion, lastKnownLatest,
-  npxRestartSpec, readRestartFailure, recordRestartFailure,
+  npxRestartSpec, readRestartFailure, recordRestartFailure, successorRoot,
 } from "../src/server/self-update.mjs";
-import { dieOfSignal, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
+import { dieOfSignal, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, unicodeOK } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
@@ -101,6 +102,19 @@ let attempting = null;
 let stopping = false;
 
 function launch(respawn) {
+  // Asked on every spawn rather than once at boot: the deletion this catches
+  // happens while the deck is running, so a constant read at import time would
+  // be the one answer that cannot see it. See supervisor.mjs for the whole case.
+  const replaced = replacedNote({
+    workerExists: existsSync(WORKER),
+    moved: successorRoot(PKG_ROOT),
+    product: PRODUCT,
+    command: INVOKED_AS ?? PRODUCT,
+  });
+  if (replaced) {
+    console.error(replaced);
+    process.exit(1);
+  }
   const args = [WORKER, ...process.argv.slice(2)];
   // Appended last so it wins: the worker's parser keeps the final --port.
   if (respawn && boundPort != null) args.push("--port", String(boundPort));
