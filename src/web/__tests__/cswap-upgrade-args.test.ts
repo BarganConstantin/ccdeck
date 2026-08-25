@@ -6,8 +6,17 @@
 // uv exits 2 on `-m`, runDetached captures nothing, and ensureCswap still
 // answered "upgrading": a daily check that lies forever. These tests pin the
 // command line each installer actually gets.
+//
+// Each case here gives the machine exactly ONE available installer, which is
+// the one shape in which "first tool that answers" and "tool that owns the
+// package" cannot disagree — see cswap-upgrade-owner.test.ts for the shape they
+// can, which is what #579 was. Since #579 the upgrade also asks who owns the
+// install, so every case now has to describe an owning layout as well as an
+// available tool: UV_TOOL_DIR and PIPX_HOME point under the temp home and the
+// owner's venv directory is created per case, which reads the same on all three
+// platforms and touches neither real one.
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -53,33 +62,51 @@ vi.stubGlobal("fetch", async () => ({
 // POSIX and %USERPROFILE% on Windows. Both point at a temp directory BEFORE the
 // module under test loads, so no test here can read or write the real one.
 const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-cswap-upgrade-"));
+// Both installers' package directories, relocated under the temp home by the
+// environment variables each one documents. Naming them explicitly is what
+// keeps this readable from any platform: the real defaults are three different
+// paths per installer, and none of them would be writable here anyway.
+const UV_TOOL_DIR = join(FAKE_HOME, "uv-tools");
+const PIPX_HOME = join(FAKE_HOME, "pipx");
 const prev = {
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
   NO_INSTALL: process.env.AGENTS_DECK_NO_INSTALL,
   CSWAP: process.env.AGENTS_DECK_CSWAP,
+  UV_TOOL_DIR: process.env.UV_TOOL_DIR,
+  PIPX_HOME: process.env.PIPX_HOME,
 };
 process.env.HOME = FAKE_HOME;
 process.env.USERPROFILE = FAKE_HOME;
+process.env.UV_TOOL_DIR = UV_TOOL_DIR;
+process.env.PIPX_HOME = PIPX_HOME;
 delete process.env.AGENTS_DECK_NO_INSTALL;
 delete process.env.AGENTS_DECK_CSWAP;
 
 afterAll(() => {
   for (const [key, was] of [["HOME", prev.HOME], ["USERPROFILE", prev.USERPROFILE],
-    ["AGENTS_DECK_NO_INSTALL", prev.NO_INSTALL], ["AGENTS_DECK_CSWAP", prev.CSWAP]] as const) {
+    ["AGENTS_DECK_NO_INSTALL", prev.NO_INSTALL], ["AGENTS_DECK_CSWAP", prev.CSWAP],
+    ["UV_TOOL_DIR", prev.UV_TOOL_DIR], ["PIPX_HOME", prev.PIPX_HOME]] as const) {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
   rmSync(FAKE_HOME, { recursive: true, force: true });
 });
 
-/** Run one daily check with exactly one installer available. */
-async function upgradeWith(available: (cmd: string) => boolean) {
+/**
+ * Run one daily check with exactly one installer available, on a machine where
+ * that same installer owns the claude-swap that is there.
+ */
+async function upgradeWith(available: (cmd: string) => boolean, owner: "uv" | "pipx" = "uv") {
   detached.length = 0;
   probeOk.is = available;
   // The marker throttles the check to once a day, and the module caches both the
   // resolved binary and the python list — a fresh instance per case.
   rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+  rmSync(UV_TOOL_DIR, { recursive: true, force: true });
+  rmSync(PIPX_HOME, { recursive: true, force: true });
+  mkdirSync(owner === "uv" ? join(UV_TOOL_DIR, "claude-swap") : join(PIPX_HOME, "venvs", "claude-swap"),
+    { recursive: true });
   vi.resetModules();
   // @ts-expect-error — .mjs server module, no types
   const { ensureCswap } = await import("../../server/cswap-install.mjs");
@@ -102,12 +129,12 @@ describe("the background claude-swap upgrade", () => {
     expect(uv.state).toMatchObject({ state: "upgrading", via: "uv" });
     expect(uv.detached).toEqual([{ cmd: "uv", args: ["tool", "upgrade", "claude-swap"] }]);
 
-    const pipx = await upgradeWith(cmd => cmd === "pipx");
+    const pipx = await upgradeWith(cmd => cmd === "pipx", "pipx");
     expect(pipx.state).toMatchObject({ state: "upgrading", via: "pipx" });
     expect(pipx.detached).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
 
     // `py` on Windows, `python3` elsewhere — whichever safePythons found.
-    const py = await upgradeWith(cmd => cmd === "py" || cmd === "python3");
+    const py = await upgradeWith(cmd => cmd === "py" || cmd === "python3", "pipx");
     expect(py.state).toMatchObject({ state: "upgrading" });
     expect(py.state.via).toMatch(/-m pipx$/);
     expect(py.detached).toEqual([
