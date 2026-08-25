@@ -4969,19 +4969,70 @@ button.tool.clickable:last-child { border-bottom: none; }
    they carried the same weight. */
 .uh-agent-share { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
+/* A day is 24px wide and the chart is what scrolls (#539).
+   Every day in here is a real <button> — `onClick`, `aria-pressed`, its own tab
+   stop — so every day is a pointer target and owes SC 2.5.8 a 24px short side.
+   It was not paying it. `.uh-modal` is `min(760px, 100%)` and `*` is
+   `box-sizing: border-box`, so the modal's content box is 760 less 18px of
+   padding a side: 724px, the same figure UsageHistoryModal's own width comment
+   already works in. Each column's `flexBasis` is `100 / days.length %` of that
+   and `min-width: 0` let flex shrink it to whatever the gaps left over:
+
+     7d    (724 - 6)  / 7  = 102.57px
+     14d   (724 - 13) / 14 =  50.79px
+     30d   (724 - 29) / 30 =  23.17px   ← the preset this modal OPENS on
+     90d   (724 - 89) / 90 =   7.06px
+
+   The bottom two are under the floor, and the spacing exception cannot excuse
+   them because the next day's button begins 1px away. At 90d that is ninety
+   7px buttons in a row: a pointer aimed at a day lands on its neighbour, and
+   the breakdown panel below then answers for a date nobody chose — plausibly,
+   with nothing on screen to say it is the wrong one.
+
+   Two levers, and both are needed to leave the default preset exactly where it
+   was. `min-width: 24px` on the column is the floor. The `gap: 1px` goes,
+   because the gap is precisely what pushes 30d over the edge: 30 × 24 is 720
+   and fits inside 724, 720 plus 29px of gap is 749 and does not. Nothing is
+   lost with it — `.uh-bar` is `78%` of its column, so a column already carries
+   11% of empty space on each side, which is 2.6px at the floor and 11px at 7d
+   against the single pixel the gap was contributing.
+
+   So: 7d, 14d and 30d still fit their columns edge to edge inside 724px and
+   nothing about the view this modal opens on moves, while 90d becomes 2160px of
+   chart scrolled inside a 724px box — thirty legible days at a time instead of
+   ninety unaimable slivers. The floor is a floor at any width, which matters
+   because `min(760px, 100%)` shrinks on a narrow window and every preset
+   reaches it sooner there.
+
+   `overflow-x` on the chart rather than left to spill, for the reason #369
+   wrote out at `.usage-panel .cost-bar`: `.uh-modal` declares `overflow: auto`,
+   so an unclaimed overflow in here would have made the DIALOG the sideways
+   scroller — title, totals strip and legend sliding out from under the pointer
+   on the way to the far end of a chart. */
 .uh-chart {
-  display: flex; align-items: flex-end; gap: 1px;
+  display: flex; align-items: flex-end;
   height: 168px; margin-bottom: 10px;
   padding-bottom: 16px; /* room for date labels */
   border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
 }
 .uh-bar-col {
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   height: 100%; position: relative;
   background: none; border: none; padding: 0; cursor: pointer;
-  min-width: 0;
+  min-width: 24px;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+/* The ring goes inside, because the box it would otherwise be drawn outside of
+   is now the edge of a scroll container. `overflow-x: auto` computes
+   `overflow-y` to `auto` as well and both clip at the padding box, so the
+   shared `button:focus-visible` ring — 2px at `outline-offset: 1px` — would
+   lose its top edge on every column and its outer edge on the first and the
+   last. `.canvas-wrap:focus-visible` inset its ring for exactly this reason.
+   -1px puts the whole 2px band between 1px and 3px inside the column, which is
+   the gutter `.uh-bar`'s 78% leaves free, and it is the offset that changes —
+   the ring is still the deck's one ring, drawn by the global rule. */
+.uh-bar-col:focus-visible { outline-offset: -1px; }
 .uh-bar-col:hover .uh-bar { filter: brightness(1.15); }
 /* The column is the target, not the bar drawn inside it — a press on the empty
    space above a short day still selects that day, so the whole column moves. */

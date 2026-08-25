@@ -453,7 +453,10 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // all to the tab order, so what it produced was up to ninety focusable
     // buttons that announced nothing when they took focus. Same shape as the
     // tool-bubble finding in #367: reachable and silent.
-    expect(code(history)).toMatch(/<div className="uh-chart" role="group" aria-label="Daily cost by model">/);
+    // The `ref` in front of the class list is #539's — the chart is a scroller
+    // now and something has to park it on today — so the match allows the
+    // attributes before `className` while still pinning the role and the name.
+    expect(code(history)).toMatch(/<div [^>]*className="uh-chart" role="group" aria-label="Daily cost by model">/);
     expect(code(history)).not.toMatch(/role="img"/);
   });
 

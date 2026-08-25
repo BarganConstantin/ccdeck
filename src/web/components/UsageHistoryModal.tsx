@@ -5,7 +5,7 @@
 //
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fmtCost } from "../pricing";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { createLatestGuard } from "../latest";
@@ -146,6 +146,23 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   // so nothing below can render another range's bars, totals or legend.
   const days = view.phase === "chart" ? landed!.resp.days ?? [] : [];
   const maxCost = useMemo(() => days.reduce((m, d) => Math.max(m, d.totalCost), 0), [days]);
+
+  // #539 gave every day in the chart a 24px floor, which makes the chart a
+  // horizontal scroller at any preset that asks for more days than fit: 90d is
+  // 2160px of bars inside a 724px box. A scroller left where the browser puts
+  // it opens at scrollLeft 0 — three months ago — and the day this panel is
+  // opened to read is today, at the far right. So each time a range's days
+  // land, the chart is parked on its newest column.
+  // Layout effect rather than an ordinary one: it runs before the browser
+  // paints, so the chart never shows a frame of the oldest thirty days and then
+  // jumps. Keyed on `days`, whose identity changes exactly when a new response
+  // for a new range is on screen; at 7d, 14d and 30d there is nothing to scroll
+  // and `scrollLeft` clamps to 0 on its own.
+  const chartRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = chartRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [days]);
 
   // Aggregate totals + per-model cost across the range.
   const { totalCost, totalTok, inOut, cacheRead, modelCosts } = useMemo(() => {
@@ -338,7 +355,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 group keeps the only thing the role was really being used for —
                 the bars are named as one set rather than as loose controls —
                 and leaves each day to speak for itself below. */}
-            <div className="uh-chart" role="group" aria-label="Daily cost by model">
+            <div ref={chartRef} className="uh-chart" role="group" aria-label="Daily cost by model">
               {days.map(d => {
                 const h = maxCost > 0 ? (d.totalCost / maxCost) * 100 : 0;
                 const isSel = d.period === selected;
