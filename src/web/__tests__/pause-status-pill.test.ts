@@ -102,13 +102,18 @@ describe("the count, now that the pill is the thing that carries it", () => {
   it("reserves the widest label its own tone can reach, and nobody else's", () => {
     // Per tone, and that is the decision rather than an implementation detail.
     // The count climbs unbidden and would walk every readout after the pill;
-    // the TONE changes because a user pressed Space. Pinning all three to
-    // `paused · 99+` would spend that worst case permanently to still the one
+    // the TONE changes because a user pressed Space. Pinning all three to the
+    // paused tone's worst case would spend it permanently to still the one
     // transition somebody causes by hand.
     expect(statusPill({ connected: true, paused: false, held: 0 }).widest).toBe("live");
     expect(statusPill({ connected: false, paused: false, held: 0 }).widest).toBe("offline");
+    // `paused · full` since #547 gave the tone a fourth label — one glyph past
+    // `paused · 99+`, and reserved whether or not THIS pill has overflowed,
+    // because a ghost that only appears with the string it is measuring is not
+    // reserving anything.
     for (const held of [0, 1, 9, 10, 42, 99, 100, 150, 999, 123456]) {
-      expect(statusPill({ connected: true, paused: true, held }).widest).toBe(`paused · ${HELD_LABEL_CAP}+`);
+      expect(statusPill({ connected: true, paused: true, held }).widest).toBe("paused · full");
+      expect(statusPill({ connected: true, paused: true, held, dropped: 7 }).widest).toBe("paused · full");
     }
   });
 

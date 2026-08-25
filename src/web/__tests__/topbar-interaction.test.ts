@@ -136,6 +136,16 @@ const transitioned = (value: string | null): string[] =>
 //   Resting `live` is 49.89px, which is its own word and not the paused box —
 //   that is what the per-tone ghost buys, and it is 52.75px of bar that pinning
 //   all three tones to one string would have spent permanently.
+//
+// The figures above were taken when `paused · 99+` was the tone's longest
+// label. #547 gave it a fourth — `paused · full`, for a hold that has reached
+// its ceiling and started dropping — so the reserved box is one glyph wider
+// than those measurements and the whole strip sits that much further right
+// while paused. Deliberately left unremeasured rather than restated from a
+// guess: what the numbers are here for is the SHAPE of the result — one width
+// across every count, and the paused tone's cost charged to the paused tone —
+// and both survive the extra glyph unchanged. The assertions below are on the
+// invariant, not on the pixels.
 
 const PILL = ".topbar .status .pill .pill-box";
 
@@ -160,10 +170,17 @@ describe("the status pill stopped resizing itself (#504)", () => {
 
   it("names a widest label that is one the pill really shows", () => {
     // A ghost string no state can produce would be a box sized for a fiction.
-    // This one is exactly what the pill renders at cap + 1.
+    // Since #547 the longest label the tone reaches is the one it shows once
+    // the hold has filled and started dropping — `paused · full` — so that is
+    // the string the box reserves, and this is the state that renders it.
+    const full = statusPill({ connected: true, paused: true, held: 1000, dropped: 12 });
+    expect(full.widest).toBe(full.label);
+    expect(full.label).toBe("paused · full");
+    // And it really is the longest: the count the pill used to reserve for is
+    // one glyph shorter, which is the whole of what the change costs the bar.
     const over = statusPill({ connected: true, paused: true, held: HELD_LABEL_CAP + 1 });
-    expect(over.widest).toBe(over.label);
-    expect(over.widest).toContain(String(HELD_LABEL_CAP));
+    expect(over.label).toBe(`paused · ${HELD_LABEL_CAP}+`);
+    expect(over.label.length).toBeLessThan(full.label.length);
   });
 
   it("reserves each tone its own worst case and not the loudest one", () => {
@@ -177,8 +194,9 @@ describe("the status pill stopped resizing itself (#504)", () => {
     for (const [state, want] of [
       [{ connected: true, paused: false, held: 0 }, "live"],
       [{ connected: false, paused: true, held: 40 }, "offline"],
-      [{ connected: true, paused: true, held: 0 }, `paused · ${HELD_LABEL_CAP}+`],
-      [{ connected: true, paused: true, held: 150 }, `paused · ${HELD_LABEL_CAP}+`],
+      [{ connected: true, paused: true, held: 0 }, "paused · full"],
+      [{ connected: true, paused: true, held: 150 }, "paused · full"],
+      [{ connected: true, paused: true, held: 1000, dropped: 3 }, "paused · full"],
     ] as const) {
       expect(statusPill(state).widest, JSON.stringify(state)).toBe(want);
     }
@@ -188,16 +206,21 @@ describe("the status pill stopped resizing itself (#504)", () => {
     // Length stands in for width because the pill renders in tabular figures
     // (asserted below), so every digit is the same box. That makes the claim
     // arithmetic rather than typographic: the only count carrying three
-    // characters is `99+`, and every other one carries at most two digits.
+    // characters is `99+`, and every other one carries at most two digits. The
+    // fourth thing the slot can hold is the word `full`, at four — the ghost,
+    // and the only label longer than the capped count.
     const variable = new Set<string>();
     for (const held of [0, 1, 2, 9, 10, 11, 42, 98, 99, 100, 101, 150, 999, 1000, 123456]) {
-      const pill = statusPill({ connected: true, paused: true, held });
-      expect(pill.label.length, `"${pill.label}" is longer than the box`)
-        .toBeLessThanOrEqual(pill.widest.length);
-      const m = /^paused · (.+)$/.exec(pill.label);
-      if (m) variable.add(m[1]);
+      for (const dropped of [0, 5]) {
+        const pill = statusPill({ connected: true, paused: true, held, dropped });
+        expect(pill.label.length, `"${pill.label}" is longer than the box`)
+          .toBeLessThanOrEqual(pill.widest.length);
+        const m = /^paused · (.+)$/.exec(pill.label);
+        if (m) variable.add(m[1]);
+      }
     }
-    expect([...variable].filter(v => v.length > 2)).toEqual([`${HELD_LABEL_CAP}+`]);
+    expect([...variable].filter(v => v.length > 2).sort())
+      .toEqual([`${HELD_LABEL_CAP}+`, "full"]);
   });
 
   it("draws the ghost and the live label in one grid cell, so the box measures the worst case", () => {
@@ -302,7 +325,12 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // And a name, because a glyph has none. The four around it each gained one
     // for the same reason when they moved.
     expect(CONTROL).toMatch(/aria-label=\{PAUSE_LABEL\}/);
-    expect(CONTROL).toMatch(/title=\{pauseTitle\(\{ paused, held: pauseRef\.current\.size \}\)\}/);
+    // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
+    // that named the count without saying the queue had overflowed would be
+    // describing a backlog that will be applied whole when it will not.
+    expect(CONTROL).toMatch(
+      /title=\{pauseTitle\(\{ paused, held: pauseRef\.current\.size, dropped: pauseRef\.current\.dropped \}\)\}/,
+    );
   });
 
   it("reports which of its two states it is in, which its four neighbours need not", () => {
