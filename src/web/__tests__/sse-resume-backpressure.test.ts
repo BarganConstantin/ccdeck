@@ -31,25 +31,46 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 // The production budget for a stalled resumer is 30s, which is the right
 // number for a real `ssh -L` tunnel and the wrong one to sit through here.
-const DRAIN_MS = 500;
+//
+// Not as small as it was, though, and the margin is the point. This budget is
+// what a client gets to flush everything queued ahead of one frame, and what
+// that is, by construction, is a full MAX_CLIENT_BUFFER_BYTES — so shortening
+// it here shortens it relative to the cap. #588 doubled the cap in practice by
+// fixing the accounting that had been halving it, which doubled the flush this
+// has to cover; measured on loopback that is about a quarter of a second
+// against the 500ms this used to be. Two-to-one is not margin. It would not
+// have failed honestly either: overrunning drops the HEALTHY resumer
+// mid-replay, so it surfaces as "timed out waiting for the replay-end
+// sentinel", which reads as a hung server rather than as a budget a hair too
+// short. 1.5s is six times the measured flush.
+const DRAIN_MS = 1_500;
 process.env.AGENTS_DECK_REPLAY_DRAIN_MS = String(DRAIN_MS);
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, MAX_CLIENT_BUFFER_BYTES } = await import("../../server/index.mjs");
 
 let server: Server;
 let port = 0;
 const sockets: Socket[] = [];
 const streams: IncomingMessage[] = [];
 
-// 1MB each, comfortably under the 5MB ingest cap; twenty of them is a ring
-// buffer well past the 8MB per-client bound — and far enough past it that what
-// a stalled client is allowed to receive (the bound, plus the frame that
-// crossed it, plus whatever the two kernels absorb) cannot be mistaken for the
-// whole of it.
+// 1MB each, comfortably under the 5MB ingest cap; forty of them is a ring
+// buffer well past the per-client bound — and far enough past it that what a
+// stalled client is allowed to receive (the bound, plus the frame that crossed
+// it) cannot be mistaken for the whole of it.
 const BLOB = "x".repeat(1024 * 1024);
-const FAT_EVENTS = 20;
-const CAP_PLUS_SLACK = 14 * 1024 * 1024;
+const FAT_EVENTS = 40;
+// The most the flow control can ever have handed a stalled resumer: it stops
+// writing once the queue is over the cap, so what it wrote is at most the cap
+// plus the single frame that carried it there.
+//
+// Derived from the server's own constant rather than written down as a round
+// number. This line used to read `14 * 1024 * 1024` against an 8 MiB cap — six
+// megabytes of slack, which is more than the whole of the 2x accounting error
+// #588 turned out to be, and an assertion whose tolerance exceeds the thing it
+// measures cannot fail for the reason it exists. Bound to the constant, it
+// moves when the constant moves and stays a statement about the code.
+const MOST_A_STALLED_RESUMER_CAN_HOLD = MAX_CLIENT_BUFFER_BYTES + BLOB.length + 4096;
 const primed: number[] = [];
 
 beforeAll(async () => {
@@ -170,8 +191,8 @@ describe("SSE resume backpressure", () => {
   it("holds a resuming client that stops reading to the cap, then hangs up on it", async () => {
     // What it was sent is a fraction of the ring, not the ring: the loop
     // stopped at the cap and waited instead of queueing the rest. Before the
-    // fix this socket was handed all 20MB and was never hung up on at all.
-    expect(await droppedStalledResumer()).toBeLessThan(CAP_PLUS_SLACK);
+    // fix this socket was handed all 40MB and was never hung up on at all.
+    expect(await droppedStalledResumer()).toBeLessThan(MOST_A_STALLED_RESUMER_CAN_HOLD);
 
     // And it was never in the fan-out set to begin with, so hanging up on it
     // cost the live stream nothing.
