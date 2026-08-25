@@ -1,11 +1,11 @@
 // Which of the three published commands the user typed — and nothing else.
 //
-// The deck is on npm three times over: `agents-deck` (what this repo publishes),
-// `agent-dag` (the same tarball under the name it shipped as first) and
-// `ccdeck` (a stub that depends on agents-deck and spawns its bin). Every
-// surface a human reads says ccdeck now, and 95% of the downloads are still on
-// the other two, so nothing closes that split on its own. This file is the
-// evidence behind saying so — once in the terminal, once in the browser.
+// The deck is on npm three times over — `ccdeck`, `agents-deck` and `agent-dag`
+// — and since #340 all three are literally the same tarball, published with
+// `name` set to each in turn. Every surface a human reads says ccdeck now, and
+// most of the downloads are still on the other two, so nothing closes that split
+// on its own. This file is the evidence behind saying so — once in the terminal,
+// once in the browser.
 //
 // Two rules make that safe, and they are the whole of the file.
 //
@@ -15,13 +15,15 @@
 // dead on the one machine where the deck was the thing that would have
 // explained why.
 //
-// And it is never asked of the PACKAGE. `ccdeck/package.json` depends on
-// `agents-deck`, and `ccdeck/bin/ccdeck.js` spawns
-// `../../agents-deck/bin/agent-dag.js` — so "is this build agents-deck?" is
-// true inside every ccdeck run, and a notice keyed on it would scold exactly
-// the people who did what we asked. The question is which name the USER TYPED.
-// That is a different question, with a different answer, and on one platform
-// with no answer at all:
+// And it is never asked of the PACKAGE. That was unarguable while ccdeck was a
+// stub — it depended on `agents-deck` and spawned its bin, so "is this build
+// agents-deck?" was true inside every ccdeck run, and a notice keyed on it would
+// have scolded exactly the people who did what we asked. #340 removed the stub
+// and the rule outlived it, because the three names are now ONE tarball: asking
+// the package what it is gets you whichever name the publish step happened to
+// set last, which is not evidence about the user at all. The question is which
+// name the USER TYPED. That is a different question, with a different answer,
+// and on one platform with no answer at all:
 //
 //   npx, everywhere — npm writes the literal spec into
 //     `_npx/<hash>/package.json` as `_npx.packages`, which npxRestartSpec
@@ -37,7 +39,7 @@
 //
 //   a global install on Windows — nowhere. npm writes <name>.cmd, <name>.ps1
 //     and an extensionless sh shim, each of which runs
-//     `node "…\node_modules\agents-deck\bin\agent-dag.js" %*` (npm's cmd-shim).
+//     `node "…\node_modules\<pkg>\bin\agent-dag.js" %*` (npm's cmd-shim).
 //     The typed name is the shim's FILENAME and never becomes an argument, and
 //     there is no other carrier — npm_config_user_agent and friends are not set
 //     for a direct bin invocation. So Windows answers null.

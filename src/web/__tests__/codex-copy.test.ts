@@ -62,7 +62,6 @@ const appCode = codeOf(read("src", "web", "App.tsx"));
 const nodeCode = codeOf(read("src", "web", "components", "AgentNode.tsx"));
 const deckCode = codeOf(read("bin", "deck.js"));
 const readme = read("README.md");
-const stubReadme = read("ccdeck", "README.md");
 
 /** The four things /api/health can report, including the pair no UI drew before
  *  #402 and the `--no-claude --no-codex` pair that watches nothing. */
@@ -223,23 +222,21 @@ describe("the README tagline, which is the npm page", () => {
   it("stops promising that Codex forks subagents", () => {
     // codexObjToPayload emits six event kinds and neither SubagentStart nor
     // SubagentStop, so a Codex session is a root and its tools — never a tree.
-    for (const text of [readme, stubReadme]) {
-      expect(text).not.toContain("OpenAI Codex fork subagents");
-    }
+    expect(readme).not.toContain("OpenAI Codex fork subagents");
     const server = read("src", "server", "index.mjs");
     const payload = server.slice(server.indexOf("export function codexObjToPayload"));
     expect(payload.slice(0, payload.indexOf("\n}\n"))).not.toContain("Subagent");
   });
 
-  it("says the same thing in both packages, since both are published", () => {
-    // Trimmed rather than compared raw: there is no .gitattributes here, so a
-    // Windows checkout can hand these two files different line endings and the
-    // comparison would fail on the \r rather than on the words.
-    const tagline = (text: string) =>
-      text.split("\n").map(l => l.trim()).find(l => l.startsWith("**A live canvas"));
-    expect(tagline(readme)).toBeTruthy();
-    expect(tagline(stubReadme)).toBe(tagline(readme));
-    expect(tagline(readme)).toContain("Claude Code subagent");
+  it("still carries the tagline the npm pages are read from", () => {
+    // This used to compare two READMEs — the root one and the stub package's —
+    // because ccdeck shipped its own short page and the two could drift. #340
+    // removed the stub, so all three npm pages render this file and there is one
+    // tagline rather than two that had to agree. What is left worth pinning is
+    // that it exists and still says what the packages promise.
+    const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**A live canvas"));
+    expect(tagline).toBeTruthy();
+    expect(tagline).toContain("Claude Code subagent");
   });
 });
 

@@ -1,5 +1,15 @@
 // `npm i -g ccdeck` booted, and then could never update itself.
 //
+// #340 REMOVED the stub: ccdeck is now this tarball republished under a third
+// name, the way agent-dag always was, so a fresh `npm i -g ccdeck` installs the
+// deck directly with nothing nested inside it. This file stays, and so does
+// every layout case in it, because the nested shape does not disappear from the
+// world when it stops being published — it is sitting on the disk of everyone
+// who installed ccdeck before this change, and the code under test is the code
+// that gets them their first upgrade off it. The cases that read the stub's own
+// files are gone; the ones that pin what the DECK does when it finds itself in
+// that layout are the ones that matter now.
+//
 // #351 fixed the half everybody saw: the stub ships nothing but bin/, and it
 // walked one way — `../../agents-deck` — which is right under npx and wrong
 // under a global install, because npm stopped hoisting a global package's
@@ -350,15 +360,11 @@ describe("both layouts #351 taught the stub to find", () => {
     expect(upgradeCommand(sibling)).toBe("npx -y ccdeck@latest");
   });
 
-  it("is still looking in both, which is the half this file cannot run", () => {
-    // stub-global-layout.test.ts spawns the shipped stub in each layout; this
-    // file mocks child_process, so it pins the two paths as text instead. Both
-    // have to stay: a fix that traded one layout for the other would leave one
-    // of the two answers above describing a deck that cannot start.
-    const stub = read("ccdeck", "bin", "ccdeck.js");
-    expect(stub).toContain("'../node_modules/agents-deck'");
-    expect(stub).toContain("'../../agents-deck'");
-  });
+  // A second case here used to read the shipped stub and pin the two relative
+  // joins it tried, because stub-global-layout.test.ts spawned it and this file
+  // cannot. #340 removed the stub, so there is no file to read and no join to
+  // pin — see the note at the top of this file for why the LAYOUT it produced is
+  // still tested above.
 });
 
 describe("the three names, in the two lists that must not drift apart", () => {
@@ -372,17 +378,9 @@ describe("the three names, in the two lists that must not drift apart", () => {
     expect([...ALIAS_PACKAGES].sort()).toEqual(Object.keys(JSON.parse(read("package.json")).bin).sort());
   });
 
-  it("matches the stub CI actually publishes, which is what the rule reads", () => {
-    // The layout test above builds a manifest; this reads the real one. If the
-    // stub stopped being called ccdeck, or stopped declaring the dependency,
-    // hostPackage would find nothing and `npm i -g ccdeck` would quietly go
-    // back to updating the wrong tree.
-    const stub = JSON.parse(read("ccdeck", "package.json"));
-    expect(ALIAS_PACKAGES).toContain(stub.name);
-    expect(typeof stub.dependencies["agents-deck"]).toBe("string");
-    // And CI pins that dependency to the exact version it publishes beside it,
-    // so the nested copy is never a different release from the stub around it.
-    expect(read(".github", "workflows", "publish.yml"))
-      .toContain('npm pkg set dependencies.agents-deck="$VERSION"');
-  });
+  // The case that read `ccdeck/package.json` to confirm the stub CI published
+  // still declared its dependency went with the stub itself (#340). What
+  // replaced it is the assertion in global-alias-name.test.ts that publish.yml
+  // renames the manifest for all THREE names — which is the same guarantee for
+  // a package that no longer has anything nested inside it.
 });

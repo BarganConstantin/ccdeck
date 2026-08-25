@@ -1,6 +1,11 @@
 // `npm i -g agent-dag` had the same defect #358 fixed for `npm i -g ccdeck`,
 // reached by a different route — and was explicitly left out of that change.
 //
+// #340 has since removed the stub, so a FRESH `npm i -g ccdeck` produces the
+// plain global shape like the other two. The "stub" layout in the table below
+// stays because it is still on disk everywhere ccdeck was installed before that
+// change, and the deck has to get those installs their first upgrade off it.
+//
 // #358 taught the deck to read the name it was REACHED under out of the layout
 // npm built, which is the only place the stub's name survives: `npm i -g ccdeck`
 // nests the deck at `<prefix>/lib/node_modules/ccdeck/node_modules/agents-deck`,
@@ -447,5 +452,29 @@ describe("the manifest this all now reads", () => {
     const publish = read(".github", "workflows", "publish.yml");
     expect(publish).toContain("npm pkg set name=agent-dag");
     expect(publish).toContain("npm pkg set name=agents-deck");
+    // ccdeck joined them in #340. It was the one name that was NOT a renamed
+    // republish — a launcher package that depended on agents-deck and spawned
+    // its bin — which is why its own package.json was the thing this rule used
+    // to read. Now all three are the same tarball with `name` set, so all three
+    // carry a manifest naming themselves and the rule below covers them alike.
+    expect(publish).toContain("npm pkg set name=ccdeck");
+  });
+
+  it("publishes every name it renames to, and renames to every name it publishes", () => {
+    // The two halves above are each true on their own and still leave a gap
+    // between them: publish.yml could rename to a fourth name, or stop renaming
+    // to one of the three, and nothing would notice until a release went out
+    // under a name whose tarball has no bin for it.
+    //
+    // Read out of the workflow rather than listed here, so the assertion is
+    // about what CI does and not about a copy of it. `bin` is the other side:
+    // a package published as `ccdeck` that does not provide a `ccdeck` command
+    // installs fine and then cannot be run.
+    const publish = read(".github", "workflows", "publish.yml");
+    const renamed = [...publish.matchAll(/npm pkg set name=([a-z0-9@/-]+)/g)].map(m => m[1]);
+    expect([...new Set(renamed)].sort()).toEqual([...ALIAS_PACKAGES].sort());
+    for (const name of renamed) {
+      expect(Object.keys(JSON.parse(read("package.json")).bin)).toContain(name);
+    }
   });
 });

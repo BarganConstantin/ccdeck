@@ -177,16 +177,9 @@ describe("the two npm badges, which name two different packages", () => {
   });
 });
 
-describe("the stub package's README, which is the ccdeck npm page", () => {
-  const stub = read("ccdeck", "README.md");
-
-  it("embeds no image, so #439's hero is a one-file problem", () => {
-    expect(stub).not.toContain("![");
-  });
-
-  it("carries no disclosure paragraph to move, only the three-beat line", () => {
-    expect(stub).not.toContain(WRITES);
-    expect(stub).not.toContain(NETWORK);
-    expect(stub).toContain("No config file, no account, no telemetry.");
-  });
-});
+// The stub package's own README used to be the ccdeck npm page, and had its own
+// two cases here: no embedded image, no disclosure paragraph. #340 removed the
+// stub — ccdeck is now this tarball republished under a third name — so the
+// ccdeck page renders THIS README, hero and disclosure and all, and every case
+// above applies to it. Nothing was dropped; one of the two pages stopped
+// existing and the other one already had the coverage.

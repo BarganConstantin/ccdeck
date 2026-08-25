@@ -14,7 +14,8 @@
 // running them. This builds the install layout npx produces in a temp
 // directory, runs the SHIPPED bin/agent-dag.js inside it, and gives it a
 // two-line worker that asks for an upgrade and then reports whether it is still
-// alive. The technique is ccdeck-stub-exit.test.ts's.
+// alive. The technique — build a real install layout in a temp directory and
+// run the shipped bin unmodified inside it — is this repo's usual one.
 //
 // The two npx entry points are the only things stubbed, by shadowing them in a
 // sandbox copy of src/server/npx.mjs: no npx runs, nothing is installed and
