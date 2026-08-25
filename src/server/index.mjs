@@ -1749,14 +1749,77 @@ function touchSession(sid) {
 // buffer replays whatever it missed. Dropping individual events instead would
 // leave a hole the resume path cannot even see, the client's last id having
 // moved past it.
-const MAX_CLIENT_BUFFER_BYTES = 8 * 1024 * 1024;
+//
+// The ceiling has to clear the largest SINGLE frame the deck can emit, because
+// one write() of such a frame puts the whole of it in the queue with nothing
+// having had the chance to drain any of it — a client reading at full speed
+// looks, for that instant, exactly like a frozen tab. #588 was exactly that
+// failure: queuedBytes below doubled every reading, so the real ceiling was
+// 4 MiB and one 4 MiB tool response hung up on every subscribed tab at once.
+//
+// So the number is checked against what `POST /api/event` admits rather than
+// left to feel. handleEventIngest caps a body at 5,000,000 CHARACTERS. The
+// event is re-serialized before it goes out, and re-serializing a value that
+// came from JSON.parse of an N-character document cannot exceed N characters —
+// every escape the output needs was already paid for in the input, and \uXXXX
+// input comes back shorter — so one frame is at most 5,000,000 characters, plus
+// this deck's envelope, measured at 127, plus the id/event/data framing. 8 MiB
+// clears that by a little over 1.6x, and is the number this constant has always
+// named; what #588 changed is that it now means it.
+//
+// Characters, not bytes, which is the one misleading thing left in the name.
+// writeSse and writeResume write STRINGS, and a Writable with decodeStrings
+// false — which both an OutgoingMessage and the net.Socket under it are — adds
+// `chunk.length`, i.e. UTF-16 units, to its queue. Measured on Node 22.14: a
+// 4,800,000-character Read of CJK text is 14,400,184 bytes on the wire and
+// `res.writableLength` reports 4,800,311. That is why comparing this against a
+// character-denominated ingest limit is the right comparison and comparing it
+// against a byte count would not be — and it is worth stating plainly, because
+// assuming a unit for writableLength instead of measuring it is the whole
+// shape of the bug this comment exists to explain. The memory behind a full
+// buffer is larger than the number says, up to two bytes per unit while it is
+// held as a string; that is not what the cap is for, which is noticing a client
+// that has stopped reading at all.
+//
+// Exported, with queuedBytes, so the arithmetic can be asserted directly. #588
+// survived because it could only be observed through a live socket, where the
+// existing tests' tolerances were wider than the error.
+export const MAX_CLIENT_BUFFER_BYTES = 8 * 1024 * 1024;
 
-/** Bytes queued for a client: what the response has not handed to the socket
- *  yet, plus what the socket has not handed to the kernel. */
-function queuedBytes(res) {
+/**
+ * What this response has accepted and not yet handed to the kernel, in the
+ * units writableLength reports it in — see MAX_CLIENT_BUFFER_BYTES above, which
+ * is the number this is compared against.
+ *
+ * NOT the sum of the two writableLengths, which is what #588 was: Node's
+ * `OutgoingMessage.writableLength` getter is `outputSize + this[kChunkedLength]
+ * + (socket ? socket.writableLength : 0)`, so the socket's queue is already
+ * inside it. For an SSE response, whose outputSize is zero from the moment the
+ * headers flush, the two readings are the same number exactly — measured on
+ * Node 22.14 against a paused reader, `res.writableLength=4194615
+ * socket.writableLength=4194615` — so adding them reported exactly twice the
+ * real backlog and made an 8 MiB constant behave as a 4 MiB one.
+ *
+ * Why max and not simply `res.writableLength`, which is today's whole answer.
+ * That composition is a Node implementation detail and it has moved before, so
+ * the expression is chosen to survive it moving again. Read the two as an
+ * overlapping pair and take the larger:
+ *   - composed as it is today, `own` already contains `sock`, so `own >= sock`
+ *     and max is `own` — the exact total;
+ *   - were the getter to stop including the socket term, `own` for a flushed
+ *     SSE response is zero and max is `sock` — again the exact total;
+ *   - with the socket detached (`res.socket` null, which happens between the
+ *     response ending and the handle being released) max is `own`, the only
+ *     reading there is.
+ * Every case is right, and the failure mode if some future composition makes
+ * both terms non-zero and disjoint is under-counting by at most 2x — a client
+ * held a little longer than intended, which is the harmless direction. Summing
+ * fails the other way, and dropping readers that are not behind is the bug.
+ */
+export function queuedBytes(res) {
   const own = typeof res.writableLength === "number" ? res.writableLength : 0;
   const sock = res.socket && typeof res.socket.writableLength === "number" ? res.socket.writableLength : 0;
-  return own + sock;
+  return Math.max(own, sock);
 }
 
 /** Hang up on a client we have decided not to keep. `delete` on a response
@@ -1787,6 +1850,14 @@ function writeSse(res, frame) {
 // not accept a byte in any budget, so the only thing a long one buys it is a
 // few more seconds of holding its own buffer. The environment override exists
 // so the tests can pin the drop without sitting through the real budget.
+//
+// It is a budget per awaited frame, and what that frame waits on is everything
+// queued ahead of it draining — a full MAX_CLIENT_BUFFER_BYTES, by
+// construction, since that is what the loop fills to before it stops. So this
+// states a minimum rate a resuming client has to manage, and #588 doubled that
+// flush in practice without touching this line: the cap it is sized against was
+// really 4 MiB and is now the 8 MiB it always said. Still generous — measured
+// on loopback a full cap flushes in about a quarter of a second.
 const REPLAY_DRAIN_MS = Number(process.env.AGENTS_DECK_REPLAY_DRAIN_MS) > 0
   ? Number(process.env.AGENTS_DECK_REPLAY_DRAIN_MS)
   : 30_000;
@@ -1809,10 +1880,12 @@ const REPLAY_DRAIN_MS = Number(process.env.AGENTS_DECK_REPLAY_DRAIN_MS) > 0
  * up on a client that takes nothing at all for REPLAY_DRAIN_MS.
  *
  * The wait is on write()'s completion callback rather than on a 'drain' event:
- * 'drain' only follows a write that was answered false, and a frame can push
- * queuedBytes past the cap while still being answered true, the socket's own
- * pending bytes being one of the two terms in that sum. The callback fires
- * once this chunk —
+ * 'drain' fires only after a write that was answered false, so waiting on it
+ * means depending on an answer this call may never have seen. The cap sits far
+ * above the stream's own 16 KiB high-water mark, so by the time queuedBytes is
+ * at the cap the `false` that a 'drain' would eventually answer belongs to some
+ * frame long since written, and its drain may already have come and gone. The
+ * callback fires once this chunk —
  * and therefore everything queued ahead of it — has reached the OS, which is
  * exactly the condition being waited for. It also fires, with an error we do
  * not need to read, if the response is destroyed underneath us, so this cannot

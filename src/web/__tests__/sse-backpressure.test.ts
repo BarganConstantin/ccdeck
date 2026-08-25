@@ -111,9 +111,15 @@ async function healthySubscriber(): Promise<{ res: IncomingMessage; bytes: () =>
   return { res, bytes: () => bytes };
 }
 
-// 1MB each, comfortably under the 5MB ingest cap; twenty of them is well past
-// the per-client buffer bound.
+// 1MB each, comfortably under the 5MB ingest cap. The loop below posts them
+// until the stalled subscriber is gone rather than a fixed twenty: it takes
+// MAX_CLIENT_BUFFER_BYTES of them plus however many the two kernels absorb in
+// loopback buffers, and that second number is a property of the platform, not
+// a share of any budget this file gets to pick. Measured at 9 on macOS. The
+// ceiling is only there so a failure is a failed assertion rather than a loop
+// that never ends, and stopping early makes the headroom free.
 const BLOB = "x".repeat(1024 * 1024);
+const MOST_FAT_EVENTS = 48;
 function fatEvent(n: number) {
   return { hook_event_name: "PostToolUse", session_id: "sid-fat", cwd: DIR, tool_use_id: `t${n}`, tool_response: BLOB };
 }
@@ -125,7 +131,10 @@ describe("SSE fan-out backpressure", () => {
     await waitForClients(2, "both subscribers registered");
     const before = healthy.bytes();
 
-    for (let i = 0; i < 20; i++) await post("/api/event", fatEvent(i));
+    for (let i = 0; i < MOST_FAT_EVENTS; i++) {
+      await post("/api/event", fatEvent(i));
+      if ((await health()).clients === 1) break;
+    }
 
     // The stalled one is dropped; the reader survives and is still fed.
     await waitForClients(1, "stalled subscriber dropped");
