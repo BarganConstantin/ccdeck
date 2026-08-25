@@ -309,9 +309,21 @@ const pressed = ([, scale, prop]: Press) => (prop === "transform" ? `scale(${sca
 const owner = (sel: string) => sel.replace(/:active.*$/, "");
 
 /** Controls that say `cursor: pointer` and deliberately stay out of the
- *  convention. Empty on purpose: an exception has to be written down here, with
- *  a reason, rather than being the silent default it was until #355. */
-const EXEMPT: string[] = [];
+ *  convention. An exception has to be written down here, with a reason, rather
+ *  than being the silent default it was until #355.
+ *
+ *  The session header pill joined the sweep in #546, when it stopped claiming a
+ *  drag it never had and started saying `cursor: pointer` like the button it
+ *  is. The press cannot follow it there: SessionClusters writes this element's
+ *  `transform` INLINE on every frame — `scale(min(1, zoom) / zoom)`, the
+ *  counter-scale that keeps the label legible through the viewport — and an
+ *  inline style beats a stylesheet rule, so `:active { transform: scale(…) }`
+ *  would be a declaration the browser discards, which is worse than no
+ *  declaration at all. The sheet already says as much a few lines up from the
+ *  cursor: "Don't transition transform — it's used inline for viewport scale."
+ *  What this control gives back on press instead is the hover brightness it
+ *  keeps through the whole gesture, and a fit-view that moves the canvas. */
+const EXEMPT: string[] = [".cluster-label"];
 
 describe("press feedback is one convention, applied everywhere", () => {
   it("gives every one of these controls something to give back on press", () => {

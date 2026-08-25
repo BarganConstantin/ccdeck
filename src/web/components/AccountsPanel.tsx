@@ -1082,12 +1082,29 @@ export default function AccountsPanel({ onClose }: Props) {
                       but a setting you cannot see is worse than a redundant
                       one, and the toggle still decides what happens the moment
                       that terminal loop stops. The terminal's state is shown
-                      beside it instead of replacing it. */}
+                      beside it instead of replacing it.
+
+                      The name is written out because the contents cannot carry
+                      it (#546). A switch names WHAT it controls and reports
+                      whether it is on separately, through aria-checked; this
+                      one had only the word its state is spelled with, so it
+                      announced as "off, switch, off" and, once armed, as "on,
+                      switch, on" — a voice-control user had to say *click off*
+                      to turn it on. `title` could not stand in: the accessible
+                      name algorithm reaches contents before it reaches title,
+                      so the tooltip resolved to a description and the h3 above
+                      it, being nothing but a nearby heading, resolved to
+                      nothing at all. `aria-label` outranks both, which is the
+                      same answer .ap-add, .ap-refresh and the threshold select
+                      were each given in the #381 sweep. It says what the h3
+                      says, so what the reader hears and what a voice-control
+                      user has to pronounce are the words on the screen. */}
                   <button
                     type="button"
                     className={`ap-auto-state${auto.enabled ? " live" : ""}`}
                     role="switch"
                     aria-checked={auto.enabled}
+                    aria-label="Auto-switch"
                     {...pressProps("enable")}
                     onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
                     title={auto.enabled

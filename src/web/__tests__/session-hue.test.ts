@@ -627,13 +627,14 @@ describe("hover keeps its direction when the tier flips", () => {
   };
 
   it("brightens on the dark canvas and deepens on the light one", () => {
+    // `.cluster-label.dragging` was checked here in both themes until #546:
+    // nothing has ever put `dragging` on that element, so both rules were dead
+    // and the two assertions were measuring a state the label cannot be in.
     expect(amount(".cluster-label:hover")).toBeGreaterThan(1);
-    expect(amount(".cluster-label.dragging")).toBeGreaterThan(1);
     expect(amount(':root[data-theme="light"] .cluster-label:hover')).toBeLessThan(1);
-    expect(amount(':root[data-theme="light"] .cluster-label.dragging')).toBeLessThan(1);
   });
 
-  it("never lets a hovered or dragged label drop under 4.5:1, at any hue", () => {
+  it("never lets a hovered label drop under 4.5:1, at any hue", () => {
     // filter applies to the whole pill, so its own background moves with the
     // text. On white, brightness(1.25) cannot lift the paper and only washes
     // out the words: 5.18:1 down to 3.53:1 at the worst hue, which is the
@@ -642,7 +643,7 @@ describe("hover keeps its direction when the tier flips", () => {
       const l = lightnessOf(theme, "--session-label-l");
       // The pill paints --bg in dark and --bg-soft in light (styles.css).
       const pill = surfaces(theme)[theme === "dark" ? "--bg" : "--bg-soft"];
-      for (const state of [":hover", ".dragging"]) {
+      for (const state of [":hover"]) {
         const k = amount(theme === "dark" ? `.cluster-label${state}` : `:root[data-theme="light"] .cluster-label${state}`);
         for (let h = 0; h < 360; h++) {
           const ratio = contrastRatio(brightness(hsl(h, 70, l), k), brightness(pill, k));

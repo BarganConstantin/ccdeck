@@ -455,7 +455,11 @@ const EXEMPT_RINGS = new Set([
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads
   // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
-  ".cluster-label:hover", ".cluster-label.dragging",
+  // `.cluster-label.dragging` was excused beside it until #546 took the rule
+  // out of the sheet: nothing ever put `dragging` on that element, and the
+  // check at the bottom of this describe is the one that would have said so
+  // the moment the exemption outlived what it excused.
+  ".cluster-label:hover",
   // The same shape on a tool burst: a hover lift in the burst's own category
   // hue, over a chip identified by the tool name written across it.
   ".tool-burst.clickable:hover",
@@ -720,9 +724,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",
-      // A draggable label on the canvas, whose rim is a tint of the session
-      // hue and whose floors session-hue.test.ts owns as decoration. It reads
-      // its own name at 4.5:1, which is the identification.
+      // A label on the canvas, whose rim is a tint of the session hue and
+      // whose floors session-hue.test.ts owns as decoration. It reads its own
+      // name at 4.5:1, which is the identification. (It read "draggable" here
+      // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
     ]);
     const swept = new Set<string>();
