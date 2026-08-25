@@ -55,9 +55,15 @@ vi.mock("node:child_process", async () => {
 });
 
 // @ts-expect-error — plain .mjs server module, no types
-import { parsePsProcesses, readProcesses, swapFromSysctl } from "../../server/system-metrics.mjs";
+import { parsePsProcesses, readProcesses, stopSystemMetrics, swapFromSysctl } from "../../server/system-metrics.mjs";
 
-afterEach(() => { spawns.length = 0; });
+// The reading goes with the recorded spawns. Since #544 readProcesses holds the
+// last list it produced for PROC_MIN_GAP_MS and answers anyone who arrives
+// inside that window from it rather than starting a second child — which is the
+// point of it, and which means a case here that wants its own spawn has to say
+// that the previous reading is finished with. stopSystemMetrics is the module's
+// own reset and drops it along with the CPU baseline.
+afterEach(() => { spawns.length = 0; stopSystemMetrics(); });
 
 describe("the locale the sampler's children run in", () => {
   it("is forced to C, whatever the deck itself was started with", async () => {

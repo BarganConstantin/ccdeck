@@ -453,13 +453,66 @@ export function cpuFromDeltas(rows, prev, elapsedMs, limit = TOP_N) {
   return out.slice(0, limit);
 }
 
-/** The process list, on demand only — never on the ambient timer. */
 /** Previous Windows reading, so the next one can be a rate. Cleared with the
  *  rest of the sampler state. */
 let prevProcCpu = null;
 let prevProcAt = 0;
 
+/** The run producing the next list, and the last one that finished. */
+let procInFlight = null;
+let procLast = null; // { at, procs }
+
+/**
+ * How old a finished reading may be and still answer a caller.
+ *
+ * Well under SystemMeter's PROC_POLL_MS of 4000, so the panel that this exists
+ * for never once gets a cached list; long enough that a second tab, a second
+ * browser, or anything else arriving between two of those polls is handed the
+ * list the first tab is already looking at rather than starting its own child.
+ */
+const PROC_MIN_GAP_MS = 1_500;
+
+/**
+ * The process list, on demand only — never on the ambient timer, and never more
+ * than one child at a time.
+ *
+ * #544: /api/system/processes is a GET with no cache, no dedupe and no
+ * throttle, so the number of `powershell.exe Get-Process` children — about six
+ * seconds each — was whatever the caller asked for. That is the cheap half of
+ * the problem. The expensive half is that concurrent readers also overwrote
+ * each other's baseline: cpuFromDeltas needs the PREVIOUS reading's cpuSec per
+ * pid, prevProcCpu/prevProcAt are one shared pair, and two readers each stored
+ * theirs over the other's, so the CPU column came back computed against a
+ * baseline that belonged to somebody else's reading. That is a wrong number on
+ * screen, not merely wasted work, and it needed no attacker at all: one
+ * Get-Process takes longer than the panel's four-second poll, so a single tab
+ * on Windows already overlapped itself.
+ *
+ * One in-flight run fixes both, because one reader means one baseline. Callers
+ * that arrive while a run is going share its promise; callers that arrive just
+ * after one finished are served that reading.
+ */
 export async function readProcesses(platform = process.platform) {
+  const now = Date.now();
+  if (procLast && now - procLast.at < PROC_MIN_GAP_MS) return procLast.procs;
+  if (procInFlight) return procInFlight;
+  // Only a real reading is remembered. Every failure inside readProcessesNow —
+  // a spawn that never started, a non-zero exit, the timeout — resolves to an
+  // empty array, and no machine has nothing running on it, so an empty list is
+  // a failure by construction. Serving one for the next 1.5s would turn a
+  // single hiccup into a blank panel that outlives it; the next caller retries
+  // instead. The in-flight share still applies, so a burst arriving during a
+  // failing read is one failing child, not a burst of them.
+  procInFlight = readProcessesNow(platform)
+    .then(procs => {
+      if (procs.length) procLast = { at: Date.now(), procs };
+      return procs;
+    })
+    .finally(() => { procInFlight = null; });
+  return procInFlight;
+}
+
+async function readProcessesNow(platform) {
   if (platform === "win32") {
     const out = await run("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
@@ -531,6 +584,10 @@ export function stopSystemMetrics() {
   swap = null;
   prevProcCpu = null;
   prevProcAt = 0;
+  // The last list goes with the baseline it was computed against. A sampler
+  // that stopped and started again must not answer the first caller with a
+  // reading from before the stop.
+  procLast = null;
 }
 
 /**

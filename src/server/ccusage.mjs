@@ -30,6 +30,75 @@ const MARKER = path.join(CACHE_DIR, ".last-update-check");
 
 const _cache = new Map(); // key `${since}|${until}` → { result, at }
 
+// How much a read is allowed to cost. /api/ccusage is a GET, deliberately: a
+// cross-site read of the loopback port is an ordinary top-level navigation and
+// isTrustedRead is right not to refuse it. What was missing is a ceiling on
+// what one of those reads may start. Before #544, thirty distinct `since`
+// values were thirty concurrent `node <PKG_DIR>/src/cli.js daily --json`
+// children — each with a ninety-second deadline, each walking the whole
+// ~/.claude log tree, doubled again whenever runDaily retried flagless — and
+// thirty permanent Map entries. isCliDate admits all 10^8 eight-digit strings
+// on purpose (a date outside the logs is ccusage's question to answer, not the
+// deck's to guess at), so the map's key space was 10^8 and its eviction policy
+// was none.
+//
+// Both numbers are set against what the feature does rather than against the
+// attack. The usage-history modal asks for one range at a time and offers three
+// presets, so four ranges outstanding at once is already more than a human
+// clicking as fast as they can, and thirty-two remembered ranges is more than
+// one sitting will ever look at. Whatever exceeds either is not a reader.
+const CACHE_MAX = 32;
+const MAX_OUTSTANDING = 4;
+
+/** Ranges being fetched right now, keyed exactly as `_cache` is, so two callers
+ *  asking the same question wait on one child instead of starting a second. The
+ *  cache alone could never do this: it is written when a run finishes, and the
+ *  whole window this is about is the ninety seconds before that. */
+const _inflight = new Map();
+
+/** The tail of the run queue, and how many runs are alive behind it.
+ *
+ *  Serialised rather than merely counted, because two ccusage runs are two
+ *  walks of the same directory tree: running them at once is slower than
+ *  running them in sequence, so the queue costs a concurrent caller nothing it
+ *  was actually going to get. What it buys is that a flood is one child at a
+ *  time rather than a child per request. */
+let _chain = Promise.resolve();
+let _outstanding = 0;
+
+/** Run `job` after every run already queued, whatever became of them — a run
+ *  that threw must not take the queue down with it. */
+function queued(job) {
+  _outstanding += 1;
+  const started = _chain.then(job, job);
+  _chain = started.then(() => {}, () => {});
+  return started.finally(() => { _outstanding -= 1; });
+}
+
+/**
+ * Remember one range's answer, and keep the map from being somewhere a caller
+ * can grow without limit.
+ *
+ * Entries past CACHE_MS can never be served again, so they are the ones to drop
+ * first; only when dropping all of them is still not enough does the oldest
+ * surviving entry go, which Map's insertion order hands over for free.
+ * Re-writing a key moves it to the back, so the range someone is actually
+ * polling is the last one evicted rather than the first.
+ */
+function rememberRange(key, result, at) {
+  _cache.delete(key);
+  _cache.set(key, { result, at });
+  if (_cache.size <= CACHE_MAX) return;
+  for (const [k, v] of _cache) {
+    if (_cache.size <= CACHE_MAX) break;
+    if (at - v.at >= CACHE_MS) _cache.delete(k);
+  }
+  for (const k of _cache.keys()) {
+    if (_cache.size <= CACHE_MAX) break;
+    _cache.delete(k);
+  }
+}
+
 /**
  * The name to hand cmd.exe for one of npm's Windows shims: its full path when
  * one can be found, and the bare name only when none can.
@@ -835,6 +904,41 @@ export async function fetchCcusageDaily({ since, until, force = false } = {}) {
   const cached = _cache.get(key);
   if (!force && cached && now - cached.at < CACHE_MS) return cached.result;
 
+  // A run for this exact range is already going: join it. `force` joins too,
+  // rather than starting a competing child — what ?refresh=1 asks for is a
+  // reading newer than the cache, and a run still in progress is one.
+  const already = _inflight.get(key);
+  if (already) return already;
+
+  // Refused here, before anything is spawned or remembered. The caller that
+  // reaches this is the fifth distinct range in flight at once, which the modal
+  // cannot produce; queueing it would mean holding a request open behind up to
+  // four ninety-second deadlines, which is a worse answer than saying no.
+  if (_outstanding >= MAX_OUTSTANDING) {
+    return {
+      ok: false,
+      reason: "busy",
+      error: `${MAX_OUTSTANDING} usage ranges are already being read \u2014 try again in a moment`,
+      fetchedAt: now,
+    };
+  }
+
+  const run = queued(() => readRange(sinceArg, until, key))
+    .finally(() => { _inflight.delete(key); });
+  _inflight.set(key, run);
+  return run;
+}
+
+/**
+ * One ccusage run, once the queue has let it through.
+ *
+ * `now` is read here rather than carried in from the call, so `fetchedAt` and
+ * the cache stamp both mean "when this reading was taken" even for a run that
+ * waited its turn. With an empty queue that is the same instant the caller
+ * asked, which is what this always did.
+ */
+async function readRange(sinceArg, until, key) {
+  const now = Date.now();
   let result;
   let ran = null; // the runner that answered, for stamping a bad_output failure
   try {
@@ -892,7 +996,7 @@ export async function fetchCcusageDaily({ since, until, force = false } = {}) {
     };
   }
 
-  _cache.set(key, { result, at: now });
+  rememberRange(key, result, now);
   return result;
 }
 
