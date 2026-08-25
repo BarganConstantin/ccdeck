@@ -109,7 +109,19 @@ interface Props {
 }
 
 export default function SessionList({ state, now, selectedIds, onSelect, onClose }: Props) {
-  const rows = useMemo(() => buildRows(state, now), [state, state.lastSeq, now]);
+  // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
+  // the reducer mutates it in place, so identity never moves and the rest of the
+  // list is the whole of what decides whether this rebuilds. `lastSeq` moves
+  // only when an envelope lands; the periodic sweeps that settle a dead session
+  // and evict a finished one move only `revision`.
+  //
+  // `now` is here on its own merits — every row prints an elapsed time — and it
+  // ticks every 250ms, so this list was never visibly stale the way the usage
+  // panel's was (#575). That is luck, not correctness: the accident that saved
+  // it was a clock with nothing to do with whether the state changed, and the
+  // day someone gives these rows a cheaper refresh rule the bug arrives with no
+  // edit to this line to explain it.
+  const rows = useMemo(() => buildRows(state, now), [state, state.revision, now]);
   const liveCount = rows.filter(r => r.state === "active").length;
   // Permission only, like the topbar chip and the tab strip — and through the
   // same predicate they use, rather than a fourth hand-written copy of it. An
