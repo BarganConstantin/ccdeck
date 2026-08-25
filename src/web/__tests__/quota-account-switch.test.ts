@@ -210,11 +210,23 @@ const web = fileURLToPath(new URL("..", import.meta.url));
 const server = readFileSync(`${web}../server/index.mjs`, "utf8");
 const handler = /async function handleClaudeAccountSwitch[\s\S]*?\n}/.exec(server)?.[0] ?? "";
 
+// These two read the handler's SOURCE, which pins one literal inside one
+// function and nothing else. Worth keeping — this route is otherwise reachable
+// only through a booted HTTP server — but worth being honest about what it
+// cannot see, because the comment that used to sit here got it wrong.
+//
+// It said "nothing else in the deck is in a position to make this call", and
+// that was already false when it was written. The deck-managed auto-switch loop
+// moves the live account on a timer with nobody clicking anything (#582), and no
+// assertion over this function's text could ever have noticed a second caller
+// that never made the call — nor an ordering problem, since it never runs the
+// two things together. That path is covered by driving the real functions, in
+// quota-autoswitch-invalidation.test.ts.
 describe("the switch route", () => {
   it("tells the quota module the account moved, beside the roster it already told", () => {
-    // The whole point of the module-state work above: nothing else in the deck
-    // is in a position to make this call. /api/quota is polled by a component
-    // that never hears about a switch, so ?refresh=1 can never arrive for one.
+    // /api/quota is polled by a component that never hears about a switch, so
+    // ?refresh=1 can never arrive for one: whoever moves the account server-side
+    // has to say so, and this route is one of the two places that do.
     expect(handler).toContain("invalidateClaudeAccountsCache();");
     expect(handler).toContain("invalidateQuotaCache();");
     expect(handler).toContain('join(PKG_ROOT, "src/server/quota.mjs")');

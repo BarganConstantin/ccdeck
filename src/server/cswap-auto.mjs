@@ -11,6 +11,8 @@
 // on and the setting survives restarts.
 import { run } from "./exec.mjs";
 import { cswapBin } from "./cswap-install.mjs";
+import { invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
+import { invalidateQuotaCache } from "./quota.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -98,6 +100,14 @@ function summarise(stdout) {
 
   return {
     event:     action?.event ?? "no-switch",
+    // Whether the LIVE ACCOUNT MOVED, which is a narrower question than which
+    // event came last and the only one the caches care about. Taken over every
+    // event rather than over `action`, so a quarantine or an error emitted after
+    // the switch cannot hide it; and `dryRun` is checked even though this
+    // module's ticks never pass `--dry-run`, because the engine emits the same
+    // `switch` event for a decision it did not carry out, and a false positive
+    // here throws away readings that cost a subprocess each.
+    switched:  events.some(e => e.event === "switch" && e.dryRun !== true),
     reason:    action?.reason ?? null,
     detail:    action?.detail ?? null,
     from:      action?.from ?? null,
@@ -259,6 +269,30 @@ async function tickInterval() {
   return Math.max(MIN_INTERVAL_S, Number.isFinite(raw) ? raw : 60) * 1000;
 }
 
+/**
+ * Everything the deck holds that belongs to ONE Claude account, dropped.
+ *
+ * The accounts roster is keyed on whichever account claude-swap says is active,
+ * and every quota percentage was read for whoever was active when it was
+ * collected. A switch makes both of them the wrong account's, and neither cache
+ * has any way to find that out for itself: they are refreshed on timers, by
+ * panels that were not told.
+ *
+ * The two caches decay at very different rates, which is why saying nothing was
+ * visibly wrong rather than briefly wrong. claude-accounts.mjs holds its roster
+ * for CACHE_MS = 5s, so the panel flips to the new account almost at once, while
+ * quota.mjs holds its result for a CACHE_MS of its own = 60s — and `_lastGood`
+ * outlives even that, coming back under a "stale" label every five seconds until
+ * the store has something to say about the account the deck moved TO. So for up
+ * to a minute, and for longer than that in the fallback, two panels on one screen
+ * described two different accounts, and the wrong one was the big quota bars:
+ * sitting at the 90% that triggered the switch, for an account nobody is on.
+ */
+function forgetAccountScopedCaches() {
+  invalidateClaudeAccountsCache();
+  invalidateQuotaCache();
+}
+
 async function runTick() {
   // Re-check each time: the user can start their own loop at any point, and
   // the deck should fall silent rather than compete with it.
@@ -267,6 +301,17 @@ async function runTick() {
     return;
   }
   const result = await runAutoTick();
+  // Before `_lastTick`, not after. This is the only path in the deck that moves
+  // the live account without a click behind it, so nothing else is in a position
+  // to make the call — and `_lastTick` is what /api/cswap-auto reports, so
+  // dropping the caches first means anything that can see the tick happened is
+  // already looking at caches that know about it.
+  //
+  // Only on a tick that actually switched. A tick is mostly a poll that decides
+  // to do nothing — cooldown, no candidates, nothing over the threshold — and
+  // invalidating on those would throw away readings the deck paid a subprocess
+  // for, every interval, forever.
+  if (result.switched) forgetAccountScopedCaches();
   _lastTick = { at: Date.now(), ...result };
 }
 
