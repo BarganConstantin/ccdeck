@@ -74,6 +74,12 @@ describe("a run its own deadline stopped", () => {
       const base = join(dir, "ccdeck-graceful-cli");
       const restore = asWindows();
       try {
+        // The child's own announcement that it got as far as running. Written
+        // by a plain `>` redirection, which the shell performs itself: no fork,
+        // no PATH lookup and nothing to be slow about, so it sits as close to
+        // the `echo` below as two lines of sh can be.
+        const started = join(dir, "shim-started");
+
         // Handles the deadline's signal and leaves with a success code, the way
         // a tool that shuts down cleanly does — execFile hands that to the
         // callback with no error at all. The loop is bounded so a trap that
@@ -81,23 +87,65 @@ describe("a run its own deadline stopped", () => {
         writeFileSync(`${base}.exe`, [
           "#!/bin/sh",
           "trap 'exit 0' TERM",
+          `: > "${started}"`,
           "echo working",
           "i=0; while [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done",
         ].join("\n") + "\n");
         chmodSync(`${base}.exe`, 0o755);
 
-        // Generous, because the deadline has to outlast the child's STARTUP on
-        // a loaded machine, not just its first write: at 700ms this asserted an
-        // empty stdout whenever the whole suite ran in parallel, since /bin/sh
-        // had not reached `echo` before the clock ran out. The child sleeps 30s,
-        // so a larger deadline still times out — it only stops the test from
-        // measuring how busy the machine is.
-        const first = await run(base, [], { timeout: 3_000 });
+        // A budget, stated as one. It buys exactly one thing: the time this
+        // machine needs to fork /bin/sh, page it in, parse four lines and reach
+        // the first write. It is NOT a claim about run(), and no assertion
+        // below is meant to measure it.
+        //
+        // Nothing about it is safe to trust. Time-to-first-stdout-byte for this
+        // exact shim, over 25 runs on a loaded developer machine: min 9ms,
+        // median 11ms, max 619ms — a scheduler tail two orders of magnitude
+        // above the median, on twelve cores. This number was 700ms once and
+        // asserted an empty stdout whenever the suite ran in parallel; it was
+        // raised to 3,000 and lost again, in the same words, at 3,055ms. A
+        // fourth number would lose too, on a two-core CI runner, and it is the
+        // sentinel above rather than the number here that keeps this honest.
+        const DEADLINE_MS = 3_000;
+        // How many times a runner is allowed to be too busy to start a shell
+        // before this is called a failure. Three deadlines is 9s of the case's
+        // 40s, and a real regression never reaches the second one — see below.
+        const ATTEMPTS = 3;
+
+        let first: any = null;
+        for (let attempt = 1; ; attempt++) {
+          rmSync(started, { force: true });
+          first = await run(base, [], { timeout: DEADLINE_MS });
+          // The sentinel is written BEFORE the echo, so its presence says the
+          // child reached the write and its absence says the child never got
+          // there at all. That is the whole point of it: the two reds this case
+          // used to give were the same red.
+          //
+          //   sentinel there, tail empty  → run() stopped carrying what the
+          //                                 child said out of the deadline,
+          //                                 which is the regression, and it
+          //                                 fails on the FIRST attempt.
+          //   sentinel absent             → the machine could not start
+          //                                 /bin/sh inside the deadline, which
+          //                                 is a fact about the runner and
+          //                                 teaches this case nothing. Retry.
+          if (existsSync(started)) break;
+          if (attempt === ATTEMPTS) {
+            throw new Error(
+              `the shim never started inside ${DEADLINE_MS}ms, ${ATTEMPTS} times running: this machine `
+              + `could not get /bin/sh to its first write in that window, so there was never a tail for `
+              + `run() to carry. Nothing about run() is under test here — raise DEADLINE_MS or run the `
+              + `suite on a quieter machine.`);
+          }
+        }
+
         expect(first.ok).toBe(false);
         expect(first.timedOut).toBe(true);
         // What it printed before it hung survives the deadline: the callback
         // that owns the full buffers is never waited for, and that line is all
-        // a caller has to go on.
+        // a caller has to go on. The sentinel above is what lets this line mean
+        // that and only that — the child demonstrably reached its write, so an
+        // empty tail is run() having dropped it.
         expect(first.stdout).toContain("working");
 
         // A remembered spelling is the ONLY one tried afterwards, so if the run

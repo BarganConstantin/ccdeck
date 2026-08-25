@@ -124,19 +124,61 @@ async function until(ok: () => boolean, ms: number, what: string) {
   throw new Error(`timed out after ${ms}ms waiting for ${what}`);
 }
 
-/** A port nothing is on, taken by binding it and letting go. The deck is given
- *  this on --port so the test can knock on the door before the deck has said
- *  where the door is: the banner that names the port is printed AFTER the
- *  report, which is the very thing being measured. */
-function freePort(): Promise<number> {
-  return new Promise((done, fail) => {
+/** The band this file draws its ports from, and it is deliberately not the
+ *  OS's.
+ *
+ *  The deck is given a port on --port so the test can knock on the door before
+ *  the deck has said where the door is: the banner that names the port is
+ *  printed AFTER the report, which is the very thing being measured. So the
+ *  number has to be chosen up front, and handing a number to a `spawn` means
+ *  letting go of it — while the deck does not bind it until a whole node boot
+ *  and the src/server module graph later, about 1.9 seconds here.
+ *
+ *  `listen(0)` is the wrong way to choose it, because it answers out of the
+ *  ephemeral range — 49152-65535 on macOS and Windows, 32768-60999 on Linux —
+ *  which is the same pool every other `listen(0)` in this suite draws from, and
+ *  more than twenty files here do. Anything asking the OS for an ephemeral port
+ *  inside that 1.9s window can be handed this one, including another vitest
+ *  worker in the same run. The deck then does the right thing and falls back
+ *  into portRange — 4318-4400 — and this test, still knocking on the number it
+ *  chose, reports "the port did not answer while the slow job ran", which is
+ *  #483 regressing, which is not what happened. It also lands the deck inside
+ *  the 4300-4410 range the guard below refuses, for thirty seconds, on a
+ *  developer's own machine.
+ *
+ *  20000-29999 is below every one of those ephemeral ranges, so no OS hands one
+ *  out by accident and only a process asking for that exact number can take it.
+ *  The candidate is still bound before it is used — that is what proves it free
+ *  — and the listener is HELD until the moment of the spawn rather than dropped
+ *  at the moment of the check. */
+const PORT_LO = 20_000;
+const PORT_HI = 29_999;
+
+type Held = { port: number; release: () => Promise<void> };
+
+/** A port this test holds, rather than one it merely found free a moment ago. */
+async function holdPort(): Promise<Held> {
+  for (let tries = 0; tries < 50; tries++) {
+    const port = PORT_LO + Math.floor(Math.random() * (PORT_HI - PORT_LO + 1));
     const s = createServer();
-    s.on("error", fail);
-    s.listen(0, "127.0.0.1", () => {
-      const p = (s.address() as any).port;
-      s.close(() => done(p));
+    const bound = await new Promise<boolean>(done => {
+      s.once("error", () => done(false));
+      s.listen(port, "127.0.0.1", () => done(true));
     });
-  });
+    // A listen that failed never started, and close() on one of those throws
+    // ERR_SERVER_NOT_RUNNING rather than reporting the port taken.
+    if (!bound) { try { s.close(); } catch { /* never listened */ } continue; }
+    return { port, release: () => new Promise<void>(done => { s.close(() => done()); }) };
+  }
+  throw new Error(`no free port in ${PORT_LO}-${PORT_HI} after 50 tries`);
+}
+
+/** The port the deck actually bound, out of the banner it prints at the end of
+ *  the report. `server ready` names the port that was bound rather than the one
+ *  that was asked for, which is exactly the difference this test has to be able
+ *  to see. 0 when the transcript has no URL in it yet. */
+function boundPortIn(text: string): number {
+  return Number(/http:\/\/127\.0\.0\.1:(\d+)/.exec(text)?.[1] ?? 0);
 }
 
 /** GET /api/health, answering false for every way a closed port can say no.
@@ -152,10 +194,14 @@ function health(port: number): Promise<boolean> {
   });
 }
 
-function launch(port: number, out: { text: string }): ChildProcess {
+async function launch(held: Held, out: { text: string }): Promise<ChildProcess> {
+  // Held right up to here. Everything between the pick and this line — the
+  // guard, the fixture, the argv — happens with the port still ours, so the
+  // only window in which it can be taken is the deck's own boot.
+  await held.release();
   const child = spawn(process.execPath, [
     join(PKG, "bin", "deck.js"),
-    "--port", String(port), "--no-open",
+    "--port", String(held.port), "--no-open",
     // --claude, not the machine's answer: every job the report waits on is a
     // Claude Code job, and a runner without Claude Code installed would skip
     // the lot and leave nothing to be slow.
@@ -186,12 +232,15 @@ describe("the port, on a boot whose startup jobs have not settled", () => {
   let port = 0;
 
   beforeAll(async () => {
-    port = await freePort();
+    const held = await holdPort();
+    port = held.port;
     // Never inside 4317–4400: those are the ports a developer's own decks are
-    // on, and this test is going to sit on one for a few seconds.
+    // on, and this test is going to sit on one for a few seconds. Unreachable
+    // by construction now that the band is 20000-29999, and kept because the
+    // band is the thing a later edit would change.
     if (port >= 4300 && port <= 4410) throw new Error(`refusing port ${port}: inside the live-deck range`);
 
-    child = launch(port, out);
+    child = await launch(held, out);
 
     // The whole assertion, in one poll: keep knocking until the deck answers,
     // with the slow job still held open the entire time.
@@ -204,7 +253,36 @@ describe("the port, on a boot whose startup jobs have not settled", () => {
 
     // Let go, and let the boot finish so the rows can be read in order.
     writeFileSync(RELEASE, "go\n");
-    await until(() => /server ready/.test(out.text), 30_000, "the startup report to finish");
+    // Waited for by the LAST row the ordering case reads, not by the
+    // second-to-last. `log` is written after `server ready` and the transcript
+    // arrives in 'data' chunks, so "server ready is there" can be true with the
+    // report one write short — and the ordering case then reads at("log") as
+    // -1 and fails with "expected -1 to be greater than 311", which is this
+    // fixture being early rather than the deck being out of order. Seen once in
+    // 30 loaded runs while verifying #586.
+    await until(() => {
+      const ready = out.text.indexOf("server ready");
+      return ready >= 0 && out.text.indexOf("log") > ready;
+    }, 30_000, "the startup report to finish");
+
+    // Said here, before any assertion runs, because a deck that bound a
+    // different number makes every case below report something that did not
+    // happen: `answered` is false, the transcript names a port this test never
+    // chose, and both read as #483 coming back. They are not that — they are
+    // this fixture having lost the port. The deck's own recovery is correct and
+    // is listen-port-fallback.test.ts's subject, not this file's.
+    const bound = boundPortIn(out.text);
+    if (bound && bound !== port) {
+      throw new Error(`the deck fell back to port ${bound}: the port this test held (${port}) was taken `
+        + `between the release and the deck's own bind. Nothing here failed — startServer tried the `
+        + `port it was given and then a random one from portRange, exactly as it should.`);
+    }
+    // The guard above the launch covers the port this test ASKED for. This one
+    // covers the port the machine actually sees, which is the one a developer's
+    // own deck would be fighting over — and the one the fallback produces.
+    if (bound >= 4300 && bound <= 4410) {
+      throw new Error(`the deck bound ${bound}, inside the live-deck range`);
+    }
   }, 90_000);
 
   afterAll(() => {
@@ -287,11 +365,17 @@ describe("a bind that fails while the startup report is still running", () => {
   let code: number | null = null;
 
   beforeAll(async () => {
-    const port = await freePort();
-    if (port >= 4300 && port <= 4410) throw new Error(`refusing port ${port}: inside the live-deck range`);
+    // The same holder, for the same reason, even though startServer is shimmed
+    // to reject here and never binds anything: one way of choosing a port in
+    // this file, so the next edit cannot reintroduce the other one.
+    const held = await holdPort();
+    if (held.port >= 4300 && held.port <= 4410) {
+      throw new Error(`refusing port ${held.port}: inside the live-deck range`);
+    }
+    await held.release();
     child = spawn(process.execPath, [
       join(FAIL_PKG, "bin", "deck.js"),
-      "--port", String(port), "--no-open", "--claude", "--no-codex",
+      "--port", String(held.port), "--no-open", "--claude", "--no-codex",
       "--history", join(DIR, "fail-events.jsonl"),
     ], {
       stdio: ["ignore", "pipe", "pipe"],

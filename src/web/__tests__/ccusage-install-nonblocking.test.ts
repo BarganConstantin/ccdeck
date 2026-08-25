@@ -21,8 +21,15 @@
 // a synchronous spawn is not a sleep the loop can do something else during.
 // `spawn` spends them off it, and answers through the event loop like the real
 // thing. A timer scheduled BEFORE the prime, due immediately, is then the
-// probe: it cannot fire while the stack is busy, and its lateness is the length
-// of the freeze.
+// probe: it cannot run while the stack is busy, so a blocked loop can only run
+// it AFTER npm has finished.
+//
+// What the probe reports is that ordering, not its own lateness. Lateness is
+// how busy the runner was, and reading it as a freeze is what put this file in
+// #586: a timer 253ms late on a loaded machine failed a 100ms threshold while
+// the deck was behaving perfectly. Whether npm had finished when the timer ran
+// is a fact about where the milliseconds went, and no runner is slow enough to
+// change it.
 //
 // The rest pins what the fix may not cost: the vector npm is handed (#456's
 // absolute `npm.cmd`, the quoted `--prefix` of #362, `windowsHide`, no shell),
@@ -38,9 +45,15 @@ import { basename, join } from "node:path";
 // spawned-argv.ts.
 import { spawnedArgv } from "./spawned-argv";
 
-/** How long one `npm install` takes in this file, on either path. Long enough
- *  that a freeze of that length cannot be mistaken for scheduler jitter, short
- *  enough to pay a handful of times. */
+/** How long one `npm install` takes in this file, on either path.
+ *
+ *  It is the stub's duration and nothing else. No threshold is scaled off it
+ *  any more: both non-blocking assertions below used to be `< NPM_MS / 2`, and
+ *  100ms is inside ordinary scheduler jitter — on a loaded machine, in a full
+ *  suite run, the 0ms timer was seen firing 253ms late and the case went red
+ *  over a claim that was perfectly true. Those two are orderings now, so this
+ *  number can stay small: long enough that the install is genuinely still in
+ *  flight when the assertions read it, short enough to pay seven times. */
 const NPM_MS = 200;
 
 const { calls, npm } = vi.hoisted(() => ({
@@ -199,23 +212,41 @@ describe("the boot-time ccusage install", () => {
   it("gives the event loop back before npm has finished", async () => {
     const said = captured();
     const t0 = Date.now();
-    const fired: number[] = [];
     // Scheduled BEFORE the prime and due immediately, so nothing but a blocked
-    // stack can keep it waiting. This is the probe the issue asked for.
-    setTimeout(() => { fired.push(Date.now() - t0); }, 0);
+    // stack can keep it waiting. This is the probe the issue asked for — and
+    // what it records is not only when it ran but how far npm had got AT THAT
+    // MOMENT, which is what turns the probe from a stopwatch into an ordering.
+    const fired: { late: number; npmFinished: number }[] = [];
+    setTimeout(() => { fired.push({ late: Date.now() - t0, npmFinished: npm.finished }); }, 0);
 
     const state = primeCcusage();
     const returned = Date.now() - t0;
+    const finishedOnReturn = npm.finished;
 
     // The state the deck reports is "the wait was deferred" …
     expect(state).toEqual({ state: "installing" });
-    // … so the call itself must not have paid it.
-    expect.soft(returned, `primeCcusage() itself took ${returned}ms`).toBeLessThan(NPM_MS / 2);
+    // … so the call itself must not have paid it. Said as an ordering rather
+    // than as a duration, because a duration cannot tell a blocked process from
+    // a descheduled one and this file's whole subject is WHERE the milliseconds
+    // are spent. `install` builds its promise with a synchronous executor, so
+    // npm is under way by the time the call returns; the question is only
+    // whether it also FINISHED there. The spawnSync stub's busy-wait increments
+    // both counters before it hands the stack back, so the freeze #476 removed
+    // fails this line on any machine at any speed — and no machine, however
+    // slow, can fail it while the fix is in place.
+    expect.soft(npm.started, `npm had not started when primeCcusage() returned after ${returned}ms`).toBe(1);
+    expect.soft(finishedOnReturn, `primeCcusage() returned after ${returned}ms with npm already finished`).toBe(0);
 
-    // And the loop was genuinely free while npm ran: a timer due at 0ms fired
-    // while the install was still in flight, instead of after it.
+    // And the loop was genuinely free while npm ran: a timer due at 0ms ran
+    // while the install was still in flight, instead of after it. Also an
+    // ordering, and for a sharper reason — node runs expired timers in due
+    // order, so a process descheduled for a second still runs this one before
+    // the timer npm's stub is due on. A late timer is not a blocked one, and
+    // only the pairing tells them apart: under spawnSync the install completes
+    // inside primeCcusage, so `npmFinished` here is 1 however quick the machine.
     await until(() => fired.length === 1, "the timer scheduled before the prime");
-    expect.soft(fired[0], `a timer due at 0ms fired ${fired[0]}ms late`).toBeLessThan(NPM_MS / 2);
+    expect.soft(fired[0].npmFinished,
+      `a timer due at 0ms fired ${fired[0].late}ms late, and npm had already finished by then`).toBe(0);
 
     // The stub is not a no-op, which is what makes the two numbers above mean
     // anything: npm really did take its NPM_MS, and really did install.
