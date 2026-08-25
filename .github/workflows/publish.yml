@@ -34,17 +34,27 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   17 sites gated `skipIf(process.platform === "win32")`
-  #                   run here, plus the `runIf(posix)` and `skipIf(!posix)`
-  #                   families — the widest coverage of the three.
-  #   windows-latest  the whole reason for the matrix. Those 17 sites are
-  #                   *skipped* here, and in exchange the one site gated
-  #                   `skipIf(process.platform !== "win32")` — the drive-colon
-  #                   case in cc-project-slug.test.ts — finally executes. It
-  #                   had never run on any runner before this file, because
-  #                   every CI run this repo had ever done was Linux. Windows
-  #                   is also where this repo's recurring bugs live: .cmd shim
-  #                   resolution, cmd.exe quoting, kill-tree, atomic rename.
+  #   ubuntu-latest   the 15 sites gated `skipIf(process.platform === "win32")`
+  #                   run here, plus the `runIf(posix)` family — the widest
+  #                   coverage of the three. That number is not something a
+  #                   reader has to take on trust: skip-gate-inventory.test.ts
+  #                   reads it back out of this file and fails if it has drifted
+  #                   from src/web/__tests__/skip-gates.mjs, the register the
+  #                   whole suite is checked against. It said 17 here until
+  #                   #585, because #532 deleted two of them along with
+  #                   ccdeck-stub-exit.test.ts and nothing was watching.
+  #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
+  #                   here — 23 skipped cases in all — together with the
+  #                   `runIf(posix)` family and sound-hook-park's read-only
+  #                   directory case, whose probe cannot block a write on
+  #                   Windows. Windows is where this repo's recurring bugs live:
+  #                   .cmd shim resolution, cmd.exe quoting, kill-tree, atomic
+  #                   rename. It used to be the only leg that ran the drive-colon
+  #                   case in cc-project-slug.test.ts, which was gated
+  #                   `skipIf(process.platform !== "win32")`; #585 un-gated it —
+  #                   it compares tails like its three siblings now — so that
+  #                   rule is checked on all three legs and this leg no longer
+  #                   holds a case no other leg can reach.
   #   macos-latest    the account machinery is macOS-specific — cswap reads
   #                   the Keychain item `Claude Code-credentials` — and macOS
   #                   is the only leg with a case-insensitive filesystem, so
@@ -99,44 +109,65 @@ jobs:
       - name: Run tests
         run: npm test -- --reporter=default --reporter=json --outputFile.json=vitest-report.json
 
-      # #376's sharpest point. Exactly one test in the suite is gated
-      # `skipIf(process.platform !== "win32")` — cc-project-slug.test.ts:63,
-      # the drive-colon and backslash case — and "skipped" and "passed" are
-      # both green, so a Windows leg could report success while that test
-      # carried on never running. This step reads the JSON report and fails if
-      # vitest says anything other than `passed`, which turns the acceptance
-      # criterion into something that stays true rather than something that
-      # was observed once.
+      # #376's sharpest point, generalised by #585.
+      #
+      # The first version of this step looked up ONE test by title — the
+      # drive-colon case in cc-project-slug.test.ts, then the only case gated
+      # `skipIf(process.platform !== "win32")` — and failed if vitest said
+      # anything other than `passed`, because "skipped" and "passed" are both
+      # green and a Windows leg could report success while the one case the
+      # Windows leg existed for carried on never running.
+      #
+      # That reasoning was right; the aim was one title too narrow. #585 audited
+      # the other twenty-four gate sites against it and found two things. The
+      # case this step protected did not need its gate at all — it compares
+      # tails like its three siblings now, and runs on every leg, so the title
+      # this step used to look up is not skipped anywhere any more. And six
+      # gates skip on a RUNTIME PROBE rather than on the platform —
+      # `hardLinksWork` at four sites, `readOnlyDirBlocksWrites`, and
+      # `existsSync(dist/web/index.html)`. A platform gate cannot lie; a probe
+      # can start answering the other way and take its case off ALL THREE legs
+      # at once, with a green matrix either side of it. Nothing watched those.
+      #
+      # So the step asks the general question instead: did the suite run every
+      # case it was supposed to, on THIS platform? src/web/__tests__/skip-gates.mjs
+      # is the register — every gate site, and when each is expected to skip, as
+      # a function of the platform — and skip-gate-inventory.test.ts re-derives
+      # the same inventory from the test sources, so a gate added without
+      # registering it goes red rather than quiet. No counts live in this file:
+      # a number in YAML is a second copy of the register, and the "17" that
+      # stood in the comment above for three releases is what a second copy does.
+      #
+      # Every leg, not only Windows. The probe gates are exactly the ones that
+      # vanish everywhere at once, and ubuntu and macOS are where the register
+      # expects ZERO skipped cases — the strongest assertion available anywhere
+      # in this workflow, and it was not being made.
       #
       # `!cancelled()` rather than the default `success()`: when the suite is
-      # red for an unrelated reason, whether the Windows-only test ran is
-      # exactly what you still want to know.
+      # red for an unrelated reason, whether the gated cases ran is exactly what
+      # you still want to know.
       #
       # The report lands under src/web because vitest resolves --outputFile
       # against its own root, which vite.config.ts sets to src/web.
-      - name: Assert the Windows-only test actually ran
-        if: ${{ !cancelled() && runner.os == 'Windows' }}
+      - name: Assert every gated case ran where it was supposed to
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           node --input-type=module -e '
             import { existsSync, readFileSync } from "node:fs";
+            import { pathToFileURL } from "node:url";
             const path = "src/web/vitest-report.json";
-            const wanted = "turns the drive colon and the backslashes into dashes";
+            const register = "src/web/__tests__/skip-gates.mjs";
             if (!existsSync(path)) {
               console.log("::error::no vitest report at " + path + " — the suite never got as far as running");
               process.exit(1);
             }
-            const report = JSON.parse(readFileSync(path, "utf8"));
-            const hit = report.testResults
-              .flatMap((file) => file.assertionResults)
-              .find((test) => test.title === wanted);
-            if (!hit) {
-              console.log("::error::" + wanted + " — not present in the report at all");
-              process.exit(1);
-            }
-            console.log(wanted + " -> " + hit.status);
-            if (hit.status !== "passed") {
-              console.log("::error::the Windows-only test did not run: vitest reported " + hit.status);
+            const { auditReport } = await import(pathToFileURL(register).href);
+            const audit = auditReport(JSON.parse(readFileSync(path, "utf8")), process.platform);
+            for (const line of audit.lines) console.log(line);
+            for (const problem of audit.problems) console.log("::error::" + problem);
+            if (!audit.ok) {
+              console.log("::error::the suite did not run the cases " + register + " says it should have");
               process.exit(1);
             }
           '

@@ -60,8 +60,22 @@ describe("ccProjectSlug", () => {
     expect(/^[a-zA-Z0-9-]+$/.test(slug)).toBe(true);
   });
 
-  it.skipIf(process.platform !== "win32")("turns the drive colon and the backslashes into dashes", () => {
-    expect(ccProjectSlug("C:\\Users\\cbargan\\Desktop\\agent-dag")).toBe("C--Users-cbargan-Desktop-agent-dag");
+  // Un-gated now, like its three siblings above. It used to be
+  // `skipIf(process.platform !== "win32")`, which meant the one rule the
+  // Windows leg of the matrix was added for was also the one rule a
+  // contributor working on ccProjectSlug never saw. The only thing that
+  // differs by platform here is resolve() — on Windows it hands back
+  // "C:\Users\…" unchanged, on POSIX it prepends the process cwd — and the
+  // replace under test does not know what platform it is on. So compare the
+  // tail, exactly as tail() does above, and the drive-colon rule is checked on
+  // all three legs. Windows still reads it as a whole-string match for free,
+  // because there the tail is the whole string.
+  it("turns the drive colon and the backslashes into dashes", () => {
+    const slug = ccProjectSlug("C:\\Users\\cbargan\\Desktop\\agent-dag");
+    expect(slug.endsWith("C--Users-cbargan-Desktop-agent-dag")).toBe(true);
+    // And nothing of the Windows punctuation survived anywhere in it: the
+    // pre-fix rule replaced separators only and left the colon standing.
+    expect(/^[a-zA-Z0-9-]+$/.test(slug)).toBe(true);
   });
 
   it("truncates past 200 characters and keeps long sibling paths apart", () => {
