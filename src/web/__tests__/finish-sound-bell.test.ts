@@ -1,6 +1,6 @@
 // The last resort of the finish sound was a bell that could not ring (#548).
 //
-// `hook/notify.js` walks a list of players and takes the first one that starts.
+// `hook/notify.mjs` walks a list of players and takes the first one that starts.
 // The end of the Linux/BSD list was `["printf", ["\a"]]`, spawned like every
 // other candidate — which means with `stdio: "ignore"`. So the BEL byte the
 // whole entry exists to produce was written to /dev/null, and the comment above
@@ -25,7 +25,7 @@
 // mechanism whichever way it is pointed.
 //
 // The shape of the test follows from what the bug was. The bell is only reached
-// when every player has failed, so each case runs the SHIPPED hook/notify.js in
+// when every player has failed, so each case runs the SHIPPED hook/notify.mjs in
 // a child whose PATH is an empty directory — the headless box from the report,
 // reproducible on a developer laptop — and reads the child's stdout back as
 // bytes. The platform is forced in the same child, so all three candidate lists
@@ -42,7 +42,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const NOTIFY = fileURLToPath(new URL("../../../hook/notify.js", import.meta.url));
+const NOTIFY = fileURLToPath(new URL("../../../hook/notify.mjs", import.meta.url));
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-bell-"));
 afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
@@ -72,7 +72,7 @@ function withoutPath(dir: string): Record<string, string> {
   return env;
 }
 
-// Sets up the two conditions notify.js reads — which platform's list to build,
+// Sets up the two conditions notify.mjs reads — which platform's list to build,
 // and whether stdout is a terminal — and then imports the shipped hook, which
 // does its work on import. `isTTY` is a plain property on the stream, so a pipe
 // can be made to answer like a console and the byte still arrives here where it

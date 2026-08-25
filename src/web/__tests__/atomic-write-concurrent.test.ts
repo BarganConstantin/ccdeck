@@ -151,7 +151,7 @@ describe("two deck tabs toggling the sound within the same few milliseconds", ()
     // Both tabs click the same way, so the two toggles do the same work in the
     // same order and arrive at the temp file together — which is what makes this
     // the reachable version of the bug rather than a contrived one. They race
-    // over notify.js as well as settings.json, and both files have to survive it.
+    // over notify.mjs as well as settings.json, and both files have to survive it.
     const done = await settle([setSoundHook(true), setSoundHook(true)]);
 
     expect(done).toEqual(["fulfilled", "fulfilled"]);

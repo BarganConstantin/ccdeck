@@ -2,7 +2,7 @@
 // turns only" (#394).
 //
 // The sound is one entry in Claude Code's settings.json — a `Stop` hook whose
-// command is notify.js, executed by Claude Code itself at the end of a turn.
+// command is notify.mjs, executed by Claude Code itself at the end of a turn.
 // Codex never reaches it: the deck installs no Codex hooks (it stopped in the
 // commit that introduced Codex support, because they do not fire reliably on
 // Windows) and reads the rollout JSONL files after the fact instead. So a Codex
@@ -171,7 +171,7 @@ describe("the premise the sentence rests on", () => {
     // the assertion. Comments are stripped first: the module header explains at
     // length why Codex is absent, and naming it there is the documentation
     // working, not the feature arriving.
-    for (const parts of [["src", "server", "sound-hook.mjs"], ["hook", "notify.js"]]) {
+    for (const parts of [["src", "server", "sound-hook.mjs"], ["hook", "notify.mjs"]]) {
       expect(codeOf(read(...parts)).toLowerCase(), parts.join("/")).not.toContain("codex");
     }
   });

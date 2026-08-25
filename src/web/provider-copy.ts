@@ -210,7 +210,7 @@ export interface FinishSoundState {
  * The finish-sound toggle's tooltip — including the turns it does NOT cover.
  *
  * This switch is one line in Claude Code's settings.json: a `Stop` hook whose
- * command is notify.js, which Claude Code itself executes at the end of a turn.
+ * command is notify.mjs, which Claude Code itself executes at the end of a turn.
  * Nothing about that reaches Codex. The deck installs no Codex hooks — it
  * stopped in the commit that introduced Codex support, because they do not fire
  * reliably on Windows — and reads the rollout JSONL files instead, after the
@@ -228,7 +228,7 @@ export interface FinishSoundState {
  *     tab this feature exists for. One switch would then mean two different
  *     promises, and the weaker one only where the user is not looking.
  *
- *   - Spawn notify.js from the server when the rollout watcher emits its
+ *   - Spawn notify.mjs from the server when the rollout watcher emits its
  *     synthetic Codex `Stop` (#395 added that event, so the moment is known
  *     now). Closer, but the switch still would not mean one thing: the Claude
  *     sound is a hook on the machine, so it fires once whether zero decks or

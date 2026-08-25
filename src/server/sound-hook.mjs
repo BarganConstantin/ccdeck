@@ -4,7 +4,7 @@
 // command — `afplay …` on macOS, a PowerShell one-liner on Windows — ending in
 // `|| true`. Each is a silent no-op on every other machine, so a settings.json
 // synced across devices ends up with several of them stacked, none of which
-// work everywhere. This installs a single entry pointing at notify.js, which
+// work everywhere. This installs a single entry pointing at notify.mjs, which
 // picks its own player at run time.
 //
 // Only ever touches its own entry, tagged `__agent-dag-sound`. Hooks the user
@@ -21,7 +21,7 @@
 // learn a second provider, src/web/provider-copy.ts's finishSoundTitle is the
 // sentence that has to move with it, and finish-sound-scope.test.ts fails until
 // it does (#394).
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -34,7 +34,32 @@ const PKG_ROOT      = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CLAUDE_DIR    = claudeConfigDir();
 const SETTINGS_PATH = join(CLAUDE_DIR, "settings.json");
 const INSTALL_DIR   = join(CLAUDE_DIR, "agent-dag");
-const NOTIFY_PATH   = join(INSTALL_DIR, "notify.js");
+
+// `.mjs`, and the extension is the whole feature on the machines it matters on.
+//
+// This script is ESM — `import { spawn } from "node:child_process"` on its first
+// executable line — and in the package that is settled by package.json's
+// `"type": "module"` two directories up. Installed, it lands in <claude config
+// dir>/agent-dag/, where there is normally no package.json between it and the
+// filesystem root, so the extension alone decides the format and a `.js` with
+// nothing above it is CommonJS. Node's module-syntax detection rescued that, but
+// only where detection is on by default: v20.19.0 and v22.7.0 and later. The
+// package's own `engines` says `>=18`, and on 18.x, 19.x, 20.0–20.18.x, 21.x and
+// 22.0–22.6.x the Stop hook was a `SyntaxError: Cannot use import statement
+// outside a module` printed at the end of every turn instead of a sound.
+//
+// `.mjs` is ESM on every Node that has ever had ESM, with nothing above it
+// consulted and no detection involved. A package.json beside the script would
+// have been the other spelling of the fix and is the wrong one here: hook.js
+// lives in this same directory, is deliberately CommonJS because that is what
+// this directory's layout means, and a `{"type":"module"}` next to it would
+// break the event forwarder to fix the sound.
+const NOTIFY_NAME     = "notify.mjs";
+const PACKAGED_NOTIFY = join(PKG_ROOT, "hook", NOTIFY_NAME);
+const NOTIFY_PATH     = join(INSTALL_DIR, NOTIFY_NAME);
+// What the same script was called before it declared its own format. Swept once
+// the entry that named it has been rewritten — see sweepLegacySoundScript.
+const LEGACY_NOTIFY_PATH = join(INSTALL_DIR, "notify.js");
 
 const MARK = "__agent-dag-sound";
 const EVENT = "Stop";
@@ -287,7 +312,7 @@ export async function restoreParkedSoundHooks() {
  * Take the toggle off the machine entirely, for `agents-deck --uninstall`.
  *
  * uninstallHooks only knows the `__agent-dag` mark the event forwarders carry;
- * this entry is marked `__agent-dag-sound` and its command points at notify.js,
+ * this entry is marked `__agent-dag-sound` and its command points at notify.mjs,
  * so it used to survive an uninstall and keep playing a sound on every turn. The
  * user's own hooks were the worse half: parked here when the toggle went on,
  * they stayed in a file under ~/.agents-deck that nothing left on the machine
@@ -318,6 +343,116 @@ export async function uninstallSoundHook() {
   const restore = await restoreParkedSoundHooks();
   if (restore.ok === false) return restore;
   return { ok: true, removed, restored: restore.restored ?? 0 };
+}
+
+/**
+ * Our Stop entry, built fresh from this machine's node and this machine's paths.
+ *
+ * One function rather than an object literal in each writer, because the entry
+ * has to be IDENTICAL wherever it comes from: reassertSoundHook decides whether
+ * to rewrite by comparing what is in settings.json against what this returns, so
+ * a second copy of the shape that drifted by a field would make every boot look
+ * like a change and rewrite the user's settings.json forever.
+ */
+function soundHookEntry() {
+  return {
+    [MARK]: true,
+    hooks: [{
+      type: "command",
+      // Absolute node path, matching how the event hooks are installed: the
+      // shell a hook runs in does not necessarily have the user's PATH. And
+      // properly escaped for that shell, for the reason installer.mjs's
+      // hookCommand spells out — NOTIFY_PATH is built from $CLAUDE_CONFIG_DIR,
+      // double quotes do not suppress `$(…)` or a backtick on POSIX, and this
+      // string is executed at the end of every turn.
+      command: soundHookCommand(NOTIFY_PATH),
+      timeout: 5,
+    }],
+  };
+}
+
+/**
+ * Bring the installed sound hook back up to the packaged one, in a settings
+ * object the caller is about to write.
+ *
+ * The forwarder gets this for free: installHooks re-asserts hook.js on every
+ * boot, so a machine that upgrades the deck upgrades the script Claude Code
+ * actually executes. notify.js had exactly one installer — setSoundHook(true) —
+ * so the copy on disk was whatever shipped in the release the user last TOGGLED
+ * THE SOUND ON WITH, and every later release stopped at the package directory.
+ * That is not a theoretical drift: #548 replaced a `printf "\a"` player that
+ * spawned a BEL into `stdio: "ignore"` — silent by construction — and could not
+ * reach a single machine that already had the toggle on, which is precisely the
+ * set of machines it was written for.
+ *
+ * The presence of our entry in settings.json is the whole of the permission
+ * check, and it is deliberately the only one. A user who turned the sound OFF
+ * has no entry, so nothing here writes a script into their config dir on a boot
+ * they asked nothing of; a user who has it ON has already consented to this file
+ * existing, and keeping it current is the deck's job rather than theirs.
+ *
+ * The entry is rebuilt rather than inspected, which is the other half of the
+ * report. settings.json is commonly synced between machines and the command
+ * bakes in `process.execPath` and this machine's $CLAUDE_CONFIG_DIR — so a file
+ * carried over from a laptop names that laptop's node binary inside that
+ * laptop's home directory, soundHookStatus reports `enabled: true`, and the turn
+ * ends in an ENOENT nobody sees. Rewriting it from soundHookEntry() re-derives
+ * both against the machine the deck is running on.
+ *
+ * Mutates `settings` and returns what it did; the caller owns the write, so a
+ * boot that would otherwise change nothing still changes nothing.
+ */
+export async function reassertSoundHook(settings) {
+  const group = settings?.hooks?.[EVENT];
+  if (!Array.isArray(group) || !group.some(isOurs)) return { present: false, script: false, entry: false };
+
+  if (!existsSync(INSTALL_DIR)) await mkdir(INSTALL_DIR, { recursive: true });
+  // Same reason the event forwarder is installed this way: the Stop hook fires
+  // this file from sessions that are already running, so replacing it must not
+  // leave one of them executing a half-copied program. installScript renames a
+  // finished copy over the name, and skips the write entirely when the bytes
+  // already match — which is every boot after the first.
+  const script = await installScript(PACKAGED_NOTIFY, NOTIFY_PATH);
+
+  const rebuilt = soundHookEntry();
+  const wanted = JSON.stringify(rebuilt);
+  const next = [];
+  let entry = false;
+  let kept = false;
+  for (const g of group) {
+    if (!isOurs(g)) { next.push(g); continue; }
+    // More than one of ours is a settings.json that has been merged by hand or
+    // by a sync tool. One sound per turn, so the extras are dropped rather than
+    // rewritten alongside the first.
+    if (kept) { entry = true; continue; }
+    kept = true;
+    if (JSON.stringify(g) !== wanted) entry = true;
+    next.push(rebuilt);
+  }
+  settings.hooks[EVENT] = next;
+  return { present: true, script, entry };
+}
+
+/**
+ * Delete the `notify.js` an older deck installed, now that nothing names it.
+ *
+ * Called AFTER settings.json has been written, and that ordering is the point:
+ * until the new entry is on disk the old command is still what a live Claude
+ * Code session will run at the end of its next turn, and deleting the file it
+ * names would turn a stale sound into a "Cannot find module" in the user's
+ * session. Best-effort on the way out — a Windows lock or a read-only config dir
+ * leaves one stale file behind, which is litter, not a failure worth reporting
+ * over a hook that is now installed correctly.
+ */
+export async function sweepLegacySoundScript() {
+  if (LEGACY_NOTIFY_PATH === NOTIFY_PATH) return false;
+  try {
+    if (!existsSync(LEGACY_NOTIFY_PATH)) return false;
+    await rm(LEGACY_NOTIFY_PATH, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function setSoundHook(enabled) {
@@ -356,24 +491,10 @@ export async function setSoundHook(enabled) {
   if (enabled) {
     if (!existsSync(INSTALL_DIR)) await mkdir(INSTALL_DIR, { recursive: true });
     // Same reason the event forwarder is installed this way: the Stop hook fires
-    // notify.js from sessions that are already running, and toggling the sound
+    // notify.mjs from sessions that are already running, and toggling the sound
     // on must not leave one of them executing a half-copied file.
-    await installScript(join(PKG_ROOT, "hook", "notify.js"), NOTIFY_PATH);
-    others.push({
-      [MARK]: true,
-      hooks: [{
-        type: "command",
-        // Absolute node path, matching how the event hooks are installed: the
-        // shell a hook runs in does not necessarily have the user's PATH. And
-        // properly escaped for that shell, for the reason installer.mjs's
-        // hookCommand spells out — NOTIFY_PATH is built from
-        // $CLAUDE_CONFIG_DIR, double quotes do not suppress `$(…)` or a
-        // backtick on POSIX, and this string is executed at the end of every
-        // turn.
-        command: soundHookCommand(NOTIFY_PATH),
-        timeout: 5,
-      }],
-    });
+    await installScript(PACKAGED_NOTIFY, NOTIFY_PATH);
+    others.push(soundHookEntry());
     settings.hooks[EVENT] = others;
   } else if (others.length) {
     settings.hooks[EVENT] = others;
@@ -382,9 +503,16 @@ export async function setSoundHook(enabled) {
   }
 
   await writeSettings(settings);
+  // Last, and after the write, for the reason sweepLegacySoundScript gives: the
+  // file an older deck installed is only safe to delete once nothing in
+  // settings.json still points at it.
+  if (enabled) await sweepLegacySoundScript();
   return { ok: true, enabled };
 }
 
-// Both paths are exported so a test can prove it is pointed at a sandbox
-// before it writes anything — the real ones are the user's own settings.
-export { SETTINGS_PATH, PARKED_PATH };
+// All four paths are exported so a test can prove it is pointed at a sandbox
+// before it writes anything — the real ones are the user's own settings. The two
+// script paths are also the only honest way for a test to ask where the sound
+// hook ACTUALLY lands: rebuilding `<config dir>/agent-dag/notify.mjs` in the test
+// would keep passing on the day this module started installing somewhere else.
+export { SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH, LEGACY_NOTIFY_PATH };
