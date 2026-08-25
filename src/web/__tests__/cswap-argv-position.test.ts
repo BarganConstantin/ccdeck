@@ -47,6 +47,20 @@
 // place in the suite that takes that line back apart, so the same expectations
 // hold on Linux, macOS and Windows.
 //
+// BOTH SIDES of that have to be normalised, and the first version of this file
+// only did one. The assertions read the recording through `spawnedArgv`; the
+// child_process STUB did not, and keyed its sign-in output off `args[0] ===
+// "auth"`. On Windows args[0] is `/d`, so the stub never printed a link, every
+// `startLogin` polled out its full fifteen seconds, and the five sign-in cases
+// failed there — and only there — with `reason: "no_url"`. A stub standing in
+// for a real child has to read that child's vector the same way the test does.
+//
+// The first describe is what keeps that honest without a `skipIf`, which would
+// re-create the blindness it is meant to catch by only ever running on one leg.
+// `viaCmd` takes its platform as a parameter rather than reading
+// process.platform, so the Windows command line can be built — and the stub
+// asked about it directly — from a Mac.
+//
 // The refusals are the stronger half and need no argv at all: a value the
 // validator rejects must reach NO subprocess, which is asserted as an empty
 // recording rather than as a well-quoted one.
@@ -54,8 +68,18 @@ import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vites
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import type { EventEmitter } from "node:events";
+// The MOCK below, not the real one — which is the point: one test calls the stub
+// with a Windows-shaped vector directly, so its keying is checked on every leg
+// rather than only on the leg that produces that shape.
+import { spawn as spawnStub } from "node:child_process";
 
 import { spawnedArgv } from "./spawned-argv";
+// viaCmd builds the Windows command line on EVERY platform — it passes "win32"
+// to shellQuoteArg explicitly rather than reading process.platform — which is
+// what lets the first describe below check the Windows shape from a Mac.
+// @ts-expect-error — plain JS module, no types
+import { viaCmd } from "../../server/exec.mjs";
 
 // The sandbox, in place BEFORE the module under test is imported: cswap-admin
 // resolves the claude-swap store from $CLAUDE_SWAP_BACKUP or the home directory,
@@ -97,11 +121,24 @@ const LOGIN_URL = "https://claude.ai/oauth/authorize?code=1&state=2";
 // and starts an OAuth flow against the user's own account, and `cswap alias`
 // rewrites the account store — so child_process itself is replaced, one layer
 // below everything exec.mjs decides.
-const { spawns } = vi.hoisted(() => ({
+const { spawns, isLoginSpawn } = vi.hoisted(() => ({
   spawns: [] as { cmd: string; args: string[] }[],
+  /**
+   * Whether a NORMALISED argv — program already dropped — is `claude auth login`.
+   *
+   * Hoisted so the stub below and the test that pins it are the same function
+   * rather than two spellings of the same intention. The word "normalised" is
+   * the whole contract: handed a raw `.args`, this is true on POSIX and false on
+   * Windows, which is the defect it exists to make impossible to reintroduce.
+   */
+  isLoginSpawn: (argv: string[]) => argv[0] === "auth" && argv[1] === "login",
 }));
 vi.mock("node:child_process", async () => {
   const { EventEmitter } = await import("node:events");
+  // The same normaliser the assertions use, imported inside the factory because
+  // vi.mock is hoisted above this file's own imports. Reading the recorded call
+  // through it is not a nicety here — see the stub's own note below.
+  const { spawnedArgv } = await import("./spawned-argv");
 
   // What `run` uses. The callback shape is execFile's: (err, stdout, stderr).
   // Answering asynchronously matters — exec.mjs attaches its stdio listeners and
@@ -132,7 +169,17 @@ vi.mock("node:child_process", async () => {
     // Only the sign-in prints anything, and only the link. The listeners are
     // attached synchronously after spawn returns, so a turn of the loop is
     // enough for them to be there.
-    if (args[0] === "auth" && args[1] === "login") {
+    //
+    // Through spawnedArgv, and this is where the file first got it wrong. The
+    // ASSERTIONS were normalised from the start; the STUB was not, and it asked
+    // `args[0] === "auth"` of the raw record. On Windows `claude` is a `.cmd`
+    // shim, so exec.mjs routes the call through viaCmd and `args` is
+    // ["/d","/s","/c","<one quoted line>"] — args[0] is "/d", the stub stayed
+    // silent, startLogin polled for a url that could never arrive, and all five
+    // sign-in cases failed on that leg alone with `reason: "no_url"` after
+    // burning the full fifteen-second wait. A stub that answers a real child's
+    // vector has to read that vector the same way the test does.
+    if (isLoginSpawn(spawnedArgv({ cmd, args }).slice(1))) {
       setImmediate(() => proc.stdout.emit("data", `${LOGIN_URL}\n`));
     }
     return proc;
@@ -187,6 +234,65 @@ afterAll(() => {
   }
   rmSync(FAKE_HOME, { recursive: true, force: true });
   rmSync(FAKE_STORE, { recursive: true, force: true });
+});
+
+describe("the recorded spawn, in both of the shapes a real one has", () => {
+  // This file's own scaffolding, pinned — because the scaffolding is what broke,
+  // and it broke on exactly one leg of the matrix while the other two stayed
+  // green. `viaCmd` needs no Windows to run, so the shape that only occurs there
+  // is checked from every platform instead of behind a skipIf that would make
+  // this case as blind as the bug was.
+  const LOGIN_ARGS = ["auth", "login", "--email", "a@b.example"];
+
+  it("is a plain vector when the tool is spawned directly, as it is on POSIX", () => {
+    expect(spawnedArgv({ cmd: CLAUDE_BIN, args: LOGIN_ARGS }).slice(1)).toEqual(LOGIN_ARGS);
+  });
+
+  it("is one quoted cmd.exe line when the tool is a .cmd shim, as it is on Windows", () => {
+    const win = viaCmd(CLAUDE_BIN, LOGIN_ARGS);
+
+    // The shape the stub used to be blind to, stated rather than described: four
+    // arguments, and the first is `/d` — never `auth`.
+    expect(win.args).toHaveLength(4);
+    expect(win.args[0]).toBe("/d");
+    expect(spawnedArgv({ cmd: win.file, args: win.args }).slice(1)).toEqual(LOGIN_ARGS);
+  });
+
+  it("is recognised as the sign-in in both shapes, which is what the stub asks", () => {
+    const win = viaCmd(CLAUDE_BIN, LOGIN_ARGS);
+
+    // isLoginSpawn is literally the function the child_process stub calls, so a
+    // regression here is a regression there. Both must answer true.
+    expect(isLoginSpawn(spawnedArgv({ cmd: CLAUDE_BIN, args: LOGIN_ARGS }).slice(1))).toBe(true);
+    expect(isLoginSpawn(spawnedArgv({ cmd: win.file, args: win.args }).slice(1))).toBe(true);
+
+    // And the raw record is exactly what it must NOT be read as. This is the bug
+    // in one line: true on POSIX, false on Windows, which is how five sign-in
+    // cases passed on two legs and failed on the third.
+    expect(isLoginSpawn(LOGIN_ARGS)).toBe(true);
+    expect(isLoginSpawn(win.args)).toBe(false);
+  });
+
+  it("answers a Windows-shaped call with a link, which every leg can check", async () => {
+    // The case that makes the rest of this file honest. The five sign-in tests
+    // below can only exercise the shape the HOST platform produces, so a stub
+    // that reads the raw vector still satisfies them on Linux and macOS — the
+    // regression is invisible on two legs out of three, which is exactly how it
+    // reached CI. Calling the stub directly with a cmd.exe-shaped vector asks it
+    // the Windows question from anywhere.
+    const win = viaCmd(CLAUDE_BIN, LOGIN_ARGS);
+    const proc = spawnStub(win.file, win.args) as unknown as { stdout: EventEmitter };
+
+    const line = await new Promise<string>((resolve, reject) => {
+      const bell = setTimeout(
+        () => reject(new Error("the stub wrote no sign-in link for the cmd.exe shape")),
+        1_000,
+      );
+      proc.stdout.on("data", (d: unknown) => { clearTimeout(bell); resolve(String(d)); });
+    });
+
+    expect(line).toContain("/oauth/authorize?");
+  });
 });
 
 describe("an alias that would be read as a flag rather than stored", () => {
