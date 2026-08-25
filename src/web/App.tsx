@@ -2326,11 +2326,18 @@ function Inner() {
   // committed state rather than a latch advanced during render.
   //
   // The effect depends on the SENTENCE, not on the session list. `waitingSessions`
-  // is rebuilt on every event by way of `lastSeq`, so a list-shaped dependency
-  // would re-run this on every event of every tool storm to discover each time
-  // that nothing had changed. A string dependency runs it only when the words
-  // move, and React's own bail-out on an identical state value means even that
-  // costs no render.
+  // is rebuilt whenever `revision` moves — which is every event AND every sweep,
+  // since #536 — so a list-shaped dependency would re-run this through every
+  // event of every tool storm, and through the 250ms tick besides, to discover
+  // each time that nothing had changed. A string dependency runs it only when
+  // the words move, and React's own bail-out on an identical state value means
+  // even that costs no render.
+  //
+  // This said `lastSeq` until #575. The argument was right and the mechanism
+  // named was not: `lastSeq` advances on the envelope path alone, so by the time
+  // anyone read this sentence it was describing a dependency the memo above no
+  // longer had. A comment that explains a dependency has to be corrected with
+  // it, or it becomes the reason the next person restores the wrong one.
   const [blockedSaid, setBlockedSaid] = useState("");
   const blockedNow = blockedAnnouncement(waitingSessions);
   useEffect(() => {
