@@ -34,6 +34,8 @@ import { join } from "node:path";
 import { candidateSpec, candidates, looksMissing, run, runInteractive } from "../../server/exec.mjs";
 // @ts-expect-error — .mjs server module, no types
 import { quotaClaudeBin } from "../../server/quota.mjs";
+// @ts-expect-error — plain JS module, no types
+import { upgradeSpec } from "../../server/self-update.mjs";
 
 // The reporting machine from #450/#456, as injectable values. Nothing below
 // touches the disk of the machine running the suite: `exists` answers for a
@@ -110,6 +112,52 @@ describe("the Windows command line each run/runInteractive/runDetached caller pr
     expect(launch).toBe(CLAUDE_SHIM);
     // The arguments are still their own tokens, which is the whole of #362.
     expect(tokens.slice(1)).toEqual(["--print", "/usage"]);
+  });
+
+  it("names npm.cmd by its full path for the in-app upgrade — the caller this sweep missed", () => {
+    // self-update.mjs's startUpgrade, and the reason it was not in this list:
+    // it does not go through run/runInteractive/runDetached at all. It called
+    // `spawn("npm.cmd", args, { shell: true })` directly, so #457 swept the
+    // helpers' callers and walked straight past the one place left spelling the
+    // defect out in full — with a comment claiming it matched ccusage, which had
+    // stopped matching it when #456 landed.
+    //
+    // Asked of upgradeSpec rather than through windowsLineFor, because this
+    // caller builds its own vector: there is no candidate list to pick a batch
+    // spelling out of, npm.cmd IS the spelling.
+    const NPM_SHIM = `${APPDATA_NPM}\\npm.cmd`;
+    const { file, args, opts } = upgradeSpec("ccdeck", "win32", winDeps(NPM_SHIM));
+
+    expect(file.toLowerCase()).toContain("cmd");
+    expect(args.slice(0, 3)).toEqual(["/d", "/s", "/c"]);
+    expect(opts.windowsVerbatimArguments).toBe(true);
+    // The half that never bit and would have: `shell: true` joins file and args
+    // with single spaces and no quoting, so the first argument carrying one
+    // would have been #362 again.
+    expect(opts.shell).toBeUndefined();
+
+    const tokens = cmdTokens(args[3]);
+    expect(tokens[0]).not.toBe("npm.cmd");     // the bare token %~dp0 cannot place
+    expect(tokens[0]).toBe(NPM_SHIM);
+    expect(tokens.slice(1)).toEqual(
+      ["install", "-g", "ccdeck@latest", "--no-audit", "--no-fund", "--loglevel", "error"]);
+  });
+
+  it("falls back to the bare name when no npm shim is on PATH, exactly as before", () => {
+    // `?? "npm.cmd"` is the whole safety story: a layout shimPath cannot see is
+    // no worse off than it was, and cmd.exe's own PATH search still gets a turn.
+    const { args } = upgradeSpec("ccdeck", "win32", blindWindows);
+    expect(cmdTokens(args[3])[0]).toBe("npm.cmd");
+  });
+
+  it("leaves POSIX byte-identical to what it always spawned", () => {
+    // Nothing about this is a Windows-shaped change to a POSIX path: `npm` there
+    // is a real executable, isBatch is false, and the vector is the same one.
+    const spec = upgradeSpec("agents-deck", "linux");
+    expect(spec.file).toBe("npm");
+    expect(spec.args).toEqual(
+      ["install", "-g", "agents-deck@latest", "--no-audit", "--no-fund", "--loglevel", "error"]);
+    expect(spec.opts).toEqual({});
   });
 
   it("names it for the accounts panel's identity read too", () => {
