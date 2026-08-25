@@ -675,11 +675,18 @@ export async function moveAccount(num, slot) {
  * Windows it is cmd.exe's two-line "is not recognized …/operable program or
  * batch file.", and `firstUseful` — which takes the LAST line, correctly for
  * every other CLI — leaves the second half on screen by itself.
+ *
+ * The exit status goes to looksMissing beside the text (#552). This is the one
+ * caller with no candidate spelling to compare against, so the shape rules alone
+ * are all the TEXT can offer it — and on a non-English Windows the text says
+ * nothing this recognises. The status does: 9009 is cmd.exe's "no such command"
+ * in every language. Without it, a German user pressing "share…" got the last
+ * line of a translated sentence instead of the sentence about PATH.
  */
 export function failureText(r, what = "cswap") {
   const out = `${r?.stderr ?? ""}\n${r?.stdout ?? ""}`;
   const tool = String(what).split(" ")[0];
-  if (r?.code === "ENOENT" || looksMissing(out)) {
+  if (r?.code === "ENOENT" || looksMissing(out, "", r?.code)) {
     return tool === "claude"
       ? "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE to its full path."
       : "cswap could not be run: not on PATH, and not in the places uv and pipx install to. Set AGENTS_DECK_CSWAP to its full path.";

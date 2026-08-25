@@ -4,8 +4,8 @@
 // link is printed twice inside escape sequences, the removal prompt has no
 // --yes flag and must be answered by matching it, and a shared account is a
 // live credential that has to stop working on its own.
-import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { describe, it, expect, vi, afterAll } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — plain JS module, no types
@@ -13,7 +13,7 @@ import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare,
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
-import { cswapCandidates } from "../../server/cswap-install.mjs";
+import { cswapCandidates, pythonVersionDirs } from "../../server/cswap-install.mjs";
 
 // A stand-in for `claude auth login`, because the login tests need a child that
 // prints its link on cue and then stays alive — a real one cannot be scripted
@@ -369,31 +369,166 @@ describe("failureText", () => {
   });
 });
 
+// ── where Windows really keeps a pip-installed console script (#552) ─────────
+//
+// cswapCandidates is the deck's answer to "PATH cannot see it, so look where the
+// installers put it". Its two Windows Python entries were
+//
+//     %APPDATA%\Python\Scripts
+//     %LOCALAPPDATA%\Programs\Python\Scripts
+//
+// and NEITHER can exist on a real machine. CPython always inserts the
+// interpreter version between the root and `Scripts` — `pip install --user`
+// writes `%APPDATA%\Python\Python312\Scripts`, which is sysconfig's `nt_user`
+// scheme (`{userbase}\Python{version_nodot}\Scripts`), and the per-user
+// installer writes `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`. A user
+// who ran `pip install --user claude-swap` and whose Scripts directory is not on
+// PATH therefore missed every candidate: `cswapVersion` answered null,
+// `ensureCswap` reported `not_on_path`, and the deck re-ran a whole install
+// attempt on every launch for a tool already sitting on the disk.
+//
+// The old test asserted `p.includes("Python\\Scripts")`, which is why this was
+// green for as long as it was: it pinned the literal the code produced instead
+// of a location that exists. The version segment is a fact about the machine, so
+// the fix reads the directory rather than guessing a range of version numbers —
+// and the reader is INJECTED, so the Windows layout stays checkable from a Mac,
+// exactly as `platform` already was.
 describe("cswapCandidates", () => {
   const HOME_WIN = "C:\\Users\\dorin";
   const HOME_NIX = "/home/dorin";
 
+  /** A machine with these interpreter directories under both Python roots. */
+  const withPythons = (...names: string[]) => ({ versionDirs: () => names });
+  /** A machine whose Python roots do not exist at all. */
+  const noPythons = { versionDirs: () => [] as string[] };
+
   it("looks where uv and pipx put it on Windows", () => {
-    const list = cswapCandidates("win32", {}, HOME_WIN);
+    const list = cswapCandidates("win32", {}, HOME_WIN, withPythons("Python312"));
     expect(list.every((p: string) => p.endsWith("cswap.exe"))).toBe(true);
     expect(list.some((p: string) => p.includes("\\.local\\bin\\"))).toBe(true);
-    expect(list.some((p: string) => p.includes("Python\\Scripts"))).toBe(true);
+  });
+
+  it("puts the interpreter version where CPython actually puts it", () => {
+    // Both roots, both with the version segment. `includes` on the whole path
+    // rather than a suffix, because what is being pinned is the SHAPE of the
+    // directory — the thing the old assertion got wrong.
+    const list = cswapCandidates("win32", {}, HOME_WIN, withPythons("Python312"));
+    expect(list).toContain("C:\\Users\\dorin\\AppData\\Roaming\\Python\\Python312\\Scripts\\cswap.exe");
+    expect(list).toContain("C:\\Users\\dorin\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\cswap.exe");
+  });
+
+  it("never builds the version-free path that cannot exist", () => {
+    // The regression itself. Two paths that no installer writes cost two stats
+    // per lookup and, worse, made the miss look like an answer.
+    const list = cswapCandidates("win32", {}, HOME_WIN, withPythons("Python312", "Python313"));
+    expect(list.some((p: string) => /\\Python\\Scripts\\/.test(p))).toBe(false);
+    expect(list.some((p: string) => /\\Programs\\Python\\Scripts\\/.test(p))).toBe(false);
+  });
+
+  it("offers every interpreter on the machine, in the order it was given them", () => {
+    // Two Pythons with a cswap under one of them is the ordinary case for
+    // anyone who has upgraded, and every one of them has to be offered — the
+    // deck cannot know which interpreter the user ran pip with. The order comes
+    // from the reader; see the pythonVersionDirs cases below for what it is.
+    const list = cswapCandidates("win32", {}, HOME_WIN, withPythons("Python313", "Python312", "Python39"))
+      .filter((p: string) => p.includes("\\Roaming\\Python\\"));
+    expect(list.map((p: string) => p.split("\\").slice(-3, -2)[0]))
+      .toEqual(["Python313", "Python312", "Python39"]);
+  });
+
+  it("keeps the tagged builds the installer also writes", () => {
+    // `Python312-32` and `Python313-arm64` are what the per-user installer
+    // leaves for a 32-bit or ARM interpreter beside a 64-bit one.
+    const list = cswapCandidates("win32", {}, HOME_WIN, withPythons("Python312-32", "Python313-arm64"));
+    expect(list.some((p: string) => p.includes("\\Python312-32\\Scripts\\"))).toBe(true);
+    expect(list.some((p: string) => p.includes("\\Python313-arm64\\Scripts\\"))).toBe(true);
+  });
+
+  it("still offers everywhere else when there is no Python at all", () => {
+    // A directory that cannot be read is a miss, never a throw and never a
+    // reason to drop the uv, pipx and scoop locations that have nothing to do
+    // with it. This runs on a poll, at startup, for an optional panel.
+    const list = cswapCandidates("win32", {}, HOME_WIN, noPythons);
+    expect(list.some((p: string) => p.includes("\\.local\\bin\\"))).toBe(true);
+    expect(list.some((p: string) => p.includes("\\scoop\\shims\\"))).toBe(true);
+    expect(list.some((p: string) => p.includes("Python"))).toBe(false);
   });
 
   it("respects a roaming profile's APPDATA rather than assuming the home dir", () => {
-    const list = cswapCandidates("win32", { APPDATA: "\\\\server\\profiles\\dorin\\AppData\\Roaming" }, HOME_WIN);
-    expect(list.some((p: string) => p.startsWith("\\\\server\\profiles\\"))).toBe(true);
+    const list = cswapCandidates("win32",
+      { APPDATA: "\\\\server\\profiles\\dorin\\AppData\\Roaming" }, HOME_WIN, withPythons("Python312"));
+    expect(list).toContain("\\\\server\\profiles\\dorin\\AppData\\Roaming\\Python\\Python312\\Scripts\\cswap.exe");
   });
 
   it("puts explicit configuration first, on every platform", () => {
     expect(cswapCandidates("linux", { UV_TOOL_BIN_DIR: "/opt/uvbin" }, HOME_NIX)[0]).toBe("/opt/uvbin/cswap");
-    expect(cswapCandidates("win32", { UV_TOOL_BIN_DIR: "D:\\bin" }, HOME_WIN)[0]).toBe("D:\\bin\\cswap.exe");
+    expect(cswapCandidates("win32", { UV_TOOL_BIN_DIR: "D:\\bin" }, HOME_WIN, noPythons)[0]).toBe("D:\\bin\\cswap.exe");
   });
 
   it("includes uv's own tool venv, which exists even when the symlink was never made", () => {
     expect(cswapCandidates("darwin", {}, HOME_NIX))
       .toContain("/home/dorin/.local/share/uv/tools/claude-swap/bin/cswap");
   });
+
+  it("reads no directory at all on POSIX, where the path carries no version", () => {
+    // `~/.local/bin` is version-free and always was, so the POSIX list must stay
+    // a pure string build: no stat, no readdir, nothing that can be slow or
+    // refused on the platform where this was never wrong.
+    let asked = 0;
+    cswapCandidates("linux", {}, HOME_NIX, { versionDirs: () => { asked++; return []; } });
+    cswapCandidates("darwin", {}, HOME_NIX, { versionDirs: () => { asked++; return []; } });
+    expect(asked).toBe(0);
+  });
+});
+
+// The reader cswapCandidates injects a substitute for above, against real
+// directories on whatever OS is running the suite. Nothing here is
+// Windows-specific except the NAMES — a directory called `Python312` is a
+// directory called `Python312` on every filesystem — so the rule that decides
+// which of them is an interpreter, and the order they come back in, is checkable
+// from all three CI legs rather than one.
+describe("pythonVersionDirs", () => {
+  const root = mkdtempSync(join(tmpdir(), "ccdeck-pythons-"));
+  for (const name of ["Python39", "Python313", "Python312", "Python312-32", "Scripts", "notpython", "share"]) {
+    mkdirSync(join(root, name));
+  }
+  writeFileSync(join(root, "Python400.txt"), "not a directory\n");
+
+  it("takes the interpreter directories and leaves everything else", () => {
+    const found = pythonVersionDirs(root);
+    expect(found).toContain("Python313");
+    expect(found).toContain("Python312-32");
+    // `Scripts` is the thing that goes INSIDE one of these, and the version-free
+    // path the old code built was exactly this confusion.
+    expect(found).not.toContain("Scripts");
+    expect(found).not.toContain("notpython");
+    expect(found).not.toContain("share");
+    // A file, not a directory, however plausibly it is named.
+    expect(found).not.toContain("Python400.txt");
+  });
+
+  it("puts the newest interpreter first, numerically", () => {
+    // The probe order. `Python39` must not sort above `Python313` just because
+    // `3` precedes `9` as a character — which is what a plain string sort does,
+    // and it would put a five-year-old interpreter in front of the current one.
+    expect(pythonVersionDirs(root)).toEqual(["Python313", "Python312-32", "Python312", "Python39"]);
+  });
+
+  it("answers nothing for a directory that is not there, rather than throwing", () => {
+    // %APPDATA%\Python simply does not exist on a machine with no user-installed
+    // Python, and this runs unprompted at startup for an optional panel.
+    expect(pythonVersionDirs(join(root, "no-such-directory"))).toEqual([]);
+    expect(pythonVersionDirs("")).toEqual([]);
+  });
+
+  it("answers nothing for a directory that has gone away mid-session", () => {
+    // An uninstall, a roaming profile still syncing, a network drive that
+    // dropped. Same answer as never having been there.
+    rmSync(root, { recursive: true, force: true });
+    expect(pythonVersionDirs(root)).toEqual([]);
+  });
+
+  afterAll(() => { rmSync(root, { recursive: true, force: true }); });
 });
 
 // Two sign-ins overlap more easily than it sounds: the CLI is slow to print its
