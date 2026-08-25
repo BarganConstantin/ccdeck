@@ -66,6 +66,11 @@
 // fields somebody happened to name. There turn out to be six such routes, not
 // three.
 //
+// It earned its keep immediately: the two routes it found that were in nobody's
+// list — `/api/version` and `/api/claude-accounts` — were reported as #604 and
+// fixed there, and their rows below record what they hold now rather than the
+// gap they held when this file was written.
+//
 // PLAIN NODE, no DOM. Everything is read out of a temp CODEX_HOME seeded by this
 // file, and both home variables are redirected before the module loads, so no
 // case here can reach the real ~/.codex of whoever is running the suite.
@@ -346,14 +351,22 @@ describe("the unforced background poll, which the guard must not break", () => {
 
 // ── the census ──────────────────────────────────────────────────────────────
 //
-// Three endpoints have now needed this guard and each got its own hand-written
-// copy, which is why nobody noticed the third was missing. The durable answer to
-// that is not a fourth copy and — see the pull request — not a shared helper
-// either, because the three are not the same shape: quota.mjs also carries
-// `_lastGood`, a 429 cooldown, a self-poll floor and a generation guard, and
-// codex-quota.mjs a refresh-token cooldown, while this module has neither. What
-// IS worth having is something that counts, so that the next omission is a
-// missing call rather than a missing idea.
+// Five endpoints have now needed this guard and each got its own hand-written
+// copy, which is why nobody noticed the third was missing and why nobody had
+// looked at the fourth and fifth at all. The durable answer to that is not a
+// sixth copy and — see #604's pull request, which re-tested the question at six
+// routes rather than inheriting #600's answer at three — not a shared helper
+// either. What the five share is a three-line sequence, `cache → join → floor`,
+// and what they do not share is everything around it: quota.mjs carries
+// `_lastGood`, a 429 cooldown, a self-poll floor with a second interval and a
+// generation guard; codex-quota.mjs a refresh-token cooldown; self-update.mjs a
+// window that lives in a FILE shared between processes, with a retry window and
+// a pending-version window on top of it and a version string rather than a
+// reading as its answer; claude-accounts.mjs a generation guard of its own, for
+// the nine call sites that invalidate it. A helper covering the common part would
+// fit two of the six cleanly and would have to be escaped from by the other four,
+// and it would not have prevented a single one of the omissions — every one of
+// them was a route nobody had counted.
 //
 // So this block enumerates instead of asserting about the endpoints somebody
 // happened to name. It reads index.mjs, finds every handler that turns
@@ -361,11 +374,11 @@ describe("the unforced background poll, which the guard must not break", () => {
 // function each one forces, and then reads those modules and records what each
 // keeps between a forced caller and the work.
 //
-// The table below is a census of what IS, not a list of what is permitted. Two
-// of its rows record less than this one now has, and they are recorded rather
-// than fixed because #600 is one issue: `/api/version` and `/api/claude-accounts`
-// are separate findings and are named as such in the pull request. A row that
-// stops matching — because an endpoint gained a guard, or lost one — is the
+// The table below is a census of what IS, not a list of what is permitted — with
+// one rule on top of it, which is the part that stands in for the helper: a
+// forcible route either has a floor, or carries a written reason it does not need
+// one. `/api/ccusage` is the single exemption and its reason is on its row. A row
+// that stops matching — because an endpoint gained a guard, or lost one — is the
 // census asking to be updated, and updating it is a one-line edit.
 
 /** Read a server module the way the rest of this suite reads them. */
@@ -421,43 +434,68 @@ function forcedReadRoutes(indexSource: string) {
   return rows;
 }
 
-/** The census. One row per route that accepts `?refresh=1`. */
-const CENSUS: Record<string, { module: string; fn: string; guards: string[]; note: string }> = {
+/**
+ * The census. One row per route that accepts `?refresh=1`.
+ *
+ * `predicate` is the exported rule that applies the floor — the one name per
+ * module a test can point at, and the one place FORCE_POLL_MS is turned into a
+ * yes or a no. `insteadOfFloor` is the only way a row is allowed to have no
+ * floor at all, and it has to say what bounds the cost instead.
+ */
+const CENSUS: Record<string, {
+  module: string; fn: string; guards: string[]; note: string;
+  predicate?: string; insteadOfFloor?: string;
+}> = {
   "/api/version": {
-    module: "self-update.mjs", fn: "versionReport", guards: ["inflight"],
-    note: "Joins a check already running, but `checkDue` returns true on `force` "
-        + "before anything else is asked, so a sequential ?refresh=1 loop is one "
-        + "npm registry GET per request. Same shape as #580, different endpoint; "
-        + "out of scope for #600 and reported separately.",
+    module: "self-update.mjs", fn: "versionReport", guards: ["floor", "inflight"],
+    predicate: "mayAskNpm",
+    note: "#604. Joined a check already running, but `checkDue` returns true on "
+        + "`force` before anything else is asked, so a sequential ?refresh=1 loop "
+        + "was one npm registry GET per request — #580's shape with the cost "
+        + "pointed at a third party. The floor is in memory rather than in the "
+        + "marker file, because a home directory that cannot be written makes the "
+        + "marker's hour vanish and would take the floor with it.",
   },
   "/api/quota": {
     module: "quota.mjs", fn: "fetchClaudeQuota", guards: ["floor", "inflight"],
-    note: "The original. Also carries a 429 cooldown, a longer self-poll floor, "
-        + "`_lastGood` and the generation guard #582 added — none of which the "
-        + "other two need, which is why there is no shared helper.",
+    predicate: "maySelfPoll",
+    note: "The original. Also carries a 429 cooldown, a longer self-poll floor in "
+        + "the same predicate, `_lastGood` and the generation guard #582 added — "
+        + "the four parts that keep this from being a helper the others could "
+        + "share.",
   },
   "/api/codex-usage": {
     module: "codex-usage.mjs", fn: "fetchCodexUsage", guards: ["floor", "inflight"],
-    note: "#600. Had neither until this change; one forced read is a walk of "
+    predicate: "mayScanUsage",
+    note: "#600. Had neither until that change; one forced read is a walk of "
         + "every rollout file of the last seven days.",
   },
   "/api/codex-quota": {
     module: "codex-quota.mjs", fn: "fetchCodexQuota", guards: ["floor", "inflight"],
+    predicate: "mayFetchQuota",
     note: "#580/#597. Plus a cooldown set from a 429 or a rejected refresh, "
         + "because what a forced read spends here is the user's ChatGPT session.",
   },
   "/api/ccusage": {
     module: "ccusage.mjs", fn: "fetchCcusageDaily", guards: ["inflight", "outstanding"],
-    note: "#544. No time floor and none needed: the cost is keyed by range, so a "
-        + "ceiling on distinct runs in flight plus a queue bounds it harder than "
-        + "an interval would.",
+    insteadOfFloor:
+      "MAX_OUTSTANDING plus a queue. The cost here is keyed by range rather than "
+      + "shared, so a ceiling on distinct runs in flight bounds it harder than an "
+      + "interval would — an interval would have to be per key, and the key space "
+      + "is 10^8.",
+    note: "#544. The one row with no floor, and the only exemption this census "
+        + "grants; see insteadOfFloor.",
   },
   "/api/claude-accounts": {
-    module: "claude-accounts.mjs", fn: "fetchClaudeAccounts", guards: [],
-    note: "Nothing survives `force` here: a 5s cache and no in-flight slot. The "
-        + "work is two local JSON reads plus a throttled collector nudge, so it "
-        + "is the cheapest of the six — but it is the shape, and it is the row "
-        + "this census exists to have written down. Out of scope for #600.",
+    module: "claude-accounts.mjs", fn: "fetchClaudeAccounts", guards: ["floor", "inflight"],
+    predicate: "mayReadAccounts",
+    note: "#604. Had a 5s cache and nothing else. The work is two local JSON "
+        + "reads plus a throttled collector nudge, so it is the cheapest of the "
+        + "six by a wide margin and was fixed for the shape rather than the cost "
+        + "— except for one part that is not shape at all: it is the only one of "
+        + "the six whose cache is invalidated from outside, from nine call sites "
+        + "in four modules, so the in-flight slot arrived with #582's generation "
+        + "guard rather than without it.",
   },
 };
 
@@ -506,16 +544,63 @@ describe("every route that lets a caller force a read", () => {
     });
   }
 
+  it("has a floor, or a written reason it does not need one", () => {
+    // The rule that stands in for the shared helper, and the one assertion here
+    // that is about what SHOULD be rather than what is. Every guard in this table
+    // was written after somebody read that one file and noticed, and each of the
+    // routes that had none went unnoticed for as long as it did because nothing
+    // anywhere said a forcible route owes an answer to this question. Now
+    // something does.
+    //
+    // A seventh route has to be named in this table before it ships — the first
+    // case above is what says so — and this line is what it then has to satisfy:
+    // apply the rule, or write down what bounds the cost instead. That is the
+    // whole of what a helper would have enforced, minus the four escape hatches a
+    // helper would have needed.
+    for (const [path, row] of Object.entries(CENSUS)) {
+      if (row.guards.includes("floor")) continue;
+      expect(row.insteadOfFloor?.length ?? 0,
+             `${path} has no floor and no recorded reason it does not need one`)
+        .toBeGreaterThan(0);
+    }
+    // And the exemption stays rare enough to read: one row, not a habit.
+    expect(Object.values(CENSUS).filter(r => !r.guards.includes("floor")))
+      .toHaveLength(1);
+  });
+
   it("spells one idea one way across every module that has it", () => {
-    // The other half of "a missing call rather than a missing idea". Three
-    // modules invented the same floor separately; they at least agree on its
-    // name and its number now, and a fourth that needs one has a name to reuse.
+    // The other half of "a missing call rather than a missing idea". Five modules
+    // invented the same floor separately; they at least agree on its name and its
+    // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
-    expect(withFloor.map(r => r.module).sort())
-      .toEqual(["codex-quota.mjs", "codex-usage.mjs", "quota.mjs"]);
+    expect(withFloor.map(r => r.module).sort()).toEqual([
+      "claude-accounts.mjs", "codex-quota.mjs", "codex-usage.mjs",
+      "quota.mjs", "self-update.mjs",
+    ]);
     for (const row of withFloor) {
       expect(withoutComments(serverSource(row.module)), row.module)
         .toMatch(/const FORCE_POLL_MS = 60_000;/);
+    }
+  });
+
+  it("applies that floor in one exported, testable rule per module", () => {
+    // `maySelfPoll`, `mayFetchQuota`, `mayScanUsage`, `mayAskNpm`,
+    // `mayReadAccounts`: five spellings of one idea, which is the strongest
+    // argument the helper case has and still not enough of one — see the note
+    // above the table. What they do share is a shape, and the shape is worth
+    // pinning: the decision is pure, it is exported so a test can drive it
+    // without driving the work it guards, and the module's floor lives in it
+    // rather than inline at the call site that applies it. A floor written into
+    // the entry point instead would fail this line.
+    for (const row of Object.values(CENSUS)) {
+      if (!row.guards.includes("floor")) continue;
+      const code = withoutComments(serverSource(row.module));
+      const at = code.indexOf(`export function ${row.predicate}(`);
+      expect(at, `${row.module} exports ${row.predicate}`).toBeGreaterThan(-1);
+      const end = code.indexOf("\n}", at);
+      const body = end === -1 ? code.slice(at) : code.slice(at, end + 2);
+      expect(body, `${row.predicate} is where ${row.module} reads FORCE_POLL_MS`)
+        .toMatch(/\bFORCE_POLL_MS\b/);
     }
   });
 });

@@ -712,6 +712,22 @@ describe("the version check and the upgrade command must be about one package", 
   const INSTALLED = "1.33.27";
   const NEXT = "1.33.28";
 
+  // Every case below that checks twice takes a minute between the two, and says
+  // so with `now` rather than leaving it to the wall clock.
+  //
+  // #604 gave a forced check a floor — the FORCE_POLL_MS quota.mjs,
+  // codex-quota.mjs and codex-usage.mjs already had — because `checkDue` answers
+  // `true` on `force` before it asks anything else, so a sequential
+  // `?refresh=1` loop was one registry GET per request. These cases were written
+  // as "and a few minutes later", and their comments say so; what they actually
+  // did was ask twice inside the same millisecond, which is now the thing the
+  // floor refuses. `versionReport` has taken an injectable `now` all along, so
+  // the fix is to state the interval the prose already claimed rather than to
+  // mock a clock. The same edit #597 made to codex-base-url-trust.test.ts, for
+  // the same reason.
+  const T0 = 1_900_000_000_000;
+  const FLOOR_MS = 60_000;
+
   type Registry = { tags: Record<string, string>; published: Set<string>; docStatus?: number };
   type Report = Record<string, unknown>;
   let home = "";
@@ -860,11 +876,13 @@ describe("the version check and the upgrade command must be about one package", 
   it("announces it the moment the registry can serve it", async () => {
     registry.tags = { ccdeck: NEXT };
     const pkgRoot = npxTree("ccdeck");
-    expect((await mod.versionReport({ running: INSTALLED, pkgRoot })).notice).toBeNull();
+    expect((await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 })).notice).toBeNull();
 
-    // A few minutes later, which is what the reported window actually was.
+    // A few minutes later, which is what the reported window actually was — and
+    // which #604 made this case say out loud rather than leave to the wall
+    // clock. See the note above T0.
     registry.published.add(`ccdeck@${NEXT}`);
-    const later = await mod.versionReport({ running: INSTALLED, pkgRoot, force: true });
+    const later = await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 + FLOOR_MS, force: true });
 
     expect(later.notice).toEqual({ kind: "upgrade", from: INSTALLED, to: NEXT });
     expect(later.latest).toBe(NEXT);
@@ -875,10 +893,10 @@ describe("the version check and the upgrade command must be about one package", 
     registry.tags = { ccdeck: INSTALLED };
     registry.published = new Set([`ccdeck@${INSTALLED}`]);
     const pkgRoot = npxTree("ccdeck");
-    await mod.versionReport({ running: INSTALLED, pkgRoot });
+    await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 });
 
     registry.tags = { ccdeck: NEXT };  // tagged, not yet resolvable
-    const report = await mod.versionReport({ running: INSTALLED, pkgRoot, force: true });
+    const report = await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 + FLOOR_MS, force: true });
 
     // Still the number the command can install — never null, never the new one.
     expect(report.latest).toBe(INSTALLED);
@@ -923,23 +941,23 @@ describe("the version check and the upgrade command must be about one package", 
     const pkgRoot = npxTree("ccdeck");
 
     // Nothing cached yet, so this one confirms what it found: two requests.
-    await mod.versionReport({ running: INSTALLED, pkgRoot });
+    await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 });
     expect(calls).toHaveLength(2);
 
     // Every check after it, for as long as the tag does not move, is the single
     // ~20-byte dist-tags GET the README advertises.
     calls = [];
-    await mod.versionReport({ running: INSTALLED, pkgRoot, force: true });
+    await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 + FLOOR_MS, force: true });
     expect(calls).toEqual(["https://registry.npmjs.org/-/package/ccdeck/dist-tags"]);
 
     // A release lands: one dist-tags GET, one confirmation, then back to one.
     registry.tags = { ccdeck: NEXT };
     registry.published.add(`ccdeck@${NEXT}`);
     calls = [];
-    await mod.versionReport({ running: INSTALLED, pkgRoot, force: true });
+    await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 + 2 * FLOOR_MS, force: true });
     expect(calls).toHaveLength(2);
     calls = [];
-    await mod.versionReport({ running: INSTALLED, pkgRoot, force: true });
+    await mod.versionReport({ running: INSTALLED, pkgRoot, now: T0 + 3 * FLOOR_MS, force: true });
     expect(calls).toHaveLength(1);
   });
 

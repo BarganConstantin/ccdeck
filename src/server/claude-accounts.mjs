@@ -48,6 +48,85 @@ let _cacheAt = 0;
 // tracks what claude-swap is doing. No network cost to amortise.
 const CACHE_MS = 5_000;
 
+// ── what a forced read may cost ──────────────────────────────────────────────
+//
+// Until #604 the cache above was the whole of the admission control here, and
+// `force` walked straight past it. `handleClaudeAccounts` reads `refresh=1` off
+// the query string and passes it through, and reads on this server are
+// deliberately open — `isTrustedRead` does not apply the `Sec-Fetch-Site` test
+// that `isTrustedMutation` does, because a cross-site read of
+// `http://127.0.0.1:4317` is an ordinary top-level navigation — so any page the
+// user had open could run a `?refresh=1` loop and get one roster read per
+// request, concurrently.
+//
+// What that buys is the cheapest of the six forcible routes and it is worth
+// saying so plainly rather than dressing it up: two small local JSON reads,
+// sequence.json and cache/usage.json, plus a call into nudgeCollector that is
+// throttled on its own terms and spawns nothing when nothing is due. There is no
+// network here by design — see the note at the top of this file — and no
+// subprocess per request. This is the SHAPE the four routes before it were fixed
+// for, not a cost anyone would have noticed.
+//
+// The reason to fix it anyway is the second half. This is the only one of the
+// six whose cache is invalidated from elsewhere — nine call sites in four
+// modules: six mutations in cswap-admin.mjs, an auto-switch in cswap-auto.mjs, a
+// manual one in index.mjs, and the first `cswap add` below — and #582 has
+// already shown what a read that started before an invalidation does when it
+// lands after one. So the in-flight slot this route was missing arrives with the
+// generation guard that makes it safe, rather than after the next bug report.
+const FORCE_POLL_MS = 60_000;
+
+// A read in progress, offered to callers that arrive while it is running.
+let _inflight = null;
+// Stamped when a read STARTS rather than when it lands: what the floor rations
+// is the trip to disk, and one that is still running has already been paid for.
+let _lastReadAt = 0;
+// Which roster the reading below is about — as a counter, because the answer is
+// about whichever account claude-swap's store says is active, and that can move
+// under a read that is already running. invalidateClaudeAccountsCache bumps it;
+// every write is stamped with the value that was current when the read STARTED.
+// quota.mjs's `_generation`, for quota.mjs's reason (#582).
+let _generation = 0;
+
+/**
+ * Whether we may go to disk for the roster again.
+ *
+ * The same shape and the same minute as quota.mjs's `maySelfPoll`, and exported
+ * for the same reason it is: this is the rule, it is pure, and it belongs
+ * somewhere a test can point at it.
+ *
+ * Two intervals, like `maySelfPoll`'s. A forced read may beat the cache, but not
+ * turn into a poll loop when the button is held down, so it takes the minute the
+ * other four forcible routes use. An unforced read takes the cache's own
+ * interval — it is the panel's ordinary poll, the cache above has already
+ * answered it, and measuring from the START of the last read rather than from
+ * its end is the only difference between the two rules.
+ */
+export function mayReadAccounts({ now, force, lastReadAt }) {
+  return now - lastReadAt >= (force ? FORCE_POLL_MS : CACHE_MS);
+}
+
+/**
+ * The answer to a read the floor refused.
+ *
+ * A reading, not an error. AccountsPanel renders `data.accounts`, and an
+ * `{ ok: false }` refusal would empty the roster for a minute — the deck
+ * teaching itself a new failure mode in order to defend against a loop nobody
+ * ran. `stale` is the flag quota.mjs, codex-quota.mjs and codex-usage.mjs all
+ * use for exactly this, and every account row already carries its own
+ * `fetchedAt` from claude-swap's store, which is the age the panel draws and
+ * which nothing here touches.
+ */
+function heldReading(now) {
+  if (_cache) return { ..._cache, stale: true };
+  // Unreachable in practice, and spelled the way codex-quota.mjs and
+  // codex-usage.mjs spell the same state. Every outcome below is cached, a read
+  // still running is served by `_inflight`, and the one moment `_cache` is empty
+  // with a recent stamp — just after an invalidation — is exactly the moment
+  // invalidateClaudeAccountsCache clears the stamp as well.
+  return { ok: false, reason: "waiting", fetchedAt: now };
+}
+
 // Past this, claude-swap's own numbers are old enough that showing them
 // without a marker would misrepresent them (its own trust ceiling is 3600s).
 const STALE_AFTER_MS = 15 * 60_000;
@@ -255,8 +334,51 @@ function lane(id, label, win) {
 export async function fetchClaudeAccounts({ force = false } = {}) {
   const now = Date.now();
   if (!force && _cache && now - _cacheAt < CACHE_MS) return _cache;
+  // Offered before the floor: a read that has not finished yet is a reading
+  // newer than the cache, which is what refresh asked for, and joining it costs
+  // nothing.
+  if (_inflight) return _inflight;
+  if (!mayReadAccounts({ now, force, lastReadAt: _lastReadAt })) return heldReading(now);
+  _lastReadAt = now;
 
-  const finish = (r) => { _cache = r; _cacheAt = Date.now(); return r; };
+  // `_inflight === mine` rather than a bare clear, which is quota.mjs's guard
+  // and is here for quota.mjs's reason: invalidateClaudeAccountsCache drops
+  // `_inflight` so the next caller starts a read that knows the roster moved,
+  // and that read installs its own promise here. A read from before the switch
+  // finishing afterwards would otherwise clear the NEW one on its way out.
+  const mine = readRoster(now, _generation)
+    .finally(() => { if (_inflight === mine) _inflight = null; });
+  _inflight = mine;
+  return mine;
+}
+
+/**
+ * The read itself, split out from the admission control above it so the guard is
+ * readable as the four lines it is.
+ *
+ * `gen` is the generation that was current when this read STARTED, and finish()
+ * refuses to write anything under it once that has moved.
+ *
+ * Every write here happens after at least one await, and
+ * invalidateClaudeAccountsCache clears variables — which does nothing to a
+ * function that is already running and still holds the old roster in a local. So
+ * a switch landing mid-read was followed, milliseconds later, by the pre-switch
+ * roster being written straight back over the cleared cache: the invalidation
+ * looked like it worked and was undone before the next poll could observe it,
+ * and the panel went on showing the account the user had just switched away
+ * from. That is #582's defect, in the module #582 did not touch.
+ *
+ * The read is deliberately not cancelled. Whoever asked for it is still owed an
+ * answer, and the answer is not wrong — it is about a roster that has since
+ * moved, which makes it a fine return value and a bad cached one.
+ */
+async function readRoster(now, gen) {
+  const finish = (r) => {
+    if (gen !== _generation) return r;
+    _cache = r;
+    _cacheAt = Date.now();
+    return r;
+  };
 
   const root = backupRoot();
   const seq  = await readJson(join(root, "sequence.json"));
@@ -395,9 +517,31 @@ export async function requestCollection() {
   return _lastNudge !== before;
 }
 
+/**
+ * Forget the roster, because something just made it wrong.
+ *
+ * Called from nine places in four modules — every `cswap` mutation the deck
+ * performs — and every one of them is behind a POST that `isTrustedMutation`
+ * guards, so nothing a page can send in a loop reaches this.
+ *
+ * Three things go besides the reading itself:
+ *
+ *   `_generation`  so a read that STARTED before this call cannot write its
+ *                  answer into the cache afterwards. See finish() in readRoster.
+ *   `_inflight`    so a caller arriving after the switch is not handed the read
+ *                  that began before it — joining a run is only free when the
+ *                  run is still about the right thing.
+ *   `_lastReadAt`  so the very next read is real work rather than a refusal.
+ *                  Every one of these call sites is followed by the panel
+ *                  reloading with ?refresh=1, and a floor that answered THAT
+ *                  with the pre-switch roster would make the guard the bug.
+ */
 export function invalidateClaudeAccountsCache() {
   _cache = null;
   _cacheAt = 0;
+  _generation++;
+  _inflight = null;
+  _lastReadAt = 0;
 }
 
 /**
