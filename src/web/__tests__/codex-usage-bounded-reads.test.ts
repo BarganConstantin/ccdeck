@@ -7,7 +7,7 @@
 // once also risked EMFILE, which readTokenSeries turns into a silent
 // undercount. These tests pin the two caps and the line stitching the chunked
 // reader needs to get right.
-import { describe, it, expect, afterAll, vi } from "vitest";
+import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,17 +59,44 @@ process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CODEX_HOME = CODEX_HOME;
 
-// Every call below passes `force: true` — the same thing /api/codex-usage does
-// for ?refresh=1 — which skips the 60s cache outright, so each case really does
-// rescan the directory it just wrote.
+// Every call below passes `force: true`, which skips the 60s cache outright, so
+// each case really does rescan the directory it just wrote.
+//
+// This note used to end "— the same thing /api/codex-usage does for ?refresh=1",
+// and that half was wrong in a way that mattered (#600). `force` is not what the
+// endpoint does; it is what any CALLER may ask it to do, once per request and as
+// often as it likes — `handleCodexUsage` reads `refresh=1` off the query string
+// and passes it straight through, and reads on this server are deliberately open.
+// Reading it as a settled property of the route is why this file only ever asked
+// what ONE forced scan costs. The question it did not ask is what a hundred of
+// them cost at once, and the answer was a hundred full-week walks of the disk
+// with nothing between them. codex-usage-forced-read-guard.test.ts asks it.
+//
+// The bound this file pins — the fan-out INSIDE one call — is real and unchanged.
 // @ts-expect-error — .mjs server module, no types
 const { fetchCodexUsage } = await import("../../server/codex-usage.mjs");
+
+// #600 put a minute-long floor under forced reads: two `force: true` calls
+// inside FORCE_POLL_MS are one scan, and the second is handed the reading the
+// first took. Every case here is a forced scan of a directory it has just
+// rewritten, so each is given a minute of its own rather than inheriting the
+// previous case's stamp. The clock is moved rather than waited on, the way
+// read-cost-ceiling.test.ts and codex-base-url-trust.test.ts move it; `budget.ts`
+// captured the real `Date.now` at load, so the skew below cannot make a case look
+// as though it overran.
+const FLOOR_MS = 60_000;
+let skew = 0;
+const FROZEN_AT = Date.now();
+vi.spyOn(Date, "now").mockImplementation(() => FROZEN_AT + skew);
 
 const restore = (key: "HOME" | "USERPROFILE" | "CODEX_HOME", was: string | undefined) => {
   if (was === undefined) delete process.env[key]; else process.env[key] = was;
 };
 
+beforeEach(() => { skew += FLOOR_MS + 1_000; });   // see the note above
+
 afterAll(() => {
+  vi.restoreAllMocks();
   restore("HOME", prevHome);
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
