@@ -14,7 +14,7 @@ import { run, runDetached } from "./exec.mjs";
 // file already imports itself.
 import { isOlder } from "./self-update.mjs";
 import { bootstrapUv, existingBootstrappedUv } from "./uv-bootstrap.mjs";
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, posix as posixPath, win32 as winPath } from "node:path";
 import { homedir } from "node:os";
 
@@ -24,6 +24,42 @@ const INSTALL_TIMEOUT_MS = 180_000; // uv resolves + builds a Python env
 // marker file's mtime so the interval survives restarts.
 const UPDATE_CHECK_MS = 24 * 3600_000;
 const MARKER = join(homedir(), ".agents-deck", ".cswap-update-check");
+
+/**
+ * The subdirectories of `dir`, newest-looking first, or [] when it cannot be
+ * read at all.
+ *
+ * Injected into cswapCandidates below rather than called from it, for the reason
+ * the platform is a parameter there: a Windows layout has to be describable from
+ * a Mac. A missing directory, a disconnected network drive and a profile the
+ * process cannot read are all the same answer — nothing here — never a throw,
+ * because this runs unprompted at startup for an optional panel.
+ *
+ * The sort is numeric so `Python313` sorts above `Python39` rather than below
+ * it: when two interpreters both have a cswap, the newer one is the one the user
+ * most likely installed it with, and the order this returns is the order the
+ * caller probes in.
+ *
+ * Exported for its test rather than for a caller. Every part of it that can be
+ * wrong — which names count as an interpreter, what order they come back in,
+ * what a directory that cannot be read answers — is invisible from
+ * cswapCandidates, which injects a substitute precisely so its own Windows
+ * layout can be checked from a Mac. Driven against real directories in
+ * cswap-admin.test.ts, on whichever OS is running the suite.
+ */
+export function pythonVersionDirs(dir) {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter(e => e.isDirectory() || e.isSymbolicLink())
+      .map(e => e.name)
+      // `Python312`, and the tagged builds the installer also writes:
+      // `Python312-32`, `Python313-arm64`.
+      .filter(n => /^Python\d[\w.-]*$/i.test(n))
+      .sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * How to invoke cswap: the bare name when PATH resolves it, otherwise an
@@ -40,12 +76,14 @@ const MARKER = join(homedir(), ".agents-deck", ".cswap-update-check");
  * up without a restart.
  */
 /**
- * Every place an installer is known to leave cswap. Pure, and the platform is a
- * parameter, so the Windows list can be checked from a Mac — which is the only
- * way this list stays right, since it exists entirely for machines the author is
- * not sitting at.
+ * Every place an installer is known to leave cswap. The platform is a parameter
+ * and the directory listing is injected, so the Windows list can be checked from
+ * a Mac — which is the only way this list stays right, since it exists entirely
+ * for machines the author is not sitting at.
  */
-export function cswapCandidates(platform = process.platform, env = process.env, home = homedir()) {
+export function cswapCandidates(platform = process.platform, env = process.env, home = homedir(), {
+  versionDirs = pythonVersionDirs,
+} = {}) {
   // The path flavour follows the PLATFORM ARGUMENT, not the host: node's `join`
   // would emit forward slashes when this is exercised from a Mac, which is both
   // wrong for the caller and invisible in a test.
@@ -60,8 +98,31 @@ export function cswapCandidates(platform = process.platform, env = process.env, 
   if (platform === "win32") {
     // pipx before 1.5, and any `pip install --user`. APPDATA is respected when
     // set because a roaming profile moves it off the home directory.
-    dirs.push(join(env.APPDATA || join(home, "AppData", "Roaming"), "Python", "Scripts"));
-    dirs.push(join(env.LOCALAPPDATA || join(home, "AppData", "Local"), "Programs", "Python", "Scripts"));
+    //
+    // THE VERSION SEGMENT IS NOT OPTIONAL (#552). CPython on Windows always
+    // puts the interpreter between the root and `Scripts`:
+    //
+    //     %APPDATA%\Python\Python312\Scripts               pip install --user
+    //     %LOCALAPPDATA%\Programs\Python\Python312\Scripts per-user installer
+    //
+    // — `{userbase}\Python{version_nodot}\Scripts` is sysconfig's `nt_user`
+    // scheme, not a convention. The two paths this used to build omitted it, so
+    // NEITHER could exist on a real machine: every candidate missed,
+    // `cswapVersion` answered null, `ensureCswap` reported `not_on_path`, and
+    // the deck re-ran a whole install attempt on every launch for a user who
+    // already had cswap.exe sitting there. The POSIX side never had the bug —
+    // `~/.local/bin` carries no version — which is why this stayed a Windows
+    // false negative in the one function whose whole purpose is to not depend
+    // on PATH.
+    //
+    // Which versions exist is a fact about the machine, so it is read rather
+    // than guessed: enumerating Python38…Python315 would be eight wrong paths
+    // and a ninth wrong one next year.
+    const appData = env.APPDATA || join(home, "AppData", "Roaming");
+    const localAppData = env.LOCALAPPDATA || join(home, "AppData", "Local");
+    for (const root of [join(appData, "Python"), join(localAppData, "Programs", "Python")]) {
+      for (const version of versionDirs(root)) dirs.push(join(root, version, "Scripts"));
+    }
     dirs.push(join(home, "scoop", "shims"));
   } else {
     dirs.push(join(home, ".pyenv", "shims"));

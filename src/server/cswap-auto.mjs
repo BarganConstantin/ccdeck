@@ -121,6 +121,68 @@ async function runAutoTick() {
 // ── external engine detection ──────────────────────────────────────────────
 
 /**
+ * One command line, as a list of the words a process was actually launched
+ * with.
+ *
+ * The quote characters are separators here, not delimiters, and that is the
+ * whole point of #552. `Win32_Process.CommandLine` reports what the CREATOR
+ * wrote, and every launcher on Windows except a human typing at `cmd.exe`
+ * quotes the executable:
+ *
+ *     "C:\Users\dorin\.local\bin\cswap.exe" auto
+ *
+ * — which is what .NET's `Process.Start` writes, so PowerShell, Windows
+ * Terminal's default profile, Task Scheduler and an Explorer shortcut all
+ * produce it. A pattern that wanted whitespace immediately after `cswap.exe`
+ * saw a `"` there and answered no, for every one of them.
+ *
+ * The deck's own spawns are the same shape from the other side: viaCmd in
+ * src/server/exec.mjs launches a `.cmd` shim as
+ * `cmd.exe /d /s /c ""C:\…\cswap.cmd" "auto" "--once""`, with the whole line
+ * wrapped in one more pair of quotes because that is what `cmd /c` wants.
+ * Treating `"` as a separator takes both apart with no parser and no knowledge
+ * of which launcher wrote the line — the outer pair, the per-argument pairs and
+ * the bare case all collapse to the same token list.
+ *
+ * What it deliberately does NOT do is respect a quoted path containing spaces:
+ * `"C:\Program Files\cswap\cswap.exe" auto` splits into three tokens rather than
+ * two. That costs nothing here — the tail token is still `cswap.exe` followed by
+ * `auto`, which is the only question asked — and the alternative is a real
+ * command-line parser for a probe whose wrong answer must never be a crash.
+ */
+export function commandTokens(line) {
+  return String(line ?? "").split(/["\s]+/).filter(Boolean);
+}
+
+/** The last path component of a token: `C:\bin\cswap.exe` → `cswap.exe`. */
+const leaf = (token) => token.split(/[\\/]/).pop() ?? "";
+
+/** Every spelling of the executable, on every platform. */
+const CSWAP_EXE = /^cswap(\.exe|\.cmd|\.bat)?$/i;
+
+/**
+ * True when this command line is a long-lived `cswap auto` loop.
+ *
+ * The rule, stated over tokens rather than characters: some token IS the cswap
+ * executable — its last path component, so `/opt/bin/mycswap` and `notcswap`
+ * are somebody else's program — and the token straight after it is exactly
+ * `auto`, so `autopilot` and `automate` are not this. `--once` anywhere rules
+ * the line out: the deck's own ticks carry it, and so does a cron user's.
+ *
+ * Pure and exported so the Windows shapes can be checked from a Mac. The
+ * residual false positive is a line that mentions cswap as an ARGUMENT and then
+ * `auto` — `myprog --exe cswap auto`. That direction is the safe one: a wrong
+ * `true` is a deck that stays quiet, while a wrong `false` is two engines moving
+ * the same live Claude account.
+ */
+export function looksLikeAutoLoop(line) {
+  if (/--once/i.test(String(line ?? ""))) return false;
+  const tokens = commandTokens(line);
+  return tokens.some((token, i) =>
+    CSWAP_EXE.test(leaf(token)) && String(tokens[i + 1] ?? "").toLowerCase() === "auto");
+}
+
+/**
  * True when the user is already running `cswap auto` themselves.
  *
  * Two engines would not corrupt anything — claude-swap serializes decisions
@@ -138,17 +200,25 @@ async function runAutoTick() {
  */
 export async function externalAutoRunning() {
   // A line is the user's loop if it runs `cswap auto` without --once. Our own
-  // ticks are --once, and so is a cron user's.
-  const isLoop = (line) => /(^|[\\/])cswap(\.exe|\.cmd|\.bat)?\s+auto(\s|$)/i.test(line.trim())
-                        && !/--once/i.test(line);
+  // ticks are --once, and so is a cron user's. See looksLikeAutoLoop.
+  const isLoop = looksLikeAutoLoop;
 
   if (process.platform === "win32") {
     // No `ps` on Windows, and `tasklist` reports the image name only — every
     // Python tool shows up as python.exe, which cannot tell cswap from
     // anything else. CIM is the one place the full command line is available.
+    //
+    // `Out-String -Width 32767` is not decoration. `-ExpandProperty` emits
+    // strings, and strings leave PowerShell through its console FORMATTER,
+    // which hard-wraps at the host buffer width — 80 columns on a redirected
+    // stdout, which is what a spawned child always has. A real command line
+    // (`"C:\Users\dorin\AppData\Local\Programs\Python\Python312\Scripts\cswap.exe" auto`)
+    // is longer than that, so the executable and its subcommand arrived on
+    // SEPARATE LINES and no per-line match could ever see both. 32767 is the
+    // maximum length Windows allows a command line, so nothing real can wrap.
     const r = await run("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
-      "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine",
+      "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine | Out-String -Width 32767",
     ], { timeout: 8_000 });
     if (!r.ok) return false;   // no PowerShell, or the query was refused
     return r.stdout.split("\n").some(isLoop);
