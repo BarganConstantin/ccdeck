@@ -67,7 +67,6 @@ const accounts = source("AccountsPanel.tsx");
 const sessions = source("SessionList.tsx");
 const history = source("UsageHistoryModal.tsx");
 const summary = source("SessionSummary.tsx");
-const addAccount = source("AddAccountDialog.tsx");
 // The stacked cost bar, which was written out in three of the files above until
 // #374 gave it a file of its own.
 const costBar = source("CostBar.tsx");
@@ -477,13 +476,24 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     expect(code(history)).not.toMatch(/aria-selected/);
   });
 
-  it("leaves the one real tab set alone, and says so", () => {
-    // AddAccountDialog's two tabs do swap two panels, which is a genuine tab
-    // widget with a genuine keyboard model missing — arrow keys, aria-controls,
-    // a tabpanel each. That is a change to make deliberately and not as the
-    // tail of a landmarks issue. Pinned so the scope-out stays a decision.
-    expect(code(addAccount)).toMatch(/role="tablist"/);
-    const tabbed = BUNDLE.filter(([, src]) => /role="tab"/.test(src)).map(([name]) => name);
-    expect(tabbed).toEqual(["components/AddAccountDialog.tsx"]);
+  it("hands the one real tab set over to the test that can hold it (#581)", () => {
+    // This used to assert role="tablist" was present here and nowhere else,
+    // under a comment scoping the missing arrow keys, aria-controls and
+    // tabpanels out of a landmarks issue — "pinned so the scope-out stays a
+    // decision." It asked WHERE the role was and never whether it was
+    // honoured, so a green assertion sat on top of the defect until #581 went
+    // and looked. The scope-out has been taken back out: the dialog now
+    // implements the widget, and tablist-contract.test.ts holds the whole
+    // contract for any file that carries the role, so nothing here needs to
+    // name a file or pin the role's presence again.
+    //
+    // What stays is the landmarks question, which is the one this file is
+    // about: a tab in this deck belongs inside a tablist and nowhere else,
+    // because a stray role="tab" is an orphan in the accessibility tree
+    // whatever its keyboard does.
+    for (const [name, src] of BUNDLE) {
+      if (!/\brole="tab"/.test(src)) continue;
+      expect(`${name} ${src.includes('role="tablist"')}`).toMatch(/true$/);
+    }
   });
 });

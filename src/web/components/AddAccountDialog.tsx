@@ -19,6 +19,7 @@ import Confetti from "./Confetti";
 import { isLoginOver, loginEndNotice, shouldPollLogin, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
 import { explainFailure } from "../admin-failure";
+import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 /** Server-side login progress, polled while the dialog is open. */
@@ -37,6 +38,20 @@ type Props = {
 };
 
 const POLL_MS = 1500;
+
+/** The two journeys, in the order the strip draws them — which is the order
+ *  the arrow keys walk, so the array is the widget's model and not decoration.
+ *  `panel` is the one <section> both tabs swap, named here rather than spelled
+ *  three times: each tab's aria-controls points at it and it points back at
+ *  whichever tab is selected, which is the clause of role="tab" that this
+ *  dialog used to leave empty. */
+const TABS = [
+  { id: "login", label: "Sign in" },
+  { id: "paste", label: "Paste a share" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+const PANEL_ID = "aa-panel";
+const tabDomId = (id: TabId) => `aa-tab-${id}`;
 
 async function admin(body: Record<string, unknown>) {
   const res = await fetch("/api/claude-accounts/admin", {
@@ -59,7 +74,7 @@ const SuccessMark = React.forwardRef<SVGSVGElement>((_props, ref) => {
 SuccessMark.displayName = "SuccessMark";
 
 export default function AddAccountDialog({ onClose, onChanged }: Props) {
-  const [tab, setTab] = useState<"login" | "paste">("login");
+  const [tab, setTab] = useState<TabId>("login");
   const [login, setLogin] = useState<LoginState | null>(null);
   const [code, setCode] = useState("");
   const [blob, setBlob] = useState("");
@@ -75,6 +90,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const primerRef = useRef<HTMLButtonElement | null>(null);
   // The burst needs a point on screen to come from, and the mark is it.
   const markRef = useRef<SVGSVGElement | null>(null);
+  // The strip is one tab stop, so the arrow keys have to put focus on the tab
+  // they selected themselves — the browser will not, because the tab focus
+  // moved off is about to become tabIndex={-1}.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  // Whether the switch that is about to render came from an arrow key. Read
+  // once, by the effect below — see it for why a tab widget has to know.
+  const arrowedRef = useRef(false);
 
   const close = useCallback(() => {
     // A live `claude auth login` on the server outlives this component, and an
@@ -131,7 +153,30 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
 
   // The share tab's field is the only thing on it; focusing it saves a click
   // and makes ⌘V the obvious next move.
-  useEffect(() => { if (tab === "paste") blobRef.current?.focus(); }, [tab]);
+  //
+  // Not after an arrow key, though, and that exception is the whole of the tab
+  // widget's keyboard model meeting the one it was written before. Arrowing to
+  // a tab must leave focus ON that tab: it is what "selected, 2 of 2" means,
+  // it is what makes the next Left go back, and a strip that throws focus into
+  // the panel on the first arrow is a strip the arrows can only be used on
+  // once. A click is the opposite — the pointer user is already past the
+  // choosing and the field is where they were going — so the pointer keeps the
+  // shortcut and the keyboard gets the widget.
+  useEffect(() => {
+    if (tab === "paste" && !arrowedRef.current) blobRef.current?.focus();
+    arrowedRef.current = false;
+  }, [tab]);
+
+  const onTabKeys = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
+    const move = tabStripMove(e, TABS.findIndex(t => t.id === tab), TABS.length);
+    if (move.kind === "pass") return;
+    // Only now: an unclaimed Tab still has to leave the strip, and an unclaimed
+    // Escape still has to reach the window listener that closes the dialog.
+    e.preventDefault();
+    arrowedRef.current = true;
+    setTab(TABS[move.index].id);
+    tabRefs.current[move.index]?.focus();
+  }, [tab]);
 
   const submitCode = useCallback(async () => {
     setBusy(true);
@@ -174,11 +219,38 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
       <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a Claude account">
         <header className="modal-head">
           <div className="modal-title">
-            <span className="aa-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === "login"}
-                className={`aa-tab${tab === "login" ? " on" : ""}`} onClick={() => setTab("login")}>Sign in</button>
-              <button type="button" role="tab" aria-selected={tab === "paste"}
-                className={`aa-tab${tab === "paste" ? " on" : ""}`} onClick={() => setTab("paste")}>Paste a share</button>
+            {/* A real tablist, finally (#581). It announced one and delivered
+                none of the three things the role promises: both buttons were
+                ordinary tab stops so Tab walked INTO the strip and through it,
+                the arrow keys the role tells a screen reader to use were heard
+                by nothing, and neither tab claimed a panel — the body below was
+                an unroled <section>. UsageHistoryModal met the same three
+                unkept clauses on its range strip and deleted the role, which
+                was right there and is wrong here: that strip controls no panel
+                at all, only the same chart over a different range, while these
+                two swap two genuinely different journeys through this dialog.
+                So this one keeps the role and pays for it. The arrow rule is in
+                tablist-keys.ts, out where it can be read without a DOM. */}
+            <span className="aa-tabs" role="tablist" aria-label="How to add the account" onKeyDown={onTabKeys}>
+              {TABS.map((t, i) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={tabDomId(t.id)}
+                  ref={el => { tabRefs.current[i] = el; }}
+                  aria-selected={tab === t.id}
+                  aria-controls={PANEL_ID}
+                  // The roving tab stop. One stop for the whole strip is half
+                  // of what role="tab" means, and the focus trap in
+                  // modal-dismiss.ts already skips a negative tabIndex, so Tab
+                  // inside the dialog goes strip → panel and back without ever
+                  // stopping on the tab that is not selected.
+                  tabIndex={tab === t.id ? 0 : -1}
+                  className={`aa-tab${tab === t.id ? " on" : ""}`}
+                  onClick={() => { arrowedRef.current = false; setTab(t.id); }}
+                >{t.label}</button>
+              ))}
             </span>
           </div>
           <div className="modal-actions">
@@ -186,7 +258,15 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
           </div>
         </header>
 
-        <section className="modal-body aa-body">
+        {/* The panel the two tabs control. One node rather than two, because
+            the body is swapped and not shown-and-hidden, so both tabs name this
+            id and it names the selected tab back — which is how a screen reader
+            gets from "selected, 2 of 2" to the thing that was selected.
+            No tabIndex of its own: every branch it renders holds a control
+            except the one-sentence "asking the CLI…" that is on screen for a
+            second, and a permanent extra stop in front of the panel is a worse
+            trade than that second. */}
+        <section className="modal-body aa-body" id={PANEL_ID} role="tabpanel" aria-labelledby={tabDomId(tab)}>
           {tab === "login" ? (
             done ? (
               <div className="aa-done">
