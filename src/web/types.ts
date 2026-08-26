@@ -209,8 +209,15 @@ export interface AgentNodeData {
   sessionTitle?: string;
   prompts: PromptEntry[];
   toolCount: number;
-  /** When true, we synthesised this node because a child arrived before any
-   *  event from this agent itself (e.g. CC was already running). */
+  /** Root nodes only. True when this session's node was created by something
+   *  other than a `SessionStart` — the deck is drawing a session it joined
+   *  after the beginning, so the start time, prompt history and early tool
+   *  calls this card shows are incomplete rather than empty. Set at creation
+   *  in `resolveOwner`, cleared only by a `SessionStart`, and drawn as the
+   *  dashed border and `?` chip on the card.
+   *
+   *  Subagents never carry it: only `SubagentStart` creates one, so a subagent
+   *  node exists precisely when its beginning WAS observed. */
   synthetic?: boolean;
   /** Number of direct subagents spawned by this agent. */
   childCount: number;
