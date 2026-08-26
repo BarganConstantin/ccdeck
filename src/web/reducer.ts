@@ -275,9 +275,39 @@ function resolveOwner(state: GraphState, p: HookPayload, now: number): AgentNode
       return sub;
     }
   }
-  // Fall back to root.
-  const root = ensureRoot(state, sessionId, now, /*synthetic*/ false);
-  if (root.synthetic) { root.synthetic = false; root.startedAt = now; }
+  // Fall back to root, creating it if this is the first we have heard of the
+  // session.
+  //
+  // A root CREATED here by anything other than a `SessionStart` is a session
+  // the deck joined after it had already begun, and `synthetic` says so (#677).
+  // The condition is ordinary, not exotic: the Clear button truncates
+  // events.jsonl and broadcasts `__clear` while every live session keeps
+  // running; hook POSTs are fire-and-forget, so everything a session emitted
+  // before this deck was listening is simply gone; the log rotates to
+  // `events.jsonl.1` at 50MB and only the current file is replayed at boot; and
+  // a tab attaching to a busy deck is replayed the ring buffer, which holds the
+  // last MAX_BUFFER events and no more. In all of them the card's start time,
+  // prompt list and early tool calls are missing, and without the marker it is
+  // drawn identically to a session watched from the first byte.
+  //
+  // This is deliberately "did we see the session BEGIN", not the narrower
+  // "was this node conjured by a child event" the flag was born as. An event
+  // from the root's own context is not evidence either way — a `PreToolUse`
+  // proves the session exists, never that we watched it start — so the line
+  // that used to clear the flag and rewrite `startedAt` the moment any root
+  // event landed is gone with it. `ensureRoot` only honours the argument on the
+  // call that CREATES the node, so a root that already exists keeps whatever it
+  // concluded, and `SessionStart` below is the single thing that clears it.
+  //
+  // ONE KNOWN GAP, on the Codex side and not fixable from here: the rollout
+  // watcher skips a pre-existing session's history at startup and then mints a
+  // `SessionStart` of its own for it (`ensureCodexRoot`), so a Codex session
+  // the deck joined late arrives carrying the very event that says it did not.
+  // The rule below is right about its input; the input is what is wrong, and
+  // correcting it means changing what the server writes to a log several decks
+  // share and older decks replay. Left as its own issue rather than smuggled in
+  // here.
+  const root = ensureRoot(state, sessionId, now, /*synthetic*/ p.hook_event_name !== "SessionStart");
   if (!root.cwd && p.cwd) { root.cwd = p.cwd; root.cwdBasename = basename(p.cwd); }
   if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
   return root;
@@ -285,7 +315,9 @@ function resolveOwner(state: GraphState, p: HookPayload, now: number): AgentNode
 
 function ensureSubagent(state: GraphState, sessionId: string, key: string, p: HookPayload, now: number): AgentNodeData {
   const id = subagentIdFor(sessionId, key);
-  // Make sure root exists; it may still be synthetic if we never saw a root event.
+  // Make sure the root exists. A `SubagentStart` is not a `SessionStart`, so a
+  // root born here is one the deck never saw begin — same rule as resolveOwner,
+  // which in practice gets here first for every event that reaches the switch.
   const root = ensureRoot(state, sessionId, now, /*synthetic*/ true);
 
   let a = state.agents.get(id);
@@ -1496,6 +1528,12 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   switch (name) {
     case "SessionStart": {
       const root = ensureRoot(state, sessionId, now, false);
+      // The one thing that clears the "joined late" marker, and the reason it
+      // is cleared here rather than only seeded at creation: order independence
+      // is this reducer's contract, so a `SessionStart` that arrives AFTER the
+      // event that created the root — a racing hook POST, an out-of-order
+      // replay — retracts the marker instead of leaving it standing on a
+      // session whose beginning we did, in the end, receive (#677).
       root.synthetic = false;
       root.state = "active";
       // A session that is starting is not a closed one, whatever an earlier
