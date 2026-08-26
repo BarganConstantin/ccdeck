@@ -41,8 +41,221 @@ const MIME = {
   ".map":  "application/json",
 };
 
-const MAX_BUFFER = 2000;            // recent events kept for late SSE subscribers
+// ─── The event ring buffer, and the two bounds it keeps ───────────────────
+// MAX_BUFFER is how many events a late SSE subscriber can be replayed.
+// MAX_BUFFER_CHARS is how much they are allowed to weigh, and until #625 there
+// was no such thing — which is the whole defect, because a count is not a bound
+// on memory when the thing being counted has no size of its own. `POST
+// /api/event` admits a body of 5,000,000 characters and nothing between that
+// door and this array shrinks it: hook/hook.js forwards the payload whole, and
+// log-writer.mjs already says in as many words that a PostToolUse carrying a
+// large Read or Bash response is routinely a good fraction of that. So the real
+// ceiling was MAX_BUFFER multiplied by the largest event ingest accepts.
+//
+// Measured on Node 22.14 / macOS, posting 4,900,000-character bodies to a real
+// server on loopback and reading process.memoryUsage() after a forced GC:
+//
+//   after  20 events: heapUsed  107MB rss  292MB   per-event 4.94MB
+//   after 100 events: heapUsed  481MB rss  739MB   per-event 4.73MB
+//   after 200 events: heapUsed  947MB rss 1231MB   per-event 4.69MB
+//
+// 4.69 MB retained per buffered event, flat as the ring fills. A full ring of
+// 2000 of those is 9.4 GB against the 4144 MB heap limit V8 picks on a 32 GB
+// machine, so the count cap was not reachable on any developer machine — and
+// what happened instead of reaching it was not degradation. The same harness
+// under `--max-old-space-size=2048`, roughly the heap an 8 GB laptop gives
+// itself:
+//
+//   after 420 events: heapUsed 1975MB rss 2247MB
+//   FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+//
+// 429 events in, 1571 short of the cap. That abort is not catchable, so the SSE
+// stream, the hook ingest and the log all stop together — and `/api/event` is a
+// deliberate OPEN_MUTATION, so about 430 posts from a local process holding no
+// credential at all end the deck. The comment at OPEN_MUTATIONS says the worst
+// a caller does with that route is draw a session that is not there; this is
+// the sentence that made it false.
+//
+// Both bounds are now enforced on every push, evicting oldest-first until each
+// holds. See the eviction in pushEvent for why it is one splice and why the
+// newest event is never the one evicted.
+export const MAX_BUFFER = 2000;     // recent events kept for late SSE subscribers
+
+// The byte budget, counted in CHARACTERS — the unit this file already measures
+// payloads in, and the unit MAX_CLIENT_BUFFER_BYTES is really written in
+// despite its name (there is a long note there about why, which applies here
+// unchanged: a character is one byte of heap while the string stays one-byte
+// and two once it does not).
+//
+// 128 MiB, and the three readings that pick it:
+//
+//   - It is 26 times the largest single event ingest can admit (5,000,000
+//     characters plus this deck's envelope), so a burst of maximum-size tool
+//     responses — eight subagents each returning a big Read — is held whole
+//     rather than collapsing the ring to nothing.
+//   - It is thirteen times a completely FULL 2000-event ring of ordinary
+//     traffic. The mean serialized event is about 5 KB, measured over 4.7k real
+//     payloads in a 21 MB events.jsonl (the same sample redactDeckToken's note
+//     quotes), so 2000 of them are 10 MB. Ordinary traffic therefore never
+//     meets this bound at all and keeps the full count-based replay depth; only
+//     the traffic that used to kill the process ever sees it.
+//   - Its worst case is a bounded fraction of the heap rather than a multiple
+//     of it. 128 MiB of charged characters is at most about 320 MiB of retained
+//     heap — the charge below tracks real retention within 2.5x across every
+//     payload shape measured — which is 16% of the 2 GB heap an 8 GB laptop
+//     picks, against the 9.4 GB the count alone permitted.
+//
+// Exported for the same reason MAX_CLIENT_BUFFER_BYTES is: a bound whose only
+// observable failure is the process running out of memory is a bound no test
+// can assert. See event-ring-byte-cap.test.ts, which pins all three readings.
+export const MAX_BUFFER_CHARS = 128 * 1024 * 1024;
+
+// What one envelope costs on top of its payload — seq, epoch, receivedAt,
+// source and the JSON around them. Measured at 127 characters, the same figure
+// MAX_CLIENT_BUFFER_BYTES is sized against; 128 here so that an event with an
+// empty payload still costs something and a flood of them cannot be free.
+const ENVELOPE_CHARS = 128;
+
 const events = [];                  // ring buffer
+// The running sum of what `events` holds, in the units payloadChars charges.
+// Kept beside the array rather than recomputed, because the alternative is
+// walking every buffered payload on every push. It and `events` have to move
+// together and nothing outside this section may touch either — see
+// clearEventBuffer for the one place that empties both, and what went wrong the
+// day only one of them was emptied.
+let bufferedChars = 0;
+
+/**
+ * What this payload will cost the ring, charged in characters.
+ *
+ * Not `JSON.stringify(raw).length`, which is the obvious answer and is wrong
+ * here twice over. It allocates a full copy of a payload that can be five
+ * megabytes, on the hottest path in the process; and it would defeat the
+ * deliberate optimization in pushEvent that skips serializing ENTIRELY when
+ * nothing is subscribed and nothing is being logged — a headless deck, and the
+ * boot replay of a log that only rotates at 50 MB. That optimization is pinned
+ * by sse-serialize-once.test.ts, so serializing here would fail the suite as
+ * well as the machine.
+ *
+ * So it is a walk, allocating nothing, in the same iterative shape and for the
+ * same stack-overflow reason as redactDeckToken below: a body from JSON.parse
+ * is free to nest as deeply as it likes and a recursive scan would be a new way
+ * to blow the stack inside the request listener, where nothing catches it.
+ *
+ * WHAT IT CHARGES, and why it is not just the string lengths. Measured on
+ * Node 22.14 by parsing twenty copies of a 4.9M-character body of each shape
+ * and reading heapUsed after a forced GC — retained per copy, against what
+ * string characters alone would have charged:
+ *
+ *   one long string             4.67MB retained   4.67M charged   1.0x
+ *   array of 8-char strings     3.91MB retained   3.40M charged   1.2x
+ *   array of small numbers      4.67MB retained   0.00M charged   ∞
+ *   array of tiny objects      10.20MB retained   0.85M charged  12.0x
+ *   object of distinct keys    12.38MB retained   2.86M charged   4.3x
+ *
+ * A payload of numbers is INVISIBLE to a string-length charge while retaining
+ * 4.67 MB, and an array of small objects is under-charged twelvefold — so a
+ * ring bounded that way would have been the same OOM behind a different
+ * payload shape. Adding 8 characters per value (V8 spends a tagged slot on
+ * each, and small objects and packed arrays measured at 8–46 bytes an entry)
+ * and the length of every key brings the same five shapes to 1.0x, 0.6x, 1.0x,
+ * 1.7x and 2.5x — i.e. never blind, and never more than 2.5x under the truth.
+ * That 2.5x is what MAX_BUFFER_CHARS is sized against. The one direction it
+ * over-charges is arrays of short strings, which shortens replay depth and
+ * never the other way.
+ *
+ * Two-byte strings cost twice what they are charged, exactly as they do for
+ * MAX_CLIENT_BUFFER_BYTES: a 4.8M-character CJK payload retains 9.35 MB and is
+ * charged 4.67M. Folded into the same 2.5x.
+ *
+ * Cost, measured against the JSON.parse the same event already pays for:
+ * 0.21 µs for a realistic 5 KB hook payload, 0.04 µs for a 4.9M-character
+ * single string (it is one node), and 22.6 ms for the pathological 222k-tiny-
+ * object body — against 96.4 ms to JSON.parse that same body. So the walk is a
+ * fifth of a parse the ingest path is paying anyway, and cheaper than
+ * redactDeckToken's walk, which does substring searches this one does not.
+ *
+ * Exported so the charge itself can be asserted rather than inferred from the
+ * ring's behaviour.
+ */
+export function payloadChars(raw) {
+  if (typeof raw === "string") return raw.length;
+  // A top-level primitive is a legal body for `POST /api/event`, same as it is
+  // for redactDeckToken. One slot's worth.
+  if (raw === null || typeof raw !== "object") return 8;
+
+  let n = 0;
+  const stack = [raw];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    // Arrays and objects walked separately for the reason redactDeckToken gives:
+    // an indexed loop is markedly cheaper than `for…in`, and a single
+    // PostToolUse response can be an array of thousands.
+    if (Array.isArray(node)) {
+      n += 8 * node.length;
+      for (let i = 0; i < node.length; i++) {
+        const v = node[i];
+        if (typeof v === "string") n += v.length;
+        else if (v !== null && typeof v === "object") stack.push(v);
+      }
+    } else {
+      for (const k in node) {
+        const v = node[k];
+        n += 8 + k.length;
+        if (typeof v === "string") n += v.length;
+        else if (v !== null && typeof v === "object") stack.push(v);
+      }
+    }
+  }
+  return n;
+}
+
+// Where the charge rides. A Symbol key rather than an ordinary field, because
+// the envelope is JSON.stringify'd on the hot path into both the SSE frame and
+// the events.jsonl line, and JSON.stringify ignores symbol-keyed properties
+// entirely. So the number stays welded to the envelope it describes — which is
+// what makes it impossible for `bufferedChars` and `events` to drift apart —
+// without reaching the wire, the log, the client's HookEnvelope type, or the
+// 127-character envelope measurement MAX_CLIENT_BUFFER_BYTES is sized against.
+const CHARS = Symbol("ring charge");
+
+/**
+ * Empty the ring and the total measuring it, together.
+ *
+ * `/api/clear` used to be a bare `events.length = 0`, and with a running total
+ * beside the array that is a permanent debt: the total would still name events
+ * the array no longer holds, and every push after the first clear would evict
+ * against a budget already spent — a deck that answers one clear and then keeps
+ * a ring of one event for the rest of its life. The two variables move here and
+ * nowhere else.
+ */
+function clearEventBuffer() {
+  events.length = 0;
+  bufferedChars = 0;
+}
+
+/**
+ * What the ring holds right now — its length, what it is charged, and the seq
+ * range it spans.
+ *
+ * Exported alongside MAX_BUFFER and MAX_BUFFER_CHARS so a test can watch the
+ * bound hold through a real server instead of watching a process die, which is
+ * the only other way this bound is observable. The seq range is here for the
+ * property eviction has to keep and nothing else checks: what leaves is always a
+ * PREFIX, so `newest - oldest + 1` equals the count. An eviction that ever took
+ * from the middle would leave a hole no resuming client could ask for again,
+ * and that is exactly what `GET /api/events` and the replay loop would then
+ * hand out without noticing.
+ */
+export function eventBufferStats() {
+  return {
+    events: events.length,
+    chars: bufferedChars,
+    oldestSeq: events.length > 0 ? events[0].seq : 0,
+    newestSeq: events.length > 0 ? events[events.length - 1].seq : 0,
+  };
+}
+
 let nextSeq = 1;
 // Identity of *this* process's seq numbering. nextSeq restarts at 1 on every
 // boot and is re-derived by replaying events.jsonl, so it is monotonic only
@@ -108,7 +321,9 @@ export function writesLogFor(payload) {
 // 24/7 dev servers used to grow events.jsonl unbounded — saw it hit GBs
 // across weeks. We rotate when the file passes ROTATE_AT_BYTES, archiving
 // the previous file to .1 and starting fresh. Last-event-id replay still
-// covers the in-memory ring buffer of MAX_BUFFER events.
+// covers the in-memory ring buffer, which is bounded by MAX_BUFFER events AND
+// by MAX_BUFFER_CHARS — so how far back a replay reaches depends on how large
+// the traffic has been, not on the count alone.
 const ROTATE_AT_BYTES = 50 * 1024 * 1024;
 let lastRotateCheckAt = 0;
 let rotateInProgress = false;
@@ -2050,9 +2265,55 @@ function pushEvent(raw, source, opts = {}) {
     receivedAt: opts.receivedAt ?? Date.now(),
     source,
     payload: raw,
+    // Charged once, here, and carried on the envelope so eviction never has to
+    // walk a payload a second time. Symbol-keyed, so it is invisible to the two
+    // JSON.stringify calls below and to the `{ ...e }` the replay loop makes.
+    // Charged AFTER redactDeckToken, like everything else in this function: the
+    // payload being measured is the one that will be stored.
+    [CHARS]: ENVELOPE_CHARS + payloadChars(raw),
   };
   events.push(evt);
-  if (events.length > MAX_BUFFER) events.splice(0, events.length - MAX_BUFFER);
+  bufferedChars += evt[CHARS];
+
+  // Evict oldest-first until BOTH bounds hold — the count that has always been
+  // here, and the byte budget #625 added. See MAX_BUFFER_CHARS for the numbers.
+  //
+  // Counted first and spliced once, rather than shifting in a loop, because the
+  // two bounds evict at very different scales. The count bound drops exactly
+  // one entry per push; the byte bound can drop hundreds, since twenty-seven
+  // maximum-size events fill the whole budget on their own, and a shift per
+  // entry would memmove the array once for each of them.
+  //
+  // `drop < events.length - 1` is what keeps the event just pushed, whatever it
+  // weighs. A single event is allowed to be larger than the entire budget —
+  // ingest admits 5,000,000 characters, and a Codex rollout line read off disk
+  // has no length bound at all — and evicting it on arrival would leave
+  // pushEvent returning an envelope that `GET /api/events` never shows and no
+  // resuming client can ever be handed: a hole with no id to ask for it again,
+  // which is the exact failure the resume path below is written to avoid. So
+  // the true ceiling is MAX_BUFFER_CHARS plus one event, and that is stated
+  // here rather than pretended away.
+  //
+  // What this does to a resuming client is what the count bound has always done
+  // to one, only sooner: the head of the ring moves, and events that fell off
+  // it are gone for anybody who had not been sent them yet. That is the
+  // existing bargain for a too-old Last-Event-ID — handleSse replays whatever
+  // is still held and the client's `lastSeq` steps forward over the gap — and
+  // the byte bound deliberately reuses it rather than inventing a second answer.
+  // The difference worth knowing is that the head can now move in jumps rather
+  // than one entry at a time; resumeSse's per-pass snapshot is what makes that
+  // safe for a replay already in flight.
+  let drop = 0;
+  let freed = 0;
+  while (drop < events.length - 1
+    && (events.length - drop > MAX_BUFFER || bufferedChars - freed > MAX_BUFFER_CHARS)) {
+    freed += events[drop][CHARS];
+    drop++;
+  }
+  if (drop > 0) {
+    events.splice(0, drop);
+    bufferedChars -= freed;
+  }
 
   // Does this event reach the log at all? Not on a replay (it came from
   // there), not when the hook told us another deck owns this session's log,
@@ -2302,6 +2563,16 @@ function handleSse(req, res) {
   // A stale or absent id replays the whole ring, and so does a malformed one:
   // Number("nonsense") is NaN, every `seq <= NaN` is false, and the catch-up
   // loop below would rather compare against a number.
+  //
+  // An id OLDER than the ring's oldest event is a stale id and takes exactly
+  // that path — nothing special-cases it, and #625 deliberately did not add a
+  // second answer when it gave the ring a byte budget. Every `e.seq <=
+  // sentThrough` test simply fails, so the client is handed everything still
+  // held, contiguously, and the sentinel behind it; the events that were
+  // evicted are missing from its HISTORY, never from its stream. The reducer's
+  // guard is `env.seq <= state.lastSeq`, so the gap costs it a step forward and
+  // nothing else. What the byte budget changed is how often and how far the
+  // head moves, not what happens to a client that lands behind it.
   const asked = Number(req.headers["last-event-id"] ?? 0);
   const lastId = Number.isFinite(asked) ? asked : 0;
 
@@ -2339,6 +2610,16 @@ async function resumeSse(req, res, lastId) {
     // `events` off, and iterating an array being spliced from the front skips
     // entries. Events evicted that way are gone for this client, which is the
     // same bargain every resume against a rotated ring already makes.
+    //
+    // The snapshot earns more since #625 gave the ring a byte budget as well as
+    // a count. Under the count alone the head moved one entry per push; under
+    // the budget a single 5 MB event can evict hundreds at once. A replay
+    // already walking this array would have skipped every one of them — but the
+    // snapshot holds its own references, so the pass in flight still delivers
+    // what it was given and only a LATER pass sees the shortened ring. It also
+    // means a slow resumer pins one ring's worth of envelopes for as long as its
+    // pass lasts, which the budget bounds too: that pin used to be unbounded for
+    // the same reason the ring was.
     const batch = events.slice();
     for (const e of batch) {
       if (e.seq <= sentThrough) continue;
@@ -3044,6 +3325,15 @@ function originMatchesHost(origin, host) {
 // worst a caller does with it is draw a session on the canvas that is not
 // there. See the handshake in hook/hook.js for the authentication that does
 // run on this path, which is the deck proving itself to the hook.
+//
+// That "destroys nothing" is a claim about the whole ingest path and not only
+// about this line, and #625 is what it cost the day it stopped being true: the
+// ring buffer bounded the events it kept by count and not by size, so about 430
+// posts of a maximum-size body — from a local process holding no credential,
+// which is exactly what this set permits — reached the heap limit and aborted
+// the process. Whatever else is added to this set, the same question has to be
+// asked of it: what does an unbounded number of these accumulate in? For this
+// one the answer is now MAX_BUFFER_CHARS.
 const OPEN_MUTATIONS = new Set(["/api/event"]);
 
 // Constant-time comparison of two secrets, and a length test that is not.
@@ -3386,7 +3676,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
 
     // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
     if (req.method === "POST" && url.pathname === "/api/clear") {
-      events.length = 0;
+      // Not `events.length = 0`: the ring is measured by a running total now,
+      // and emptying the array without the total leaves a debt that never
+      // clears. See clearEventBuffer.
+      clearEventBuffer();
       if (persistPath) truncate(persistPath, 0).catch(() => {});
       // Drop the caches that gate an emit on "has this changed", because the
       // client is about to forget what they are comparing against: __clear makes
