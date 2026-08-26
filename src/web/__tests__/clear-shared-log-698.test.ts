@@ -82,8 +82,12 @@ for (const p of [claudeConfigDir(), AGENT_DAG_DIR, discoveryPath()] as string[])
 const SHARED = join(CONFIG, "agent-dag", "events.jsonl");
 /** A log nobody else names, for the ordinary single-deck case. */
 const SOLO = join(CONFIG, "agent-dag", "solo.jsonl");
+// The script node is handed on the command line, which is a path and stays one:
+// argv[1] is resolved by the CLI as a file path on every platform. Nothing here
+// hands the child a path where a module SPECIFIER is expected — see the harness,
+// which resolves the server against its own `import.meta.url` rather than
+// against anything passed in.
 const HARNESS = join(dirname(fileURLToPath(import.meta.url)), "clear-shared-log-deck-698.mjs");
-const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 type Deck = { child: ChildProcess; pid: number; port: number; token: string };
 
@@ -111,7 +115,6 @@ function boot(port: number, workspace: string): Promise<Deck> {
     const child = spawn(process.execPath, [HARNESS], {
       env: {
         ...process.env,
-        DECK_ROOT: REPO,
         DECK_PORT: String(port),
         DECK_PERSIST: SHARED,
         DECK_WORKSPACE: workspace,
@@ -127,7 +130,10 @@ function boot(port: number, workspace: string): Promise<Deck> {
     });
     child.stderr!.setEncoding("utf8").on("data", (c: string) => { why += c; });
     child.on("exit", code => fail(new Error(`deck on ${port} exited ${code}: ${why.slice(0, 400)}`)));
-    setTimeout(() => fail(new Error(`deck on ${port} never reported ready: ${why.slice(0, 400)}`)), 15_000);
+    // Generous on purpose: this is a cold `node` start plus the whole server
+    // module on a shared runner, and Windows pays the most for both. A deck that
+    // is merely slow must not read as a deck that is broken.
+    setTimeout(() => fail(new Error(`deck on ${port} never reported ready: ${why.slice(0, 400)}`)), 30_000);
   });
 }
 
@@ -164,7 +170,7 @@ const canvas = async (port: number) => {
 const hookEvents = async (port: number) =>
   (await canvas(port)).filter(e => e.payload?.hook_event_name !== "__clear").length;
 
-async function until(ok: () => boolean | Promise<boolean>, what: string, tries = 300) {
+async function until(ok: () => boolean | Promise<boolean>, what: string, tries = 600) {
   for (let i = 0; i < tries; i++) {
     if (await ok()) return;
     await new Promise(r => setTimeout(r, 25));
@@ -189,17 +195,28 @@ beforeAll(async () => {
     });
   }
   await until(() => logLines(SHARED) === 5, "the shared log to hold five lines");
-}, 60_000);
+}, 90_000);
 
 afterAll(async () => {
-  for (const d of [wide, scoped]) d?.child.kill();
+  // Waited for, not slept past. Windows releases a process's handles when the
+  // process is actually gone, and the directory removal below cannot delete a
+  // file something still holds open — a fixed 200ms is a guess about a loaded
+  // runner, and `exit` is the fact.
+  await Promise.all([wide, scoped].map(d => (d ? new Promise<void>(r => {
+    if (d.child.exitCode !== null || d.child.signalCode !== null) return r();
+    d.child.once("exit", () => r());
+    d.child.kill();
+    setTimeout(r, 10_000);
+  }) : Promise.resolve())));
   if (solo) await new Promise<void>(r => solo.close(() => r()));
-  await new Promise(r => setTimeout(r, 200));
   for (const [k, v] of Object.entries(PREV)) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  // `maxRetries` rather than a bare call: on Windows a directory whose last
+  // handle was closed a moment ago still answers EBUSY/EPERM for a beat, and a
+  // throw here would fail a file whose every case has already passed.
+  rmSync(SANDBOX, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 describe("Clear on a deck that does not own the shared log", () => {
@@ -316,6 +333,41 @@ describe("A deck whose log nobody else holds", () => {
     expect(note).toContain("the one agent");
     expect(confirm).toBe("Clear everything");
   }, 60_000);
+});
+
+describe("The second deck's own process", () => {
+  it("loads the server through a URL, so a Windows runner can start it at all", () => {
+    // This file's cases are the only ones in the suite that assert what one
+    // deck's Clear does to ANOTHER deck's file, and they need a second process
+    // to have a second deck. The first version handed that process the repo root
+    // as an environment variable and built its import specifier out of it, which
+    // is fine on POSIX by accident — `/a/b` is a usable specifier because it
+    // reads as a URL path — and fatal on Windows, where `D:\a\b` parses as a URL
+    // with the scheme `d:` and Node answers ERR_UNSUPPORTED_ESM_URL_SCHEME. The
+    // deck exited 1 before printing anything, `beforeAll` threw, and vitest
+    // reported all eleven cases as SKIPPED: a leg that never ran the assertions
+    // for a data-loss bug whose Windows behaviour is the part most worth
+    // testing, and a green-looking file either side of it.
+    //
+    // Checkable from any machine, which is the point — the platform that breaks
+    // is the one nobody here can run.
+    const src = readFileSync(HARNESS, "utf8");
+    expect(src, "the server must be resolved against this file, not a path passed in")
+      .toContain('new URL("../../server/index.mjs", import.meta.url).href');
+    // No specifier assembled from a string that could be a Windows path. A
+    // template literal or a `+` in front of `import(` is exactly how the first
+    // version was written.
+    expect(src).not.toMatch(/import\(\s*[`'"]?\$\{/);
+    expect(src).not.toMatch(/import\([^)]*\+/);
+    // And nothing hands it one to be tempted by. TEMP is on C: and the checkout
+    // on D: on GitHub's Windows runners, so there is not even a shared root to
+    // fall back on. The name is assembled rather than written, so that this
+    // assertion is not satisfied by its own source — the same reason
+    // skip-gate-inventory.test.ts builds its fixtures through `gate()`.
+    const test = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "clear-shared-log-698.test.ts"), "utf8");
+    expect(test, "a repo path in the child's environment is a specifier waiting to happen")
+      .not.toMatch(new RegExp("DECK_" + "ROOT"));
+  });
 });
 
 describe("The sentence when the server has not answered yet", () => {
