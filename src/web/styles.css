@@ -4713,6 +4713,18 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-family: inherit;
 }
 
+/* What the strip above is a strip OF, on the one deck that has no headline to
+   say it — every model unpriced, so the money block never renders (#687). It
+   rides in the same flex row as the token pairs and takes the same muted tone
+   as their keys, because it is a caption on them rather than a fifth figure:
+   `.up-tok` gives it the row's baseline and gap, this gives it the key's size
+   and colour. Both themes answer for it through --muted, which each declares. */
+.up-scope {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: inherit;
+}
+
 /* One of the two insets that stay literal: panel-overflow.test.ts parses this
    padding and the cost bar's margin above as NUMBERS to redo #369's overflow
    arithmetic, and a var() reads as NaN there. panel-rhythm.test.ts asserts both

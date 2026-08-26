@@ -139,8 +139,14 @@ describe("the topbar readouts", () => {
 
   it("still has a strip with tooltipped numbers in it, so this block is not vacuous", () => {
     expect(strip, "the .status strip is gone from App.tsx entirely").toBeTruthy();
-    expect(strip).toContain(`<span className="lbl">tokens</span>`);
-    expect(strip).toContain("cost");
+    // Both labels come out of board-usage.ts as of #687 — the chips are sums
+    // over the agents on the canvas, and an unqualified "tokens" / "cost" read
+    // as a claim about the day. The words themselves are pinned in
+    // board-scope-687.test.ts; what this case needs is that the strip still
+    // renders two labelled, tooltipped numbers for the CLI-name rule below to
+    // have something to be about.
+    expect(strip).toContain(`<span className="lbl">{BOARD_TOKENS_LABEL}</span>`);
+    expect(strip).toContain("BOARD_COST_LABEL");
     expect((strip.match(/title=/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 

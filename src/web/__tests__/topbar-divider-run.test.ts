@@ -138,7 +138,11 @@ describe("the divider run in the topbar's readout strip", () => {
       app.indexOf(`<div className="vis-hidden"`),
     );
     expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
-    const order = ["`pill ${pill.tone}`", "<SystemMeter", `<span className="lbl">tokens</span>`, "cost"]
+    // The two readouts are named by the constants board-usage.ts declares as of
+    // #687 — the labels moved next to the summation they describe, so the
+    // needle is the constant rather than the word it prints. What this case is
+    // about is the ORDER of the four members, which is unchanged.
+    const order = ["`pill ${pill.tone}`", "<SystemMeter", `<span className="lbl">{BOARD_TOKENS_LABEL}</span>`, "BOARD_COST_LABEL"]
       .map(needle => strip.indexOf(needle));
     expect(order.every(at => at > -1), `the strip lost one of ${order}`).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);

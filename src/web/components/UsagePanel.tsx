@@ -3,6 +3,7 @@
 // in the topbar or the U keyboard shortcut.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
+import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import { PRODUCT } from "../brand";
 import type { GraphState } from "../reducer";
 import type { AgentState } from "../types";
@@ -395,9 +396,14 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // `bySessions` below has no clock in it, and it is the one that went stale.
   const { byModel, totalCost, totalTokens, burnRate } = useMemo(() => {
     const modelMap = new Map<string, ModelRow>();
-    const totalCostAcc: CostBreakdown = { total: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-    let totalIn = 0, totalOut = 0, totalCacheR = 0, totalCacheC = 0;
-
+    // The headline's own arithmetic is `boardTotals`, called once below rather
+    // than accumulated here (#687). It was a second copy of the topbar's, and
+    // the file it moved to is the file that declares what the figure may be
+    // called — which is the whole of the fix: the sum walks the agents on the
+    // canvas, the pruners take agents off the canvas, and the only honest label
+    // for such a number names the canvas. Splitting the label from the sum is
+    // how "total spend" came to stand over a figure that falls by a third on a
+    // quiet tick.
     for (const a of state.agents.values()) {
       const key = a.model ?? UNKNOWN_MODEL;
       const c = costForUsage(a.usage, a.model);
@@ -425,15 +431,6 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           priced: ratesForModel(a.model) != null,
         });
       }
-      totalCostAcc.total     += c.total;
-      totalCostAcc.input     += c.input;
-      totalCostAcc.output    += c.output;
-      totalCostAcc.cacheRead += c.cacheRead;
-      totalCostAcc.cacheWrite += c.cacheWrite;
-      totalIn    += a.usage.inputTokens;
-      totalOut   += a.usage.outputTokens;
-      totalCacheR += a.usage.cacheReadTokens;
-      totalCacheC += a.usage.cacheCreateTokens;
     }
 
     // Cost first, then tokens. Every unpriced row costs exactly zero, so
@@ -454,10 +451,11 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     }
     const burnRate = liveSec > 0 ? fmtCostRate(liveCost, liveSec) : null;
 
+    const board = boardTotals(state.agents.values());
     return {
       byModel,
-      totalCost: totalCostAcc,
-      totalTokens: { in: totalIn, out: totalOut, cacheR: totalCacheR, cacheC: totalCacheC },
+      totalCost: board.cost,
+      totalTokens: board,
       burnRate,
     };
   }, [state, state.revision, now]);
@@ -514,7 +512,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   }, [state, state.revision]);
 
   const hasCost = totalCost.total > 0;
-  const totalTokenSum = totalTokens.in + totalTokens.out;
+  const totalTokenSum = totalTokens.sum;
   // Rows worth a line, which is not the same question as rows worth a dollar.
   // Both tables used to filter on `cost > 0`, and in a deck holding one priced
   // Claude session and any number of unpriced Codex ones that filter was
@@ -793,21 +791,38 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           break down. */}
       {totalTokenSum > 0 ? (
         <>
+          {/* The headline says whose spend it is (#687).
+              It read "total spend", and it is not a total of anything: it walks
+              the agents on the canvas, and `pruneDoneSessions` takes finished
+              sessions off the canvas two minutes after they end, six at a time.
+              Ten finished sessions reading $75.00 read $45.00 one 250ms tick
+              later with nothing refunded — a correct number under a word that
+              claims a period it does not cover, which is the worst kind of wrong
+              number because nothing on screen looks broken.
+              The label carries the scope and the tooltip carries the rest: why
+              the figure falls, and that H opens the one surface which answers
+              "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className="up-total">
+              <div className="up-total" title={BOARD_SCOPE_TITLE}>
                 <span className="up-total-value">{fmtCost(totalCost.total)}</span>
-                <span className="up-total-label">total spend</span>
+                <span className="up-total-label">{BOARD_SPEND_LABEL}</span>
               </div>
               <CostBar cost={totalCost} />
             </>
           )}
 
-          <div className="up-tokens-row">
-            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(totalTokens.in)}</span>
-            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(totalTokens.out)}</span>
-            {totalTokens.cacheR > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(totalTokens.cacheR)}</span>}
-            {totalTokens.cacheC > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(totalTokens.cacheC)}</span>}
+          <div className="up-tokens-row" title={BOARD_SCOPE_TITLE}>
+            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(totalTokens.inputTokens)}</span>
+            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(totalTokens.outputTokens)}</span>
+            {totalTokens.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(totalTokens.cacheReadTokens)}</span>}
+            {totalTokens.cacheCreateTokens > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(totalTokens.cacheCreateTokens)}</span>}
+            {/* On a deck where nothing is priced there is no headline above this
+                — the money block is gated on cost — so the strip is the only
+                aggregate on screen and the only place left to say what it is
+                the aggregate OF. Said once either way: with a headline present
+                this would be the same words twice on a 280px panel. */}
+            {!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}
           </div>
 
           {modelRows.length > 0 && (

@@ -4,6 +4,7 @@
 // don't re-open on refresh (the dismissed list is in localStorage).
 import React, { useMemo, useRef } from "react";
 import { costForUsage, fmtCost } from "../pricing";
+import { SESSION_SPEND_LABEL } from "../board-usage";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import { shortModel } from "../model-label";
@@ -47,7 +48,12 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
         <div className="modal-body">
           <section className="ss-hero">
             <div className="ss-hero-left">
-              <div className="ss-cost-label">total spend</div>
+              {/* The same word retired from the sidebar row beside it (#687):
+                  this is the sum over the agents of ONE session that are still
+                  on the board, which is a scope and not a total. The session it
+                  belongs to is named in this modal's own title two inches
+                  above, so the scope needs no more words than that. */}
+              <div className="ss-cost-label">{SESSION_SPEND_LABEL}</div>
               <div className="ss-cost">{fmtCost(summary.cost.total)}</div>
               {summary.modelChips.length > 0 && (
                 <div className="ss-models">
