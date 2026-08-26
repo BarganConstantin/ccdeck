@@ -4,6 +4,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
+// Tokens are priced at the model that produced them, not at the last model the
+// session was seen on — see usage-models.ts for the two measurements that make
+// the difference 60% under in one direction and 150% over in the other (#686).
+import { agentCost, agentUnpricedTokens, usageByModelEntries } from "../usage-models";
 import { PRODUCT } from "../brand";
 import type { GraphState } from "../reducer";
 import type { AgentState } from "../types";
@@ -404,32 +408,43 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     // for such a number names the canvas. Splitting the label from the sum is
     // how "total spend" came to stand over a figure that falls by a third on a
     // quiet tick.
+    //
+    // One pass per MODEL SHARE below, not one per agent (#686). An agent whose
+    // session switched model contributes a share to each row it actually spent
+    // on, with the tokens that model produced and the dollars those tokens cost
+    // — so this table is finally a breakdown of the deck rather than a
+    // restatement of every session's last turn, and a mostly-Opus session that
+    // ended on Sonnet shows up as an Opus row AND a Sonnet row instead of one
+    // Sonnet row holding the whole 1.1M. The rows still sum to the headline,
+    // because `boardTotals` prices the same shares through the same helper.
     for (const a of state.agents.values()) {
-      const key = a.model ?? UNKNOWN_MODEL;
-      const c = costForUsage(a.usage, a.model);
-      const row = modelMap.get(key);
-      if (row) {
-        row.inputTokens        += a.usage.inputTokens;
-        row.outputTokens       += a.usage.outputTokens;
-        row.cacheReadTokens    += a.usage.cacheReadTokens;
-        row.cacheCreateTokens  += a.usage.cacheCreateTokens;
-        row.cost.total         += c.total;
-        row.cost.input         += c.input;
-        row.cost.output        += c.output;
-        row.cost.cacheRead     += c.cacheRead;
-        row.cost.cacheWrite    += c.cacheWrite;
-        row.agentCount++;
-      } else {
-        modelMap.set(key, {
-          model: key,
-          inputTokens:       a.usage.inputTokens,
-          outputTokens:      a.usage.outputTokens,
-          cacheReadTokens:   a.usage.cacheReadTokens,
-          cacheCreateTokens: a.usage.cacheCreateTokens,
-          cost: { ...c },
-          agentCount: 1,
-          priced: ratesForModel(a.model) != null,
-        });
+      for (const e of usageByModelEntries(a)) {
+        const key = e.model ?? UNKNOWN_MODEL;
+        const c = costForUsage(e.usage, e.model);
+        const row = modelMap.get(key);
+        if (row) {
+          row.inputTokens        += e.usage.inputTokens;
+          row.outputTokens       += e.usage.outputTokens;
+          row.cacheReadTokens    += e.usage.cacheReadTokens;
+          row.cacheCreateTokens  += e.usage.cacheCreateTokens;
+          row.cost.total         += c.total;
+          row.cost.input         += c.input;
+          row.cost.output        += c.output;
+          row.cost.cacheRead     += c.cacheRead;
+          row.cost.cacheWrite    += c.cacheWrite;
+          row.agentCount++;
+        } else {
+          modelMap.set(key, {
+            model: key,
+            inputTokens:       e.usage.inputTokens,
+            outputTokens:      e.usage.outputTokens,
+            cacheReadTokens:   e.usage.cacheReadTokens,
+            cacheCreateTokens: e.usage.cacheCreateTokens,
+            cost: { ...c },
+            agentCount: 1,
+            priced: ratesForModel(e.model) != null,
+          });
+        }
       }
     }
 
@@ -445,7 +460,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     let liveCost = 0, liveSec = 0;
     for (const a of state.agents.values()) {
       if (a.state !== "active") continue;
-      const c = costForUsage(a.usage, a.model);
+      const c = agentCost(a);
       liveCost += c.total;
       liveSec = Math.max(liveSec, ((a.endedAt ?? now) - a.startedAt) / 1000);
     }
@@ -473,23 +488,24 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // "active" for as long as the tab was open.
   const bySessions = useMemo((): SessionRow[] => {
     const roots: SessionRow[] = [];
-    /** A session's tokens that no rate could be applied to, counted per agent
-     *  because a session can mix providers — a Claude root that spawned a Codex
-     *  subagent prices one and not the other. */
-    const unpriced = (a: { usage: { inputTokens: number; outputTokens: number }; model?: string }) =>
-      ratesForModel(a.model) == null ? a.usage.inputTokens + a.usage.outputTokens : 0;
-
+    // A session's tokens that no rate could be applied to, counted per agent
+    // because a session can mix providers — a Claude root that spawned a Codex
+    // subagent prices one and not the other — and, since #686, per MODEL inside
+    // each agent as well: a root that ran on a priced model and then on one this
+    // build has never heard of has to print its priced dollars with the floor
+    // marker beside them, not swing between fully priced and fully unpriced
+    // depending on which model wrote its last line.
     for (const a of state.agents.values()) {
       if (a.kind !== "root") continue;
-      let cost = costForUsage(a.usage, a.model).total;
+      let cost = agentCost(a).total;
       let inT = a.usage.inputTokens, outT = a.usage.outputTokens;
-      let unpricedT = unpriced(a);
+      let unpricedT = agentUnpricedTokens(a);
       for (const sub of state.agents.values()) {
         if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
-        cost += costForUsage(sub.usage, sub.model).total;
+        cost += agentCost(sub).total;
         inT  += sub.usage.inputTokens;
         outT += sub.usage.outputTokens;
-        unpricedT += unpriced(sub);
+        unpricedT += agentUnpricedTokens(sub);
       }
       roots.push({
         sessionId: a.sessionId,

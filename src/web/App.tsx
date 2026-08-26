@@ -54,8 +54,13 @@ import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
-import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
+import { fmtCost, fmtCostRate } from "./pricing";
 import { boardTotals, BOARD_COST_LABEL, BOARD_SCOPE_TITLE, BOARD_TOKENS_LABEL } from "./board-usage";
+// The topbar strip, the burn ticker, the selected-session ribbon and the detail
+// panel all multiply usage by a price, and all four used to multiply a whole
+// session's cumulative tokens by the one model it was last seen on. See
+// usage-models.ts (#686).
+import { agentCost, otherModelIds } from "./usage-models";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
@@ -2827,7 +2832,7 @@ function Inner() {
               let liveCost = 0, liveSec = 0;
               for (const a of stateRef.current.agents.values()) {
                 if (a.state !== "active") continue;
-                const c = costForUsage(a.usage, a.model);
+                const c = agentCost(a);
                 liveCost += c.total;
                 liveSec = Math.max(liveSec, ((a.endedAt ?? now) - a.startedAt) / 1000);
               }
@@ -2907,7 +2912,7 @@ function Inner() {
           )}
         </div>
         {selected && (() => {
-          const c = costForUsage(selected.usage, selected.model);
+          const c = agentCost(selected);
           const elapsedSec = Math.max(0, ((selected.endedAt ?? now) - selected.startedAt) / 1000);
           const rate = selected.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
           const extra = selectedIds.size - 1;
@@ -3950,7 +3955,7 @@ function Detail({
   // beside a card reading "437ms" for the same agent.
   const elapsedLabel = elapsed(agent.startedAt, agent.endedAt, now);
 
-  const cost = costForUsage(agent.usage, agent.model);
+  const cost = agentCost(agent);
   const hasCost = cost.total > 0;
   const totalTokens = agent.usage.inputTokens + agent.usage.outputTokens;
 
@@ -3986,12 +3991,25 @@ function Detail({
           <span className="hero-meta-item" title={`started ${new Date(agent.startedAt).toLocaleString()}`}>
             {elapsedLabel}
           </span>
-          {agent.model && (
-            <>
-              <span className="hero-sep">·</span>
-              <span className="model-chip" title={agent.model}>{shortModel(agent.model)}</span>
-            </>
-          )}
+          {agent.model && (() => {
+            // Same chip, same rule, as the card this panel was opened from —
+            // the current model by name, and a count of the others the figure
+            // above it also covers (#686). Two surfaces showing one fact have
+            // to show it the same way, or the panel reads as a correction of
+            // the card rather than a larger view of it.
+            const others = otherModelIds(agent);
+            return (
+              <>
+                <span className="hero-sep">·</span>
+                <span
+                  className="model-chip"
+                  title={others.length > 0
+                    ? `${agent.model}\nspend on this panel also covers:\n${others.join("\n")}`
+                    : agent.model}
+                >{shortModel(agent.model)}{others.length > 0 ? ` +${others.length}` : ""}</span>
+              </>
+            );
+          })()}
         </div>
         {hasCost && (
           <div className="hero-cost">

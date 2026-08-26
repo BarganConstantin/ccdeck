@@ -464,6 +464,51 @@ function grabUsageField(blob, key) {
   return m ? Number(m[1]) : 0;
 }
 
+// How many DISTINCT models one transcript may keep a usage bucket for.
+//
+// A session reaches two or three: `/model` mid-run, CC dropping to Sonnet when
+// the weekly Opus allowance runs low, a subagent turn on a different tier. The
+// cap is not about those. `MODEL_ID_RE` accepts anything beginning `claude-`,
+// and every line of a transcript is bytes this process was handed rather than
+// bytes it wrote — so a file naming a fresh `claude-<n>` on every line would
+// otherwise grow one bucket per line, inside the same scanner #674 put a
+// ceiling on for exactly this shape of reason. Past the cap the extra models'
+// tokens still reach `state.usage`, which is what every token count on screen
+// reads; they simply stop being attributed, and `usageByModelEntries` on the
+// client prices whatever the map does not explain at the session's current
+// model — the behaviour the whole deck had before #686.
+const MAX_TRANSCRIPT_USAGE_MODELS = 32;
+
+/** The per-model usage bucket for `model`, created on first sight. Null for a
+ *  line whose tokens we cannot attribute — no model seen yet in this file, or
+ *  the cap above already reached. */
+function usageBucketFor(state, model) {
+  if (!model) return null;
+  const existing = state.usageByModel[model];
+  if (existing) return existing;
+  if (Object.keys(state.usageByModel).length >= MAX_TRANSCRIPT_USAGE_MODELS) return null;
+  const fresh = newUsageTotals();
+  state.usageByModel[model] = fresh;
+  return fresh;
+}
+
+/** Add `src`'s per-model buckets into `dst`, key for key, and return `dst`.
+ *  Under the same cap as the per-file map, so a session that delegates to
+ *  hundreds of files cannot assemble an unbounded one out of bounded parts. */
+function mergeUsageByModel(dst, src) {
+  if (!src) return dst;
+  for (const [model, u] of Object.entries(src)) {
+    let bucket = dst[model];
+    if (!bucket) {
+      if (Object.keys(dst).length >= MAX_TRANSCRIPT_USAGE_MODELS) continue;
+      bucket = newUsageTotals();
+      dst[model] = bucket;
+    }
+    for (const k of Object.keys(bucket)) bucket[k] += u[k] ?? 0;
+  }
+  return dst;
+}
+
 function newContextBreakdown() {
   return {
     msgsUser: 0,
@@ -495,6 +540,15 @@ function newTranscriptState() {
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
     usage: newUsageTotals(),
+    // The same totals, split by the model that produced them (#686). The flat
+    // bucket above stays the whole-transcript sum and is what every token count
+    // reads; this is what the DOLLARS are built from, because a session that
+    // switched model has tokens from two rate cards in one file and one rate
+    // applied to the lot is wrong by the ratio between them — measured at 60%
+    // under on a mostly-Opus session that ended on Sonnet, and 150% over on the
+    // mirror of it. Costs no extra read: `message.model` and the `"usage"` block
+    // are on the same line, and this pass already parses both.
+    usageByModel: {},
     ctx: newContextBreakdown(),
   };
 }
@@ -727,20 +781,53 @@ function foldTranscriptLine(state, line) {
     }
   }
 
-  // Usage totals sum every block in the file, resets included — every block
-  // the model was actually billed for, which is why the `toolUseResult` tail
-  // is cut off first (see billedUsageText).
+  // Usage totals sum every block in the file, resets included — every block the
+  // model was actually billed for, which is why the `toolUseResult` tail is cut
+  // off first (see billedUsageText) — and are summed a second time into the
+  // bucket of the model that produced them (#686).
+  //
+  // `state.lastModel` is the attribution, and it is the LINE's model whenever
+  // the line has one: the block above has already run and assigned it. That is
+  // the whole trick — CC writes `message.model` and `message.usage` into the
+  // same JSON object, so by the time this loop reads the tokens the model that
+  // produced them is the most recent thing the scanner saw. A usage block on a
+  // line naming no model falls back to the last model seen, which is the turn it
+  // belongs to; a usage block before ANY model line gets no bucket at all and
+  // stays in the flat total alone, where the client prices it at the session's
+  // current model exactly as it did before.
+  //
+  // The bucket takes exactly what the flat total takes, off the same `billed`
+  // text: a split that read a wider stretch of the line than the total it splits
+  // would re-introduce #685's double count on one side of the arithmetic only,
+  // and the two would stop summing to each other.
   const billed = billedUsageText(line);
+  const bucket = usageBucketFor(state, state.lastModel);
   for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
     const blob = m[1];
-    state.usage.input_tokens += grabUsageField(blob, "input_tokens");
-    state.usage.output_tokens += grabUsageField(blob, "output_tokens");
-    state.usage.cache_read_input_tokens += grabUsageField(blob, "cache_read_input_tokens");
-    state.usage.cache_creation_input_tokens += grabUsageField(blob, "cache_creation_input_tokens");
+    const inTok    = grabUsageField(blob, "input_tokens");
+    const outTok   = grabUsageField(blob, "output_tokens");
+    const cacheR   = grabUsageField(blob, "cache_read_input_tokens");
+    const cacheC   = grabUsageField(blob, "cache_creation_input_tokens");
+    state.usage.input_tokens += inTok;
+    state.usage.output_tokens += outTok;
+    state.usage.cache_read_input_tokens += cacheR;
+    state.usage.cache_creation_input_tokens += cacheC;
+    if (bucket) {
+      bucket.input_tokens += inTok;
+      bucket.output_tokens += outTok;
+      bucket.cache_read_input_tokens += cacheR;
+      bucket.cache_creation_input_tokens += cacheC;
+    }
   }
   for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
-    state.usage.ephemeral_1h_input_tokens += grabUsageField(m[1], "ephemeral_1h_input_tokens");
-    state.usage.ephemeral_5m_input_tokens += grabUsageField(m[1], "ephemeral_5m_input_tokens");
+    const h1 = grabUsageField(m[1], "ephemeral_1h_input_tokens");
+    const m5 = grabUsageField(m[1], "ephemeral_5m_input_tokens");
+    state.usage.ephemeral_1h_input_tokens += h1;
+    state.usage.ephemeral_5m_input_tokens += m5;
+    if (bucket) {
+      bucket.ephemeral_1h_input_tokens += h1;
+      bucket.ephemeral_5m_input_tokens += m5;
+    }
   }
 
   // Context counts only what follows the most recent /clear or /compact.
@@ -1024,7 +1111,16 @@ export async function readModelFromTranscript(path) {
  *  ~80 KB per pass into the SSE fan-out, the event ring and events.jsonl —
  *  ~115 MB an hour into a log that rotates at 50 MB. One summed object is
  *  ~150 bytes whatever the session delegates, so the session total is exact
- *  and constant-cost, and per-card attribution stays a separate question. */
+ *  and constant-cost, and per-card attribution stays a separate question.
+ *
+ *  `usageByModel` is summed on the same terms and for the same reason (#686):
+ *  a subagent runs on whatever model its Task was given, which is routinely not
+ *  its parent's — the deck already reads a per-agent `models` map three lines
+ *  up precisely because of that — so folding delegated tokens into the session
+ *  total without their model would price a Haiku subagent's spend at the root's
+ *  Opus rate. It stays constant-cost the way the flat total does: the key count
+ *  is the number of MODELS a session touched, two or three, not the number of
+ *  files it delegated to. */
 async function readSubagentsFromDir(transcriptPath) {
   // Subagent dir sits next to the main jsonl: <dir>/<sessionId>/subagents/
   // Derive from transcript_path by stripping the .jsonl suffix.
@@ -1035,6 +1131,7 @@ async function readSubagentsFromDir(transcriptPath) {
   try { entries = await readdir(subDir); } catch { return null; }
   const models = {};
   const usage = newUsageTotals();
+  const usageByModel = {};
   let spent = false;
   for (const f of entries) {
     if (!/^agent-([0-9a-f]+)\.jsonl$/i.test(f)) continue;
@@ -1051,6 +1148,10 @@ async function readSubagentsFromDir(transcriptPath) {
       // whole file's totals however many passes it took to fold them, so
       // re-summing every pass restates the same number rather than growing it.
       for (const k of Object.keys(usage)) usage[k] += state.usage[k];
+      // Idempotent on the same argument as the line above: each file's split is
+      // its own cumulative totals, so re-summing every pass restates the map
+      // rather than growing it.
+      mergeUsageByModel(usageByModel, state.usageByModel);
       if (state.usage.input_tokens || state.usage.output_tokens
           || state.usage.cache_read_input_tokens || state.usage.cache_creation_input_tokens) {
         spent = true;
@@ -1059,7 +1160,11 @@ async function readSubagentsFromDir(transcriptPath) {
   }
   const hasModels = Object.keys(models).length > 0;
   if (!hasModels && !spent) return null;
-  return { models: hasModels ? models : null, usage: spent ? usage : null };
+  return {
+    models: hasModels ? models : null,
+    usage: spent ? usage : null,
+    usageByModel: spent ? usageByModel : null,
+  };
 }
 
 // One walk of `<sessionDir>/subagents/` serves both the model pass and the
@@ -1151,6 +1256,48 @@ export async function readUsageFromTranscript(path) {
   return totals;
 }
 
+/** One transcript's totals broken out by the model that produced them, or null
+ *  when the scan attributed nothing.
+ *
+ *  A SECOND EXPORT rather than one more key on the object above, and the reason
+ *  is that object's contract: `readUsageFromTranscript` is asserted with
+ *  `toEqual` on its whole shape, so a key added to it is a key every caller and
+ *  every fixture has to learn about. This costs no extra read — `scanTranscript`
+ *  hands back the state it already folded and coalesces concurrent callers onto
+ *  one pass — so the pair reads the file exactly as often as the single call
+ *  did. */
+export async function readUsageByModelFromTranscript(path) {
+  const state = await scanTranscript(path);
+  if (!state) return null;
+  const out = {};
+  for (const [model, u] of Object.entries(state.usageByModel)) {
+    if (u.input_tokens === 0 && u.output_tokens === 0
+        && u.cache_read_input_tokens === 0 && u.cache_creation_input_tokens === 0) continue;
+    out[model] = { ...u };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** The session's whole spend split by model — its own turns plus every
+ *  subagent's, merged (#686).
+ *
+ *  The counterpart of `sessionUsageTotals` below and read from the same two
+ *  places, so the split and the total it splits are always a description of the
+ *  same bytes. A subagent runs on the model its Task was given, which is
+ *  routinely not its parent's, so a session sum that carried only the root's
+ *  models would price delegated tokens at whatever the root is on now — the
+ *  same mistake as the one being fixed, one level in. */
+export async function sessionUsageByModel(transcriptPath) {
+  const [own, dir] = await Promise.all([
+    readUsageByModelFromTranscript(transcriptPath),
+    scanSubagentDir(transcriptPath),
+  ]);
+  if (!own && !dir?.usageByModel) return null;
+  const out = mergeUsageByModel({}, own);
+  mergeUsageByModel(out, dir?.usageByModel);
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * Everything a Claude session has spent: its own turns plus every subagent it
  * ran. Returns null when the session has spent nothing yet.
@@ -1194,10 +1341,16 @@ function maybeResolveUsage(payload) {
   if (now - last < USAGE_READ_THROTTLE_MS) return;
   lastUsageReadAt.set(sid, now);
   pendingUsageReads.add(sid);
-  sessionUsageTotals(tp)
-    .then(usage => {
+  Promise.all([sessionUsageTotals(tp), sessionUsageByModel(tp)])
+    .then(([usage, usageByModel]) => {
       if (!usage) return;
-      pushEvent({ hook_event_name: "UsageObserved", session_id: sid, usage }, "internal");
+      // `usageByModel` rides on the same event because it is the same
+      // measurement, read from the same two places by the same walk — the main
+      // transcript and the `subagents/` directory — so the split and the total
+      // it splits cannot describe two different moments of the session. Sent
+      // even when null: an absent split has to CLEAR a stale one on the client,
+      // for the reason the flat totals are assigned rather than added.
+      pushEvent({ hook_event_name: "UsageObserved", session_id: sid, usage, usageByModel }, "internal");
     })
     .catch(() => {})
     .finally(() => pendingUsageReads.delete(sid));
