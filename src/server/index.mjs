@@ -2068,7 +2068,52 @@ function pushEvent(raw, source, opts = {}) {
   // — which runs before the listener exists and never broadcasts — paid one
   // for every line of a log that rotates at 50MB. An event this deck is not
   // logging is still broadcast, so a subscriber alone is reason enough.
-  const json = (sseClients.size > 0 || persisting) ? JSON.stringify(evt) : null;
+  //
+  // Contained, because this line was fatal. `JSON.stringify` walks a value
+  // recursively while `JSON.parse` does not, and the gap between the two is
+  // enormous: measured on Node 22.14, parse accepts a body nested 4,194,303
+  // deep and stringify gives up on the result at 4,021. So a payload in that
+  // window parses cleanly and then throws `RangeError: Maximum call stack size
+  // exceeded` out of here — and there is no promise on this path for the
+  // route's `guard` to catch, because pushEvent is reached from inside a raw
+  // `req.on("end")` listener. It was an uncaughtException, and Node's answer to
+  // those is to exit. Measured against the real server: one POST of 24,378
+  // bytes, nested 4,050 deep, to the credential-free `/api/event` — a
+  // two-hundredth of the 5,000,000-character ingest cap — and the deck was
+  // gone, with nothing on the socket to tell the poster why.
+  //
+  // The payload leaves the ring, not just this string, and that is the point.
+  // `events.push` above already took the envelope, and a value nothing can
+  // serialize is a value no reader can ever deliver: every `Last-Event-ID`
+  // resume that replays it and every `GET /api/events` that writes it would
+  // meet the same throw for as long as it stayed in the buffer, so one small
+  // POST would poison both routes for the life of the entry. The envelope
+  // therefore keeps its `seq` and loses its payload — the same replacement
+  // envelopeJson makes for a reader, made once at the write instead of on every
+  // read, and the same bargain about `seq`: a caller paging with `?since=`
+  // walks past the hole rather than asking forever for what it cannot be given.
+  //
+  // Admitted as a stub rather than refused at ingest with a 400, deliberately.
+  // Three of pushEvent's four callers have no HTTP peer to answer — Codex
+  // rollout lines read off disk, the boot replay of events.jsonl, the synthetic
+  // events the transcript scanners emit — so the containment has to live here
+  // whatever the ingest route does, and a 400 on top would be a second
+  // mechanism for a case this one already covers. It would also have to be paid
+  // for: knowing a payload will not serialize means serializing it, which is
+  // the second stringify per event on the hottest path in the process that the
+  // paragraph above exists to have removed. The reason goes to stderr and not
+  // to the wire, under the rule sendInternalError explains.
+  let json = null;
+  if (sseClients.size > 0 || persisting) {
+    try {
+      json = JSON.stringify(evt);
+    } catch (err) {
+      console.error(`${PRODUCT}: event ${seq} could not be serialized:`, err);
+      evt.payload = null;
+      evt.unserializable = true;
+      json = JSON.stringify(evt);
+    }
+  }
 
   if (sseClients.size > 0) {
     const line = `id: ${seq}\nevent: hook\ndata: ${json}\n\n`;
@@ -2382,15 +2427,37 @@ function handleEventIngest(req, res, persist = true) {
     let parsed;
     try { parsed = JSON.parse(body); }
     catch { return send(res, 400, { error: "invalid json" }); }
-    noteLogWriter(parsed, persist);
-    const evt = pushEvent(parsed, "hook", { persist });
-    send(res, 200, { ok: true, seq: evt.seq });
+    // Everything past the parse is inside one net, because this listener is the
+    // one place in the route table `guard` cannot reach. The route does wrap the
+    // call — `guard(handleEventIngest(req, res, …), res)` — but this function
+    // returns undefined and hands its work to a listener the event loop calls
+    // later, so `guard` has nothing to attach to and a synchronous throw in here
+    // is an uncaughtException: the whole deck, for one POST. That is exactly
+    // what the serialization inside pushEvent was until it was contained at the
+    // line itself, and this catch is what stops the next thing added below from
+    // costing a process the same way. sendInternalError puts the reason on
+    // stderr and a bare 500 on the wire, and does nothing but end the response
+    // if the status line has already gone out.
+    try {
+      noteLogWriter(parsed, persist);
+      const evt = pushEvent(parsed, "hook", { persist });
+      send(res, 200, { ok: true, seq: evt.seq });
+    } catch (err) {
+      sendInternalError(res, err);
+    }
   });
   // Guarded for the same reason `end` is, and more sharply: destroying the
   // request above is itself what raises this, and answering a second time on a
   // response already sent throws ERR_HTTP_HEADERS_SENT out of an error handler,
-  // where nothing is waiting to catch it.
-  req.on("error", () => { if (!refused) send(res, 400, { error: "bad request" }); });
+  // where nothing is waiting to catch it. `refused` covers the 413 that
+  // destroyed the request; `headersSent` covers the other half of that
+  // sentence, an error arriving after `end` has already answered. That half
+  // resisted every attempt to drive it from a socket — once `end` has fired the
+  // message is complete and the failure goes to the socket rather than to the
+  // request — so it carries no test, and is guarded anyway on the strength of
+  // the hazard the sentence above already names: one condition against an
+  // uncaughtException, if it turns out to be reachable at all.
+  req.on("error", () => { if (!refused && !res.headersSent) send(res, 400, { error: "bad request" }); });
 }
 
 function handleSse(req, res) {
@@ -2454,7 +2521,19 @@ async function resumeSse(req, res, lastId) {
       // wall-clock visibility gates and yields the "nodes appear then vanish"
       // symptom on refresh.
       const tagged = { ...e, replay: true };
-      if (!await writeResume(res, `id: ${e.seq}\nevent: hook\ndata: ${JSON.stringify(tagged)}\n\n`)) {
+      // Through envelopeJson for the reason writeJsonArray is: the ring may be
+      // holding an envelope `JSON.stringify` cannot walk. pushEvent takes the
+      // payload out of every envelope it serializes, but it serializes nothing
+      // when there is no subscriber and no log — which is precisely the deck a
+      // browser is about to connect to — so the first read of such an entry can
+      // still be this one. Uncontained it rejected into handleSse's `.catch`,
+      // which drops the client; the browser reconnects on its own 1.5s timer,
+      // replays the same entry, and is dropped again, so a single small POST
+      // kept the canvas from ever loading. The stub loses the `replay` tag and
+      // nothing turns on that: it carries no payload for the reducer to act on,
+      // and the client's own replay gate runs until the `replay-end` sentinel
+      // regardless of what any one envelope says.
+      if (!await writeResume(res, `id: ${e.seq}\nevent: hook\ndata: ${envelopeJson(tagged)}\n\n`)) {
         return dropSse(res);
       }
       sentThrough = e.seq;
