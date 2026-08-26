@@ -151,6 +151,15 @@ describe("glyph tiers", () => {
   it("has an ASCII answer for every glyph it can print", () => {
     const uni = glyphs(true);
     const ascii = glyphs(false);
+    // The floor, and it sits ahead of the comparison on purpose (#652). The
+    // pairing below is symmetric — two key lists agree when both are empty —
+    // and the loop under it is quantified over the same empty answer, so both
+    // tiers going away left this case green having checked that nothing has an
+    // ASCII spelling of nothing. Measured: emptying UNICODE_GLYPHS and
+    // ASCII_GLYPHS together, which is every glyph the deck prints, left all 18
+    // cases in this file passing.
+    expect(Object.keys(uni).length, "the unicode glyph tier is empty — the pairing below is symmetric, so it agrees with an empty ASCII tier about nothing")
+      .toBeGreaterThan(0);
     expect(Object.keys(ascii).sort()).toEqual(Object.keys(uni).sort());
     // Nothing in the fallback tier may need a font: CP437 on a code page that
     // is not UTF-8 is the whole reason this tier exists.

@@ -250,7 +250,15 @@ describe("every row the tables already had answers exactly what it answered", ()
       expect(bubbles(name).primary.emoji, name).toBe(emoji);
     }
     // …and the Codex half that is spread into the same literal at runtime.
-    for (const [name, emoji] of Object.entries(CODEX_TOOL_EMOJI)) {
+    // With its own floor, which every other sweep in this describe was given
+    // and this one was not (#652). CODEX_TOOL_EMOJI is derived — it is
+    // CODEX_TOOL_SPECS mapped down to its emoji field — so it can be emptied
+    // from a file this one never reads. Measured: replacing that derivation
+    // with `{}` left all 47 cases in this file green, including this one.
+    const codex = Object.entries(CODEX_TOOL_EMOJI);
+    expect(codex.length, "CODEX_TOOL_EMOJI is empty — the sweep below would check no Codex tool at all")
+      .toBeGreaterThan(5);
+    for (const [name, emoji] of codex) {
       expect(bubbles(name).primary.emoji, name).toBe(emoji);
     }
   });

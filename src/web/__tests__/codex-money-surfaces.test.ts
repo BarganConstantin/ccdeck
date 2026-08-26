@@ -261,8 +261,23 @@ describe("a model with no rate says so instead of vanishing", () => {
     }
     // The panel marker has to come after the two rules whose colour it beats —
     // same specificity, so source order decides.
-    expect(css.indexOf(".up-unpriced")).toBeGreaterThan(css.indexOf(".up-cost-val"));
-    expect(css.indexOf(".up-unpriced")).toBeGreaterThan(css.indexOf(".up-session-cost"));
+    //
+    // Through a lookup that fails naming the selector rather than one that
+    // answers -1 (#652). Both of these are inequalities and -1 is smaller than
+    // every real offset, so renaming either rule on the RIGHT satisfied the
+    // comparison it was on the wrong side of: `.up-unpriced` sat after a
+    // selector that was not in the sheet at all, which is not source order, it
+    // is an absence. Measured: renaming both to `.up-cost-value` and
+    // `.up-sess-cost` left all 31 cases in this file green, and nothing else
+    // here reads either name, so this was the only place that could have said so.
+    const ruleAt = (selector: string) => {
+      const i = css.indexOf(selector);
+      expect(i, `styles.css has no ${selector} rule — the source-order check using it would be comparing against -1`)
+        .toBeGreaterThan(-1);
+      return i;
+    };
+    expect(ruleAt(".up-unpriced")).toBeGreaterThan(ruleAt(".up-cost-val"));
+    expect(ruleAt(".up-unpriced")).toBeGreaterThan(ruleAt(".up-session-cost"));
   });
 });
 

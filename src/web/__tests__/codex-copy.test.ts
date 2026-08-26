@@ -224,8 +224,21 @@ describe("the README tagline, which is the npm page", () => {
     // SubagentStop, so a Codex session is a root and its tools — never a tree.
     expect(readme).not.toContain("OpenAI Codex fork subagents");
     const server = read("src", "server", "index.mjs");
-    const payload = server.slice(server.indexOf("export function codexObjToPayload"));
-    expect(payload.slice(0, payload.indexOf("\n}\n"))).not.toContain("Subagent");
+    // Both lookups are the assertion, not preparation for it (#652). `slice()`
+    // on a -1 answers the LAST CHARACTER rather than nothing, and the inner
+    // indexOf on that one character is -1 again, so `slice(0, -1)` is the empty
+    // string and `.not.toContain("Subagent")` holds. Measured: renaming this
+    // function to `codexObjToEvent` — a plain refactor, and the likeliest edit
+    // this line will ever see — left all 18 cases in this file green while the
+    // sentence they are here to keep honest was being read from "".
+    const start = server.indexOf("export function codexObjToPayload");
+    expect(start, "src/server/index.mjs no longer declares `export function codexObjToPayload` — the check below would be reading the empty string")
+      .toBeGreaterThan(-1);
+    const payload = server.slice(start);
+    const end = payload.indexOf("\n}\n");
+    expect(end, "`codexObjToPayload` has no top-level close this test can find — the check below would be reading the empty string")
+      .toBeGreaterThan(-1);
+    expect(payload.slice(0, end)).not.toContain("Subagent");
   });
 
   it("still carries the tagline the npm pages are read from", () => {

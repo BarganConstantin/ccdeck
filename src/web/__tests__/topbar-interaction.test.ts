@@ -498,8 +498,21 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     // banner is the dismissible one, and `.ver-close` is how you can tell the
     // two apart. So the banner is on screen for exactly as long as the
     // condition, which is the property the pill was being kept for.
-    const banner = app.slice(app.indexOf('<div className="conn-banner"'));
+    // The two lookups carry the case, so a miss has to fail rather than answer
+    // a sentinel (#652). `slice()` on a -1 hands back the LAST CHARACTER of
+    // App.tsx, the inner indexOf on that character is -1 in turn, and
+    // `slice(0, -1)` is the empty string — which contains no button, no
+    // onClick and no ver-close, so the premise of the whole tradeoff above went
+    // green over nothing. Measured against the real file: writing the class as
+    // a template literal, which is what this line will meet the first time the
+    // banner takes a tone, dropped both to -1 and the assertion still passed.
+    const at = app.indexOf('<div className="conn-banner"');
+    expect(at, 'App.tsx has no literal `<div className="conn-banner"` — the check below would be reading the empty string')
+      .toBeGreaterThan(-1);
+    const banner = app.slice(at);
     const end = banner.indexOf("</div>");
+    expect(end, "the conn-banner element has no closing </div> after it — the check below would be reading the empty string")
+      .toBeGreaterThan(-1);
     expect(banner.slice(0, end)).not.toMatch(/<button|onClick|ver-close/);
     expect(app).toMatch(/className="ver-close"/);
   });

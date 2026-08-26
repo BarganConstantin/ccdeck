@@ -58,6 +58,10 @@ const INPUT_FOR: Record<string, unknown> = {
   run: { search_query: [{ q: "anything" }] },
 };
 
+/** The table the cases below are generated from, read once so the floor in the
+ *  first case and the loop after it are looking at the same thing. */
+const SPECS = Object.entries(CODEX_TOOL_SPECS);
+
 let seq = 0;
 
 function push(state: GraphState, payload: HookPayload): GraphState {
@@ -84,7 +88,27 @@ function bubblesFor(toolName: string, input: unknown) {
 // ── the invariant that would have caught this bug ───────────────────────────
 
 describe("every Codex tool the deck knows, drawn from the one spec table", () => {
-  for (const [name, spec] of Object.entries(CODEX_TOOL_SPECS)) {
+  // The floor, and it has to be a case of its own rather than a line inside the
+  // loop below (#652). Every case in this describe is GENERATED from the table
+  // — the loop is in an it.each position — so an empty table does not fail the
+  // cases, it stops them existing, and a file that registers zero tests is
+  // reported as a pass. That is worse than the empty sweeps #648 repaired: there
+  // is not even a green case to read. A floor written inside the loop would
+  // itself be one of the cases that stopped being generated, so this one sits in
+  // front of the loop where an empty table can reach it.
+  it("has a spec table for the cases below to be generated from", () => {
+    expect(SPECS.length, "CODEX_TOOL_SPECS is empty — every case in this describe is generated from it, so an empty table registers ZERO tests and this file reports green having drawn nothing")
+      .toBeGreaterThan(0);
+    // …and the generated cases really do cover every name this file went to the
+    // trouble of writing a tool_input for. A spec dropped while its INPUT_FOR
+    // row stayed is the quiet half of the same edit: the table shrinks, the
+    // count of cases shrinks with it, and nothing here says a name went missing.
+    expect(Object.keys(INPUT_FOR).filter(name => !(name in CODEX_TOOL_SPECS)),
+      "INPUT_FOR names a Codex tool CODEX_TOOL_SPECS does not, so no case was generated for it")
+      .toEqual([]);
+  });
+
+  for (const [name, spec] of SPECS) {
     it(`draws ${name} as ${spec.emoji} ${spec.label} in the ${spec.category} bucket`, () => {
       const { primary, sub } = bubblesFor(name, INPUT_FOR[name]);
       // TOOL_EMOJI, CODEX_PRIMARY_LABEL and TOOL_CATEGORY, all three at once.

@@ -91,8 +91,21 @@ describe("the finish-sound tooltip on a machine running both CLIs", () => {
     expect(said.indexOf("Sound on turn finish")).toBe(0);
     // The scope comes ahead of the settings.json footnotes: those are about
     // hooks the user wrote, this is about which turns the switch covers at all.
-    expect(said.indexOf("Claude Code turns only"))
-      .toBeLessThan(said.indexOf("of your own in settings.json"));
+    //
+    // Both offsets are pinned before they are compared (#652). indexOf answers
+    // -1 on a miss and -1 is smaller than every real offset, so the LEFT
+    // sentence going missing satisfied this ordering rather than breaking it —
+    // it read "the scope comes first" as true of a tooltip that had no scope
+    // sentence in it at all. Measured: rewording it to "Only Claude Code turns
+    // get it." left this case green while two of its neighbours went red, so
+    // the one assertion that pins the ORDER was the one that stopped looking.
+    const scopeAt = said.indexOf("Claude Code turns only");
+    expect(scopeAt, 'the tooltip no longer says "Claude Code turns only" — the ordering below would be comparing against -1')
+      .toBeGreaterThan(-1);
+    const clashAt = said.indexOf("of your own in settings.json");
+    expect(clashAt, 'the tooltip no longer says "of your own in settings.json" — the ordering below would be comparing against -1')
+      .toBeGreaterThan(-1);
+    expect(scopeAt).toBeLessThan(clashAt);
   });
 });
 

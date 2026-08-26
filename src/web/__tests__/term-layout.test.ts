@@ -116,10 +116,22 @@ describe("the status column", () => {
   it("comes from the longest label, not from spaces counted into each string", () => {
     expect(labelColumn(LABELS)).toBe("Codex sessions".length);
     const width = labelColumn(LABELS);
-    const rows = LABELS.map(label => statusLine({ mark: "+", label, detail: "x", labelWidth: width, columns: 80 }));
+    // `@` rather than `x`, because `x` is a letter of "Codex sessions" and the
+    // needle was finding the LABEL's own x on that row whenever the detail was
+    // not there to find (#652). The needle has to be something no label carries,
+    // or the check cannot tell a column from a coincidence.
+    const rows = LABELS.map(label => statusLine({ mark: "+", label, detail: "@", labelWidth: width, columns: 80 }));
     // Every detail starts in the same column — which is the whole point, and
     // what silently broke the day a label got one character longer.
-    const columnsOf = rows.map(r => r.lastIndexOf("x"));
+    const columnsOf = rows.map(r => r.lastIndexOf("@"));
+    // Pinned before it is collapsed. lastIndexOf answers -1 for a row that does
+    // not carry the detail at all, and a set of nothing but -1 has exactly one
+    // member — so "every detail starts in the same column" was satisfied by
+    // every detail having been dropped, which is the one outcome this case
+    // exists to catch. Confirmed against the real statusLine: a run with the
+    // detail withheld gives nine -1s and a set of size 1.
+    expect(columnsOf, "a status line does not carry its detail at all, so its column is -1 and the set below collapses to one value that means nothing")
+      .not.toContain(-1);
     expect(new Set(columnsOf).size).toBe(1);
   });
 

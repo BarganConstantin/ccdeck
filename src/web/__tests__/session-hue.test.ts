@@ -597,7 +597,22 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     // A var() with no value makes the whole declaration invalid at computed-
     // value time and the property silently falls back to inherit/initial — a
     // cluster card with no border rather than a visible mistake.
-    for (const [, value] of bare.matchAll(/hsl\(\s*var\(\s*(--(?:session|mcp)-hue[^)]*)\)/g)) {
+    const composed = [...bare.matchAll(/hsl\(\s*var\(\s*(--(?:session|mcp)-hue[^)]*)\)/g)];
+    // The floor, outside the sweep, the way every other enumeration in this file
+    // already has one (#652) — `files.length` above, `found.size`, and
+    // `HUE_SITES.length` in the case before this. This was the sweep that was
+    // not given one, and a regex that matches nothing runs its body zero times
+    // and reports green. Measured: spelling the custom property `--sessionHue`
+    // took the match count from nine to two without this case noticing, and
+    // renaming the mcp half as well would have taken it to zero. HUE_SITES is
+    // the same population read through the rule parser rather than through a
+    // regex on the raw sheet. The floor counts against SITES, which is written
+    // out longhand in this file — HUE_SITES would be the closer population but
+    // it is found by the same property name this sweep is, so the two empty
+    // together and a floor drawn from it would agree that zero is enough.
+    expect(composed.length, "no hsl(var(--session-hue …)) left in the sheet for this case to check — the hue custom properties were renamed out from under it")
+      .toBeGreaterThanOrEqual(SITES.length);
+    for (const [, value] of composed) {
       expect(value, `hsl(var(${value}))`).toMatch(/,\s*\d+\s*$/);
     }
   });
