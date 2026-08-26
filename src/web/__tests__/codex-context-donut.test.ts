@@ -68,12 +68,33 @@ import type { HookEnvelope, HookPayload, Provider } from "../types";
 // writes the developer's own ~/.codex or ~/.claude.
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-ctx-donut-"));
 const FAKE_CODEX_HOME = join(SANDBOX, "codex-home");
-const PREV_CODEX_HOME = process.env.CODEX_HOME;
+// The Claude half of this pair needs the same treatment, and did not have it
+// (#608). Only CODEX_HOME was redirected here, so every scanClaudeMdFiles call
+// below went stat()ing the developer's own config dir — which is both a test
+// reading real user state and the reason nothing in this file could have
+// noticed that the Claude scanner was resolving that directory by hand instead
+// of through claudeConfigDir(). HOME and USERPROFILE cover os.homedir() on
+// POSIX and Windows respectively; CLAUDE_CONFIG_DIR covers the machine that has
+// moved it. What the Claude scanner must find under there is pinned in
+// memory-scan-config-dir.test.ts; here the sandbox exists so the walk-and-
+// filename assertions below see nothing but files this file wrote.
+const FAKE_HOME = join(SANDBOX, "home");
+const PREV = {
+  CODEX_HOME: process.env.CODEX_HOME,
+  HOME: process.env.HOME,
+  USERPROFILE: process.env.USERPROFILE,
+  CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+};
 process.env.CODEX_HOME = FAKE_CODEX_HOME;
+process.env.HOME = FAKE_HOME;
+process.env.USERPROFILE = FAKE_HOME;
+process.env.CLAUDE_CONFIG_DIR = join(SANDBOX, "claude-config");
 
 afterAll(() => {
-  if (PREV_CODEX_HOME === undefined) delete process.env.CODEX_HOME;
-  else process.env.CODEX_HOME = PREV_CODEX_HOME;
+  for (const [k, v] of Object.entries(PREV)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   rmSync(SANDBOX, { recursive: true, force: true });
 });
 
