@@ -143,4 +143,24 @@ describe("UserPromptSubmit idempotence on the prompt list", () => {
     expect(root.endedAt).toBeUndefined();
     expect(root.prompts).toHaveLength(1);
   });
+
+  it("records one turn when a subagent starts between two copies of it", () => {
+    // Every case above runs with no subagent live, which is the one shape in
+    // which the dedup cannot be dodged. It is read on whatever node the branch
+    // files the prompt under, so an attribution that changes mid-fan-out breaks
+    // it: the branch used to resolve through `activeSubagentStack` (#675), and
+    // a `SubagentStart` landing between two copies of one submission moved the
+    // second copy to a list that had never seen the first. One turn was then
+    // recorded twice across the session — once on the root, once on the
+    // subagent — which is the exact accounting this file exists to prevent, and
+    // it needs a subagent on the stack to show at all.
+    let state = start();
+    state = prompt(state, "ship the fix", T0 + 20);
+    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1", agent_type: "explorer" }, T0 + 25);
+    state = prompt(state, "ship the fix", T0 + 30);
+
+    expect(state.activeSubagentStack.get(SESSION)).toEqual(["sub-1"]);
+    expect(state.agents.get(SESSION)!.prompts.map(p => p.text)).toEqual(["ship the fix"]);
+    expect(state.agents.get(`${SESSION}::sub-1`)!.prompts).toEqual([]);
+  });
 });
