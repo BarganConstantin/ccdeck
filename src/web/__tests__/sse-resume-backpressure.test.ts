@@ -54,24 +54,52 @@ let port = 0;
 const sockets: Socket[] = [];
 const streams: IncomingMessage[] = [];
 
-// 1MB each, comfortably under the 5MB ingest cap; forty of them is a ring
-// buffer well past the per-client bound — and far enough past it that what a
-// stalled client is allowed to receive (the bound, plus the frame that crossed
-// it) cannot be mistaken for the whole of it.
+// 1MB each, comfortably under the 5,000,000-character ingest cap; forty of
+// them is a 40MB ring, five times the per-client cap, so the replay loop has
+// to stop partway through it rather than happening to fit.
 const BLOB = "x".repeat(1024 * 1024);
 const FAT_EVENTS = 40;
-// The most the flow control can ever have handed a stalled resumer: it stops
-// writing once the queue is over the cap, so what it wrote is at most the cap
-// plus the single frame that carried it there.
+// What a stalled resumer is handed cannot be asserted as a byte count at all
+// from out here, and the attempt is what kept windows-latest red from #602
+// until this commit: `AssertionError: expected 19929388 to be less than
+// 9441280`.
 //
-// Derived from the server's own constant rather than written down as a round
-// number. This line used to read `14 * 1024 * 1024` against an 8 MiB cap — six
-// megabytes of slack, which is more than the whole of the 2x accounting error
-// #588 turned out to be, and an assertion whose tolerance exceeds the thing it
-// measures cannot fail for the reason it exists. Bound to the constant, it
-// moves when the constant moves and stays a statement about the code.
-const MOST_A_STALLED_RESUMER_CAN_HOLD = MAX_CLIENT_BUFFER_BYTES + BLOB.length + 4096;
+// Two reasons, and the second is the one that decides what this case can be.
+//
+// First, `queuedBytes` reports what has NOT yet reached the OS. Every byte the
+// kernel accepts leaves that reading immediately, so the replay loop is free to
+// write the next frame however little the peer has actually read; the cap
+// bounds the deck's own heap and nothing else.
+//
+// Second: `dropSse` DESTROYS the socket, which discards everything still
+// queued in userland. So what eventually reaches a paused client is not the
+// deck's queue — it is the sender's send buffer plus the receiver's receive
+// window, a property of the platform. Measured: 1,523,433 bytes on macOS
+// loopback against 23,072,484 on a windows-latest runner, whose loopback
+// window auto-tunes into the megabytes under a sustained push. A 15x spread,
+// and neither number moves when the cap moves, which is the whole problem: a
+// reading that does not track the thing it claims to measure cannot fail for
+// the reason it exists, and can only fail for the reason it did — a platform
+// whose buffers are bigger than the author's.
+//
+// Calibrating the platform term was tried and is not sound either. A probe that
+// writes until the kernel refuses a chunk reports 2 MiB on Windows, because it
+// stops at the window's opening size while the real replay spends four and a
+// half seconds letting auto-tuning grow it to ten times that.
+//
+// So no byte assertion. What a live socket can see is the half of the fix that
+// belongs here, and it is the half the report was about: a client that reads
+// nothing IS hung up on. droppedStalledResumer does not return until it is, and
+// before the fix it never was — the loop queued the whole ring and went on
+// serving it. The case below it pins the opposite direction, a client that does
+// read still receiving all of it, and the two together are what "flow control
+// rather than a blind drop" means.
+//
+// The quantitative half — that the number the loop stops at is the cap, to the
+// byte — is asserted in sse-buffer-accounting.test.ts, on a stub, where no
+// kernel sits between the assertion and the thing it measures.
 const primed: number[] = [];
+
 
 beforeAll(async () => {
   server = await startServer({ port: 0, host: "127.0.0.1", persist: null, codex: false });
@@ -163,19 +191,20 @@ async function waitUntil(pred: () => Promise<boolean> | boolean, label: string, 
  * `Last-Event-ID: 0` asks for the whole ring, which is the resume a tab makes
  * after a suspend.
  *
- * Resolves once the server has hung up — which a paused socket only learns
- * when it reads again, the close arriving behind the bytes already queued for
- * it, so the stall has to be timed rather than watched.
+ * Returns once the server has hung up — which a paused socket only learns when
+ * it reads again, the close arriving behind the bytes already queued for it, so
+ * the stall has to be timed rather than watched. Returning at all is the
+ * assertion: it throws if the hang-up never comes.
  */
-async function droppedStalledResumer(): Promise<number> {
+async function droppedStalledResumer(): Promise<void> {
   const sock = connect(port, "127.0.0.1");
   sockets.push(sock);
-  let bytes = 0;
   let ended = false;
   sock.on("error", () => {});
   sock.on("end", () => { ended = true; });
   sock.on("close", () => { ended = true; });
-  sock.on("data", c => { bytes += c.length; });
+  // Read and discard: the socket has to be draining for the close to arrive.
+  sock.on("data", () => {});
   sock.write(
     `GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n` +
     `Accept: text/event-stream\r\nLast-Event-ID: 0\r\n\r\n`,
@@ -184,15 +213,14 @@ async function droppedStalledResumer(): Promise<number> {
   await new Promise(r => setTimeout(r, DRAIN_MS * 3));
   sock.resume();
   await waitUntil(() => ended, "the stalled resumer to be hung up on");
-  return bytes;
 }
 
 describe("SSE resume backpressure", () => {
-  it("holds a resuming client that stops reading to the cap, then hangs up on it", async () => {
-    // What it was sent is a fraction of the ring, not the ring: the loop
-    // stopped at the cap and waited instead of queueing the rest. Before the
-    // fix this socket was handed all 40MB and was never hung up on at all.
-    expect(await droppedStalledResumer()).toBeLessThan(MOST_A_STALLED_RESUMER_CAN_HOLD);
+  it("hangs up on a resuming client that stops reading", async () => {
+    // The call is the assertion: it waits for the server to hang up and throws
+    // if that never comes. Before the fix it never did — the loop handed the
+    // socket all 40MB with bare res.write calls and went on serving it.
+    await droppedStalledResumer();
 
     // And it was never in the fan-out set to begin with, so hanging up on it
     // cost the live stream nothing.
