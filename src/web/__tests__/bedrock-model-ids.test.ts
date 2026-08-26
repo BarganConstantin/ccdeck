@@ -116,9 +116,12 @@ const PINNED: Array<[string, ModelRates]> = [
   ["gpt-5",               O(1.25, 10, 0.125)],
   ["codex-mini-latest",   O(1.5, 6, 0.375)],
   ["o1-pro",              O(150, 600, 150)],
+  ["o1-mini",             O(1.1, 4.4, 0.55)],       // #690 — was o1's $15/$60
   ["o1",                  O(15, 60, 7.5)],
+  ["o3-deep-research",    O(10, 40, 2.5)],          // #690 — was o3's $2/$8
   ["o3-mini",             O(1.1, 4.4, 0.55)],
   ["o3-pro",              O(20, 80, 20)],
+  ["o4-mini-deep-research", O(2, 8, 0.5)],          // #690 — was o4-mini's $1.10/$4.40
   ["o4-mini",             O(1.1, 4.4, 0.275)],
   ["o3",                  O(2, 8, 0.5)],
   // The underscore spellings every `[-_]` in the table exists to accept.
