@@ -1,199 +1,139 @@
-// The finish-sound toggle said "Sound on turn finish" and meant "Claude Code
-// turns only" (#394).
+// What the sound switch claims, now that the deck makes the sound itself.
 //
-// The sound is one entry in Claude Code's settings.json — a `Stop` hook whose
-// command is notify.mjs, executed by Claude Code itself at the end of a turn.
-// Codex never reaches it: the deck installs no Codex hooks (it stopped in the
-// commit that introduced Codex support, because they do not fire reliably on
-// Windows) and reads the rollout JSONL files after the fact instead. So a Codex
-// user turned the switch on and watched turn after turn finish in silence, with
-// nothing anywhere to read that silence against — and correct behaviour is
-// indistinguishable from a broken toggle when nothing says which it is.
+// This file used to pin the opposite premise, and the reversal is the point of
+// the comment. The sound was one entry in Claude Code's settings.json — a
+// `Stop` hook running notify.mjs, executed by Claude Code at the end of a turn.
+// Codex never reached it, so a Codex user turned the switch on and watched turn
+// after turn finish in silence. The copy therefore had to name the mechanism
+// and not just the limit: "Claude Code only" is a fact a user can act on.
 //
-// What is asserted here is that the two halves stay together: the mechanism is
-// Claude-only, the button is drawn only where Claude Code is, and the sentence
-// names the mechanism rather than only the limit. "Claude Code only" is a fact a
-// user can act on; "sound" alone is not.
+// The old header also recorded why a deck-played sound had been considered and
+// refused, and every one of those objections was real:
 //
-// #395 made the deck see the end of a Codex turn — task_complete and
-// turn_aborted map to a synthetic `Stop` — so the moment IS known now, and a
-// server-side sound became possible where it was not when this issue was filed.
-// It is still not this fix, and finishSoundTitle records why: the Claude sound
-// is a hook on the machine and fires once with no deck running at all, while a
-// server-side one fires once per deck tailing that rollout, only inside that
-// deck's workspace, and never with the deck down. The last test below pins the
-// premise the whole sentence rests on, so a future provider cannot be added to
-// the mechanism while the copy goes on claiming otherwise.
+//   1. it fires once per deck tailing that rollout;
+//   2. only inside that deck's workspace;
+//   3. and never with the deck down.
+//
+// They were not answered. They were weighed and accepted, deliberately, by the
+// person who owns the trade (#704). (1) is the chosen behaviour — every open
+// tab plays, and nobody wanted leader election between tabs for a chime. (2) is
+// arguably right rather than merely tolerable: a deck scoped to one tree is
+// scoped for a reason, and hearing another tree's turns end would be the
+// surprising outcome. (3) is the one real loss, taken because a dashboard's
+// normal state is open.
+//
+// What that buys, and what this file now pins: the tone follows the EVENT, so
+// it is no longer Claude-only. `index.mjs` maps a Codex `task_complete` /
+// `turn_aborted` onto a synthetic `Stop` (#395), and the deck plays a `Stop`
+// whatever produced it. Codex has no `Notification` equivalent, so the second
+// tone stays Claude Code's, and the copy has to say that rather than let a user
+// discover the asymmetry by waiting for a sound that cannot come.
 //
 // PLAIN NODE. Nothing here renders React — the component source is read as text
 // and the pure module is imported. Comments are stripped before every "appears
 // nowhere" assertion, because the explanations in this repo quote the strings
-// they retire and are supposed to.
+// they explain.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { ASSUMED, type Providers } from "../providers";
+import { fileURLToPath } from "node:url";
 import { finishSoundTitle } from "../provider-copy";
+import { ASSUMED } from "../providers";
 
-const repo = fileURLToPath(new URL("../../..", import.meta.url));
-const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
+const HERE = fileURLToPath(new URL(".", import.meta.url));
+const src = (rel: string) => readFileSync(join(HERE, "..", rel), "utf8");
+const stripComments = (s: string) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-/** A source file with its prose gone — block comments, the JSX `{/* … *\/}`
- *  kind, and line comments — so a search for retired wording reads code only. */
-function codeOf(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .filter(line => !/^\s*\/\//.test(line))
-    .join("\n");
-}
+const BOTH = { claude: true, codex: true };
+const CLAUDE_ONLY = { claude: true, codex: false };
 
-const appCode = codeOf(read("src", "web", "App.tsx"));
-
-const BOTH: Providers = { kind: "reported", claude: true, codex: true };
-const CLAUDE_ONLY: Providers = { kind: "reported", claude: true, codex: false };
-
-/** The switch as it sits on a machine nobody has hand-written a hook on, which
- *  is every machine until someone does. */
-const PLAIN = { clash: 0, parked: 0 };
-
-describe("the finish-sound tooltip on a machine running both CLIs", () => {
-  it("says which turns it covers, in both states", () => {
-    for (const on of [true, false]) {
-      const said = finishSoundTitle(BOTH, { on, ...PLAIN });
-      expect(said).toContain("Claude Code turns only");
-      expect(said).toContain("Codex turns finish in silence");
-    }
+describe("the tooltip on a machine running both CLIs", () => {
+  it("no longer claims Codex turns finish in silence, because they no longer do", () => {
+    // The sentence this replaces was the whole point of the old file. A Codex
+    // rollout's end is mapped to a Stop, and the tone follows the event.
+    const on = finishSoundTitle(BOTH, { on: true, locked: false });
+    expect(on).not.toMatch(/silence/i);
+    expect(on).not.toMatch(/Claude Code turns only/);
+    expect(on).toMatch(/Both CLIs get the finish tone/);
   });
 
-  it("names the mechanism, not just the limit", () => {
-    // A user who reads "Claude Code only" and nothing else has a rule with no
-    // reason, and no way to tell whether their own install is at fault. The
-    // sentence names the hook that plays the sound and the reason the other
-    // path has none, which are the two facts that end the search.
-    const said = finishSoundTitle(BOTH, { on: false, ...PLAIN });
-    expect(said).toContain("Stop hook");
-    expect(said).toContain("rollout files");
+  it("says which of the two tones Codex cannot have, so the gap is read rather than discovered", () => {
+    const on = finishSoundTitle(BOTH, { on: true, locked: false });
+    // Not "some things do not work with Codex" — the specific one, and why.
+    expect(on).toMatch(/no Codex equivalent/);
+    expect(on).toMatch(/only ever plays for Claude Code/);
   });
 
-  it("still says what it is and what a click does", () => {
-    // The lead is what the tooltip was for before any of this and it does not
-    // move: the qualification is added to it, not swapped in for it.
-    expect(finishSoundTitle(BOTH, { on: true, ...PLAIN }))
-      .toContain("Sound on turn finish: on — click to remove the hook");
-    expect(finishSoundTitle(BOTH, { on: false, ...PLAIN }))
-      .toContain("Sound on turn finish: off — click to add a Stop hook");
-  });
-
-  it("leads with what the switch is before it qualifies it", () => {
-    const said = finishSoundTitle(BOTH, { on: true, clash: 2, parked: 1 });
-    expect(said.indexOf("Sound on turn finish")).toBe(0);
-    // The scope comes ahead of the settings.json footnotes: those are about
-    // hooks the user wrote, this is about which turns the switch covers at all.
-    //
-    // Both offsets are pinned before they are compared (#652). indexOf answers
-    // -1 on a miss and -1 is smaller than every real offset, so the LEFT
-    // sentence going missing satisfied this ordering rather than breaking it —
-    // it read "the scope comes first" as true of a tooltip that had no scope
-    // sentence in it at all. Measured: rewording it to "Only Claude Code turns
-    // get it." left this case green while two of its neighbours went red, so
-    // the one assertion that pins the ORDER was the one that stopped looking.
-    const scopeAt = said.indexOf("Claude Code turns only");
-    expect(scopeAt, 'the tooltip no longer says "Claude Code turns only" — the ordering below would be comparing against -1')
-      .toBeGreaterThan(-1);
-    const clashAt = said.indexOf("of your own in settings.json");
-    expect(clashAt, 'the tooltip no longer says "of your own in settings.json" — the ordering below would be comparing against -1')
-      .toBeGreaterThan(-1);
-    expect(scopeAt).toBeLessThan(clashAt);
-  });
-});
-
-describe("the same tooltip where there is no Codex to be silent about", () => {
-  it("does not warn a Claude-only machine off a CLI it does not have", () => {
-    // The mirror of every other string derived from `providers`: a deck that is
-    // not watching a CLI says nothing about it rather than hedging at everyone.
-    for (const on of [true, false]) {
-      expect(finishSoundTitle(CLAUDE_ONLY, { on, ...PLAIN })).not.toContain("Codex");
-    }
+  it("keeps that qualification off a machine with no Codex to qualify", () => {
+    const on = finishSoundTitle(CLAUDE_ONLY, { on: true, locked: false });
+    expect(on).not.toMatch(/Codex/);
   });
 
   it("warns before the server has answered, which is when both are assumed", () => {
-    // ASSUMED is an older deck, a failed /api/health, or the first render. Both
-    // fields read true there, and that is the safe direction: the caveat is
-    // merely irrelevant on a machine with no Codex, and its absence on a
-    // machine with one is the bug.
-    expect(finishSoundTitle(ASSUMED, { on: true, ...PLAIN })).toContain("Claude Code turns only");
+    // ASSUMED is what `providers` holds until /api/health replies. A tooltip
+    // read in that window must carry the qualification, not acquire it later.
+    expect(finishSoundTitle(ASSUMED, { on: true, locked: false })).toMatch(/no Codex equivalent/);
   });
 });
 
-describe("the two footnotes about the user's own hooks", () => {
-  it("survived the move out of App.tsx word for word, singular and plural", () => {
-    const one = finishSoundTitle(BOTH, { on: true, clash: 1, parked: 1 });
-    expect(one).toContain("1 sound hook of your own in settings.json also runs here.");
-    expect(one).toContain("1 of your own sound hook was set aside");
-    expect(one).toContain("shift-click to put it back");
-
-    const many = finishSoundTitle(BOTH, { on: true, clash: 3, parked: 2 });
-    expect(many).toContain("3 sound hooks of your own in settings.json also run here.");
-    expect(many).toContain("2 of your own sound hooks were set aside");
-    expect(many).toContain("shift-click to put them back");
+describe("what the switch says it is", () => {
+  it("leads with the state and the key, in both directions", () => {
+    const on = finishSoundTitle(BOTH, { on: true, locked: false });
+    const off = finishSoundTitle(BOTH, { on: false, locked: false });
+    expect(on).toMatch(/^Sound: on\b/);
+    expect(off).toMatch(/^Sound: off\b/);
+    for (const t of [on, off]) expect(t, "the key belongs in the tooltip").toMatch(/\(M\)/);
   });
 
-  it("says nothing at all when there is nothing to say", () => {
-    const said = finishSoundTitle(BOTH, { on: false, ...PLAIN });
-    expect(said).not.toContain("of your own");
-    expect(said).not.toContain("shift-click");
+  it("stops offering to write or remove a hook, because it no longer does either", () => {
+    // The old copy said "click to add a Stop hook" / "click to remove the
+    // hook". Both described a write to settings.json that no longer happens.
+    for (const on of [true, false]) {
+      const t = finishSoundTitle(BOTH, { on, locked: false });
+      expect(t).not.toMatch(/settings\.json/);
+      expect(t).not.toMatch(/Stop hook/);
+      expect(t).not.toMatch(/shift-click/i);
+    }
+  });
+
+  it("names the second tone when it is on, since nothing else announces it", () => {
+    expect(finishSoundTitle(BOTH, { on: true, locked: false })).toMatch(/asks for you/);
+  });
+});
+
+describe("the silence a browser imposes", () => {
+  it("explains itself when the page has not been interacted with yet", () => {
+    // "On, and nothing happens" is exactly the report the old mechanism
+    // generated. The switch has to be able to say which silence this is.
+    const locked = finishSoundTitle(BOTH, { on: true, locked: true });
+    expect(locked).toMatch(/Waiting for a click/);
+    expect(locked).toMatch(/unlocks it/);
+  });
+
+  it("says nothing about it once unlocked, or while the switch is off", () => {
+    expect(finishSoundTitle(BOTH, { on: true, locked: false })).not.toMatch(/Waiting for a click/);
+    // Off is off: a locked context is not the reason there is no sound, and
+    // saying so would send the user to press something that changes nothing.
+    expect(finishSoundTitle(BOTH, { on: false, locked: true })).not.toMatch(/Waiting for a click/);
   });
 });
 
 describe("the topbar button", () => {
-  it("is not drawn at all on a machine with no Claude Code", () => {
-    // Gone rather than present and disabled, which is the rule the accounts
-    // button already follows: a disabled control is a promise that something
-    // could enable it, and nothing here can. Every entry point this switch has
-    // writes to Claude Code's settings.json.
-    expect(appCode).toContain("{providers.claude && soundOn !== null && (");
-  });
-
   it("reads its tooltip out of the module that owns the words", () => {
-    expect(appCode).toContain("finishSoundTitle(providers, { on: soundOn, clash: soundClash, parked: soundParked })");
+    const app = stripComments(src("App.tsx"));
+    expect(app).toMatch(/title=\{finishSoundTitle\(/);
+    // And passes the locked state through, or the sentence above can never
+    // appear however locked the context is.
+    expect(app).toMatch(/locked:\s*chimeState === "locked"/);
   });
 
-  it("keeps no unqualified copy of the old sentence in the component", () => {
-    // The strings themselves moved; what must not survive is a second copy in
-    // App.tsx that no longer goes past finishSoundTitle and so never picks up
-    // the qualification.
-    expect(appCode).not.toContain('"Sound on turn finish: on');
-    expect(appCode).not.toContain('"Sound on turn finish: off');
-  });
-
-  it("names the CLI in the label a screen reader announces", () => {
-    // `title` reaches assistive tech as a description at best, which is not
-    // announced everywhere and not first anywhere. The name carries it too.
-    expect(appCode).toContain('aria-label="Toggle Claude Code finish sound"');
-    expect(appCode).not.toContain('aria-label="Toggle finish sound"');
-  });
-});
-
-describe("the premise the sentence rests on", () => {
-  it("holds: neither the toggle nor the sound it plays knows what Codex is", () => {
-    // The issue's own verification, kept as a test. If a provider is ever added
-    // to this mechanism, the tooltip above stops being true on the same day —
-    // so this failing is the signal to rewrite finishSoundTitle, not to delete
-    // the assertion. Comments are stripped first: the module header explains at
-    // length why Codex is absent, and naming it there is the documentation
-    // working, not the feature arriving.
-    for (const parts of [["src", "server", "sound-hook.mjs"], ["hook", "notify.mjs"]]) {
-      expect(codeOf(read(...parts)).toLowerCase(), parts.join("/")).not.toContain("codex");
-    }
-  });
-
-  it("holds on the other side too: the hook is written where Claude Code reads", () => {
-    // claudeConfigDir() honours $CLAUDE_CONFIG_DIR and resolves to ~/.claude —
-    // one CLI's file, on the one event that CLI fires at the end of a turn.
-    const source = read("src", "server", "sound-hook.mjs");
-    expect(source).toContain('const SETTINGS_PATH = join(CLAUDE_DIR, "settings.json")');
-    expect(source).toContain('const EVENT = "Stop"');
+  it("is still drawn only where Claude Code is", () => {
+    // Unchanged by #704 and worth keeping pinned: the switch names Claude Code
+    // in its aria-label, which is only true because it does not render without
+    // it. The finish tone now covers Codex, but a Codex-only machine has no
+    // Notification to explain and no established home for this control.
+    const app = stripComments(src("App.tsx"));
+    expect(app).toMatch(/providers\.claude && soundOn !== null/);
   });
 });

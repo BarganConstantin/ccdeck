@@ -65,6 +65,7 @@ import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./versio
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
+import { chimeFor, createChimePlayer, type ChimeState } from "./sound";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 import { fmtTokens } from "./token-format";
@@ -797,96 +798,38 @@ function Inner() {
     try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
   }, [accountsPanelOpen]);
 
-  // Finish-sound hook. `null` until the first fetch resolves, so the button
-  // can stay out of the way rather than flicker through a wrong state.
+  // The finish sound. Local to this tab since #704: the deck plays it itself,
+  // so there is no server state to fetch and no settings.json to write. `null`
+  // is kept as the first value for one render only — the switch is not drawn
+  // until the stored preference has been read, which keeps it from flashing
+  // through "off" on a deck where it is on.
   const [soundOn, setSoundOn] = useState<boolean | null>(null);
-  const [soundBusy, setSoundBusy] = useState(false);
-  // The same fact as `soundBusy`, where a handler can read it without waiting
-  // for a render. #620 leaves the switch enabled while its own request is out,
-  // so a second press — M, Shift+M or a click — reaches the handler, and the
-  // handler is what refuses it. Both writers below share the one ref because
-  // they share the one flag and the one endpoint.
-  const soundBusyRef = useRef(false);
-  // Hand-written sound hooks already on the Stop event. Surfaced because
-  // turning ours on alongside one that works here means two sounds per turn,
-  // and the cause is in a settings file the user is not looking at.
-  const [soundClash, setSoundClash] = useState(0);
-  // The user's own sound hooks that the toggle has set aside. Surfaced so
-  // "moved, not deleted" is something they can see and act on.
-  const [soundParked, setSoundParked] = useState(0);
   useEffect(() => {
-    fetch("/api/sound-hook")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!d?.ok) return;
-        setSoundOn(d.enabled === true);
-        setSoundClash((d.foreign ?? []).filter((f: { worksHere?: boolean }) => f.worksHere).length);
-        setSoundParked(typeof d.parked === "number" ? d.parked : 0);
-      })
-      .catch(() => {});
+    let stored: string | null = null;
+    // Wrapped: a private window, or a browser set to block site data, throws
+    // out of the accessor rather than answering null.
+    try { stored = localStorage.getItem("agent-dag.sound"); } catch { /* no storage */ }
+    setSoundOn(stored === null ? true : stored === "on");
   }, []);
-  const toggleSound = useCallback(async () => {
-    if (!selfPressAccepted(soundBusyRef.current)) return;
-    soundBusyRef.current = true;
-    setSoundBusy(true);
-    try {
-      const res = await fetch("/api/sound-hook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !soundOn }),
-      });
-      const out = await res.json().catch(() => null);
-      if (out?.ok) setSoundOn(out.enabled === true);
-      // Re-read: toggling parks or unparks the user's own hooks.
-      fetch("/api/sound-hook").then(r => r.ok ? r.json() : null).then(d => {
-        if (!d?.ok) return;
-        setSoundClash((d.foreign ?? []).filter((f: { worksHere?: boolean }) => f.worksHere).length);
-        setSoundParked(typeof d.parked === "number" ? d.parked : 0);
-      }).catch(() => {});
-    } catch { /* server unreachable */ }
-    finally { soundBusyRef.current = false; setSoundBusy(false); }
-  }, [soundOn]);
 
-  /** Put the user's own sound hooks back. The switch sets aside any hook of
-   *  theirs that would fire on the same Stop event — two sounds per turn is
-   *  worse than none — and this is the undo. It writes to the same endpoint the
-   *  toggle does and re-reads afterwards for the same reason. */
-  const restoreParkedHooks = useCallback(() => {
-    if (!selfPressAccepted(soundBusyRef.current)) return;
-    soundBusyRef.current = true;
-    setSoundBusy(true);
-    fetch("/api/sound-hook", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "restore" }),
-    }).then(() => fetch("/api/sound-hook"))
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.ok) { setSoundOn(d.enabled === true); setSoundParked(d.parked ?? 0); } })
-      .catch(() => {})
-      .finally(() => { soundBusyRef.current = false; setSoundBusy(false); });
+  const toggleSound = useCallback(() => {
+    setSoundOn(prev => {
+      const next = prev !== true;
+      try { localStorage.setItem("agent-dag.sound", next ? "on" : "off"); } catch { /* no storage */ }
+      // Turning it ON is itself the gesture the autoplay rules want, so take
+      // it: otherwise the switch says "on" and the next event is still silent
+      // because nothing has been pressed since the reload.
+      if (next) chimesRef.current?.unlock();
+      return next;
+    });
   }, []);
 
   /** The single door to the sound switch, in the shape requestClear already
-   *  established for the one other control that answers to two devices.
-   *
-   *  `withShift` is true for a shift-click on the button and for Shift+M, and
-   *  it means the same thing on both: put the parked hooks back if there are
-   *  any, otherwise do what an unmodified press does. The mouse gesture came
-   *  first and shipped alone — no key, no control of its own, and a mention in
-   *  a tooltip that only appears once something is already parked, which is a
-   *  recovery reachable by mouse and by nothing else (#510's shape exactly).
-   *  Giving it a key was the alternative to giving it a button, and the button
-   *  is the thing this topbar spent a release removing.
-   *
-   *  Reads `soundParked` through a ref because the window keydown listener is
-   *  registered once and must not be torn down and rebuilt every time the
-   *  server re-reports the count. */
-  const soundParkedRef = useRef(soundParked);
-  soundParkedRef.current = soundParked;
-  const activateSound = useCallback((withShift: boolean) => {
-    if (withShift && soundParkedRef.current > 0) { restoreParkedHooks(); return; }
-    toggleSound();
-  }, [restoreParkedHooks, toggleSound]);
+   *  established for the one other control that answers to two devices. Shift
+   *  used to mean "put my own parked hooks back"; #704 removed the mechanism
+   *  that parked them, so there is nothing left for it to mean and a press is
+   *  a press whatever is held down. */
+  const activateSound = useCallback((_withShift: boolean) => { toggleSound(); }, [toggleSound]);
   // `toggleSound` is rebuilt whenever the switch changes state, so the window
   // keydown listener — registered exactly once, on purpose — reads the current
   // one through a ref rather than listing it as a dependency and re-subscribing.
@@ -897,6 +840,34 @@ function Inner() {
    *  invert yet, and "not false" would post `enabled: true` on a guess. */
   const soundOnRef = useRef(soundOn);
   soundOnRef.current = soundOn;
+
+  // ── the deck's own two tones (#704) ───────────────────────────────────────
+  // Built lazily on the first gesture rather than here: an AudioContext
+  // constructed before the page has been interacted with is created suspended,
+  // and a suspended one is what you are then stuck with. The ref holds null
+  // until `unlock` runs — and holds a FUNCTION rather than the result, because
+  // a `useRef` seed that does work runs on every render and throws the result
+  // away (#612).
+  const chimesRef = useRef<ReturnType<typeof createChimePlayer> | null>(null);
+  const [chimeState, setChimeState] = useState<ChimeState>("locked");
+  useEffect(() => {
+    const player = createChimePlayer({
+      enabled: () => soundOnRef.current === true,
+      onState: setChimeState,
+    });
+    chimesRef.current = player;
+    setChimeState(player.state());
+    // Any gesture anywhere unlocks it, once. `pointerdown` rather than `click`
+    // so a press on the canvas counts, and `keydown` so a keyboard-only user
+    // is not left permanently silent.
+    const wake = () => player.unlock();
+    window.addEventListener("pointerdown", wake, { once: true, capture: true });
+    window.addEventListener("keydown", wake, { once: true, capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", wake, { capture: true } as EventListenerOptions);
+      window.removeEventListener("keydown", wake, { capture: true } as EventListenerOptions);
+    };
+  }, []);
 
   // ── version drift ─────────────────────────────────────────────────────────
   // A deck upgraded while it was running keeps executing the old code, silently
@@ -1522,6 +1493,10 @@ function Inner() {
           || Date.now() - env.receivedAt > 30_000;
         if (isReplay) coalescer.replay();
         else coalescer.live();
+        // After the coalescer, and reusing its `isReplay`: a reconnect is sent
+        // the whole ring, and every Stop in a day's work is in it.
+        const chime = chimeFor(env, isReplay);
+        if (chime) chimesRef.current?.play(chime);
       } catch { /* ignore */ }
     });
     return () => {
@@ -3079,17 +3054,14 @@ function Inner() {
                    for the reason above and for one more: TAG_BUDGET in
                    tsx-scan.ts is measured against this tag. */
                 onClick={(e) => activateSound(e.shiftKey)}
-                /* #620: this was `disabled={soundBusy}`, and soundBusy is set
-                   before the first await in both writers — so the switch went
-                   disabled under the press that had just come from it and
-                   Chrome dropped focus to `<body>`. Of the nine sites #620
-                   found this is the most exposed one: it sits in the topbar,
-                   and M / Shift+M press it from the keyboard by design. It is
-                   busy while its own request is out and enabled throughout;
-                   the double-press guard moved into the two handlers, where
-                   selfPressAccepted reads a ref rather than this state. */
-                {...selfPressProps(soundBusy)}
-                title={finishSoundTitle(providers, { on: soundOn, clash: soundClash, parked: soundParked })}
+                /* #620: this was `disabled={soundBusy}`, and the flag was set
+                   before the first await — so the switch went disabled under
+                   the press that had just come from it and Chrome dropped
+                   focus to `<body>`. #704 removed the request entirely: the
+                   toggle is a local flag now, there is nothing to be busy for,
+                   and the argument is the constant that says so. */
+                {...selfPressProps(false)}
+                title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked" })}
                 /* The name a screen reader announces, and it names the CLI too.
                    `title` reaches assistive tech only as a description, which is
                    announced later than the name and by no means everywhere — so

@@ -242,9 +242,15 @@ describe("no control in the client disables itself on press (#620)", () => {
 
 /** file, what to look for, and how far past it the spread may be. */
 const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> = [
+  // #704 took the request out from under this one: the toggle writes a
+  // localStorage flag, so there is no in-flight state and nothing to be busy
+  // for. It keeps its place in this list rather than leaving it, because the
+  // rule is about what the control does to itself under a press and the answer
+  // has to stay "nothing" — a future handler that reintroduces a request must
+  // not reintroduce `disabled={...}` with it.
   ["the topbar finish-sound switch", "App.tsx",
     /onClick=\{\(e\) => activateSound\(e\.shiftKey\)\}/,
-    /\{\.\.\.selfPressProps\(soundBusy\)\}/],
+    /\{\.\.\.selfPressProps\(false\)\}/],
   ["the version banner's Restart now", "App.tsx",
     /onClick=\{\(\) => askRestart\(\)\}/,
     /\{\.\.\.selfPressProps\(restarting\)\}/],
@@ -299,13 +305,17 @@ describe("each of the nine, by name", () => {
 describe("a second press is refused by the handler, not by the browser", () => {
   const codeOf = (rel: string) => SOURCES.find(s => s.rel === rel)!.code;
 
-  it("holds one sound-hook write at a time, for the click and for M", () => {
+  it("needs no lock on the sound switch, because the press no longer leaves the tab", () => {
+    // This used to pin a busy ref shared by two writers posting to
+    // /api/sound-hook. #704 deleted the endpoint: the toggle flips a flag and
+    // writes localStorage, both synchronous, so a double press is idempotent
+    // rather than racy. The assertion is that the lock is GONE — a re-added
+    // request without a re-added guard is the regression this now watches for.
     const app = codeOf("App.tsx");
-    expect(app).toMatch(/const soundBusyRef = useRef\(false\);/);
-    // Both writers: toggleSound and restoreParkedHooks post to the same
-    // endpoint and share the one flag, so they share the one lock.
-    expect([...app.matchAll(/if \(!selfPressAccepted\(soundBusyRef\.current\)\) return;/g)].length).toBe(2);
-    expect(app).toMatch(/finally \{ soundBusyRef\.current = false; setSoundBusy\(false\); \}/);
+    expect(app).not.toMatch(/soundBusyRef/);
+    expect(app).not.toMatch(/setSoundBusy/);
+    expect(app, "the toggle must stay synchronous").toMatch(/const toggleSound = useCallback\(\(\) => \{/);
+    expect(app).not.toMatch(/fetch\("\/api\/sound-hook"/);
   });
 
   it("holds one restart ask at a time", () => {

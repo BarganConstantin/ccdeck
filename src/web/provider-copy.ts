@@ -198,12 +198,14 @@ export function captureHints(p: Providers): CaptureHint[] {
 
 /** What the finish-sound toggle knows about itself, from /api/sound-hook. */
 export interface FinishSoundState {
-  /** Whether our Stop entry is currently in settings.json. */
+  /** Whether this tab is set to play the tones. Local to the tab since #704 —
+   *  the deck plays them itself, so there is no settings.json entry to report. */
   on: boolean;
-  /** Sound hooks the user wrote themselves that also fire on this machine. */
-  clash: number;
-  /** Sound hooks of theirs the toggle has set aside so it controls the sound. */
-  parked: number;
+  /** True while the browser has not yet let this page make a sound. The
+   *  autoplay rules hold an AudioContext suspended until the page has been
+   *  interacted with, and a switch that says "on" over silence is the report
+   *  this feature exists to stop generating. */
+  locked: boolean;
 }
 
 /**
@@ -248,37 +250,31 @@ export interface FinishSoundState {
  * anyone off, and the deck does not draw the button at all without Claude Code.
  */
 export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
-  // The key in parentheses is how every other control on this bar names its
-  // own. This one had none until #511: it was the last topbar control with a
-  // control and no shortcut, which made it the odd one out under either of the
-  // two models the deck could have committed to.
+  // The key in parentheses is how every other control on this bar names its own.
   const lead = s.on
-    ? "Sound on turn finish: on — click to remove the hook (M)"
-    : "Sound on turn finish: off — click to add a Stop hook (M)";
+    ? "Sound: on — a tone when a turn finishes, another when Claude asks for you (M)"
+    : "Sound: off — click for a tone when a turn finishes (M)";
 
-  // First, ahead of the settings.json footnotes below: those are about hooks the
-  // user wrote, and this is about which of their turns the switch covers at all.
+  // Since #704 the deck plays the tones itself, from the events it already
+  // receives, so this no longer says "Claude Code turns only" — a Codex rollout
+  // emits a Stop the same way and gets the same tone. What Codex has no
+  // equivalent of is Notification, so the asking tone stays Claude Code's, and
+  // that is worth saying on a machine that runs both rather than leaving the
+  // user to notice the asymmetry on their own.
   const scope = p.codex
-    ? "\n\nClaude Code turns only. The sound is a Stop hook Claude Code runs itself when a turn ends; " +
-      "the deck installs nothing for Codex and reads its rollout files after the fact, " +
-      "so Codex turns finish in silence."
+    ? "\n\nBoth CLIs get the finish tone. The second tone — Claude is waiting for you — " +
+      "has no Codex equivalent to fire on, so it only ever plays for Claude Code."
     : "";
 
-  const clash = s.clash > 0
-    ? `\n\n${s.clash} sound hook${s.clash > 1 ? "s" : ""} of your own in settings.json also run${s.clash > 1 ? "" : "s"} here.`
+  // The autoplay rules, stated where the switch is rather than left as silence
+  // the user has to explain to themselves. A browser will not make a sound
+  // until the page has been interacted with, so a reloaded tab nobody has
+  // touched is armed and mute — and "on, but nothing happened" is exactly the
+  // report that used to arrive about the old hook.
+  const locked = s.on && s.locked
+    ? "\n\nWaiting for a click: this browser plays no sound until the page has been " +
+      "used at least once. Anything you press unlocks it."
     : "";
 
-  // The one recovery on this deck that exists nowhere else, and until #511 it
-  // was reachable by mouse and by nothing else — this sentence, in a tooltip,
-  // and only once something was already parked. It has a key now (Shift+M) and
-  // a line in the shortcuts sheet under `?`, so a keyboard user has a route and
-  // a reader who has parked nothing can still find out that the switch does
-  // this at all. The mouse wording is unchanged, because it is what a person
-  // who is already here reads.
-  const parked = s.parked > 0
-    ? `\n\n${s.parked} of your own sound hook${s.parked > 1 ? "s were" : " was"} set aside so this switch actually controls the sound. ` +
-      `Nothing was deleted — shift-click to put ${s.parked > 1 ? "them" : "it"} back (Shift+M does the same).`
-    : "";
-
-  return lead + scope + clash + parked;
+  return lead + scope + locked;
 }
