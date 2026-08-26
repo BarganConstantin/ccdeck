@@ -680,14 +680,17 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
  *
  * Returns immediately with a handle:
  *   write(text)  — into the child's stdin
- *   kill()       — give up; `done` still settles
+ *   kill()       — give up; `done` settles within killGrace either way
  *   onLine(cb)   — every complete stdout/stderr line as it arrives
  *   done         — Promise<{ok, code, killed, timedOut, stdout, stderr}>
  *
- * Never rejects, for the same reason `run` never does. Same Windows candidate
- * resolution, since `claude` and `cswap` are `.cmd` shims there.
+ * Never rejects, for the same reason `run` never does. And never stays pending:
+ * the deadline answers with `code: "ETIMEDOUT", timedOut: true` at the moment
+ * it expires rather than waiting on a 'close' a surviving descendant can hold
+ * back forever — see the timer below, and #614 for what that cost. Same Windows
+ * candidate resolution, since `claude` and `cswap` are `.cmd` shims there.
  */
-export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 << 10 } = {}) {
+export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 << 10, killGrace = 2_000 } = {}) {
   const tries = candidates(cmd);
   const lineSubs = [];
   let child = null;
@@ -715,15 +718,39 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     }
   };
 
+  let graceTimer = null;
+
   const finish = (code, err) => {
     if (!settle) return;
     const s = settle; settle = null;
     clearTimeout(timer);
+    clearTimeout(graceTimer);
     s({ ok: code === 0 && !err && !timedOut, code: err?.code ?? code ?? -1, killed, timedOut, stdout, stderr });
   };
 
+  // The deadline states the outcome and only then kills — the order `run` uses
+  // forty lines above, for the reason its own header already spells out.
+  //
+  // This used to set the flag, kill, and leave `done` to the child's 'close'.
+  // 'close' waits for the stdio pipes, not merely for the exit, so ONE
+  // descendant that outlives the kill holding the inherited stdout keeps it
+  // from ever arriving: the child is dead, the promise is pending, and it stays
+  // pending for the life of the process. On Windows that is the ordinary shape
+  // rather than a corner — a `.cmd` shim runs the real tool as a grandchild
+  // under cmd.exe, so a taskkill that cannot run reaches only the wrapper — and
+  // on macOS/Linux any cswap subprocess still alive when SIGTERM lands does it.
+  //
+  // What it cost: both callers await this INSIDE withStoreLock, so the pending
+  // promise is the accounts mutex. Every later mutation — login, cancel,
+  // import, remove, alias, reorder — queued behind a link that would never
+  // settle, the HTTP request was never answered, and spawnLogin's
+  // process-on-exit handler leaked with the promise. Reported as #614.
   const timer = setTimeout(() => {
     timedOut = true;
+    killed = true;
+    // Whatever the child managed to print rides along, the way run()'s tail
+    // does: it had not finished, but it is all a caller has to go on.
+    finish(-1, { code: "ETIMEDOUT" });
     killTree(child);
   }, timeout);
   timer.unref?.();
@@ -777,6 +804,12 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     proc.stderr?.on("data", (d) => { if (stale()) return; const t = String(d); stderr = keep(stderr, t); emitLines(t); });
     proc.on("close", (code) => {
       if (stale()) return;
+      // Already answered — by the deadline above, or by kill()'s grace below.
+      // A late 'close' has nothing left to report, and this is not merely
+      // tidiness: the retry underneath re-runs the WHOLE command, and re-running
+      // `cswap remove` on behalf of a promise nobody is waiting for any more is
+      // exactly the thing that must not happen.
+      if (!settle) return;
       // Same cmd.exe case as in `run`: exit 1 with "is not recognized" means
       // this spelling does not exist, not that the tool failed. Restricted to a
       // batch candidate, which is the only kind launched through a shell, and
@@ -808,10 +841,20 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
       try { child?.stdin?.end(); } catch { /* already closed */ }
     },
     /** Stop the run. On Windows that means the tool under the cmd.exe wrapper
-     *  too — see killTree; a cancelled sign-in used to leave it running. */
+     *  too — see killTree; a cancelled sign-in used to leave it running.
+     *
+     *  `done` settles either way. The kill cannot promise the pipes close —
+     *  that is the deadline's problem reached from the other side — so if the
+     *  child's own 'close' has not arrived within killGrace, the handle answers
+     *  without it. A cancelled sign-in must not be able to wedge the accounts
+     *  mutex any more than an expired one. */
     kill() {
       killed = true;
       killTree(child);
+      if (settle && !graceTimer) {
+        graceTimer = setTimeout(() => finish(-1, null), killGrace);
+        graceTimer.unref?.();
+      }
     },
     onLine(cb) { lineSubs.push(cb); },
     done,
