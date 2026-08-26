@@ -40,9 +40,26 @@ const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
 const readme = read("README.md");
 
-/** Where a heading starts, or -1. Headings are matched at line start so a
- *  mention of a section's name inside a paragraph is not mistaken for it. */
-const at = (heading: string) => readme.indexOf(`\n${heading}\n`);
+/** Where a heading starts. Headings are matched at line start so a mention of
+ *  a section's name inside a paragraph is not mistaken for it.
+ *
+ *  A heading that is not there is a failure naming the heading, never a -1
+ *  handed back to the caller (#628). Every ordering check below is an
+ *  inequality, and -1 is smaller than every real offset, so a missing heading
+ *  satisfied whichever comparison it was on the wrong side of: `toBeLessThan`
+ *  passed when the LEFT heading was gone, `toBeGreaterThan` when the RIGHT one
+ *  was. Renaming `## Why` to `## Why ccdeck?` — a section left exactly where it
+ *  is — turned "answers what it is and what it does before how to run it" into
+ *  a case that compared nothing and stayed green however far that section then
+ *  moved. #461 is a plan to restructure this page, and a heading rename is the
+ *  single most likely edit in that work, so the miss is caught once here rather
+ *  than at fifteen call sites where the next assertion added would forget it.
+ *  A heading genuinely meant to be optional wants its own helper, not this one. */
+const at = (heading: string) => {
+  const i = readme.indexOf(`\n${heading}\n`);
+  expect(i, `README.md has no heading "${heading}" — the assertion using it would be comparing against -1`).toBeGreaterThan(-1);
+  return i;
+};
 
 /** How many times a passage appears — the check that a move was a move. */
 const times = (needle: string) => readme.split(needle).length - 1;
@@ -55,7 +72,11 @@ const NETWORK =
 
 describe("the disclosures the README must keep, and keep in one place", () => {
   it("gives them a section of their own", () => {
-    expect(at("## What it touches")).toBeGreaterThan(-1);
+    // The lookup is the assertion: at() fails, naming the heading, when the
+    // section is renamed or gone. This used to spell the `.toBeGreaterThan(-1)`
+    // out — it was the one heading of ten that was guarded, and the guard now
+    // covers every call site in the file instead of just this one.
+    at("## What it touches");
   });
 
   it("still says, word for word, what the deck writes", () => {
@@ -74,7 +95,6 @@ describe("the disclosures the README must keep, and keep in one place", () => {
     // The section a passage lands in is the whole point of the move, so the
     // test asks where it is rather than only that it exists somewhere.
     const touches = at("## What it touches");
-    expect(touches).toBeGreaterThan(-1);
     expect(readme.indexOf(WRITES)).toBeGreaterThan(touches);
     expect(readme.indexOf(NETWORK)).toBeGreaterThan(touches);
   });

@@ -41,8 +41,19 @@
 // below pins today's markup. The sweep says that ANY file in this client
 // carrying role="tab" must carry the whole keyboard model beside it, so a
 // second strip written next year fails the moment it announces more than it
-// does — and a file that carries no role="tab" at all passes, because dropping
-// the role is the other honest end and the suite must not forbid it.
+// does — and a file that carries none of the three roles passes, because
+// dropping the role is the other honest end and the suite must not forbid it.
+//
+// What it turned out the shape DID forbid was noticing (#627). Every case in
+// the first describe is quantified over the collection the sweep returns, so
+// the moment that collection was empty the whole contract reported green
+// having run nothing, and the test written to prevent that was itself a loop
+// over the same collection. Two lines outside the loop now hold it up: the
+// collection is non-empty, and no file carries a tablist or a tabpanel without
+// a tab in it. The second is the one that matters, because the edit that gets
+// made is not the clean retirement the paragraph above protects — it is half
+// of it, which leaves a tablist with nothing in it and used to be indistinct
+// from having kept the contract by never making the promise.
 //
 // Plain node, no DOM — nothing in this suite renders React — so the markup half
 // reads the components as text the way landmark-outline.test.ts and
@@ -115,21 +126,43 @@ const IS_TABLIST = /\brole="tablist"/;
 const IS_TABPANEL = /\brole="tabpanel"/;
 
 /** Every file that announces a tab widget, and every tag in it that is a tab.
- *  Empty is a legal answer: a deck with no role="tab" anywhere has kept the
- *  contract by not making the promise, which is what the range strip did. */
+ *  Dropping the role everywhere is the other honest end — the range strip did
+ *  exactly that — but an empty answer is not something this file can quietly
+ *  accept, because every case below is quantified over it. See the floor in the
+ *  first test. */
 const STRIPS = BUNDLE
   .filter(([, src]) => IS_TAB.test(src))
   .map(([name, src]) => ({ name, src, tabs: openingTags(src).filter(t => IS_TAB.test(t)) }));
+
+/** Files announcing half a widget: a tablist or a tabpanel with no role="tab"
+ *  anywhere in them. Empty is the only correct answer this one can have. */
+const HALF_WIDGETS = BUNDLE
+  .filter(([, src]) => (IS_TABLIST.test(src) || IS_TABPANEL.test(src)) && !IS_TAB.test(src))
+  .map(([name]) => name);
 
 // ── the promise and the behaviour have to agree, wherever the role appears ──
 
 describe("a role=\"tab\" in this client comes with the keyboard model it promises (#581)", () => {
   it("finds the tab strips by their role rather than by a file name", () => {
     // The guard on everything below: a sweep that silently matched nothing
-    // would pass forever. This states what it is looking at, and it is allowed
-    // to change — a strip added, a strip dropped — without anything here
-    // needing to know, because every assertion after it is quantified over
-    // whatever it found.
+    // would pass forever. That sentence was already here and the body under it
+    // was a `for (… of STRIPS)`, so the guard was vacuous in precisely the case
+    // it named (#627) — a floor has to sit OUTSIDE the quantification it is the
+    // floor for, or it is one more assertion that runs zero times.
+    expect(STRIPS.length, 'no role="tab" anywhere in this client — every case in this describe is quantified over STRIPS and would assert nothing').toBeGreaterThan(0);
+
+    // The inverse, which is what makes a half-removal tell itself apart from a
+    // clean one. Retiring the role everywhere is legal and this file should be
+    // deleted the day that happens; what is never legal is keeping half — a
+    // role="tablist" holding no tabs, or a role="tabpanel" whose aria-labelledby
+    // points at an element that no longer announces itself. That is #581 back,
+    // and it is a broken widget rather than an absent one. Before this line the
+    // half-removal simply emptied STRIPS, and five cases here plus the delegate
+    // in landmark-outline.test.ts went green having run nothing.
+    expect(HALF_WIDGETS).toEqual([]);
+
+    // What the sweep found is still allowed to change — a strip added, a strip
+    // dropped — without anything below needing to name a file.
     for (const { name, src, tabs } of STRIPS) {
       // The tag parser has to recover every announcement the search found, or
       // the sweep below would quietly skip a tab it could not read.
@@ -151,6 +184,12 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
       // for a literal id and for the shared constant this dialog uses, and
       // fails the moment a tab is pointed at a panel that is not there.
       const panelId = /\bid=(\{[^}]*\}|"[^"]*")/.exec(panel)?.[1];
+      // Same hazard as the empty sweep above, one level down (#627): both
+      // sides of the pairing come from a regex that answers undefined when it
+      // cannot read the attribute, and undefined equals undefined — so a panel
+      // with no id, matched against a tab whose aria-controls is spelled in a
+      // form this pattern cannot parse, would agree with itself about nothing.
+      expect(panelId, `${name}: role="tabpanel" with no id= this test can read`).toBeDefined();
       for (const tab of tabs) {
         const controls = /aria-controls=(\{[^}]*\}|"[^"]*")/.exec(tab)?.[1];
         expect([name, controls]).toEqual([name, panelId]);
