@@ -334,14 +334,15 @@ function resolveOwner(state: GraphState, p: HookPayload, now: number): AgentNode
   // call that CREATES the node, so a root that already exists keeps whatever it
   // concluded, and `SessionStart` below is the single thing that clears it.
   //
-  // ONE KNOWN GAP, on the Codex side and not fixable from here: the rollout
-  // watcher skips a pre-existing session's history at startup and then mints a
-  // `SessionStart` of its own for it (`ensureCodexRoot`), so a Codex session
-  // the deck joined late arrives carrying the very event that says it did not.
-  // The rule below is right about its input; the input is what is wrong, and
-  // correcting it means changing what the server writes to a log several decks
-  // share and older decks replay. Left as its own issue rather than smuggled in
-  // here.
+  // The Codex side used to defeat this and no longer does (#684). The rollout
+  // watcher skips a pre-existing session's history at startup and then minted a
+  // `SessionStart` of its own for it, so a Codex session the deck joined late
+  // arrived carrying the very event saying it did not — the rule below was
+  // right about its input and the input was false. `ensureCodexRoot` now emits
+  // that event only for a rollout the watcher opened at byte 0, so a joined-late
+  // Codex session reaches this line looking like a joined-late Claude one: a
+  // root conjured by its first real event, marked, with no start time asserted
+  // for it.
   const root = ensureRoot(state, sessionId, now, /*synthetic*/ p.hook_event_name !== "SessionStart");
   if (!root.cwd && p.cwd) { root.cwd = p.cwd; root.cwdBasename = basename(p.cwd); }
   if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
