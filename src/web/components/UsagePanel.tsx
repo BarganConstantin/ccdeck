@@ -12,6 +12,7 @@ import { shortModel } from "../model-label";
 import { resetCountdown } from "../relative-time";
 import CostBar from "./CostBar";
 import { stateLabel } from "./AgentNode";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 // ── Quota types ────────────────────────────────────────────────────────────
 interface QuotaData {
@@ -200,14 +201,21 @@ function useQuota(enabled: boolean) {
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<number | null>(null);
 
+  // The same fact as `loading`, readable without waiting for a render. The ↻
+  // stays enabled while its own request is out (#620), so the second press
+  // reaches here and this is what refuses it. Only forced reads take the lock:
+  // the poll is not a press and must never be blocked by one.
+  const busyRef = useRef(false);
+
   const fetch_ = async (forceRefresh = false) => {
-    if (forceRefresh) setLoading(true);
+    if (forceRefresh && !selfPressAccepted(busyRef.current)) return;
+    if (forceRefresh) { busyRef.current = true; setLoading(true); }
     try {
       const url = forceRefresh ? "/api/quota?refresh=1" : "/api/quota";
       const res = await fetch(url);
       if (res.ok) setQuota(await res.json());
     } catch { /* server unreachable */ }
-    finally { if (forceRefresh) setLoading(false); }
+    finally { if (forceRefresh) { busyRef.current = false; setLoading(false); } }
   };
 
   useEffect(() => {
@@ -305,14 +313,19 @@ function useCodexQuota(enabled: boolean) {
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<number | null>(null);
 
+  // See useQuota above: the ↻ presses both hooks, so both hold a lock of their
+  // own against the second press (#620).
+  const busyRef = useRef(false);
+
   const fetch_ = async (forceRefresh = false) => {
-    if (forceRefresh) setLoading(true);
+    if (forceRefresh && !selfPressAccepted(busyRef.current)) return;
+    if (forceRefresh) { busyRef.current = true; setLoading(true); }
     try {
       const url = forceRefresh ? "/api/codex-quota?refresh=1" : "/api/codex-quota";
       const res = await fetch(url);
       if (res.ok) setData(await res.json());
     } catch { /* server unreachable */ }
-    finally { if (forceRefresh) setLoading(false); }
+    finally { if (forceRefresh) { busyRef.current = false; setLoading(false); } }
   };
 
   useEffect(() => {
@@ -569,7 +582,14 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             type="button"
             className="glyph-btn up-refresh-btn"
             onClick={refreshAll}
-            disabled={anyLoading}
+            /* #620: this was `disabled={anyLoading}`, and both hooks set their
+               `loading` before their first await — so the ↻ went disabled
+               under the press that had just come from it. It is the worst of
+               the nine to lose focus on: the panel is docked with no focus
+               trap, and the Codex leg of this refresh is a full second or
+               more, all of it with focus on `<body>` and nothing to hand it
+               back. The glyph goes on saying which state it is in. */
+            {...selfPressProps(anyLoading)}
             aria-label={refreshLabel}
             title={refreshLabel}
           >{anyLoading ? "…" : "↻"}</button>

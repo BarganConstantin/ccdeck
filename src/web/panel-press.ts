@@ -85,6 +85,59 @@ export function pressAccepted(inflight: string | null): boolean {
   return inflight == null;
 }
 
+// ── the same rule where the slot is one boolean (#620) ──────────────────────
+//
+// The rule above was written for the accounts panel and applied there and
+// nowhere else, and nine primary controls elsewhere went on doing the thing it
+// forbids: the topbar sound switch, the version banner's three actions, the
+// usage panel's ↻, the usage-history ↻ and its retry, and the add-account
+// dialog's two submits. Each set a busy flag, the flag reached `disabled` on
+// the control the press came from, and focus went to `<body>`.
+//
+// None of those surfaces has a tagged slot: each control owns one boolean, so
+// "somebody ELSE is working" cannot arise — the only request that flag can be
+// reporting is this control's own. Which is the case `pressState` already
+// answers, with `disabled: false`. So the two below are the boolean spelling of
+// the tagged pair, written as calls to it rather than beside it: one rule, two
+// spellings, and the second is the first with the only tag there is.
+//
+// The second argument is the half a busy mechanism must not swallow. A control
+// can be unavailable for a reason that is not a press in flight — an empty
+// field with nothing to submit, an install that has already finished — and
+// that is still `disabled`, because `:disabled` goes on meaning what it means.
+// The defect was never `disabled`; it was a press disabling ITSELF.
+
+/** The tag a one-control surface has. There is only one, so it is a constant. */
+const SELF = "self";
+
+/** The two attributes #518 puts on a control, ready to spread onto it. */
+export interface PressAttrs {
+  disabled: boolean;
+  "aria-busy": boolean;
+}
+
+/**
+ * `inflight` is this control's own busy flag — the press it started is still
+ * out. `unavailable` is every OTHER reason the control cannot act, and is the
+ * only thing allowed to reach `disabled`.
+ */
+export function selfPressProps(inflight: boolean, unavailable = false): PressAttrs {
+  const s = pressState(inflight ? SELF : null, SELF);
+  return { disabled: unavailable || s.disabled, "aria-busy": s.busy };
+}
+
+/**
+ * `pressAccepted` for a surface whose slot is one boolean.
+ *
+ * Same reason it exists there: with the working control left enabled, a second
+ * Enter reaches the handler, so the handler is what refuses it. Read off a ref
+ * rather than the state — the state a handler closed over is a render old, and
+ * the second press happens before the next one.
+ */
+export function selfPressAccepted(inflight: boolean): boolean {
+  return pressAccepted(inflight ? SELF : null);
+}
+
 /**
  * Where focus goes when the press took its own control away, most local first.
  *
