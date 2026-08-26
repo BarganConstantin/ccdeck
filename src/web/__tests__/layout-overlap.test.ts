@@ -397,20 +397,47 @@ describe("fillGapsWithNewSessions — reuse the space finished sessions left", (
     // The band between a and b is half a session tall. The arrival must end up
     // after b, not wedged between them — though it may still be pulled up from
     // an artificially distant y, which is compaction rather than gap-filling.
+    //
+    // The bound used to be `>= bY + H`, which is 350, against a real answer of
+    // 496 and a seed of 2000. So every value in that 1,504px range passed, the
+    // untouched seed included: a `fillGapsWithNewSessions` that placed nothing
+    // at all was indistinguishable from one that worked. The landing slot is
+    // pinned now, derived from the fixture's geometry the way the block case
+    // below derives its gap band.
+    const aY = 0, farBelow = 2000;
     const nodes = [agent("a", "sa"), agent("b", "sb"), agent("new", "snew")];
     const measured = sizes(["a", "b", "new"]);
     const bY = H + CHROME + GAP / 2;
     const positions = new Map([
-      ["a", { x: 0, y: 0 }],
+      ["a", { x: 0, y: aY }],
       ["b", { x: 0, y: bY }],
-      ["new", { x: 0, y: 2000 }],
+      ["new", { x: 0, y: farBelow }],
     ]);
-    fillGapsWithNewSessions(nodes, positions, new Map(), measured, new Set(["new"]));
+    const moved =
+      fillGapsWithNewSessions(nodes, positions, new Map(), measured, new Set(["new"]));
 
-    expect(positions.get("new")!.y).toBeGreaterThanOrEqual(bY + H);   // after b
+    // The hole this case is named for, from `a`'s card bottom to `b`'s top —
+    // asserted to be too small, so that a change to the constants could not
+    // quietly turn this into a fixture with a hole the arrival does fit.
+    const holeTop = aY + H, holeBottom = bY;
+    expect(holeBottom - holeTop).toBeLessThan(H);
+
+    // It is still a relocation — pulled up from the seed to the first slot
+    // that clears `b` — so the function has to report it as one.
+    expect(moved).toEqual(["snew"]);
+
+    const n = positions.get("new")!;
+    // Asserted before the coordinates so that a card driven into the hole is
+    // reported as the overlap with `b` it is, rather than as a surprising `y`.
     expect(overlaps(
-      nodes.map(n => ({ ...n, position: positions.get(n.id)! })), measured,
+      nodes.map(x => ({ ...x, position: positions.get(x.id)! })), measured,
     )).toEqual([]);
+
+    // Past `b` rather than between it and `a`: the first slot clear of `b`'s
+    // cluster box, in `b`'s column.
+    const slotBelowB = bY + H + CHROME + GAP;
+    expect(n.x).toBe(positions.get("b")!.x);
+    expect(n.y).toBe(slotBelowB);
   });
 
   it("moves a multi-card session as one block", () => {
@@ -474,11 +501,15 @@ describe("fillGapsWithNewSessions — reuse the space finished sessions left", (
   });
 
   it("never relocates a dragged node", () => {
+    // Its two siblings above pin the position as well as the return value;
+    // this one only ever read the return value, so a pass that quietly wrote
+    // `p` into the gap and merely declined to name it went unnoticed.
     const nodes = [agent("a", "sa"), agent("p", "snew")];
     const measured = sizes(["a", "p"]);
     const positions = new Map([["a", { x: 0, y: 0 }], ["p", { x: 0, y: 4000 }]]);
     const pinned = new Map([["p", { x: 0, y: 4000 }]]);
     expect(fillGapsWithNewSessions(nodes, positions, pinned, measured, new Set(["p"]))).toEqual([]);
+    expect(positions.get("p")).toEqual({ x: 0, y: 4000 });
   });
 });
 
