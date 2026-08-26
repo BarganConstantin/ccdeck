@@ -180,21 +180,43 @@ async function until(ok: () => boolean | Promise<boolean>, what: string, tries =
 
 let wide: Deck;      // machine-wide, lowest port — the elected writer
 let scoped: Deck;    // scoped to one tree, the deck the reporter pressed Clear on
+let scopedBefore = 0; // what the scoped deck was drawing before Clear was pressed
+let linesBefore = 0;  // and what the shared log held, so the fixture can be checked
 let solo: Server;    // this process, a deck with a log nobody shares
 
 beforeAll(async () => {
   const [low, high] = await freePorts();
   wide = await boot(low, "");
   scoped = await boot(high, TREE);
-  // Five hook events, delivered to the elected writer the way the hook delivers
-  // them — the scoped deck would be posted `?persist=0` for the same session.
+  // Five hook events, delivered the way hook.js delivers them when two decks
+  // both capture the session: the elected writer is posted plainly, and every
+  // other deck is posted the SAME event with `?persist=0` so it draws the card
+  // without a second copy reaching the file.
+  //
+  // Posting only to the writer would have left the scoped deck's canvas empty,
+  // and "still clears the canvas the user was looking at" would then be
+  // asserting 0 against a board that was 0 before the press — green whatever
+  // Clear did. The whole complaint in #698 is that the scoped deck's own board
+  // is what the user meant to clear, so it has to have something on it.
   for (let i = 0; i < 5; i++) {
-    await call(wide.port, "/api/event", "POST", undefined, {
+    const body = {
       hook_event_name: i === 0 ? "SessionStart" : "PreToolUse",
       session_id: "sess-698", cwd: TREE, tool_name: "Bash", tool_input: { command: `echo ${i}` },
-    });
+    };
+    await call(wide.port, "/api/event", "POST", undefined, body);
+    await call(scoped.port, "/api/event?persist=0", "POST", undefined, body);
   }
-  await until(() => logLines(SHARED) === 5, "the shared log to hold five lines");
+  await until(() => logLines(SHARED) >= 5, "the shared log to hold the five events");
+  // Both boards are read here and ASSERTED in the first case rather than in
+  // this hook. A throw in beforeAll files every case in the file as `skipped`,
+  // which reads as a gate nobody registered rather than as a broken fixture —
+  // and the skip-register audit then fails on top, hiding the cause twice over.
+  // A bounded wait that gives up quietly, plus a named assertion below, says
+  // what went wrong.
+  await until(async () => (await hookEvents(scoped.port)) >= 5, "the scoped deck to draw the five", 200)
+    .catch(() => {});
+  scopedBefore = await hookEvents(scoped.port);
+  linesBefore = logLines(SHARED);
 }, 90_000);
 
 afterAll(async () => {
@@ -220,6 +242,15 @@ afterAll(async () => {
 });
 
 describe("Clear on a deck that does not own the shared log", () => {
+  // First, because everything after it presses Clear and the board it presses
+  // on has to have been worth clearing. Both halves of the delivery hook.js
+  // makes are checked here: the writer took the five lines, and the second deck
+  // drew the same five without adding a sixth.
+  it("gives both decks the five events, and the file only one copy", () => {
+    expect(linesBefore, "the elected writer took the five events").toBe(5);
+    expect(scopedBefore, "the scoped deck drew them too, via ?persist=0").toBe(5);
+  });
+
   it("leaves the other deck's log exactly as it found it", async () => {
     const before = bytes(SHARED);
     expect(before, "the fixture writes a log worth destroying").toBeGreaterThan(0);
@@ -245,6 +276,10 @@ describe("Clear on a deck that does not own the shared log", () => {
   it("still clears the canvas the user was looking at", async () => {
     // The press is not refused — what the user asked for is their own board, and
     // they get it. Only the file that is not this deck's stays.
+    //
+    // The first assertion is not ceremony: it is what stops the second one from
+    // passing on a board that had nothing on it to begin with. The clear that
+    // empties this canvas happened in the first case of this block.
     expect(await hookEvents(scoped.port), "the scoped deck's own canvas").toBe(0);
   });
 
