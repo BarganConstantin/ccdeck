@@ -101,28 +101,49 @@ describe("bubblePush", () => {
   });
 
   it("leaves the session that grew where it is", () => {
+    // Seeded clear of the origin on purpose. The solver refuses any box at
+    // y <= 0 a push that heads further up, so a grower at {0, 0} holds still
+    // because of the canvas edge and the mass rule is never consulted — this
+    // case passed verbatim against a build with the mass rule deleted.
     const nodes = [agent("a", "sa"), agent("b", "sb")];
-    const pos = at([["a", 0, 0], ["b", 0, 400]]);
+    const pos = at([["a", 200, 300], ["b", 200, 700]]);
     const prev = new Map<string, { w: number; h: number }>();
     bubblePush(nodes, pos, new Map(), sizes(["a", "b"]), prev);
 
-    bubblePush(nodes, pos, new Map(), sizes(["a", "b"], { a: { width: 700, height: 500 } }), prev);
-    expect(pos.get("a")).toEqual({ x: 0, y: 0 });
+    const grown = sizes(["a", "b"], { a: { width: 700, height: 500 } });
+    bubblePush(nodes, pos, new Map(), grown, prev);
+
+    const grower = Math.abs(pos.get("a")!.y - 300);
+    const neighbour = Math.abs(pos.get("b")!.y - 700);
+    // Mass 8 against mass 1: with room to move in both directions the grower
+    // still yields an eighth of what it hands out. Split evenly the two would
+    // move the same distance, which is the thing this case exists to catch.
+    expect(grower * 4).toBeLessThan(neighbour);
+    expect(grower).toBeLessThan(40);
+    expect(collidingSessions(nodes, pos, grown)).toEqual([]);
   });
 
   it("moves the neighbour the short way, not to the bottom of the canvas", () => {
+    // `sb` sits off `sa`'s right shoulder, so the short way out is sideways
+    // and the long way is down. That matters: separateOverlaps, the algorithm
+    // this case exists to reject, resolves on Y alone. On the stacked board
+    // this fixture used to carry the two agreed to the pixel — 166.997 against
+    // 166.0 — because with one obstacle directly above, the shortest way out
+    // and the bottom of that obstacle are the same place. Here they are not:
+    // separateOverlaps answers 346px straight down and nothing sideways.
     const nodes = [agent("a", "sa"), agent("b", "sb")];
-    const pos = at([["a", 0, 0], ["b", 0, 400]]);
+    const pos = at([["a", 200, 200], ["b", 800, 500]]);
     const prev = new Map<string, { w: number; h: number }>();
     bubblePush(nodes, pos, new Map(), sizes(["a", "b"]), prev);
 
-    // 40px of new height is 40px of intrusion — the answer is a small nudge.
-    const grown = sizes(["a", "b"], { a: { width: W, height: H + 300 } });
+    // sa fans out subagents: one 260x120 card becomes a 700x500 cluster.
+    const grown = sizes(["a", "b"], { a: { width: 700, height: 500 } });
     bubblePush(nodes, pos, new Map(), grown, prev);
 
-    const dy = pos.get("b")!.y - 400;
-    expect(dy).toBeGreaterThan(0);
-    expect(dy).toBeLessThan(320);                      // nudged, not exiled
+    const dx = pos.get("b")!.x - 800, dy = pos.get("b")!.y - 500;
+    expect(dx).toBeGreaterThan(0);
+    expect(dx).toBeLessThan(200);                      // nudged, not exiled
+    expect(Math.abs(dy)).toBeLessThan(1);              // and not slid to the bottom
     expect(collidingSessions(nodes, pos, grown)).toEqual([]);
   });
 
@@ -150,6 +171,7 @@ describe("bubblePush", () => {
     bubblePush(nodes, pos, new Map(), sizes(["a1", "b1", "b2"], { a1: { width: W, height: 600 } }), prev);
 
     const b1 = pos.get("b1")!, b2 = pos.get("b2")!;
+    expect(b1.y).toBeGreaterThan(400);   // sb was actually moved, not just left alone
     expect(b2.x - b1.x).toBe(300);
     expect(b2.y - b1.y).toBe(30);
   });
@@ -167,28 +189,56 @@ describe("bubblePush", () => {
   });
 
   it("is deterministic — same input, same output", () => {
+    const start: Array<[string, number, number]> = [["a", 0, 0], ["b", 0, 400], ["c", 0, 800]];
     const build = () => {
       const nodes = [agent("a", "sa"), agent("b", "sb"), agent("c", "sc")];
-      const pos = at([["a", 0, 0], ["b", 0, 400], ["c", 0, 800]]);
+      const pos = at(start);
       const prev = new Map<string, { w: number; h: number }>();
       bubblePush(nodes, pos, new Map(), sizes(["a", "b", "c"]), prev);
       bubblePush(nodes, pos, new Map(), sizes(["a", "b", "c"], { a: { width: 800, height: 900 } }), prev);
       return JSON.stringify([...pos]);
     };
     expect(build()).toBe(build());
+    // A board it never touched would also agree with itself.
+    expect(build()).not.toBe(JSON.stringify([...at(start)]));
   });
 
   it("never pushes a session off the top-left corner", () => {
-    const nodes = [agent("a", "sa"), agent("b", "sb")];
-    const pos = at([["a", 0, 400], ["b", 0, 0]]);
-    const prev = new Map<string, { w: number; h: number }>();
-    bubblePush(nodes, pos, new Map(), sizes(["a", "b"]), prev);
+    // The push has to actually aim at the corner or the clamp means nothing.
+    // A top-left-anchored box grows down and right, so growth can never reach
+    // a neighbour above or left of it — the fixture this used to carry seeded
+    // `sa` below `sb` and grew it, which produced no collision at all and no
+    // call to the solver. What does aim at the corner is a crossed board with
+    // nothing growing: area decides who yields, so the one-card session tucked
+    // at {20, 20} is driven at the edge with 20px of room and a first push of
+    // more than a hundred — without the clamp it lands at -95.8. It has to
+    // stop ON the edge, and the rest of the push has to go to the big session
+    // rather than into the clamp.
+    const corner = (tall: Array<[string, number, number]>) => {
+      const nodes = [agent("t1", "tall"), agent("t2", "tall"), agent("t3", "tall"),
+                     agent("s1", "small")];
+      const pos = at([...tall, ["s1", 20, 20]]);
+      const m = sizes(["t1", "t2", "t3", "s1"]);
+      const prev = new Map<string, { w: number; h: number }>();
+      expect(collidingSessions(nodes, pos, m)).not.toEqual([]);
+      bubblePush(nodes, pos, new Map(), m, prev);   // records only
+      bubblePush(nodes, pos, new Map(), m, prev);
+      return { s1: pos.get("s1")!, hits: collidingSessions(nodes, pos, m) };
+    };
 
-    // sa grows upward into sb, which has nowhere above it to go.
-    bubblePush(nodes, pos, new Map(), sizes(["a", "b"], { a: { width: W, height: 600 } }), prev);
+    // Driven at the top edge.
+    const up = corner([["t1", 150, 100], ["t2", 150, 500], ["t3", 150, 900]]);
+    expect(up.s1.y).toBeLessThan(20);              // pushed toward the corner
+    expect(up.s1.y).toBeGreaterThanOrEqual(0);     // and not through it
+    expect(up.s1.x).toBeGreaterThanOrEqual(0);
+    expect(up.hits).toEqual([]);                   // the overlap resolved anyway
 
-    expect(pos.get("b")!.x).toBeGreaterThanOrEqual(0);
-    expect(pos.get("b")!.y).toBeGreaterThanOrEqual(0);
+    // Driven at the left edge.
+    const left = corner([["t1", 300, 100], ["t2", 300, 500], ["t3", 300, 900]]);
+    expect(left.s1.x).toBeLessThan(20);
+    expect(left.s1.x).toBeGreaterThanOrEqual(0);
+    expect(left.s1.y).toBeGreaterThanOrEqual(0);
+    expect(left.hits).toEqual([]);
   });
 
   it("forgets sessions that are gone so their ids can be reused", () => {
@@ -280,8 +330,9 @@ describe("bubblePush — boxes that cross without anything growing", () => {
     const pinned = new Map([["s1", { x: 300, y: 250 }]]);
     const prev = new Map<string, { w: number; h: number }>();
     bubblePush(nodes, pos, pinned, m, prev);
-    bubblePush(nodes, pos, pinned, m, prev);
+    const moved = bubblePush(nodes, pos, pinned, m, prev);
     expect(pos.get("s1")).toEqual({ x: 300, y: 250 });
+    expect(moved).toEqual(["tall"]);   // the push routed around them, not nowhere
   });
 });
 
@@ -304,10 +355,17 @@ describe("bubblePush — a lane is growth", () => {
     !(a.x < b.x + b.w + GAP_X && b.x < a.x + a.w + GAP_X &&
       a.y < b.y + b.h + GAP_Y && b.y < a.y + a.h + GAP_Y);
 
-  /** `sb` sits beside `sa`: clear of its card, inside where its chips will be. */
+  /**
+   * `sb` sits beside `sa`: clear of its card, inside where its chips will be.
+   *
+   * Seeded clear of the origin. A box at x <= 0 or y <= 0 is refused a push
+   * that heads further out, so on a board anchored at {0, 0} the canvas edge
+   * holds the grower still and every case below that credits the mass rule for
+   * it is reading the edge instead.
+   */
   const board = () => ({
     nodes: [agent("a", "sa"), agent("b", "sb")],
-    pos: at([["a", 0, 0], ["b", 400, 200]]),
+    pos: at([["a", 200, 300], ["b", 600, 500]]),
     m: sizes(["a", "b"]),
     prev: new Map<string, { w: number; h: number }>(),
   });
@@ -316,7 +374,7 @@ describe("bubblePush — a lane is growth", () => {
     const { nodes, pos, m, prev } = board();
     bubblePush(nodes, pos, new Map(), m, prev);
     expect(bubblePush(nodes, pos, new Map(), m, prev)).toEqual([]);
-    expect(pos.get("b")).toEqual({ x: 400, y: 200 });
+    expect(pos.get("b")).toEqual({ x: 600, y: 500 });
   });
 
   it("pushes the neighbour out of the chips when an agent gains a lane", () => {
@@ -326,25 +384,31 @@ describe("bubblePush — a lane is growth", () => {
     const lanes = new Map([["a", 4]]);
     const moved = bubblePush(nodes, pos, new Map(), m, prev, false, lanes);
 
-    expect(moved).toEqual(["sb"]);
+    expect(moved).toEqual(["sa", "sb"]);
     expect(clear(foot(pos.get("a")!, 4), foot(pos.get("b")!, 0))).toBe(true);
   });
 
   it("lets the session whose lane grew hold its ground", () => {
     // The lane is the culprit, so its session is the heavy one — the same rule
-    // that applies when a session fans out subagents.
+    // that applies when a session fans out subagents. Both sessions have room
+    // to move here, so the split between them is the mass rule's answer and
+    // nothing else's.
     const { nodes, pos, m, prev } = board();
     bubblePush(nodes, pos, new Map(), m, prev);
     bubblePush(nodes, pos, new Map(), m, prev, false, new Map([["a", 4]]));
-    expect(pos.get("b")).not.toEqual({ x: 400, y: 200 });   // something did move
-    expect(pos.get("a")).toEqual({ x: 0, y: 0 });
+
+    const grower = Math.abs(pos.get("a")!.y - 300);
+    const neighbour = Math.abs(pos.get("b")!.y - 500);
+    expect(neighbour).toBeGreaterThan(0);              // something did move
+    expect(grower * 4).toBeLessThan(neighbour);        // and it was mostly the neighbour
+    expect(grower).toBeLessThan(20);
   });
 
   it("settles — a second call with the same lanes moves nothing", () => {
     const { nodes, pos, m, prev } = board();
     const lanes = new Map([["a", 4]]);
     bubblePush(nodes, pos, new Map(), m, prev);
-    expect(bubblePush(nodes, pos, new Map(), m, prev, false, lanes)).toEqual(["sb"]);
+    expect(bubblePush(nodes, pos, new Map(), m, prev, false, lanes)).toEqual(["sa", "sb"]);
     const after = JSON.stringify([...pos]);
     expect(bubblePush(nodes, pos, new Map(), m, prev, false, lanes)).toEqual([]);
     expect(JSON.stringify([...pos])).toBe(after);
