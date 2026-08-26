@@ -9,6 +9,7 @@ import ReactFlow, {
   ReactFlowProvider,
   useReactFlow,
   useStore,
+  useStoreApi,
   type ReactFlowState,
 } from "reactflow";
 import AgentNode, { waitingSentence } from "./components/AgentNode";
@@ -51,6 +52,7 @@ import { paletteReader, readPalette, samePalette, type Palette } from "./palette
 import { restoreLayout, type StoredLayout } from "./stored-layout";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
+import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
@@ -156,6 +158,9 @@ const AGENT_GRACE_MS = 5 * 60_000;
 // more obvious thing to disappear, so it should not linger once it is over.
 const DONE_SESSION_CAP = 6;
 const DONE_SESSION_GRACE_MS = 2 * 60_000;
+/** How long React Flow's own opening fit takes, when there is anyone watching
+ *  it. Named because the answer to "should this animate" is asked of it too. */
+const OPENING_FIT_MS = 400;
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
 const SUMMARY_DISMISSED_KEY = "agent-dag.summariesDismissed";
@@ -686,8 +691,25 @@ export default function App() {
   );
 }
 
+/** d3-zoom's own transform for the pane — the scale `k`, the translation
+ *  `x`/`y`, and the relative builders that compose another one from it.
+ *
+ *  Read off React Flow's own d3-zoom handle rather than imported from d3-zoom,
+ *  because d3-zoom reaches this app only as React Flow's dependency and a
+ *  direct import would be a package.json entry for one type. applyViewport is
+ *  the only user. */
+type PaneTransform = Extract<
+  Parameters<NonNullable<ReactFlowState["d3Zoom"]>["transform"]>[1],
+  { k: number }
+>;
+
 function Inner() {
   const rf = useReactFlow();
+  // The same store React Flow's own viewport helpers read, and the only way to
+  // reach the pane's d3-zoom behaviour from here. `useStoreApi` rather than
+  // `useStore`: this is never rendered from, only called into, so a subscription
+  // would be a re-render per pan frame for nothing. See applyViewport.
+  const storeApi = useStoreApi();
   // The graph itself, held in a ref because `applyEvent` mutates it and hands
   // the SAME object back — `revision` is what moves so a `useMemo` has anything
   // to watch. Built in a `useState` initialiser rather than as the `useRef`
@@ -1348,12 +1370,77 @@ function Inner() {
     });
   }, [theme]);
 
+  /**
+   * Put the pane where the deck wants it — and make sure it gets there.
+   *
+   * One door for every viewport the deck asks for, because there are two ways
+   * through and the choice is not the caller's to make each time. The animated
+   * way is `setViewport`, which is a d3 transition and therefore a chain of
+   * requestAnimationFrame callbacks; the immediate way is the pane's d3-zoom
+   * behaviour handed a SELECTION instead of a transition, which applies the
+   * transform synchronously and needs no frame at all.
+   *
+   * Which one is not a matter of taste. A browser runs no rAF in a page it is
+   * not rendering, so in a background tab the animated way does not arrive late
+   * — it does not arrive, and neither does the position it was carrying. That
+   * is the whole of #671: a deck left open behind an editor could not recentre,
+   * and the drift watchdog's recovery — whose entire purpose is a canvas that
+   * wandered off while nobody was looking — could not execute in exactly the
+   * condition it exists for. Measured in a hidden deck tab: zero rAF callbacks
+   * over three seconds, while `setTimeout` kept firing at Chrome's ~1Hz
+   * background clamp. The timers were slow; the frames were absent.
+   *
+   * `{ duration: 0 }` is NOT the immediate way, which is the trap this function
+   * exists to close. React Flow's setViewport has no zero-duration branch —
+   * `getD3Transition` wraps the selection in `.transition().duration(d)` for
+   * every d — so a "non-animated" setViewport is a transition of length zero,
+   * waiting on the same frame that is not coming. The deck's own trailing
+   * correction used to be spelled that way and could never once have worked.
+   * `d3Zoom.transform(d3Selection, t)` is the door React Flow's own `fitView`
+   * takes when given no duration, and the one @reactflow/minimap pans through.
+   *
+   * The transform is composed from the live one rather than built from
+   * `zoomIdentity`, so that no d3 module has to be imported beside React Flow's
+   * own copy: `scale` and `translate` on a ZoomTransform are relative, and
+   * scaling to `zoom / k` and then translating by the remaining gap lands on
+   * exactly (x, y, zoom).
+   */
+  const applyViewport = useCallback((next: { x: number; y: number; zoom: number }, duration: number) => {
+    if (shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })) {
+      rf.setViewport(next, { duration });
+      return;
+    }
+    const { d3Zoom, d3Selection } = storeApi.getState();
+    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
+    if (d3Zoom && d3Selection && current && current.k > 0 && next.zoom > 0) {
+      d3Zoom.transform(d3Selection, current
+        .scale(next.zoom / current.k)
+        .translate((next.x - current.x) / next.zoom, (next.y - current.y) / next.zoom));
+      return;
+    }
+    // Nothing mounted to drive yet. Ask React Flow anyway: in a visible tab it
+    // still lands, and in a hidden one there was no pane to move regardless.
+    rf.setViewport(next, { duration: 0 });
+  }, [rf, storeApi]);
+
+  /** The frame an animation is on its way to, and the moment it should have
+   *  arrived by. Null whenever no animated fit is in flight.
+   *
+   *  Kept because `document.hidden` can flip DURING an animation, and a
+   *  transition that loses its frames stops where it stands: a canvas frozen
+   *  part-way to a fit, with `getViewport` reporting a transform the deck never
+   *  asked for and the drift watchdog measuring against it. */
+  const pendingFitRef = useRef<{ target: { x: number; y: number; zoom: number }; until: number } | null>(null);
+
   // Apply restored viewport once ReactFlow's instance is ready. We skip
   // the initial fitView in that case (see <ReactFlow fitView={…}/> below).
   useEffect(() => {
     if (!restoredViewport) return;
     const id = window.setTimeout(() => {
-      try { rf.setViewport(restoredViewport, { duration: 0 }); } catch {}
+      // Through applyViewport, not `setViewport(…, { duration: 0 })`: this one
+      // runs 60ms after boot, and a deck that opened its own tab while the user
+      // was looking elsewhere is a hidden tab at exactly that moment.
+      try { applyViewport(restoredViewport, 0); } catch {}
       // Stamped like every other viewport the deck asks for. This one never
       // needed it while onMoveStart was the only signal, because a programmatic
       // setViewport carries no source event and never reached it; onMove does
@@ -1362,7 +1449,7 @@ function Inner() {
       lastFitTimeRef.current = Date.now();
     }, 60);
     return () => window.clearTimeout(id);
-  }, [rf, restoredViewport]);
+  }, [applyViewport, restoredViewport]);
 
   // SSE subscription.
   //
@@ -1515,29 +1602,65 @@ function Inner() {
         ((paneRect.height - MARGIN * 2) / h) * FILL,
       ));
 
-      rf.setViewport({
+      // One frame, computed once. It used to be spelled out twice — here and
+      // again inside the correction below — which is two chances to disagree
+      // about where the graph was supposed to go.
+      const want = {
         x: MARGIN - minX * zoom,
         y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
         zoom,
-      }, { duration });
+      };
+      applyViewport(want, duration);
       lastFitTimeRef.current = Date.now();
-      // An animated setViewport runs through d3's transition, which is driven
-      // by requestAnimationFrame — so it lands late, or not at all if the tab
-      // is in the background when the fit is requested. Check afterwards and,
-      // if nothing moved, set the same viewport without animation. Not
-      // fitView: that centres, which is the one thing this function exists to
-      // avoid.
+      // Remembered only while an animation is actually running: a fit that went
+      // straight to the pane is already there, and nothing about it is pending.
+      pendingFitRef.current = shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })
+        ? { target: want, until: Date.now() + duration + 60 }
+        : null;
+      // A transition can also be cut short — the pane loses its frames when the
+      // tab is hidden mid-animation, and the user can grab it. Check afterwards
+      // and, if the frame never arrived, put it there outright. Not fitView:
+      // that centres, which is the one thing this function exists to avoid.
       window.setTimeout(() => {
         try {
-          const want = { x: MARGIN - minX * zoom, y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom, zoom };
+          // Only if it is still THIS fit's target: a second fit started in the
+          // meantime owns the ref now, and clearing it would leave that
+          // animation with nothing to land if the tab went away mid-flight.
+          if (pendingFitRef.current?.target === want) pendingFitRef.current = null;
           const vpNow = rf.getViewport();
           if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2) {
-            rf.setViewport(want, { duration: 0 });
+            applyViewport(want, 0);
           }
         } catch { /* ignore */ }
       }, duration + 60);
     } catch { /* viewport not ready */ }
-  }, [rf]);
+  }, [rf, applyViewport]);
+
+  // A fit that is animating when the tab goes away loses its frames where it
+  // stands — a canvas stopped part-way to a frame nobody chose, which is worse
+  // than either end of the animation and is what `getViewport` would report to
+  // the drift watchdog from then on. So the moment the page stops being
+  // rendered, whatever is in flight is put where it was going.
+  //
+  // The trailing correction above cannot cover this one: it is a `setTimeout`,
+  // and a hidden tab's timers are clamped to about 1Hz, so a 400ms fit would
+  // sit frozen for the best part of a second first. The visibility change
+  // itself is delivered immediately.
+  useEffect(() => {
+    const land = () => {
+      if (!document.hidden) return;
+      const pending = pendingFitRef.current;
+      pendingFitRef.current = null;
+      if (!pending || Date.now() > pending.until) return;
+      try { applyViewport(pending.target, 0); } catch { /* pane gone */ }
+      // Restamped, because this move arrives as an eventless onMove of its own
+      // and the stamp from the fit that started it may already be outside the
+      // window viewport-intent.ts measures.
+      lastFitTimeRef.current = Date.now();
+    };
+    document.addEventListener("visibilitychange", land);
+    return () => document.removeEventListener("visibilitychange", land);
+  }, [applyViewport]);
   const lastLayoutSigForFitRef = useRef("");
   // Debounce timer for persisting the viewport on pan/zoom.
   const vpSaveTimerRef = useRef<number | null>(null);
@@ -3291,7 +3414,21 @@ function Inner() {
           edges={edges}
           nodeTypes={nodeTypes}
           fitView={!restoredViewport}
-          fitViewOptions={{ padding: 0.25, duration: 400 }}
+          /* The opening frame is React Flow's own, and it goes through the same
+             d3 transition every other viewport animation does — so a deck that
+             opened its tab behind whatever the user was already looking at drew
+             its graph and then left the pane at the identity transform, an
+             empty-looking canvas until the tab was brought forward. The library
+             re-reads this object into its store on every render and only fits
+             once, when the first nodes are measured, so asking for no animation
+             while the page is not being rendered takes the branch that applies
+             the transform outright. A visible tab still gets the 400ms. */
+          fitViewOptions={{
+            padding: 0.25,
+            duration: shouldAnimateViewport({ durationMs: OPENING_FIT_MS, documentHidden: document.hidden })
+              ? OPENING_FIT_MS
+              : 0,
+          }}
           minZoom={0.2}
           maxZoom={1.6}
           panOnScroll
