@@ -46,7 +46,9 @@ import UsageHistoryModal from "./components/UsageHistoryModal";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, sessionHue, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
-import { SESSION_GROUP_TYPE, minimapNodeColor } from "./minimap";
+import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
+import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
+import { restoreLayout, type StoredLayout } from "./stored-layout";
 import { isUserViewportGesture } from "./viewport-intent";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
@@ -63,6 +65,15 @@ import { elapsed, toolDuration } from "./duration";
 import CostBar from "./components/CostBar";
 import type { AgentNodeData, HookEnvelope, ToolCall } from "./types";
 
+/**
+ * One custom property, resolved off the document.
+ *
+ * This is a real style resolution every time it is called, which is why it has
+ * exactly two callers now and both of them are `readPalette` (#613). It used to
+ * be reached from the JSX — including once per node, per frame, through the
+ * minimap's `nodeColor` — and everything it reads only changes when the theme
+ * flips. Nothing on the render path may call it; see palette.ts.
+ */
 function cssVar(name: string): string {
   if (typeof window === "undefined") return "";
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "";
@@ -284,20 +295,6 @@ function saveDismissedSummaries(set: Set<string>): void {
     const trimmed = arr.length > 200 ? arr.slice(-200) : arr;
     window.localStorage.setItem(SUMMARY_DISMISSED_KEY, JSON.stringify(trimmed));
   } catch {}
-}
-
-/**
- * Where every node sits, and which of those the user placed by hand.
- *
- * Only drags used to be stored, so a reload re-ran dagre over everything and
- * the canvas came back rearranged — the arrangement you spent time reading is
- * not something you should have to rebuild because you hit refresh. Auto
- * positions are saved too, and `pins` records which were deliberate so a drag
- * still outranks the layout pass.
- */
-interface StoredLayout {
-  positions: Array<[string, { x: number; y: number }]>;
-  pins: string[];
 }
 
 function loadLayout(): StoredLayout {
@@ -689,7 +686,15 @@ export default function App() {
 
 function Inner() {
   const rf = useReactFlow();
-  const stateRef = useRef<GraphState>(initialState());
+  // The graph itself, held in a ref because `applyEvent` mutates it and hands
+  // the SAME object back — `revision` is what moves so a `useMemo` has anything
+  // to watch. Built in a `useState` initialiser rather than as the `useRef`
+  // argument: that argument is re-evaluated on every render and the result
+  // discarded (#612), which is five fresh Maps a render for a value that is
+  // wanted once. `stateRef.current` is still assigned from `applyEvent`, so the
+  // ref stays.
+  const initialGraph = useState(initialState)[0];
+  const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
   // Selection model: a set of agent ids contributes to spotlight lineage.
@@ -722,7 +727,7 @@ function Inner() {
   }, []);
   /** Session ID for which we're showing the end-of-session recap modal,
    *  or null when no modal is open. Triggered by Stop / SessionEnd hooks
-   *  (gated against dismissedSummariesRef to avoid re-opening on refresh). */
+   *  (gated against dismissedSummaries to avoid re-opening on refresh). */
   const [summaryFor, setSummaryFor] = useState<string | null>(null);
   /** Session id whose context-breakdown modal is open, or null. Driven by
    *  clicking the donut on the session's root node. */
@@ -735,7 +740,14 @@ function Inner() {
    *  reference someone reaches for and closes again, and a deck that reopened
    *  it on every refresh would be answering a question nobody asked twice. */
   const [keyHelpOpen, setKeyHelpOpen] = useState(false);
-  const dismissedSummariesRef = useRef<Set<string>>(loadDismissedSummaries());
+  /** Sessions whose recap has already been closed once. A `useState`
+   *  initialiser and not `useRef(loadDismissedSummaries())`, because `useRef`
+   *  evaluates its argument on EVERY render and keeps only the first result
+   *  (#612) — so the getItem, the JSON.parse and the Set ran four times a
+   *  second on an idle deck, and once per pointer move through a drag, for a
+   *  value that is wanted once. The Set is mutated in place from here on and
+   *  never replaced, which is why there is no setter and no ref around it. */
+  const dismissedSummaries = useState(loadDismissedSummaries)[0];
   /** Left sidebar (session list) visibility — persisted across refresh. */
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
   useEffect(() => { saveSessionListOpen(sessionListOpen); }, [sessionListOpen]);
@@ -1086,14 +1098,16 @@ function Inner() {
   // pause state out of a ref — see pause.ts for why closing over the state
   // variable instead made every toggle replay the server's whole ring buffer.
   // `paused` mirrors the gate for rendering; the gate stays the source of truth.
-  const pauseRef = useRef(createPauseGate<HookEnvelope>());
+  // Lazily, for the reason spelled out at `dismissedSummaries`: a `useRef`
+  // argument is re-evaluated on every render (#612). The gate is mutated in
+  // place and never replaced, so the value itself is the handle.
+  const pauseGate = useState(() => createPauseGate<HookEnvelope>())[0];
   const [paused, setPaused] = useState(false);
   const togglePause = useCallback(() => {
-    const gate = pauseRef.current;
-    const held = gate.setPaused(!gate.paused);
+    const held = pauseGate.setPaused(!pauseGate.paused);
     for (const env of held) stateRef.current = applyEvent(stateRef.current, env);
-    setPaused(gate.paused);
-  }, []);
+    setPaused(pauseGate.paused);
+  }, [pauseGate]);
   const [now, setNow] = useState(Date.now());
 
   // ── restart ───────────────────────────────────────────────────────────────
@@ -1228,11 +1242,19 @@ function Inner() {
   // applied before snapshotToFlow runs autoLayout. Sessions outlast a
   // browser refresh (their session_id is stable), so dragged positions
   // come back where you left them.
-  const storedLayout = useRef(loadLayout()).current;
-  const positionsSeeded = useRef(false);
-  const pinnedRef = useRef<Map<string, { x: number; y: number }>>(
-    new Map(storedLayout.positions.filter(([id]) => storedLayout.pins.includes(id))),
-  );
+  //
+  // Once, in a `useState` initialiser — the form `restoredViewport` below has
+  // always used, and for the same reason. As a `useRef` argument the whole of
+  // this ran on EVERY render and every result but the first was discarded
+  // (#612): a getItem, a JSON.parse, and two Maps, four times a second on an
+  // idle deck and once per pointer move through a drag — the same drag that is
+  // in the middle of rewriting the value being re-read.
+  //
+  // The pinned half also stopped being quadratic in the process — see
+  // restoreLayout in stored-layout.ts, which is where that lives so it can be
+  // tested without a DOM.
+  const restoredLayout = useState(() => restoreLayout(loadLayout()))[0];
+  const pinnedRef = useRef(restoredLayout.pinned);
   /** Active session group-drag: the handle node's start position + each
    *  member's start position, captured at drag start. */
   const groupDragRef = useRef<{ start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null);
@@ -1246,6 +1268,32 @@ function Inner() {
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
   const [theme, setTheme] = useState<Theme>(storedTheme);
+  /** The canvas's JS-read colours, snapshotted per theme rather than per node
+   *  per frame (#613). The initialiser is safe to run during the first render:
+   *  index.html's inline bootstrap stamps `data-theme` from the same stored
+   *  value before the first paint — see theme.ts — so the sheet is already on
+   *  the right palette by the time this asks. The effect below re-reads it
+   *  whenever the theme moves. */
+  const [palette, setPalette] = useState<Palette>(() => readPalette(cssVar));
+  /** `nodeColor` reaches minimapNodeColor once per node per minimap render, so
+   *  what it is handed has to be a lookup and not a `getComputedStyle`. Stable
+   *  for as long as the palette is, which is what lets `memo(MiniMap)` bail
+   *  out on the frames where nothing about the minimap changed. */
+  const paletteToken = useMemo(() => paletteReader(palette), [palette]);
+  const minimapNodeFill = useCallback(
+    (node: MinimapNode) => minimapNodeColor(node, paletteToken),
+    [paletteToken],
+  );
+  /** Hoisted out of the JSX for the same reason: an object literal in a prop is
+   *  a new object every render, and `memo(MiniMap)` compares by identity. */
+  const minimapStyle = useMemo(
+    () => ({
+      background: palette["--panel"],
+      border: `1px solid ${palette["--line"]}`,
+      borderRadius: 8,
+    }),
+    [palette],
+  );
   const [everConnected, setEverConnected] = useState(false);
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
   // same attribute from the same stored value before anything painted, and the
@@ -1257,6 +1305,18 @@ function Inner() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try { window.localStorage.setItem(THEME_KEY, theme); } catch { /* private mode */ }
+    // Re-read the canvas tokens HERE, in the same effect and on the line after
+    // the attribute, rather than in a `useMemo` keyed on `theme` (#613). A memo
+    // runs during render, and `data-theme` is not written until this effect —
+    // so on the render that flips the theme a memo would read the palette it is
+    // replacing, and then never run again, and the minimap and the grid would
+    // keep the old theme's colours until something else invalidated them. The
+    // ordering is a statement in one function instead of a convention between
+    // two of them.
+    setPalette(prev => {
+      const next = readPalette(cssVar);
+      return samePalette(prev, next) ? prev : next;
+    });
   }, [theme]);
 
   // Apply restored viewport once ReactFlow's instance is ready. We skip
@@ -1315,7 +1375,7 @@ function Inner() {
     es.addEventListener("hook", (e) => {
       try {
         const env: HookEnvelope = JSON.parse((e as MessageEvent).data);
-        if (!pauseRef.current.accept(env)) return; // paused: held for the resume
+        if (!pauseGate.accept(env)) return; // paused: held for the resume
         stateRef.current = applyEvent(stateRef.current, env);
         const isReplay = env.replay === true
           || replayActiveRef.current
@@ -1484,11 +1544,18 @@ function Inner() {
   // or drags a node, autofitting is suspended until they hit the recenter
   // button. Persisted so a refresh respects the user's preference.
   const AUTOFIT_KEY = "agent-dag.autoFitDisabled";
-  const autoFitDisabledRef = useRef<boolean>((() => {
+  // Read once, in a `useState` initialiser. As the `useRef` argument this
+  // immediately-invoked function ran on every render (#612) — a third
+  // `localStorage.getItem` on the render path, beside the layout and the
+  // dismissed recaps — to answer a question only the first render asks. The ref
+  // and the state both start from that one read; the ref is what the callbacks
+  // and the interval below poll, the state is what renders.
+  const autoFitStored = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try { return window.localStorage.getItem(AUTOFIT_KEY) === "1"; } catch { return false; }
-  })());
-  const [autoFitDisabled, setAutoFitDisabled] = useState<boolean>(autoFitDisabledRef.current);
+  })[0];
+  const autoFitDisabledRef = useRef(autoFitStored);
+  const [autoFitDisabled, setAutoFitDisabled] = useState<boolean>(autoFitStored);
   const disableAutoFit = useCallback(() => {
     if (autoFitDisabledRef.current) return;
     autoFitDisabledRef.current = true;
@@ -1632,7 +1699,9 @@ function Inner() {
   // Seeded from storage so a reload resumes the arrangement that was on screen
   // rather than re-deriving one. Anything without a stored position — a new
   // agent, or one whose position was evicted — still gets laid out.
-  const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map(storedLayout.positions));
+  // Built once, beside the pinned half, in the initialiser up at
+  // `restoredLayout` — the argument here is a read and not a `new Map` (#612).
+  const positionsRef = useRef(restoredLayout.positions);
   // Which of those positions are placeholders. Deliberately not persisted: the
   // retry runs on the next render, at most a 250ms tick away, and the save
   // below is debounced 1500ms — so a placeholder is overwritten by a real
@@ -2537,7 +2606,7 @@ function Inner() {
             {(() => {
               const pill = statusPill({
                 connected: live, paused,
-                held: pauseRef.current.size, dropped: pauseRef.current.dropped,
+                held: pauseGate.size, dropped: pauseGate.dropped,
               });
               return (
                 <span className={`pill ${pill.tone}`} title={pill.title}>
@@ -3276,7 +3345,7 @@ function Inner() {
             saveLayout(positionsRef.current, pinnedRef.current);
           }}
         >
-          <Background gap={28} size={1} color={cssVar("--grid-line")} />
+          <Background gap={28} size={1} color={palette["--grid-line"]} />
           <SessionClusters />
           <ToolBursts
             agents={stateRef.current.agents}
@@ -3337,7 +3406,7 @@ function Inner() {
                 this control were a matched pair before it moved. */}
             <ControlButton
               onClick={togglePause}
-              title={pauseTitle({ paused, held: pauseRef.current.size, dropped: pauseRef.current.dropped })}
+              title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped })}
               aria-label={PAUSE_LABEL}
               aria-pressed={paused}
             >
@@ -3424,10 +3493,10 @@ function Inner() {
           <MiniMap
             zoomable
             pannable
-            nodeColor={n => minimapNodeColor(n, cssVar)}
+            nodeColor={minimapNodeFill}
             nodeStrokeWidth={2}
-            maskColor={cssVar("--minimap-mask")}
-            style={{ background: cssVar("--panel"), border: `1px solid ${cssVar("--line")}`, borderRadius: 8 }}
+            maskColor={palette["--minimap-mask"]}
+            style={minimapStyle}
           />
         </ReactFlow>
       </main>
@@ -3454,9 +3523,9 @@ function Inner() {
                 now={now}
                 onOpenTool={setOpenedToolId}
                 onShowSummary={(sid) => {
-                  if (dismissedSummariesRef.current.has(sid)) {
-                    dismissedSummariesRef.current.delete(sid);
-                    saveDismissedSummaries(dismissedSummariesRef.current);
+                  if (dismissedSummaries.has(sid)) {
+                    dismissedSummaries.delete(sid);
+                    saveDismissedSummaries(dismissedSummaries);
                   }
                   setSummaryFor(sid);
                 }}
@@ -3491,8 +3560,8 @@ function Inner() {
           state={stateRef.current}
           sessionId={summaryFor}
           onClose={() => {
-            dismissedSummariesRef.current.add(summaryFor);
-            saveDismissedSummaries(dismissedSummariesRef.current);
+            dismissedSummaries.add(summaryFor);
+            saveDismissedSummaries(dismissedSummaries);
             setSummaryFor(null);
           }}
         />

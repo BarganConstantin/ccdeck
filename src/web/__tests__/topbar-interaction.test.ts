@@ -328,8 +328,12 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
     // that named the count without saying the queue had overflowed would be
     // describing a backlog that will be applied whole when it will not.
+    // The gate stopped being `pauseRef.current` in #612 — it was seeded as a
+    // `useRef` argument, so `createPauseGate()` ran on every render and every
+    // gate but the first was discarded. It is a lazily-initialised value now
+    // and the ref around it is gone; what the tooltip has to say is unchanged.
     expect(CONTROL).toMatch(
-      /title=\{pauseTitle\(\{ paused, held: pauseRef\.current\.size, dropped: pauseRef\.current\.dropped \}\)\}/,
+      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped \}\)\}/,
     );
   });
 
