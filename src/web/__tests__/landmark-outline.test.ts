@@ -37,6 +37,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { versionNoticeLabel } from "../version-chip";
+import { openTags, withoutComments } from "./tsx-scan";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -77,21 +78,50 @@ const costBar = source("CostBar.tsx");
 const BUNDLE: Array<[string, string]> = FILES.map(p =>
   [p.slice(web.length).replace(/\\/g, "/"), code(readFileSync(p, "utf8"))]);
 
-/** Every opening tag in a component, as [tagName, its attributes]. Braced
- *  attribute values are counted out so a `{cond ? "a" : "b"}` inside one does
- *  not end the tag early. */
-function openingTags(src: string): Array<[string, string]> {
-  return [...src.matchAll(/<([a-zA-Z][\w.]*)((?:[^<>]|\{[^{}]*\})*?)\/?>/g)]
-    .map(m => [m[1], m[2]] as [string, string]);
-}
+/**
+ * Every file in the bundle again, comment-free the way `./tsx-scan` means it —
+ * the form the two tag sweeps below read.
+ *
+ * `code` above drops a whole line that begins with `//` and every `/* *\/`
+ * block, which is enough for the "appears nowhere" assertions it was written
+ * for. It is not enough for a scanner: a comment written after code on the same
+ * line survives it, and #513 is the whole story of what a stray apostrophe in
+ * one of those does to a tag scan. `withoutComments` is quote-aware and takes
+ * both kinds, and it is what `openTags` runs on internally — so passing it in
+ * first also makes each tag's `end` an index into a string this file holds.
+ */
+const BARE: Array<[string, string]> = FILES.map(p =>
+  [p.slice(web.length).replace(/\\/g, "/"), withoutComments(readFileSync(p, "utf8"))]);
+
+// ── how the two tag sweeps read markup (#655) ───────────────────────────────
+//
+// They used to share an anchored regex — `<(tag)((?:[^<>]|\{[^{}]*\})*?)\/?>` —
+// and the `[^<>]` in it is the defect: it refuses a `>` anywhere in an
+// attribute, so the FIRST `>` inside a brace ends the tag. `\{[^{}]*\}` covers
+// one flat braced value, which is why `{cond ? "a" : "b"}` worked and gave the
+// pattern its reputation, but an arrow function nests — `onClick={() => f({…})}`
+// — and that alternative cannot match a brace pair with a brace pair inside it.
+// The scan falls back to `[^<>]`, meets the `>` of the `=>`, and stops there.
+//
+// Measured on the bundle: of 68 `<button` openings the paired form of that
+// pattern matched 43, and 79 tags of all kinds came back with their attributes
+// cut short at an arrow. Both are silent — a sweep over the survivors reports
+// green, and a truncated attribute list simply does not contain the attribute
+// being looked for.
+//
+// So both sweeps take their tags from `openTags` now, rather than from a third
+// tokenizer written here: it counts braces, tracks quotes, and says when a scan
+// ran off the end instead of handing back something that looks like a short
+// tag. That is the same scanner control-edges.test.ts and
+// control-appearance.test.ts read the app's controls with.
 
 /** The HTML elements whose implicit role is `generic`, which is the role that
  *  cannot be named. Not a complete list of such elements — a complete list is
  *  not the point — but every one of them this deck actually renders. */
-const GENERIC = new Set([
+const GENERIC = [
   "div", "span", "p", "b", "i", "strong", "em", "small", "code", "pre",
   "li", "ul", "ol", "table", "tr", "td", "th", "tbody", "thead",
-]);
+];
 
 // ── the regions ─────────────────────────────────────────────────────────────
 
@@ -156,15 +186,30 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // and the three copies of the cost bar — and every one of them read, in
     // source, exactly like a labelled element.
     const offenders: string[] = [];
-    for (const [name, src] of BUNDLE) {
-      for (const [tag, attrs] of openingTags(src)) {
-        if (!/\baria-label(?:ledby)?=/.test(attrs)) continue;
-        if (!GENERIC.has(tag)) continue;
-        if (/\brole=/.test(attrs)) continue;
-        offenders.push(`${name}: <${tag} ${attrs.trim().split(/\s+/)[0]}>`);
+    const runaways: string[] = [];
+    let seen = 0;
+    for (const [name, src] of BARE) {
+      for (const tag of openTags(src, GENERIC)) {
+        seen++;
+        // A tag whose attributes the scan never finished is not a tag this
+        // sweep may report on either way — see #513. Named rather than skipped.
+        if (tag.ranAway) { runaways.push(`${name}:${tag.line} <${tag.name}`); continue; }
+        if (!/\baria-label(?:ledby)?=/.test(tag.attrs)) continue;
+        if (/\brole=/.test(tag.attrs)) continue;
+        offenders.push(`${name}:${tag.line} <${tag.name} ${tag.attrs.trim().split(/\s+/)[0]}>`);
       }
     }
+    expect(runaways, "a tag scan ran away — its attributes belong to something else").toEqual([]);
     expect(offenders).toEqual([]);
+    // #655's floor for this sweep. The old regex reached the tag NAME of all
+    // 592 of these and then cut 14 of their attribute lists short at the `>` of
+    // an arrow function, so a name declared after a handler was invisible to
+    // the filter above and the sweep passed by not looking. A count taken
+    // straight out of the source is what says the scan is still reaching them.
+    const openings = BARE.reduce((n, [, src]) =>
+      n + [...src.matchAll(new RegExp(`<(?:${GENERIC.join("|")})\\b`, "g"))].length, 0);
+    expect(seen, "the generic-tag scan is seeing fewer tags than the bundle opens").toBe(openings);
+    expect(openings).toBeGreaterThan(400);
   });
 
   it("gave the cost bar the role that makes its label exist", () => {
@@ -377,23 +422,94 @@ describe("no control is named by its title attribute alone (#381)", () => {
     return literals;
   }
 
+  /**
+   * Every `<button>` in a file, with the text between its tags.
+   *
+   * The body is the run from the tag's own `>` up to the next `<`. When that
+   * next `<` is not `</button>` the button has element children — an `<svg>`,
+   * a `<span>` — and `rendered` is not the question to ask of it, so the body
+   * comes back null and the caller skips it. That is the same line the paired
+   * regex drew with `([^<>]*)`, drawn where the tokenizer can see it.
+   */
+  function buttons(src: string): Array<{ attrs: string; body: string | null; line: number }> {
+    return openTags(src, ["button"]).map(tag => {
+      if (tag.ranAway) return { attrs: "", body: null, line: tag.line };
+      // `<button … />` has no body at all, and the text after it belongs to
+      // whatever comes next.
+      if (/\/\s*$/.test(tag.attrs)) return { attrs: tag.attrs, body: null, line: tag.line };
+      const after = src.slice(tag.end + 1);
+      const next = after.indexOf("<");
+      const body = next < 0 ? null : after.slice(0, next);
+      return {
+        attrs: tag.attrs,
+        body: after.slice(next).startsWith("</button>") ? body : null,
+        line: tag.line,
+      };
+    });
+  }
+
   it("leaves no glyph-only button whose only name is a tooltip", () => {
     // `title` is a valid last-resort name source, so 4.1.2 was technically
     // met — and a touch user never sees a tooltip, and a screen reader can be
     // configured never to read one. Two of the app's sixty-odd icon buttons
     // were in this state: the usage panel's ↻ and the accounts panel's +.
+    //
+    // "Sixty-odd" is what the comment claimed and 43 is what the regex under it
+    // reached (#655). The 25 it missed were every button whose attribute list
+    // holds a `>` inside nested braces — `onClick={() => f({…})}`, the ordinary
+    // spelling — because the pattern's `[^<>]` ended the tag at the arrow.
+    //
+    // Read with the tokenizer all 68 are examined and all 68 pass, so what the
+    // hole was hiding was the absence of a check and not a defect behind it:
+    // the short-bodied buttons among the 25 are named already — the accounts
+    // row's `⋯` and the version chip by an `aria-label`, the history modal's
+    // `{p}d` range chips and the dialog's `{t.label}` tabs by the text they
+    // render, which is a name.
     const offenders: string[] = [];
-    for (const [name, src] of BUNDLE) {
-      for (const m of src.matchAll(/<button\b((?:[^<>]|\{[^{}]*\})*?)>([^<>]*)<\/button>/g)) {
-        const [, attrs, body] = m;
+    for (const [name, src] of BARE) {
+      for (const { attrs, body, line } of buttons(src)) {
+        if (body === null) continue;
         const texts = rendered(body);
         if (texts === null || texts.length === 0) continue;
         if (texts.some(t => t.length > 2)) continue;
         if (/\baria-label(?:ledby)?=/.test(attrs)) continue;
-        offenders.push(`${name}: ${body.trim()}`);
+        offenders.push(`${name}:${line} ${body.trim()}`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("reaches every button the bundle opens, which is what it used to claim (#655)", () => {
+    // The floor, taken from the bundle rather than written down. `<button` is
+    // a string the source cannot hide: count it, and the sweep above has to
+    // have examined that many. A pattern that goes back to ending a tag at the
+    // first `>` fails here with both numbers instead of quietly sweeping the
+    // survivors.
+    //
+    // First, the assumption the bodies rest on. Each tag's `end` indexes the
+    // string `openTags` scanned, which is `withoutComments(source)` — so `BARE`
+    // has to be a fixed point of that function, or every body is sliced from
+    // the wrong offset and the count below would not notice.
+    for (const [name, src] of BARE) expect(withoutComments(src), name).toBe(src);
+    const openings = BARE.reduce((n, [, src]) => n + [...src.matchAll(/<button\b/g)].length, 0);
+    const scanned = BARE.flatMap(([, src]) => buttons(src));
+    expect(scanned.length, `the bundle opens ${openings} buttons; the scan reached ${scanned.length}`)
+      .toBe(openings);
+    // And not vacuously: this deck really does have sixty-odd of them.
+    expect(openings).toBeGreaterThan(60);
+    // Of those, the ones with a plain text body are the sweep's actual input —
+    // floored too, because a `buttons()` that started returning null for
+    // everything would satisfy the count above and examine nothing.
+    expect(scanned.filter(b => b.body !== null).length).toBeGreaterThan(40);
+    // The shape the old pattern could not read, asserted directly rather than
+    // only through the totals. Both of these end at the wrong `>` under
+    // `[^<>]`, and both are real spellings from the bundle.
+    const fixture = [
+      '<button onClick={() => setOpen({ id: 1 })} aria-label="Open">×</button>',
+      '<button title="x" onClick={e => f(e as React.MouseEvent<HTMLButtonElement>)}>ok</button>',
+    ].join("\n");
+    expect(buttons(fixture).map(b => b.body)).toEqual(["×", "ok"]);
+    expect(buttons(fixture)[0].attrs).toContain('aria-label="Open"');
   });
 
   it("names the ↻ with the same sentence its tooltip shows", () => {

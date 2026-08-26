@@ -103,6 +103,30 @@ function collect(src: string, base: number, reduced: boolean, out: Rule[]): Rule
 
 const RULES = collect(css, 0, false, []);
 
+/**
+ * How many rules the sheet holds, counted a second way.
+ *
+ * #646. The guard that said the collector had seen the sheet was
+ * `RULES.length > 200` against a real 873, and two of the sweeps below are
+ * `RULES.filter(…)` — they quantify over whatever the collector returns, so
+ * they go green over a collection that no longer holds the rules they exist to
+ * check. A round number cannot say that: 200 is 23% of the sheet and it never
+ * moves, so it keeps passing however much the parse loses.
+ *
+ * So the floor comes from the sheet instead, and it is an identity rather than
+ * a floor. Every `{` in styles.css opens exactly one of four things — a rule,
+ * an at-rule wrapper, a `@keyframes` wrapper, or one of its steps — and
+ * `collect` returns the first kind. Counting the other three with a scan that
+ * shares nothing with `collect` but `block` gives the number it has to come
+ * back with, and that number moves with the sheet: adding a rule moves it,
+ * losing one fails it by name.
+ */
+const braces = (src: string) => (src.match(/\{/g) ?? []).length;
+const atRuleBlocks = [...css.matchAll(/(?:^|[{};])\s*@[^{};]*\{/g)].length;
+const keyframeSteps = [...css.matchAll(/@keyframes[^{]*\{/g)]
+  .reduce((n, m) => n + braces(block(css, m.index + m[0].length - 1)[0]), 0);
+const RULES_IN_SHEET = braces(css) - atRuleBlocks - keyframeSteps;
+
 /** Commas inside cubic-bezier() and color-mix() are not list separators. */
 function splitTop(value: string): string[] {
   const parts: string[] = [];
@@ -143,6 +167,33 @@ const ruleFor = (sel: string) => {
   expect(rule, `styles.css has no resting rule for ${sel}`).toBeTruthy();
   return rule;
 };
+
+/**
+ * Every selector this file goes on to ask about, and the block it asks in.
+ *
+ * #646's second half. `ruleFor` throws when a named rule is missing, so a parse
+ * that stopped short does fail somewhere in this file rather than passing in
+ * silence — but it fails wherever the truncation happens to bite, with a
+ * message about one selector, and it says nothing at all about the two sweeps
+ * that quantify over `RULES` and simply find less. Named as a list, the guard
+ * below can report the whole of what a short parse cost in one line.
+ *
+ * And `ruleFor` only backstops the sheet as far as the LAST of these, which is
+ * rule 771 of 873 today. Measured: a `collect` truncated to 800 rules passes
+ * every `ruleFor` in this file, passes the old `> 200`, and loses 73 rules —
+ * including every one after `.canvas-wrap.dragging-any .cluster-card` — with
+ * the two `RULES.filter` sweeps quantifying over what is left. That is the hole
+ * the count above closes and this list cannot.
+ */
+const NAMED: Array<[string, boolean]> = [
+  [".session-clusters", false],
+  [".cluster-card", false],
+  [".react-flow__node", false],
+  [".canvas-wrap.dragging-any .cluster-card", false],
+  // The reduced-motion answer, which lives inside a @media and so proves the
+  // collector descended into one as well as reaching the end of the file.
+  [".cluster-card", true],
+];
 
 // ── the component, as the geometry it writes ────────────────────────────────
 
@@ -344,9 +395,34 @@ describe("the drag is answered by a class something actually sets", () => {
 });
 
 describe("sees the sheet it is reading, so a passing run means something", () => {
-  it("parsed a whole stylesheet and the component that drives it", () => {
-    expect(RULES.length).toBeGreaterThan(200);
-    expect(RULES.some(r => r.reduced)).toBe(true);
+  it("collected every rule the sheet holds, counted from the sheet (#646)", () => {
+    // Not `> 200` against a real 873 any more. The count comes from the file:
+    // braces, less the at-rule wrappers and the keyframe steps, which is the
+    // only other thing a `{` in this sheet can be. A parse that stops early
+    // fails here with both numbers rather than passing at 23% of the sheet.
+    expect(RULES.length,
+      `collect() returned ${RULES.length} rules; styles.css holds ${RULES_IN_SHEET} ` +
+      `(${braces(css)} braces, less ${atRuleBlocks} at-rule wrappers and ${keyframeSteps} keyframe steps)`)
+      .toBe(RULES_IN_SHEET);
+    // Anti-vacuity on the arithmetic itself: a `css` that came back empty would
+    // make both sides zero and the identity above would hold.
+    expect(RULES_IN_SHEET).toBeGreaterThan(500);
+  });
+
+  it("found every rule the rest of this file names, and says which is missing", () => {
+    const missing = NAMED
+      .filter(([sel, reduced]) => rulesFor(sel, reduced).length === 0)
+      .map(([sel, reduced]) => `${sel}${reduced ? " (reduced motion)" : ""}`);
+    expect(missing, "styles.css rules this file asks about that the collector did not find")
+      .toEqual([]);
+    // The sweeps that are `RULES.filter(…)` rather than `ruleFor(…)`: they
+    // report green over an empty filter, so each one's input is floored here.
+    expect(RULES.filter(r => selectors(r).includes(".session-clusters")).length,
+      "the transition sweep would run over nothing").toBeGreaterThan(0);
+    expect(RULES.some(r => r.reduced), "no @media block was descended into").toBe(true);
+  });
+
+  it("read the component that drives it", () => {
     expect(tsx).toContain("useViewport");
   });
 
