@@ -57,18 +57,15 @@ function extractUsage(node: unknown, depth = 0): TokenUsage | null {
   return null;
 }
 
-function addUsage(into: TokenUsage, add: TokenUsage): void {
-  into.inputTokens += add.inputTokens;
-  into.outputTokens += add.outputTokens;
-  into.cacheReadTokens += add.cacheReadTokens;
-  into.cacheCreateTokens += add.cacheCreateTokens;
-  // Only start tracking the split once something actually reported one, so a
-  // provider that never does keeps it undefined rather than pinning it to 0.
-  if (add.cacheCreate1hTokens !== undefined || add.cacheCreate5mTokens !== undefined) {
-    into.cacheCreate1hTokens = (into.cacheCreate1hTokens ?? 0) + (add.cacheCreate1hTokens ?? 0);
-    into.cacheCreate5mTokens = (into.cacheCreate5mTokens ?? 0) + (add.cacheCreate5mTokens ?? 0);
-  }
-}
+// NOTHING IN THIS FILE ADDS TOKENS TO AN AGENT ANY MORE, and that is the point
+// of #685 rather than an accident of it. There was one `addUsage(owner, …)`,
+// on a finished Task's tool result, and it ran against a value that both
+// double-counted (the transcript pass reads the same turn out of the subagent's
+// own file) and under-reported (the tool result carries the subagent's last API
+// turn, not its bill). Token counts now have exactly one writer — the
+// `UsageObserved` totals the server sums off disk — and that writer assigns,
+// so the same tokens land on the same agent at the same value however many
+// times the event is delivered.
 
 /** Model ids we recognise. Claude family: claude-* . Codex family: gpt-*,
  *  o*-, codex-* . The regex is permissive on purpose — Codex publishes new
@@ -1473,8 +1470,16 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // UsageObserved carries cumulative session usage from the transcript.
   // Overwrite (not add) the session root's usage with the totals — the
   // server re-reads on every event, so this is always the running total.
-  // Subagents stay at zero; the SessionList / SessionSummary roll up at
-  // the session level so the user sees correct numbers regardless.
+  //
+  // WHAT "THE SESSION'S USAGE" COVERS (#685). Everything the session spent,
+  // its subagents included. CC writes a delegated turn to
+  // `<sessionId>/subagents/agent-<id>.jsonl` rather than into the session's own
+  // JSONL, and `sessionUsageTotals` on the server sums both halves before
+  // sending them here — so this one number is the session's whole bill and the
+  // deck no longer loses the delegated part of it. Subagent NODES stay at zero:
+  // the roll-ups in SessionList / SessionSummary / UsagePanel add the root and
+  // its subagents together, so a per-node share here would be the same tokens
+  // counted twice. That is also why nothing else in this file writes tokens.
   if (name === "UsageObserved") {
     const u = (p.usage ?? null) as Record<string, unknown> | null;
     if (u) {
@@ -1701,17 +1706,17 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // Everything below this line runs exactly once per call, because a second
       // copy of one outcome is not a second outcome.
       //
-      // This event is the only one of the four the file hardens against
-      // re-delivery that does ARITHMETIC. `PreToolUse` refreshes a known id in
+      // This event USED TO BE the only one of the four the file hardens against
+      // re-delivery that did ARITHMETIC. `PreToolUse` refreshes a known id in
       // place so `toolCount` advances once, `UserPromptSubmit` declines to
       // re-append a prompt it already has, and `pushActive` declines to re-push
-      // a key — but `addUsage` at the bottom of this block is `+=`, so every
-      // surplus copy added the call's tokens to its owner again, and cost is
-      // computed from those tokens. `UsageObserved` overwrites the root with
-      // cumulative totals and does eventually correct one, but it needs a
-      // `transcript_path` and is throttled per session, and it never touches a
-      // subagent at all — so on a subagent, or on a session whose hooks have
-      // stopped, the inflated figure is what the deck bills forever.
+      // a key — but the bottom of this block ran `addUsage(owner.usage, …)`,
+      // which is `+=`, so every surplus copy added the call's tokens to its
+      // owner again and cost is computed from those tokens. #685 took that
+      // addition out entirely: a session's tokens now have exactly one writer,
+      // the transcript pass, and it assigns. What is left here is still not
+      // idempotent for free — `endedAt`, `ok` and the sweep's un-reaping all
+      // have to happen once — so the guard stays and is checked below.
       //
       // The discriminator is `outcomeApplied` and it has to be, because every
       // cheaper test is wrong. `endedAt != null` is what the sweep writes too,
@@ -1753,15 +1758,20 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
         // A late success — clear the "stale" marker the sweep wrote.
         tc.errorPreview = undefined;
       }
+      // Recorded ON THE CALL and added to nobody (#685). A finished Task is the
+      // one tool result that carries a `usage` object, and it is tempting to
+      // read it as what the subagent spent — it is not. It is the subagent's
+      // LAST API turn: measured against the subagent's own transcript, 181,387
+      // cache-read tokens here against 13,410,312 in the file, 1.4% of the
+      // bill. Adding it to the parent therefore did two wrong things at once —
+      // it charged the parent for tokens the transcript pass already counts
+      // under `subagents/`, and it charged 1.4% of them — and because
+      // `UsageObserved` assigns, the next pass 2.5 s later took the number
+      // away again. That oscillation, $0.4675 → $0.0175, is what #685 reported.
       const usage = extractUsage(p.tool_response);
       if (usage) tc.usage = usage;
       state.toolIndex.delete(id);
-      const ownerId = state.toolOwner.get(id) ?? tc.agentId;
       state.toolOwner.delete(id);
-      if (ownerId && usage) {
-        const oa = state.agents.get(ownerId);
-        if (oa) addUsage(oa.usage, usage);
-      }
       break;
     }
     case "SubagentStart": {

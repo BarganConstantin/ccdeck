@@ -434,6 +434,30 @@ const USAGE_FIELD_RE = {
 // `server_tool_use`, several fields earlier. Match the sub-object on the raw
 // line instead of on the extracted blob.
 const CACHE_CREATION_BLOCK_RE = /"cache_creation"\s*:\s*\{([^}]*)\}/g;
+// A finished `Task`/`Agent` call is written into the PARENT's transcript as a
+// top-level `toolUseResult`, and that object carries a `usage` block of its own
+// — the subagent's LAST API turn, restated on the parent's line. Those same
+// tokens are already in the subagent's own `subagents/agent-<id>.jsonl`, which
+// #685 folds into the session's totals, so counting the restated copy here
+// would charge them twice. Measured on a real transcript: the restated block
+// reports 181,387 cache-read tokens and the last usage block inside that
+// subagent's file reports 181,387 — the same tokens, written twice.
+//
+// Matched as a TOP-LEVEL key: a `{` or `,` and then the name unescaped. The
+// same text quoted inside a message — an assistant writing about this very
+// field, as this comment does — reaches the line as `\"toolUseResult\"`, whose
+// preceding character is a backslash, so a transcript that talks about the key
+// is not mistaken for one that carries it.
+const TOOL_USE_RESULT_KEY_RE = /[{,]"toolUseResult"\s*:/;
+
+/** The stretch of a transcript line whose `usage` blocks are the model's own
+ *  billing records — everything before a top-level `toolUseResult`. See
+ *  TOOL_USE_RESULT_KEY_RE. A line without one is billed whole, which is every
+ *  assistant line and therefore every line that legitimately has usage. */
+function billedUsageText(line) {
+  const m = TOOL_USE_RESULT_KEY_RE.exec(line);
+  return m ? line.slice(0, m.index) : line;
+}
 
 function grabUsageField(blob, key) {
   const m = blob.match(USAGE_FIELD_RE[key]);
@@ -451,6 +475,16 @@ function newContextBreakdown() {
   };
 }
 
+/** A zeroed set of the six token counters a transcript reports. One shape, so
+ *  the per-file totals and the per-session sum of them add key for key. */
+function newUsageTotals() {
+  return {
+    input_tokens: 0, output_tokens: 0,
+    cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+    ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0,
+  };
+}
+
 function newTranscriptState() {
   return {
     offset: 0,          // bytes already folded in
@@ -460,11 +494,7 @@ function newTranscriptState() {
     subagentModels: {},
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
-    usage: {
-      input_tokens: 0, output_tokens: 0,
-      cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
-      ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0,
-    },
+    usage: newUsageTotals(),
     ctx: newContextBreakdown(),
   };
 }
@@ -697,15 +727,18 @@ function foldTranscriptLine(state, line) {
     }
   }
 
-  // Usage totals sum every block in the file, resets included.
-  for (const m of line.matchAll(USAGE_BLOCK_RE)) {
+  // Usage totals sum every block in the file, resets included — every block
+  // the model was actually billed for, which is why the `toolUseResult` tail
+  // is cut off first (see billedUsageText).
+  const billed = billedUsageText(line);
+  for (const m of billed.matchAll(USAGE_BLOCK_RE)) {
     const blob = m[1];
     state.usage.input_tokens += grabUsageField(blob, "input_tokens");
     state.usage.output_tokens += grabUsageField(blob, "output_tokens");
     state.usage.cache_read_input_tokens += grabUsageField(blob, "cache_read_input_tokens");
     state.usage.cache_creation_input_tokens += grabUsageField(blob, "cache_creation_input_tokens");
   }
-  for (const m of line.matchAll(CACHE_CREATION_BLOCK_RE)) {
+  for (const m of billed.matchAll(CACHE_CREATION_BLOCK_RE)) {
     state.usage.ephemeral_1h_input_tokens += grabUsageField(m[1], "ephemeral_1h_input_tokens");
     state.usage.ephemeral_5m_input_tokens += grabUsageField(m[1], "ephemeral_5m_input_tokens");
   }
@@ -952,7 +985,7 @@ export function cachedModelId(cached) {
  *  legacy-schema subagent models (older CC versions kept subagent blocks
  *  inline with `isSidechain:true` + `parentToolUseID`). Current CC versions
  *  store subagents in `<sessionDir>/subagents/agent-<id>.jsonl` — those are
- *  handled by `readSubagentModelsFromDir` below. */
+ *  handled by `readSubagentsFromDir` below. */
 export async function readModelFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
@@ -970,8 +1003,29 @@ export async function readModelFromTranscript(path) {
  *  but the reducer looks up `${sessionId}::${key}` and the subagent node id
  *  is built from `agent_id` — identical lookup either way).
  *
- *  Returns { [agentId]: model } scanning every agent-*.jsonl file in dir. */
-async function readSubagentModelsFromDir(transcriptPath) {
+ *  Returns `{ models: { [agentId]: model }, usage: <summed totals|null> }` over
+ *  every agent-*.jsonl in the directory, or null when there is no such
+ *  directory — which is every Codex session and every legacy-schema Claude one.
+ *
+ *  WHY IT RETURNS USAGE AND NOT ONLY MODELS (#685). `scanTranscript` folds a
+ *  file's usage totals whether or not anyone asks for them, so this walk has
+ *  been computing every subagent's spend and dropping it on the floor, while
+ *  the session's totals came from the main transcript alone — and the main
+ *  transcript does not restate a subagent's turns. Measured on one real
+ *  session on the reporter's machine: 40.4M cache-read tokens in the main
+ *  JSONL against 217.7M across its twenty subagent files, so the deck was
+ *  reporting about a sixth of what the session actually cost.
+ *
+ *  WHY THE TOTALS ARE SUMMED HERE RATHER THAN SHIPPED PER AGENT. The obvious
+ *  shape is a `{ [agentId]: totals }` map so each subagent card can price its
+ *  own spend, and the cost of that shape is set by CC and not by us: #611
+ *  measured live sessions holding 198 and 133 of these files, and this machine
+ *  has one holding 397. At ~200 bytes an entry on a 2.5 s cadence that is
+ *  ~80 KB per pass into the SSE fan-out, the event ring and events.jsonl —
+ *  ~115 MB an hour into a log that rotates at 50 MB. One summed object is
+ *  ~150 bytes whatever the session delegates, so the session total is exact
+ *  and constant-cost, and per-card attribution stays a separate question. */
+async function readSubagentsFromDir(transcriptPath) {
   // Subagent dir sits next to the main jsonl: <dir>/<sessionId>/subagents/
   // Derive from transcript_path by stripping the .jsonl suffix.
   if (!transcriptPath || typeof transcriptPath !== "string") return null;
@@ -980,6 +1034,8 @@ async function readSubagentModelsFromDir(transcriptPath) {
   let entries;
   try { entries = await readdir(subDir); } catch { return null; }
   const models = {};
+  const usage = newUsageTotals();
+  let spent = false;
   for (const f of entries) {
     if (!/^agent-([0-9a-f]+)\.jsonl$/i.test(f)) continue;
     const agentId = f.replace(/^agent-/, "").replace(/\.jsonl$/i, "");
@@ -989,11 +1045,45 @@ async function readSubagentModelsFromDir(transcriptPath) {
       // model wins — subagents may switch model mid-turn (Sonnet → Haiku for
       // tool-call fallback etc.).
       const state = await scanTranscript(full);
-      const last = state ? state.lastModel : null;
-      if (last) models[agentId] = last;
+      if (!state) continue;
+      if (state.lastModel) models[agentId] = state.lastModel;
+      // The cursor makes this cumulative and idempotent: `state.usage` is the
+      // whole file's totals however many passes it took to fold them, so
+      // re-summing every pass restates the same number rather than growing it.
+      for (const k of Object.keys(usage)) usage[k] += state.usage[k];
+      if (state.usage.input_tokens || state.usage.output_tokens
+          || state.usage.cache_read_input_tokens || state.usage.cache_creation_input_tokens) {
+        spent = true;
+      }
     } catch { /* skip unreadable file */ }
   }
-  return Object.keys(models).length ? models : null;
+  const hasModels = Object.keys(models).length > 0;
+  if (!hasModels && !spent) return null;
+  return { models: hasModels ? models : null, usage: spent ? usage : null };
+}
+
+// One walk of `<sessionDir>/subagents/` serves both the model pass and the
+// usage pass. The two are throttled independently but fire from the same hook
+// events, so without this the directory — up to a few hundred files — would be
+// listed and stat-ed twice per window for the same answer. The TTL sits under
+// MODEL_READ_THROTTLE_MS so two callers inside one window share a walk and the
+// next window always gets a fresh one.
+const subagentDirScans = new Map();  // transcriptPath -> { at, promise }
+const SUBAGENT_DIR_TTL_MS = 2000;
+
+function scanSubagentDir(transcriptPath) {
+  if (!transcriptPath || typeof transcriptPath !== "string") return Promise.resolve(null);
+  const now = Date.now();
+  // Expiry is the eviction rule: an entry outlives its window by nothing, so
+  // the map holds at most one entry per session read in the last two seconds.
+  for (const [k, v] of subagentDirScans) {
+    if (now - v.at >= SUBAGENT_DIR_TTL_MS) subagentDirScans.delete(k);
+  }
+  const memo = subagentDirScans.get(transcriptPath);
+  if (memo) return memo.promise;
+  const promise = readSubagentsFromDir(transcriptPath).catch(() => null);
+  subagentDirScans.set(transcriptPath, { at: now, promise });
+  return promise;
 }
 
 function maybeResolveModel(payload) {
@@ -1010,12 +1100,12 @@ function maybeResolveModel(payload) {
   if (now - last < MODEL_READ_THROTTLE_MS) return;
   modelLastReadAt.set(sid, now);
   pendingTranscriptReads.add(sid);
-  Promise.all([readModelFromTranscript(tp), readSubagentModelsFromDir(tp)])
-    .then(([result, dirSubs]) => {
+  Promise.all([readModelFromTranscript(tp), scanSubagentDir(tp)])
+    .then(([result, dir]) => {
       const rootModel = result?.rootModel ?? null;
       // Merge legacy (inline isSidechain) + new (subagents/ dir) maps. Dir
       // wins on conflict since current CC only writes to the dir.
-      const subagentModels = { ...(result?.subagentModels ?? {}), ...(dirSubs ?? {}) };
+      const subagentModels = { ...(result?.subagentModels ?? {}), ...(dir?.models ?? {}) };
       if (!rootModel && Object.keys(subagentModels).length === 0) return;
       const prev = modelBySession.get(sid);
       const subsSig = JSON.stringify(subagentModels);
@@ -1046,12 +1136,50 @@ const USAGE_READ_THROTTLE_MS = 2500;
 // Every entry carries its own usage object and we sum every occurrence, so
 // the totals are cumulative over the whole transcript — the running state
 // keeps them across passes and each pass only adds the newly appended blocks.
+//
+// ONE FILE, which is the whole file and no more. This reads the path it is
+// given; the session's delegated spend lives in the sibling `subagents/`
+// directory and is added by `sessionUsageTotals` below. Kept separate because
+// the two are read on different cadences by different callers and the tests
+// that pin the cursor arithmetic pin it one file at a time.
 export async function readUsageFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
   const totals = { ...state.usage };
   if (totals.input_tokens === 0 && totals.output_tokens === 0
       && totals.cache_read_input_tokens === 0 && totals.cache_creation_input_tokens === 0) return null;
+  return totals;
+}
+
+/**
+ * Everything a Claude session has spent: its own turns plus every subagent it
+ * ran. Returns null when the session has spent nothing yet.
+ *
+ * WHAT THIS NUMBER MEANS, and why it is one number (#685). A session is a
+ * bill, and delegating work does not move any of it somewhere else — the
+ * subagent's tokens are charged to the same account on the same invoice. The
+ * two halves live in two places on disk because CC writes them there:
+ * `<sessionId>.jsonl` for the root's turns, `<sessionId>/subagents/agent-*.jsonl`
+ * for each delegated one, with no overlap between them (verified against real
+ * transcripts: a session holding 397 subagent files had zero `isSidechain`
+ * lines in its main JSONL). Summing the two therefore counts every token
+ * exactly once, and the reducer ASSIGNS the result rather than adding it, so a
+ * pass that lands twice restates the same total instead of doubling it.
+ *
+ * The one place the two files did overlap is the `toolUseResult` block a
+ * finished Task leaves on the parent's line, which restates the subagent's
+ * last turn; `billedUsageText` cuts that out of the scan so this sum stays a
+ * sum of distinct tokens.
+ */
+export async function sessionUsageTotals(transcriptPath) {
+  const [own, dir] = await Promise.all([
+    readUsageFromTranscript(transcriptPath),
+    scanSubagentDir(transcriptPath),
+  ]);
+  const delegated = dir?.usage ?? null;
+  if (!own && !delegated) return null;
+  const totals = own ? { ...own } : newUsageTotals();
+  if (delegated) for (const k of Object.keys(totals)) totals[k] += delegated[k] ?? 0;
   return totals;
 }
 
@@ -1066,7 +1194,7 @@ function maybeResolveUsage(payload) {
   if (now - last < USAGE_READ_THROTTLE_MS) return;
   lastUsageReadAt.set(sid, now);
   pendingUsageReads.add(sid);
-  readUsageFromTranscript(tp)
+  sessionUsageTotals(tp)
     .then(usage => {
       if (!usage) return;
       pushEvent({ hook_event_name: "UsageObserved", session_id: sid, usage }, "internal");

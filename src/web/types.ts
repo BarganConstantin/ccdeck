@@ -45,9 +45,12 @@ export interface ToolCall {
    *  both write it — and neither can "missing from `toolIndex`", because the
    *  sweep and the settle both delete the entry. So a second delivery of one
    *  outcome and a genuinely late first one arrive at the reducer looking
-   *  identical, and `PostToolUse` is the one event whose handler does
-   *  arithmetic: it adds the call's usage to its owner, so telling them apart is
-   *  the difference between a session's spend and twice a session's spend.
+   *  identical, and `PostToolUse` used to be the one event whose handler did
+   *  arithmetic: it added the call's usage to its owner, so telling them apart
+   *  was the difference between a session's spend and twice a session's spend.
+   *  #685 removed that addition — tokens now have a single writer that assigns
+   *  — but the flag stays, because `endedAt`, `ok` and the un-reaping of a call
+   *  the sweep gave up on still have to happen exactly once.
    *
    *  Only an outcome event sets this, so it is exactly that discriminator. It is
    *  the `ToolCall` counterpart of `reaped` on a root (#350) and it exists for

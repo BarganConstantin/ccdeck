@@ -80,7 +80,7 @@ let nextSession = 0;
 /** One session on disk in CC's current layout — `<slug>/<sessionId>.jsonl`
  *  beside `<slug>/<sessionId>/subagents/agent-<id>.jsonl` — and the paths the
  *  deck opens for it, main transcript first. That is exactly the set
- *  `readSubagentModelsFromDir` walks on every throttled pass. */
+ *  `readSubagentsFromDir` walks on every throttled pass. */
 function session(subagents: number): string[] {
   const sid = `session-${nextSession++}`;
   const slugDir = join(DIR, "projects", "-Users-someone-Desktop-repo");
