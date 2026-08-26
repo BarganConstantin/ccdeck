@@ -79,10 +79,11 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 vi.mock("../../server/cswap-install.mjs", () => ({ cswapBin: async () => "cswap" }));
 
 // @ts-expect-error — .mjs server module, no types
-const { externalAutoRunning, looksLikeAutoLoop, commandTokens } = await import("../../server/cswap-auto.mjs") as {
+const { externalAutoRunning, looksLikeAutoLoop, commandTokens, invalidateCswapAutoCache } = await import("../../server/cswap-auto.mjs") as {
   externalAutoRunning: () => Promise<boolean>;
   looksLikeAutoLoop: (line: string) => boolean;
   commandTokens: (line: string) => string[];
+  invalidateCswapAutoCache: () => void;
 };
 
 // @ts-expect-error — .mjs server module, no types
@@ -95,7 +96,12 @@ const asPlatform = (value: string) =>
   Object.defineProperty(process, "platform", { value, configurable: true });
 afterAll(() => { Object.defineProperty(process, "platform", realPlatform); });
 
-beforeEach(() => { exec.calls.length = 0; exec.stdout.value = ""; });
+// #616 gave externalAutoRunning a minimum gap and a shared in-flight promise, so
+// a finished reading answers the next caller rather than starting a second
+// child. Every case here feeds it a different process table and wants its own
+// reading, so each one says the previous is finished with;
+// invalidateCswapAutoCache is the module's own reset.
+beforeEach(() => { exec.calls.length = 0; exec.stdout.value = ""; invalidateCswapAutoCache(); });
 
 /** Answer the next `run` with a process listing holding these lines. */
 const listing = (...lines: string[]) => {

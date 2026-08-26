@@ -34,6 +34,139 @@ const SETTINGS = {
   "autoswitch.model":           { type: "model" },
 };
 
+// ── one reading at a time ──────────────────────────────────────────────────
+
+/**
+ * #616: /api/cswap-auto is a GET with no cache, no dedupe and no throttle, and
+ * autoStatus() runs BOTH of this module's readers on every one of them — so the
+ * number of children was exactly twice the number of requests.
+ *
+ * Measured on macOS with claude-swap installed, counting real children through a
+ * PATH shim: one autoStatus() is 2 children (`cswap config` and `ps -Ao args=`)
+ * and about 190ms warm; two back-to-back calls are 4; twenty-five concurrent
+ * readers produced 50 — twenty-five Python interpreters and twenty-five `ps` —
+ * and took 1.3 to 1.9s between them against 190ms for one, so the cost per
+ * reader grows rather than holds. With the guard below the same twenty-five are
+ * 2 children and 190ms, which is one reader's worth.
+ *
+ * On Windows the process-table half is `Get-CimInstance Win32_Process` through
+ * PowerShell, carrying an 8s deadline of its own, which is the same order of
+ * cost as the Get-Process #544 measured at about six seconds; and where cswap is
+ * not on PATH each call also re-pays cswapBin()'s probe, which memoizes only
+ * success and which `candidates` expands to four spellings there, two of them
+ * launched through cmd.exe.
+ *
+ * Two callers reach these without an attacker anywhere: AccountsPanel polls the
+ * route every 15s per open tab, and runTick asks externalAutoRunning() again
+ * before every tick. And it is a GET, so it passes isTrustedRead for any local
+ * client that sends neither Origin nor Sec-Fetch-Site — curl, a shell script, a
+ * sandboxed agent.
+ *
+ * The fix is #544's, at the route that sweep did not reach: a minimum gap plus
+ * one shared in-flight promise per reader. There is no MAX_OUTSTANDING beside it
+ * the way ccusage.mjs has one, and there does not need to be — ccusage keys its
+ * cache by date range, so a flood of distinct ranges can never share a run,
+ * while each reader here asks exactly one question and every caller of it can
+ * therefore join the same child.
+ *
+ * What is NOT shared is the window, because the two halves are not the same
+ * question. See CONFIG_MIN_GAP_MS and EXTERNAL_MIN_GAP_MS.
+ */
+
+/**
+ * `cswap config` — the settings map, which is also what the panel DISPLAYS.
+ *
+ * The deck is not its only writer: `cswap config set` typed in a terminal
+ * changes it behind the deck's back, and the panel is where the user would
+ * expect to see that. So this window has to stay well under AccountsPanel's
+ * 15s poll, or an edit made outside the deck waits for the window AND the poll.
+ * Three seconds does not delay a single tab by one frame — its polls are five
+ * gaps apart — while a burst of requests and two tabs whose polls land within
+ * three seconds of each other collapse onto one child.
+ */
+const CONFIG_MIN_GAP_MS = 3_000;
+
+/**
+ * The process table — the expensive half, and the one whose answer changes
+ * least: it is a boolean about whether the user has their own `cswap auto`
+ * running, and nobody starts one between two fifteen-second polls.
+ *
+ * Ten seconds is chosen against the two scheduled callers rather than against
+ * the cost: AccountsPanel's poll is 15s and MIN_INTERVAL_S — claude-swap's own
+ * floor, and the smallest tick interval SETTINGS will accept — is also 15, so a
+ * gap below both means neither of them is ever handed a reading older than its
+ * own period. The deck's tick still decides on a fresh process table, and the
+ * panel still shows one; what disappears is the second, third and twenty-fifth
+ * copy taken in the same ten seconds.
+ *
+ * Worst case for a caller in a loop is now 20 `cswap config` and 6 process-table
+ * children a minute, whatever it asks for, against a pair per request before.
+ */
+const EXTERNAL_MIN_GAP_MS = 10_000;
+
+const _config   = { last: null, inFlight: null };
+const _external = { last: null, inFlight: null };
+
+/**
+ * One reading of `read`, shared by everyone who asks inside `gapMs`.
+ *
+ * Only a real reading is remembered, which is what `value != null` means here:
+ * readCswapConfig spells its failure `null` — autoStatus reports
+ * `ok: config != null`, so holding one for three seconds would turn a single
+ * hiccup into a panel that renders itself as broken for longer than the hiccup
+ * lasted — and externalAutoRunning has no failure spelling at all, answering
+ * `false` for a process table it could not read because that is the same answer
+ * as an empty one and is the safe one either way. The in-flight share still
+ * applies to a failing read, so a burst arriving during one is a single failing
+ * child rather than a burst of them.
+ *
+ * `slot.inFlight === mine` on both hops is claude-accounts.mjs's guard and is
+ * here for its reason: invalidateCswapAutoCache drops `inFlight` so the next
+ * caller starts a read that knows the settings moved, and a read from BEFORE the
+ * write must neither store its answer under the new state nor clear the new
+ * read's promise on its way out.
+ *
+ * The reading is not keyed by platform even though externalAutoRunning branches
+ * on one. A process does not change platform; the two test files that flip
+ * `process.platform` to reach the other half from this one call
+ * invalidateCswapAutoCache between cases.
+ */
+function throttled(slot, gapMs, read) {
+  const now = Date.now();
+  if (slot.last && now - slot.last.at < gapMs) return Promise.resolve(slot.last.value);
+  if (slot.inFlight) return slot.inFlight;
+  const mine = read()
+    .then(value => {
+      if (value != null && slot.inFlight === mine) slot.last = { at: Date.now(), value };
+      return value;
+    })
+    .finally(() => { if (slot.inFlight === mine) slot.inFlight = null; });
+  slot.inFlight = mine;
+  return mine;
+}
+
+/**
+ * Forget both readings, because the deck has just changed what they would say.
+ *
+ * The one caller is setCswapConfig. There is no `?refresh=1` on /api/cswap-auto
+ * and no force argument through autoStatus, because the panel's explicit-refresh
+ * path is not a query parameter: every auto-switch control is a POST followed by
+ * `load(true)`, which re-fetches this route. Dropping the reading inside the
+ * write is what makes that reload show what was written rather than the map read
+ * a moment before it — the same disagreement between an optimistic value and the
+ * next read that #584 was.
+ *
+ * The process-table reading goes with it. A settings write does not start
+ * anybody's `cswap auto`, so this is not correctness for that half — it is that
+ * one function which forgets everything this module is holding cannot be called
+ * half-right, and the cost is at most one extra `ps` on a path the user reached
+ * by clicking. It is also what the tests reset between cases.
+ */
+export function invalidateCswapAutoCache() {
+  _config.last = _config.inFlight = null;
+  _external.last = _external.inFlight = null;
+}
+
 // ── settings ───────────────────────────────────────────────────────────────
 
 /**
@@ -47,8 +180,15 @@ const SETTINGS = {
  * clamped anyway. The parse itself is a regex over human-formatted output from a
  * separate Python tool, on both line-ending conventions. See
  * cswap-auto-readers.test.ts.
+ *
+ * One reading at a time and one every CONFIG_MIN_GAP_MS at most; the parse below
+ * is what a reading is, and admission control is the wrapper. See throttled.
  */
-export async function readCswapConfig() {
+export function readCswapConfig() {
+  return throttled(_config, CONFIG_MIN_GAP_MS, readCswapConfigNow);
+}
+
+async function readCswapConfigNow() {
   const r = await run(await cswapBin(), ["config"]);
   if (!r.ok) return null;
   const out = {};
@@ -107,6 +247,12 @@ export async function setCswapConfig(key, value) {
   }
 
   const r = await run(await cswapBin(), ["config", "set", key, str]);
+  // Whatever the CLI said. A write that reported a failure may still have landed
+  // — and `r.ok` is not proof either way here, which is the whole of #584 — so
+  // the only safe thing to hold after asking cswap to change a setting is
+  // nothing. The panel reloads this route immediately afterwards and gets a real
+  // read; see invalidateCswapAutoCache.
+  invalidateCswapAutoCache();
   return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
 }
 
@@ -230,8 +376,16 @@ export function looksLikeAutoLoop(line) {
  * two halves also run completely different commands, `ps` against
  * `Get-CimInstance`, so on any one machine only half of it is ever exercised at
  * all. See cswap-auto-readers.test.ts, which drives both from either host.
+ *
+ * One reading at a time and one every EXTERNAL_MIN_GAP_MS at most — the
+ * expensive half of #616, and the one both of its callers ask for on a
+ * fifteen-second timer. See throttled.
  */
-export async function externalAutoRunning() {
+export function externalAutoRunning() {
+  return throttled(_external, EXTERNAL_MIN_GAP_MS, externalAutoRunningNow);
+}
+
+async function externalAutoRunningNow() {
   // A line is the user's loop if it runs `cswap auto` without --once. Our own
   // ticks are --once, and so is a cron user's. See looksLikeAutoLoop.
   const isLoop = looksLikeAutoLoop;
