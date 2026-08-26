@@ -323,11 +323,12 @@ function pushActive(state: GraphState, sessionId: string, key: string): void {
   // Stop only ever arrived live — and every copy carries a fresh seq, so the
   // epoch guard lets it through. Pushing unconditionally then stranded the
   // surplus copies: popActive removes exactly one, and each leftover kept
-  // resolveOwner handing the root's own traffic (its UserPromptSubmit and all
-  // its Pre/PostToolUse, none of which carries an agent_id) to a subagent that
-  // had already finished — which UserPromptSubmit flipped back to 'active' with
-  // endedAt cleared, past the reach of pruneOldAgents forever. A key already on
-  // the stack is a re-delivery, never depth: one subagent runs once.
+  // resolveOwner handing the root's own Pre/PostToolUse — none of which carries
+  // an agent_id — to a subagent that had already finished. Back when
+  // UserPromptSubmit resolved through this stack too (#675), it flipped that
+  // finished node back to 'active' with endedAt cleared, past the reach of
+  // pruneOldAgents forever. A key already on the stack is a re-delivery, never
+  // depth: one subagent runs once.
   if (arr.includes(key)) return;
   arr.push(key);
   state.activeSubagentStack.set(sessionId, arr);
@@ -953,19 +954,20 @@ export function sweepStaleSessions(state: GraphState, now: number, maxMs: number
     // POSTs are fire-and-forget, and one sent while the server was restarting is
     // gone for good. A key left behind is not inert — `resolveOwner` reads the
     // stack top for every event that carries no `agent_id`, which is all the real
-    // `UserPromptSubmit` and `Pre`/`PostToolUse` traffic, so the human's next
-    // prompt and every root-level tool call of that turn render under a subagent
-    // that finished two hours ago.
+    // `Pre`/`PostToolUse` traffic, so every root-level tool call of the next turn
+    // renders under a subagent that finished two hours ago.
     //
-    // Nothing downstream repairs it, which is why this has to happen here.
-    // `UserPromptSubmit` makes it worse rather than better: its retirement loop
-    // stamps `exitAt` on the settled subagent and the `resolveOwner` call four
-    // lines later clears `exitAt`, `endedAt` and `state` on the very same node in
-    // the very same event, so the zombie is un-retired by the act of typing. Both
-    // pruners then decline it at cap 0 and grace 0 because it is `active` again,
-    // and `popActive` only ever removes its own key — so the stale one sits
-    // UNDERNEATH any later `SubagentStart` and resurfaces as stack top the moment
-    // that newer, legitimate subagent stops. It is not confined to one turn.
+    // Nothing downstream repairs it, which is why this has to happen here. The
+    // human's next PROMPT is no longer part of the damage — `UserPromptSubmit`
+    // reads the root directly since #675 — but until it did, that case made
+    // things worse rather than better: its retirement loop stamped `exitAt` on
+    // the settled subagent and the `resolveOwner` call four lines later cleared
+    // `exitAt`, `endedAt` and `state` on the very same node in the very same
+    // event, so the zombie was un-retired by the act of typing. Both pruners then
+    // declined it at cap 0 and grace 0 because it was `active` again, and
+    // `popActive` only ever removes its own key — so the stale one sat
+    // UNDERNEATH any later `SubagentStart` and resurfaced as stack top the moment
+    // that newer, legitimate subagent stopped. It was not confined to one turn.
     //
     // Clearing is safe on the premise this sweep is built on, and the premise is
     // stronger here than at `Stop`. A subagent doing long work emits its own
@@ -1467,10 +1469,35 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       root.closedAt = undefined;
       root.exitAt = undefined;
 
-      const target = resolveOwner(state, p, now);
-      target.state = "active";
-      target.exitAt = undefined;
-      target.endedAt = undefined;
+      // Everything below is the ROOT's, and it is spelled `root` rather than
+      // `resolveOwner(state, p, now)` on purpose (#675). That helper is the
+      // stack heuristic: it hands an event that names no subagent to the
+      // deepest live one, because CC's tool-call hooks carry no agent_id of
+      // their own and their traffic has to reach the node that made the call.
+      // A `UserPromptSubmit` carries no agent_id for the opposite reason — a
+      // human types into a session, never into a subagent — so reading the
+      // stack here treats an absence that is a FACT as if it were ambiguity,
+      // and the turn the human typed lands on whichever Task happened to be
+      // running: into `sub.prompts`, setting `sub.firstPrompt`, with the root's
+      // own list never seeing it. `Notification` states the same rule a few
+      // cases below, and for the same reason.
+      //
+      // The stack is non-empty at a prompt more often than it looks. A
+      // `SubagentStop` POST that never landed leaves its key behind — the
+      // premise this file already builds on twice, at `Stop` and in
+      // `sweepStaleSessions`, both of which drop the stack precisely so the
+      // human's next prompt cannot be swallowed by a subagent that finished
+      // hours ago — and a prompt that overtakes its turn's `Stop` on the wire
+      // sees a stack those two have not cleared yet.
+      //
+      // The three `state`/`exitAt`/`endedAt` writes that used to ride on the
+      // resolved node are gone rather than re-pointed: the reset just above
+      // already says all three about the root, so on the no-subagent path
+      // they were duplicates, and on the subagent path they forced a node back
+      // to `active` with its ending erased — typing un-finishing an agent.
+      // Nothing wants that on the stack top's behalf: a subagent that is
+      // genuinely live is `active` already, and one that is not should stay
+      // where its own `SubagentStart` will put it back.
       const text = (typeof p.prompt === "string" ? p.prompt : typeof p.message === "string" ? p.message : "") ?? "";
       // One submission can be delivered more than once — the hook posts it to
       // every deck whose workspace matches, a restart replays the log region it
@@ -1482,9 +1509,14 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // every surplus copy of the full prompt text was retained for the agent's
       // lifetime. A prompt has no id of its own, so identity is its text plus
       // the moment it arrived.
-      if (text && !promptAlreadyRecorded(target, now, text)) {
-        target.prompts.push({ at: now, text });
-        if (!target.firstPrompt) target.firstPrompt = shortPreview(text, 120);
+      // Read and written on the same node for the same reason: a copy that
+      // arrived while a subagent was live used to be compared against the
+      // SUBAGENT's list, find nothing, and record the turn a second time — one
+      // submission counted twice across the session, which is the very thing
+      // the paragraph above exists to prevent.
+      if (text && !promptAlreadyRecorded(root, now, text)) {
+        root.prompts.push({ at: now, text });
+        if (!root.firstPrompt) root.firstPrompt = shortPreview(text, 120);
       }
       break;
     }
