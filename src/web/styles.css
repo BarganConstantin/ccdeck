@@ -3854,18 +3854,64 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   border-radius: 4px;
   overflow: hidden;
   background: var(--line);
-  gap: 1px;
 }
 .cost-bar .cb-seg {
   height: 100%;
   display: block;
   transition: filter 120ms ease;
+  /* The cut between two bands, the same one .uh-agent-seg draws and for the
+     same reason. It replaces a 1px flex gap that showed the bar's own --line
+     track between the segments, which on white measured 1.14:1 against
+     cache-read and 1.17:1 against cache-write — the separator meant to survive
+     a pair no palette can tell apart was itself the least visible thing on the
+     bar (#619).
+     A shadow rather than a border because `*` is border-box and a segment's
+     width is its share of the spend: a border would come out of that width, and
+     on a one-cent band inside a six-hundred-dollar session the border would BE
+     the band. A shadow costs the segment nothing — the neighbour to its left
+     gives up the pixel — and .cost-bar's `overflow: hidden` swallows the first
+     segment's copy so the bar grows no left edge and its rounded end no notch.
+     --panel is the colour because every band already clears 3:1 against it in
+     both themes, so the floor the bands hold against the paper is the same
+     measurement that makes this cut visible between any two of them. */
+  box-shadow: -1px 0 0 var(--panel);
 }
+/* Brightening says WHICH band the pointer is on. 1.3 was declared once for both
+   canvases and is the same mistake as the four colours below it: on white it
+   takes a hovered band to between 2.16:1 and 3.00:1 against the --line track,
+   under the 3:1 the band holds at rest, so pointing at a segment made it harder
+   to see rather than easier. Polarity inverts here as it does everywhere else in
+   this sheet — on the dark bed a band reads by getting brighter, on white by
+   getting darker — and 0.85 is the drag #330 already spends on the cluster
+   label. It puts the hovered band at 4.33-5.44:1 on the track and 6.91-8.67:1
+   on the paper. */
 .cost-bar .cb-seg:hover { filter: brightness(1.3); }
-.cost-bar .cb-input    { background: hsl(213 80% 65%); }
-.cost-bar .cb-output   { background: hsl(280 75% 70%); }
-.cost-bar .cb-cache-r  { background: hsl(150 60% 60%); }
-.cost-bar .cb-cache-w  { background: hsl(35 85% 65%); }
+:root[data-theme="light"] .cost-bar .cb-seg:hover { filter: brightness(0.85); }
+/* The four bands. Until #619 these were four fixed-lightness hsl() literals —
+   the only ones in the sheet that did not read a theme-scoped lightness token —
+   and they were picked for the dark canvas. Resolved, they are #5e9fed, #c679ec,
+   #5cd699 and #f2b25a, which on white measure 2.74:1, 2.86:1, 1.82:1 and 1.86:1
+   against --panel: all four under the 3:1 that 1.4.11 asks of a graphic you have
+   to see to understand the content, which a band in a bar chart is by
+   definition, and the two cache bands under it by more than a factor of 1.6.
+   They are also 1.02:1 from EACH OTHER at the cache end, on both canvases, so
+   the tail of the bar composited into one flat area — 1.4.1 as much as 1.4.11,
+   since hue was the only channel and on that bed it was carrying nothing.
+   The four hue families are kept — blue, purple, green, amber, in that order —
+   and the values come from the eight the sheet already tunes per theme for the
+   usage chart's bands. Those are the only band values here that have been
+   measured against all three beds this bar lands on (--panel and --bg-soft for
+   the panels it is drawn in, --line for its own track) in both themes, and a
+   second tuned palette saying the same four things would be a second thing to
+   keep in tune. Re-tuning one of them now moves this bar too, which is the
+   point: they are one decision about how a band is coloured on each canvas.
+   Pairwise separation is NOT bought here and cannot be — four colours each 3:1
+   from the next need (L + 0.05) to span 3^3 = 27 and sRGB allows 21 — which is
+   why the cut above is load-bearing rather than decoration. */
+.cost-bar .cb-input    { background: var(--usage-blue); }
+.cost-bar .cb-output   { background: var(--usage-purple); }
+.cost-bar .cb-cache-r  { background: var(--usage-green); }
+.cost-bar .cb-cache-w  { background: var(--usage-amber); }
 
 .detail-section {
   display: flex;
@@ -4276,10 +4322,15 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 2px;
   margin-right: 1px;
 }
-.session-summary .ssl-in::before  { background: hsl(213 80% 65%); }
-.session-summary .ssl-out::before { background: hsl(280 75% 70%); }
-.session-summary .ssl-cr::before  { background: hsl(150 60% 60%); }
-.session-summary .ssl-cw::before  { background: hsl(35 85% 65%); }
+/* The key to the bar above, and it moves with it — the four hsl() literals here
+   were the same four the bar declared, so a swatch that stayed behind would key
+   the wrong colour. These sit on the hero's 5% green wash rather than on bare
+   --panel; they measured 2.69, 2.81, 1.79 and 1.83 against it on white and now
+   measure 5.83, 6.86, 5.32 and 6.14 (#619). */
+.session-summary .ssl-in::before  { background: var(--usage-blue); }
+.session-summary .ssl-out::before { background: var(--usage-purple); }
+.session-summary .ssl-cr::before  { background: var(--usage-green); }
+.session-summary .ssl-cw::before  { background: var(--usage-amber); }
 
 .session-summary .ss-stats {
   display: grid;
@@ -6418,15 +6469,53 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* The bar yields to whatever is under it. Panning is the user's decision and
    nothing re-frames a viewport they chose, so a card or a tool bubble can end
    up beneath this bar and stay there — reported with a screenshot of a Bash
-   bubble half-eaten by it. Dimming is enough: the bar stays clickable, and
-   hovering or tabbing into it brings it straight back. */
+   bubble half-eaten by it.
+   What yields is the SLAB, not the group. `opacity: 0.2` on .cat-filter-bar
+   made a stacking context and took every chip's label down with the fill: the
+   on-chips composited to 1.55:1 on white and 1.67:1 in dark, the off-chips to
+   1.37:1 and 1.29:1, against the 4.5:1 SC 1.4.3 asks of 11px text (#622). The
+   bar stays clickable while it is faded — `.cat-filter` keeps its handler, its
+   aria-pressed and its tab stop throughout — so the exception 1.4.3 makes for
+   an inactive component does not apply to any of those numbers.
+   No fade of the group would have worked, which is what decides the shape of
+   this fix rather than its size. --muted clears AA on this bar by 0.20 at FULL
+   strength in dark (4.70:1), so the arithmetic runs out before the floor: 0.8
+   is 3.46:1 and 0.9 is 4.05:1, both under. That is the same wall the
+   `.cat-filter.off` note six thousand lines up hit when it measured
+   `opacity: 0.38` at 1.72:1 / 1.87:1 and deleted it, and quiet-signals.test.ts
+   has been asserting since that no alpha rescues these labels. This rule was
+   spending the one channel the sheet had already ruled out for this element.
+   So what fades is what was actually complained about — the opaque slab. The
+   fill drops from 0.78 alpha to 0.35, the blur behind it goes (an 8px backdrop
+   blur is most of why the bubble underneath was unreadable), and the border and
+   the drop shadow that draw its outline go with them. The chips stay at full
+   opacity and keep the contrast they have at rest: 12.95:1 / 18.92:1 for an
+   on-chip over a card, 4.70:1 / 7.87:1 for an off-chip. Enough fill is left to
+   bed the labels rather than float them over arbitrary canvas — it pulls
+   whatever is underneath a third of the way back to the bar's own colour, which
+   is what keeps that 4.70:1 a floor and not a coincidence of what drifted under.
+   Restoring on hover or focus is written as a :not() on the faded rule instead
+   of two rules that re-declare the slab, which also drops the
+   `(hover: hover) and (pointer: fine)` guard the restore used to sit behind. A
+   coarse pointer never reached that guard, so the bar had exactly one way back
+   for touch — tapping a chip, which toggles the category it was trying to read.
+   A sticky :hover on touch now leaves the bar solid until the next tap
+   elsewhere, which is the state it would have been in anyway. */
 .cat-filter-bar {
-  transition: opacity 180ms ease;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
-.cat-filter-bar.occluded { opacity: 0.2; }
-.cat-filter-bar.occluded:focus-within { opacity: 1; }
-@media (hover: hover) and (pointer: fine) {
-  .cat-filter-bar.occluded:hover { opacity: 1; }
+.cat-filter-bar.occluded:not(:hover):not(:focus-within) {
+  background: rgba(20, 22, 27, 0.35);
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* Four class-weight compounds against the base light rule's three, so only the
+   fill has to be said twice — the border, shadow and blur above already outrank
+   it on both canvases. */
+:root[data-theme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* ── accounts panel: the details that decide whether it feels built ────────── */
