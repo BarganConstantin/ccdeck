@@ -265,8 +265,15 @@ describe("the fits the deck asks for stay marked as its own", () => {
     // The one programmatic viewport that was never stamped, because it never
     // had to be. It runs 60ms after mount, before the user could have touched
     // anything, and unstamped it would read as their first gesture.
+    //
+    // Through applyViewport since #671 rather than `rf.setViewport(…,
+    // { duration: 0 })`: a deck that opened its own tab behind whatever the
+    // user was already reading is a hidden tab 60ms after mount, and React
+    // Flow's setViewport is a d3 transition at every duration — including
+    // zero — so that spelling could not land there. What this test still
+    // cares about is the line after it.
     const restore = appCode.slice(appCode.indexOf("if (!restoredViewport) return;"));
-    expect(restore.slice(0, 400)).toMatch(/rf\.setViewport\(restoredViewport[\s\S]*?lastFitTimeRef\.current = Date\.now\(\)/);
+    expect(restore.slice(0, 400)).toMatch(/applyViewport\(restoredViewport[\s\S]*?lastFitTimeRef\.current = Date\.now\(\)/);
   });
 
   it("stamps fitLeft, the fit every structural change runs", () => {
