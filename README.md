@@ -135,7 +135,7 @@ them, the other one's hooks, installs and panels are skipped rather than shown
 empty — the boot banner says which way it went, and `--claude` / `--codex`
 override it if the guess is wrong.
 
-`--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session, so a machine-wide deck and one scoped to `~/proj` both show the agents working inside `~/proj`. It reads the same way on both capture paths — Claude Code's hook and Codex's rollout files — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so both paths scope to the same tree.
+`--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session, so a machine-wide deck and one scoped to `~/proj` both show the agents working inside `~/proj`. It reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
 
 Environment:
 

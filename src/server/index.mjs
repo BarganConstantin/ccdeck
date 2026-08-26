@@ -3164,6 +3164,79 @@ function pushEvent(raw, source, opts = {}) {
 }
 
 /**
+ * Which of the log's events belong on THIS deck's canvas — the boot replay's
+ * half of `--workspace`, and the half that did not exist (#696).
+ *
+ * `--workspace` filtered the two LIVE capture paths and nothing else. The log is
+ * the machine-wide `<claude config dir>/agent-dag/events.jsonl` that every deck
+ * on the box shares by default, and `replayLog` pushed all of it, so a deck
+ * started with `--workspace ~/proj` came up with every session on the machine
+ * already drawn — including the ones it had just printed it would not capture,
+ * contradicting its own `workspace` row, README.md and the empty-state sentence
+ * in src/web/scope.ts that exists precisely so the canvas stops asserting things
+ * that are not true (#404).
+ *
+ * THE RULE IS NOT A NEW ONE. Per event it is `codexCwdInWorkspace`, the same
+ * predicate the Codex watcher runs and the twin of `capturesSession` in
+ * hook/hook.js — the two are pinned equal by a test walking one table of paths
+ * through both, so `--workspace` means one thing on every path a payload can
+ * reach the ring by, including this one. Nothing about case folding, separators
+ * or the sibling-prefix trap (`/srv/projX` is not inside `/srv/proj`) is decided
+ * here; it is decided there, once, per platform.
+ *
+ * WHAT THE MAP IS FOR. Not every line carries a cwd. The synthetic enrichment
+ * events the transcript scanners emit — `ModelObserved`, `UsageObserved`,
+ * `SessionNamed`, `ContextObserved` — carry `session_id` and nothing else, and
+ * they are persisted like any other event. Judging those by the live rule alone
+ * (no cwd, so inside no workspace) would keep an in-scope session on the canvas
+ * while stripping its model, its token columns and its name until the next live
+ * event arrived. So the answer for a session is learned from the events that DO
+ * say where they run and carried forward to the ones that do not.
+ *
+ * That is a reconstruction of the live behaviour rather than a second notion of
+ * scope: live, a deck only ever emits `ModelObserved` for a session whose hook
+ * event it already accepted, so "follows its session" is what those events
+ * already do — the map only re-derives it from a file. It costs one entry per
+ * distinct session id in the log (a few thousand at the very most, against a log
+ * measured in tens of megabytes) and one lookup per line.
+ *
+ * TWO CASES DECIDED EXPLICITLY:
+ *
+ *   * `__clear` — the control marker `/api/clear` writes after truncating, with
+ *     `cwd: ""`. It is not a session event; it is the instruction that makes the
+ *     reducer forget everything before it. Dropping it on a scoped deck would
+ *     replay the state a user had explicitly cleared, so it is always admitted.
+ *   * a payload with no cwd and no session the map has seen — refused on a
+ *     scoped deck, which is exactly what `capturesSession` decides live for a
+ *     session that never said where it runs.
+ *
+ * An unscoped deck (`workspace === ""`, the default) admits everything, and
+ * takes the cheapest possible path to saying so.
+ *
+ * @param {string} workspace this deck's canonical workspace; "" for machine-wide
+ * @returns {(payload: unknown) => boolean} called once per replayed envelope, in
+ *   log order — it remembers, so the order matters and it is not reusable across
+ *   two replays.
+ */
+export function replayScope(workspace, platform = process.platform) {
+  if (!workspace || typeof workspace !== "string") return () => true;
+  const bySession = new Map();
+  return function admits(payload) {
+    if (!payload || typeof payload !== "object") return false;
+    if (payload.hook_event_name === "__clear") return true;
+    const sid = typeof payload.session_id === "string" ? payload.session_id : null;
+    const cwd = typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : null;
+    if (cwd) {
+      const inside = codexCwdInWorkspace(cwd, workspace, platform);
+      if (sid) bySession.set(sid, inside);
+      return inside;
+    }
+    if (sid && bySession.has(sid)) return bySession.get(sid);
+    return false;
+  };
+}
+
+/**
  * Read the log back into the ring buffer at boot.
  *
  * A line that will not parse is skipped rather than thrown on, and that is
@@ -3186,18 +3259,37 @@ function pushEvent(raw, source, opts = {}) {
  * onto a terminal the deck is about to paint over (see oneLine in term.mjs for
  * what a multi-line message does there), and the path was already printed at
  * boot by the caller.
+ *
+ * `workspace` is what makes the replay agree with the two live capture paths —
+ * see replayScope. An out-of-scope line is NOT counted into `skipped` and is not
+ * warned about: `skipped` means "this log has bytes in it no reader can parse",
+ * which is damage and is worth a line on the terminal, while a scoped deck
+ * declining a session it was told not to capture is the flag doing its job. They
+ * are two different things and only the first is ever printed.
+ *
+ * WHAT THE FILTER COSTS AT BOOT, honestly: nothing is saved on the read. Every
+ * line is still streamed off disk and still JSON.parsed, because the cwd being
+ * judged is inside the JSON — a 30 MB log is 30 MB of reading and parsing on a
+ * scoped deck exactly as on an unscoped one. What it saves is everything after
+ * the parse: no redaction pass, no envelope, no ring insert, no character
+ * accounting and no eviction pressure for a line this deck should never have
+ * held. The ring is bounded by MAX_BUFFER events AND MAX_BUFFER_CHARS, so on a
+ * busy machine the out-of-scope traffic was not merely extra — it was evicting
+ * the in-scope sessions the user started the deck to watch.
  */
-async function replayLog(filePath) {
+async function replayLog(filePath, workspace = "") {
   if (!existsSync(filePath)) return 0;
   let count = 0;
   let skipped = 0;
   let skippedBytes = 0;
+  const admits = replayScope(workspace);
   const rl = createInterface({ input: createReadStream(filePath, { encoding: "utf8" }) });
   for await (const line of rl) {
     if (!line) continue;
     try {
       const evt = JSON.parse(line);
       if (evt && typeof evt === "object" && evt.payload) {
+        if (!admits(evt.payload)) continue;
         pushEvent(evt.payload, evt.source ?? "replay", { receivedAt: evt.receivedAt, replay: true });
         count++;
       }
@@ -4636,7 +4728,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   if (persist) {
     persistPath = resolve(persist);
     try { await mkdir(pdirname(persistPath), { recursive: true }); } catch {}
-    const replayed = await replayLog(persistPath);
+    // `_workspace`, not `workspace`: the field has just been normalised on the
+    // line above, and the replay has to answer the same question the live paths
+    // answer with the same string. Passed rather than read off the module scope
+    // so replayLog states what it depends on. See replayScope.
+    const replayed = await replayLog(persistPath, _workspace);
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

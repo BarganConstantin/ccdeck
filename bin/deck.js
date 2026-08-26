@@ -8,7 +8,7 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { dieOfSignal } from "../src/server/supervisor.mjs";
-import { parseArgs } from "../src/server/args.mjs";
+import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
   CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
   palette, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns, unicodeOK,
@@ -119,7 +119,27 @@ if (flags.uninstall) {
   process.exit(refused ? 1 : 0);
 }
 
-const port = Number(flags.port ?? process.env.AGENT_DAG_PORT ?? 4317);
+// The port, and the one piece of argv the deck really does refuse to boot over.
+//
+// It refused before too — `--port banana` and `--port --no-open` both became
+// `Number(…)` → `NaN`, which survived the whole startup (hooks installed,
+// claude-swap installed, ccusage probed) and then killed the process from inside
+// `listen` with Node's own wording: "options.port should be >= 0 and < 65536.
+// Received type number (NaN)." That names neither the flag nor the value the
+// user typed, and arrives after a page of green ticks. Same outcome, said here:
+// early, in the deck's own voice, quoting the flag and the value back.
+//
+// An empty `AGENT_DAG_PORT` is an unset one — a variable that did not expand is
+// not a request for port zero. `--port ""` never reaches this, because the
+// parser records an empty value as `incomplete` and leaves the flag unset.
+const envPort = process.env.AGENT_DAG_PORT?.trim();
+const rawPort = flags.port ?? (envPort ? envPort : null);
+if (rawPort != null && !isPortValue(rawPort)) {
+  const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
+  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number — expected 0–65535.`);
+  process.exit(1);
+}
+const port = rawPort == null ? 4317 : Number(rawPort);
 // Default = machine-wide (capture every CC session on this box). Pass
 // `--workspace <path>` (or `--scope`) to restrict to a single tree. Canonicalized
 // just below, once the module that owns that rule is loaded.
@@ -241,6 +261,7 @@ process.on("SIGHUP", () => { showCursor(); dieOfSignal("SIGHUP"); });
 const LABELS = [
   "workspace", "Claude hooks", "Codex sessions", "claude-swap", "accounts",
   "ccusage", "update", "name", "server ready", "log", "unknown option",
+  "missing value",
 ];
 const LABEL_W = labelColumn(LABELS);
 
@@ -725,6 +746,7 @@ if (RESPAWN) {
   // and then went quiet for every restart afterwards is back to hiding it from
   // anyone who was not watching the first boot.
   reportUnknownFlags(flags.unknown);
+  reportIncompleteFlags(flags.incomplete);
 } else {
   // The URL is the one detail an ellipsis would destroy — half an address is
   // not a shorter address — so it keeps its own line when the terminal is too
@@ -736,6 +758,7 @@ if (RESPAWN) {
   if (persist) write(row({ label: "log", detail: fileLink(persist) }));
   // Last of the rows, on purpose — see reportUnknownFlags.
   reportUnknownFlags(flags.unknown);
+  reportIncompleteFlags(flags.incomplete);
   // Only when one is actually being opened. Under --no-open — which is how an
   // npx update relaunches, with a tab already waiting — this was announcing
   // something that never happened.
@@ -937,6 +960,33 @@ function reportUnknownFlags(unknown) {
   }
 }
 
+/**
+ * Every value-taking flag that was given no value it could use, named, one row
+ * each — and printed beside the unknown ones because it is the same failure
+ * wearing a different hat.
+ *
+ * #697: `--workspace`, `--history` and `--port` used to consume the following
+ * token whatever it was, so `ccdeck --workspace $PROJ --no-persist` with `PROJ`
+ * unset scoped the deck to a directory called `--no-persist`, kept persisting to
+ * the shared log, and reported neither. Nothing landed in `unknown`, because the
+ * token that belonged there had been eaten. The parser refuses that value now
+ * and lists the flag here instead.
+ *
+ * Said rather than acted on, under exactly the argument reportUnknownFlags makes
+ * above: the flag falls back to its documented default and the deck still boots.
+ * The row is what makes the fallback a decision the user can see, and the rows
+ * around it show its consequence — `workspace (all)` and the `log` line are
+ * printed by the same report.
+ */
+function reportIncompleteFlags(incomplete) {
+  for (const { flag, expects } of incomplete ?? []) {
+    write(row({
+      mark: G.warn, tone: P.warn, label: "missing value",
+      detail: `${flag} ${G.dash} expected ${expects}; using the default`,
+    }));
+  }
+}
+
 function printHelp() {
   process.stdout.write(`${PRODUCT} — live deck of Claude Code + Codex agents
 
@@ -964,5 +1014,10 @@ Options:
 
 Anything else on the command line is reported as an unknown option and then
 ignored: the deck still starts.
+
+A flag that takes a value never swallows the next flag. If the value is missing,
+empty, or itself looks like a flag — \`${PRODUCT} --workspace \$UNSET --no-persist\`
+after the shell has dropped an unset variable — the flag is reported, left on its
+default, and the token it would have eaten is parsed as the flag it is.
 `);
 }
