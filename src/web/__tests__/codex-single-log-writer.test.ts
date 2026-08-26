@@ -14,6 +14,7 @@
 // same file — and a running deck that draws a rollout it was not elected to log.
 import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -40,7 +41,7 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, eventsSince } = await import("../../server/index.mjs");
+const { startServer, eventsSince, challengeProof } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -298,7 +299,46 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
   // A pid that is alive and is not ours: the process that started this one. A
   // record whose pid is dead is swept, and would elect nobody.
   const OTHER = join(AGENT_DAG_DIR, `${process.ppid}.json`);
+  const OTHER_TOKEN = "the-other-decks-token";
   const line = (obj: unknown) => JSON.stringify(obj) + "\n";
+  let otherPort = 0;
+  let otherListener: HttpServer | null = null;
+
+  /**
+   * The other deck has to BE a deck (#695). A live pid on a low port used to be
+   * the whole of what this test staged, and that is precisely the ghost a
+   * recycled pid leaves behind — the deck below now challenges the record's port
+   * with the record's own token and drops it when nothing answers, so a record
+   * with nothing behind it no longer takes the log away from anyone. So this
+   * one listens and answers, exactly as a running deck does.
+   *
+   * Below this deck's port, because the election is lowest-port-wins and the
+   * deck holds an ephemeral one, which every platform takes from the high end of
+   * the range. The loop is only for the candidates that happen to be taken.
+   */
+  async function honestDeckBelow(limit: number) {
+    for (let i = 0; i < 400; i++) {
+      const port = 2000 + Math.floor(Math.random() * (Math.min(limit, 30000) - 2000));
+      const s = createServer((req: IncomingMessage, res: ServerResponse) => {
+        req.on("error", () => {});
+        res.on("error", () => {});
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        if (url.pathname === "/api/hook-challenge") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ proof: challengeProof(OTHER_TOKEN, url.searchParams.get("nonce")) }));
+        }
+        req.on("data", () => {});
+        req.on("end", () => res.writeHead(200).end("{}"));
+      });
+      const bound = await new Promise<boolean>(done => {
+        s.once("error", () => done(false));
+        s.listen(port, "127.0.0.1", () => done(true));
+      });
+      if (bound) { otherListener = s; return port; }
+      s.close();
+    }
+    throw new Error(`no free port below ${limit}`);
+  }
 
   const logged = (): Record<string, any>[] =>
     (existsSync(LOG) ? readFileSync(LOG, "utf8") : "").split("\n").filter(Boolean).map(l => JSON.parse(l));
@@ -321,8 +361,9 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     // Both decks registered before a single rollout line exists, so the very
     // first event the watcher produces is already subject to the election.
     await writeDiscovery({ port: PORT, workspace: "", token: "ours", persist: LOG, codex: true });
+    otherPort = await honestDeckBelow(PORT);
     writeFileSync(OTHER, JSON.stringify({
-      pid: process.ppid, port: 1, workspace: "", token: "theirs", persist: LOG, codex: true,
+      pid: process.ppid, port: otherPort, workspace: "", token: OTHER_TOKEN, persist: LOG, codex: true,
     }));
     mkdirSync(DAY, { recursive: true });
     // The watcher's first pass skips whatever is already on disk, so the
@@ -330,7 +371,14 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     await tick(300);
   });
 
-  afterAll(() => rmSync(OTHER, { force: true }));
+  afterAll(async () => {
+    rmSync(OTHER, { force: true });
+    if (otherListener) {
+      const s = otherListener;
+      s.closeAllConnections?.();
+      await new Promise<void>(done => s.close(() => done()));
+    }
+  });
 
   it("draws the session but leaves the one copy on disk to that deck", async () => {
     writeFileSync(ROLLOUT,
