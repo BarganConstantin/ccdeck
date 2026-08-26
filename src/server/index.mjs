@@ -1,14 +1,15 @@
 // agent-dag server: HTTP ingest + SSE broadcast + static file serving.
 // Single-file pure Node HTTP server, zero deps.
 import { createServer } from "node:http";
-import { readFile, stat, mkdir, open, truncate, readdir, unlink, realpath } from "node:fs/promises";
-import { createReadStream, existsSync, readFileSync, realpathSync } from "node:fs";
+import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
+import { createReadStream, existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join, resolve, dirname as pdirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
@@ -2801,12 +2802,48 @@ let _providers = { claude: true, codex: true };
  * the second half came for free — that "a process's cwd comes from getcwd() and
  * has none left in it" — which is true on POSIX and false on Windows. See
  * canonicalCwd.
+ *
+ * WHICH REALPATH, AND WHY IT IS `.native` AT ALL THREE SITES. Node ships two
+ * implementations with different Windows behaviour, and picking one per site is
+ * how the flag and the two cwd paths end up meaning different things again:
+ *
+ *   fs.realpathSync / fs.realpath  a JavaScript lstat-and-readlink walk. It
+ *                                  resolves symlinks and junctions and NOTHING
+ *                                  else — a DOS 8.3 short component survives it
+ *                                  untouched.
+ *   …Sync.native / …native / the   uv_fs_realpath, which on Windows is
+ *   fs/promises realpath           GetFinalPathNameByHandleW: symlinks and
+ *                                  junctions, the UNC form of a mapped drive,
+ *                                  the LONG form of an 8.3 short name, and the
+ *                                  on-disk case of every component.
+ *
+ * The long form is the canonical one, and not by preference: it is the only
+ * spelling that is a fixed point. Short names are an alias for the same
+ * directory exactly as a junction is, they cannot be derived back from the long
+ * form (8.3 generation can be disabled per volume), and they are not a corner
+ * case a test invented — `%TEMP%` under a shortened profile directory answers
+ * with one, which is what every GitHub Windows runner has. It is also already
+ * this codebase's answer: persistAuth in src/server/codex-auth.mjs resolves
+ * through the fs/promises realpath, i.e. this one.
+ *
+ * So all three sites name `.native` explicitly rather than one of them reaching
+ * for whichever realpath came to hand. Being explicit is the point — the reason
+ * this had to be said twice is that fs/promises' realpath IS the native one
+ * while its sync namesake is not, an equivalence nothing documents and no reader
+ * should have to know.
  */
 export function canonicalWorkspace(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return "";
   const abs = resolve(raw);
-  try { return realpathSync(abs); } catch { return abs; }
+  try { return realpathSync.native(abs); } catch { return abs; }
 }
+
+// The async half of the rule canonicalWorkspace states above, named the same way
+// it is: fs.realpath.native is the documented callback form of uv_fs_realpath,
+// and promisifying it says which realpath this is at the point of use. The
+// fs/promises realpath is the same call and would have read as if it were the
+// JavaScript one.
+const realpathNative = promisify(realpathCb.native);
 
 /**
  * The one spelling of the directory a Codex session says it is running in —
@@ -2839,9 +2876,16 @@ export function canonicalWorkspace(raw) {
  * codexCwdInWorkspace: the result is cached in codexFileState for the life of
  * the file, so it costs one realpath per rollout instead of one per tick, and it
  * leaves the predicate the pure string function that lets it be pinned against
- * hook.js's copy in a test. Case is NOT folded here — realpath does not
- * canonicalise it on any platform, and both copies of the predicate already fold
- * per-platform, which is the only place that decision can stay correct on Linux.
+ * hook.js's copy in a test.
+ *
+ * `.native`, for the reason canonicalWorkspace sets out at length: three sites
+ * canonicalise a path against each other and all three must fold the same way,
+ * 8.3 short names included. Case IS canonicalised as a side effect — that is
+ * what GetFinalPathNameByHandleW and realpath(3) on a case-insensitive volume
+ * return — but nothing here DEPENDS on it: the two predicates still fold case
+ * per-platform themselves, which is the only place that decision can stay
+ * correct on Linux, where /srv/Proj and /srv/proj are two real directories and
+ * realpath quite rightly keeps them apart.
  *
  * Async, unlike canonicalWorkspace, because of where each one runs.
  * canonicalWorkspace runs once in bin/deck.js before the server exists, so
@@ -2862,7 +2906,7 @@ export function canonicalWorkspace(raw) {
 export async function canonicalCwd(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return null;
   const abs = resolve(raw);
-  try { return await realpath(abs); } catch { return abs; }
+  try { return await realpathNative(abs); } catch { return abs; }
 }
 
 function handleHealth(_req, res) {

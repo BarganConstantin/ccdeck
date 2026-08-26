@@ -48,13 +48,24 @@ const PROVIDER = parseProvider(process.argv.slice(2));
  * not resolve keeps its resolved form, which is also what canonicalWorkspace
  * does with a directory the user has not created yet.
  *
+ * `.native` IS THE RULE, not a detail. fs.realpathSync is a JavaScript
+ * lstat-and-readlink walk that resolves symlinks and junctions and nothing else;
+ * fs.realpathSync.native is GetFinalPathNameByHandleW, which also expands a DOS
+ * 8.3 short component to its long form. This used to call the plain one while
+ * the server's canonicalCwd went through the native one, so the moment a path
+ * arrived short — `%TEMP%` under a shortened profile directory, which is what
+ * every GitHub Windows runner has — the two canonicalisers that exist to agree
+ * disagreed by a whole path: C:\Users\RUNNER~1\… against C:\Users\runneradmin\….
+ * canonicalWorkspace in src/server/index.mjs says the rest of it, including why
+ * the long form is the canonical one; all three sites name `.native` out loud.
+ *
  * Exported for that test: it is half of what `--workspace` means, and a
  * predicate handed an already-canonical path cannot show that the caller
  * canonicalises.
  */
 function normPath(p) {
   let r = path.resolve(p);
-  try { r = fs.realpathSync(r); } catch {}
+  try { r = fs.realpathSync.native(r); } catch {}
   return r;
 }
 

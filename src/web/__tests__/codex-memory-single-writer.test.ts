@@ -53,7 +53,14 @@ import type { HookEnvelope, HookPayload } from "../types";
 // in src/server/index.mjs). os.tmpdir() is reached through a symlink on macOS —
 // /var is /private/var — so an un-resolved fixture path would be asserting that
 // the deck echoes back a spelling no real machine hands it.
-const FAKE_HOME = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-codexmem-home-")));
+//
+// `.native`, the same call and for the same reason as codex-auth-rename-retry
+// .test.ts: the plain fs.realpathSync is a JavaScript symlink walk that leaves a
+// DOS 8.3 short component alone, and os.tmpdir() on a Windows runner answers
+// with one. Pinning the fixture at C:\Users\RUNNER~1\… while the watcher emits
+// C:\Users\runneradmin\… fails an assertion about memory files for a reason
+// that has nothing to do with memory files.
+const FAKE_HOME = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-codexmem-home-")));
 const FAKE_CONFIG = mkdtempSync(join(tmpdir(), "ccdeck-codexmem-config-"));
 const FAKE_CODEX = mkdtempSync(join(tmpdir(), "ccdeck-codexmem-rollouts-"));
 const prev = {

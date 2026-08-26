@@ -189,7 +189,7 @@ describe("the canonical spelling of the flag", () => {
   it("drops a trailing separator, so one directory has one spelling", () => {
     const dir = join(SANDBOX, "trailing");
     mkdirSync(dir, { recursive: true });
-    expect(canonicalWorkspace(dir + sep)).toBe(realpathSync(dir));
+    expect(canonicalWorkspace(dir + sep)).toBe(realpathSync.native(dir));
   });
 
   it("resolves symlinks, so a workspace reached through one is not a tree of its own", async () => {
@@ -203,7 +203,7 @@ describe("the canonical spelling of the flag", () => {
     symlinkSync(real, link, "junction");
 
     const viaLink = canonicalWorkspace(join(link, "proj"));
-    expect(viaLink).toBe(realpathSync(join(real, "proj")));
+    expect(viaLink).toBe(realpathSync.native(join(real, "proj")));
 
     // And the session running inside it is captured on both paths — fed the cwd
     // its own caller feeds it, which is the LINK spelling. This assertion used
@@ -228,6 +228,88 @@ describe("the canonical spelling of the flag", () => {
   it("is idempotent, so a second pass over it changes nothing", () => {
     const once = canonicalWorkspace(join(SANDBOX, "real-tree"));
     expect(canonicalWorkspace(once)).toBe(once);
+  });
+});
+
+// ── one realpath, at all three sites ─────────────────────────────────────────
+
+// Three functions canonicalise a path in this product and every one of them is
+// compared against the other two: canonicalWorkspace for the flag, normPath in
+// hook.js for a Claude session's cwd, canonicalCwd for a Codex rollout's. They
+// have to fold identically or the mismatch has merely moved.
+//
+// Node ships TWO realpaths and they do not fold identically on Windows.
+// fs.realpathSync / fs.realpath are a JavaScript lstat-and-readlink walk:
+// symlinks and junctions, nothing else. fs.realpathSync.native, fs.realpath
+// .native and the fs/promises realpath are uv_fs_realpath — on Windows
+// GetFinalPathNameByHandleW, which ALSO expands a DOS 8.3 short component to its
+// long form. Two of the three sites called the first and one called the second,
+// so the moment a path arrived short they disagreed by a whole path:
+// C:\Users\RUNNER~1\AppData\Local\Temp\… against C:\Users\runneradmin\….
+//
+// That is not a runner artefact. %TEMP% is the short spelling for any Windows
+// user whose profile directory is shortened, and it is what os.tmpdir() answers
+// with there — which is exactly why the first probe below is the temp directory
+// the environment hands us rather than a path this file built.
+describe("one realpath, at all three sites", () => {
+  const realpathed = join(SANDBOX, "one-realpath", "real");
+  const linked = join(SANDBOX, "one-realpath", "link");
+  mkdirSync(join(realpathed, "proj", "sub"), { recursive: true });
+  symlinkSync(realpathed, linked, "junction");
+
+  it("gives the flag and both cwd paths one spelling, 8.3 short names included", async () => {
+    // The long form is the canonical one: short names alias the same directory
+    // exactly as a junction does, and they cannot be derived back from the long
+    // form at all, since 8.3 generation can be turned off per volume. It is also
+    // already this codebase's answer — persistAuth in src/server/codex-auth.mjs
+    // resolves through the fs/promises realpath, i.e. the native one.
+    //
+    // The last probe is what makes this case fail on a Mac as well as on
+    // Windows, so the rule is not left resting on the one platform nobody
+    // develops on. The two realpaths differ in a second way: the native one
+    // returns each component's ON-DISK case, and the JavaScript walk returns
+    // whatever it was handed. On a case-insensitive volume — APFS, NTFS — that
+    // is a real divergence for a path spelled in the wrong case, and on Linux
+    // the same spelling simply does not exist, both realpaths throw, and both
+    // fall back to the resolved form, so the probe is inert rather than wrong.
+    for (const p of [
+      tmpdir(),                          // whatever the ENVIRONMENT hands us
+      SANDBOX,                           // an mkdtemp under it, so short there too
+      join(linked, "proj"),              // through a link
+      join(linked, "proj", "sub"),
+      realpathed,
+      join(SANDBOX, "ONE-REALPATH", "REAL"),  // the wrong case for a real directory
+    ]) {
+      const want = realpathSync.native(p);
+      expect(canonicalWorkspace(p), `canonicalWorkspace on ${p}`).toBe(want);
+      expect(await canonicalCwd(p), `canonicalCwd on ${p}`).toBe(want);
+      expect(hook.normPath(p), `hook.normPath on ${p}`).toBe(want);
+    }
+  });
+
+  it("names .native at every site, which is the only platform-independent way to say it", () => {
+    // The behaviour above is only observable where the two realpaths differ,
+    // and that is Windows alone — so on the two platforms most of this is
+    // developed on, a site quietly reverting to the JavaScript walk goes
+    // unnoticed until CI. This says the rule itself, on every platform.
+    //
+    // It also pins the half that caused this: `realpath` imported from
+    // fs/promises IS the native one, an equivalence nothing documents, so a site
+    // spelled that way is right by accident and reads as if it were the plain
+    // one. Every realpath in these two files names .native out loud.
+    const sources: Array<[string, string]> = [
+      ["hook/hook.js", readFileSync(HOOK_SRC, "utf8")],
+      ["src/server/index.mjs", readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")],
+    ];
+    for (const [name, src] of sources) {
+      const code = src.split("\n").filter(l => {
+        const t = l.trimStart();
+        return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
+      }).join("\n");
+      expect(code.match(/\brealpath(Sync)?\s*\(/g) ?? [], `${name} calls a realpath that does not name .native`).toEqual([]);
+      expect(code.match(/\brealpath\w*\.native\b/g) ?? [], `${name} canonicalises through no native realpath at all`)
+        .not.toHaveLength(0);
+    }
   });
 });
 
@@ -306,7 +388,7 @@ describe("the cwd each capture path compares", () => {
     // same file every 1.5s forever) and never drop the session, which for a
     // rollout recorded in the scoped tree and never moved would be wrong.
     const workspace = canonicalWorkspace(join(link, "proj"));
-    const gone = join(realpathSync(proj), "deleted-since");
+    const gone = join(realpathSync.native(proj), "deleted-since");
     expect(await canonicalCwd(gone)).toBe(gone);
     expect(await canonicalCwd(gone)).toBe(hook.normPath(gone));
     expect(codexCwdInWorkspace(await canonicalCwd(gone), workspace), "a deleted subdirectory of the workspace").toBe(true);
@@ -381,7 +463,7 @@ describe("the cwd each capture path compares", () => {
       // the log election — which models the other decks with this same predicate
       // against their published, canonical workspaces — puts it in the right
       // group too.
-      expect(drawn[0]).toMatchObject({ hook_event_name: "SessionStart", cwd: realpathSync(proj), provider: "codex" });
+      expect(drawn[0]).toMatchObject({ hook_event_name: "SessionStart", cwd: realpathSync.native(proj), provider: "codex" });
     } finally {
       clearInterval(timer);
     }
