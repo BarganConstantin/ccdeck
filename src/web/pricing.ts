@@ -252,9 +252,59 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   { match: /^codex[-_]mini/i,
     rates: { input: 1.50, output: 6, cacheRead: 0.375, cacheWrite: 0 } },
 
-  // o1-pro / o1 — $150 / $600 and $15 / $60  (o1 cached $7.50)
-  { match: /^o1[-_]pro/i, rates: { input: 150, output: 600, cacheRead: 150, cacheWrite: 0 } },
-  { match: /^o1\b/i,      rates: { input: 15, output: 60, cacheRead: 7.50, cacheWrite: 0 } },
+  // ── o-series reasoning models ────────────────────────────────────────────
+  // Every rate from here to the end of the table re-verified 2026-08-26 against
+  // the "Text tokens" panel on developers.openai.com/api/docs/models/<id>, one
+  // page per row. The per-model pages rather than the summary table, because the
+  // summary table is where this went wrong: developers.openai.com/api/docs/pricing
+  // lists o1, o1-pro, o3, o3-mini, o3-pro and o4-mini and stops there. The three
+  // tiers it omits are exactly the three ids that had no row here.
+  //
+  // #690: A SIBLING WITHOUT A ROW DOES NOT GO UNPRICED — IT INHERITS. `/^o1\b/i`
+  // finds its boundary between the `1` and the `-` of `o1-mini` and hands it o1's
+  // $15/$60, thirteen times the $1.10/$4.40 o1-mini is actually billed at.
+  // `/^o3\b/i` read `o3-deep-research` the same way and quoted $2/$8 against a
+  // published $10/$40, a fifth of the real spend. The sweep for this fix found a
+  // third the issue had not: `/^o4[-_]mini/i` swallowed `o4-mini-deep-research`,
+  // which is $2/$8 and not o4-mini's $1.10/$4.40.
+  //
+  // WHY ROWS AND NOT THE #688 GUARD, WHICH IS THE SAME BUG WITH A DIFFERENT
+  // ANSWER. #688's `claude-opus-4-9` was a version nobody has published, so the
+  // honest answer was to reach no row and print `not priced`. These three are
+  // real models with real published numbers, and refusing to price a model whose
+  // rate is on OpenAI's own page would be inventing a gap rather than a figure.
+  // The rule that falls out of both: a family prefix may only price the ids it
+  // has actually read a number for, and the way an o-series row says which those
+  // are is that its more specific siblings sit above it.
+  //
+  // Order is load-bearing in one direction only — first match wins, so each of
+  // the three new rows must precede the row it was being eaten by. The `[-_]`
+  // spellings are the table's convention and are not decorative here: `\b` after
+  // a digit is false against `_` (a word character), so `o1_mini` reached no row
+  // at all before this and reaches its own now.
+
+  // o1-pro — $150 / $600  (no cached rate published)
+  { match: /^o1[-_]pro/i,
+    rates: { input: 150, output: 600, cacheRead: 150, cacheWrite: 0 } },
+
+  // o1-mini — $1.10 / $4.40  (cached $0.55)  ← before bare o1 (#690)
+  { match: /^o1[-_]mini/i,
+    rates: { input: 1.10, output: 4.40, cacheRead: 0.55, cacheWrite: 0 } },
+
+  // o1 — $15 / $60  (cached $7.50).
+  //
+  // `o1-preview` rides this row and is left doing so deliberately: its own page
+  // publishes $15 / $7.50 / $60, the same three numbers, so it is priced right
+  // and a duplicate row would only be a second place to keep them in step. That
+  // it is correct is checked, not assumed — the id is pinned in
+  // o-series-sibling-rates.test.ts, so if either price ever moves apart the
+  // suite says so instead of this comment quietly going stale.
+  { match: /^o1\b/i,
+    rates: { input: 15, output: 60, cacheRead: 7.50, cacheWrite: 0 } },
+
+  // o3-deep-research — $10 / $40  (cached $2.50)  ← before bare o3 (#690)
+  { match: /^o3[-_]deep[-_]research/i,
+    rates: { input: 10, output: 40, cacheRead: 2.50, cacheWrite: 0 } },
 
   // o3-mini — $1.10 / $4.40  (cached $0.55)  ← before plain o3
   { match: /^o3[-_]mini/i,
@@ -263,6 +313,13 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   // o3-pro — $20 / $80  (no cached rate published)
   { match: /^o3[-_]pro/i,
     rates: { input: 20, output: 80, cacheRead: 20, cacheWrite: 0 } },
+
+  // o4-mini-deep-research — $2 / $8  (cached $0.50)  ← before o4-mini (#690).
+  // Not in the issue; found sweeping the other `\b`-and-prefix rows for the same
+  // shape. o4-mini's row is a plain prefix, so it reached this id with no word
+  // boundary needed at all.
+  { match: /^o4[-_]mini[-_]deep[-_]research/i,
+    rates: { input: 2, output: 8, cacheRead: 0.50, cacheWrite: 0 } },
 
   // o4-mini — $1.10 / $4.40  (cached $0.275)
   { match: /^o4[-_]mini/i,
