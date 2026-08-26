@@ -49,6 +49,7 @@ import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./v
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
 import { restoreLayout, type StoredLayout } from "./stored-layout";
+import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
@@ -771,6 +772,12 @@ function Inner() {
   // can stay out of the way rather than flicker through a wrong state.
   const [soundOn, setSoundOn] = useState<boolean | null>(null);
   const [soundBusy, setSoundBusy] = useState(false);
+  // The same fact as `soundBusy`, where a handler can read it without waiting
+  // for a render. #620 leaves the switch enabled while its own request is out,
+  // so a second press — M, Shift+M or a click — reaches the handler, and the
+  // handler is what refuses it. Both writers below share the one ref because
+  // they share the one flag and the one endpoint.
+  const soundBusyRef = useRef(false);
   // Hand-written sound hooks already on the Stop event. Surfaced because
   // turning ours on alongside one that works here means two sounds per turn,
   // and the cause is in a settings file the user is not looking at.
@@ -790,6 +797,8 @@ function Inner() {
       .catch(() => {});
   }, []);
   const toggleSound = useCallback(async () => {
+    if (!selfPressAccepted(soundBusyRef.current)) return;
+    soundBusyRef.current = true;
     setSoundBusy(true);
     try {
       const res = await fetch("/api/sound-hook", {
@@ -806,7 +815,7 @@ function Inner() {
         setSoundParked(typeof d.parked === "number" ? d.parked : 0);
       }).catch(() => {});
     } catch { /* server unreachable */ }
-    finally { setSoundBusy(false); }
+    finally { soundBusyRef.current = false; setSoundBusy(false); }
   }, [soundOn]);
 
   /** Put the user's own sound hooks back. The switch sets aside any hook of
@@ -814,6 +823,8 @@ function Inner() {
    *  worse than none — and this is the undo. It writes to the same endpoint the
    *  toggle does and re-reads afterwards for the same reason. */
   const restoreParkedHooks = useCallback(() => {
+    if (!selfPressAccepted(soundBusyRef.current)) return;
+    soundBusyRef.current = true;
     setSoundBusy(true);
     fetch("/api/sound-hook", {
       method: "POST",
@@ -823,7 +834,7 @@ function Inner() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.ok) { setSoundOn(d.enabled === true); setSoundParked(d.parked ?? 0); } })
       .catch(() => {})
-      .finally(() => setSoundBusy(false));
+      .finally(() => { soundBusyRef.current = false; setSoundBusy(false); });
   }, []);
 
   /** The single door to the sound switch, in the shape requestClear already
@@ -880,9 +891,12 @@ function Inner() {
   // polls are answered from a marker on disk and would just make the chip
   // flicker for no reason the user could act on.
   const [versionChecking, setVersionChecking] = useState(false);
+  // Returns the round trip so a caller that has to know when the answer landed
+  // can wait for it — startUpgrade is the one, and holds its press lock until
+  // /api/version has reported the run it just started (#620).
   const loadVersion = useCallback((force = false) => {
     if (force) { lastForcedRef.current = Date.now(); setVersionChecking(true); }
-    fetch(force ? "/api/version?refresh=1" : "/api/version")
+    return fetch(force ? "/api/version?refresh=1" : "/api/version")
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setVersion(d as VersionInfo); })
       .catch(() => {})
@@ -1003,10 +1017,20 @@ function Inner() {
   // A string, not the object, so an effect can key off it: /api/version answers
   // with a fresh object every poll, and only its identity would ever change.
   const upgradeFailure = upgradeFailureId(version?.upgrade);
+  // The press's own in-flight flag, and the only one this button has: `running`
+  // is the SERVER's answer and does not arrive until the next /api/version, so
+  // between the click and that poll there is nothing else saying a run started.
+  // Released once the poll has been asked for — from then on `upgradeState`
+  // carries the fact, and a POST that changed nothing leaves the button usable
+  // rather than locked out for the life of the page.
+  const upgradeAskedRef = useRef(false);
   const startUpgrade = useCallback(async () => {
+    if (!selfPressAccepted(upgradeAskedRef.current || upgradeState === "running")) return;
+    upgradeAskedRef.current = true;
     try { await fetch("/api/upgrade", { method: "POST" }); } catch { /* reported via /api/version */ }
-    loadVersion();
-  }, [loadVersion]);
+    await loadVersion();
+    upgradeAskedRef.current = false;
+  }, [upgradeState, loadVersion]);
   useEffect(() => {
     if (upgradeState !== "running") return;
     const iv = window.setInterval(loadVersion, 3000);
@@ -1142,7 +1166,11 @@ function Inner() {
   // running while its predecessor's three minutes are still on the clock.
   const restartAttemptRef = useRef(0);
   const askRestart = useCallback(async (opts?: { upgrade?: boolean }) => {
-    if (restartAskedRef.current) return;
+    // The guard the `disabled` used to be, now that the two buttons that call
+    // this stay enabled while their own request is out (#620). It was already
+    // here as `if (restartAskedRef.current) return` — the ref is what a second
+    // Enter meets, and the rule is what it is spelled as.
+    if (!selfPressAccepted(restartAskedRef.current)) return;
     const upgrade = opts?.upgrade === true;
     restartAskedRef.current = true;
     askedFailureRef.current = upgradeFailure;
@@ -2881,7 +2909,16 @@ function Inner() {
                    for the reason above and for one more: TAG_BUDGET in
                    tsx-scan.ts is measured against this tag. */
                 onClick={(e) => activateSound(e.shiftKey)}
-                disabled={soundBusy}
+                /* #620: this was `disabled={soundBusy}`, and soundBusy is set
+                   before the first await in both writers — so the switch went
+                   disabled under the press that had just come from it and
+                   Chrome dropped focus to `<body>`. Of the nine sites #620
+                   found this is the most exposed one: it sits in the topbar,
+                   and M / Shift+M press it from the keyboard by design. It is
+                   busy while its own request is out and enabled throughout;
+                   the double-press guard moved into the two handlers, where
+                   selfPressAccepted reads a ref rather than this state. */
+                {...selfPressProps(soundBusy)}
                 title={finishSoundTitle(providers, { on: soundOn, clash: soundClash, parked: soundParked })}
                 /* The name a screen reader announces, and it names the CLI too.
                    `title` reaches assistive tech only as a description, which is
@@ -2964,7 +3001,13 @@ function Inner() {
               <strong>v{notice.to} is installed — this deck still runs v{notice.from}.</strong>
               {version?.canRestart ? (
                 <>
-                  <button type="button" className="ver-act" onClick={() => askRestart()} disabled={restarting}
+                  {/* #620: `disabled={restarting}` disabled the control the
+                      press came from — askRestart sets `restarting` before its
+                      first await — and the banner has no focus trap to hand
+                      the keyboard back. The word already says which state it is
+                      in; `aria-busy` says it to a reader, and askRestart's own
+                      ref refuses the second press. */}
+                  <button type="button" className="ver-act" onClick={() => askRestart()} {...selfPressProps(restarting)}
                     title="Stop this process and bring it back on the same port. The canvas replays from the event log.">
                     {restarting ? "restarting…" : "Restart now"}
                   </button>
@@ -3010,8 +3053,16 @@ function Inner() {
                   every install shape, and the same string the copy button
                   carries. */}
               {version?.upgradeMode === "install" && upgradeState !== "failed" && (
+                /* #620, and the one of the nine whose flag is not set in its
+                   own handler: `running` arrives from the /api/version poll a
+                   moment after the click, and the button is still the focused
+                   element when it does — the same drop, one round trip later.
+                   So `running` is this press's in-flight state and goes to
+                   `aria-busy`; `done` is not — the install has finished and
+                   there is nothing left to press, which is an unavailability
+                   `disabled` is exactly right for. */
                 <button type="button" className="ver-act" onClick={startUpgrade}
-                  disabled={upgradeState === "running" || upgradeState === "done"}
+                  {...selfPressProps(upgradeState === "running", upgradeState === "done")}
                   title={`Runs ${version?.upgrade?.command ?? version?.command ?? "npm i -g"} here, then restarts once nothing is running.`}>
                   {upgradeState === "running" ? "installing…"
                     : upgradeState === "done" ? "installed"
@@ -3022,8 +3073,13 @@ function Inner() {
                   over. The update IS the restart: the supervisor re-runs the
                   spec, npx unpacks a fresh copy, and it takes this port. */}
               {version?.upgradeMode === "npx" && version?.canRestart && (
+                /* #620, the same as Restart now beside it: askRestart sets
+                   `restarting` before its first await, and this is the button
+                   the press came from. An npx fetch is measured in tens of
+                   seconds, so this is the longest of the four in App.tsx to
+                   spend with focus on `<body>`. */
                 <button type="button" className="ver-act" onClick={() => askRestart({ upgrade: true })}
-                  disabled={restarting}
+                  {...selfPressProps(restarting)}
                   title={`Runs ${version?.command} and hands it this port. Nothing is installed globally — npx unpacks its own copy.`}>
                   {restarting ? "fetching…"
                     /* A retry after a failure must not look like the first

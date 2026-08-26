@@ -21,6 +21,7 @@ import { createLoginAnnouncer } from "../login-announce";
 import { explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -82,6 +83,12 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [imported, setImported] = useState<{ added: boolean; num: string | null; email: string | null } | null>(null);
   const startedRef = useRef(false);
+  // The same fact as `busy`, readable without waiting for a render. Continue
+  // and Import stay enabled while their own request is out (#620), so a second
+  // Enter reaches the handler and the handler is what refuses it. One ref for
+  // both, because there is one `busy` and the two submits are on tabs that
+  // cannot be pressed at the same time.
+  const busyRef = useRef(false);
   const codeRef = useRef<HTMLInputElement | null>(null);
   const blobRef = useRef<HTMLInputElement | null>(null);
   // The branch this dialog always opens on, and the only one that used to focus
@@ -114,10 +121,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   // browser tab as its first act, and a dialog that does that before being
   // asked is a dialog nobody trusts to open again.
   const start = useCallback(async () => {
+    if (!selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     startedRef.current = true;
     const out = await admin({ action: "login" }).catch(() => null);
+    busyRef.current = false;
     setBusy(false);
     if (!out?.ok) { setError(explainFailure(out, "could not start the sign-in")); return; }
     setLogin(out as LoginState);
@@ -182,9 +192,12 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   }, [tab]);
 
   const submitCode = useCallback(async () => {
+    if (!selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     const out = await admin({ action: "login-code", code }).catch(() => null);
+    busyRef.current = false;
     setBusy(false);
     if (!out?.ok) {
       setError(explainFailure(out, "the code was not accepted"));
@@ -199,9 +212,12 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   }, [code, login]);
 
   const submitBlob = useCallback(async () => {
+    if (!selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     const out = await admin({ action: "import", blob }).catch(() => null);
+    busyRef.current = false;
     setBusy(false);
     if (!out?.ok) { setError(explainFailure(out, "the import failed")); return; }
     setBlob("");
@@ -306,7 +322,18 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                       aria-label="Sign-in code"
                       disabled={login.state === "registering"}
                     />
-                    <button type="button" className="btn primary" disabled={busy || !code.trim() || login.state === "registering"}
+                    {/* #620: `busy` reached `disabled` here — submitCode sets
+                        it before its first await — so the press disabled the
+                        control it came from and Chrome dropped focus. The
+                        modal's Tab trap does bring focus back into the dialog,
+                        but at `stops[0]`, not where the reader was.
+                        The other two halves stay `disabled`, because neither
+                        is a press in flight: an empty field has nothing to
+                        submit, and `registering` is the CLI having ACCEPTED
+                        the code — this button's work is over, and the field is
+                        cleared by then anyway. */}
+                    <button type="button" className="btn primary"
+                      {...selfPressProps(busy, !code.trim() || login.state === "registering")}
                       onClick={submitCode}>
                       {login.state === "registering" ? "registering…" : "Continue"}
                     </button>
@@ -342,7 +369,15 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   claude-swap records the account when it completes, and the account you are using now stays active.
                 </p>
                 <div className="aa-actions">
-                  <button type="button" ref={primerRef} className="btn primary" onClick={start} disabled={busy}>
+                  {/* No `disabled={busy}`: this branch renders only while
+                      `!busy && !startedRef.current`, so that attribute could
+                      never be true and was the tenth `disabled=` a busy flag
+                      reached — dead, but indistinguishable from the nine to
+                      anyone reading the file or to the sweep that guards them.
+                      The press takes this control away rather than disabling
+                      it, which is the half #518 answers with rescueSelectors
+                      and not with a busy flag. */}
+                  <button type="button" ref={primerRef} className="btn primary" onClick={start}>
                     Open the sign-in page
                   </button>
                 </div>
@@ -385,7 +420,11 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   autoComplete="off"
                   aria-label="Shared account"
                 />
-                <button type="button" className="btn primary" disabled={busy || !blob.trim()} onClick={submitBlob}>
+                {/* #620, the same as Continue: `busy` disabled the control the
+                    press came from. An empty field still disables it — that is
+                    an unavailability and not a press in flight — and the label
+                    goes on saying which state it is in. */}
+                <button type="button" className="btn primary" {...selfPressProps(busy, !blob.trim())} onClick={submitBlob}>
                   {busy ? "importing…" : "Import"}
                 </button>
               </div>

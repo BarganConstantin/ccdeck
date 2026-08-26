@@ -17,6 +17,7 @@ import { agentLabel, usageSubtitle } from "../provider-copy";
 import { agentColor, agentTotals, dayAgentSummary, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 // ── ccusage data shapes (subset we use) ────────────────────────────────────
 interface ModelBreakdown {
@@ -116,8 +117,19 @@ function useCcusage(rangeDays: number) {
   // guard is thrown away (#612).
   const guard = useState(createLatestGuard)[0];
 
+  // The same fact as `loading`, readable without waiting for a render. Both ↻
+  // and Try again stay enabled while their own run is out (#620), so a second
+  // Enter reaches here and this is what refuses it. Only a forced run takes the
+  // lock, and every new request re-states who holds it: a range change starts
+  // an unforced load, which supersedes the forced one — whose `finally` will
+  // not fire under `isCurrent` any more — so it has to clear the lock itself
+  // rather than leave the ↻ dead for the life of the modal.
+  const busyRef = useRef(false);
+
   const load = (force = false) => {
+    if (force && !selfPressAccepted(busyRef.current)) return;
     const isCurrent = guard.begin();
+    busyRef.current = force;
     const range = rangeDays;
     setLoading(true);
     const since = presetSince(range);
@@ -128,7 +140,7 @@ function useCcusage(rangeDays: number) {
       // The deck itself never answered, which is a different failure from
       // ccusage failing and the only one whose remedy is about the deck.
       .catch(() => { if (isCurrent()) setLanded({ range, resp: { ok: false, reason: "unreachable" } }); })
-      .finally(() => { if (isCurrent()) setLoading(false); });
+      .finally(() => { if (isCurrent()) { busyRef.current = false; setLoading(false); } });
   };
 
   useEffect(() => {
@@ -263,7 +275,12 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           <button
             className="glyph-btn uh-reload"
             onClick={reload}
-            disabled={loading}
+            /* #620: `disabled={loading}` disabled the control the press came
+               from — `reload` sets `loading` synchronously — and a modal's Tab
+               trap only mops up afterwards, at the FIRST control rather than
+               where the reader was. Busy, enabled, and `load` refuses the
+               second run. */
+            {...selfPressProps(loading)}
             title="Re-run ccusage"
             aria-label="Reload"
           >{loading ? "…" : "↻"}</button>
@@ -280,7 +297,11 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           <div className="uh-status uh-err" title={commandOutput(landed!.resp) || undefined}>
             {explainCcusageFailure(landed!.resp, "ccusage did not report usage")}
             <div>
-              <button className="btn uh-retry" onClick={reload} disabled={loading}>
+              {/* #620, and this one is the whole of the error branch: a
+                  failed run leaves `phase: "error"` with `stale: loading`, so
+                  the button stays mounted and simply went disabled under its
+                  own press. The word already says it is trying. */}
+              <button className="btn uh-retry" onClick={reload} {...selfPressProps(loading)}>
                 {loading ? "trying…" : "Try again"}
               </button>
             </div>

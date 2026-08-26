@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { usageView } from "../usage-view";
+import { withoutComments } from "./tsx-scan";
 
 const answered = (range: number, days: number) => ({ range, ok: true, days });
 const failed = (range: number) => ({ range, ok: false, days: 0 });
@@ -94,10 +95,25 @@ describe("the modal itself", () => {
     expect(src).not.toMatch(/loading && days\.length/);
   });
 
-  it("disables the controls that re-run ccusage while a run is in flight", () => {
-    // The header ↻ and the error block's Try again are the same request; a
-    // second click during the first run only queues work the guard discards.
-    expect([...src.matchAll(/disabled=\{loading\}/g)]).toHaveLength(2);
+  // Markup is read with the comments gone, for #513's reason and for one of
+  // this file's own: the two controls below carry a comment naming the
+  // attribute they no longer take, and a scan that read prose would find it.
+  const bare = withoutComments(src);
+
+  it("refuses a second run while one is in flight — without disabling the control that asked", () => {
+    // The intent here has not changed: the header ↻ and the error block's Try
+    // again are the same request, and a second press during the first run only
+    // queues work the guard discards. What changed is where that is enforced.
+    //
+    // It used to be `disabled={loading}` on both, which is exactly what #620
+    // names: the press disabled the control it came from, Chrome dropped focus
+    // to `<body>`, and this modal's Tab trap only mops up afterwards — at
+    // `stops[0]`, the dialog's first control, not where the reader was. So the
+    // refusal moved into `load`, where #518 put it, and the controls keep their
+    // place in the tab order while saying `aria-busy`.
+    expect([...bare.matchAll(/disabled=\{loading\}/g)]).toHaveLength(0);
+    expect([...bare.matchAll(/\{\.\.\.selfPressProps\(loading\)\}/g)]).toHaveLength(2);
+    expect(bare).toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
   });
 
   it("swaps the ↻ for a busy label, the way UsagePanel's reload already did", () => {
