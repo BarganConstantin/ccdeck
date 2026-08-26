@@ -175,9 +175,29 @@ function resolve(value: string, theme: Theme): Rgba {
 
 /** Both ends of the topbar gradient. A 30px button centred in 52px of it is
  *  read against the darker end as much as the lighter one, so a state delta
- *  that only holds at one of them does not hold. */
+ *  that only holds at one of them does not hold.
+ *
+ *  Which is exactly why answering with NO ends was the wrong failure. This
+ *  ended in `?? []` until #649: neither `var()` nor `#rrggbb` occurs inside an
+ *  `oklch()`, so respelling --topbar-grad in the notation a designer reaches for
+ *  next matched nothing, and the three sweeps below that are quantified over
+ *  these ends — the on-fill against the bare bar, and the machine meter's ring
+ *  against the bar and against its own hover wash — each ran their loop zero
+ *  times and passed. The file did go red, but somewhere else: the three cases
+ *  that index `barEnds(theme)[0]` threw `Cannot read properties of undefined`,
+ *  which names neither the token nor the notation and is a crash rather than
+ *  this sweep catching anything. A sweep that cannot read the value it was
+ *  pointed at has to fail, and name the value.
+ *
+ *  Exactly two, because the two labels below ARE the two ends: a third stop
+ *  would be announced as a second dark end and quietly measured as one. */
 function barEnds(theme: Theme): Array<[string, Rgba]> {
-  const stops = TOK[theme]["--topbar-grad"].match(/var\(--[\w-]+\)|#[0-9a-f]{3,8}/gi) ?? [];
+  const value = TOK[theme]["--topbar-grad"];
+  expect(value, `${theme} declares no --topbar-grad for this sweep to read ends out of`).toBeTruthy();
+  const stops = value.match(/var\(--[\w-]+\)|#[0-9a-f]{3,8}/gi) ?? [];
+  expect(stops.length,
+    `${theme} --topbar-grad is \`${value}\` — this reader knows var() and #rrggbb and found ${stops.length} stop(s) in it, so every state difference measured against the bar would be measured against nothing. Teach it the notation the sheet now writes rather than letting the sweeps go vacuous`)
+    .toBe(2);
   return stops.map((s, i) => [i === 0 ? "the topbar's light end" : "the topbar's dark end", resolve(s, theme)]);
 }
 
@@ -264,7 +284,15 @@ describe("the on state, as the sheet draws it now", () => {
   it("stands 3:1 or better off the bare bar, at both ends, in both themes", () => {
     for (const theme of themes) {
       const fill = resolve(decl(ON, "background")!, theme);
-      for (const [name, bed] of barEnds(theme)) {
+      const ends = barEnds(theme);
+      // The floor, and it sits OUTSIDE the quantification it is the floor for
+      // (#627's lesson, applied here by #649). barEnds already refuses a
+      // gradient it cannot read, so this is the second line rather than the
+      // first: it is what still fails if that reader is ever softened back to a
+      // `?? []`. "Both ends" is in this case's own name, so asserting there are
+      // two of them is the case restating its own claim, not a spare assertion.
+      expect(ends.length, `${theme}: no topbar ends — this case would stand the on-fill off nothing`).toBe(2);
+      for (const [name, bed] of ends) {
         expect(contrastRatio(over(fill, bed), bed), `${theme} on-fill vs ${name}`)
           .toBeGreaterThanOrEqual(NON_TEXT);
       }
@@ -533,7 +561,10 @@ describe("the machine meter's open state (#507)", () => {
   it("stands 3:1 or better off the bare bar, at both ends, in both themes", () => {
     for (const theme of themes) {
       const ring = resolve(ringColourOf(bodyOf(METER_OPEN))!, theme);
-      for (const [name, bed] of barEnds(theme)) {
+      const ends = barEnds(theme);
+      // The same floor, for the same reason, on the meter's two bar sweeps.
+      expect(ends.length, `${theme}: no topbar ends — this case would stand the open ring off nothing`).toBe(2);
+      for (const [name, bed] of ends) {
         expect(contrastRatio(over(ring, bed), bed), `${theme} open ring vs ${name}`)
           .toBeGreaterThanOrEqual(NON_TEXT);
       }
@@ -547,7 +578,9 @@ describe("the machine meter's open state (#507)", () => {
     for (const theme of themes) {
       const ring = resolve(ringColourOf(bodyOf(METER_OPEN))!, theme);
       const wash = resolve(declIn(bodyOf(METER_HOVER), "background")!, theme);
-      for (const [name, bed] of barEnds(theme)) {
+      const ends = barEnds(theme);
+      expect(ends.length, `${theme}: no topbar ends — the hover wash would be composited over nothing`).toBe(2);
+      for (const [name, bed] of ends) {
         expect(contrastRatio(ring, over(wash, bed)), `${theme} open ring on the hover wash over ${name}`)
           .toBeGreaterThanOrEqual(NON_TEXT);
       }
