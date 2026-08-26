@@ -414,19 +414,45 @@ describe("fillGapsWithNewSessions — reuse the space finished sessions left", (
   });
 
   it("moves a multi-card session as one block", () => {
+    // The landing position used to be asserted as `toBeLessThan(5000)` — and
+    // 5000 is the y this fixture seeds `n1` at, three lines above. So the only
+    // claim being made was "it moved up by at least one pixel", and all 4,733
+    // wrong answers between the gap and the seed passed. The block belongs in
+    // the band vacated between `a` and `c`, so that is what is pinned now,
+    // derived from the fixture's geometry rather than copied out of it.
+    const aY = 0, cY = PITCH * 4, farBelow = 5000, INSET = 320, DROP = 40;
     const nodes = [agent("a", "sa"), agent("n1", "snew"), agent("n2", "snew"), agent("c", "sc")];
     const measured = sizes(["a", "n1", "n2", "c"]);
     const positions = new Map([
-      ["a",  { x: 0, y: 0 }],
-      ["c",  { x: 0, y: PITCH * 4 }],
-      ["n1", { x: 0,   y: 5000 }],
-      ["n2", { x: 320, y: 5040 }],    // offset from n1 within its own session
+      ["a",  { x: 0, y: aY }],
+      ["c",  { x: 0, y: cY }],
+      ["n1", { x: 0,     y: farBelow }],
+      ["n2", { x: INSET, y: farBelow + DROP }],   // offset from n1 within its own session
     ]);
-    fillGapsWithNewSessions(nodes, positions, new Map(), measured, new Set(["n1", "n2"]));
+    const moved =
+      fillGapsWithNewSessions(nodes, positions, new Map(), measured, new Set(["n1", "n2"]));
+    expect(moved).toEqual(["snew"]);
+
+    const n1 = positions.get("n1")!, n2 = positions.get("n2")!;
     // The pair keeps its internal offset exactly.
-    expect(positions.get("n2")!.x - positions.get("n1")!.x).toBe(320);
-    expect(positions.get("n2")!.y - positions.get("n1")!.y).toBe(40);
-    expect(positions.get("n1")!.y).toBeLessThan(5000);
+    expect(n2.x - n1.x).toBe(INSET);
+    expect(n2.y - n1.y).toBe(DROP);
+
+    // The check every sibling here makes, and this one did not: no two cards
+    // share canvas area. Asserted before the coordinates so that a block
+    // dropped onto a neighbour is reported as the overlap it is.
+    expect(overlaps(
+      nodes.map(n => ({ ...n, position: positions.get(n.id)! })), measured,
+    )).toEqual([]);
+
+    // The gap runs from the first slot clear of `a`'s cluster box down to the
+    // top of `c`'s, in `a`'s column. The whole block has to be inside it —
+    // `n2` included, since the placement is computed from `n1`.
+    const gapTop = aY + H + CHROME + GAP;
+    const gapBottom = cY - CHROME - GAP;
+    expect(n1.x).toBe(positions.get("a")!.x);
+    expect(n1.y).toBe(gapTop);
+    expect(n2.y + H).toBeLessThanOrEqual(gapBottom);
   });
 
   it("leaves a subagent beside the parent that spawned it", () => {
