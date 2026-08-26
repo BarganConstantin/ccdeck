@@ -2179,6 +2179,109 @@ function send(res, status, body, headers = {}) {
   res.end(typeof body === "string" ? body : JSON.stringify(body));
 }
 
+/**
+ * Serialize one envelope, or a stub standing in for it.
+ *
+ * `JSON.stringify` throws on more than size. V8 walks a value recursively, so a
+ * payload nested about five thousand deep overflows the C++ stack and comes
+ * back as `RangeError: Maximum call stack size exceeded` — and a 36 KB POST to
+ * the open ingest route is enough to put one of those in the ring, measured on
+ * Node 22.14. Letting that throw escape would truncate the array mid-write and
+ * leave every later read of that ring answering with invalid JSON for as long
+ * as the event survives, which is a 36 KB way to poison a route permanently.
+ *
+ * So the envelope is replaced rather than dropped, and it keeps its `seq`: a
+ * caller paging with `?since=` still walks past it, instead of asking again for
+ * a hole it can never be given — the same bargain resumeSse makes about the
+ * events it cannot deliver. The reason is written to stderr and not to the
+ * wire, under the rule sendInternalError explains: this body is readable by a
+ * DNS-rebound page and error detail is not.
+ */
+function envelopeJson(evt) {
+  try {
+    // `JSON.stringify(undefined)` is undefined, not a string, and inside an
+    // array literal that would be the text "undefined" — which is not JSON.
+    // `JSON.stringify([undefined])` says "null"; so does this.
+    return JSON.stringify(evt) ?? "null";
+  } catch (err) {
+    console.error(`${PRODUCT}: event ${evt?.seq} could not be serialized:`, err);
+    // Every field here is read defensively and typed to a primitive, because
+    // this is the path that must not throw twice: the status line has gone out
+    // and a second failure would leave the caller a truncated array.
+    return JSON.stringify({
+      seq: Number(evt?.seq) || 0,
+      epoch: typeof evt?.epoch === "string" ? evt.epoch : SEQ_EPOCH,
+      receivedAt: Number(evt?.receivedAt) || 0,
+      source: typeof evt?.source === "string" ? evt.source : "unknown",
+      payload: null,
+      unserializable: true,
+    });
+  }
+}
+
+/**
+ * Answer with a JSON array without ever holding it as one string.
+ *
+ * `send` finishes a response by handing the whole body to a single
+ * `JSON.stringify`, which for every other route is a few hundred bytes and for
+ * `GET /api/events` is the entire ring buffer. V8 will not build a string
+ * longer than `2^29 - 24` characters, so past 536,870,888 characters of
+ * serialised envelopes that call throws `RangeError: Invalid string length`
+ * straight out of the request listener — and there, as requestUrl and `guard`
+ * both say in their own words, nothing catches it and the worker exits.
+ * Measured on Node 22.14 / macOS: 112 posts of 4,900,061 characters, which
+ * `POST /api/event` accepts from anyone with no credential at all, then one
+ * plain unauthenticated GET, and the deck was gone — SSE stream, hook ingest
+ * and event log with it. 112 events is a twentieth of MAX_BUFFER, so this is
+ * not an exotic ring: a deck watching sessions whose Read and Bash responses
+ * are "routinely a good fraction of" the five-million-character ingest cap
+ * reaches it on its own at an average of 268 KB an event.
+ *
+ * Writing the array element by element removes the ceiling rather than raising
+ * it. One envelope's worth of string exists at a time, so the limit applies per
+ * envelope — and ingest caps an envelope at a hundredth of it — and the peak
+ * cost is the ring plus one event instead of the ring plus a contiguous copy of
+ * itself, which is the quieter half of the same bug: a 400 MB ring used to need
+ * 800 MB and a synchronous stall on a route that feels free on a quiet deck.
+ * This is the shape resumeSse already uses for the SSE replay, for the same
+ * reason, and it borrows the same writeResume, so a caller that stops reading
+ * is held at MAX_CLIENT_BUFFER_BYTES here too rather than having the whole ring
+ * queued in userland on its behalf.
+ *
+ * `items` must be a snapshot the caller owns — eventsSince returns one, `filter`
+ * always allocating — because each await lets pushEvent splice the head off the
+ * live ring, and iterating that while it is spliced skips entries.
+ *
+ * No Content-Length: it is not knowable without building the string this exists
+ * to avoid, so the answer is chunked. HTTP/1.1 requires nothing more and every
+ * consumer reads to EOF.
+ *
+ * Exported so the one property that matters can be asserted directly, on a stub
+ * rather than through a socket — the same reason queuedBytes is. "Never builds
+ * the whole array as one string" is invisible from outside a real response,
+ * which is how it went unnoticed here for as long as it did.
+ */
+export async function writeJsonArray(res, items) {
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  let frame = "[";
+  for (const item of items) {
+    if (res.destroyed) return;
+    if (!await writeResume(res, frame + envelopeJson(item))) {
+      // Stalled past REPLAY_DRAIN_MS with the cap full. Nothing useful can be
+      // said in-band — the status line went out long ago and the array is half
+      // written — so hang up, exactly as the replay does.
+      try { res.destroy(); } catch {}
+      return;
+    }
+    frame = ",";
+  }
+  if (res.destroyed) return;
+  res.end(frame === "[" ? "[]" : "]");
+}
+
 async function serveStatic(req, res, url) {
   // Strip leading slash, default to index.html
   let rel = url.pathname.replace(/^\/+/, "");
@@ -3311,7 +3414,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // background quota poll hit a network error. Answer the request instead.
   const guard = (p, res) => Promise.resolve(p).catch(err => sendInternalError(res, err));
 
-  const server = createServer((req, res) => {
+  const route = (req, res) => {
     const url = requestUrl(req.url);
     // Unparseable request target. Nothing below can route it, and throwing here
     // would be an uncaughtException inside the listener — i.e. the whole deck.
@@ -3380,8 +3483,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
 
+    // Through writeJsonArray rather than `send`, and through `guard` like every
+    // route above it: this is the one answer whose size is the ring's size, and
+    // `send` would build all of it as a single string. See writeJsonArray.
     if (req.method === "GET" && url.pathname === "/api/events") {
-      return send(res, 200, eventsSince(url.searchParams.get("since") ?? 0));
+      return guard(writeJsonArray(res, eventsSince(url.searchParams.get("since") ?? 0)), res);
     }
 
     // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
@@ -3419,6 +3525,29 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
 
     if (req.method === "GET") return serveStatic(req, res, url);
     send(res, 405, { error: "method not allowed" });
+  };
+
+  // `guard` covers the routes dispatched as promises. This covers the rest of
+  // them — and, more to the point, covers a route added later by someone who
+  // did not think to reach for `guard` because their handler looked
+  // synchronous and cheap. That was the whole of #626: `GET /api/events` read
+  // as a one-liner, and it was a one-liner that ended the process, because a
+  // synchronous throw inside the listener is an uncaughtException and Node's
+  // answer to those is to exit. `/api/system` and `/api/clear` are called the
+  // same bare way and are covered here for free.
+  //
+  // Deliberately the last line of defence and not the first: a 500 with the
+  // detail on stderr is a worse answer than a handler that knew what went
+  // wrong, and much better than a dead deck. sendInternalError already knows
+  // to keep the detail off the wire and to do nothing but end the response
+  // when the headers have gone out — which is the case that matters for a
+  // streamed answer, where the throw can arrive after the status line.
+  const server = createServer((req, res) => {
+    try {
+      route(req, res);
+    } catch (err) {
+      sendInternalError(res, err);
+    }
   });
 
   // Try requested port first, then up to 10 random ports from portRange.
