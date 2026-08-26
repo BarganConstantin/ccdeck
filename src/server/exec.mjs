@@ -63,8 +63,9 @@ export const isBatch = (file, platform = process.platform) =>
  * Mirrors what Node does internally for `shell: true` on Windows — comspec,
  * /d /s /c, the whole command line as a single quoted argument, and
  * windowsVerbatimArguments so Node does not quote it a second time. Each
- * argument is quoted here, with embedded quotes doubled, which is the escape
- * cmd.exe understands inside a quoted string.
+ * argument is quoted by shellQuoteArg below, which has to satisfy cmd.exe AND
+ * the argv parser of whatever it launches — see the note there, and #624 for
+ * the half of that rule this file was missing until a real cmd.exe was asked.
  */
 export function viaCmd(file, args) {
   const line = [file, ...args].map(a => shellQuoteArg(a, "win32")).join(" ");
