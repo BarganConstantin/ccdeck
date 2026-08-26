@@ -2,6 +2,9 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { billedInputTokens, cacheWriteBreakdown, costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL } from "../pricing";
+// Tokens are priced at the model that produced them. See usage-models.ts for
+// what the last-wins multiplication this replaces was measured to cost (#686).
+import { agentCost, agentUnpricedTokens, otherModelIds, usageByModelEntries, type UsageBearing } from "../usage-models";
 import { codexApprovalTell } from "../codex-approval";
 // The chip's labeller, which used to be declared in this file and moved out in
 // #462 so that a pure matcher and a bare-node suite could reach it without a
@@ -71,6 +74,27 @@ export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefi
     `total                                 = ${fmtCost(c.total)}`,
   ].join("\n");
 }
+
+/** The same tooltip for a whole agent, one section per model its tokens came
+ *  from (#686).
+ *
+ *  One section is the common case and renders byte-identically to what this card
+ *  has always shown — a session on one model has one rate card, and a footer
+ *  under a single block would be arithmetic about nothing. Two or more sections
+ *  earn the footer, because that line is the only place on the card where the
+ *  figure in the chip can be checked by hand: neither block's own total is it,
+ *  and without the footer a reader has no way to see that the two were added
+ *  rather than one of them chosen — which is precisely the mistake this whole
+ *  change is about. */
+export function agentCostTooltip(a: UsageBearing): string {
+  const entries = usageByModelEntries(a);
+  if (entries.length <= 1) return costBreakdownTooltip(a.usage, a.model);
+  return [
+    ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
+    `═════════════════════════════════════════`,
+    `all models                            = ${fmtCost(agentCost(a).total)}`,
+  ].join("\n");
+}
 import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
 
 export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & { now: number; onOpenContext?: (sessionId: string) => void }>) {
@@ -96,6 +120,18 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
   const cardTooltip = data.sessionTitle
     ? (data.cwd ? `${data.cwd}\n${data.sessionTitle}` : data.sessionTitle)
     : data.cwd;
+  // What the model chip says when this session's money came from more than one
+  // model (#686). The chip keeps naming the CURRENT model, because that is the
+  // question it has always answered and the only one that is about what happens
+  // next — `/model` changes what the next turn runs on, not what the last twenty
+  // ran on. What it could not say before is that the dollars beside it are not
+  // all that model's: `+1` says so on the face of the card, and the tooltip
+  // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
+  // to conclude the deck priced a million Opus tokens at Sonnet's rate.
+  const otherModels = otherModelIds(data);
+  const modelChipTitle = otherModels.length > 0
+    ? `${data.model}\nspend on this card also covers:\n${otherModels.join("\n")}`
+    : data.model;
   // Two strings for the name row, chosen once. `face` is the name when the
   // session has one and the sentence when it does not, which is the common
   // case rather than the fallback: 0.2% of the transcripts on this machine
@@ -154,7 +190,9 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
             of the commonest deck. A "codex" stamp is only ever set from a rollout
             this deck actually read. */}
         {data.model
-          ? <span className="model-chip" title={data.model}>{shortModel(data.model)}</span>
+          ? <span className="model-chip" title={modelChipTitle}>
+              {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
+            </span>
           : data.provider === "codex"
             ? <span className="model-chip" title="OpenAI Codex — no model reported yet">Codex</span>
             : null}
@@ -245,22 +283,32 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
           // be unpriced about, and would otherwise carry this the whole time it
           // was starting up.
           const rates = ratesForModel(data.model);
-          if (!rates) {
+          const c = agentCost(data);
+          // The two questions this branch asks have come apart (#686). `rates`
+          // is about the model the card is ON — the one in the chip, the one the
+          // next turn will use. `c.total` is about money already spent, which can
+          // be real on a card whose current model has no published rate, and
+          // zero on a card whose current model has one. So the marker is for the
+          // agent with no priced spend AT ALL; an agent with some gets its
+          // figure, and the `+` beside it says the figure is a floor because
+          // some of its tokens reached no rate card — the same thing the "+" on
+          // the usage panel's session rows has always meant.
+          const unpricedTok = agentUnpricedTokens(data);
+          if (!rates && c.total <= 0) {
             if ((data.usage.inputTokens + data.usage.outputTokens) <= 0) return null;
             return (
-              <span className="cost-unpriced" title={costBreakdownTooltip(data.usage, data.model)}>
+              <span className="cost-unpriced" title={agentCostTooltip(data)}>
                 {UNPRICED_LABEL}
               </span>
             );
           }
-          const c = costForUsage(data.usage, data.model);
           if (c.total <= 0) return null;
           const elapsedSec = Math.max(0, ((data.endedAt ?? now) - data.startedAt) / 1000);
           const rate = data.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
-          const tt = costBreakdownTooltip(data.usage, data.model) + (rate ? `\nburn: ${rate}` : "");
+          const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
           return (
             <span className="cost-meta" title={tt}>
-              <b>{fmtCost(c.total)}</b>
+              <b>{fmtCost(c.total)}{unpricedTok > 0 ? "+" : ""}</b>
               {rate && <span className="cost-rate">{rate}</span>}
             </span>
           );

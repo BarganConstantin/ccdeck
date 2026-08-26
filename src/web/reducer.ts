@@ -28,6 +28,44 @@ function cacheTtlSplit(
   };
 }
 
+/** One wire usage object — the server's snake_case shape — as a `TokenUsage`.
+ *
+ *  Both spellings of the cache lines, for the reason the flat read in
+ *  `UsageObserved` spells out: Codex writes `cached_input_tokens` and
+ *  `cache_write_input_tokens`, Claude writes `cache_read_input_tokens` and
+ *  `cache_creation_input_tokens`, and this has to read whichever provider's
+ *  reader produced it. Written once here so the per-model buckets cannot come
+ *  to disagree with the total they were split out of (#686). */
+function usageFromWire(u: Record<string, unknown>): TokenUsage {
+  const ttl = cacheTtlSplit(u);
+  const out: TokenUsage = {
+    inputTokens: Number(u.input_tokens ?? 0),
+    outputTokens: Number(u.output_tokens ?? 0),
+    cacheReadTokens: Number(u.cache_read_input_tokens ?? u.cached_input_tokens ?? 0),
+    cacheCreateTokens: Number(u.cache_creation_input_tokens ?? u.cache_write_input_tokens ?? 0),
+    cacheCreate1hTokens: ttl.cacheCreate1hTokens,
+    cacheCreate5mTokens: ttl.cacheCreate5mTokens,
+  };
+  if (typeof u.reasoning_output_tokens === "number") {
+    out.reasoningOutputTokens = Number(u.reasoning_output_tokens);
+  }
+  return out;
+}
+
+/** `UsageObserved`'s `usageByModel` as the reducer stores it, or undefined when
+ *  the event carries none. An empty map is undefined too: "the scan attributed
+ *  nothing" and "there is no split" are the same instruction to every reader,
+ *  which is to price the flat total at the agent's own model. */
+function usageByModelFromWire(raw: unknown): Record<string, TokenUsage> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, TokenUsage> = {};
+  for (const [model, u] of Object.entries(raw as Record<string, unknown>)) {
+    if (!model || !u || typeof u !== "object") continue;
+    out[model] = usageFromWire(u as Record<string, unknown>);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** Recursively look for a `usage` object with numeric token fields in any
  *  shape Anthropic / CC might deliver (top-level, nested under message, etc.).
  */
@@ -1512,6 +1550,19 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
         if (typeof u.reasoning_output_tokens === "number") {
           root.usage.reasoningOutputTokens = Number(u.reasoning_output_tokens);
         }
+        // The same totals, split by the model that produced them (#686). The
+        // flat bucket above answers "how many tokens"; this answers "at whose
+        // rate", and until this landed the second question was answered with
+        // `root.model` — the LAST model seen — so a session that switched had
+        // its whole history re-priced at whichever model wrote its final line.
+        //
+        // Assigned unconditionally, null included, for exactly the reason the
+        // TTL split two lines up is: both are cumulative descriptions of the
+        // whole file, so a pass that carries no split is saying there is none,
+        // not that the previous one still stands. An `undefined` map sends every
+        // cost surface back to the single-model arithmetic, which is what a
+        // Codex session and a pre-#686 server both need.
+        root.usageByModel = usageByModelFromWire(p.usageByModel);
       }
     }
     return state;

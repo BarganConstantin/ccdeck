@@ -13,7 +13,8 @@
 // section says so instead of printing five zeroes (#399).
 import React, { useRef } from "react";
 import type { AgentNodeData, Provider } from "../types";
-import { fmtCost, costForUsage, effectiveContextWindow } from "../pricing";
+import { fmtCost, effectiveContextWindow } from "../pricing";
+import { agentCost } from "../usage-models";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
@@ -117,7 +118,10 @@ export default function ContextModal({ agent, onClose }: Props) {
   const current = ctx?.currentContextTokens ?? 0;
   const window = effectiveContextWindow(agent.contextWindow, agent.model);
   const pct = Math.min(100, (current / window) * 100);
-  const cost = costForUsage(usage, agent.model);
+  // Per model, not at `agent.model` — this panel prints a cumulative token
+  // count for the whole session, and a session that switched model has that
+  // count spread over two rate cards (#686).
+  const cost = agentCost(agent);
   const cumulative = usage.inputTokens + usage.cacheReadTokens + usage.cacheCreateTokens;
   // Which CLI's memory file, and which of this panel's sections are answerable
   // at all. The two ecosystems fill this modal from different sources and one of

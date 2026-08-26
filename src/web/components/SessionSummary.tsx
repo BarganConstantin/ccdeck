@@ -5,6 +5,7 @@
 import React, { useMemo, useRef } from "react";
 import { costForUsage, fmtCost } from "../pricing";
 import { SESSION_SPEND_LABEL } from "../board-usage";
+import { agentCost, agentModelIds } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import { shortModel } from "../model-label";
@@ -158,12 +159,19 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
   let latestEnd = 0;
 
   for (const a of sessionAgents) {
-    const c = costForUsage(a.usage, a.model);
+    const c = agentCost(a);
     cost.input += c.input;
     cost.output += c.output;
     cost.cacheRead += c.cacheRead;
     cost.cacheWrite += c.cacheWrite;
     cost.total += c.total;
+    // Every model this agent actually SPENT on, not the one model it was last
+    // seen on. The principle three lines up — "root + subagents can use
+    // different models, so sum the per-agent computations" — was right and
+    // applied one level too high: within a single agent the model was treated
+    // as a constant it is not, so a session that ran on Opus and finished on
+    // Sonnet drew one Sonnet chip over a total priced entirely at Sonnet (#686).
+    for (const m of agentModelIds(a)) modelSet.add(m);
     if (a.model) modelSet.add(a.model);
     if (a.kind === "subagent") subagentCount++;
     promptCount += a.prompts.length;

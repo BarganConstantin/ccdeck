@@ -225,9 +225,34 @@ export interface AgentNodeData {
   /** Number of direct subagents spawned by this agent. */
   childCount: number;
   usage: TokenUsage;
+  /** The same tokens, split by the model that produced them (#686).
+   *
+   *  `usage` above is a cumulative total for the whole transcript and `model`
+   *  below is the LAST model observed, so multiplying one by the other prices
+   *  a session's entire history at whichever model happened to write its final
+   *  line. That is not a rounding error: a mostly-Opus session that ends on
+   *  Sonnet reads 60% under, and its mirror reads 150% over, with the sign of
+   *  the mistake decided by the last line of the file.
+   *
+   *  Present on the session ROOT, from the transcript scan that carries the
+   *  totals; absent on subagents, on Codex sessions (the rollout reports one
+   *  running total and no per-model split), and on any session whose server is
+   *  older than this field. Everything that needs dollars goes through
+   *  `usage-models.ts` rather than reading this directly, so all three of those
+   *  cases land on the single-model arithmetic the deck has always done.
+   *
+   *  The buckets do NOT have to sum to `usage` — usage added by a path the scan
+   *  does not see (a `Task` result's tokens folded into its owner) lands in the
+   *  flat total alone. `usageByModelEntries` prices that remainder at `model`,
+   *  so no token is ever counted twice and none loses its dollars. */
+  usageByModel?: Record<string, TokenUsage>;
   /** Model id observed in this agent's hook payloads. Claude: e.g.
    *  "claude-opus-4-7-20250101". Codex: e.g. "gpt-5.3-codex". Surfaces on
-   *  the card as a short label ("Opus 4.7", "GPT-5.3"). */
+   *  the card as a short label ("Opus 4.7", "GPT-5.3").
+   *
+   *  The model this agent is on NOW, not the model its history was spent on —
+   *  see `usageByModel` above for why the two are different questions and why
+   *  no cost surface may answer the second with this. */
   model?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
@@ -415,5 +440,11 @@ export interface HookPayload {
    *  arriving as its own event because it is measured by the same record at the
    *  same instant as the usage totals beside it (#399). */
   context_tokens?: number;
+  /** Claude-only, on the synthetic `UsageObserved`: the transcript's totals
+   *  broken out by the model that produced them, in the same snake_case shape
+   *  as `usage` beside it. Null when the scan attributed nothing, and null
+   *  CLEARS whatever the root already held — both fields are cumulative, so a
+   *  pass that saw no split must not leave an old one standing (#686). */
+  usageByModel?: Record<string, Record<string, unknown>> | null;
   [key: string]: any;
 }

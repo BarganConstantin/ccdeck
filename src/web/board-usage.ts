@@ -48,14 +48,21 @@
 // covers sessions this deck never watched, and does not forget. A canvas-scoped
 // number beside an authoritative one is useful; two competing totals are not.
 // So the board figure says it is the board's, and points at the durable one.
-import { costForUsage, type CostBreakdown } from "./pricing";
-import type { TokenUsage } from "./types";
+import { type CostBreakdown } from "./pricing";
+// Tokens are priced at the model that produced them, not at the last model the
+// agent was seen on (#686). This module is the seventh surface that multiplied
+// one by the other, and the reason it is the seventh rather than a survivor is
+// that it was written to be the ONE place the board arithmetic lives — so it is
+// also the one place the board arithmetic can be wrong.
+import { agentCost, type UsageBearing } from "./usage-models";
 
-/** Anything the deck can price: an agent, or a test's stand-in for one. */
-export interface Billable {
-  usage: TokenUsage;
-  model?: string;
-}
+/** Anything the deck can price: an agent, or a test's stand-in for one.
+ *
+ *  `UsageBearing` rather than `{usage, model}`, because those two fields are no
+ *  longer enough to price anything: a session that switched model carries its
+ *  split beside them, and a `Billable` that could not hold one would quietly
+ *  send every mixed session back to last-wins on this surface alone. */
+export type Billable = UsageBearing;
 
 /** Every token and every dollar on the board right now, in one pass. */
 export interface BoardTotals {
@@ -91,7 +98,7 @@ export function boardTotals(agents: Iterable<Billable>): BoardTotals {
   const cost: CostBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
   let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreateTokens = 0;
   for (const a of agents) {
-    const c = costForUsage(a.usage, a.model);
+    const c = agentCost(a);
     cost.input += c.input;
     cost.output += c.output;
     cost.cacheRead += c.cacheRead;

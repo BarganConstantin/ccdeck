@@ -6,8 +6,12 @@
 // are the two ways out.
 import React, { useMemo } from "react";
 import { isAlarming } from "../ambient-counts";
-import { costForUsage, fmtCost } from "../pricing";
+import { fmtCost } from "../pricing";
 import { SESSION_SPEND_LABEL } from "../board-usage";
+// Per-model pricing. A session that switched model has tokens from two rate
+// cards in one bucket, and the row used to bill the lot at whichever model the
+// session was last seen on — see usage-models.ts (#686).
+import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { WaitingBlock } from "../types";
 import { shortModel } from "../model-label";
@@ -54,13 +58,13 @@ export function buildRows(state: GraphState, now: number): Row[] {
     // `toolCount`, not `tools.length` — the reducer keeps only a bounded
     // window of recent calls, but the counter tracks every call ever made.
     let toolCount = a.toolCount;
-    let cost = costForUsage(a.usage, a.model).total;
+    let cost = agentCost(a).total;
     let lastActivity = a.endedAt ?? a.startedAt;
     // Roll up subagents' tools + costs + activity into the row.
     for (const sub of state.agents.values()) {
       if (sub.sessionId !== a.sessionId || sub.kind === "root") continue;
       toolCount += sub.toolCount;
-      cost += costForUsage(sub.usage, sub.model).total;
+      cost += agentCost(sub).total;
       const t = sub.endedAt ?? sub.startedAt;
       if (t > lastActivity) lastActivity = t;
     }
