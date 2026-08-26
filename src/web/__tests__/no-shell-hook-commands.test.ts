@@ -52,7 +52,7 @@
 // `--provider claude` into the path. See shellQuoteArg in src/server/exec.mjs.
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { throughCmd } from "./windows-command-line";
+import { parseWindowsArgv, throughCmd } from "./windows-command-line";
 // @ts-expect-error — plain JS module, no types
 import { shellQuoteArg } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -194,6 +194,29 @@ describe("shellQuoteArg against a real cmd.exe", () => {
     // is red there rather than green everywhere.
     const { authority } = throughCmd(shellQuoteArg("plain", "win32"));
     expect(authority).toBe(posix ? "model" : "cmd.exe");
+  });
+
+  it("parses the rows Microsoft's own table says it should", () => {
+    // The model answers for Linux and macOS, so "the model is right" cannot
+    // rest on the Windows leg alone — that leg is where it is checked against
+    // reality, and this is where it is checked against a THIRD party on every
+    // leg. These five rows are the worked examples in Microsoft's "Parsing C++
+    // command-line arguments", which documents the parser node inherits. They
+    // were not derived from this repo and they are the reason the backslash
+    // rule is spelled the way it is.
+    //
+    // A dummy program token in front of each, because argv[0] is parsed by
+    // different rules than the arguments and is not what is being checked.
+    const rows: [string, string[]][] = [
+      ['"a b c" d e', ["a b c", "d", "e"]],
+      ['"ab\\"c" "\\\\" d', ['ab"c', "\\", "d"]],
+      ['a\\\\\\b d"e f"g h', ["a\\\\\\b", "de fg", "h"]],
+      ['a\\\\\\"b c d', ['a\\"b', "c", "d"]],
+      ['a\\\\\\\\"b c" d e', ["a\\\\b c", "d", "e"]],
+    ];
+    for (const [line, want] of rows) {
+      expect(parseWindowsArgv(`prog ${line}`).slice(1), line).toEqual(want);
+    }
   });
 
   it("hands the child every argument byte for byte, whatever it contains", () => {
