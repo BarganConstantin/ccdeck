@@ -55,6 +55,7 @@ import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
+import { boardTotals, BOARD_COST_LABEL, BOARD_SCOPE_TITLE, BOARD_TOKENS_LABEL } from "./board-usage";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
@@ -2602,23 +2603,17 @@ function Inner() {
   useEffect(() => {
     setBlockedSaid(said => nextAnnouncement(said, blockedNow));
   }, [blockedNow]);
-  const totalTokens = useMemo(() => {
-    let inT = 0, outT = 0, cacheR = 0, cacheC = 0;
-    let costSum = 0, costInput = 0, costOutput = 0, costCacheR = 0, costCacheW = 0;
-    for (const a of stateRef.current.agents.values()) {
-      inT += a.usage.inputTokens;
-      outT += a.usage.outputTokens;
-      cacheR += a.usage.cacheReadTokens;
-      cacheC += a.usage.cacheCreateTokens;
-      const c = costForUsage(a.usage, a.model);
-      costSum += c.total;
-      costInput += c.input;
-      costOutput += c.output;
-      costCacheR += c.cacheRead;
-      costCacheW += c.cacheWrite;
-    }
-    return { inT, outT, cacheR, cacheC, sum: inT + outT, cost: { total: costSum, input: costInput, output: costOutput, cacheRead: costCacheR, cacheWrite: costCacheW } };
-  }, [stateRef.current, stateRef.current.revision]);
+  // The two chips at the end of the topbar strip, and the one place their
+  // arithmetic lives (#687). This used to be an accumulator written out here
+  // and a second copy of it inside UsagePanel's memo; both walked the same map
+  // and neither had anything checking it against the other. What they compute
+  // is a BOARD figure — the agents on the canvas at this instant, which the
+  // 250ms tick's two pruners shrink — so it is named for that, and the labels
+  // the chips print come out of the same module as the sum.
+  const totalTokens = useMemo(
+    () => boardTotals(stateRef.current.agents.values()),
+    [stateRef.current, stateRef.current.revision],
+  );
 
   return (
     <div className="app">
@@ -2812,9 +2807,17 @@ function Inner() {
                 two CPU samples, so it never occupies the row with a number it
                 has not measured. */}
             <SystemMeter usageOpen={usagePanelOpen} />
+            {/* Both chips say whose tokens and whose dollars these are (#687).
+                They are sums over the agents on the canvas, and the canvas
+                evicts finished work on a timer, so an unqualified "tokens" and
+                an unqualified "cost" were reporting a figure that falls with
+                nothing on screen to account for it. The word is one word
+                because this strip is a fixed row four readouts share; the
+                sentence that explains the fall, and names the surface that does
+                not forget, is on the tooltip both of them now carry. */}
             {totalTokens.sum > 0 && (
-              <span className="stat" title={`in:${totalTokens.inT.toLocaleString()}  out:${totalTokens.outT.toLocaleString()}  cache-r:${totalTokens.cacheR.toLocaleString()}  cache-c:${totalTokens.cacheC.toLocaleString()}`}>
-                <span className="count">{fmtTokens(totalTokens.sum)}</span><span className="lbl">tokens</span>
+              <span className="stat" title={`in:${totalTokens.inputTokens.toLocaleString()}  out:${totalTokens.outputTokens.toLocaleString()}  cache-r:${totalTokens.cacheReadTokens.toLocaleString()}  cache-c:${totalTokens.cacheCreateTokens.toLocaleString()}\n\n${BOARD_SCOPE_TITLE}`}>
+                <span className="count">{fmtTokens(totalTokens.sum)}</span><span className="lbl">{BOARD_TOKENS_LABEL}</span>
               </span>
             )}
             {totalTokens.cost.total > 0 && (() => {
@@ -2829,11 +2832,11 @@ function Inner() {
                 liveSec = Math.max(liveSec, ((a.endedAt ?? now) - a.startedAt) / 1000);
               }
               const rate = liveSec > 0 ? fmtCostRate(liveCost, liveSec) : null;
-              const tt = `input ${fmtCost(totalTokens.cost.input)} + output ${fmtCost(totalTokens.cost.output)} + cache r ${fmtCost(totalTokens.cost.cacheRead)} + cache w ${fmtCost(totalTokens.cost.cacheWrite)}${rate ? `\nactive burn: ${rate}` : ""}`;
+              const tt = `input ${fmtCost(totalTokens.cost.input)} + output ${fmtCost(totalTokens.cost.output)} + cache r ${fmtCost(totalTokens.cost.cacheRead)} + cache w ${fmtCost(totalTokens.cost.cacheWrite)}${rate ? `\nactive burn: ${rate}` : ""}\n\n${BOARD_SCOPE_TITLE}`;
               return (
                 <span className="stat" title={tt}>
                   <span className="count">{fmtCost(totalTokens.cost.total)}</span>
-                  <span className="lbl">cost{rate ? ` · ${rate}` : ""}</span>
+                  <span className="lbl">{BOARD_COST_LABEL}{rate ? ` · ${rate}` : ""}</span>
                 </span>
               );
             })()}

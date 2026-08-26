@@ -7,6 +7,7 @@
 import React, { useMemo } from "react";
 import { isAlarming } from "../ambient-counts";
 import { costForUsage, fmtCost } from "../pricing";
+import { SESSION_SPEND_LABEL } from "../board-usage";
 import type { GraphState } from "../reducer";
 import type { WaitingBlock } from "../types";
 import { shortModel } from "../model-label";
@@ -191,7 +192,15 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                 </div>
                 <div className="sl-row-meta">
                   <span title="tool calls"><b>{r.toolCount}</b> tools</span>
-                  {r.cost > 0 && <span className="sl-cost" title="total spend"><b>{fmtCost(r.cost)}</b></span>}
+                  {/* "session spend", not "total spend" (#687). The row sums
+                      the root and every subagent of this session that is still
+                      on the board, and `pruneOldAgents` takes finished
+                      subagents out from under a session that is still running
+                      once the map passes 200 — measured, a live root with 261
+                      agents lost 67.10M tokens out of its roll-up in one sweep.
+                      So "total" was a claim this figure cannot keep, and the
+                      scope it CAN claim is the session named beside it. */}
+                  {r.cost > 0 && <span className="sl-cost" title={SESSION_SPEND_LABEL}><b>{fmtCost(r.cost)}</b></span>}
                   {/* How long it has been stuck, in the slot the run time had.
                       On a blocked row that is the number worth the space: the
                       session's own age says nothing about whether to go look,
