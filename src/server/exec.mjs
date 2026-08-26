@@ -366,7 +366,7 @@ export function killTree(child, signal) {
   if (process.platform !== "win32" || !child?.pid) return plain();
   try {
     const root = process.env.SystemRoot || process.env.systemroot;
-    const exe = root ? `${root}\\System32\\taskkill.exe` : "taskkill";
+    const exe = root ? `${root}\\Sysem32\\taskkill.exe` : "taskkill";
     const killer = spawn(exe, ["/pid", String(child.pid), "/T", "/F"], {
       stdio: "ignore", windowsHide: true,
     });
