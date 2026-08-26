@@ -1,10 +1,19 @@
-// #444. `PostToolUse` is the only event in this reducer whose handler does
+// #444. `PostToolUse` WAS the only event in this reducer whose handler did
 // arithmetic, and it was the only one of the four re-delivery-prone events with
 // no guard against a second copy. `PreToolUse` refreshes a known id in place,
 // `UserPromptSubmit` declines to re-append a prompt it already has, `pushActive`
 // declines to re-push a key — and `PostToolUse` ran `addUsage(owner.usage, …)`,
 // a `+=`, once per delivery. The tool list stayed right (one entry, one status);
 // only the money moved.
+//
+// #685 removed the addition rather than guarding it: the value being added was
+// the subagent's LAST API turn, which the transcript pass already counts out of
+// that subagent's own file, so adding it here both double-counted those tokens
+// and under-reported the delegated bill by ~98%. Tokens now have one writer —
+// `UsageObserved`, which assigns — so the money assertions below moved onto
+// that writer and onto the tool record. Everything else this file pins is
+// unchanged and is still the reason the guard exists: `endedAt`, `ok`, the tool
+// counters, and the sweep's verdict being overturnable exactly once.
 //
 // That re-delivery is not hypothetical. Replaying this machine's real
 // events.jsonl + events.jsonl.1 (18,137 envelopes, a 22-hour window) finds 3,996
@@ -70,7 +79,7 @@ function fresh(): GraphState {
 
 /** The `tool_response` of a finished subagent call — the one shape that carries
  *  usage back through a tool result, and therefore the only one whose duplicate
- *  costs money. */
+ *  ever moved money. */
 function responseWithUsage() {
   return {
     content: "done",
@@ -85,13 +94,41 @@ function responseWithUsage() {
 
 const MODEL = "claude-opus-4-1-20250805";
 
+/** What a transcript pass ships for this session, cumulative and whole — the
+ *  root's turns plus everything under `subagents/` (#685). The one writer of
+ *  tokens, and the yardstick every money assertion in this file now uses. */
+const PASS_TOTALS = {
+  input_tokens: 4000, output_tokens: 900,
+  cache_read_input_tokens: 250_000, cache_creation_input_tokens: 6_000,
+  ephemeral_1h_input_tokens: 4_000, ephemeral_5m_input_tokens: 2_000,
+};
+
+function usagePass(sessionId: string): HookPayload {
+  return {
+    hook_event_name: "UsageObserved", session_id: sessionId, usage: PASS_TOTALS,
+  } as unknown as HookPayload;
+}
+
 function root(state: GraphState, sessionId: string) {
   const a = state.agents.get(sessionId);
   if (!a) throw new Error(`no root for ${sessionId}`);
   return a;
 }
 
-/** A session that has made one subagent call and not yet heard back. */
+/** The call this file keeps re-delivering, wherever the reducer drew it. With a
+ *  subagent live, `resolveOwner` attributes an unattributed call to it, which
+ *  is a question about the canvas rather than about the outcome. */
+function call(state: GraphState, sessionId: string, id: string) {
+  for (const a of state.agents.values()) {
+    if (a.sessionId !== sessionId) continue;
+    const t = a.tools.find(x => x.id === id);
+    if (t) return t;
+  }
+  throw new Error(`no call ${id} in ${sessionId}`);
+}
+
+/** A session that has made one subagent call and not yet heard back, with one
+ *  transcript pass already landed so there is a real bill to be stable about. */
 function sessionMidCall(sessionId: string, at: number): GraphState {
   let state = fresh();
   state = send(state, at, {
@@ -101,6 +138,7 @@ function sessionMidCall(sessionId: string, at: number): GraphState {
     hook_event_name: "PreToolUse", session_id: sessionId, model: MODEL,
     tool_name: "Task", tool_use_id: "tt", tool_input: { prompt: "go" },
   });
+  state = send(state, at + SEC, usagePass(sessionId));
   return state;
 }
 
@@ -115,10 +153,13 @@ describe("#444 — a second copy of one outcome is not a second outcome", () => 
     state = send(state, T0 + 2 * SEC, post);
     const after1 = { ...root(state, "sess-a").usage };
     const cost1 = costForUsage(after1, MODEL, T0).total;
-    expect(after1.inputTokens).toBe(100);
+    // The pass is what the session is billed for, and a Task coming back is not
+    // a transcript pass.
+    expect(after1.inputTokens).toBe(PASS_TOTALS.input_tokens);
     expect(cost1).toBeGreaterThan(0);
     expect(root(state, "sess-a").toolCount).toBe(1);
-    expect(root(state, "sess-a").tools[0].endedAt).toBe(T0 + 2 * SEC);
+    expect(call(state, "sess-a", "tt").endedAt).toBe(T0 + 2 * SEC);
+    expect(call(state, "sess-a", "tt").usage!.inputTokens).toBe(100);
 
     // Two more copies, each stamped by the deck that received it — milliseconds
     // apart, which is what the real fan-out looks like.
@@ -132,11 +173,11 @@ describe("#444 — a second copy of one outcome is not a second outcome", () => 
     expect(root(state, "sess-a").tools).toHaveLength(1);
     // The first copy's arrival is when the call ended. A later copy saying so
     // again does not make the call have run 55ms longer.
-    expect(root(state, "sess-a").tools[0].endedAt).toBe(T0 + 2 * SEC);
-    expect(root(state, "sess-a").tools[0].ok).toBe(true);
+    expect(call(state, "sess-a", "tt").endedAt).toBe(T0 + 2 * SEC);
+    expect(call(state, "sess-a", "tt").ok).toBe(true);
   });
 
-  it("still adds a genuinely different call's usage", () => {
+  it("still records a genuinely different call's own figures", () => {
     let state = sessionMidCall("sess-b", T0);
     state = send(state, T0 + 2 * SEC, {
       hook_event_name: "PostToolUse", session_id: "sess-b", model: MODEL,
@@ -152,8 +193,11 @@ describe("#444 — a second copy of one outcome is not a second outcome", () => 
     });
 
     // Idempotency is per call, not per payload shape: two real calls that each
-    // returned the same numbers really did spend twice.
-    expect(root(state, "sess-b").usage.inputTokens).toBe(200);
+    // returned the same numbers are two calls, each with its own record — and
+    // neither of them is the session's bill, which the pass alone states.
+    expect(call(state, "sess-b", "tt").usage!.inputTokens).toBe(100);
+    expect(call(state, "sess-b", "tt-2").usage!.inputTokens).toBe(100);
+    expect(root(state, "sess-b").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
     expect(root(state, "sess-b").toolCount).toBe(2);
   });
 
@@ -168,11 +212,13 @@ describe("#444 — a second copy of one outcome is not a second outcome", () => 
       tool_name: "Task", tool_use_id: "tt", tool_response: responseWithUsage(),
     });
 
-    const call = root(state, "sess-c").tools[0];
-    expect(call.ok).toBe(false);
-    expect(call.errorPreview).toContain("exit 1");
-    // And the copy that was refused did not pay either.
-    expect(root(state, "sess-c").usage.inputTokens).toBe(0);
+    const failed = call(state, "sess-c", "tt");
+    expect(failed.ok).toBe(false);
+    expect(failed.errorPreview).toContain("exit 1");
+    // And the copy that was refused wrote nothing at all: not the session's
+    // bill, and not the call's own figures either.
+    expect(failed.usage).toBeUndefined();
+    expect(root(state, "sess-c").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
   });
 
   it("still tells the session it is alive, because that is not part of the outcome", () => {
@@ -195,8 +241,9 @@ describe("#444 — a second copy of one outcome is not a second outcome", () => 
     expect(root(state, "sess-d").reaped).toBe(false);
     expect(root(state, "sess-d").state).toBe("active");
     expect(root(state, "sess-d").lastEventAt).toBe(reapAt + SEC);
-    // Alive, and still not billed twice.
-    expect(root(state, "sess-d").usage.inputTokens).toBe(100);
+    // Alive, and still billed at what the transcript says and nothing else.
+    expect(root(state, "sess-d").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
+    expect(call(state, "sess-d", "tt").endedAt).toBe(T0 + 2 * SEC);
   });
 });
 
@@ -210,12 +257,12 @@ describe("#444 — a LATE outcome is not a duplicate and still lands", () => {
     const sweptAt = T0 + SEC + STALE_SESSION_MS + MIN;
     expect(sweepStaleTools(state, sweptAt, STALE_SESSION_MS)).toBe(true);
 
-    const call = root(state, "sess-e").tools[0];
-    expect(call.ok).toBe(false);
-    expect(call.errorPreview).toBe("session ended before this call returned");
-    expect(call.endedAt).toBe(T0 + SEC);
+    const swept = root(state, "sess-e").tools[0];
+    expect(swept.ok).toBe(false);
+    expect(swept.errorPreview).toBe("session ended before this call returned");
+    expect(swept.endedAt).toBe(T0 + SEC);
     expect(state.toolIndex.has("tt")).toBe(false);
-    expect(root(state, "sess-e").usage.inputTokens).toBe(0);
+    expect(swept.usage).toBeUndefined();
 
     const lateAt = sweptAt + 5 * MIN;
     state = send(state, lateAt, {
@@ -223,25 +270,29 @@ describe("#444 — a LATE outcome is not a duplicate and still lands", () => {
       tool_name: "Task", tool_use_id: "tt", tool_response: responseWithUsage(),
     });
 
-    expect(call.ok).toBe(true);
-    expect(call.errorPreview).toBeUndefined();
-    expect(call.endedAt).toBe(lateAt);
-    expect(root(state, "sess-e").usage.inputTokens).toBe(100);
+    expect(swept.ok).toBe(true);
+    expect(swept.errorPreview).toBeUndefined();
+    expect(swept.endedAt).toBe(lateAt);
+    // Landing means the call's own record fills in, once.
+    expect(swept.usage!.inputTokens).toBe(100);
+    expect(root(state, "sess-e").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
 
     // …and the copies of that late outcome are duplicates like any other.
     state = send(state, lateAt + 12, {
       hook_event_name: "PostToolUse", session_id: "sess-e", model: MODEL,
       tool_name: "Task", tool_use_id: "tt", tool_response: responseWithUsage(),
     });
-    expect(root(state, "sess-e").usage.inputTokens).toBe(100);
-    expect(call.endedAt).toBe(lateAt);
+    expect(root(state, "sess-e").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
+    expect(swept.endedAt).toBe(lateAt);
   });
 });
 
 describe("#444 — replaying a whole log twice gives the state replaying it once gives", () => {
   /** A log with every shape that has ever had to be made idempotent in this
    *  file: a prompt, a root call that settles, a subagent that starts, works and
-   *  stops, a call that carries usage, and a call left in flight. */
+   *  stops, a call that carries usage, a transcript pass, and a call left in
+   *  flight. The pass is in here because it is the one writer of tokens (#685)
+   *  and a log replayed three times delivers it three times. */
   const LOG: Array<{ at: number; p: HookPayload }> = [
     { at: T0, p: { hook_event_name: "SessionStart", session_id: "s", cwd: "/repo", model: MODEL } },
     { at: T0 + SEC, p: { hook_event_name: "UserPromptSubmit", session_id: "s", prompt: "ship it", model: MODEL } },
@@ -253,7 +304,8 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
     { at: T0 + 7 * SEC, p: { hook_event_name: "SubagentStop", session_id: "s", agent_id: "k1", model: MODEL } },
     { at: T0 + 8 * SEC, p: { hook_event_name: "PreToolUse", session_id: "s", tool_name: "Task", tool_use_id: "tt", tool_input: { prompt: "go" }, model: MODEL } },
     { at: T0 + 9 * SEC, p: { hook_event_name: "PostToolUse", session_id: "s", tool_name: "Task", tool_use_id: "tt", tool_response: responseWithUsage(), model: MODEL } },
-    { at: T0 + 10 * SEC, p: { hook_event_name: "PreToolUse", session_id: "s", tool_name: "Bash", tool_use_id: "b2", tool_input: { command: "sleep 600" }, model: MODEL } },
+    { at: T0 + 10 * SEC, p: usagePass("s") },
+    { at: T0 + 11 * SEC, p: { hook_event_name: "PreToolUse", session_id: "s", tool_name: "Bash", tool_use_id: "b2", tool_input: { command: "sleep 600" }, model: MODEL } },
   ];
 
   /** Everything the cards, the panels and the bills are computed from. Deliberately
@@ -268,7 +320,7 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
         prompts: a.prompts.length,
         usage: a.usage,
         cost: costForUsage(a.usage, MODEL, T0).total,
-        tools: a.tools.map(t => ({ id: t.id, ok: t.ok, endedAt: t.endedAt, errorPreview: t.errorPreview })),
+        tools: a.tools.map(t => ({ id: t.id, ok: t.ok, endedAt: t.endedAt, errorPreview: t.errorPreview, usage: t.usage })),
       }))
       .sort((x, y) => x.id.localeCompare(y.id));
   }
@@ -290,9 +342,14 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
     expect([...twice.toolOwner.keys()].sort()).toEqual([...once.toolOwner.keys()].sort());
   });
 
-  it("bills the one usage-carrying call once no matter how many times the log is read", () => {
-    expect(root(replay(1), "s").usage.inputTokens).toBe(100);
-    expect(root(replay(3), "s").usage.inputTokens).toBe(100);
+  it("bills the session once no matter how many times the log is read", () => {
+    // The pass assigns cumulative totals, so three deliveries of it state the
+    // same bill three times — and the usage-carrying Task result in the middle
+    // of the log adds nothing to it on any of the three.
+    expect(root(replay(1), "s").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
+    expect(root(replay(3), "s").usage.inputTokens).toBe(PASS_TOTALS.input_tokens);
+    expect(costForUsage(root(replay(3), "s").usage, MODEL, T0).total)
+      .toBe(costForUsage(root(replay(1), "s").usage, MODEL, T0).total);
   });
 });
 
