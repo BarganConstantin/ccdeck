@@ -176,11 +176,22 @@ describe("the figure the deck prints is a figure about the canvas", () => {
     expect(pruneOldAgents(state, AGENT_GRACE_MS + 60_000, AGENT_CAP, AGENT_GRACE_MS)).toBe(true);
     const after = boardTotals(state.agents.values());
 
-    // The root is still active, so no session ended and nothing was finished —
-    // and the session's own roll-up shrank anyway.
+    // #685 answered this half. When this case was written the subagents each
+    // carried their own tokens, so evicting them took the session's figure down
+    // with them — 67.10M tokens out of a session nobody had stopped. A session
+    // is now billed as one bill: the server totals the main transcript together
+    // with every `subagents/agent-*.jsonl` beside it and the reducer ASSIGNS
+    // that to the root, so a subagent node carries nothing of its own and there
+    // is nothing to lose when one is evicted.
+    //
+    // So the assertion is inverted rather than deleted, and it is worth more
+    // this way than it was: it pins that the roll-up of a live session survives
+    // its subagents being pruned. Restore the per-agent fold and it goes red.
+    // The whole-session case above still shrinks, and still should — there the
+    // root itself leaves the board, which is exactly what the label now says.
     const root = [...state.agents.values()].find(a => a.kind === "root");
     expect(root?.state).toBe("active");
-    expect(after.sum).toBeLessThan(before.sum);
+    expect(after.sum).toBe(before.sum);
   });
 });
 
