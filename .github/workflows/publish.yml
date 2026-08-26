@@ -34,7 +34,7 @@ jobs:
   # ── The gate ────────────────────────────────────────────────────────────
   # Three legs, because this suite does not test the same thing on all three.
   #
-  #   ubuntu-latest   the 15 sites gated `skipIf(process.platform === "win32")`
+  #   ubuntu-latest   the 16 sites gated `skipIf(process.platform === "win32")`
   #                   run here, plus the `runIf(posix)` family — the widest
   #                   coverage of the three. That number is not something a
   #                   reader has to take on trust: skip-gate-inventory.test.ts
@@ -44,7 +44,7 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 23 skipped cases in all — together with the
+  #                   here — 30 skipped cases in all — together with the
   #                   `runIf(posix)` family and sound-hook-park's read-only
   #                   directory case, whose probe cannot block a write on
   #                   Windows. Windows is where this repo's recurring bugs live:

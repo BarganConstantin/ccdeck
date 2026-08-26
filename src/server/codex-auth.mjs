@@ -12,10 +12,10 @@
 // immediately before it is spent, a response that does not clearly carry a
 // new access token is never treated as success, and nothing here throws —
 // a rejected promise from a background poll would take the server down.
-import { readFile, chmod, unlink, realpath } from "node:fs/promises";
+import { readFile, chmod, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
-import { createTemp, renameWithRetry } from "./installer.mjs";
+import { createTemp, renameWithRetry, resolveWriteTarget } from "./installer.mjs";
 import { PRODUCT } from "./brand.mjs";
 
 // This file used to resolve CODEX_HOME itself, as `process.env.CODEX_HOME ??
@@ -149,7 +149,12 @@ async function readAuthFile() {
  *
  * Resolves symlinks first — `~/.codex/auth.json` is often a link into a
  * dotfiles repo or an encrypted volume, and renaming onto the link would
- * replace it with a regular file, quietly detaching the user's setup.
+ * replace it with a regular file, quietly detaching the user's setup. That
+ * resolution is the installer's resolveWriteTarget rather than a bare realpath
+ * here, because settings.json needed the identical rule (#673) and a rule
+ * written twice is a rule that drifts: the shared one also follows a DANGLING
+ * link to the file it names, which a realpath cannot answer at all and which is
+ * exactly the state a dotfiles repo is in before its first apply.
  *
  * The temp file comes from the installer's createTemp, which numbers every
  * write and creates it with O_EXCL, rather than from a name built out of the
@@ -177,7 +182,7 @@ async function readAuthFile() {
  * happen" rather than swallowing it.
  */
 async function persistAuth(auth) {
-  const target = await realpath(AUTH_PATH).catch(() => AUTH_PATH);
+  const target = await resolveWriteTarget(AUTH_PATH);
   const { tmp, handle } = await createTemp(target, { mode: 0o600 });
 
   let ok = false;
