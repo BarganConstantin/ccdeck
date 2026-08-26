@@ -12,8 +12,20 @@
 // `args[++i]`. If that value were ever re-examined as a token of its own, every
 // correct `--port 4500` would report `4500` as an unknown option — a warning
 // that fires on the right command line is the warning everyone learns to
-// ignore. So the values are asserted, including values that look like flags and
-// values that look like paths on the other operating system.
+// ignore. So the values are asserted, including values that look like paths on
+// the other operating system.
+//
+// TWO ASSERTIONS IN HERE WERE LATER FOUND TO BE PINNING A BUG, and they are the
+// two that said a value which is ITSELF A FLAG is still a value: `--workspace
+// --scope` set the workspace to "--scope", and a trailing `--workspace` set it
+// to `undefined`. #697 is what that costs — `ccdeck --workspace $PROJ
+// --no-persist` with `PROJ` unset scoped a deck to a directory named
+// `--no-persist` and persisted to the shared log anyway, with nothing in
+// `unknown` because the token that belonged there had been eaten. Those two
+// cases now go to `incomplete` and are asserted in argv-value-flags-697.test.ts.
+// Everything else in this file is unchanged, deliberately: the warning must
+// still never fire on a correct command line, and that is what the rest of it
+// is for.
 //
 // The "nothing moved" half is a sweep, not a sample: the token list is read out
 // of the parser's own source and checked against the table below, so a flag
@@ -80,10 +92,11 @@ describe("the flag list is swept whole, not sampled", () => {
   });
 });
 
-/** The flags a call set, with the new `unknown` list taken back off. */
+/** The flags a call set, with the two report lists taken back off. */
 function flagsOf(argv: string[]): Record<string, unknown> {
-  const { unknown, ...rest } = parseArgs(argv) as Record<string, unknown>;
+  const { unknown, incomplete, ...rest } = parseArgs(argv) as Record<string, unknown>;
   void unknown;
+  void incomplete;
   return rest;
 }
 
@@ -105,11 +118,14 @@ describe("everything that parsed to something still parses to exactly that", () 
     expect(flagsOf(argv)).toEqual(Object.assign({}, ...KEPT.map(([, , p]) => p)));
   });
 
-  it("still leaves a value-taking flag with no value alone", () => {
-    // `args[++i]` walks off the end here, exactly as it did before.
-    expect(flagsOf(["--port"])).toEqual({ port: undefined });
-    expect(flagsOf(["--workspace"])).toEqual({ workspace: undefined });
-    expect(flagsOf(["--history"])).toEqual({ history: undefined });
+  it("sets nothing at all for a value-taking flag with no value", () => {
+    // This used to set the key to `undefined`, which meant "the default" by
+    // accident. It means the default on purpose now: the key is absent and the
+    // flag is named on the `incomplete` list instead (#697,
+    // argv-value-flags-697.test.ts).
+    expect(flagsOf(["--port"])).toEqual({});
+    expect(flagsOf(["--workspace"])).toEqual({});
+    expect(flagsOf(["--history"])).toEqual({});
   });
 });
 
@@ -134,7 +150,7 @@ describe("no flag the deck knows is ever reported as unknown", () => {
 describe("--version and -v", () => {
   for (const [token, argv, parsed] of ADDED) {
     it(`${token} sets the flag and nothing else`, () => {
-      expect(parseArgs(argv)).toEqual({ ...parsed, unknown: [] });
+      expect(parseArgs(argv)).toEqual({ ...parsed, unknown: [], incomplete: [] });
     });
   }
 
@@ -144,10 +160,10 @@ describe("--version and -v", () => {
 });
 
 describe("the value of a value-taking flag is never an unknown option", () => {
-  // The one way this warning goes wrong, asserted five ways.
+  // The one way this warning goes wrong, asserted four ways.
   it("says nothing about a port number", () => {
-    expect(parseArgs(["--port", "4500"])).toEqual({ port: "4500", unknown: [] });
-    expect(parseArgs(["-p", "4500"])).toEqual({ port: "4500", unknown: [] });
+    expect(parseArgs(["--port", "4500"])).toEqual({ port: "4500", unknown: [], incomplete: [] });
+    expect(parseArgs(["-p", "4500"])).toEqual({ port: "4500", unknown: [], incomplete: [] });
   });
 
   it("says nothing about a workspace path, on either operating system", () => {
@@ -155,23 +171,15 @@ describe("the value of a value-taking flag is never an unknown option", () => {
     // not either — it runs on Linux, macOS and Windows alike.
     for (const path of ["/home/u/proj", "C:\\Users\\u\\proj", "~/proj", "./sub", "proj"]) {
       expect(parseArgs(["--workspace", path]), path)
-        .toEqual({ workspace: path, unknown: [] });
+        .toEqual({ workspace: path, unknown: [], incomplete: [] });
     }
   });
 
   it("says nothing about a history path", () => {
     for (const path of ["/var/log/events.jsonl", "C:\\logs\\events.jsonl", "events.jsonl"]) {
       expect(parseArgs(["--history", path]), path)
-        .toEqual({ history: path, unknown: [] });
+        .toEqual({ history: path, unknown: [], incomplete: [] });
     }
-  });
-
-  it("says nothing about a value that happens to look like a flag", () => {
-    // A directory called `--scope` is absurd; a value beginning with a dash is
-    // not (`--history -`, a Windows switch pasted by mistake). Either way the
-    // token after a value-taking flag is its value and is never re-examined.
-    expect(parseArgs(["--workspace", "--scope"])).toEqual({ workspace: "--scope", unknown: [] });
-    expect(parseArgs(["--history", "--prot"])).toEqual({ history: "--prot", unknown: [] });
   });
 
   it("still reports what comes AFTER the value", () => {
@@ -179,7 +187,7 @@ describe("the value of a value-taking flag is never an unknown option", () => {
     // report: `--workspace C:\Users\John Smith\proj` reaches the parser as two
     // arguments, the second one silently dropped. Now it is named.
     expect(parseArgs(["--workspace", "C:\\Users\\John", "Smith\\proj"]))
-      .toEqual({ workspace: "C:\\Users\\John", unknown: ["Smith\\proj"] });
+      .toEqual({ workspace: "C:\\Users\\John", unknown: ["Smith\\proj"], incomplete: [] });
   });
 });
 
@@ -194,7 +202,8 @@ describe("a token the deck does not know is said out loud", () => {
     // nothing with — the same mistake as a mistyped flag, and worth the same
     // line.
     expect(parseArgs(["deck"]).unknown).toEqual(["deck"]);
-    expect(parseArgs(["--no-open", "deck"])).toEqual({ noOpen: true, unknown: ["deck"] });
+    expect(parseArgs(["--no-open", "deck"]))
+      .toEqual({ noOpen: true, unknown: ["deck"], incomplete: [] });
   });
 
   it("names a short flag it does not know", () => {
@@ -203,11 +212,11 @@ describe("a token the deck does not know is said out loud", () => {
 
   it("keeps them in the order they were typed, and keeps the real flags working", () => {
     expect(parseArgs(["--prot", "--no-open", "--workpace", "--scope"]))
-      .toEqual({ noOpen: true, scope: true, unknown: ["--prot", "--workpace"] });
+      .toEqual({ noOpen: true, scope: true, unknown: ["--prot", "--workpace"], incomplete: [] });
   });
 
   it("reports nothing at all for an empty command line", () => {
-    expect(parseArgs([])).toEqual({ unknown: [] });
+    expect(parseArgs([])).toEqual({ unknown: [], incomplete: [] });
   });
 });
 
@@ -218,7 +227,7 @@ describe("bin/deck.js reads the parser rather than carrying its own", () => {
     // opens a browser at module scope. A copy re-inlined there would drift from
     // the one every assertion above is about.
     const deck = readFileSync(DECK_JS, "utf8");
-    expect(deck).toMatch(/import \{ parseArgs \} from "\.\.\/src\/server\/args\.mjs";/);
+    expect(deck).toMatch(/import \{[^}]*\bparseArgs\b[^}]*\} from "\.\.\/src\/server\/args\.mjs";/);
     expect(deck).not.toMatch(/^function parseArgs\(/m);
   });
 });
