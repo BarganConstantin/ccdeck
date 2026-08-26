@@ -10,6 +10,14 @@
 //        done pill's own text sat at 4.39:1, just under AA.
 //   #272 .ver-banner painted a 13% --warn wash and then wrote on it in --warn:
 //        3.74:1 light over the tinted end. Its .done twin did the same with --ok.
+//   #619 the stacked cost bar's four segments, and the four legend swatches that
+//        key them, were fixed-lightness hsl() literals with no light override:
+//        2.74, 2.86, 1.82 and 1.86 against white, and 1.02:1 from each other at
+//        the cache end, so the tail of the bar composited into one flat area.
+//        The 1px gap between them showed --line, 1.14:1 from what it separated.
+//   #622 .cat-filter-bar.occluded put `opacity: 0.2` on the whole bar, which
+//        makes a stacking context and takes the chips' 11px labels with the
+//        fill: 1.55:1 light and 1.67:1 dark on, 1.37:1 and 1.29:1 off.
 // So the ratios are computed here from the stylesheet's own token values, and a
 // palette edit that walks any of them back under its floor fails the build.
 import { describe, it, expect } from "vitest";
@@ -25,11 +33,39 @@ const NON_TEXT = 3;
 
 type Rgba = [number, number, number, number];
 
-/** #rgb, #rrggbb and rgba()/rgb() — the only colour forms this stylesheet writes. */
+/** CSS Color 4's hsl-to-rgb, which is the sRGB one every browser ships. */
+function fromHsl(hue: number, sat: number, light: number, alpha: number): Rgba {
+  const h = (((hue % 360) + 360) % 360) / 30;
+  const s = sat / 100;
+  const l = light / 100;
+  const c = s * Math.min(l, 1 - l);
+  const k = (n: number) => (n + h) % 12;
+  const f = (n: number) => l - c * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255), alpha];
+}
+
+/** #rgb, #rrggbb, rgb()/rgba() and hsl()/hsla() — every colour form this
+ *  stylesheet writes.
+ *
+ *  hsl() was outside this grammar until #619 and the omission was not academic.
+ *  Four cost-bar segments and the four legend swatches that key them were the
+ *  only fixed-lightness hsl() in the sheet, and this function THREW on every one
+ *  of them — so each contrast sweep in the repo that reached those declarations
+ *  either crashed or, in the sweeps that read a hand-named list of rules, never
+ *  reached them at all. A notation the parser cannot read is a notation the
+ *  floors do not apply to, and the eight worst readings on the light canvas were
+ *  written in it. Both syntaxes are accepted, comma and space, with the alpha in
+ *  either notation, because a rule is free to use whichever and a sweep that
+ *  reads one and throws on the other is the same blind spot one comma over. */
 export function parseColor(input: string): Rgba {
   const s = input.trim();
   const fn = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(s);
   if (fn) return [+fn[1], +fn[2], +fn[3], fn[4] === undefined ? 1 : +fn[4]];
+  const hsl = /^hsla?\(\s*(-?[\d.]+)(?:deg)?\s*(?:,\s*|\s+)([\d.]+)%\s*(?:,\s*|\s+)([\d.]+)%\s*(?:[,/]\s*([\d.]+%?)\s*)?\)$/i.exec(s);
+  if (hsl) {
+    const a = hsl[4] === undefined ? 1 : hsl[4].endsWith("%") ? parseFloat(hsl[4]) / 100 : +hsl[4];
+    return fromHsl(+hsl[1], +hsl[2], +hsl[3], a);
+  }
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
   if (!hex) throw new Error(`unparseable colour: ${input}`);
   const h = hex[1].length === 3 ? hex[1].replace(/./g, c => c + c) : hex[1];
@@ -287,5 +323,357 @@ describe("version-drift banner (#272)", () => {
   it("leaves the accent where it is decoration — the dot still pulses in --warn", () => {
     expect(decl(rule(".ver-banner .ver-dot"), "background")).toBe("var(--warn)");
     expect(decl(rule(".ver-banner.done .ver-dot"), "background")).toBe("var(--ok)");
+  });
+});
+
+// ── #619 / #622 ─────────────────────────────────────────────────────────────
+
+/** Comments in this sheet quote the very declarations these blocks assert are
+ *  gone, so every scan of the raw text below reads a stripped copy. rule() and
+ *  decl() keep reading `css` — they anchor on a selector at the start of a
+ *  line, which no comment here writes. */
+const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** CSS `filter: brightness(n)`, which multiplies each sRGB channel. */
+function brightness(c: Rgba, factor: number): Rgba {
+  return [0, 1, 2].map(i => Math.min(255, c[i] * factor)).concat(c[3]) as Rgba;
+}
+
+describe("hsl(), the notation no contrast sweep in this repo could read (#619)", () => {
+  it("parses both syntaxes, with the alpha written either way", () => {
+    expect(parseColor("hsl(0 0% 100%)")).toEqual([255, 255, 255, 1]);
+    expect(parseColor("hsl(0, 0%, 0%)")).toEqual([0, 0, 0, 1]);
+    expect(parseColor("hsl(0 100% 50%)")).toEqual([255, 0, 0, 1]);
+    expect(parseColor("hsl(120deg 100% 50%)")).toEqual([0, 255, 0, 1]);
+    expect(parseColor("hsl(240 100% 50%)")).toEqual([0, 0, 255, 1]);
+    // Hue is a circle, and a sheet is allowed to say so.
+    expect(parseColor("hsl(480 100% 50%)")).toEqual(parseColor("hsl(120 100% 50%)"));
+    expect(parseColor("hsl(-120 100% 50%)")).toEqual(parseColor("hsl(240 100% 50%)"));
+    expect(parseColor("hsl(213 80% 65% / 40%)")[3]).toBeCloseTo(0.4, 6);
+    expect(parseColor("hsla(213, 80%, 65%, 0.4)")[3]).toBeCloseTo(0.4, 6);
+    expect(parseColor("hsl(213 80% 65% / 40%)").slice(0, 3))
+      .toEqual(parseColor("hsl(213 80% 65%)").slice(0, 3));
+  });
+
+  it("agrees with the browser on the four literals the cost bar used to declare", () => {
+    // #5e9fed, #c679ec, #5cd699, #f2b25a — the resolved values #619 tabulated.
+    expect(parseColor("hsl(213 80% 65%)")).toEqual(parseColor("#5e9fed"));
+    expect(parseColor("hsl(280 75% 70%)")).toEqual(parseColor("#c679ec"));
+    expect(parseColor("hsl(150 60% 60%)")).toEqual(parseColor("#5cd699"));
+    expect(parseColor("hsl(35 85% 65%)")).toEqual(parseColor("#f2b25a"));
+  });
+
+  it("reproduces every ratio #619 reported, now that the grammar reaches them", () => {
+    const white = parseColor("#ffffff");
+    const lightLine = parseColor("#c8cdd6");
+    expect(contrastRatio(parseColor("hsl(213 80% 65%)"), white)).toBeCloseTo(2.74, 2);
+    expect(contrastRatio(parseColor("hsl(280 75% 70%)"), white)).toBeCloseTo(2.86, 2);
+    expect(contrastRatio(parseColor("hsl(150 60% 60%)"), white)).toBeCloseTo(1.82, 2);
+    expect(contrastRatio(parseColor("hsl(35 85% 65%)"), white)).toBeCloseTo(1.86, 2);
+    // The two cache bands against each other, and against the gap that was
+    // supposed to separate them.
+    expect(contrastRatio(parseColor("hsl(150 60% 60%)"), parseColor("hsl(35 85% 65%)")))
+      .toBeCloseTo(1.02, 2);
+    expect(contrastRatio(lightLine, parseColor("hsl(150 60% 60%)"))).toBeCloseTo(1.14, 2);
+    expect(contrastRatio(lightLine, parseColor("hsl(35 85% 65%)"))).toBeCloseTo(1.17, 2);
+    // And why it read perfectly on the canvas it was designed for.
+    expect(contrastRatio(parseColor("hsl(150 60% 60%)"), parseColor("#14161b"))).toBeCloseTo(9.94, 2);
+  });
+
+  it("leaves no fixed-lightness hsl() in the sheet — every one reads a theme token", () => {
+    // The assertion that would have caught #619 at the commit that wrote it,
+    // and the one that catches the next colour in this notation. A literal
+    // lightness is one decision made for two canvases; every other hsl() here
+    // spends --session-*-l or --mcp-dot-l, which is the boundary #330 drew and
+    // #583 drew again one class of colour further on.
+    const blind = [...bare.matchAll(/hsl\(([^)]*)\)/g)]
+      .map(m => m[0])
+      .filter(expr => !expr.includes("var(--"));
+    expect(blind, `theme-blind hsl() literals: ${blind.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("the stacked cost bar and the key that reads it (#619)", () => {
+  const BANDS = {
+    input: ".cost-bar .cb-input",
+    output: ".cost-bar .cb-output",
+    "cache-read": ".cost-bar .cb-cache-r",
+    "cache-write": ".cost-bar .cb-cache-w",
+  } as const;
+  const SWATCHES = {
+    input: ".session-summary .ssl-in::before",
+    output: ".session-summary .ssl-out::before",
+    "cache-read": ".session-summary .ssl-cr::before",
+    "cache-write": ".session-summary .ssl-cw::before",
+  } as const;
+  type Band = keyof typeof BANDS;
+  const names = Object.keys(BANDS) as Band[];
+  const bandValue = (b: Band) => decl(rule(BANDS[b]), "background")!;
+  const band = (b: Band, theme: Theme) => resolve(bandValue(b), theme);
+
+  /** Every opaque bed a segment or a swatch lands on, named out of the sheet:
+   *  the three panels that draw the bar all paint --panel, `.cost-bar` declares
+   *  its own track, and the session summary lays a 5% green wash under its
+   *  legend. */
+  function beds(theme: Theme): Array<[string, Rgba]> {
+    const panel = parseColor(TOK[theme]["--panel"]);
+    const heroWash = /rgba\([^)]*\)/.exec(decl(rule(".session-summary .ss-hero"), "background")!)![0];
+    return [
+      ["--panel", panel],
+      ["--bg-soft", parseColor(TOK[theme]["--bg-soft"])],
+      ["the bar's own track", resolve(decl(rule(".cost-bar"), "background")!, theme)],
+      ["the summary hero's wash", over(parseColor(heroWash), panel)],
+    ];
+  }
+
+  it("reads all four bands out of tokens that both themes declare", () => {
+    for (const b of names) {
+      expect(bandValue(b), b).toMatch(/^var\(--[\w-]+\)$/);
+      const token = /^var\((--[\w-]+)\)$/.exec(bandValue(b))![1];
+      for (const theme of themes) {
+        expect(TOK[theme][token], `${theme} ${token}`).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
+
+  it("clears 3:1 on every bed it is drawn on, in both themes", () => {
+    for (const theme of themes) {
+      for (const b of names) {
+        for (const [where, bg] of beds(theme)) {
+          const ratio = contrastRatio(band(b, theme), bg);
+          expect(ratio, `${theme} ${b} on ${where} — ${ratio.toFixed(2)}:1, 1.4.11 asks ${NON_TEXT}`)
+            .toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
+    }
+  });
+
+  it("inverts polarity between the themes, which is what a literal could not do", () => {
+    for (const b of names) {
+      expect(relativeLuminance(band(b, "dark")), `${b} should be lighter than the dark panel`)
+        .toBeGreaterThan(relativeLuminance(parseColor(TOK.dark["--panel"])));
+      expect(relativeLuminance(band(b, "light")), `${b} should be darker than the light panel`)
+        .toBeLessThan(relativeLuminance(parseColor(TOK.light["--panel"])));
+    }
+  });
+
+  it("keeps the legend keying the bar — a swatch that drifts keys nothing", () => {
+    for (const b of names) {
+      expect(decl(rule(SWATCHES[b]), "background"), `${b} swatch`).toBe(bandValue(b));
+    }
+  });
+
+  it("cuts the bands with a hairline, because no palette can separate four of them", () => {
+    // 1.4.1, not 1.4.11: a chain of n colours each 3:1 from the next needs
+    // (L + 0.05) to span 3^(n-1), and 3^3 = 27 already exceeds the 21 sRGB
+    // allows. Four mutually distinguishable luminances do not exist at any
+    // tuning, so the pairwise floor is bought with geometry — which is only
+    // honest if the arithmetic is measured rather than asserted about.
+    for (const theme of themes) {
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+          expect(contrastRatio(band(names[i], theme), band(names[j], theme)),
+            `${theme} ${names[i]} vs ${names[j]} — if this ever clears 3:1 the cut is decoration`)
+            .toBeLessThan(NON_TEXT);
+        }
+      }
+    }
+    expect(decl(rule(".cost-bar .cb-seg"), "box-shadow"),
+      "the bands have nothing between them, and the pairs above show colour cannot do it")
+      .toBe("-1px 0 0 var(--panel)");
+    // A shadow and not a border: a segment's width is its share of the spend.
+    expect(decl(rule(".cost-bar .cb-seg"), "border"),
+      "a border comes out of the band's width — on a one-cent band it IS the band")
+      .toBeNull();
+    // And not a gap either: that separator is the bar's own --line track, which
+    // #619 measured at 1.14:1 from cache-read and 1.17:1 from cache-write.
+    expect(decl(rule(".cost-bar"), "gap"),
+      "a gap separates the bands with --line, 1.14:1 from what it separates on white")
+      .toBeNull();
+    expect(decl(rule(".cost-bar"), "overflow"),
+      "without this the first band's hairline becomes the bar's own left edge")
+      .toBe("hidden");
+  });
+
+  it("makes that cut visible against whichever two bands it lands between", () => {
+    const shadow = decl(rule(".cost-bar .cb-seg"), "box-shadow");
+    expect(shadow, "no hairline to measure — the bands are separated by colour alone").not.toBeNull();
+    const hairline = /var\(--[\w-]+\)/.exec(shadow!)![0];
+    for (const theme of themes) {
+      const line = resolve(hairline, theme);
+      for (const b of names) {
+        const ratio = contrastRatio(line, band(b, theme));
+        expect(ratio, `${theme} hairline against ${b} — ${ratio.toFixed(2)}:1`)
+          .toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
+  });
+
+  it("keeps the hover brighten from taking a band under the floor it holds at rest", () => {
+    // The same defect as the colours, in a filter: one factor for two canvases.
+    // brightness(1.3) on white takes a hovered band to between 2.16:1 and
+    // 3.00:1 against the track, so pointing at a segment hid it.
+    const factor = (theme: Theme) => {
+      const base = decl(rule(".cost-bar .cb-seg:hover"), "filter")!;
+      const light = decl(rule(':root[data-theme="light"] .cost-bar .cb-seg:hover'), "filter");
+      return +/brightness\(([\d.]+)\)/.exec(theme === "light" && light ? light : base)![1];
+    };
+    expect(factor("dark"), "dark should brighten").toBeGreaterThan(1);
+    expect(factor("light"), "light should darken — on white a band reads by being darker")
+      .toBeLessThan(1);
+    for (const theme of themes) {
+      for (const b of names) {
+        const hovered = brightness(band(b, theme), factor(theme));
+        for (const [where, bg] of beds(theme)) {
+          const ratio = contrastRatio(hovered, bg);
+          expect(ratio, `${theme} hovered ${b} on ${where} — ${ratio.toFixed(2)}:1`)
+            .toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
+    }
+  });
+});
+
+describe("the category filter bar when a card drifts under it (#622)", () => {
+  const FADED = ".cat-filter-bar.occluded:not(:hover):not(:focus-within)";
+  const fillOf = (selector: string, theme: Theme) => {
+    const light = decl(rule(`:root[data-theme="light"] ${selector}`), "background");
+    const base = decl(rule(selector), "background");
+    const value = theme === "light" && light ? light : base;
+    // A missing fill here does not mean "no fill", it means the yielding is
+    // being done by something other than the fill — which is the whole defect.
+    if (value === null) {
+      throw new Error(`${theme}: no background on ${selector} — the bar is yielding by some channel other than its own fill, and #622 is about what that costs the labels`);
+    }
+    return resolve(value, theme);
+  };
+  /** The bar goes occluded only because something is under it, so a node card is
+   *  the backdrop that matters; the empty canvas is given too. */
+  const backdrops = (theme: Theme): Array<[string, Rgba]> =>
+    [["a card", parseColor(TOK[theme]["--panel"])], ["the canvas", parseColor(TOK[theme]["--bg"])]];
+  const labels = { on: ".cat-filter", off: ".cat-filter.off" } as const;
+
+  it("reproduces what `opacity: 0.2` on the group was worth, in both themes", () => {
+    // Group opacity composites the label AND the fill it sits on, which is why
+    // the numbers land so far under: both ends of the ratio collapse together.
+    const was = (theme: Theme, fg: string, backdrop: Rgba) => {
+      const fill = fillOf(".cat-filter-bar", theme);
+      const bed = over([fill[0], fill[1], fill[2], fill[3] * 0.2], backdrop);
+      const text = resolve(fg, theme);
+      return contrastRatio(over([text[0], text[1], text[2], 0.2], backdrop), bed);
+    };
+    const card = (t: Theme) => parseColor(TOK[t]["--panel"]);
+    expect(was("light", "var(--text)", card("light"))).toBeCloseTo(1.55, 2);
+    expect(was("dark", "var(--text)", card("dark"))).toBeCloseTo(1.67, 2);
+    expect(was("light", "var(--muted)", card("light"))).toBeCloseTo(1.37, 2);
+    expect(was("dark", "var(--muted)", card("dark"))).toBeCloseTo(1.29, 2);
+  });
+
+  it("shows no fade of the group would have worked — 0.9 is still under AA in dark", () => {
+    // The argument the `.cat-filter.off` comment already made about this exact
+    // element, restated for the bar that contains it: --muted clears AA on this
+    // fill by 0.20 at full strength, so there is no alpha left to spend. A lower
+    // floor was never an available fix, which is why the fill fades and not the
+    // group.
+    const fill = fillOf(".cat-filter-bar", "dark");
+    const card = parseColor(TOK.dark["--panel"]);
+    const muted = resolve("var(--muted)", "dark");
+    const at = (o: number) => contrastRatio(
+      over([muted[0], muted[1], muted[2], o], card),
+      over([fill[0], fill[1], fill[2], fill[3] * o], card));
+    expect(at(0.8)).toBeLessThan(BODY);
+    expect(at(0.9)).toBeLessThan(BODY);
+    expect(at(1)).toBeGreaterThanOrEqual(BODY);
+  });
+
+  it("spends no opacity anywhere on the bar or its occluded state", () => {
+    // The bar is written as two rules six thousand lines apart — the slab up
+    // with the chips, the yielding down with the canvas motion — so this reads
+    // every body either of them or their occluded states declare, not the first
+    // one a selector match happens to land on.
+    const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
+    expect(bodies.length, "no .cat-filter-bar rules found — the scan is reading nothing")
+      .toBeGreaterThanOrEqual(4);
+    for (const body of bodies) {
+      expect(body.replace(/\s+/g, " ").trim(),
+        "a bar rule declares opacity — it makes a stacking context and takes every chip label down with the fill, 1.55:1 light and 1.29:1 dark at 0.2")
+        .not.toMatch(/(?:^|[;{\s])opacity\s*:/);
+    }
+    for (const body of bodies) {
+      // And the now-dead property is gone from the transition list, the same
+      // thing quiet-signals holds the chip itself to.
+      expect(body.replace(/\s+/g, " ").trim(), "a bar rule still transitions opacity")
+        .not.toMatch(/transition:[^;]*opacity/);
+    }
+  });
+
+  it("fades the slab instead — a thinner fill, no blur, no border, no shadow", () => {
+    for (const theme of themes) {
+      const rest = fillOf(".cat-filter-bar", theme);
+      const faded = fillOf(FADED, theme);
+      expect(faded[3], `${theme} occluded fill`).toBeLessThan(rest[3]);
+      // Some fill is left on purpose: it beds the labels rather than floating
+      // them over whatever drifted under, which is what keeps the floor below a
+      // floor and not a coincidence of what happened to be there.
+      expect(faded[3], `${theme} occluded fill`).toBeGreaterThan(0);
+    }
+    expect(decl(rule(FADED), "box-shadow")).toBe("none");
+    expect(decl(rule(FADED), "border-color")).toBe("transparent");
+    expect(decl(rule(FADED), "backdrop-filter")).toBe("none");
+    expect(decl(rule(FADED), "-webkit-backdrop-filter")).toBe("none");
+  });
+
+  it("reads every chip label at 4.5:1 while the bar is yielding, in both themes", () => {
+    for (const theme of themes) {
+      const fill = fillOf(FADED, theme);
+      for (const [state, selector] of Object.entries(labels)) {
+        const fg = resolve(decl(rule(selector), "color")!, theme);
+        for (const [where, backdrop] of backdrops(theme)) {
+          const ratio = contrastRatio(fg, over(fill, backdrop));
+          expect(ratio, `${theme} ${state} chip over ${where} while occluded — ${ratio.toFixed(2)}:1, 1.4.3 asks ${BODY} of 11px text`)
+            .toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
+  });
+
+  it("costs the bar nothing at rest — the faded state is the only thing that changed", () => {
+    for (const theme of themes) {
+      const fill = fillOf(".cat-filter-bar", theme);
+      for (const [state, selector] of Object.entries(labels)) {
+        const fg = resolve(decl(rule(selector), "color")!, theme);
+        for (const [where, backdrop] of backdrops(theme)) {
+          expect(contrastRatio(fg, over(fill, backdrop)), `${theme} ${state} chip over ${where} at rest`)
+            .toBeGreaterThanOrEqual(BODY);
+        }
+      }
+    }
+  });
+
+  it("gives a coarse pointer the same way back as a fine one", () => {
+    // Both restore paths are the :not() on the faded rule itself, so neither can
+    // be lost to a media query the way the old :hover restore was — it sat
+    // inside `(hover: hover) and (pointer: fine)`, which a touch pointer never
+    // matches, leaving one way to read the bar: tap a chip, and change what it
+    // says. :focus-within was no better, since putting focus in there by touch
+    // IS that tap.
+    for (const m of bare.matchAll(/@media \(hover: hover\)[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g)) {
+      expect(m[0].replace(/\s+/g, " ").trim(),
+        "a .cat-filter-bar rule is behind a fine-pointer guard, which a touch pointer never matches — the only way back is then to tap a chip, and a tap toggles the category the reader was trying to read")
+        .not.toContain(".cat-filter-bar");
+    }
+    const rules = [...bare.matchAll(/^([^\n{}]*\.cat-filter-bar\.occluded[^\n{}]*?)\s*\{/gm)]
+      .map(m => m[1].trim());
+    expect(rules,
+      "the occluded state should be one rule per theme carrying both restore paths in its own selector")
+      .toEqual([FADED, `:root[data-theme="light"] ${FADED}`]);
+    for (const selector of rules) {
+      expect(selector, "restores on a pointer of any kind").toContain(":not(:hover)");
+      expect(selector, "restores once focus is inside").toContain(":not(:focus-within)");
+    }
+  });
+
+  it("keeps the strike, which is the channel that never depended on any of this", () => {
+    expect(decl(rule(".cat-filter.off .cat-name"), "text-decoration")).toBe("line-through");
   });
 });
