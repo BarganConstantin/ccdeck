@@ -128,6 +128,13 @@ export const GATES = [
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // #673's end-to-end block. Creating a FILE symlink on Windows needs
+  // SeCreateSymbolicLinkPrivilege, so the seven cases that make one, run a
+  // writer and look at what is left cannot be built there. The resolver block in
+  // the same file is deliberately un-gated and runs on all three legs against a
+  // directory junction — a reparse point Windows creates without a privilege —
+  // and it carries the assertion that would catch a revert on that leg.
+  { file: "settings-symlink-target.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
   { file: "supervisor-exit.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 

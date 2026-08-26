@@ -5,7 +5,7 @@
 // sessions reach the same server through the rollout watcher instead, so one
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
-import { readFile, mkdir, unlink, rename, open, stat, chmod } from "node:fs/promises";
+import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -265,6 +265,66 @@ async function createTemp(target, { mode = 0o666, attempts = 5 } = {}) {
   }
 }
 
+// A chain longer than this is a loop, or something no real setup has: stow and
+// chezmoi produce one hop, an encrypted volume two. The number is a bound on the
+// walk below, not a promise about how deep a legitimate link goes.
+const MAX_LINK_HOPS = 8;
+
+/**
+ * The file a name is really asking for — the one the links under it end at.
+ *
+ * A rename replaces the DIRECTORY ENTRY it is handed. Handed a symlink, it
+ * deletes the link and leaves an ordinary file where it was, and
+ * `~/.claude/settings.json` is a symlink on a great many machines: into a
+ * dotfiles repo, a stow or chezmoi target, an encrypted volume. The content
+ * survives — we write back what we read — so nothing looks wrong and nothing
+ * says anything. The repo copy keeps what it said before, never goes dirty, and
+ * from then on the user's edits there reach nobody while every launch rewrites
+ * the detached file and widens the gap. This is a file the deck did not create
+ * and does not own; quietly cutting it loose from the thing that manages it is
+ * worse than failing to write it at all.
+ *
+ * persistAuth in codex-auth.mjs has resolved for exactly this reason since it
+ * was written, on the file that is LESS often linked. This is the same rule at
+ * the helper every settings writer in the deck goes through — and the same
+ * function, so there is one of it rather than two that can drift.
+ *
+ * Resolving also decides which filesystem the temp file is staged on, and it has
+ * to be the target's. A rename is atomic within one filesystem and fails with
+ * EXDEV across two, so staging beside the LINK — a link into a dotfiles repo on
+ * a separate volume — is a write that cannot land at all.
+ *
+ * A DANGLING link is the case realpath alone cannot answer: the target not
+ * created yet, the encrypted volume not mounted. Answering it with the raw path
+ * is the bug again, because that is precisely when the link gets replaced — so
+ * the walk falls back to readlink, which reads a link without needing its target
+ * to exist, and follows it the way opening the name for writing would.
+ * `printf x > link` creates the target; it does not replace the link. If the
+ * target's directory is gone the write then fails, which is the honest answer:
+ * the bytes did not reach the file the user's setup points at.
+ *
+ * The ordinary case — a plain file, no link anywhere — is one realpath and the
+ * first return.
+ */
+async function resolveWriteTarget(raw) {
+  let at = raw;
+  for (let hop = 0; hop < MAX_LINK_HOPS; hop++) {
+    // Resolves every link on the path at once, when all of them lead somewhere.
+    const real = await realpath(at).catch(() => null);
+    if (real !== null) return real;
+    const to = await readlink(at).catch(() => null);
+    // Not a link, so nothing exists at this name yet and this name is the
+    // answer: a first install, or the far end of a chain we have just followed.
+    if (to === null) return at;
+    at = resolve(dirname(at), to);
+  }
+  // Only a cycle gets here. Say so rather than pick a link out of it and
+  // destroy that one — the OS answers a write through such a name the same way.
+  const err = new Error(`too many symbolic links resolving ${raw}`);
+  err.code = "ELOOP";
+  throw err;
+}
+
 /**
  * Replace a file in a single step readers cannot land inside.
  *
@@ -273,8 +333,13 @@ async function createTemp(target, { mode = 0o666, attempts = 5 } = {}) {
  * different ones. It is fsync'd before the rename so that a crash or power loss
  * just after a successful install cannot leave the new directory entry pointing
  * at blocks that were never flushed — the classic file-of-zero-bytes.
+ *
+ * "Beside the target" means beside the file the name resolves to, not beside the
+ * name: see resolveWriteTarget, which is what keeps a symlinked settings.json a
+ * symlink.
  */
-async function writeFileAtomic(target, text) {
+async function writeFileAtomic(rawTarget, text) {
+  const target = await resolveWriteTarget(rawTarget);
   const { tmp, handle } = await createTemp(target);
   try {
     try {
@@ -671,4 +736,8 @@ export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
 // the same reason one step lower: codex-auth.mjs needs the collision-free temp
 // name but not writeFileAtomic's mode handling, which carries over the target's
 // mode and so would leave a brand-new auth.json at whatever the umask allows.
-export { readSettingsForWrite, writeFileAtomic, installScript, renameWithRetry, createTemp };
+// resolveWriteTarget goes with them, because auth.json is linked into a dotfiles
+// repo for the same reasons settings.json is, and "never rename onto a link" is
+// one rule: codex-auth.mjs called a realpath of its own before this existed, and
+// two spellings of a rule are two things that can drift.
+export { readSettingsForWrite, writeFileAtomic, installScript, renameWithRetry, createTemp, resolveWriteTarget };
