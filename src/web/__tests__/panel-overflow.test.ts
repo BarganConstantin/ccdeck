@@ -300,11 +300,19 @@ describe("the account alias in the accounts panel row", () => {
     // uncapped alias therefore takes the whole text budget and leaves the email
     // rendering at 0.0px. The cap freezes the alias at its maximum and the
     // remaining free space goes to the email, measured at 103.6px / 53.1px.
+    //
+    // The number itself, not a range around it (#618). This asked only for a
+    // percentage strictly between 0 and 100, which is every percentage anybody
+    // would type — including `95%`, which hands the alias almost the whole
+    // budget and puts the email back at the 0.0px this file's header opens by
+    // describing, and `1%`, which truncates the alias to an ellipsis at every
+    // length. The two measurements above are arithmetic done against 40, so
+    // 40 is what the assertion says; the comments and the sheet cannot drift
+    // apart while it does.
     expect(decl(".ap-email", "flex")).toBe("1");
     const cap = pct(decl(".ap-alias", "max-width"));
-    expect(Number.isNaN(cap)).toBe(false);
-    expect(cap).toBeGreaterThan(0);
-    expect(cap).toBeLessThan(100);
+    expect(cap, "the alias cap is not a plain percentage").not.toBeNaN();
+    expect(cap).toBe(40);
   });
 
   it("is never pinned unshrinkable, which would undo all of it", () => {
@@ -328,7 +336,8 @@ describe("the account alias in the accounts panel row", () => {
     // organisation meant most rows had no tooltip on it either (#517).
     //
     // The measurement is what makes it a bug rather than a tidiness: with an
-    // 18-character alias engaging the 40% clamp asserted above, the email box
+    // 18-character alias engaging the 40% clamp, which the case two above now
+    // pins by value instead of allowing the whole 0–100 interval, the email box
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
     expect(accounts).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
