@@ -12,9 +12,10 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { rmTempDir } from "./rm-temp-dir";
 import { basename, join } from "node:path";
 
 // The installer resolves the Claude config dir at import time: CLAUDE_CONFIG_DIR
@@ -68,47 +69,11 @@ const WORKSPACE = "";
 
 const read = () => JSON.parse(readFileSync(FILE, "utf8")) as Record<string, unknown>;
 
-/**
- * Deleting on Windows, where a delete is not immediate.
- *
- * Every write in this file is an atomic one — a temp file, then a rename — and
- * `keepDiscovery` schedules them on a timer. On POSIX a delete that lands in
- * the middle of that is invisible: the name goes, the open handle keeps
- * working. Windows has no such thing. A file with a handle still on it enters
- * "delete pending", and every further open of that name — INCLUDING the lstat
- * `rm -r` does on its way through the directory — fails with EPERM until the
- * last handle closes, a few milliseconds later. That is what took this whole
- * file out on the first Windows run: not a test, a teardown.
- *
- * `maxRetries` is the answer Node ships for it and documents by name — EBUSY,
- * EMFILE, ENFILE, ENOTEMPTY and EPERM, retried with a linear backoff — and it
- * is not sufficient on its own. Those retries wrap the unlink and the rmdir;
- * the FIRST thing rimrafSync does with a path is lstat it, and an EPERM there
- * goes to the Windows fix-up (a chmod, which fails the same way on a
- * delete-pending name) and is rethrown without ever reaching the retry loop.
- * That is how this failed a second time after maxRetries was added.
- *
- * So the loop is out here as well, around the whole call. Both are kept: the
- * inner one is cheaper for the common case and the outer one covers the lstat
- * the inner one never sees.
- */
-function remove(path: string): void {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
-      return;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (attempt >= 20 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES" && code !== "ENOTEMPTY")) throw err;
-      // Synchronous, because this runs from beforeEach/afterAll and from inside
-      // a finally — none of which can await. A handle Windows is closing takes
-      // microseconds; 20 × 25ms is half a second of patience for something that
-      // has never needed more than one.
-      const until = Date.now() + 25;
-      while (Date.now() < until) { /* waiting out a delete Windows has not finished */ }
-    }
-  }
-}
+// The temp directory this file creates and deletes many times over, removed
+// with the patience Windows needs. The reasoning that used to sit here moved
+// to rm-temp-dir.ts when a third file hit the same wall; `remove` stays as the
+// name the rest of this file calls.
+const remove = rmTempDir;
 
 const wipe = () => remove(FILE);
 const sleep = (ms: number) => new Promise<void>(done => { setTimeout(done, ms); });
