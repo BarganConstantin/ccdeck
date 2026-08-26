@@ -51,8 +51,25 @@
 import { describe, it, expect } from "vitest";
 import { createPauseGate, PAUSE_QUEUE_LIMIT } from "../pause";
 import { applyEvent, initialState } from "../reducer";
-import { pauseTitle, statusPill } from "../status-pill";
+import { HELD_LABEL_CAP, pauseTitle, statusPill } from "../status-pill";
 import type { HookEnvelope, HookPayload } from "../types";
+
+// The ring the ceiling is stated against, read from the server that owns it
+// rather than retyped here (#654). See "ships a ceiling well under the ring the
+// server would replay into it" below for what the literal `2000` cost: a
+// relationship between two numbers, spelled as a bound on one of them, is a
+// statement about nothing the moment the other moves — MAX_BUFFER at 500 makes
+// the hold twice the ring instead of half of it, and every case in this file
+// stayed green.
+//
+// A static import would be the same thing, but the module is untyped .mjs and
+// this is how event-ring-byte-cap.test.ts already reaches it. Nothing at module
+// scope in index.mjs opens a socket, starts a timer or resolves a home
+// directory — the server begins accepting from inside `startServer`, which this
+// file never calls — so what arrives here is the constant and nothing else.
+// @ts-expect-error — .mjs server module, no types
+const server = await import("../../server/index.mjs");
+const MAX_BUFFER: number = server.MAX_BUFFER;
 
 const SESSION = "sess-547";
 const BOOT = "boot-a";
@@ -234,11 +251,27 @@ describe("the ceiling on the hold, and the pill that has to admit to it", () => 
   });
 
   it("ships a ceiling well under the ring the server would replay into it", () => {
-    // The relationship is the point, not the figure: a full ring drain is 2000
-    // envelopes, so it overflows the hold by construction and cannot be
-    // mistaken for a backlog a human pause produced.
-    expect(PAUSE_QUEUE_LIMIT).toBeLessThan(2000);
-    expect(PAUSE_QUEUE_LIMIT).toBeGreaterThan(99);
+    // The relationship is the point, not the figure: a full ring drain is
+    // MAX_BUFFER envelopes, so it overflows the hold by construction and cannot
+    // be mistaken for a backlog a human pause produced.
+    //
+    // Which is why the figure is no longer written down here (#654). This read
+    // `toBeLessThan(2000)` and `toBeGreaterThan(99)`, and both bounds were
+    // loose enough to hold while the sentence above them stopped being true:
+    // 1999 is "less than 2000" and is not a ceiling under anything, 100 passes
+    // the floor and is a hold three seconds deep. Worse, the 2000 was a copy of
+    // MAX_BUFFER rather than MAX_BUFFER, so dropping the ring to 500 — half the
+    // hold, the relationship inverted end to end — left this case green.
+    //
+    // pause.ts states the number exactly ("half the server's ring buffer, and
+    // the two numbers are related on purpose"), so that is what is pinned. The
+    // byte bound #636 gave the ring can only ever make a drain shorter, so the
+    // count remains the worst case this hold has to survive.
+    expect(PAUSE_QUEUE_LIMIT).toBe(MAX_BUFFER / 2);
+    // And the floor is the pill's own cap, imported for the same reason: past
+    // HELD_LABEL_CAP the pill says `99+`, and that has to mean a pill that has
+    // stopped counting rather than a hold that has stopped holding.
+    expect(PAUSE_QUEUE_LIMIT).toBeGreaterThan(HELD_LABEL_CAP);
   });
 });
 

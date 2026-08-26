@@ -213,8 +213,24 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
     // on each tab, because the strip is the widget.
     for (const { name, src } of STRIPS) {
       const strip = openingTags(src).find(t => IS_TABLIST.test(t));
-      expect(strip ?? `${name}: tabs with no role="tablist" around them`).toMatch(IS_TABLIST);
-      expect(`${name} ${strip}`).toMatch(/onKeyDown=/);
+      // The miss, asserted first, separately, and with the message in the place
+      // a message goes (#653). This line used to read
+      //
+      //   expect(strip ?? `${name}: tabs with no role="tablist" around them`)
+      //     .toMatch(IS_TABLIST)
+      //
+      // and IS_TABLIST is /\brole="tablist"/ — the exact string the fallback
+      // spells out. So on a hit it re-tested what `find` had just tested, and on
+      // the miss the error text BECAME the subject and matched itself. There is
+      // no input on which it can fail. Dropping role="tablist" off the strip was
+      // then reported one line down as `'components/AddAccountDialog.tsx undef…'
+      // to match /onKeyDown=/`, which blames the listener for the absence of the
+      // element that was supposed to carry it.
+      expect(strip, `${name}: a role="tab" with no role="tablist" tag around it`).toBeDefined();
+      // And the listener goes on that strip. `strip` rather than an interpolated
+      // subject for the same reason as above: what a failure should print is not
+      // something the matcher can be handed instead.
+      expect(strip!, `${name}: the tablist is listening for no keys`).toMatch(/onKeyDown=/);
     }
   });
 

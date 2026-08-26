@@ -326,10 +326,43 @@ describe("nothing sets motion from JS without an escape hatch the sheet owns", (
 
   it("sets no inline animation anywhere except behind a matchMedia gate", () => {
     // Confetti writes animationDelay and animationDuration per particle. That
-    // is allowed only for as long as the component reads the preference itself.
-    for (const { path, code } of sources) {
-      if (!/\banimation[A-Za-z]*\s*:/.test(code)) continue;
-      expect(code, path).toMatch(/prefers-reduced-motion: reduce/);
+    // is allowed only for as long as the component reads the preference itself
+    // AND refuses to render the element carrying the write when it is set.
+    //
+    // The second half was the whole clause and it was never asserted (#654).
+    // This case read `expect(code, path).toMatch(/prefers-reduced-motion:
+    // reduce/)` — the file MENTIONS the query somewhere — which says nothing
+    // about the animation, nothing about where the mention sits, and nothing
+    // about whether anything acts on it. `matchMedia` did not appear in this
+    // test at all. Deleting `reduced ||` from Confetti's render bail left all
+    // twelve cases in this file green.
+    const writers = sources.filter(({ code }) => /\banimation[A-Za-z]*\s*:/.test(code));
+    // The floor, outside the quantification, for the reason #648 put one in two
+    // other files: this sweep is looking for a construct a rename could hide,
+    // and a sweep that matched nothing would report green forever. Retiring the
+    // last inline animation is legal and this case should go with it, but that
+    // has to be done on purpose rather than by leaving a loop with nothing in it.
+    expect(writers.length, "no component writes an inline animation any more").toBeGreaterThan(0);
+
+    for (const { path, code } of writers) {
+      // 1. It reads the preference itself. `sources` has already dropped the
+      //    comments, so a mention cannot come from one; what this adds is that
+      //    the query has to be an argument to matchMedia bound to a name, not a
+      //    string sitting somewhere in the file.
+      const read = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=[^;]*?matchMedia\??\.?\(\s*["'`]\(prefers-reduced-motion: reduce\)["'`]\s*\)/.exec(code);
+      expect(read?.[1], `${path}: writes an inline animation without reading matchMedia("(prefers-reduced-motion: reduce)") into a flag`).toBeDefined();
+      const flag = read![1];
+
+      // 2. The render bails on that flag, and bails before the write. A React
+      //    render bails by returning a VALUE — `return null` — where an effect's
+      //    early exit returns nothing, and it is the render one this case is
+      //    about: the effect gate only declines to set up, while this is what
+      //    keeps the element carrying animationDelay from being emitted at all,
+      //    including on the re-render after the preference flips mid-burst.
+      const bail = new RegExp(`\\bif\\s*\\(\\s*${flag}\\b[^)]*\\)\\s*return\\s+[^;\\s]`).exec(code);
+      expect(bail?.index, `${path}: nothing stops the render when ${flag} is set`).toBeDefined();
+      expect(bail!.index, `${path}: ${flag} is checked only after the inline animation is written`)
+        .toBeLessThan(code.search(/\banimation[A-Za-z]*\s*:/));
     }
   });
 });

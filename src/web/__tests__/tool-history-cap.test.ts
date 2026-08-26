@@ -18,17 +18,30 @@ import type { HookEnvelope, HookPayload } from "../types";
 
 const SESSION = "sess-tools";
 
+/** The clock these envelopes carry. Every `receivedAt` is this plus the seq, so
+ *  the reducer's `now` is always a number this file can name — which is the
+ *  point of `STAMPS` below. */
+const CLOCK_BASE = 1_000;
+
 let seq = 0;
+/** The `receivedAt` the last envelope went out with. */
+let lastStamp = 0;
 
 function send(state: GraphState, payload: HookPayload): GraphState {
   const env: HookEnvelope = {
     seq: ++seq,
-    receivedAt: 1_000 + seq,
+    receivedAt: (lastStamp = CLOCK_BASE + seq),
     source: "hook",
     payload: { session_id: SESSION, ...payload },
   };
   return applyEvent(state, env);
 }
+
+/** What the envelopes for each tool id actually stamped, captured as they are
+ *  sent. Recorded rather than recomputed: a formula written out here would be a
+ *  second copy of the feed, and would go on agreeing with itself if the feed
+ *  changed underneath it. */
+const STAMPS = new Map<string, { startedAt: number; endedAt: number }>();
 
 /** One complete Read: PreToolUse with a fat input, PostToolUse with a fat
  *  response — the shape that actually eats the heap. */
@@ -40,15 +53,19 @@ function readCall(state: GraphState, n: number): GraphState {
     tool_use_id: id,
     tool_input: { file_path: `/repo/file-${n}.ts`, blob: "i".repeat(4096) },
   });
-  return send(s, {
+  const startedAt = lastStamp;
+  s = send(s, {
     hook_event_name: "PostToolUse",
     tool_use_id: id,
     tool_response: { content: "r".repeat(4096) },
   });
+  STAMPS.set(id, { startedAt, endedAt: lastStamp });
+  return s;
 }
 
 function feed(count: number): GraphState {
   seq = 0;
+  STAMPS.clear();
   let state = send(initialState(), { hook_event_name: "SessionStart", cwd: "/repo" });
   for (let n = 0; n < count; n++) state = readCall(state, n);
   return state;
@@ -84,8 +101,17 @@ describe("per-agent tool history", () => {
     // Everything the canvas reads off an entry survives the trim.
     expect(old.name).toBe("Read");
     expect(old.inputPreview.length).toBeGreaterThan(0);
-    expect(old.startedAt).toBeGreaterThan(0);
-    expect(old.endedAt).toBeGreaterThan(0);
+    // The timings are the ones this entry's own two envelopes carried. That is
+    // the claim — the timing SURVIVES the trim — and `toBeGreaterThan(0)` was
+    // not it (#654): every stamp in this feed is `1_000 + seq`, so ≥ 1002 by
+    // construction, and a zero was never among the answers the assertion could
+    // have received. `Date.now()`, a neighbour's stamp and a literal 1 all
+    // satisfied it, and overwriting both fields with `Date.now()` inside
+    // trimTools left this whole file green — an elapsed time of minus an hour
+    // on the card, reported as a pass.
+    const stamp = STAMPS.get(old.id);
+    expect(stamp, `no envelope recorded for ${old.id} — the feed and the trim disagree about which call this is`).toBeDefined();
+    expect([old.startedAt, old.endedAt]).toEqual([stamp!.startedAt, stamp!.endedAt]);
     expect(old.ok).toBe(true);
     expect(old.agentId).toBe(SESSION);
   });
