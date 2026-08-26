@@ -51,6 +51,7 @@ import { paletteReader, readPalette, samePalette, type Palette } from "./palette
 import { restoreLayout, type StoredLayout } from "./stored-layout";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
+import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { costForUsage, fmtCost, fmtCostRate } from "./pricing";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 import { emptyScope } from "./scope";
@@ -1549,6 +1550,22 @@ function Inner() {
   // when a new session arrives and dagre shifts everything off-screen.
   const lastInteractRef = useRef(0);
   const markInteract = useCallback(() => { lastInteractRef.current = Date.now(); }, []);
+  /** The pane the watchdog measures nodes against, in CSS pixels.
+   *
+   *  Written by the ResizeObserver on `.canvas-wrap` further down, which is the
+   *  one thing in this component that knows how big the canvas is. A ref rather
+   *  than the `canvasSize` state beside it for two reasons: the interval below
+   *  is registered once and polls, so it wants a value it can read without
+   *  being torn down and rebuilt on every resize; and `canvasSize` is
+   *  deliberately quantised to 40px so a one-pixel resize cannot reflow the
+   *  layout, which is exactly the rounding an intersection test must not
+   *  inherit. Same observer, same element, same callback — this one keeps the
+   *  reading whole.
+   *
+   *  Null until that observer first fires, and null for good on a browser
+   *  without ResizeObserver. Both mean "the pane has not been measured", which
+   *  shouldRefit treats as a reason not to decide. */
+  const paneSizeRef = useRef<PaneSize | null>(null);
   // When a press or a wheel last landed anywhere inside the canvas element,
   // which contains the pane, the Controls stack and the minimap alike.
   //
@@ -1612,28 +1629,24 @@ function Inner() {
         liveAgents.push({ id: a.id });
       }
       if (liveAgents.length === 0) return;
-      const vp = rf.getViewport();
-      const canvasW = window.innerWidth - 360; // detail panel
-      const canvasH = window.innerHeight - 52; // topbar
-      let anyInView = false;
-      let anyMeasured = false;
+      const boxes: NodeBox[] = [];
       for (const { id } of liveAgents) {
         const size = measuredRef.current.get(id);
         const pos = pinnedRef.current.get(id) ?? positionsRef.current.get(id);
+        // An agent with no measurement or no position is not evidence either
+        // way, so it is left out rather than counted as off-screen.
         if (!size || !pos) continue;
-        anyMeasured = true;
-        const sl = pos.x * vp.zoom + vp.x;
-        const st = pos.y * vp.zoom + vp.y;
-        const sr = (pos.x + size.width) * vp.zoom + vp.x;
-        const sb = (pos.y + size.height) * vp.zoom + vp.y;
-        if (sr > 0 && sl < canvasW && sb > 0 && st < canvasH) {
-          anyInView = true;
-          break;
-        }
+        boxes.push({ x: pos.x, y: pos.y, width: size.width, height: size.height });
       }
-      // Only attempt a fit if at least one agent is measured AND none of the
-      // measured ones intersect the viewport — that's the genuine drift case.
-      if (anyMeasured && !anyInView) {
+      // The decision itself lives in drift.ts, against the pane the deck
+      // measured rather than a rectangle guessed from the window. `getViewport`
+      // returns the pane's transform, so a node projected through it is in
+      // pane-relative pixels — and the only rectangle in the same coordinate
+      // space is the pane's own size. It used to be tested against
+      // `innerWidth - 360`, which is the window minus a detail panel assumed
+      // always open: right in one of the six layouts `.app` grids itself into,
+      // wrong in the five others including the one the deck starts in (#615).
+      if (shouldRefit({ pane: paneSizeRef.current, viewport: rf.getViewport(), boxes })) {
         fitLeft(600);
       }
     }, 1500);
@@ -1817,12 +1830,20 @@ function Inner() {
     const ro = new ResizeObserver(entries => {
       const r = entries[0]?.contentRect;
       if (!r) return;
+      // Unrounded, and updated on every callback: the drift watchdog compares
+      // node boxes against this rectangle, and a 40px tolerance in an
+      // intersection test is a 40px strip of the canvas that reads as
+      // off-screen. It is also the reading that has to be current the instant a
+      // side panel opens or closes, which is precisely when the pane changes
+      // width by 240-360px and the watchdog is most likely to be wrong (#615).
+      paneSizeRef.current = { width: r.width, height: r.height };
       // Quantised so a one-pixel resize doesn't reflow the canvas.
       setCanvasSize(prev =>
         (Math.abs(prev.w - r.width) > 40 || Math.abs(prev.h - r.height) > 40)
           ? { w: r.width, h: r.height } : prev);
     });
     ro.observe(el);
+    paneSizeRef.current = { width: el.clientWidth, height: el.clientHeight };
     setCanvasSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
