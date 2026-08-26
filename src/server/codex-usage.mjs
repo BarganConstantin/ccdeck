@@ -243,14 +243,62 @@ function windowDelta(series, windowStartMs) {
 // Parse session start time from rollout filename.
 // Format: rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl
 // The timestamp portion uses dashes instead of colons (Windows-safe).
+//
+// THAT WALL CLOCK IS LOCAL. This used to append a "Z" and hand the result to
+// `Date.parse`, which declares it UTC, and every rollout the walk below
+// considered was therefore mis-dated by the machine's offset — the whole
+// membership test shifted by however far the machine sits from Greenwich
+// (#609). Measured against the ten rollouts under `$CODEX_HOME` on this
+// machine, TZ=Europe/Chisinau, offset +3: read as UTC the filename sits
+// 179.3, 173.4, 178.5, 179.6, 179.7, 180.0, 179.8, 180.0 and 179.9 minutes
+// ahead of the first event in its own file; read as local it lands 0.0 to 6.6
+// minutes BEFORE it, which is the gap between naming a file and writing the
+// first line into it. Ten out of ten, and the sign is the tell — a session
+// cannot log an event before it starts.
+//
+// The tenth file is the one worth spelling out, because it is the reason this
+// keys off the name and not the contents. In
+// `rollout-2026-08-18T08-00-24-01a0133d-…` the envelope timestamp on line 1 is
+// 06:33:07.513Z — 92 minutes AFTER the name, since the session sat idle before
+// its first turn — while the `session_meta` payload nested inside that same
+// line reads 05:00:24.355Z, which is 08:00:24 local, the filename to the
+// second. So the outer timestamp is when the file was first APPENDED TO and
+// the name is when the session STARTED; the two differ by as much as the user
+// leaves the prompt sitting there.
+//
+// Reading that inner field would mean opening every rollout in the tree just
+// to decide which rollouts to open, which is the one cost this function exists
+// to avoid: the module's own measurements put a week at 280 files, and the
+// files ruled out by the name are exactly the ones never touched again. It
+// would also need an answer for a rollout whose first line is truncated,
+// unparseable or simply not there yet — and the only two answers are to open
+// it anyway (paying the cost the filter was for) or to drop it (a silent
+// undercount, which is the bug being fixed here wearing a different hat). The
+// name is on disk, free to read, and by the measurement above it is the more
+// accurate of the two.
 function parseRolloutTime(filename) {
   // e.g. rollout-2026-06-17T12-39-01-019ed4f2-c821-...jsonl
-  const m = filename.match(/^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-/);
+  const m = filename.match(/^rollout-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-/);
   if (!m) return null;
-  // Replace the last two dashes in time part with colons
-  const iso = m[1].replace(/T(\d{2})-(\d{2})-(\d{2})$/, "T$1:$2:$3") + "Z";
-  const t = Date.parse(iso);
-  return isNaN(t) ? null : t;
+  const [y, mo, d, h, mi, s] = m.slice(1).map(Number);
+  // Built from parts rather than parsed from a string, so the conversion uses
+  // the zone rules in force ON THAT DATE rather than any single offset. An
+  // offset is not a constant: America/Los_Angeles is -8 in January and -7 in
+  // July, so a fix that subtracted `new Date().getTimezoneOffset()` would be
+  // wrong for half the window it filters, twice a year, and wrong by an hour
+  // for the whole of it on the days either side of a transition.
+  const dt = new Date(y, mo - 1, d, h, mi, s);
+  // `Date.parse` used to reject a nonsense date for free; the constructor
+  // instead rolls it over (month 13 becomes next January), which would turn a
+  // file that is not a rollout at all into one dated in the future — and a
+  // future date passes the window test below. Month and day are enough to
+  // catch that, and deliberately not the hour: a local time inside a
+  // spring-forward gap does not exist, and V8 normalises it to the hour after,
+  // which is the right answer and not a rollover. It subsumes the `isNaN` test
+  // that used to stand at the end of this function, since an invalid Date
+  // answers NaN to `getMonth()` and NaN matches nothing.
+  if (dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return dt.getTime();
 }
 
 // List rollout files whose start times fall within the given window.
@@ -266,8 +314,18 @@ async function listRolloutFiles(sinceMs) {
   const nowMs = Date.now();
   // Years arrive newest-first, so the first one that cannot hold a file in the
   // window ends the walk: everything after it is older still. The extra day of
-  // slack covers a session that started just before the window and a filename
-  // timestamp that is UTC while the year directory is local time.
+  // slack covers a session that started just before the window.
+  //
+  // It used to also claim to cover "a filename timestamp that is UTC while the
+  // year directory is local time", which asserted the opposite of what the
+  // files say — see parseRolloutTime. Both are local now and `getFullYear()`
+  // here is local too, so the two sides of this comparison finally speak the
+  // same clock. What the day of slack still earns, beyond the session that
+  // started just before the window: an ambiguous local time on the day the
+  // clocks go back happens twice, V8 resolves it to the first of the two, and
+  // a session started during the second is dated an hour early. That is a
+  // one-hour error on one or two days a year against a seven-day window,
+  // where the old bug was an offset-wide error on every day of it.
   const oldestYear = new Date(nowMs - sinceMs - 86400000).getFullYear();
   await walkRolloutDays(
     (dir, files) => {
