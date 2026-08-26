@@ -63,8 +63,9 @@ export const isBatch = (file, platform = process.platform) =>
  * Mirrors what Node does internally for `shell: true` on Windows — comspec,
  * /d /s /c, the whole command line as a single quoted argument, and
  * windowsVerbatimArguments so Node does not quote it a second time. Each
- * argument is quoted here, with embedded quotes doubled, which is the escape
- * cmd.exe understands inside a quoted string.
+ * argument is quoted by shellQuoteArg below, which has to satisfy cmd.exe AND
+ * the argv parser of whatever it launches — see the note there, and #624 for
+ * the half of that rule this file was missing until a real cmd.exe was asked.
  */
 export function viaCmd(file, args) {
   const line = [file, ...args].map(a => shellQuoteArg(a, "win32")).join(" ");
@@ -98,17 +99,61 @@ export function viaCmd(file, args) {
  *
  * POSIX gets single quotes, inside which NOTHING is special, with the one
  * escape that form has: close the quote, emit a backslash-quote, reopen.
- * Windows gets cmd.exe's rule — the same one viaCmd applies above, so this file
- * has one Windows quoting rule rather than two — with the same single residual
- * exec.mjs already documents: cmd.exe expands `%VAR%` inside quotes too, and a
- * command line has no escape for it. That is narrower than it sounds, since
- * `%foo%` with no variable `foo` is left alone, and it is a limit of the
- * platform rather than of this function.
+ *
+ * Windows gets the rule below — the same one viaCmd applies above, so this file
+ * has one Windows quoting rule rather than two. It has to satisfy TWO parsers,
+ * and that is the whole of its difficulty, because they disagree about the
+ * backslash:
+ *
+ *   cmd.exe reads the line only far enough to find where the command ends. It
+ *   has no escape for a quote at all — a `"` toggles "inside quotes", and `&`,
+ *   `|`, `<`, `>`, `^`, `(` and `)` are syntax only while outside — and it does
+ *   not treat `\` as anything. Then it hands the rest of the line on AS TEXT.
+ *
+ *   The program on the other end splits that text into argv itself, and for
+ *   node that is the UCRT parser, which DOES read `\` as an escape in front of
+ *   a quote: 2n backslashes before a `"` are n backslashes and a quote that
+ *   toggles, 2n+1 are n backslashes and a literal `"`.
+ *
+ * So an embedded `"` is written `""` rather than `\"` — two toggles is no net
+ * change to cmd.exe's idea of where it is, while the child's parser turns the
+ * pair back into one quote — and every run of backslashes that ends up in front
+ * of a quote, INCLUDING THE CLOSING ONE THIS ADDS, is doubled so the child does
+ * not read it as an escape.
+ *
+ * That last clause is #624 and it was missing. `"` + arg + `"` alone turns a
+ * path ending in a separator — `C:\Program Files\nodejs\` — into
+ * `"C:\Program Files\nodejs\"`, whose final `\"` is an escaped quote to the
+ * child: the quoted region never closes, and the argument swallows every
+ * argument after it on the line. `--provider claude` in the hook command is
+ * exactly what it swallowed. A backslash immediately before an embedded quote
+ * was the quieter half of the same defect — it was eaten as the escape.
+ *
+ * The one residual left, unchanged: cmd.exe expands `%VAR%` inside quotes too,
+ * and a command line has no escape for it. That is narrower than it sounds,
+ * since `%foo%` with no variable `foo` is left alone, and it is a limit of the
+ * platform rather than of this function. `!VAR!` is the same limit on a machine
+ * with delayed expansion turned on, which is not the default for `cmd /c`.
+ *
+ * no-shell-hook-commands.test.ts runs the output of this through a real cmd.exe
+ * on the Windows leg of the matrix and compares what the child RECEIVED against
+ * what was intended. Four literals said this function agreed with itself for
+ * three releases; they could not say whether it agreed with Windows.
  */
 export function shellQuoteArg(arg, platform = process.platform) {
   const s = String(arg ?? "");
-  if (platform === "win32") return `"${s.replace(/"/g, '""')}"`;
-  return `'${s.split("'").join("'\\''")}'`;
+  if (platform !== "win32") return `'${s.split("'").join("'\\''")}'`;
+  let out = '"';
+  let slashes = 0;
+  for (const ch of s) {
+    if (ch === "\\") { slashes++; continue; }
+    if (ch === '"') { out += "\\".repeat(slashes * 2) + '""'; slashes = 0; continue; }
+    out += "\\".repeat(slashes) + ch;
+    slashes = 0;
+  }
+  // A run that reaches the end of the argument is in front of the closing quote,
+  // which is a quote like any other.
+  return `${out}${"\\".repeat(slashes * 2)}"`;
 }
 
 /**
