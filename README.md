@@ -137,6 +137,8 @@ override it if the guess is wrong.
 
 `--workspace` is a filter this deck applies to itself, not a claim on the sessions it matches: **every** running deck whose workspace contains a session's directory draws that session, so a machine-wide deck and one scoped to `~/proj` both show the agents working inside `~/proj`. It reads the same way on all three paths a session can reach the canvas by — Claude Code's hook, Codex's rollout files, and the boot replay of the events log — and the events log still gets exactly one copy of each event, whichever decks are up. A relative path is resolved against the directory you start the deck in, and once, so every path scopes to the same tree. The log is machine-wide by default and shared by every deck on the box, so a scoped deck replays only the part of it that is inside its own workspace: it comes up showing what it will go on to capture, and nothing else.
 
+That one events log is also the reason Clear is not quite the per-deck button it looks like. The decks elect a single writer for each log file, and only that deck may empty it: Clear on any other deck wipes its own canvas and leaves the file to the deck that writes it. The confirmation says which of the two you are about to do, and how many decks share the log when it is yours to empty — so `--history` or `--no-persist` gives a deck a log of its own if you want Clear to answer to nobody else.
+
 Environment:
 
 | Variable | Effect |

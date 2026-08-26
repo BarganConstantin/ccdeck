@@ -17,7 +17,7 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
-import { appendLogLine, codexCwdInWorkspace, writesCodexLog } from "./log-writer.mjs";
+import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -319,6 +319,67 @@ function noteLogWriter(payload, mine) {
 export function writesLogFor(payload) {
   const sid = payload && typeof payload === "object" ? payload.session_id : null;
   return typeof sid !== "string" || sid === "" || !foreignSessions.has(sid);
+}
+
+/**
+ * Who else is holding the log this deck would empty, and whose it is to empty.
+ *
+ * `events.jsonl` is one file several decks share — that is the whole reason the
+ * election above exists — and `POST /api/clear` truncated it from whichever deck
+ * happened to be asked. So Clear on a deck scoped to one tree deleted the
+ * machine-wide deck's weeks of history, and told nobody: the other deck goes on
+ * serving what is still in its ring, so the damage only shows up the next time
+ * it boots and replays a file that is now empty (#698). Measured on macOS 15 /
+ * Node 22.14: 1407 bytes and five lines before, 134 bytes after — and the 134
+ * were the clearing deck's own `__clear` marker, appended to a log it writes
+ * nothing else to.
+ *
+ * The rule this establishes is the one the rest of the file already runs on: a
+ * deck may empty the log it WRITES. Ownership is electWriters — the same
+ * election, over the same discovery records, that decides which deck appends a
+ * line — so the process that truncates the file is the process that fills it,
+ * which is also the only way the two operations are ordered on any platform. A
+ * deck that is not the elected writer clears its own canvas and leaves the file
+ * to the deck that owns it; the confirmation says so before the user presses
+ * anything, and says how many decks share the file when the answer is "yours to
+ * empty". Nothing here decides the copy — `GET /api/clear` hands these facts to
+ * the dialog, which is the half that keeps the user from destroying history they
+ * were never told about.
+ *
+ * Deliberately NOT a scope test. Whether this deck was started with
+ * `--workspace` has nothing to do with who owns a file: two machine-wide decks
+ * share one log exactly as a scoped one shares it with a machine-wide one, and
+ * the harm is the same in both directions.
+ *
+ * Fail-safe matches writesCodexLog's, for the same reason: with no discovery
+ * record of our own — the window before the first heartbeat writes it, or a deck
+ * that cannot write one at all — nobody can elect us and we keep what a lone
+ * deck does. The COUNT is still every deck sharing the file, so even inside that
+ * window the confirmation warns rather than guessing quietly.
+ */
+export async function logSharing() {
+  if (!persistPath) return { path: null, decks: 1, mine: true, owner: null };
+  const fold = s => (foldsCase() ? s.toLowerCase() : s);
+  const here = fold(persistPath);
+  const sameLog = d => typeof d.persist === "string" && d.persist !== "" && fold(d.persist) === here;
+
+  let live = [];
+  try { live = await readLiveDecks(); } catch { /* unreadable dir — treated as "alone" below */ }
+  const group = live.filter(sameLog);
+  const self = group.find(d => d.pid === process.pid) ?? null;
+  if (!self) return { path: persistPath, decks: Math.max(group.length + 1, 1), mine: true, owner: null };
+
+  const writers = electWriters(group);
+  const mine = writers.has(self);
+  // One log path, so the election normally returns exactly one deck. It can
+  // return more only when two decks spell the same file differently on a
+  // case-sensitive platform, which `sameLog` folded together and electWriters
+  // did not — the lowest port of them is the one to name, and `mine` above is
+  // the election's own answer either way.
+  const owner = mine
+    ? self
+    : [...writers].sort((a, b) => a.port - b.port || a.pid - b.pid)[0] ?? null;
+  return { path: persistPath, decks: group.length, mine, owner };
 }
 
 // ─── Persistence rotation ─────────────────────────────────────────────────
@@ -4196,6 +4257,75 @@ export async function canonicalCwd(raw) {
   try { return await realpathNative(abs); } catch { return abs; }
 }
 
+/**
+ * The deck's one irreversible action: empty the ring, and empty the log — but
+ * only the log this deck is the one writing.
+ *
+ * The gate is the whole of #698. `truncate(persistPath, 0)` ran from whichever
+ * deck was asked, and `persistPath` is one file several decks share by default,
+ * so Clear on a deck scoped to a single tree deleted the machine-wide deck's
+ * entire history while its canvas showed no change at all. Ownership is
+ * electWriters, the election that already decides which of those decks appends a
+ * line, so nothing new gets to disagree with it: the deck that fills the file is
+ * the deck that may empty it, and a deck that writes nothing to it cannot
+ * destroy it. See logSharing.
+ *
+ * A deck that does not own the log still clears its own canvas — that is what
+ * the user pressed, and the ring is this deck's alone — and says which deck's
+ * file it declined to touch, so the answer is a fact the UI can show rather than
+ * a silent partial success. The dialog asked `GET /api/clear` before the press
+ * and has already said the same thing in words.
+ *
+ * The `__clear` marker is broadcast and NOT persisted. It never belonged on
+ * disk: replaying an empty log and then a marker that empties it produces the
+ * same empty state, and appending it was how a deck that writes nothing else to
+ * the shared file still left 134 bytes in it — the reproduction's whole
+ * remainder. `{ persist: false }` is the same flag the hook sets on the decks it
+ * did not elect.
+ */
+async function handleClear(res) {
+  const sharing = await logSharing();
+  // Not `events.length = 0`: the ring is measured by a running total now, and
+  // emptying the array without the total leaves a debt that never clears. See
+  // clearEventBuffer.
+  clearEventBuffer();
+  if (sharing.path && sharing.mine) truncate(sharing.path, 0).catch(() => {});
+  // Drop the caches that gate an emit on "has this changed", because the
+  // client is about to forget what they are comparing against: __clear makes
+  // the reducer return a fresh state, so every session's name and every
+  // subagent's model label go with it. maybeResolveSessionName then computes
+  // the same signature, takes its early return, and emits nothing — so the
+  // card falls back to cwd/prompt for the rest of that session while the
+  // server is sitting on the name.
+  //
+  // The root model survives without help because pushEvent stamps
+  // `raw.model` on every payload; there is no equivalent stamp for the name
+  // or for a subagent's model, which is why those two are listed and the
+  // rest of the per-session state is not.
+  //
+  // The rule, for the next cache that gates an emit: anything answering
+  // "has this changed" has to appear in BOTH places that mean the client no
+  // longer has it — here, and in forgetSession.
+  nameBySession.clear();
+  modelBySession.clear();
+  // The read stamps go with them. Clearing only the signatures would leave
+  // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
+  // would not be re-read at all and the name would stay missing until the
+  // throttle expired — a clear followed by a keystroke is exactly when a
+  // user is watching.
+  lastNameReadAt.clear();
+  modelLastReadAt.clear();
+  pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });
+  return send(res, 200, {
+    ok: true,
+    log: !sharing.path ? "none" : sharing.mine ? "cleared" : "kept",
+    path: sharing.path,
+    decks: sharing.decks,
+    mine: sharing.mine,
+    owner: sharing.owner ? { port: sharing.owner.port } : null,
+  });
+}
+
 function handleHealth(_req, res) {
   send(res, 200, {
     ok: true,
@@ -4820,41 +4950,20 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       return guard(writeJsonArray(res, eventsSince(url.searchParams.get("since") ?? 0)), res);
     }
 
-    // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
-    if (req.method === "POST" && url.pathname === "/api/clear") {
-      // Not `events.length = 0`: the ring is measured by a running total now,
-      // and emptying the array without the total leaves a debt that never
-      // clears. See clearEventBuffer.
-      clearEventBuffer();
-      if (persistPath) truncate(persistPath, 0).catch(() => {});
-      // Drop the caches that gate an emit on "has this changed", because the
-      // client is about to forget what they are comparing against: __clear makes
-      // the reducer return a fresh state, so every session's name and every
-      // subagent's model label go with it. maybeResolveSessionName then computes
-      // the same signature, takes its early return, and emits nothing — so the
-      // card falls back to cwd/prompt for the rest of that session while the
-      // server is sitting on the name.
-      //
-      // The root model survives without help because pushEvent stamps
-      // `raw.model` on every payload; there is no equivalent stamp for the name
-      // or for a subagent's model, which is why those two are listed and the
-      // rest of the per-session state is not.
-      //
-      // The rule, for the next cache that gates an emit: anything answering
-      // "has this changed" has to appear in BOTH places that mean the client no
-      // longer has it — here, and in forgetSession.
-      nameBySession.clear();
-      modelBySession.clear();
-      // The read stamps go with them. Clearing only the signatures would leave
-      // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript
-      // would not be re-read at all and the name would stay missing until the
-      // throttle expired — a clear followed by a keystroke is exactly when a
-      // user is watching.
-      lastNameReadAt.clear();
-      modelLastReadAt.clear();
-      pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal");
-      return send(res, 200, { ok: true });
+    // GET /api/clear — what a POST to this path would do, and to whose log.
+    // Asked by the confirmation dialog as it opens, on demand rather than on a
+    // timer, for the reason /api/system/processes is: the answer costs a
+    // directory read, changes only when a deck starts or stops, and matters at
+    // exactly one moment. See logSharing.
+    if (req.method === "GET" && url.pathname === "/api/clear") {
+      return guard(logSharing().then(s => send(res, 200, {
+        ok: true, path: s.path, decks: s.decks, mine: s.mine,
+        owner: s.owner ? { port: s.owner.port } : null,
+      })), res);
     }
+
+    // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
+    if (req.method === "POST" && url.pathname === "/api/clear") return guard(handleClear(res), res);
 
     if (req.method === "GET") return serveStatic(req, res, url);
     send(res, 405, { error: "method not allowed" });
