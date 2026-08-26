@@ -45,44 +45,82 @@ function sonnet5Rates(now: number): ModelRates {
     : { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75, cacheWrite1h: 6 };
 }
 
+// THE `(?![-_.]\d{1,7}(?!\d))` ON EVERY CLAUDE ROW (#688). It is one assertion
+// repeated nine times rather than a shared constant, because the row patterns
+// have to stay regex LITERALS — bedrock-model-ids.test.ts reads them straight
+// out of this source and rebuilds them, so that a row added tomorrow with no
+// pinned id fails its coverage sweep instead of quietly going unproven. A table
+// assembled by string concatenation would be invisible to that check.
+//
+// What it asserts is not what `\b` asserts. `\b` says the version number ended.
+// This says nothing that follows it is ANOTHER version number — and the gap
+// between the two questions is the whole of #688. `^claude[-_]opus[-_]4(?:[-_.]1)?\b`
+// reads `claude-opus-4-9` by taking the EMPTY branch of its optional `.1` and
+// finding a boundary between the `4` and the `-`, so an Opus 4.9 nobody has
+// priced yet was billed at the RETIRED Opus 4 rate: $15/$75 against the current
+// tier's $5/$25, three times the real spend, printed as a confident figure with
+// nothing on screen to say it was invented. `claude-opus-4-10` got there the
+// same way — it tries `-1`, fails the boundary between `1` and `0`, backtracks,
+// and settles on the bare `4`. The bare Sonnet 4 row swallowed `claude-sonnet-4-7`
+// and everything above it identically; that one costs nothing today only because
+// Sonnet 4 and 4.5/4.6 happen to share a price, which is a coincidence and not a
+// guarantee. The gpt-5 row three hundred lines down already refuses exactly this
+// guess in its own words, and this is that argument with the multiplier the other
+// way up: an unrecognised model must reach NO row, so every surface prints
+// UNPRICED_LABEL beside a real token count.
+//
+// WHY A DIGIT-RUN LENGTH AND NOT THE OBVIOUS `(?![-_.]\d)`. Refusing every digit
+// that follows the version would refuse the commonest tail a Claude id has:
+// `claude-opus-4-20250514` is Bedrock's Opus 4 and `claude-opus-4-1-20250805` is
+// first-party Opus 4.1, both live ids pinned in bedrock-model-ids.test.ts, and
+// both would have stopped pricing altogether — a fix that quietly unprices a
+// real model is worse than the bug it closes. The only all-digit token that
+// legitimately follows a version here is the eight-digit release date, so the
+// rule is drawn on length: a run SHORTER than a date is another version, and
+// this row does not know it. Vertex's `@20250805`, Bedrock's `-v1:0` revision
+// and CC's `[1m]` banner all start on a character `[-_.]` does not accept, so
+// none of them is affected either way.
+//
 // `rates` is either a fixed table entry or a function of the current time, for
 // the handful of models whose published price changes on a known date.
 const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
   // Fable 5 / Mythos 5 — $10 / $50
-  { match: /^claude[-_](fable|mythos)[-_]5\b/i,
+  { match: /^claude[-_](fable|mythos)[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 } },
 
   // Opus 5 — $5 / $25. Must precede the Opus 4.x rows: "opus-5" shares no
   // prefix with them, but keeping the generations in order stops the next
   // person from inserting a looser pattern above it.
-  { match: /^claude[-_]opus[-_]5\b/i,
+  { match: /^claude[-_]opus[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 } },
 
-  // Sonnet 5 — $3 / $15, or $2 / $10 until 2026-08-31 (see above)
-  { match: /^claude[-_]sonnet[-_]5\b/i, rates: sonnet5Rates },
+  // Sonnet 5 — $3 / $15, or $2 / $10 until 2026-08-31 (see above). The version
+  // guard earns its keep twice here: an unrecognised Sonnet 5.1 would not just
+  // inherit a price it was never quoted, it would inherit an INTRODUCTORY one.
+  { match: /^claude[-_]sonnet[-_]5\b(?![-_.]\d{1,7}(?!\d))/i, rates: sonnet5Rates },
 
   // Opus 4.5 - 4.8 — $5 / $25 (the "new" Opus tier introduced with 4.5)
-  { match: /^claude[-_]opus[-_]4[-_.](?:5|6|7|8)\b/i,
+  { match: /^claude[-_]opus[-_]4[-_.](?:5|6|7|8)\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 } },
 
   // Opus 4 / 4.1 (deprecated, but may still show up in older sessions) — $15 / $75
-  { match: /^claude[-_]opus[-_]4(?:[-_.]1)?\b/i,
+  { match: /^claude[-_]opus[-_]4(?:[-_.]1)?\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75, cacheWrite1h: 30 } },
 
   // Sonnet 4.5 / 4.6 — $3 / $15
-  { match: /^claude[-_]sonnet[-_]4[-_.](?:5|6)\b/i,
+  { match: /^claude[-_]sonnet[-_]4[-_.](?:5|6)\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75, cacheWrite1h: 6 } },
 
   // Sonnet 4 (deprecated) — same as 4.5/4.6
-  { match: /^claude[-_]sonnet[-_]4\b/i,
+  { match: /^claude[-_]sonnet[-_]4\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75, cacheWrite1h: 6 } },
 
   // Haiku 4.5 — $1 / $5
-  { match: /^claude[-_]haiku[-_]4[-_.]5\b/i,
+  { match: /^claude[-_]haiku[-_]4[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 } },
 
   // Haiku 3.5 (retired except Bedrock/Vertex) — $0.80 / $4
-  { match: /^claude[-_]haiku[-_]3[-_.]5\b/i,
+  { match: /^claude[-_]haiku[-_]3[-_.]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1, cacheWrite1h: 1.6 } },
 
   // ── OpenAI / Codex family ────────────────────────────────────────────────
