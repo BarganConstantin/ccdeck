@@ -169,12 +169,41 @@ function topLevelParts(value: string): string[] {
  *  `border-top` or a logical `border-inline` returned null — and null is what
  *  `paintsAnEdge` below reads as "no boundary at all", which means such a rule
  *  was neither swept nor reported as unswept. Nothing in the sheet does that
- *  today; the point is that nothing would have said so. */
+ *  today; the point is that nothing would have said so.
+ *
+ *  #655 finished it with the ten `-color` longhands, which #629 left out on
+ *  purpose. This list is priority-ordered and the first hit wins, so what is in
+ *  it — and where — decides which rules count as having an edge at all, and
+ *  `paintsAnEdge` and `RING_RULES` both read that answer. Two facts made the
+ *  change safe to make rather than to keep deferring, and both are pinned by
+ *  the case above `RING_RULES` below so a future edit cannot move them quietly:
+ *
+ *  WHERE. The longhands go LAST, after every shorthand. A `-color` longhand
+ *  recolours ONE side of a boundary whose other three sides came from the
+ *  shorthand beside it, so a rule that writes both is still described by the
+ *  shorthand — asking `border-bottom-color` first would let one recoloured side
+ *  stand in for the whole edge. Appending can therefore only turn a null into a
+ *  colour; it can never change an answer this function already had. That is the
+ *  whole of what the order was protecting.
+ *
+ *  WHAT IT CHANGES. Two rules in the sheet write a `-color` longhand and
+ *  nothing else — `.ver-banner.done` and `:root[data-theme="light"]
+ *  .conn-banner`, each recolouring the `border-bottom` its base rule declares.
+ *  Neither is a control rule, so neither reaches `paintsAnEdge`'s
+ *  `isControlRule` filter or `RING_RULES`, and both downstream sets are
+ *  byte-identical before and after: 11 ring selectors and 62 edged control
+ *  selectors either way. The hole this closes is the latent one — a control
+ *  whose only edge is `border-top-color` reads as having no boundary, and would
+ *  fall out of the swept list and the unswept report at the same time. */
 const BORDER_PROPS = [
   "border-color", "border",
   "border-top", "border-bottom", "border-left", "border-right",
   "border-block", "border-inline", "border-block-start", "border-block-end",
   "border-inline-start", "border-inline-end",
+  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+  "border-block-color", "border-inline-color",
+  "border-block-start-color", "border-block-end-color",
+  "border-inline-start-color", "border-inline-end-color",
 ];
 
 function borderColourIn(body: string): string | null {
@@ -190,13 +219,15 @@ function borderColourIn(body: string): string | null {
  * ask "does ANY declaration here name this token" rather than "what is this
  * rule's one edge colour".
  *
- * A superset of `BORDER_PROPS`, and deliberately a second list rather than an
- * edit to that one: `BORDER_PROPS` is priority-ordered and `borderColourIn`
- * returns the first hit, so what is in it decides which rules count as having
- * an edge at all — which `paintsAnEdge` and `RING_RULES` both read. The four
- * `-color` longhands belong in that answer too and are missing from it for the
- * same reason they were missing here; that is a separate change with a
- * different blast radius, and this one stays additive.
+ * It was a superset of `BORDER_PROPS` and is now the same list, which is what
+ * #655 closing the `-color` gap above means. The two names are kept apart
+ * because they answer different questions and are read differently:
+ * `borderColourIn` walks `BORDER_PROPS` in order and stops at the first hit,
+ * while everything reading this one visits every entry. Collapsing them into
+ * one constant would put a sweep's exhaustiveness and a resolver's precedence
+ * on the same line, and the next widening on either side would have to reason
+ * about both at once — which is exactly the coupling that kept the `-color`
+ * longhands out of `BORDER_PROPS` for two issues.
  *
  * #629. `declIn` anchors the property name — it must sit straight after a `;`
  * or `{` with nothing but whitespace before the colon — so `border-color` does
@@ -204,15 +235,9 @@ function borderColourIn(body: string): string | null {
  * A sweep reading those two names alone therefore sees one spelling in ten,
  * and the sheet writes the others: 23 `border-bottom`, 6 `border-top`, 4
  * `border-right`, 2 `border-left` and 2 `border-bottom-color` at the time of
- * writing, against 80 `border-color` and 74 `border`.
+ * writing, against 81 `border-color` and 74 `border`.
  */
-const EDGE_COLOUR_PROPS = [
-  ...BORDER_PROPS,
-  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-  "border-block-color", "border-inline-color",
-  "border-block-start-color", "border-block-end-color",
-  "border-inline-start-color", "border-inline-end-color",
-];
+const EDGE_COLOUR_PROPS = [...BORDER_PROPS];
 
 /**
  * Every border-colour declaration in the sheet, as the rule and property that
@@ -524,6 +549,112 @@ const RING_RULES = RULES.filter(rule => {
   return ring !== null && ring !== "transparent";
 });
 
+/**
+ * An edge a reader could see: not `none`, not `0`, not transparent. A value
+ * this file cannot resolve counts as visible — an edge nobody here understands
+ * is exactly the one that has to be looked at by hand.
+ *
+ * #378: a ring counts. This used to ask `borderColourIn` alone, so a rule
+ * drawing its whole boundary with `outline` or an inset box-shadow answered
+ * "no boundary" and fell out of both lists at once — not swept, and not
+ * reported as unswept either, which is the failure mode a check calling itself
+ * exhaustive can least afford.
+ *
+ * At module scope since #655, so the case below can pin what it answers
+ * without re-declaring it.
+ */
+function paintsAnEdge(body: string): boolean {
+  try {
+    const c = borderColourIn(body) ?? ringColourIn(body);
+    if (c === null || c === "transparent") return false;
+    return resolve(c, "light")[3] > 0;
+  } catch { return true; }
+}
+
+/** Every control rule the sheet draws a visible boundary on, as selectors. The
+ *  input to the exhaustiveness check further down, and the set `BORDER_PROPS`
+ *  decides the membership of. */
+const EDGED_CONTROLS = [...new Set(RULES
+  .filter(r => isControlRule(r.selector) && paintsAnEdge(r.body))
+  .flatMap(r => selectors(r.selector)))].sort();
+
+describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
+  // `borderColourIn` walks BORDER_PROPS and returns the FIRST hit, so that
+  // list's contents and its ORDER decide which rules the file believes have a
+  // boundary — and two sets are built on that answer. `RING_RULES` skips any
+  // rule with a border, so a rule that starts being read as edged silently
+  // leaves the ring sweep; `EDGED_CONTROLS` is the input to the exhaustiveness
+  // check, so a rule that stops being read as edged silently leaves that one.
+  // Both changes are invisible in a green run — the sweeps just quantify over
+  // fewer things — which is why #629 declined to widen the list and #655 would
+  // not have been safe to widen it without these two.
+
+  it("pins the rules whose only boundary is a ring", () => {
+    // Not a count: the names, so a rule that crosses from ring to border shows
+    // up as the pair of moves it is. Nine focus indicators, the expanded system
+    // meter and the selected chart bar.
+    expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
+      ".aa-field input:focus-visible",
+      ".ap-field select:focus-visible",
+      ".ap-manage-input:focus-visible",
+      ".cat-filter:focus-visible",
+      ".ctx-donut:focus-visible",
+      ".selected-ribbon:focus-visible",
+      ".session-list .sl-row:focus-visible",
+      '.topbar .status .sysmeter[aria-expanded="true"]',
+      ".uh-bar-col.sel .uh-bar",
+      ":focus-visible",
+      "button.ap-auto-state:focus-visible",
+    ]);
+  });
+
+  it("pins how many control rules paint one at all", () => {
+    // A floor and a ceiling rather than the sixty-two names, because this set
+    // moves whenever a control gains or loses a hover — what it must not do is
+    // move because the PARSER changed its mind. Which of the two happened is
+    // what the five direct answers under it are for: they are the shapes the
+    // list has been widened to cover, asserted on bodies of their own rather
+    // than through a total that a sheet edit also moves. Sixty-two today.
+    expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
+    expect(EDGED_CONTROLS.length).toBeLessThan(80);
+    // The shapes #378 and #655 each added, still answered: a ring-only rule and
+    // a `-color`-longhand-only rule both read as edges.
+    expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
+    expect(paintsAnEdge("border-top-color: var(--line);")).toBe(true);
+    expect(paintsAnEdge("border-bottom-color: var(--line);")).toBe(true);
+    expect(paintsAnEdge("color: var(--text);")).toBe(false);
+    expect(paintsAnEdge("border: none;")).toBe(false);
+  });
+
+  it("keeps the shorthand answering for the whole edge when a longhand recolours one side", () => {
+    // What the priority order is protecting, and the reason the ten `-color`
+    // longhands were appended rather than inserted. A `-color` longhand names
+    // ONE side; the shorthand beside it names four. Asking the longhand first
+    // would let a recoloured bottom stand in for a boundary that is `--line` on
+    // its other three sides, and every ratio downstream would be measured
+    // against the wrong colour.
+    const both = "border: 1px solid var(--line); border-bottom-color: var(--accent);";
+    expect(borderColourIn(both)).toBe("var(--line)");
+    // And with no shorthand to answer for it, the longhand is the edge — which
+    // is the null this widening turned into a colour.
+    expect(borderColourIn("border-bottom-color: var(--accent);")).toBe("var(--accent)");
+  });
+
+  it("reads the two rules in the sheet that this widening newly sees", () => {
+    // Both recolour the `border-bottom` their base rule declares, and neither
+    // is a control — which is why RING_RULES and EDGED_CONTROLS are unchanged
+    // by #655 and why the case above them could be written from the values the
+    // narrow list produced.
+    expect(borderColourIn(bodyOf(".ver-banner.done")))
+      .toBe("color-mix(in srgb, var(--ok) 30%, transparent)");
+    expect(borderColourIn(bodyOf(':root[data-theme="light"] .conn-banner')))
+      .toBe("rgba(185,28,28,0.45)");
+    for (const s of [".ver-banner.done", ':root[data-theme="light"] .conn-banner']) {
+      expect(isControlRule(s), `${s} became a control rule — the sets above move`).toBe(false);
+    }
+  });
+});
+
 describe("the scan everything below is built on (#513)", () => {
   it("reads every control in the app without running off the end of one", () => {
     // A runaway is the failure this file could least afford and the one it had
@@ -743,23 +874,6 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
     // app without landing in one of the two lists.
     expect(INTERACTIVE.size).toBeGreaterThan(20);
 
-    /** An edge a reader could see: not `none`, not `0`, not transparent. A
-     *  value this file cannot resolve counts as visible — an edge nobody here
-     *  understands is exactly the one that has to be looked at by hand.
-     *
-     *  #378: a ring counts. This used to ask `borderColourIn` alone, so a rule
-     *  drawing its whole boundary with `outline` or an inset box-shadow
-     *  answered "no boundary" and fell out of both lists at once — not swept,
-     *  and not reported as unswept either, which is the failure mode a check
-     *  calling itself exhaustive can least afford. */
-    const paintsAnEdge = (body: string) => {
-      try {
-        const c = borderColourIn(body) ?? ringColourIn(body);
-        if (c === null || c === "transparent") return false;
-        return resolve(c, "light")[3] > 0;
-      } catch { return true; }
-    };
-
     // Named, with the reason. All three are the same reason 1.4.11 gives:
     // a control identified by its own visible label or glyph does not owe you
     // a boundary, and a line BETWEEN grouped controls is not one of them.
@@ -789,10 +903,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
     for (const r of RING_RULES) for (const s of selectors(r.selector)) swept.add(s);
     for (const s of EXEMPT_RINGS) swept.add(s);
 
-    const unclassified = RULES
-      .filter(r => isControlRule(r.selector) && paintsAnEdge(r.body))
-      .flatMap(r => selectors(r.selector))
-      .filter(s => !swept.has(s) && !EXEMPT.has(s));
+    const unclassified = EDGED_CONTROLS.filter(s => !swept.has(s) && !EXEMPT.has(s));
     expect([...new Set(unclassified)]).toEqual([]);
   });
 });

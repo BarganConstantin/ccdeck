@@ -101,17 +101,27 @@ export function lineOf(source: string, index: number): number {
  * A tag the scan found, or could not finish.
  *
  * `attrs` is the text between the tag name and the `>` that closes it, which is
- * what both callers read classNames out of. `ranAway` says the scan spent its
+ * what most callers read classNames out of. `ranAway` says the scan spent its
  * whole budget without finding that `>` — the tag is then handed back with
  * `attrs: ""`, because attributes read out of a runaway belong to whatever the
  * scan wandered into, and crediting them to this tag is the silent
  * mis-attribution #513 is about.
+ *
+ * `end` is where that closing `>` sits, so a caller that needs the tag's BODY
+ * as well as its attributes can go and read it — landmark-outline.test.ts asks,
+ * because a glyph-only button is identified by what is written between the
+ * tags. It is -1 for a runaway, for the same reason `attrs` is empty. The index
+ * is into `withoutComments(source)` rather than into `source`, which is what
+ * this function scans; a caller slicing with it has to pass source that is
+ * already comment-free, and `withoutComments` is idempotent, so calling it
+ * first costs nothing and makes the two agree.
  */
 export interface Tag {
   name: string;
   attrs: string;
   line: number;
   ranAway: boolean;
+  end: number;
 }
 
 /**
@@ -163,6 +173,7 @@ export function openTags(source: string, names: readonly string[]): Tag[] {
       attrs: closed ? bare.slice(start, i) : "",
       line: lineOf(bare, m.index),
       ranAway: !closed,
+      end: closed ? i : -1,
     });
   }
   return out;

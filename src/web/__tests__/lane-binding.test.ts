@@ -174,6 +174,71 @@ describe("what the disclosure says", () => {
     expect(moreLabel(4, true)).toBe("fewer");
   });
 
+  it("wears the hot folded lane instead of the count, which is what the cut costs (#647)", () => {
+    // #647: the panel's call site was pinned as `moreLabel(rest.length,
+    // lanesOpen, fuller)` and every call in this file passed two arguments, so
+    // the branch the header above calls the point of the design was asserted at
+    // the call site and executed by nothing. What the header says it does:
+    // a row leading with two calm windows over a hidden hot one is the panel
+    // lying by omission, so when the fullest lane is a folded one the
+    // disclosure says which and how full rather than how many.
+    expect(moreLabel(2, false, { label: "scoped-0", pct: 91 })).toBe("scoped-0 91%");
+    expect(moreLabel(1, false, { label: "7d", pct: 100 })).toBe("7d 100%");
+    // Rounded, and rounded the same way `lanesTitle` rounds its headroom: the
+    // percentage arrives as a float and `40.4%` in a 9px footer is noise.
+    expect(moreLabel(3, false, { label: "5h", pct: 66.6 })).toBe("5h 67%");
+    expect(moreLabel(3, false, { label: "5h", pct: 66.4 })).toBe("5h 66%");
+    expect(moreLabel(3, false, { label: "5h", pct: 0.4 })).toBe("5h 0%");
+  });
+
+  it("keeps the count in the cases where a fuller lane changes nothing (#647)", () => {
+    // The three ways the third argument is present and still not the answer.
+    // Absent and null are the same statement — `laneSplit` returns `null` when
+    // no folded lane beats the row, and the panel hands that straight over —
+    // so both have to produce the count rather than one of them producing
+    // `undefined %`.
+    expect(moreLabel(4, false, null)).toBe("4 more");
+    expect(moreLabel(4, false, undefined)).toBe("4 more");
+    expect(moreLabel(4, false)).toBe("4 more");
+    // Open wins over it: the number AND the lane are both on screen.
+    expect(moreLabel(4, true, { label: "scoped-0", pct: 91 })).toBe("fewer");
+    // And nothing behind the control is still nothing to say, however hot the
+    // lane handed in claims to be.
+    expect(moreLabel(0, false, { label: "scoped-0", pct: 91 })).toBeNull();
+  });
+
+  it("takes that argument from laneSplit, the way the panel builds it (#647)", () => {
+    // The two halves joined, because a pure function that is right about a
+    // `fuller` nothing ever hands it is the failure mode this file's header
+    // names. Lanes carry a label here — the panel's `Lane` does, and that is
+    // what makes `laneSplit`'s `fuller` assignable to `moreLabel`'s third
+    // parameter without anything in between.
+    const labelled = (id: string, label: string, pct: number) => ({ id, label, pct });
+    const say = (lanes: Array<{ id: string; label: string; pct: number }>, open = false) => {
+      const { rest, fuller } = laneSplit(lanes);
+      return moreLabel(rest.length, open, fuller);
+    };
+    // The hot folded lane: the row shows 12% and 44% while a model sits at 91%.
+    expect(say([
+      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91),
+    ])).toBe("opus 91%");
+    // The calm one: nothing folded beats the row, so the count comes back.
+    expect(say([
+      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 88),
+      labelled("scoped-0", "opus", 9), labelled("scoped-1", "sonnet", 3),
+    ])).toBe("2 more");
+    // A tie is not fuller — `laneSplit` uses `>` so the row keeps the lane it
+    // is already showing — and the control says how many rather than repeating
+    // a number already on the row.
+    expect(say([
+      labelled("five_hour", "5h", 40), labelled("scoped-0", "opus", 40),
+    ])).toBe("1 more");
+    // Open, from the same split.
+    expect(say([
+      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91),
+    ], true)).toBe("fewer");
+  });
+
   it("leads its sentence with the headroom the panel had never rendered", () => {
     const shut = lanesTitle(19, "5h", 2, false);
     // The headroom is about the fullest window; the row leads with the first.
