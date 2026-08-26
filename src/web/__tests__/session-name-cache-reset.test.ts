@@ -27,7 +27,7 @@
 // out. The cache is not exported and does not need to be — SessionNamed on the
 // wire is the observable, and it is the thing that was missing.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -43,7 +43,11 @@ process.env.CODEX_HOME = join(DIR, "codex");
 // @ts-expect-error — .mjs server module, no types
 const { hookToken, startServer } = await import("../../server/index.mjs");
 
-const TRANSCRIPT = join(DIR, "named.jsonl");
+// Under $CLAUDE_CONFIG_DIR/projects, where Claude Code writes transcripts:
+// since #674 the deck refuses to open a posted `transcript_path` outside it, so
+// a fixture in the bare temp dir would never be read and no name would land.
+const PROJECTS = join(DIR, "claude", "projects", "-tmp-name-cache");
+const TRANSCRIPT = join(PROJECTS, "named.jsonl");
 const NAME = "account-management-oauth-flow";
 const TITLE = "Inspect repository to understand current state";
 
@@ -52,6 +56,7 @@ let port = 0;
 let token = "";
 
 beforeAll(async () => {
+  mkdirSync(PROJECTS, { recursive: true });
   writeFileSync(TRANSCRIPT, [
     JSON.stringify({ type: "ai-title", aiTitle: TITLE }),
     JSON.stringify({ type: "agent-name", agentName: NAME }),

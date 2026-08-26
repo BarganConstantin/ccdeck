@@ -11,7 +11,7 @@
 // payload that carries no model with the model it remembers for that session.
 // A session still in the cache gets the stamp; an evicted one does not.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { get, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -32,12 +32,18 @@ const { startServer } = await import("../../server/index.mjs");
 // Matches MAX_TRACKED_SESSIONS in src/server/index.mjs.
 const CAP = 256;
 const MODEL = "claude-opus-4-7";
-const TRANSCRIPT = join(DIR, "transcript.jsonl");
+// Where Claude Code actually writes a transcript, and since #674 the only
+// shape the deck will follow a posted `transcript_path` into — a path anywhere
+// else is refused unopened, so a fixture in the bare temp dir would resolve no
+// model at all and every case here would fail on the priming step.
+const PROJECTS = join(DIR, "claude", "projects", "-tmp-cache-prune");
+const TRANSCRIPT = join(PROJECTS, "transcript.jsonl");
 
 let server: Server;
 let port = 0;
 
 beforeAll(async () => {
+  mkdirSync(PROJECTS, { recursive: true });
   writeFileSync(
     TRANSCRIPT,
     JSON.stringify({
