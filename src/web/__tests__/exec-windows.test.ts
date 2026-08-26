@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
 import { isBatch, viaCmd, tryNext, run, runInteractive, killTree, looksMissing } from "../../server/exec.mjs";
 
@@ -99,6 +99,69 @@ const waitFor = async (cond: () => boolean, ms: number) => {
   return cond();
 };
 
+// ── The pieces a machine that is not Windows has to stand in for ────────────
+// Shared by the two kill-tree cases below, which differ only in WHERE they
+// plant the taskkill stand-in — and that difference is the whole point of the
+// second one, so everything else is written once.
+
+/**
+ * Stands in for cmd.exe: same `/d /s /c` convention, and it runs the batch file
+ * as a CHILD rather than replacing itself with it — which is the whole point,
+ * since that is what makes the tool a grandchild.
+ */
+const plantFakeCmd = (dir: string) => {
+  const shim = join(dir, "fake-cmd.sh");
+  writeFileSync(shim, [
+    "#!/bin/sh",
+    `target=$(printf '%s' "$4" | tr -d '"')`,
+    `sh "$target"`,
+    "status=$?", // keeps the run above off the last line, so no shell execs it
+    "exit $status",
+  ].join("\n") + "\n");
+  chmodSync(shim, 0o755);
+  return shim;
+};
+
+/**
+ * Stands in for taskkill AT `path`: same argument shape, and a real recursive
+ * walk, so only a kill that asks for the tree gets one.
+ *
+ * `path` is a parameter rather than a directory because the two cases below
+ * disagree about it on purpose — one plants it on PATH, the other at the
+ * literal `%SystemRoot%\System32\taskkill.exe` string killTree builds.
+ */
+const plantFakeTaskkill = (path: string) => {
+  writeFileSync(path, [
+    "#!/bin/sh",
+    'pid=""',
+    "while [ $# -gt 0 ]; do",
+    '  if [ "$1" = "/pid" ]; then shift; pid="$1"; fi',
+    "  shift",
+    "done",
+    '[ -n "$pid" ] || exit 1',
+    "kill_tree() {",
+    '  for kid in $(ps -A -o pid=,ppid= | awk -v p="$1" \'$2 == p { print $1 }\'); do kill_tree "$kid"; done',
+    '  kill -9 "$1" 2>/dev/null',
+    "}",
+    'kill_tree "$pid"',
+    "exit 0",
+  ].join("\n") + "\n");
+  chmodSync(path, 0o755);
+};
+
+/**
+ * The tool: announces its own pid, then hangs the way `claude auth login` hangs
+ * on the code it is waiting for.
+ */
+const plantHangingTool = (path: string, pidFile: string) => {
+  writeFileSync(path, [
+    "#!/bin/sh",
+    `echo $$ > "${pidFile}"`,
+    "echo ready",
+    "sleep 60",
+  ].join("\n") + "\n");
+};
+
 describe("killing a child", () => {
   it("stops one that has no wrapper, on every platform", async () => {
     const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"]);
@@ -126,52 +189,15 @@ describe("killing a child", () => {
     const was = { ComSpec: process.env.ComSpec, PATH: process.env.PATH, SystemRoot: process.env.SystemRoot };
     let grandchild = 0;
     try {
-      // Stands in for cmd.exe: same /d /s /c convention, and it runs the batch
-      // file as a child rather than replacing itself with it — which is the
-      // whole point, since that is what makes the tool a grandchild.
-      const shim = join(dir, "fake-cmd.sh");
-      writeFileSync(shim, [
-        "#!/bin/sh",
-        `target=$(printf '%s' "$4" | tr -d '"')`,
-        `sh "$target"`,
-        "status=$?", // keeps the run above off the last line, so no shell execs it
-        "exit $status",
-      ].join("\n") + "\n");
-      chmodSync(shim, 0o755);
+      plantFakeTaskkill(join(dir, "taskkill"));
+      plantHangingTool(`${base}.cmd`, pidFile);
 
-      // Stands in for taskkill: same argument shape, and a real recursive walk,
-      // so only a kill that asks for the tree gets one.
-      const taskkill = join(dir, "taskkill");
-      writeFileSync(taskkill, [
-        "#!/bin/sh",
-        'pid=""',
-        "while [ $# -gt 0 ]; do",
-        '  if [ "$1" = "/pid" ]; then shift; pid="$1"; fi',
-        "  shift",
-        "done",
-        '[ -n "$pid" ] || exit 1',
-        "kill_tree() {",
-        '  for kid in $(ps -A -o pid=,ppid= | awk -v p="$1" \'$2 == p { print $1 }\'); do kill_tree "$kid"; done',
-        '  kill -9 "$1" 2>/dev/null',
-        "}",
-        'kill_tree "$pid"',
-        "exit 0",
-      ].join("\n") + "\n");
-      chmodSync(taskkill, 0o755);
-
-      // The tool: announces its own pid, then hangs the way `claude auth login`
-      // hangs on the code it is waiting for.
-      writeFileSync(`${base}.cmd`, [
-        "#!/bin/sh",
-        `echo $$ > "${pidFile}"`,
-        "echo ready",
-        "sleep 60",
-      ].join("\n") + "\n");
-
-      process.env.ComSpec = shim;
-      process.env.PATH = `${dir}:${process.env.PATH ?? ""}`;
+      process.env.ComSpec = plantFakeCmd(dir);
+      process.env.PATH = `${dir}${delimiter}${process.env.PATH ?? ""}`;
       // Windows always has one and killTree prefers System32 over PATH there;
-      // here there is none, so the stand-in on PATH is found instead.
+      // here there is none, so the stand-in on PATH is found instead. Which
+      // means this case only ever proves the FALLBACK spelling — the case below
+      // is the other half, and until #617 nothing was the other half.
       delete process.env.SystemRoot;
       Object.defineProperty(process, "platform", { value: "win32", configurable: true });
 
@@ -185,6 +211,115 @@ describe("killing a child", () => {
       expect(await waitFor(() => !alive(grandchild), 10_000)).toBe(true);
       // And with nothing left holding the stdout it inherited, the run settles
       // at last — killing only the wrapper left `done` pending forever.
+      const r = await h.done;
+      expect(r.killed).toBe(true);
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+      for (const [key, value] of Object.entries(was)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      if (grandchild) { try { process.kill(grandchild, "SIGKILL"); } catch { /* already gone */ } }
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // The OTHER branch of killTree, and the only one that runs on a user's
+  // machine: Windows always sets SystemRoot, so `${root}\System32\taskkill.exe`
+  // is the string every real deck spawns. Until #617 no leg of the matrix ever
+  // executed it. The case above deletes SystemRoot on purpose and is skipped on
+  // Windows, the same is true of exec-timeout's wrapper case, and the one
+  // assertion that looked at the program — `toContain("taskkill")` in
+  // self-update.test.ts — is satisfied by both spellings, so it pinned neither.
+  // A typo there (`Sysem32`, forward slashes, a dropped `.exe`) spawns nothing,
+  // `killer.on("error", plain)` fires, and the deck is back to one
+  // TerminateProcess against the wrapper — which is verbatim the leaked
+  // node.exe this function was written to stop, and what wedged the accounts
+  // mutex in #614.
+  //
+  // Not gated, because both kinds of machine can answer the question honestly:
+  //
+  //   On Windows nothing is stood in for. The real cmd.exe, the real
+  //   %SystemRoot%\System32\taskkill.exe, and a real node.exe grandchild that
+  //   has to actually die. This is the branch executing, in production form.
+  //
+  //   Elsewhere SystemRoot is pointed at a directory of this test's own and the
+  //   stand-in is planted at the literal path killTree builds out of it. A
+  //   backslash is an ordinary character in a POSIX filename, so that string
+  //   names exactly ONE file and only the exact spelling finds it: any of the
+  //   typos above name a file that is not there, the spawn fails, and the
+  //   grandchild lives — which is what the assertions read.
+  //
+  // Both halves also plant a taskkill ON PATH that kills nothing and records
+  // that it was called, so "from System32 rather than from PATH" — the sentence
+  // in killTree's header, and a claim about which program gets handed a pid —
+  // is checked rather than asserted.
+  it("takes taskkill from System32, so the tool under the wrapper dies there too", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-kill-root-"));
+    const base = join(dir, "ccdeck-hang-cli");
+    const pidFile = join(dir, "grandchild.pid");
+    // Written by the taskkill on PATH and by nothing else, so its absence is
+    // the claim that PATH was never consulted.
+    const decoy = join(dir, "path-taskkill-ran.txt");
+    const windows = process.platform === "win32";
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    const was = { ComSpec: process.env.ComSpec, PATH: process.env.PATH, SystemRoot: process.env.SystemRoot };
+    let grandchild = 0;
+    try {
+      if (windows) {
+        // Not a fixture detail — the premise. If a runner ever lacks it,
+        // killTree takes the fallback and this case would be quietly checking
+        // the same thing the one above checks.
+        expect(process.env.SystemRoot, "Windows always sets SystemRoot").toBeTruthy();
+        // The tool lives in its own file so that nothing has to survive cmd.exe
+        // quoting but two absolute paths. The .cmd runs node, so node is the
+        // wrapper's child and this process's GRANDCHILD — the shape that makes
+        // a plain kill insufficient.
+        const hang = join(dir, "hang.cjs");
+        writeFileSync(hang, [
+          `require("node:fs").writeFileSync(process.argv[2], String(process.pid));`,
+          `console.log("ready");`,
+          `setTimeout(() => {}, 60000);`,
+        ].join("\n") + "\n");
+        writeFileSync(`${base}.cmd`, [
+          "@echo off",
+          `"${process.execPath}" "${hang}" "${pidFile}"`,
+        ].join("\r\n") + "\r\n");
+        // A .cmd cannot be spawned without a shell since Node 20.12, so a
+        // killTree that went looking on PATH fails on this whichever way it
+        // fails — and if it somehow runs, it kills nothing and leaves the note
+        // the assertion below reads.
+        writeFileSync(join(dir, "taskkill.cmd"), [
+          "@echo off",
+          `echo ran> "${decoy}"`,
+          "exit /b 0",
+        ].join("\r\n") + "\r\n");
+      } else {
+        const root = join(dir, "winroot");
+        // `${root}\System32\taskkill.exe` — one file, backslashes and all.
+        plantFakeTaskkill(`${root}\\System32\\taskkill.exe`);
+        const onPath = join(dir, "taskkill");
+        writeFileSync(onPath, ["#!/bin/sh", `echo ran > "${decoy}"`, "exit 0"].join("\n") + "\n");
+        chmodSync(onPath, 0o755);
+        plantHangingTool(`${base}.cmd`, pidFile);
+        process.env.ComSpec = plantFakeCmd(dir);
+        process.env.SystemRoot = root;
+        Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+      }
+      process.env.PATH = `${dir}${delimiter}${process.env.PATH ?? ""}`;
+
+      const h = runInteractive(base, [], { timeout: 60_000 });
+      expect(await waitFor(() => existsSync(pidFile), 10_000)).toBe(true);
+      grandchild = Number(readFileSync(pidFile, "utf8").trim());
+      expect(alive(grandchild)).toBe(true);
+
+      h.kill();
+      // The tool itself. A taskkill that cannot be found degrades to one
+      // TerminateProcess against the wrapper, and this is what survives that.
+      expect(await waitFor(() => !alive(grandchild), 10_000)).toBe(true);
+      // And it was System32's taskkill that reached it, not the user's.
+      expect(existsSync(decoy)).toBe(false);
+      // With nothing left holding the inherited stdout, the run settles.
       const r = await h.done;
       expect(r.killed).toBe(true);
     } finally {
