@@ -491,8 +491,16 @@ describe("the usage-history chart stopped hiding the days inside it (#381)", () 
     // about: a tab in this deck belongs inside a tablist and nowhere else,
     // because a stray role="tab" is an orphan in the accessibility tree
     // whatever its keyboard does.
-    for (const [name, src] of BUNDLE) {
-      if (!/\brole="tab"/.test(src)) continue;
+    const strips = BUNDLE.filter(([, src]) => /\brole="tab"/.test(src));
+    // The floor, and it sits outside the loop on purpose (#627). This was a
+    // `continue` inside the loop, which meant a client with no role="tab" left
+    // ran the assertion zero times and reported green — so half-removing the
+    // role from the one file that has it silenced this case along with the five
+    // in tablist-contract.test.ts, which had the identical hole. That file now
+    // also holds the inverse, that nothing carries a tablist or a tabpanel with
+    // no tab inside it, which is the shape a half-removal actually leaves.
+    expect(strips.length, 'no role="tab" anywhere — the assertion below would run zero times').toBeGreaterThan(0);
+    for (const [name, src] of strips) {
       expect(`${name} ${src.includes('role="tablist"')}`).toMatch(/true$/);
     }
   });
