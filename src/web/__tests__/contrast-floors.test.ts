@@ -21,8 +21,10 @@
 // So the ratios are computed here from the stylesheet's own token values, and a
 // palette edit that walks any of them back under its floor fails the build.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { gradientStops as readStops } from "./gradient-stops";
 
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
@@ -150,18 +152,17 @@ function resolve(value: string, theme: Theme): Rgba {
  *  fail, and it has to say WHICH value, or the failure is a puzzle rather than
  *  a report.
  *
+ *  #662 wrote that reader here; #664 and #665 moved it to `./gradient-stops`,
+ *  because the same `?? []` was still in three other files reading the same two
+ *  tokens — one of them silently, two of them as a bare TypeError. It also grew
+ *  a grammar rather than a regex on the way, which is what refuses a
+ *  `color-mix()` stop instead of scraping the two tokens INSIDE it as though
+ *  they were two stops of their own.
+ *
  *  Two is the floor rather than one because a single colour is not a gradient
  *  and every caller here reads a top and a bottom; more than two is a sheet's
  *  business, not this reader's. */
-function gradientStops(token: string, theme: Theme): string[] {
-  const value = TOK[theme][token];
-  expect(value, `${theme} declares no ${token} for this sweep to read stops out of`).toBeTruthy();
-  const stops = value.match(/var\(--[\w-]+\)|#[0-9a-f]{3,6}/gi) ?? [];
-  expect(stops.length,
-    `${theme} ${token} is \`${value}\` — this reader knows var() and #rrggbb and found ${stops.length} stop(s) in it, so every floor quantified over these stops would measure nothing. Teach it the notation the sheet now writes rather than letting the sweeps go vacuous`)
-    .toBeGreaterThanOrEqual(2);
-  return stops;
-}
+const gradientStops = (token: string, theme: Theme) => readStops(token, theme, TOK[theme]);
 
 /** The label every node bed carries, and the prefix the two sweeps below filter
  *  the three fixed surfaces back out with. One constant, so the naming and the
@@ -726,5 +727,78 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
 
   it("keeps the strike, which is the channel that never depended on any of this", () => {
     expect(decl(rule(".cat-filter.off .cat-name"), "text-decoration")).toBe("line-through");
+  });
+});
+
+// ── and one reader, so the blind spot has one place to be ───────────────────
+//
+// #662 fixed the reader in this file and in toggle-state.test.ts. #664 and #665
+// found the same `?? []` still in three more files reading the same two gradient
+// tokens — which is what a correction leaves behind when it corrects a copy: the
+// copies that were not in the issue. So the grammar moved to `./gradient-stops`,
+// and this is the guard that keeps it there. Two halves, the
+// duplicated-helpers.test.ts method, because a sweep for a shape nobody can
+// write any more would pass just as happily over a suite with no files in it.
+
+describe("one reader for every gradient this suite measures against (#664, #665)", () => {
+  const testDir = fileURLToPath(new URL(".", import.meta.url));
+
+  /** Comment-stripped, because the paragraphs in these files quote the very
+   *  shape the sweeps below assert is gone. */
+  const strip = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  /** A file scraping a gradient's stops with a regex of its own — the shape that
+   *  ends in `?? []` and answers nothing rather than failing. */
+  const PRIVATE_SCRAPE = /\.match\(\s*\/[^\n]*var\\\(--/;
+
+  const GRADIENT_TOKEN = /--(?:node|topbar)-grad/;
+
+  const FILES: Array<[string, string]> = readdirSync(testDir)
+    .filter((name: string) => name.endsWith(".test.ts"))
+    .map((name: string): [string, string] => [name, strip(readFileSync(join(testDir, name), "utf8"))]);
+
+  /** The files that measure something against a gradient. Harvested rather than
+   *  listed — a hand-kept list of five is the list the sixth file is not on,
+   *  which is exactly how #664 and #665 outlived #662. */
+  const READERS = FILES.filter(([, text]) => GRADIENT_TOKEN.test(text));
+
+  it("reads every gradient token through ./gradient-stops, in every file that names one", () => {
+    const offenders = READERS
+      .filter(([, text]) => !/from "\.\/gradient-stops"/.test(text))
+      .map(([name]) => name);
+    expect(offenders,
+      "a file measuring against --node-grad or --topbar-grad without the shared reader is a file with its own grammar, and so with its own blind spot")
+      .toEqual([]);
+  });
+
+  it("leaves no file with a private scrape of one", () => {
+    // Scoped to the files that name a gradient, deliberately. The same shape
+    // appears in usage-series-contrast.test.ts over a `box-shadow`, which is one
+    // layer rather than a list of stops, is asserted with a `!` so a miss throws
+    // rather than answering `[]`, and is nothing to do with either token here.
+    // Widening this to every `.match()` in the suite would be a guard about a
+    // regex; it is meant to be a guard about a gradient.
+    const offenders = READERS.filter(([, text]) => PRIVATE_SCRAPE.test(text)).map(([name]) => name);
+    expect(offenders,
+      "a `.match(/…var\\(--…/)` over a gradient value is the shape that ends in `?? []` — five files had it, and respelling either gradient made two of them go vacuous, two throw an unattributed TypeError, and one answer Infinity")
+      .toEqual([]);
+  });
+
+  it("is not a vacuous sweep — both detectors still find what they look for", () => {
+    // The half that cannot be faked: each pattern is matched against a string it
+    // MUST hit and one it must not, so a typo in a regex cannot quietly retire a
+    // guard. Built by concatenation, so this file's own text does not trip the
+    // sweep two cases up.
+    expect(FILES.length, "there are test files to sweep at all").toBeGreaterThan(200);
+    expect(READERS.map(([name]) => name).sort(),
+      "the five files that read a gradient token, which both sweeps above are quantified over")
+      .toEqual([
+        "contrast-floors.test.ts", "control-edges.test.ts", "quiet-signals.test.ts",
+        "session-hue.test.ts", "toggle-state.test.ts",
+      ]);
+    expect(PRIVATE_SCRAPE.test("const stops = value" + ".match(/var" + "\\(--[\\w-]+\\)|#[0-9a-f]{3,6}/gi) ?? [];")).toBe(true);
+    expect(PRIVATE_SCRAPE.test("const stops = gradientStops(token, theme, TOK[theme]);")).toBe(false);
+    expect(GRADIENT_TOKEN.test('TOK[theme]["--node' + '-grad"]')).toBe(true);
+    expect(GRADIENT_TOKEN.test('TOK[theme]["--panel"]')).toBe(false);
   });
 });
