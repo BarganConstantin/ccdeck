@@ -23,12 +23,12 @@
 // two answers is the bug.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Everything the modules below read at import time is pointed inside a temp
@@ -264,23 +264,35 @@ describe("one realpath, at all three sites", () => {
     // already this codebase's answer — persistAuth in src/server/codex-auth.mjs
     // resolves through the fs/promises realpath, i.e. the native one.
     //
-    // The last probe is what makes this case fail on a Mac as well as on
+    // The wrong-case probe is what makes this case fail on a Mac as well as on
     // Windows, so the rule is not left resting on the one platform nobody
     // develops on. The two realpaths differ in a second way: the native one
-    // returns each component's ON-DISK case, and the JavaScript walk returns
-    // whatever it was handed. On a case-insensitive volume — APFS, NTFS — that
-    // is a real divergence for a path spelled in the wrong case, and on Linux
-    // the same spelling simply does not exist, both realpaths throw, and both
-    // fall back to the resolved form, so the probe is inert rather than wrong.
+    // returns each component's ON-DISK case and the JavaScript walk returns
+    // whatever it was handed, so on a case-insensitive volume — APFS, NTFS —
+    // a path spelled in the wrong case tells them apart. Linux is case-SENSITIVE,
+    // and there that spelling is not the directory at all: it is a path that
+    // does not exist, and realpath says ENOENT. So the probe asserts the other
+    // half of the same rule there — all three sites keep the resolved form when
+    // realpath cannot answer — which is why `want` is computed with that
+    // fallback rather than by calling realpath bare. Asking realpath bare is
+    // what made this case fail its own setup on ubuntu, three lines before it
+    // asserted anything.
+    //
+    // The last probe pins that half on every platform, this one included, so the
+    // fallback is not a branch only one runner ever takes.
+    const oneSpelling = (p: string) => {
+      try { return realpathSync.native(p); } catch { return resolve(p); }
+    };
     for (const p of [
-      tmpdir(),                          // whatever the ENVIRONMENT hands us
-      SANDBOX,                           // an mkdtemp under it, so short there too
-      join(linked, "proj"),              // through a link
+      tmpdir(),                                 // whatever the ENVIRONMENT hands us
+      SANDBOX,                                  // an mkdtemp under it, so short there too
+      join(linked, "proj"),                     // through a link
       join(linked, "proj", "sub"),
       realpathed,
-      join(SANDBOX, "ONE-REALPATH", "REAL"),  // the wrong case for a real directory
+      join(SANDBOX, "ONE-REALPATH", "REAL"),    // the wrong case for a real directory
+      join(SANDBOX, "one-realpath", "never-created"),
     ]) {
-      const want = realpathSync.native(p);
+      const want = oneSpelling(p);
       expect(canonicalWorkspace(p), `canonicalWorkspace on ${p}`).toBe(want);
       expect(await canonicalCwd(p), `canonicalCwd on ${p}`).toBe(want);
       expect(hook.normPath(p), `hook.normPath on ${p}`).toBe(want);
@@ -430,31 +442,35 @@ describe("the cwd each capture path compares", () => {
     const sid = "0f3c1e7a-6100-4000-8000-0123456789ab";
     const day = join(FAKE_CODEX, "sessions", "2031", "01", "02");
     mkdirSync(day, { recursive: true });
+    const rollout = join(day, `rollout-2031-01-02T10-00-00-${sid}.jsonl`);
+    // The cwd Windows reports for a session started in the link's tree: the
+    // spelling the directory was set with, junction unresolved.
+    const header = JSON.stringify({ type: "session_meta", payload: { id: sid, cwd: join(link, "proj") } }) + "\n";
+    const prompt = JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "hello from behind the link" } }) + "\n";
 
-    // Armed before the rollout exists: a file already on disk at boot has its
-    // history skipped, root and all, and would prove nothing either way. The
-    // pause is for that same reason — the first scan is kicked off, not awaited,
-    // so writing the rollout immediately would race it into the skipped set.
     const timer = startCodexWatcher(canonicalWorkspace(join(link, "proj")));
     try {
-      await new Promise(r => setTimeout(r, 300));
-      writeFileSync(
-        join(day, `rollout-2031-01-02T10-00-00-${sid}.jsonl`),
-        // The cwd Windows reports for a session started in the link's tree: the
-        // spelling the directory was set with, junction unresolved.
-        JSON.stringify({ type: "session_meta", payload: { id: sid, cwd: join(link, "proj") } }) + "\n" +
-        JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "hello from behind the link" } }) + "\n",
-        "utf8",
-      );
+      writeFileSync(rollout, header, "utf8");
 
+      // The prompt is appended in the loop rather than written once, and that is
+      // about determinism, not impatience. The watcher's first scan skips the
+      // history of everything already on disk — root and all — so a rollout
+      // written in full before that scan gets CPU produces no event at all,
+      // whatever the workspace test said. Only bytes appended AFTER the file is
+      // catalogued are replayed. A fixed pause before writing would be a bet on
+      // how quickly the first scan is scheduled, and vitest runs this file
+      // beside 245 others; appending each time round means whichever pass first
+      // lands after the catalogue is the one that draws, and none of it depends
+      // on the order the first two happen in.
       const deadline = Date.now() + 15_000;
       let drawn: Array<Record<string, unknown>> = [];
       for (;;) {
+        appendFileSync(rollout, prompt, "utf8");
+        await new Promise(r => setTimeout(r, 250));
         drawn = (eventsSince(0) as Array<{ source: string; payload: Record<string, unknown> }>)
           .filter(e => e.source === "codex" && e.payload?.session_id === sid)
           .map(e => e.payload);
         if (drawn.some(p => p.hook_event_name === "UserPromptSubmit") || Date.now() >= deadline) break;
-        await new Promise(r => setTimeout(r, 50));
       }
 
       expect(drawn.map(p => p.hook_event_name), "the Codex session in the junction-reached workspace never reached the deck")
