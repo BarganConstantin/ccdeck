@@ -7,7 +7,7 @@
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { dieOfSignal } from "../src/server/supervisor.mjs";
+import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
   CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
@@ -665,6 +665,22 @@ function restartTarget() {
 let server = null;
 let discovery = null;
 let discoveryFile = null;
+
+// This worker does not outlive the supervisor that started it (#702).
+//
+// Armed HERE rather than beside the signal handlers at the bottom of the file,
+// for the reason the three `let`s above are where they are: this is the first
+// line from which `shutdown` can be called without dying of a temporal dead
+// zone, and the window that matters is the boot — the supervisor can be killed
+// while the report is still printing, and a worker orphaned in there is a
+// worker that binds its port a moment later and then holds it for a day.
+//
+// A no-op with nothing supervising us, which is `node bin/deck.js` run by hand:
+// dieWithParent arms only when there is a channel, the same question SUPERVISED
+// asks above. Shutdown code 0 because there is nobody left to read it — the
+// point is only that discovery is unregistered and the port let go of on the
+// way out, rather than left for the next boot's stale sweep.
+dieWithParent(() => shutdown(0));
 
 // The listen, begun HERE and awaited below the startup report rather than after
 // it. The report is a narration; the port is the product, and it was queued

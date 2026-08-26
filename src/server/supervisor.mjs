@@ -233,3 +233,70 @@ export function upgradeRefusalText({ reason, waitMs = 0, attempt = 0 } = {}, tar
   const left = waitMs >= 60_000 ? `${Math.ceil(waitMs / 60_000)}m` : `${Math.max(1, Math.ceil(waitMs / 1000))}s`;
   return `${what} failed to fetch a moment ago — waiting ${left} before trying again`;
 }
+
+/**
+ * Die when the process that started this one does — on all three operating
+ * systems (#702).
+ *
+ * The deck is two processes: bin/agent-dag.js supervises, bin/deck.js serves.
+ * The supervisor kills the worker on every path it knows about — a restart, an
+ * upgrade, a Ctrl+C, its own exit — and cannot kill it on the one path it never
+ * gets to run: being killed itself. SIGKILL cannot be handled, a crash runs no
+ * handler, and a `taskkill` without `/T` reaches only the process it names. On
+ * POSIX the worker is then re-parented to init and keeps its port, its temp
+ * directory and its 40-60 MB of RSS forever. 310 of those were alive on one
+ * development machine, the oldest a day and four hours old, every one a worker
+ * whose supervisor a test's teardown had SIGKILLed.
+ *
+ * WHY THE IPC CHANNEL, AND NOT ANY OF THE OBVIOUS ALTERNATIVES. The requirement
+ * is one signal meaning "whoever started me is gone", and the usual answers are
+ * each missing a platform:
+ *
+ *   • `process.ppid === 1` — POSIX re-parents an orphan to init, so polling ppid
+ *     works there and answers nothing on Windows, which does not re-parent at
+ *     all: the ppid goes on naming a pid that no longer exists.
+ *   • process groups and `kill(-pgid)` — a POSIX concept. Windows job objects
+ *     are the nearest equivalent and Node exposes none of it.
+ *   • a SIGTERM the parent sends on its way out — Windows delivers no signals to
+ *     a Node process, so `process.on("SIGTERM")` there never fires; and a parent
+ *     that was killed sends nothing anywhere.
+ *
+ * The channel is the one mechanism that behaves the same everywhere, because
+ * Node normalises it: a Unix socketpair on POSIX, a named pipe on Windows, both
+ * closed by the kernel when the process holding the other end stops existing,
+ * however it stopped. Node turns that close into a single `disconnect` event on
+ * the child's own `process`, and it arrives for a SIGKILL, a crash, a
+ * `taskkill /F`, a closed console window and an ordinary exit alike. That is the
+ * same reasoning the header above gives for Ctrl+C: what differs between
+ * platforms is how a process dies, not that this notices.
+ *
+ * The channel is not created for this. It already carries `{type:"listening"}`
+ * and the upgrade handshake; this only says what its closure means.
+ *
+ * ARMED ONLY WHERE THERE IS A PARENT TO DIE WITH — `process.send` is a function
+ * exactly when a channel was given. `node bin/deck.js` run by hand has none, and
+ * that is the same question `SUPERVISED` in bin/deck.js already asks before it
+ * offers /api/restart.
+ *
+ * WHAT IT DELIBERATELY DOES NOT COVER: a parent that calls `child.disconnect()`
+ * and stays alive would look identical from here. Nothing in this repo does
+ * that, and the alternative — an "are you still there" ping — is a second
+ * protocol to keep correct in exchange for a case that does not exist.
+ *
+ * Returns whether a leash was armed, so a caller can state it rather than infer
+ * it. `proc` is a parameter for the reason `workerExitAction` takes `stopping`:
+ * the behaviour has to be checkable without a second process.
+ */
+export function dieWithParent(stop, proc = process) {
+  if (!proc || typeof proc.once !== "function" || typeof proc.send !== "function") return false;
+  let done = false;
+  proc.once("disconnect", () => {
+    if (done) return;
+    done = true;
+    // A stop that throws must still end the process: the whole point is that
+    // nothing is left behind, and there is no parent left to notice a child
+    // that failed to leave.
+    try { stop(); } catch { proc.exit?.(0); }
+  });
+  return true;
+}
