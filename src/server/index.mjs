@@ -367,7 +367,33 @@ async function maybeRotatePersistFile() {
 // the offset tailing the Codex rollout watcher already does further down.
 const transcriptScans = new Map();        // path -> scan state
 const transcriptScanInFlight = new Map(); // path -> in-progress scan promise
-const MAX_TRANSCRIPT_SCANS = 256;         // bound the per-path state
+const transcriptScanSessions = new Map(); // session key -> Set<path>, LRU order
+
+// What the cap protects is unbounded growth across the sessions a long-lived
+// deck has seen and will never hear from again — so a SESSION is the unit it
+// has to be counted in. It used to count paths, which is not the same thing:
+// a session occupies one entry for its own JSONL plus one for every
+// `subagents/agent-*.jsonl` beside it, and that count is set by how heavily
+// the session delegates, not by anything the deck controls. Measured on this
+// machine, the two live sessions that produced #611 hold 198 and 133 subagent
+// files — 333 entries between them against a cap of 256, so each session's
+// throttled pass evicted the other's cursors and re-read from byte 0. One of
+// those directories alone is 130.8 MB and takes 6456 ms to fold cold against
+// 18 ms warm, inside a 2500 ms throttle: the pass could not finish before the
+// next one was due.
+//
+// So eviction drops a whole session at a time and never splits one. That is
+// also the answer to a session whose subagent count exceeds any fixed number
+// of entries: it is never evicted for being big, because the only thing a cap
+// can take is some OTHER, older session. A session's cursors live and die
+// together, which is the only grouping that makes the next pass cheap.
+const MAX_TRANSCRIPT_SCAN_SESSIONS = 256;
+// A session cap alone bounds identities, not bytes, so a second ceiling bounds
+// the memory — again by dropping whole sessions, never part of one. A scan
+// state retains 477 bytes measured, so 8192 entries is under 4 MB; it is also
+// ten times every agent-*.jsonl that exists on this machine across its whole
+// history (803), and 24x the 333 the two heaviest live sessions need.
+const MAX_TRANSCRIPT_SCAN_ENTRIES = 8192;
 
 // The transcript's `message.model`, and the only filter standing between it and
 // every model the deck shows. Bedrock and Mantle put a provider namespace in
@@ -581,24 +607,58 @@ function foldTranscriptLine(state, line) {
   }
 }
 
-/** Record a use of `path` and keep the map under the cap. Re-inserting on
- *  every touch makes the Map's own insertion order the LRU order, so eviction
- *  reads one key instead of scanning for the smallest timestamp. Scanning a
- *  timestamp is also what broke the cache: a state is created with no stamp
- *  yet, so the entry the scan had just inserted was the smallest of all and
- *  the one deleted, every time. Past 256 distinct transcripts the map froze on
- *  the first 256 paths and every later transcript re-read its whole JSONL from
- *  byte 0 on every throttled pass — the O(n)-per-pass stall the cursor exists
+/** The session a transcript path belongs to, and the unit eviction works in.
+ *  CC's two layouts collapse onto the same key: the main transcript
+ *  `<slug>/<sessionId>.jsonl` loses its extension, and a subagent's
+ *  `<slug>/<sessionId>/subagents/agent-<id>.jsonl` loses everything below the
+ *  session directory, so both land on `<slug>/<sessionId>`. Anything else — a
+ *  Codex rollout, a shape we do not recognise — is a session of its own,
+ *  which is the old one-entry-per-path accounting and the safe default.
+ *
+ *  `resolve` first so the two halves agree on Windows. The main path arrives
+ *  from the hook payload as CC wrote it while the subagent path is built with
+ *  `join`, so `C:/x/y.jsonl` and `C:\x\y\subagents\agent-1.jsonl` would
+ *  otherwise be two sessions instead of one; `resolve` settles the separator
+ *  on all three platforms, and leaves a backslash inside a POSIX filename
+ *  alone rather than reading it as a directory break. */
+export function transcriptSessionKey(path) {
+  const full = resolve(path);
+  const sub = /^(.*)[\\/]subagents[\\/]agent-[0-9a-f]+\.jsonl$/i.exec(full);
+  return sub ? sub[1] : full.replace(/\.jsonl$/i, "");
+}
+
+/** Record a use of `path` and keep the cache under both caps. Re-inserting the
+ *  session on every touch makes the Map's own insertion order the LRU order,
+ *  so eviction reads one key instead of scanning for the smallest timestamp.
+ *  Scanning a timestamp is also what broke the cache once: a state is created
+ *  with no stamp yet, so the entry the scan had just inserted was the smallest
+ *  of all and the one deleted, every time. Whatever the cache freezes on, the
+ *  symptom is the same — every later transcript re-reads its whole JSONL from
+ *  byte 0 on every throttled pass, the O(n)-per-pass stall the cursor exists
  *  to remove. */
 function touchTranscriptScan(path, state) {
-  transcriptScans.delete(path);
   transcriptScans.set(path, state);
+  const key = transcriptSessionKey(path);
+  const paths = transcriptScanSessions.get(key) ?? new Set();
+  transcriptScanSessions.delete(key);   // re-insert = move to the back of the LRU
+  paths.add(path);
+  transcriptScanSessions.set(key, paths);
   pruneTranscriptScans();
 }
 
 function pruneTranscriptScans() {
-  while (transcriptScans.size > MAX_TRANSCRIPT_SCANS) {
-    transcriptScans.delete(transcriptScans.keys().next().value);
+  // The last session standing is never evicted, however many files it holds:
+  // dropping the cursors of the session currently being scanned is precisely
+  // the re-read this cache exists to avoid, and no cap can make its file
+  // count smaller.
+  while (
+    transcriptScanSessions.size > 1 &&
+    (transcriptScanSessions.size > MAX_TRANSCRIPT_SCAN_SESSIONS ||
+     transcriptScans.size > MAX_TRANSCRIPT_SCAN_ENTRIES)
+  ) {
+    const oldest = transcriptScanSessions.keys().next().value;
+    for (const p of transcriptScanSessions.get(oldest)) transcriptScans.delete(p);
+    transcriptScanSessions.delete(oldest);
   }
 }
 

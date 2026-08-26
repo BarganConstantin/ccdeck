@@ -1,9 +1,9 @@
-// The per-path transcript scan cursors live in a map capped at 256 paths, and
+// The transcript scan cursors live in a capped, least-recently-used cache, and
 // the prune ran before the entry a scan had just inserted was stamped. Its
 // stamp was still 0 — the smallest in the map — so the newcomer was always the
-// one deleted, in the same tick it was created. A deck that had seen 256
-// distinct transcripts (one per session, plus one per agent-*.jsonl) froze on
-// the first 256 paths for the rest of the process: every transcript after that
+// one deleted, in the same tick it was created. A deck that had filled the
+// cache froze on what it already held for the rest of the process: every
+// transcript after that
 // re-read its whole JSONL from byte 0 on every ~2.5s pass instead of folding
 // only the appended bytes, which is the O(n)-per-pass synchronous stall the
 // cursor exists to remove. Totals stayed correct, so nothing but the cost of a
@@ -62,7 +62,12 @@ function assistant(inputTokens: number): string {
   }) + "\n";
 }
 
-// Matches MAX_TRANSCRIPT_SCANS in src/server/index.mjs.
+// Matches MAX_TRANSCRIPT_SCAN_SESSIONS in src/server/index.mjs, which counts
+// sessions rather than paths (#611). Every transcript in this file is a bare
+// `<name>.jsonl` with no `subagents/` directory beside it, so each one is a
+// session of its own and the two readings coincide — which is what keeps these
+// cases about the LRU ordering and not about the grouping. The grouping has
+// its own file, transcript-scan-session-cap.test.ts.
 const CAP = 256;
 const FIRST = assistant(100);
 // Same byte length as FIRST, so a cursor parked at its end cannot tell the
