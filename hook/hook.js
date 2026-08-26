@@ -264,29 +264,33 @@ function sameProof(got, want) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// Two round trips now happen per target, and main()'s hard cap is 1500ms, so
-// the pair has to fit inside it with room to spare. The challenge is a bodyless
-// GET to a loopback port — sub-millisecond when a deck is there, and instant
+// Two round trips happen per target, and main()'s hard cap is 1500ms, so the
+// pair has to fit inside it with room to spare. The challenge is a bodyless GET
+// to a loopback port — sub-millisecond when a deck is there, and instant
 // ECONNREFUSED when nothing is.
+//
+// They are now separated by a barrier: every target is challenged, then the
+// election is decided, then the payload goes out (#695). The worst case is
+// unchanged — the challenges run in parallel, so it is still one 400ms deadline
+// followed by one 1000ms deadline. What the barrier does cost is that an honest
+// deck's POST waits for the slowest challenge in the set, which only matters
+// when some OTHER record's port accepts a connection and then says nothing. A
+// ghost port with nothing behind it refuses instantly and delays no one.
 const CHALLENGE_TIMEOUT_MS = 400;
 const POST_TIMEOUT_MS = 1000;
 
 /**
- * Ask the listener to prove it is the deck that wrote `d`, and POST the payload
- * only once it has. `done` runs exactly once, whatever the outcome — a refused
- * connection, a silent port, a wrong answer and a delivered event all just mean
- * this target is finished.
+ * Ask the listener to prove it is the deck that wrote `d`. `cb` is called
+ * exactly once with true or false — a refused connection, a silent port and a
+ * wrong answer are all just "not the deck this record describes".
  *
- * A deck that advertised no token is posted to directly: see requiresProof.
- *
- * `persists` is this deck's answer from electWriters: true for the one deck
- * that logs the event, false for every other one it is also drawn on.
+ * A deck that advertised no token cannot be asked and passes: see requiresProof.
  */
-function deliver(d, body, persists, done) {
+function prove(d, cb) {
   let settled = false;
-  const finish = () => { if (settled) return; settled = true; done(); };
+  const finish = ok => { if (settled) return; settled = true; cb(ok); };
 
-  if (!requiresProof(d)) return post(d, body, persists, finish);
+  if (!requiresProof(d)) return finish(true);
 
   const nonce = crypto.randomBytes(16).toString("hex");
   const want = challengeProof(d.token, nonce);
@@ -298,31 +302,79 @@ function deliver(d, body, persists, done) {
     method: "GET",
     timeout: CHALLENGE_TIMEOUT_MS,
   }, res => {
-    if (res.statusCode !== 200) { res.resume(); return res.on("end", finish); }
+    if (res.statusCode !== 200) { res.resume(); return res.on("end", () => finish(false)); }
     let answer = "";
     res.setEncoding("utf8");
     res.on("data", c => {
       answer += c;
       // A deck answers in ~100 bytes. Anything pouring data at us is not one,
       // and must not be allowed to grow this buffer without bound.
-      if (answer.length > 4096) { req.destroy(); finish(); }
+      if (answer.length > 4096) { req.destroy(); finish(false); }
     });
     res.on("end", () => {
       // Already given up on this target — a flood we cut off above. Whatever
       // arrived before that is not an answer we are going to act on.
       if (settled) return;
       let proof;
-      try { proof = JSON.parse(answer).proof; } catch { return finish(); }
-      if (!sameProof(proof, want)) return finish();
-      post(d, body, persists, finish);
+      try { proof = JSON.parse(answer).proof; } catch { return finish(false); }
+      finish(sameProof(proof, want));
     });
   });
-  req.on("error", finish);
+  req.on("error", () => finish(false));
   req.on("timeout", () => req.destroy());
   req.end();
 }
 
-function post(d, body, persists, finish) {
+/**
+ * Challenge every target, then hand back the ones that answered — in the order
+ * they were given, so the election below is a function of the records alone.
+ *
+ * WHY THIS RUNS BEFORE THE ELECTION AND NOT AFTER IT (#695). The two round trips
+ * per target have always both happened; they used to happen in the wrong order.
+ * electWriters ran over every record whose pid was merely alive, and only then
+ * did deliver() challenge each target and drop the ones that could not answer.
+ * So a record left behind by a deck that is gone — SIGKILL, an OOM kill, a power
+ * cut, a console window closed on Windows, none of which run the shutdown that
+ * unlinks it — kept passing the one staleness test there is the moment the OS
+ * handed its pid to some other long-lived process. If it also named a port below
+ * every real deck's, it WON the election, was never posted to because it could
+ * not answer, and no other deck was posted to with the flag either: every deck
+ * drew the event, all of them were told `?persist=0`, and events.jsonl stopped
+ * growing. Silently, for as long as that file sat in the directory.
+ *
+ * The election has to be decided over the decks that are actually going to be
+ * handed the payload, and the only thing that establishes that is the handshake.
+ * So: prove, then elect, then post. It costs no extra round trip, only this
+ * ordering, and it is the same reordering src/server/index.mjs makes in
+ * readLiveDecks for the Codex rollouts no hook ever sees.
+ *
+ * The record is NOT unlinked when a target fails. A dead pid is proof the deck
+ * is gone and is swept above; a failed challenge is not — a deck restarting
+ * under its supervisor refuses connections for a moment while its record still
+ * stands, and a merely busy one can miss the 400ms deadline. Deleting another
+ * deck's registration on that evidence trades a bug that loses log lines for one
+ * that loses a whole deck's events, and it buys nothing now that the election no
+ * longer believes the record: a ghost that survives on disk costs one instant
+ * ECONNREFUSED per hook run and decides nothing.
+ */
+function proveTargets(targets, cb) {
+  const ok = new Array(targets.length).fill(false);
+  let pending = targets.length;
+  const settle = () => { if (--pending <= 0) cb(targets.filter((_, i) => ok[i])); };
+  targets.forEach((d, i) => prove(d, answered => { ok[i] = answered; settle(); }));
+}
+
+/**
+ * Hand this deck the payload. `done` runs exactly once, whatever the outcome —
+ * a delivered event, a refused connection and a socket that errors after the
+ * response are all just "this target is finished".
+ *
+ * `persists` is this deck's answer from electWriters: true for the one deck that
+ * logs the event, false for every other one it is also drawn on.
+ */
+function post(d, body, persists, done) {
+  let settled = false;
+  const finish = () => { if (settled) return; settled = true; done(); };
   const req = http.request({
     hostname: "127.0.0.1",
     port: d.port,
@@ -396,9 +448,9 @@ function main() {
       let d;
       try { d = JSON.parse(fs.readFileSync(path.join(DIR, file), "utf8")); } catch { continue; }
       if (typeof d.workspace !== "string" || !d.pid || !d.port) continue;
-      // A missing token is not a reason to drop the file here — deliver()
-      // decides what a target has to prove, and a deck older than the handshake
-      // can prove nothing. See requiresProof.
+      // A missing token is not a reason to drop the file here — prove() decides
+      // what a target has to prove, and a deck older than the handshake can
+      // prove nothing. See requiresProof.
 
       if (!isAlive(d.pid)) {
         try { fs.unlinkSync(path.join(DIR, file)); } catch {}
@@ -417,13 +469,21 @@ function main() {
 
     if (!targets.length) return process.exit(0);
 
-    // One deck per events log records this event; the others only draw it.
-    const writers = electWriters(targets);
+    // Prove, elect, post — in that order, and see proveTargets for what the
+    // other order cost. A record whose pid is merely alive has established
+    // nothing: it may be a deck that died and had its pid recycled, and electing
+    // one of those to write the log meant nobody wrote it (#695).
+    proveTargets(targets, proven => {
+      if (!proven.length) return process.exit(0);
 
-    let pending = targets.length;
-    const done = () => { if (--pending <= 0) process.exit(0); };
+      // One deck per events log records this event; the others only draw it.
+      const writers = electWriters(proven);
 
-    for (const d of targets) deliver(d, taggedInput, writers.has(d), done);
+      let pending = proven.length;
+      const done = () => { if (--pending <= 0) process.exit(0); };
+
+      for (const d of proven) post(d, taggedInput, writers.has(d), done);
+    });
   });
 }
 

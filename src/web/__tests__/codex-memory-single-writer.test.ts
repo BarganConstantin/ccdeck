@@ -37,6 +37,7 @@
 // rollout in a temp sandbox, the third drives the real reducer.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -75,7 +76,7 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, eventsSince } = await import("../../server/index.mjs");
+const { startServer, eventsSince, challengeProof } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -132,7 +133,44 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
   // A pid that is alive and is not ours: the process that started this one. A
   // record whose pid is dead is swept, and would elect nobody.
   const OTHER = join(AGENT_DAG_DIR, `${process.ppid}.json`);
+  const OTHER_TOKEN = "the-other-decks-token";
   const line = (obj: unknown) => JSON.stringify(obj) + "\n";
+  let otherListener: HttpServer | null = null;
+
+  /**
+   * The other deck has to BE a deck (#695). A live pid on a low port used to be
+   * the whole of what this fixture staged, and that is precisely the ghost a
+   * recycled pid leaves behind — readLiveDecks now challenges a record's port
+   * with the record's own token and drops it when nothing answers, so a record
+   * with nothing behind it can no longer take the log away from anyone.
+   *
+   * Below this deck's port, because the election is lowest-port-wins and the
+   * deck holds an ephemeral one, which every platform takes from the high end of
+   * the range. The loop is only for the candidates that happen to be taken.
+   */
+  async function honestDeckBelow(limit: number) {
+    for (let i = 0; i < 400; i++) {
+      const port = 2000 + Math.floor(Math.random() * (Math.min(limit, 30000) - 2000));
+      const s = createServer((req: IncomingMessage, res: ServerResponse) => {
+        req.on("error", () => {});
+        res.on("error", () => {});
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        if (url.pathname === "/api/hook-challenge") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ proof: challengeProof(OTHER_TOKEN, url.searchParams.get("nonce")) }));
+        }
+        req.on("data", () => {});
+        req.on("end", () => res.writeHead(200).end("{}"));
+      });
+      const bound = await new Promise<boolean>(done => {
+        s.once("error", () => done(false));
+        s.listen(port, "127.0.0.1", () => done(true));
+      });
+      if (bound) { otherListener = s; return port; }
+      s.close();
+    }
+    throw new Error(`no free port below ${limit}`);
+  }
 
   const logged = (): Array<{ source: string; payload: Record<string, unknown> }> =>
     (existsSync(LOG) ? readFileSync(LOG, "utf8") : "").split("\n").filter(Boolean).map(l => JSON.parse(l));
@@ -160,7 +198,8 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
     // other deck holds the lower port, so it holds the file.
     await writeDiscovery({ port: PORT, workspace: "", token: "ours", persist: LOG, codex: true });
     writeFileSync(OTHER, JSON.stringify({
-      pid: process.ppid, port: 1, workspace: "", token: "theirs", persist: LOG, codex: true,
+      pid: process.ppid, port: await honestDeckBelow(PORT), workspace: "",
+      token: OTHER_TOKEN, persist: LOG, codex: true,
     }));
     mkdirSync(CWD, { recursive: true });
     writeFileSync(join(CWD, "AGENTS.md"), "# house rules\n\nbe brief.\n", "utf8");
@@ -170,7 +209,14 @@ describe("the AGENTS.md scan and the deck elected to write the log", () => {
     await tick(300);
   });
 
-  afterAll(() => rmSync(OTHER, { force: true }));
+  afterAll(async () => {
+    rmSync(OTHER, { force: true });
+    if (otherListener) {
+      const s = otherListener;
+      s.closeAllConnections?.();
+      await new Promise<void>(done => s.close(() => done()));
+    }
+  });
 
   it("draws the memory files but leaves the copy on disk to the elected deck", async () => {
     writeFileSync(ROLLOUT,
