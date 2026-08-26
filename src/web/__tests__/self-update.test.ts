@@ -8,6 +8,10 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// What a recorded spawn really ran, in one shape on every platform — on
+// Windows a cmd.exe-wrapped call's args[0] is `/d`, not the first real
+// argument, so no assertion here indexes `args` itself.
+import { spawnedArgv } from "./spawned-argv";
 
 // The marker lives under homedir(), which the suite must not write to: these
 // tests are about what gets cached there, and a real ~/.agents-deck/ would be
@@ -609,9 +613,15 @@ describe("an install that runs past its deadline", () => {
   let dir = "";
   let pkgRoot = "";
   let optOut: string | undefined;
+  // Both spellings, because Windows' environment is case-insensitive and
+  // killTree reads either — so on a Windows runner these are one variable and
+  // off it they are two, and both have to come back exactly as they were.
+  const rootKeys = ["SystemRoot", "systemroot"] as const;
+  let sysRoot: Record<string, string | undefined> = {};
 
   beforeEach(() => {
     spawns.length = 0;
+    sysRoot = Object.fromEntries(rootKeys.map(k => [k, process.env[k]]));
     // Writable, no .git, no _npx — the one shape where an in-app install is
     // allowed. Under a temp directory, so nothing real is a candidate.
     dir = mkdtempSync(join(tmpdir(), "ccdeck-upgrade-"));
@@ -627,6 +637,10 @@ describe("an install that runs past its deadline", () => {
     Object.defineProperty(process, "platform", platform);
     if (optOut === undefined) delete process.env.AGENTS_DECK_NO_INSTALL;
     else process.env.AGENTS_DECK_NO_INSTALL = optOut;
+    for (const [key, value] of Object.entries(sysRoot)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -641,14 +655,41 @@ describe("an install that runs past its deadline", () => {
   };
 
   it("kills npm itself on Windows, not just the cmd.exe wrapper it hides behind", () => {
+    // A stated SystemRoot, because Windows always has one — so this is the
+    // spelling every real deck spawns, and the only one that ever matters.
+    //
+    // This case used to assert `cmd.toLowerCase()).toContain("taskkill")`,
+    // which BOTH of killTree's branches satisfy: the full System32 path
+    // contains the word and so does the bare fallback. It therefore pinned
+    // neither, and `%SystemRoot%\Sysem32\taskkill.exe` passed it just as
+    // happily while degrading, on a real Windows machine only, to the plain
+    // kill this whole case exists to rule out. #617.
+    process.env.SystemRoot = "C:\\WINDOWS";
     const child = start("win32");
     vi.advanceTimersByTime(INSTALL_TIMEOUT_MS);
 
     expect(spawns).toHaveLength(2);
-    expect(spawns[1].cmd.toLowerCase()).toContain("taskkill");
-    // /T is the descendant walk; a plain kill is one TerminateProcess against
-    // the wrapper and leaves npm writing to node_modules.
-    expect(spawns[1].args).toEqual(["/pid", String(child.pid), "/T", "/F"]);
+    // The program and its arguments in one statement. System32 rather than
+    // PATH because PATH is the user's and this is the program the deck hands a
+    // pid to kill; /T because that is the descendant walk, and a plain kill is
+    // one TerminateProcess against the wrapper that leaves npm writing to
+    // node_modules.
+    expect(spawnedArgv(spawns[1])).toEqual([
+      "C:\\WINDOWS\\System32\\taskkill.exe", "/pid", String(child.pid), "/T", "/F",
+    ]);
+  });
+
+  it("falls back to the bare name only when there is no SystemRoot to read", () => {
+    // Not a shape Windows produces — it always sets the variable — but it is
+    // the branch every OTHER case in this suite takes by accident, on the two
+    // legs that have no SystemRoot at all. Naming it here is what stops that
+    // accident from being mistaken for coverage of the branch above.
+    for (const key of rootKeys) delete process.env[key];
+    const child = start("win32");
+    vi.advanceTimersByTime(INSTALL_TIMEOUT_MS);
+
+    expect(spawns).toHaveLength(2);
+    expect(spawnedArgv(spawns[1])).toEqual(["taskkill", "/pid", String(child.pid), "/T", "/F"]);
   });
 
   it("reports the timeout at the deadline, not whenever the pipes close", () => {
