@@ -3,7 +3,6 @@
 import { createServer } from "node:http";
 import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
-import { homedir } from "node:os";
 import { extname, join, resolve, dirname as pdirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
@@ -1047,9 +1046,23 @@ async function collectMemoryFiles(paths) {
  *  a test is how they would drift. */
 export async function scanClaudeMdFiles(cwd) {
   if (!cwd || typeof cwd !== "string") return [];
-  const home = homedir();
+  // The CONFIG dir, not the home directory. CLAUDE_CONFIG_DIR relocates it
+  // wholesale — it replaces ~/.claude rather than overlaying it — so on a
+  // machine where it is set, `homedir()/.claude` is a directory Claude Code
+  // does not read. Spelling it by hand here failed in both directions at once:
+  // the user-global memory file and every auto-memory file went missing from
+  // the modal and from the byte total beside it, while a stale ~/.claude left
+  // over from before the variable was set got listed as if it were in context.
+  // Resolved per call, like the two other claudeConfigDir() readers in this
+  // file, so nothing captures the answer from an environment that has moved.
+  const cfg = claudeConfigDir();
   // Walk up from cwd to filesystem root, checking the canonical CC memory
   // filenames plus CLAUDE.local.md (user-private) at each level.
+  //
+  // The `.claude/` prefix on the last two is NOT the config dir wearing a
+  // second spelling: it is CC's per-directory project convention, one such
+  // folder per level of the walk, and it stays literal however the config dir
+  // moves.
   const paths = memoryWalkPaths(cwd, [
     "CLAUDE.md",
     "CLAUDE.local.md",
@@ -1057,14 +1070,15 @@ export async function scanClaudeMdFiles(cwd) {
     join(".claude", "CLAUDE.local.md"),
   ]);
   // User-global memory.
-  paths.push(join(home, ".claude", "CLAUDE.md"));
-  paths.push(join(home, ".claude", "CLAUDE.local.md"));
-  // Per-project auto-memory: ~/.claude/projects/<slug>/memory/*.md
-  // (plus MEMORY.md index). CC injects these into context for sessions
-  // whose cwd matches the slug.
+  paths.push(join(cfg, "CLAUDE.md"));
+  paths.push(join(cfg, "CLAUDE.local.md"));
+  // Per-project auto-memory: $CLAUDE_CONFIG_DIR/projects/<slug>/memory/*.md
+  // (plus MEMORY.md index). CC injects these into context for sessions whose
+  // cwd matches the slug. That directory sits beside the <sessionId>.jsonl
+  // transcripts, so it moves with the config dir by construction.
   const slug = ccProjectSlug(cwd);
   if (slug) {
-    const memDir = join(home, ".claude", "projects", slug, "memory");
+    const memDir = join(cfg, "projects", slug, "memory");
     try {
       const entries = await readdir(memDir);
       for (const f of entries) {
