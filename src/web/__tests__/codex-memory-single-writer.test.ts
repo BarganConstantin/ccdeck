@@ -36,7 +36,7 @@
 // Plain node, no DOM: the first two tests drive the real watcher against a real
 // rollout in a temp sandbox, the third drives the real reducer.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,7 +48,12 @@ import type { HookEnvelope, HookPayload } from "../types";
 // server module is imported, because it resolves every one of them at import
 // time. $HOME and %USERPROFILE% together cover POSIX and Windows. Nothing in
 // this file can reach the developer's own ~/.claude or ~/.codex.
-const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-codexmem-home-"));
+// Realpath'd, because the rollout's cwd is written under this directory and the
+// watcher canonicalises the cwd it reads out of a rollout header (canonicalCwd
+// in src/server/index.mjs). os.tmpdir() is reached through a symlink on macOS —
+// /var is /private/var — so an un-resolved fixture path would be asserting that
+// the deck echoes back a spelling no real machine hands it.
+const FAKE_HOME = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-codexmem-home-")));
 const FAKE_CONFIG = mkdtempSync(join(tmpdir(), "ccdeck-codexmem-config-"));
 const FAKE_CODEX = mkdtempSync(join(tmpdir(), "ccdeck-codexmem-rollouts-"));
 const prev = {

@@ -1,7 +1,7 @@
 // agent-dag server: HTTP ingest + SSE broadcast + static file serving.
 // Single-file pure Node HTTP server, zero deps.
 import { createServer } from "node:http";
-import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
+import { readFile, stat, mkdir, open, truncate, readdir, unlink, realpath } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join, resolve, dirname as pdirname } from "node:path";
@@ -1193,7 +1193,11 @@ async function readCodexHeader(path) {
       if (nl >= 0) {
         const obj = JSON.parse(text.slice(0, nl));
         if (obj && obj.type === "session_meta" && obj.payload) {
-          return { sid: obj.payload.id, cwd: typeof obj.payload.cwd === "string" ? obj.payload.cwd : null };
+          // Canonicalised here and nowhere else: everything downstream — the
+          // workspace test below, the log election, the cwd on every event this
+          // rollout produces — reads state.cwd, and this is the one place it is
+          // read off disk. See canonicalCwd.
+          return { sid: obj.payload.id, cwd: await canonicalCwd(obj.payload.cwd) };
         }
         return null;
       }
@@ -2784,17 +2788,81 @@ let _providers = { claude: true, codex: true };
  * the events log before publishing it: what goes in the discovery file is read
  * by other processes that cannot reconstruct the context it was written in.
  *
- * Symlinks are resolved too, because a process's cwd — which is what both
- * providers report — comes from getcwd() and has none left in it. Without this,
- * `--workspace /tmp/proj` on a Mac is scoped to /tmp/proj while every session
- * inside it reports /private/tmp/proj, and the deck stays empty. A path that
- * does not exist yet keeps its resolved form rather than failing: scoping a deck
- * to a directory you are about to create is not an error.
+ * Symlinks are resolved too, so that `--workspace /tmp/proj` on a Mac is not
+ * scoped to /tmp/proj while every session inside it reports /private/tmp/proj,
+ * leaving the deck empty. A path that does not exist yet keeps its resolved form
+ * rather than failing: scoping a deck to a directory you are about to create is
+ * not an error.
+ *
+ * That resolution is only half the rule. Canonicalising the flag means nothing
+ * unless the cwd it is compared against is canonicalised the same way, and that
+ * is a separate job on each capture path: hook.js does it with normPath, and the
+ * rollout watcher does it with canonicalCwd below. This comment used to claim
+ * the second half came for free — that "a process's cwd comes from getcwd() and
+ * has none left in it" — which is true on POSIX and false on Windows. See
+ * canonicalCwd.
  */
 export function canonicalWorkspace(raw) {
   if (typeof raw !== "string" || raw.trim() === "") return "";
   const abs = resolve(raw);
   try { return realpathSync(abs); } catch { return abs; }
+}
+
+/**
+ * The one spelling of the directory a Codex session says it is running in —
+ * hook.js's normPath, for the capture path that never goes through the hook.
+ *
+ * `--workspace` is canonicalised above before anything compares against it, and
+ * the Claude side canonicalises the session's cwd to match: hook.js runs every
+ * incoming cwd through normPath (resolve + realpath) before asking
+ * capturesSession. The Codex side compared the rollout header's `cwd` raw, and
+ * the comment above said that was safe because a cwd comes from getcwd(), which
+ * has already resolved every link.
+ *
+ * That is true of getcwd(3) and not true of Windows. There the current directory
+ * is stored as the string it was set with, and GetCurrentDirectoryW — what
+ * Rust's std::env::current_dir() behind Codex calls — hands that string back
+ * without resolving a junction, a `subst` drive or a mapped network drive.
+ * realpath does resolve them, and on a mapped drive goes further and returns the
+ * UNC form, because libuv asks GetFinalPathNameByHandleW. So a deck started as
+ * `--workspace Z:\proj` scoped itself to `\\server\share\proj`, the Claude
+ * session in that tree reported `Z:\proj` and was realpath'd into the workspace
+ * and drawn, and the Codex session beside it reported `Z:\proj` in its rollout
+ * header, was compared raw, and silently never appeared — no error printed
+ * anywhere, the banner still claiming the rollout watcher was running. The same
+ * asymmetry runs in reverse for a user who passes the resolved path and works
+ * through the junction. The log election went wrong with it: writesCodexLog
+ * models the OTHER decks' capture with this same predicate against their
+ * published (canonical) workspaces, so it was picking the wrong group.
+ *
+ * Done here, at the one read of the header, rather than inside
+ * codexCwdInWorkspace: the result is cached in codexFileState for the life of
+ * the file, so it costs one realpath per rollout instead of one per tick, and it
+ * leaves the predicate the pure string function that lets it be pinned against
+ * hook.js's copy in a test. Case is NOT folded here — realpath does not
+ * canonicalise it on any platform, and both copies of the predicate already fold
+ * per-platform, which is the only place that decision can stay correct on Linux.
+ *
+ * Async, unlike canonicalWorkspace, because of where each one runs.
+ * canonicalWorkspace runs once in bin/deck.js before the server exists, so
+ * blocking there costs nothing. This runs inside the watcher's 1.5s tick, in the
+ * live event loop, against a path a rollout recorded some time ago — which on
+ * the very platform this exists for is quite likely to name a mapped drive that
+ * is no longer connected, and a synchronous realpath on one of those blocks the
+ * whole dashboard until SMB times out.
+ *
+ * A cwd that no longer resolves keeps its resolved form, exactly as the flag
+ * does: a deleted directory or a disconnected drive is not a reason to drop a
+ * session the deck can still draw, and the resolved string is the best answer
+ * available — for a rollout recorded in the tree the deck is scoped to and never
+ * moved, it is also the right one. Anything that is not a non-empty string is
+ * null, which is what readCodexHeader returned before and what both copies of
+ * the predicate read as "this session never said where it runs".
+ */
+export async function canonicalCwd(raw) {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const abs = resolve(raw);
+  try { return await realpath(abs); } catch { return abs; }
 }
 
 function handleHealth(_req, res) {

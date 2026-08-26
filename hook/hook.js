@@ -34,6 +34,24 @@ function parseProvider(argv) {
 }
 const PROVIDER = parseProvider(process.argv.slice(2));
 
+/**
+ * The one spelling of a directory, so that a path this process reports and a
+ * path bin/deck.js published can be compared as strings.
+ *
+ * Resolving symlinks is the half that is easy to think you can skip, because on
+ * POSIX a cwd comes from getcwd(3) and has none left in it. Windows has no such
+ * guarantee — GetCurrentDirectoryW returns the string the directory was set
+ * with, junction, `subst` drive and all — so a workspace reached that way only
+ * matches if BOTH sides go through here. The server's rollout watcher keeps its
+ * own copy of this rule under the name canonicalCwd, for the Codex sessions that
+ * never reach this file; a test walks one path through both. A path that does
+ * not resolve keeps its resolved form, which is also what canonicalWorkspace
+ * does with a directory the user has not created yet.
+ *
+ * Exported for that test: it is half of what `--workspace` means, and a
+ * predicate handed an already-canonical path cannot show that the caller
+ * canonicalises.
+ */
 function normPath(p) {
   let r = path.resolve(p);
   try { r = fs.realpathSync(r); } catch {}
@@ -403,5 +421,5 @@ function main() {
 // require() it exports the rules it decides by — matching, election, the
 // handshake — and starts nothing, which is what lets them be tested without a
 // 1.5s exit timer in the test runner.
-module.exports = { capturesSession, cwdInWorkspace, foldsCase, electWriters, challengeProof, requiresProof };
+module.exports = { capturesSession, cwdInWorkspace, foldsCase, normPath, electWriters, challengeProof, requiresProof };
 if (require.main === module) main();
