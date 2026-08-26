@@ -3,12 +3,22 @@
 // comma or a Notepad BOM looked exactly like a missing one. Clicking the switch
 // then wrote that empty object back with only the sound entry in it, and every
 // permission, env var and user hook in the file was gone — atomically, and
-// reporting ok. These tests pin the fix: the toggle refuses on a file it cannot
-// parse, says so, and still works on the files it can.
-import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// reporting ok.
+//
+// #704 removed the toggle: the deck plays its own tones and writes no hook. What
+// it did NOT remove is a writer of this file, because the entry the toggle used
+// to install is still sitting in the settings.json of every machine that ever
+// turned the sound on, naming a script this release deletes. Retiring it is a
+// rewrite of the whole file, made without the user asking, on the boot after an
+// upgrade — which is the same bargain as before with the stakes raised, since
+// nobody clicked anything and nobody is watching. So the refusal is what these
+// tests pin, on the module that does the writing now: a settings.json it cannot
+// parse is left byte for byte as it was found, said out loud, and the entry
+// stays in it until the user repairs the file.
+import { describe, it, expect, afterAll, beforeEach } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 // The module resolves its paths at import time: settings.json from
 // $CLAUDE_CONFIG_DIR (falling back to ~/.claude) and the parked-hooks file from
@@ -25,15 +35,15 @@ process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = FAKE_CLAUDE;
 
 // @ts-expect-error — .mjs server module, no types
-const mod = await import("../../server/sound-hook.mjs");
-const { setSoundHook, soundHookStatus, restoreParkedSoundHooks, SETTINGS_PATH, PARKED_PATH } = mod;
+const mod = await import("../../server/retire-sound-hook.mjs");
+const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } = mod;
 
 // Belt and braces. If either path ever stopped honouring the environment, this
 // file would be rewriting the developer's own settings — so fail before a
 // single test gets the chance.
-for (const p of [SETTINGS_PATH, PARKED_PATH]) {
+for (const p of [SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH]) {
   if (!String(p).startsWith(FAKE_HOME)) {
-    throw new Error(`refusing to run: sound-hook resolved ${p}, outside ${FAKE_HOME}`);
+    throw new Error(`refusing to run: retire-sound-hook resolved ${p}, outside ${FAKE_HOME}`);
   }
 }
 
@@ -51,6 +61,37 @@ afterAll(() => {
   rmSync(FAKE_HOME, { recursive: true, force: true });
 });
 
+const SETTINGS = String(SETTINGS_PATH);
+const PARKED = String(PARKED_PATH);
+const NOTIFY = String(NOTIFY_PATH);
+
+/** The deck's own entry, as one is actually shaped on disk. */
+const OUR_ENTRY = {
+  "__agent-dag-sound": true,
+  hooks: [{ type: "command", command: `"${process.execPath}" "${NOTIFY}"`, timeout: 5 }],
+};
+const USER_SOUND_HOOK = {
+  hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff || true" }],
+};
+
+/** The state an upgraded machine boots into: the entry, and the script it names
+ *  sitting in the deck's own install directory. */
+function installedTheOldWay(extra: Record<string, unknown[]> = {}) {
+  writeFileSync(SETTINGS, JSON.stringify({
+    model: "opus",
+    env: { FOO: "bar" },
+    permissions: { allow: ["Bash(git*)"] },
+    hooks: { Stop: [OUR_ENTRY], ...extra },
+  }, null, 2) + "\n", "utf8");
+  mkdirSync(dirname(NOTIFY), { recursive: true });
+  writeFileSync(NOTIFY, "// the script the package no longer ships\n", "utf8");
+}
+
+beforeEach(() => {
+  rmSync(PARKED, { force: true });
+  rmSync(dirname(NOTIFY), { recursive: true, force: true });
+});
+
 // The reported reproduction: a settings.json a human would call valid, rejected
 // by JSON.parse over one trailing comma, carrying the things worth losing.
 const CORRUPT = [
@@ -62,77 +103,72 @@ const CORRUPT = [
   "",
 ].join("\n");
 
-describe("the sound toggle and a settings.json it cannot parse", () => {
-  it("refuses to turn the sound on, and keeps every byte of the file", async () => {
-    writeFileSync(SETTINGS_PATH, CORRUPT, "utf8");
+describe("retirement and a settings.json it cannot parse", () => {
+  it("refuses, and keeps every byte of the file", async () => {
+    writeFileSync(SETTINGS, CORRUPT, "utf8");
 
-    const res = await setSoundHook(true);
+    const res = await retireSoundHook();
 
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("settings_unreadable");
     expect(res.message).toMatch(/Refusing to overwrite/);
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(CORRUPT);
+    expect(res.settingsPath).toBe(SETTINGS_PATH);
+    expect(readFileSync(SETTINGS, "utf8")).toBe(CORRUPT);
   });
 
-  it("refuses to turn the sound off just the same", async () => {
-    writeFileSync(SETTINGS_PATH, CORRUPT, "utf8");
+  it("leaves the script alone as well, because the entry still names it", async () => {
+    // The ordering the whole module is built around, read from the failure end:
+    // deleting a script an entry still points at turns a stale sound into a
+    // "Cannot find module" at the end of every turn. A refusal deletes nothing.
+    writeFileSync(SETTINGS, CORRUPT, "utf8");
+    mkdirSync(dirname(NOTIFY), { recursive: true });
+    writeFileSync(NOTIFY, "// still named by something\n", "utf8");
 
-    const res = await setSoundHook(false);
+    expect((await retireSoundHook()).ok).toBe(false);
+
+    expect(existsSync(NOTIFY)).toBe(true);
+  });
+
+  it("keeps the parked hooks parked for later, rather than restoring into a file it cannot read", async () => {
+    writeFileSync(SETTINGS, CORRUPT, "utf8");
+    mkdirSync(dirname(PARKED), { recursive: true });
+    writeFileSync(PARKED, JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n", "utf8");
+
+    const res = await retireSoundHook();
 
     expect(res.ok).toBe(false);
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(CORRUPT);
+    expect(readFileSync(SETTINGS, "utf8")).toBe(CORRUPT);
+    // Still there — the restore works once they repair the file, and that is the
+    // only reason the parked copy exists at all.
+    expect(JSON.parse(readFileSync(PARKED, "utf8"))).toEqual([USER_SOUND_HOOK]);
   });
 
-  it("reports the refusal instead of a healthy 'off' the user would act on", async () => {
-    writeFileSync(SETTINGS_PATH, CORRUPT, "utf8");
+  it("says the same thing on a second attempt, instead of drifting into 'nothing to do'", async () => {
+    // The refusal must be repeatable. A first run that quietly recorded itself
+    // as done would leave the entry in the file forever, which is the failure
+    // mode a marker file would have introduced.
+    writeFileSync(SETTINGS, CORRUPT, "utf8");
 
-    const status = await soundHookStatus();
-
-    expect(status.ok).toBe(false);
-    expect(status.reason).toBe("settings_unreadable");
-    expect(status.settingsPath).toBe(SETTINGS_PATH);
-  });
-
-  it("refuses to restore parked hooks, and keeps them parked for later", async () => {
-    // Park one of the user's own hooks against a readable file first, so the
-    // restore has something to put back.
-    writeFileSync(SETTINGS_PATH, JSON.stringify({
-      hooks: { Stop: [{ hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff" }] }] },
-    }, null, 2), "utf8");
-    await setSoundHook(true);
-    expect((await soundHookStatus()).parked).toBe(1);
-
-    // Now the file goes bad before they shift-click to get it back.
-    writeFileSync(SETTINGS_PATH, CORRUPT, "utf8");
-    const res = await restoreParkedSoundHooks();
-
-    expect(res.ok).toBe(false);
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(CORRUPT);
-    // Still parked — the restore works once they repair the file.
-    expect(JSON.parse(readFileSync(PARKED_PATH, "utf8"))).toHaveLength(1);
+    expect((await retireSoundHook()).reason).toBe("settings_unreadable");
+    expect((await retireSoundHook()).reason).toBe("settings_unreadable");
+    expect(readFileSync(SETTINGS, "utf8")).toBe(CORRUPT);
   });
 });
 
-describe("the sound toggle and a settings.json it can read", () => {
-  it("keeps the rest of the file when it adds and removes its own hook", async () => {
-    rmSync(PARKED_PATH, { force: true });
-    writeFileSync(SETTINGS_PATH, JSON.stringify({
-      model: "opus",
-      permissions: { allow: ["Bash(git*)"] },
-      hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "audit.sh" }] }] },
-    }, null, 2), "utf8");
+describe("retirement and a settings.json it can read", () => {
+  it("keeps the rest of the file when it removes its own hook", async () => {
+    installedTheOldWay({ PreToolUse: [{ hooks: [{ type: "command", command: "audit.sh" }] }] });
 
-    expect((await setSoundHook(true)).ok).toBe(true);
-    let written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, removed: 1, restored: 0 });
+    const written = JSON.parse(readFileSync(SETTINGS, "utf8"));
     expect(written.model).toBe("opus");
+    expect(written.env).toEqual({ FOO: "bar" });
     expect(written.permissions).toEqual({ allow: ["Bash(git*)"] });
     expect(written.hooks.PreToolUse).toHaveLength(1);
-    expect(written.hooks.Stop).toHaveLength(1);
-
-    expect((await setSoundHook(false)).ok).toBe(true);
-    written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
-    expect(written.model).toBe("opus");
-    expect(written.hooks.PreToolUse).toHaveLength(1);
+    // Ours was the only Stop entry, so the empty array goes rather than being
+    // left behind as a key that says nothing.
     expect(written.hooks.Stop).toBeUndefined();
   });
 
@@ -141,21 +177,40 @@ describe("the sound toggle and a settings.json it can read", () => {
     // before the fix this exact file was one of the ones that got destroyed. It
     // has to parse, not merely survive.
     const bom = String.fromCharCode(0xfeff);
-    writeFileSync(SETTINGS_PATH, bom + JSON.stringify({ model: "sonnet" }, null, 2), "utf8");
+    writeFileSync(SETTINGS, bom + JSON.stringify({
+      model: "sonnet",
+      hooks: { Stop: [OUR_ENTRY] },
+    }, null, 2), "utf8");
 
-    expect((await setSoundHook(true)).ok).toBe(true);
+    expect((await retireSoundHook()).ok).toBe(true);
 
-    const written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
+    const written = JSON.parse(readFileSync(SETTINGS, "utf8"));
     expect(written.model).toBe("sonnet");
-    expect(written.hooks.Stop).toHaveLength(1);
+    expect(written.hooks.Stop).toBeUndefined();
   });
 
-  it("still creates the file when there is genuinely none — ENOENT is not corruption", async () => {
-    rmSync(SETTINGS_PATH, { force: true });
+  it("treats a missing file as a machine with nothing to retire — ENOENT is not corruption", async () => {
+    rmSync(SETTINGS, { force: true });
 
-    expect((await setSoundHook(true)).ok).toBe(true);
+    const res = await retireSoundHook();
 
-    const written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
-    expect(written.hooks.Stop).toHaveLength(1);
+    expect(res).toMatchObject({ ok: true, removed: 0, restored: 0 });
+    // And it is not CREATED to hold a removal there was nothing to make.
+    expect(existsSync(SETTINGS)).toBe(false);
+  });
+
+  it("hands parked hooks back even when settings.json has since gone missing", async () => {
+    // ENOENT is an empty object, not a refusal, so the restore has somewhere to
+    // land. The user's own hooks come back whatever happened to the file they
+    // were taken out of — that is the promise, and it does not have conditions.
+    rmSync(SETTINGS, { force: true });
+    mkdirSync(dirname(PARKED), { recursive: true });
+    writeFileSync(PARKED, JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n", "utf8");
+
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, restored: 1 });
+    expect(JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.Stop).toEqual([USER_SOUND_HOOK]);
+    expect(existsSync(PARKED)).toBe(false);
   });
 });

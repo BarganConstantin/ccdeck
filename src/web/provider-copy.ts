@@ -196,7 +196,8 @@ export function captureHints(p: Providers): CaptureHint[] {
   return [claude, codex];
 }
 
-/** What the finish-sound toggle knows about itself, from /api/sound-hook. */
+/** What the finish-sound switch knows about itself. Read from localStorage
+ *  and from the AudioContext, since #704 — there is no endpoint behind it. */
 export interface FinishSoundState {
   /** Whether this tab is set to play the tones. Local to the tab since #704 —
    *  the deck plays them itself, so there is no settings.json entry to report. */
@@ -209,45 +210,32 @@ export interface FinishSoundState {
 }
 
 /**
- * The finish-sound toggle's tooltip — including the turns it does NOT cover.
+ * The finish-sound switch's tooltip — including the turns it does NOT cover.
  *
- * This switch is one line in Claude Code's settings.json: a `Stop` hook whose
- * command is notify.mjs, which Claude Code itself executes at the end of a turn.
- * Nothing about that reaches Codex. The deck installs no Codex hooks — it
- * stopped in the commit that introduced Codex support, because they do not fire
- * reliably on Windows — and reads the rollout JSONL files instead, after the
- * fact. So a Codex user turned this on, watched turn after turn finish in
- * silence, and had nothing anywhere to read it against (#394). An unqualified
- * "Sound on turn finish" is the whole of the problem: the silence is correct
- * behaviour and it is indistinguishable from a broken toggle.
+ * The switch used to be one line in Claude Code's settings.json: a `Stop` hook
+ * running a script the deck installed, which Claude Code executed at the end of
+ * a turn. Nothing about that reached Codex — the deck installs no Codex hooks,
+ * it tails the rollout JSONL files instead — so a Codex user turned this on,
+ * watched turn after turn finish in silence, and had nothing anywhere to read it
+ * against (#394). An unqualified "Sound on turn finish" was the whole of the
+ * problem: the silence was correct behaviour and indistinguishable from a broken
+ * toggle, so the sentence had to name the mechanism and not just the limit.
  *
- * Two other endings were available and both were rejected:
+ * #704 replaced the mechanism, and the limit moved with it. The tones are
+ * synthesized in the tab from the envelopes the deck already receives, so what
+ * they follow is the EVENT: a Codex `task_complete` is mapped to a synthetic
+ * `Stop` (#395) and gets the finish tone like any other. Codex has no
+ * `Notification` equivalent, so the second tone — Claude is waiting for you —
+ * stays Claude Code's, and that asymmetry is said out loud rather than left for
+ * a user to infer from a sound that never comes.
  *
- *   - Play it in the browser with Web Audio. The hook plays with no tab open at
- *     all, because it runs on the machine; a tab cannot. It would also be
- *     silent in a tab that has never been clicked, which autoplay policy makes
- *     the normal state of a monitoring deck left in the background — the exact
- *     tab this feature exists for. One switch would then mean two different
- *     promises, and the weaker one only where the user is not looking.
- *
- *   - Spawn notify.mjs from the server when the rollout watcher emits its
- *     synthetic Codex `Stop` (#395 added that event, so the moment is known
- *     now). Closer, but the switch still would not mean one thing: the Claude
- *     sound is a hook on the machine, so it fires once whether zero decks or
- *     four are running and whatever `--workspace` they were given, while a
- *     server-side sound fires once PER deck tailing that rollout (the
- *     writesCodexLog election that de-dupes the log only runs under --persist),
- *     only inside that deck's workspace, and not at all when no deck is up. And
- *     the switch has nowhere honest to keep its state for a machine that has no
- *     Claude Code: turning it on writes a `Stop` hook into a settings.json for a
- *     CLI that is not installed, which is the class of bug #402 and #404 just
- *     removed. That is a feature with its own design, not this defect.
- *
- * So the toggle stays what it is and says what it is. The sentence names the
- * mechanism, not just the limit, because "Claude Code only" is a fact a user can
- * act on and "sound" alone is not — and it is added only on a machine that has a
- * Codex to be silent about. On a Claude-only machine there is nothing to warn
- * anyone off, and the deck does not draw the button at all without Claude Code.
+ * What the change costs is one line and it is stated where the switch is: the
+ * hook fired with no browser open, because it ran on the machine. A tab cannot.
+ * For a dashboard whose normal state is left open that is a good trade, it was
+ * weighed rather than overlooked (see finish-sound-scope.test.ts, which used to
+ * argue the other side), and the same tab brings a second limit with it —
+ * autoplay policy keeps an AudioContext suspended until the page has been
+ * interacted with, so "on" over silence is a real state the copy has to name.
  */
 export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
   // The key in parentheses is how every other control on this bar names its own.

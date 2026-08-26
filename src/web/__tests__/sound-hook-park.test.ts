@@ -1,17 +1,26 @@
-// Reported: turning the sound on parks the user's own afplay/PowerShell Stop
-// hooks in ~/.agents-deck/parked-sound-hooks.json and strips them out of
-// settings.json — but writeParked() caught every error and returned void, so a
-// park that could not be written (root-owned ~/.agents-deck, a full disk, a
-// Windows lock on the file) left the hooks in neither file while setSoundHook
-// reported ok. readParked() had the mirror of it: any unreadable file counted as
-// "nothing was ever parked", so a torn parked file was overwritten by the next
-// toggle and the status endpoint said parked:0. These tests pin both halves —
-// the park has to land before settings.json is touched, and a parked file that
-// will not parse stops the toggle instead of being written over.
+// Reported: turning the sound on parked the user's own afplay/PowerShell Stop
+// hooks in ~/.agents-deck/parked-sound-hooks.json and stripped them out of
+// settings.json — but readParked() treated any unreadable file as "nothing was
+// ever parked", so a torn parked file was written over by the next toggle and
+// the status endpoint said parked:0. The hooks were gone from both files, and
+// the deck reported ok.
+//
+// #704 deleted the toggle, and with it the writer. It did not delete the debt.
+// Every machine that ever turned the sound on still has that file, holding hooks
+// a person wrote by hand, and retirement is now the LAST code that will ever be
+// in a position to hand them back: after it runs the park is deleted, and after
+// this release ships nothing else knows the file exists. So the reading half of
+// the report matters more than it did, not less. A file that will not parse must
+// stop the restore and be left for repair — never counted as empty, never
+// deleted, never quietly written over — because there is no second copy and no
+// next toggle to try again.
+//
+// These pin that, plus the two things retirement adds to it: our own entry comes
+// out whether or not the park can be read (two independent repairs, and only one
+// of them is urgent), and a park that survives its own deletion does not hand
+// the same hooks back a second time on the next boot.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
-import {
-  chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -32,20 +41,23 @@ process.env.CLAUDE_CONFIG_DIR = FAKE_CLAUDE;
 process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 
 // @ts-expect-error — .mjs server module, no types
-const mod = await import("../../server/sound-hook.mjs");
-const { setSoundHook, soundHookStatus, restoreParkedSoundHooks, SETTINGS_PATH, PARKED_PATH } = mod;
+const mod = await import("../../server/retire-sound-hook.mjs");
+const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } = mod;
 
 // Belt and braces. If either path ever stopped honouring the environment, this
 // file would be rewriting the developer's own settings and deleting their parked
 // hooks — so fail before a single test gets the chance.
-for (const p of [SETTINGS_PATH, PARKED_PATH]) {
+for (const p of [SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH]) {
   if (!String(p).startsWith(FAKE_HOME)) {
-    throw new Error(`refusing to run: sound-hook resolved ${p}, outside ${FAKE_HOME}`);
+    throw new Error(`refusing to run: retire-sound-hook resolved ${p}, outside ${FAKE_HOME}`);
   }
 }
 
+const SETTINGS = String(SETTINGS_PATH);
+const PARKED = String(PARKED_PATH);
+const NOTIFY = String(NOTIFY_PATH);
 // The directory the parked file lives in, i.e. <fake home>/.agents-deck.
-const PARK_DIR = dirname(String(PARKED_PATH));
+const PARK_DIR = dirname(PARKED);
 
 mkdirSync(FAKE_CLAUDE, { recursive: true });
 
@@ -66,35 +78,36 @@ afterAll(() => {
 });
 
 // A hook a user wrote by hand: one OS-specific command ending in `|| true`, the
-// exact thing the toggle sets aside and the exact thing that went missing.
+// exact thing the toggle set aside and the exact thing that went missing.
 const USER_SOUND_HOOK = {
   hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff || true" }],
 };
 const USER_AUDIT_HOOK = { hooks: [{ type: "command", command: "audit.sh" }] };
 
-const settingsWithUserSound = () => JSON.stringify({
-  model: "opus",
-  permissions: { allow: ["Bash(git*)"] },
-  hooks: { Stop: [USER_SOUND_HOOK], PreToolUse: [USER_AUDIT_HOOK] },
-}, null, 2) + "\n";
-
-/**
- * Make everything under ~/.agents-deck fail, on every platform, without root.
- * A regular file where the directory belongs is refused by mkdir, by readFile
- * and by the atomic write's open() alike — ENOTDIR on POSIX, the same class of
- * error on Windows — which is the unusable ~/.agents-deck the report describes.
- * Which of the two refusals comes out depends on whether the existing park is
- * read before the new one is written, so the tests below pin the outcome that
- * matters rather than the label.
- */
-const blockParkDir = () => {
-  rmSync(PARK_DIR, { recursive: true, force: true });
-  writeFileSync(PARK_DIR, "not a directory", "utf8");
+/** The deck's own entry, as one is actually shaped on disk. */
+const OUR_ENTRY = {
+  "__agent-dag-sound": true,
+  hooks: [{ type: "command", command: `"${process.execPath}" "${NOTIFY}"`, timeout: 5 }],
 };
 
-const unblockParkDir = () => rmSync(PARK_DIR, { recursive: true, force: true });
+/** The machine an upgrade boots on: our entry in settings.json, and the user's
+ *  own hook in the parked file where the toggle put it. */
+function installedWithAParkedHook(): string {
+  const before = JSON.stringify({
+    model: "opus",
+    permissions: { allow: ["Bash(git*)"] },
+    hooks: { Stop: [OUR_ENTRY], PreToolUse: [USER_AUDIT_HOOK] },
+  }, null, 2) + "\n";
+  writeFileSync(SETTINGS, before, "utf8");
+  return before;
+}
 
-// A read-only directory is the one way to fail the write without also failing
+const park = (text: string) => {
+  mkdirSync(PARK_DIR, { recursive: true });
+  writeFileSync(PARKED, text, "utf8");
+};
+
+// A read-only directory is the one way to fail the delete without also failing
 // the read that precedes it. It is a no-op on Windows, where chmod only toggles
 // the read-only bit, and for root, who is allowed anyway — so probe it instead
 // of assuming, and skip that test rather than report a false pass.
@@ -113,185 +126,162 @@ const readOnlyDirBlocksWrites = (() => {
 })();
 
 beforeEach(() => {
-  unblockParkDir();
+  rmSync(PARK_DIR, { recursive: true, force: true });
+  rmSync(SETTINGS, { force: true });
 });
 
-describe("the sound toggle when the park cannot be written", () => {
-  it("refuses to turn the sound on, and leaves settings.json byte for byte", async () => {
-    const before = settingsWithUserSound();
-    writeFileSync(SETTINGS_PATH, before, "utf8");
-    blockParkDir();
-
-    const res = await setSoundHook(true);
-
-    expect(res.ok).toBe(false);
-    expect(res.reason).toMatch(/^parked_/);
-    expect(res.parkedPath).toBe(PARKED_PATH);
-    // The whole point: the hook is still where the user wrote it.
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(before);
-  });
-
-  it("refuses to turn the sound off too, because the same hooks would be dropped", async () => {
-    const before = settingsWithUserSound();
-    writeFileSync(SETTINGS_PATH, before, "utf8");
-    blockParkDir();
-
-    const res = await setSoundHook(false);
-
-    expect(res.ok).toBe(false);
-    expect(res.reason).toMatch(/^parked_/);
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(before);
-  });
-
-  it.skipIf(!readOnlyDirBlocksWrites)("refuses when the park reads but cannot be replaced", async () => {
-    // The failure the report is actually about: the old contents are perfectly
-    // readable, and only the write goes wrong. It used to be swallowed whole.
-    const before = settingsWithUserSound();
-    writeFileSync(SETTINGS_PATH, before, "utf8");
-    mkdirSync(PARK_DIR, { recursive: true });
-    writeFileSync(PARKED_PATH, "[]\n", "utf8");
-    chmodSync(PARK_DIR, 0o555);
-    try {
-      const res = await setSoundHook(true);
-
-      expect(res.ok).toBe(false);
-      expect(res.reason).toBe("parked_unwritable");
-      expect(res.message).toMatch(/neither file/);
-      expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(before);
-      expect(readFileSync(PARKED_PATH, "utf8")).toBe("[]\n");
-    } finally {
-      chmodSync(PARK_DIR, 0o755);
-    }
-  });
-
-  it("still reports the user's hook afterwards, instead of a file with nothing in it", async () => {
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    blockParkDir();
-
-    await setSoundHook(true);
-    unblockParkDir();
-
-    const status = await soundHookStatus();
-    expect(status.ok).toBe(true);
-    expect(status.enabled).toBe(false);
-    expect(status.parked).toBe(0);
-    // Not parked, not deleted: still a foreign sound hook the deck can see.
-    expect(status.foreign).toHaveLength(1);
-    expect(status.foreign[0].command).toContain("afplay");
-  });
-
-  it("turns on as normal once the park can be written again", async () => {
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    blockParkDir();
-    expect((await setSoundHook(true)).ok).toBe(false);
-
-    unblockParkDir();
-    expect((await setSoundHook(true)).ok).toBe(true);
-
-    const written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
-    expect(JSON.stringify(written.hooks.Stop)).toContain("__agent-dag-sound");
-    expect(JSON.stringify(written.hooks.Stop)).not.toContain("afplay");
-    expect(JSON.parse(readFileSync(PARKED_PATH, "utf8"))).toEqual([USER_SOUND_HOOK]);
-  });
-});
-
-describe("the sound toggle and a parked file it cannot parse", () => {
+describe("retirement and a parked file it cannot parse", () => {
   // What a kill or a full disk mid-write leaves behind: valid JSON up to the
   // point the process died, and hooks the user wrote inside it.
   const TRUNCATED = '[\n  {\n    "hooks": [\n      { "type": "command", "comm';
 
-  const parkTruncated = () => {
-    mkdirSync(PARK_DIR, { recursive: true });
-    writeFileSync(PARKED_PATH, TRUNCATED, "utf8");
-  };
-
-  it("refuses to park on top of it, keeping both files as they were", async () => {
-    const before = settingsWithUserSound();
-    writeFileSync(SETTINGS_PATH, before, "utf8");
-    parkTruncated();
-
-    const res = await setSoundHook(true);
-
-    expect(res.ok).toBe(false);
-    expect(res.reason).toBe("parked_unreadable");
-    expect(readFileSync(SETTINGS_PATH, "utf8")).toBe(before);
-    expect(readFileSync(PARKED_PATH, "utf8")).toBe(TRUNCATED);
-  });
-
-  it("reports the unreadable file instead of counting it as nothing parked", async () => {
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    parkTruncated();
-
-    const status = await soundHookStatus();
-
-    expect(status.ok).toBe(false);
-    expect(status.reason).toBe("parked_unreadable");
-    expect(status.parkedPath).toBe(PARKED_PATH);
-  });
-
   it("refuses the restore rather than answering 'restored: 0' about hooks that are in there", async () => {
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    parkTruncated();
+    installedWithAParkedHook();
+    park(TRUNCATED);
 
-    const res = await restoreParkedSoundHooks();
+    const res = await retireSoundHook();
 
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("parked_unreadable");
-    // Left for repair — the restore works again once the file is fixed.
-    expect(readFileSync(PARKED_PATH, "utf8")).toBe(TRUNCATED);
+    expect(res.parkedPath).toBe(PARKED_PATH);
+    expect(res.restored).toBe(0);
+  });
+
+  it("leaves the file for repair instead of deleting the only copy", async () => {
+    // The one unrecoverable act available to this module. Everything else it
+    // does wrong can be undone by hand from a file that is still on disk.
+    installedWithAParkedHook();
+    park(TRUNCATED);
+
+    await retireSoundHook();
+
+    expect(readFileSync(PARKED, "utf8")).toBe(TRUNCATED);
+  });
+
+  it("still takes our own entry out, because that is the urgent half", async () => {
+    // Two independent repairs. Our entry names a script this release deletes and
+    // Claude Code runs it at the end of every turn; the parked file is a copy of
+    // hooks that are safe where they are. Holding the first hostage to the
+    // second would leave a working machine broken over a file nobody has read
+    // in months.
+    installedWithAParkedHook();
+    park(TRUNCATED);
+
+    const res = await retireSoundHook();
+
+    expect(res.removed).toBe(1);
+    const after = JSON.parse(readFileSync(SETTINGS, "utf8"));
+    expect(JSON.stringify(after)).not.toContain("__agent-dag-sound");
+    expect(after.hooks.PreToolUse).toEqual([USER_AUDIT_HOOK]);
+  });
+
+  it("tries again on the next boot, having recorded nothing as done", async () => {
+    installedWithAParkedHook();
+    park(TRUNCATED);
+    expect((await retireSoundHook()).reason).toBe("parked_unreadable");
+
+    // Repaired by hand, exactly as the message asks.
+    park(JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n");
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, restored: 1 });
+    expect(JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.Stop).toContainEqual(USER_SOUND_HOOK);
+    expect(existsSync(PARKED)).toBe(false);
+  });
+
+  it("refuses a JSON object as firmly as a truncated one — that file is not ours", async () => {
+    installedWithAParkedHook();
+    park('{ "hooks": "this is somebody else\'s file" }\n');
+
+    const res = await retireSoundHook();
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("parked_unreadable");
+    expect(readFileSync(PARKED, "utf8")).toContain("somebody else");
   });
 
   it("treats a missing parked file as nothing parked, because that is what it is", async () => {
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    rmSync(PARKED_PATH, { force: true });
+    installedWithAParkedHook();
+    rmSync(PARKED, { force: true });
 
-    expect((await setSoundHook(true)).ok).toBe(true);
-    expect((await restoreParkedSoundHooks()).ok).toBe(true);
-    expect((await soundHookStatus()).ok).toBe(true);
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, removed: 1, restored: 0 });
   });
 });
 
-// A hard link is the only portable way to ask "was this file replaced, or
-// overwritten in place?" — both names share one inode until a rename gives the
-// visible name a new one. Almost every filesystem supports it; the one that does
-// not gets the test skipped rather than a false failure.
-const hardLinksWork = (() => {
-  const probe = join(FAKE_HOME, "probe");
-  const linked = join(FAKE_HOME, "probe.link");
-  try {
-    writeFileSync(probe, "x");
-    linkSync(probe, linked);
-    return true;
-  } catch {
-    return false;
-  } finally {
-    rmSync(probe, { force: true });
-    rmSync(linked, { force: true });
-  }
-})();
+describe("a parked file that outlives its own deletion", () => {
+  it.skipIf(!readOnlyDirBlocksWrites)("does not hand the same hooks back a second time", async () => {
+    // The restore lands in settings.json and then the park is deleted, in that
+    // order, because the reverse loses the hooks to a crash in between. Which
+    // means the delete can fail on its own — a read-only ~/.agents-deck, a
+    // Windows lock — with the hooks already safely restored. The next boot then
+    // reads the same park and must recognise that everything in it is already
+    // in the file. Without that, every boot from here on adds another copy and
+    // the user hears one more sound per turn each time.
+    installedWithAParkedHook();
+    park(JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n");
+    chmodSync(PARK_DIR, 0o555);
+    try {
+      const first = await retireSoundHook();
+      expect(first).toMatchObject({ ok: true, restored: 1 });
+      // Undeleted, and still holding the hook that is now also in settings.json.
+      expect(existsSync(PARKED)).toBe(true);
 
-describe("the parked file is replaced, not written into", () => {
-  it.skipIf(!hardLinksWork)("survives a kill mid-write as the previous whole file", async () => {
-    // Park one hook, then park a second on top of it. The truncate-then-fill the
-    // old writeFile did is what produced the unparseable file the tests above
-    // have to refuse; a rename cannot leave a reader anything but one or the other.
-    writeFileSync(SETTINGS_PATH, settingsWithUserSound(), "utf8");
-    expect((await setSoundHook(true)).ok).toBe(true);
-    const first = readFileSync(PARKED_PATH, "utf8");
+      const second = await retireSoundHook();
 
-    const witness = join(PARK_DIR, "parked.witness");
-    rmSync(witness, { force: true });
-    linkSync(PARKED_PATH, witness);
+      expect(second.restored).toBe(0);
+      const stop = JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.Stop as unknown[];
+      expect(stop.filter(g => JSON.stringify(g) === JSON.stringify(USER_SOUND_HOOK))).toHaveLength(1);
+    } finally {
+      chmodSync(PARK_DIR, 0o755);
+    }
+  });
+});
 
-    writeFileSync(SETTINGS_PATH, JSON.stringify({
-      hooks: { Stop: [{ hooks: [{ type: "command", command: "paplay /usr/share/sounds/done.wav || true" }] }] },
-    }, null, 2), "utf8");
-    expect((await setSoundHook(true)).ok).toBe(true);
+describe("the hooks that come back", () => {
+  it("come back byte for byte, on the event the user wrote them on", async () => {
+    installedWithAParkedHook();
+    park(JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n");
 
-    expect(JSON.parse(readFileSync(PARKED_PATH, "utf8"))).toHaveLength(2);
-    // The old inode still holds exactly what was there before, so the second
-    // park went through a different file that was renamed over the name.
-    expect(readFileSync(witness, "utf8")).toBe(first);
-    rmSync(witness, { force: true });
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, removed: 1, restored: 1 });
+    const after = JSON.parse(readFileSync(SETTINGS, "utf8"));
+    expect(after.hooks.Stop).toEqual([USER_SOUND_HOOK]);
+    // And nothing else in the file moved to make room for them.
+    expect(after.model).toBe("opus");
+    expect(after.permissions).toEqual({ allow: ["Bash(git*)"] });
+    expect(after.hooks.PreToolUse).toEqual([USER_AUDIT_HOOK]);
+  });
+
+  it("deletes the file and not the directory it sits in", async () => {
+    // ~/.agents-deck is not the sound feature's directory. It holds the
+    // self-update markers, the ccusage install and the claude-swap state, and a
+    // retirement that removed the folder rather than the file would re-arm every
+    // once-an-hour check and re-run every install on the next boot — for a
+    // feature that has nothing to do with any of them.
+    installedWithAParkedHook();
+    park(JSON.stringify([USER_SOUND_HOOK], null, 2) + "\n");
+    const neighbour = join(PARK_DIR, ".self-update-check");
+    writeFileSync(neighbour, "checked\n", "utf8");
+
+    expect((await retireSoundHook()).ok).toBe(true);
+
+    expect(existsSync(PARKED)).toBe(false);
+    expect(existsSync(PARK_DIR)).toBe(true);
+    expect(readFileSync(neighbour, "utf8")).toBe("checked\n");
+  });
+
+  it("are not what decides whether the park is deleted — the read is", async () => {
+    // An empty park is a machine that had the toggle on and no hooks of its own.
+    // There is nothing to restore and the file is still litter, so it goes.
+    installedWithAParkedHook();
+    park("[]\n");
+
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, restored: 0 });
+    expect(existsSync(PARKED)).toBe(false);
   });
 });

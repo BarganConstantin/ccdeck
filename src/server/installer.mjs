@@ -431,27 +431,47 @@ export async function installHooks({ provider = "claude" } = {}) {
     current.hooks[evt] = cleaned;
   }
 
-  // The finish sound is the deck's second installed script, and until this line
-  // it was the only one nothing ever re-installed. dedupeOurEntries does not
-  // touch it — isOurEntry knows `__agent-dag` and the entry is marked
-  // `__agent-dag-sound` — so the loop above carried a stale entry straight
-  // through, and nothing anywhere looked at the file that entry names. See
-  // reassertSoundHook: it re-asserts the script only where our Stop entry is
-  // already present, so a user who turned the sound off does not get it back,
-  // and it mutates `current` rather than writing, so the comparison below is
-  // still what decides whether settings.json is touched at all.
+  // Retiring the finish-sound hook rides in here, on this read and this write,
+  // and this is the seam it needs rather than a convenient one. #704 moved the
+  // sound into the browser and deleted the script the old `Stop` entry ran, so
+  // an install that upgrades a machine which HAS that entry leaves a hook
+  // pointing at a file that is no longer in the package — an error at the end of
+  // every turn, on a machine that was working before the upgrade. It therefore
+  // has to happen without the user asking for it, and a normal boot is the only
+  // moment that qualifies.
   //
-  // Imported here rather than at the top of the file because sound-hook.mjs
-  // imports this module — installScript, writeFileAtomic and readSettingsForWrite
-  // all live here — and a static import would close that into a cycle. Claude
-  // only: the sound entry is one line in Claude Code's settings.json and there
-  // is no Codex equivalent.
-  let sound = { present: false };
-  let sweepLegacySoundScript = null;
+  // Riding along buys the two properties it would otherwise have to invent.
+  // There is ONE write of settings.json on the boot that retires, compared
+  // against the exact bytes read a few lines up — so a second deck doing the
+  // same work at the same time writes the same payload, and every later boot
+  // finds nothing to do and changes nothing. And the mutate-then-let-the-caller-
+  // write split is what keeps the script deletion after the write: until the new
+  // file has landed, a live Claude Code session's next turn still runs the old
+  // command.
+  //
+  // Imported here rather than at the top of the file because retire-sound-hook.mjs
+  // imports this module — writeFileAtomic and readSettingsForWrite live here —
+  // and a static import would close that into a cycle. Claude only: the entry
+  // was one line in Claude Code's settings.json and there was never a Codex one.
+  //
+  // The equality test is not ceremony. Retirement DELETES two files — the parked
+  // hooks and the installed script — at absolute paths it resolved for itself,
+  // from claudeConfigDir() and os.homedir(), at its own import. This function
+  // writes `cfg.settingsPath`. In the product those are the same settings.json
+  // and the paths belong together. When they are not the same file, the two
+  // modules are looking at different homes, and acting on that difference means
+  // deleting files belonging to a machine this install is not writing to. That
+  // is not hypothetical: it happened to the author's own ~/.agents-deck while
+  // this very change was being written, from a test whose environment teardown
+  // ran a describe too early. Disagreement is a reason to do nothing.
+  let retire = { pending: false, changed: false, removed: 0, restored: 0 };
+  let completeSoundHookRetirement = null;
   if (provider === "claude") {
-    const soundHook = await import("./sound-hook.mjs");
-    sweepLegacySoundScript = soundHook.sweepLegacySoundScript;
-    sound = await soundHook.reassertSoundHook(current);
+    const retirement = await import("./retire-sound-hook.mjs");
+    if (retirement.SETTINGS_PATH === cfg.settingsPath) {
+      completeSoundHookRetirement = retirement.completeSoundHookRetirement;
+      retire = await retirement.retireSoundHookIn(current);
+    }
   }
 
   // Every launch reinstalls, and on all but the first the entries are already
@@ -462,11 +482,11 @@ export async function installHooks({ provider = "claude" } = {}) {
   const next = JSON.stringify(current, null, 2) + "\n";
   const changed = next !== before;
   if (changed) await writeFileAtomic(cfg.settingsPath, next);
-  // After the write, never before it: the `notify.js` an older deck installed is
-  // what a live session's cached command still names until the new entry is on
-  // disk, and deleting it early turns a stale sound into a missing module.
-  if (sound.present) await sweepLegacySoundScript();
-  return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed, sound };
+  // After the write, never before it: the notify script an older deck installed
+  // is what a live session's cached command still names until the new entry is
+  // on disk, and deleting it early turns a stale sound into a missing module.
+  if (retire.pending) await completeSoundHookRetirement(retire, current);
+  return { settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider, changed, retire };
 }
 
 /**
@@ -485,8 +505,8 @@ export async function installHooks({ provider = "claude" } = {}) {
  * it. `--uninstall` printed "no Claude hooks to remove" and exited 0 while all
  * ten `__agent-dag` entries sat in the file, spawning node on every tool call
  * of every session, for a deck the user had been told was gone. The other half
- * of the same command already knew better: uninstallSoundHook reads through
- * readSettingsForWrite and says so out loud, so one command gave two opposite
+ * of the same command already knew better: the sound-hook half read through
+ * readSettingsForWrite and said so out loud, so one command gave two opposite
  * verdicts about one file and the load-bearing one was the one that lied.
  *
  * So the read is the same read the install does, and for the same reason. A
@@ -505,7 +525,7 @@ export async function uninstallHooks({ provider = "claude" } = {}) {
     ({ settings: current } = await readSettingsForWrite(cfg.settingsPath));
   } catch (err) {
     if (err?.code !== "SETTINGS_UNREADABLE") throw err;
-    // Same shape uninstallSoundHook answers with, so bin/deck.js reports both
+    // Same shape retireSoundHook answers with, so bin/deck.js reports both
     // halves of `--uninstall` the same way instead of one of them inventing a
     // second vocabulary for the identical condition on the identical file.
     return {

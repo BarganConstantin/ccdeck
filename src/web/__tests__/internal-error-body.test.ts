@@ -3,9 +3,9 @@
 // 127.0.0.1 is only ever read by the user's own tab. A DNS-rebound page
 // reaches a loopback server as same-origin and reads that body, and the errors
 // that reach this path carry absolute paths out of the user's home directory —
-// a failed rename of ~/.claude/settings.json is one throw away from
-// POST /api/sound-hook. These pin both halves: the wire says nothing, stderr
-// still says everything.
+// a failed rename of ~/.claude/settings.json is one throw away from any route
+// that writes it. These pin both halves: the wire says nothing, stderr still
+// says everything.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs module, no types
 import { sendInternalError } from "../../server/index.mjs";

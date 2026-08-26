@@ -138,11 +138,10 @@ export const GATES = [
   { file: "supervisor-exit.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 
-  { file: "no-shell-hook-commands.test.ts", gate: "it.runIf", condition: "posix", sites: 3, cases: 3 },
+  { file: "no-shell-hook-commands.test.ts", gate: "it.runIf", condition: "posix", sites: 2, cases: 2 },
 
   { file: "hook-script-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
-  { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
 
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },

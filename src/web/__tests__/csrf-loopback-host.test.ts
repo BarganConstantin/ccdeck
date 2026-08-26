@@ -211,7 +211,6 @@ describe("the rebinding gate in front of the routing table", () => {
     "/api/claude-accounts",       // account emails, org names, aliases
     "/api/claude-accounts/login", // a live OAuth authorize URL
     "/api/health",                // the absolute workspace path
-    "/api/sound-hook",            // the user's own hook command lines
     "/api/hook-challenge?nonce=n", // a proof oracle for the deck's token
     "/api/version",
     "/api/quota",

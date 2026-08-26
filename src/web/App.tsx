@@ -835,9 +835,9 @@ function Inner() {
   // one through a ref rather than listing it as a dependency and re-subscribing.
   const activateSoundRef = useRef(activateSound);
   activateSoundRef.current = activateSound;
-  /** null until /api/sound-hook has answered. The button is not drawn in that
-   *  window and the key must not fire in it either: there is no state to
-   *  invert yet, and "not false" would post `enabled: true` on a guess. */
+  /** null until the stored flag has been read back. The button is not drawn in
+   *  that window and the key must not fire in it either: there is no state to
+   *  invert yet, and "not false" would arm the tones on a guess. */
   const soundOnRef = useRef(soundOn);
   soundOnRef.current = soundOn;
 
@@ -2474,8 +2474,8 @@ function Inner() {
       // control, same modifier, same outcome: activateSound is the one door
       // both devices come through, so the two can never drift apart.
       // Guarded exactly the way A is, plus the state the button waits for:
-      // without Claude Code there is no hook to install, and before the first
-      // /api/sound-hook answers there is nothing to invert.
+      // without Claude Code the button is not drawn, and before the stored flag
+      // has been read back there is nothing to invert.
       if (e.key === "m" || e.key === "M") {
         if (providersRef.current.claude && soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
       }

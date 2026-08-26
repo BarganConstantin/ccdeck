@@ -191,9 +191,9 @@ describe("the sound switch, which had a control and no key", () => {
   });
 
   it("guards M the way it guards A, plus the state the button waits for", () => {
-    // No Claude Code, no hook to install; no answer from /api/sound-hook yet,
-    // no state to invert. The button is not drawn in either case and the key
-    // must not fire in either case.
+    // No Claude Code, no button to draw; no sound state read back out of
+    // localStorage yet, no state to invert. The button is not drawn in either
+    // case and the key must not fire in either case.
     expect(app).toMatch(/providersRef\.current\.claude && soundOnRef\.current !== null/);
   });
 });
