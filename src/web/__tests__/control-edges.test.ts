@@ -186,6 +186,52 @@ function borderColourIn(body: string): string | null {
 }
 
 /**
+ * Every property name that can put a colour on a border, for the sweeps that
+ * ask "does ANY declaration here name this token" rather than "what is this
+ * rule's one edge colour".
+ *
+ * A superset of `BORDER_PROPS`, and deliberately a second list rather than an
+ * edit to that one: `BORDER_PROPS` is priority-ordered and `borderColourIn`
+ * returns the first hit, so what is in it decides which rules count as having
+ * an edge at all — which `paintsAnEdge` and `RING_RULES` both read. The four
+ * `-color` longhands belong in that answer too and are missing from it for the
+ * same reason they were missing here; that is a separate change with a
+ * different blast radius, and this one stays additive.
+ *
+ * #629. `declIn` anchors the property name — it must sit straight after a `;`
+ * or `{` with nothing but whitespace before the colon — so `border-color` does
+ * not match `border-bottom-color` and `border` does not match `border-bottom`.
+ * A sweep reading those two names alone therefore sees one spelling in ten,
+ * and the sheet writes the others: 23 `border-bottom`, 6 `border-top`, 4
+ * `border-right`, 2 `border-left` and 2 `border-bottom-color` at the time of
+ * writing, against 80 `border-color` and 74 `border`.
+ */
+const EDGE_COLOUR_PROPS = [
+  ...BORDER_PROPS,
+  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+  "border-block-color", "border-inline-color",
+  "border-block-start-color", "border-block-end-color",
+  "border-inline-start-color", "border-inline-end-color",
+];
+
+/**
+ * Every border-colour declaration in the sheet, as the rule and property that
+ * wrote it.
+ *
+ * Collected, not short-circuited. The check this replaces asked
+ * `declIn(body, "border-color") ?? declIn(body, "border")`, and `??` stops at
+ * the first non-null: a rule carrying `border-color: var(--line)` had its
+ * `border` shorthand never read. No rule in the sheet writes both today, so
+ * that half of #629 is latent rather than live — which is exactly the state
+ * the property half was in until `border-bottom-color` arrived.
+ */
+const EDGE_DECLS: Array<{ selector: string; prop: string; raw: string }> = RULES.flatMap(rule =>
+  EDGE_COLOUR_PROPS.flatMap(prop => {
+    const raw = declIn(rule.body, prop);
+    return raw === null ? [] : [{ selector: rule.selector, prop, raw }];
+  }));
+
+/**
  * A RING: a boundary drawn outside the box rather than in the border — an
  * `outline`, or a `box-shadow` layer with no offset and no blur.
  *
@@ -897,14 +943,59 @@ describe("the control surface, promoted (#332)", () => {
     }
   });
 
-  it("stopped asking --accent-dim to be a boundary anywhere", () => {
+  it("stopped asking --accent-dim to be a boundary anywhere, however the boundary is spelled", () => {
     // 1.91:1 dark, 1.39:1 light. It is a fill and a glow and it is fine at
-    // both; as a border-color it was under the resting edge of every control
+    // both; as a border colour it was under the resting edge of every control
     // that hovered to it, which made the pointer take contrast away.
-    for (const rule of RULES) {
-      const raw = declIn(rule.body, "border-color") ?? declIn(rule.body, "border");
-      if (raw && /--accent-dim/.test(raw)) expect.unreachable(`${rule.selector} edges in --accent-dim`);
+    //
+    // #629 widened this from two property names to every one that can carry a
+    // border colour, and turned it into a collecting sweep. It read
+    // `border-color` and `border` only, which
+    // `declIn` matches anchored, so `border-bottom-color: var(--accent-dim)`
+    // — a one-sided hover underline, the ordinary thing to reach for on a
+    // control, and a spelling this sheet already uses at `.ver-banner.done` —
+    // walked a 1.39:1 light edge straight past a check that calls itself
+    // "anywhere".
+    //
+    // It also asserted nothing when it passed: the old `expect.unreachable`
+    // sat inside an `if`, so the intended state ran the body to completion
+    // having called no matcher. It was the only case in the repository that
+    // did. `toEqual([])` records the assertion, prints the offenders when
+    // there are any, and lets the guard below tell "found nothing" apart from
+    // "looked nowhere".
+
+    // The premise, measured rather than quoted, so the case carries its own
+    // reason and stops being true the day the token stops being faint. An edge
+    // composites over the fill and this token's own wash is the fill it is
+    // usually drawn on, so the panel is the honest bed for it.
+    const dimOnPanel = (theme: Theme) => {
+      const panel = parseColor(TOK[theme]["--panel"]);
+      return contrastRatio(over(resolve("var(--accent-dim)", theme), panel), panel);
+    };
+    const ratios = themes.map(t => `${t} ${dimOnPanel(t).toFixed(2)}:1`).join(", ");
+    for (const theme of themes) {
+      expect(dimOnPanel(theme), `--accent-dim is ${ratios} — if it now clears ${NON_TEXT}:1 as a boundary, this case has outlived its reason`)
+        .toBeLessThan(NON_TEXT);
     }
+
+    const offenders = EDGE_DECLS
+      .filter(d => /--accent-dim/.test(d.raw))
+      .map(d => `${d.selector} { ${d.prop}: ${d.raw} }`);
+    expect(offenders, `--accent-dim as a control boundary reads ${ratios}, under the ${NON_TEXT}:1 of 1.4.11`)
+      .toEqual([]);
+
+    // Anti-vacuity. An empty input set passes the line above for the wrong
+    // reason, and every way of emptying it is a plausible edit: a parser that
+    // stops finding rules, a property list somebody trims, a `declIn` whose
+    // regex stops matching. Floors with slack in them rather than counts —
+    // 191 and 37 today, so the sheet can lose most of its borders without
+    // failing this and cannot lose the sweep.
+    expect(EDGE_DECLS.length, "the --accent-dim sweep read no border declarations at all")
+      .toBeGreaterThan(120);
+    const widened = EDGE_DECLS.filter(d => d.prop !== "border" && d.prop !== "border-color");
+    expect(widened.length,
+      "the sweep is back to reading `border` and `border-color` only, which is what #629 was")
+      .toBeGreaterThan(15);
   });
 });
 
