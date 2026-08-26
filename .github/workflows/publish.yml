@@ -211,7 +211,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # `id:` so the publish steps below can name it. Their condition has to
+      # separate "a sibling publish failed" from "the job failed before we got
+      # here", and this step is the last one upstream of all three — it only
+      # runs if the tag guard and `npm ci` both passed, so its outcome stands
+      # for the whole preamble.
       - name: Build web bundle
+        id: build
         run: npm run build
 
       # Publish the SAME build under all three names, by renaming the manifest
@@ -241,7 +247,22 @@ jobs:
       # behind. Each step is independent and idempotent — it skips a version
       # already published, so the workflow is safe to re-run after a token or
       # registry problem without erroring on the names that made it through.
+      #
+      # The two aliases below carry `!cancelled() && steps.build.outcome ==
+      # 'success'` — #623. They want to be independent of EACH OTHER and
+      # dependent on everything upstream, and a bare `!cancelled()` says only
+      # the first half. A status function in an `if:` replaces the implicit
+      # `success()` rather than joining it, so `!cancelled()` on its own let
+      # these two run after ANY earlier failure in the job, not just after a
+      # failed sibling. That inverted the ordering this comment argues for: a
+      # mismatch caught by `Verify tag matches package.json` skipped `Publish
+      # (ccdeck)` and ran both aliases anyway, and a build that failed once and
+      # would have succeeded on a retry published the release under the alias
+      # names and not under the one the README and the CLI banner tell people
+      # to run. Naming the build's outcome keeps the sibling independence and
+      # puts the guard and the build gate back in front of all three.
       - name: Publish to npm (ccdeck)
+        id: publish_ccdeck
         run: |
           VERSION=$(node -p "require('./package.json').version")
           # npm view prints the version string if published, empty otherwise
@@ -258,7 +279,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm (agents-deck)
-        if: ${{ !cancelled() }}
+        id: publish_agents_deck
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           EXISTING=$(npm view "agents-deck@$VERSION" version 2>/dev/null || true)
@@ -272,7 +294,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm (agent-dag, legacy alias)
-        if: ${{ !cancelled() }}
+        id: publish_agent_dag
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           EXISTING=$(npm view "agent-dag@$VERSION" version 2>/dev/null || true)
@@ -285,12 +308,39 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # The run summary is the first thing anybody looks at after a release, and
+      # it used to be the one step in this job that could not tell the truth: it
+      # read nothing about what had happened and asserted nothing, so a run that
+      # aborted on a tag mismatch still wrote "### Published v1.44.0 🚀" and
+      # three npmjs links, two or three of which 404. It reads the three
+      # outcomes now and says which names actually landed. Gated on the build
+      # for the same reason the aliases are — with nothing published there is no
+      # release to report — and `!cancelled()` so a run where one name failed
+      # still gets its summary, which is the run that needs one most.
       - name: Summary
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          CCDECK: ${{ steps.publish_ccdeck.outcome }}
+          AGENTS_DECK: ${{ steps.publish_agents_deck.outcome }}
+          AGENT_DAG: ${{ steps.publish_agent_dag.outcome }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "### Published v$VERSION :rocket:" >> $GITHUB_STEP_SUMMARY
+          # A name is on the registry if its step succeeded; anything else —
+          # failure, or skipped because the job never reached it — is named as
+          # what it was rather than linked to a page that does not exist.
+          report() {
+            if [ "$2" = "success" ]; then
+              echo "- https://www.npmjs.com/package/$1/v/$VERSION$3" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- \`$1\`$3 — **$2**, not published at this version" >> $GITHUB_STEP_SUMMARY
+            fi
+          }
+          if [ "$CCDECK" = "success" ] && [ "$AGENTS_DECK" = "success" ] && [ "$AGENT_DAG" = "success" ]; then
+            echo "### Published v$VERSION :rocket:" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Partial release of v$VERSION :warning:" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- https://www.npmjs.com/package/ccdeck/v/$VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "- https://www.npmjs.com/package/agents-deck/v/$VERSION (alias)" >> $GITHUB_STEP_SUMMARY
-          echo "- https://www.npmjs.com/package/agent-dag/v/$VERSION (legacy alias)" >> $GITHUB_STEP_SUMMARY
+          report ccdeck "$CCDECK" ""
+          report agents-deck "$AGENTS_DECK" " (alias)"
+          report agent-dag "$AGENT_DAG" " (legacy alias)"
