@@ -31,6 +31,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
+import { gradientStops } from "./gradient-stops";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -324,17 +325,22 @@ function resolve(value: string, theme: Theme): Rgba {
   return parseColor(v);
 }
 
-/** The colour stops of a gradient token, in order. */
-const stopsOf = (value: string) =>
-  value.match(/var\(--[\w-]+\)|#[0-9a-f]{3,8}/gi) ?? [];
-
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
  *  it. The topbar is a gradient, so both of its ends count: a pill centred in
- *  52px of it is read against the darker one as much as the lighter. */
+ *  52px of it is read against the darker one as much as the lighter.
+ *
+ *  The two ends are read by `./gradient-stops` now (#664). This file used to
+ *  scrape them with a regex ending in `?? []` and then index `top[0]` and
+ *  `top[1]` — so a --topbar-grad respelled in a notation that regex could not
+ *  see handed four cases here `Cannot read properties of undefined`, a crash
+ *  naming neither the token nor the notation, and a --node-grad respelled the
+ *  same way went the other way entirely: `textBeds` below simply came back two
+ *  beds shorter and 25 of 25 cases passed. Exactly two, because the two labels
+ *  ARE the two ends — a third stop would be announced as a second dark end. */
 function surfaces(theme: Theme): Record<string, Rgba> {
   const panel = parseColor(TOK[theme]["--panel"]);
   const bg = parseColor(TOK[theme]["--bg"]);
-  const top = stopsOf(TOK[theme]["--topbar-grad"]).map(s => resolve(s, theme));
+  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map(s => resolve(s, theme));
   const bannerTint = resolve(colourIn(decl(".ver-banner", "background")!), theme);
   const activeTint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
   return {
@@ -348,6 +354,33 @@ function surfaces(theme: Theme): Record<string, Rgba> {
   };
 }
 
+/** The names `surfaces` answers to, stated once so the sweeps below can floor
+ *  themselves against it. */
+const BEDS = [
+  "--panel", "--bg-soft", "--bg",
+  "the topbar's light end", "the topbar's dark end",
+  "the version banner", "the active account row",
+];
+
+/** The floor every bed sweep below opens with, outside the quantification it is
+ *  the floor for (#627's lesson, by way of #648 and #662). `gradientStops`
+ *  already refuses a --topbar-grad it cannot read, so this is the second line
+ *  rather than the first: it is what still fails if that reader is ever softened
+ *  back to a `?? []`.
+ *
+ *  It checks the VALUES and not only the names, and that is the whole lesson of
+ *  #664. Every sweep here looks a bed up BY NAME out of a Record whose keys are
+ *  written by hand, so an unreadable gradient does not shorten the key list — it
+ *  leaves `beds["the topbar's light end"]` holding `undefined`, and the key
+ *  sweep sails straight over it into the same bare TypeError this file used to
+ *  report. A floor that counts names is not a floor on the colours. */
+function bedFloor(beds: Record<string, Rgba>, theme: Theme): void {
+  expect(Object.keys(beds), `${theme}: the beds this sweep measures against`).toEqual(BEDS);
+  expect(Object.entries(beds).filter(([, c]) => !Array.isArray(c)).map(([n]) => n),
+    `${theme}: beds with no colour behind the name — every ratio measured against one of these is measured against nothing`)
+    .toEqual([]);
+}
+
 /** The beds small text lands on, which is not the same set: the banner and the
  *  active row are washes a control sits in, and nothing writes a status hue on
  *  either. Both ends of the node gradient count — a node's top and bottom
@@ -355,12 +388,20 @@ function surfaces(theme: Theme): Record<string, Rgba> {
 function textBeds(theme: Theme): Array<[string, Rgba]> {
   const named: Array<[string, Rgba]> = (["--panel", "--bg-soft", "--bg"] as const)
     .map(t => [t, parseColor(TOK[theme][t])]);
-  const top = stopsOf(TOK[theme]["--topbar-grad"]).map((s, i): [string, Rgba] =>
+  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map((s, i): [string, Rgba] =>
     [`the topbar, stop ${i}`, resolve(s, theme)]);
-  const node = stopsOf(TOK[theme]["--node-grad"]).map((s, i): [string, Rgba] =>
+  const node = gradientStops("--node-grad", theme, TOK[theme]).map((s, i): [string, Rgba] =>
     [`a node, stop ${i}`, resolve(s, theme)]);
   return [...named, ...top, ...node];
 }
+
+/** And the names `textBeds` answers to. This is the list a respelled
+ *  --node-grad used to shorten in silence. */
+const TEXT_BEDS = [
+  "--panel", "--bg-soft", "--bg",
+  "the topbar, stop 0", "the topbar, stop 1",
+  "a node, stop 0", "a node, stop 1",
+];
 
 const TOPBAR = ["the topbar's light end", "the topbar's dark end"];
 const BANNER = ["the version banner", "--bg"];
@@ -834,6 +875,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
   it("clears 3:1 at rest, on every surface it can land on, in both themes", () => {
     for (const theme of themes) {
       const beds = surfaces(theme);
+      bedFloor(beds, theme);
       for (const c of CONTROLS) {
         const fill = restingFill(c);
         const edge = borderColour(c.at);
@@ -848,6 +890,7 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
   it("never draws it fainter in a state than at rest — a hover that lowers a contrast is not a hover", () => {
     for (const theme of themes) {
       const beds = surfaces(theme);
+      bedFloor(beds, theme);
       for (const c of CONTROLS) {
         const restFill = restingFill(c);
         const restEdge = borderColour(c.at);
@@ -940,6 +983,7 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
     // the keyboard users finding out.
     for (const theme of themes) {
       const beds = surfaces(theme);
+      bedFloor(beds, theme);
       for (const rule of RING_RULES) {
         const raw = ringColourIn(rule.body)!;
         // A ring this file cannot resolve — `currentColor`, or a token only the
@@ -1041,6 +1085,9 @@ describe("the control surface, promoted (#332)", () => {
     // keep the flat --bg-soft wash and take their identification from the edge
     // instead. Not a preference — the arithmetic is in this test.
     for (const theme of themes) {
+      // The floor, outside the quantification it is the floor for. A respelled
+      // --node-grad used to take the last two of these away in silence.
+      expect(textBeds(theme).map(([n]) => n), `${theme}: the beds this sweep measures against`).toEqual(TEXT_BEDS);
       for (const [name, bed] of textBeds(theme)) {
         const fill = over(resolve("var(--ctl-fill)", theme), bed);
         expect(contrastRatio(parseColor(TOK[theme]["--text"]), fill), `${theme} --text on the fill over ${name}`)
@@ -1115,6 +1162,8 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
     // They were 4.43:1 and 4.44:1 on --bg and 5.02:1 on --panel, so they failed
     // exactly where they are read most: a tool burst's ✓ and a node's cost.
     for (const theme of themes) {
+      // The same floor, on the file's other text-bed sweep.
+      expect(textBeds(theme).map(([n]) => n), `${theme}: the beds this sweep measures against`).toEqual(TEXT_BEDS);
       for (const token of ["--ok", "--warn"]) {
         const fg = parseColor(TOK[theme][token]);
         for (const [name, bed] of textBeds(theme)) {
@@ -1131,6 +1180,7 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
     // #268 applied to the node rings for the same reason.
     for (const theme of themes) {
       const beds = surfaces(theme);
+      bedFloor(beds, theme);
       for (const [state, token] of [["live", "--ok"], ["paused", "--warn"], ["dead", "--err"]] as const) {
         const light = RULES.find(r =>
           selectors(r.selector).includes(`:root[data-theme="light"] .topbar .status .pill.${state}`));

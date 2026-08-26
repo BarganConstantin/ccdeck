@@ -24,6 +24,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gradientStops } from "./gradient-stops";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
@@ -209,17 +210,29 @@ function lightnessOf(theme: Theme, token: string): number {
 }
 
 /** Every opaque surface in a theme, by the name the sheet gives it. The node
- *  gradient's two stops are separate beds: a node's top and bottom differ. */
+ *  gradient's two stops are separate beds: a node's top and bottom differ.
+ *
+ *  The stops come from `./gradient-stops` since #665. They used to come from a
+ *  private regex ending in `?? []`, and this file is where that ending did its
+ *  particular damage: the beds are looked up BY NAME below, so an empty read did
+ *  not shorten a list, it left `beds["--node-grad stop 0"]` undefined — and four
+ *  cases died inside `over()` with `Cannot read properties of undefined`, a
+ *  crash that names neither the token that could not be read nor the notation
+ *  that defeated the reader. Not vacuous, but no more use to whoever has to
+ *  debug it. The reader now fails first, quoting the value. */
 function surfaces(theme: Theme): Record<string, Rgba> {
   const out: Record<string, Rgba> = {};
   for (const t of ["--panel", "--bg-soft", "--bg"]) out[t] = parseColor(TOK[theme][t]);
-  const stops = TOK[theme]["--node-grad"].match(/var\(--[\w-]+\)|#[0-9a-f]{3,6}/gi) ?? [];
-  stops.forEach((s, i) => {
+  gradientStops("--node-grad", theme, TOK[theme]).forEach((s, i) => {
     const ref = /^var\((--[\w-]+)\)$/.exec(s);
     out[`--node-grad stop ${i}`] = parseColor(ref ? TOK[theme][ref[1]] : s);
   });
   return out;
 }
+
+/** The names `surfaces` answers to. Stated once so a sweep can floor itself
+ *  against the whole set rather than counting a Record it looks up by name. */
+const BEDS = ["--panel", "--bg-soft", "--bg", "--node-grad stop 0", "--node-grad stop 1"];
 
 // ── the eight colours, as the sheet now writes them ─────────────────────────
 
@@ -276,12 +289,22 @@ function worstHue(s: number, l: number, alpha: number, bed: Rgba): { ratio: numb
   return { ratio, hue };
 }
 
-/** …across every bed the thing can land on. */
+/** …across every bed the thing can land on.
+ *
+ *  The lookup is guarded rather than trusted, which is the floor for every sweep
+ *  in this file (#665). `gradientStops` already refuses a --node-grad it cannot
+ *  read, so this is the second line: it is what still fails, by name, if that
+ *  reader is ever softened back to a `?? []`, or if a site names a bed the sheet
+ *  stopped painting. An unguarded `beds[name]` is how a missing bed used to
+ *  reach `over()` as `undefined`. */
 function worst(site: Site, l: number, theme: Theme): { ratio: number; hue: number; bed: string } {
   const beds = surfaces(theme);
   let out = { ratio: Infinity, hue: -1, bed: "" };
   for (const name of site.beds) {
-    const w = worstHue(site.s, l, site.alpha, beds[name]);
+    const bed = beds[name];
+    expect(bed, `${theme} has no surface called ${name}, so ${site.name} would be measured against nothing`)
+      .toBeDefined();
+    const w = worstHue(site.s, l, site.alpha, bed);
     if (w.ratio < out.ratio) out = { ...w, bed: name };
   }
   return out;
@@ -336,6 +359,12 @@ describe("the contrast and colour maths", () => {
 
 describe("every generated colour clears its floor in light, for every hue", () => {
   it("reads the words at 4.5:1 and draws the graphics at 3:1, worst hue, worst bed", () => {
+    // The floor, outside the quantification it is the floor for: the beds these
+    // sites are measured against, by name, in both themes. Two of the five come
+    // out of --node-grad, and a respelling of it used to take both away.
+    for (const theme of themes) {
+      expect(Object.keys(surfaces(theme)), `${theme}: the beds every site is measured against`).toEqual(BEDS);
+    }
     for (const site of SITES) {
       if (site.role === "decoration") continue;
       const l = lightnessOf("light", site.token);

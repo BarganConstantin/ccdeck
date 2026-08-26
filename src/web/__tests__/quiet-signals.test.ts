@@ -25,7 +25,10 @@
 // contrast-floors.test.ts, control-edges.test.ts and manage-block.test.ts do
 // and computes the ratios from the sheet's own token values. The helpers are
 // deliberately re-declared here rather than imported from contrast-floors:
-// importing a *.test.ts registers its suites into this file as well.
+// importing a *.test.ts registers its suites into this file as well. The
+// gradient reader is the exception — `./gradient-stops` is a plain module that
+// declares no suites, so the five files reading the same two gradient tokens
+// can share one grammar and one failure message (#664, #665).
 //
 // Three of the numbers the report quoted were measured against --panel where
 // the real bed is something else, so the floors below are this file's own
@@ -37,6 +40,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { gradientStops } from "./gradient-stops";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 /** Comments quote declarations while explaining them; strip before reading. */
@@ -131,10 +135,18 @@ function resolve(value: string, theme: Theme): Rgba {
 const tok = (name: string, theme: Theme) => parseColor(TOK[theme][name]);
 
 /** Both stops of the node gradient — a sparkline bar sits against the lower one
- *  but the row can be scrolled, so the strict reading takes the worst of the two. */
+ *  but the row can be scrolled, so the strict reading takes the worst of the two.
+ *
+ *  Read by `./gradient-stops` since #665, and this file is the reason the word
+ *  "vacuous" undersells what a `?? []` does here. The ratio below is a
+ *  `Math.min` over these stops, and `Math.min()` of nothing is Infinity — so
+ *  respelling --node-grad in a notation the old private regex could not see did
+ *  not merely stop the sparkline sweep measuring, it handed one case a
+ *  fabricated Infinity that sailed over its 3:1 floor and PASSED, while the case
+ *  beside it failed with `expected Infinity to be less than Infinity`. Neither
+ *  outcome names the token, and one of them is green. */
 function nodeStops(theme: Theme): Rgba[] {
-  return (TOK[theme]["--node-grad"].match(/var\(--[\w-]+\)|#[0-9a-f]{3,6}/gi) ?? [])
-    .map(s => resolve(s, theme));
+  return gradientStops("--node-grad", theme, TOK[theme]).map(s => resolve(s, theme));
 }
 
 describe("the contrast maths, checked against the two ends everybody knows", () => {
@@ -344,6 +356,12 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
     // No adjacent number anywhere — the counts live in a title — so 1.4.11's
     // redundancy exception does not cover this meter the way it covers .qb-pct.
     for (const theme of themes) {
+      // The floor, outside the ratio it is the floor for (#648's shape, applied
+      // here by #665). `gradientStops` already refuses a --node-grad it cannot
+      // read; this is what still fails if that reader is ever softened back to
+      // a `?? []` and `Math.min()` starts answering Infinity again.
+      expect(nodeStops(theme).length, `${theme}: no node stops — the bar below would be measured against nothing`)
+        .toBeGreaterThanOrEqual(2);
       expect(ratio("", theme), `${theme} idle spark bar`).toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
@@ -352,6 +370,9 @@ describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
     // This is why light is NOT lifted with dark. --muted there is 7.21:1 and
     // would put "nothing ran" above both active and latest.
     for (const theme of themes) {
+      // The same floor, on the file's other sweep over these stops.
+      expect(nodeStops(theme).length, `${theme}: no node stops — the three tiers below would all read Infinity`)
+        .toBeGreaterThanOrEqual(2);
       const idle = ratio("", theme);
       const active = ratio(".active", theme);
       const latest = ratio(".latest", theme);

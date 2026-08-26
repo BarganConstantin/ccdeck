@@ -36,11 +36,15 @@
 // styles.css and the markup the way control-edges.test.ts, quiet-signals.test.ts
 // and manage-block.test.ts do, and computes every ratio from the sheet's own
 // token values. The helpers are re-declared rather than imported from another
-// *.test.ts: importing one registers its suites into this file as well.
+// *.test.ts: importing one registers its suites into this file as well. The
+// gradient reader below is the exception that proves it — it lives in a plain
+// module, `./gradient-stops`, which declares no suites and so can be shared by
+// the five files that read the same two gradient tokens (#664, #665).
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { gradientStops } from "./gradient-stops";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = readFileSync(join(web, "styles.css"), "utf8");
@@ -190,14 +194,14 @@ function resolve(value: string, theme: Theme): Rgba {
  *  pointed at has to fail, and name the value.
  *
  *  Exactly two, because the two labels below ARE the two ends: a third stop
- *  would be announced as a second dark end and quietly measured as one. */
+ *  would be announced as a second dark end and quietly measured as one.
+ *
+ *  The grammar itself moved to `./gradient-stops` with #664 and #665 — three
+ *  more files were reading these same gradients through their own copy of the
+ *  `?? []` this paragraph describes, and one grammar in five places is one
+ *  blind spot in five places. */
 function barEnds(theme: Theme): Array<[string, Rgba]> {
-  const value = TOK[theme]["--topbar-grad"];
-  expect(value, `${theme} declares no --topbar-grad for this sweep to read ends out of`).toBeTruthy();
-  const stops = value.match(/var\(--[\w-]+\)|#[0-9a-f]{3,8}/gi) ?? [];
-  expect(stops.length,
-    `${theme} --topbar-grad is \`${value}\` — this reader knows var() and #rrggbb and found ${stops.length} stop(s) in it, so every state difference measured against the bar would be measured against nothing. Teach it the notation the sheet now writes rather than letting the sweeps go vacuous`)
-    .toBe(2);
+  const stops = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 });
   return stops.map((s, i) => [i === 0 ? "the topbar's light end" : "the topbar's dark end", resolve(s, theme)]);
 }
 
