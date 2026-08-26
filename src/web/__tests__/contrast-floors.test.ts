@@ -134,14 +134,53 @@ function resolve(value: string, theme: Theme): Rgba {
   return parseColor(v ? TOK[theme][v[1]] : value);
 }
 
+/** The colour stops of a gradient token, in order — and a failure naming the
+ *  token when its value says nothing this reader can see.
+ *
+ *  This ended in `?? []` until #649, which is the hsl() blind spot above wearing
+ *  its other costume. There, a notation the grammar could not read THREW, and
+ *  the damage was the sweeps that never reached the declaration. Here the miss
+ *  is quieter and therefore worse: the regex simply matches nothing, `?? []`
+ *  turns that into an empty collection, and a sweep quantified over an empty
+ *  collection is a passing sweep. Neither `var()` nor `#rrggbb` occurs inside an
+ *  `oklch()`, so respelling --node-grad in the notation a designer reaches for
+ *  next emptied this in both themes and left the two node sweeps below asserting
+ *  over nothing — no crash, no error, green, and nothing else in this file to
+ *  tell anybody. A sweep that cannot read the value it was pointed at has to
+ *  fail, and it has to say WHICH value, or the failure is a puzzle rather than
+ *  a report.
+ *
+ *  Two is the floor rather than one because a single colour is not a gradient
+ *  and every caller here reads a top and a bottom; more than two is a sheet's
+ *  business, not this reader's. */
+function gradientStops(token: string, theme: Theme): string[] {
+  const value = TOK[theme][token];
+  expect(value, `${theme} declares no ${token} for this sweep to read stops out of`).toBeTruthy();
+  const stops = value.match(/var\(--[\w-]+\)|#[0-9a-f]{3,6}/gi) ?? [];
+  expect(stops.length,
+    `${theme} ${token} is \`${value}\` — this reader knows var() and #rrggbb and found ${stops.length} stop(s) in it, so every floor quantified over these stops would measure nothing. Teach it the notation the sheet now writes rather than letting the sweeps go vacuous`)
+    .toBeGreaterThanOrEqual(2);
+  return stops;
+}
+
+/** The label every node bed carries, and the prefix the two sweeps below filter
+ *  the three fixed surfaces back out with. One constant, so the naming and the
+ *  filtering cannot drift apart into an empty answer. */
+const NODE_BED = "--node-grad stop";
+
 /** Every opaque surface small text lands on: the three panel tiers plus both
  *  stops of the node gradient, since a node's top and bottom differ. */
 function surfaces(theme: Theme): Array<[string, Rgba]> {
   const named: Array<[string, Rgba]> = (["--panel", "--bg-soft", "--bg"] as const)
     .map(t => [t, parseColor(TOK[theme][t])]);
-  const stops = TOK[theme]["--node-grad"].match(/var\(--[\w-]+\)|#[0-9a-f]{3,6}/gi) ?? [];
-  return named.concat(stops.map((s, i) => [`--node-grad stop ${i}`, resolve(s, theme)]));
+  const stops = gradientStops("--node-grad", theme);
+  return named.concat(stops.map((s, i) => [`${NODE_BED} ${i}`, resolve(s, theme)]));
 }
+
+/** Just the node beds: the sweeps that measure a ring or a pill against the node
+ *  filter the three fixed surfaces back out, which makes this the one collection
+ *  in the file a respelled gradient can empty completely. */
+const nodeBeds = (theme: Theme) => surfaces(theme).filter(([n]) => n.startsWith(NODE_BED));
 
 describe("contrast maths", () => {
   it("puts white on black at the 21:1 ceiling and a colour on itself at 1:1", () => {
@@ -232,7 +271,16 @@ describe("agent-node state rings (#268)", () => {
 
   it("draws every state's ring at 3:1 or better against the node it outlines", () => {
     for (const theme of themes) {
-      const node = surfaces(theme).filter(([n]) => n.startsWith("--node-grad"));
+      const node = nodeBeds(theme);
+      // The floor, and it sits OUTSIDE the quantification it is the floor for
+      // (#627's lesson, applied here by #649). gradientStops already refuses an
+      // unreadable --node-grad, so this is the second line rather than the
+      // first: it is what still fails if that reader is ever softened back to a
+      // `?? []`, or if the label these beds are filtered by is renamed on one
+      // side only. Both ends of the gradient, because a node's top and bottom
+      // differ and a ring is drawn across the whole of it.
+      expect(node.map(([n]) => n), `${theme}: no node beds — every ring below would be measured against nothing`)
+        .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
       for (const state of ["active", "done", "err"]) {
         const ring = ringOf(state, theme);
         for (const [name, bg] of node) {
@@ -262,7 +310,10 @@ describe("agent-node state rings (#268)", () => {
 
   it("reads every state pill's own label at 4.5:1 over its own wash", () => {
     for (const theme of themes) {
-      const node = surfaces(theme).filter(([n]) => n.startsWith("--node-grad"));
+      const node = nodeBeds(theme);
+      // The same floor, for the same reason, on the file's other node sweep.
+      expect(node.map(([n]) => n), `${theme}: no node beds — every pill label below would be measured against nothing`)
+        .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
       for (const state of ["active", "done", "err"]) {
         const base = rule(`.state-pill.state-${state}`);
         const light = rule(`:root[data-theme="light"] .state-pill.state-${state}`);

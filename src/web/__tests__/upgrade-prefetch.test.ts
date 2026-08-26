@@ -103,15 +103,49 @@ const exited = (child: any, ms = 10_000) =>
         child.once("exit", done);
       });
 
+/**
+ * Where `flag` sits in `args`, or a failure naming the flag it could not find.
+ *
+ * indexOf answers -1 on a miss, and the case below spent that answer twice: as
+ * the offset the spec is read FROM, and as the thing the spec's own offset is
+ * compared AGAINST. A miss survives both readings — `args[-1 + 1]` is `args[0]`,
+ * and every real offset is greater than -1 — so an argument vector with no
+ * `--package` in it at all satisfied every assertion the case had (#650).
+ *
+ * That is not a hypothetical shape. It is the regression the comment inside the
+ * case names — the spec handed over as a positional, which npx resolves, unpacks
+ * AND runs, a second deck racing the live one for the port it is still holding.
+ * `npxPrefetchArgs` reduced to `["ccdeck@latest"]`, the purest form of exactly
+ * that, passed all three assertions; so did `[spec, "-y", "--call", "exit 0"]`,
+ * which is the same command with the flags moved behind the positional. What
+ * the miss costs depends on where the spec lands — `["-y", spec]` happened to
+ * put something else at `args[0]` and did fail the first assertion — and a
+ * contract that holds or does not hold according to the order of the arguments
+ * it is reading is not the contract this case is written to state.
+ *
+ * Loud here rather than guarded at each call site, the way readme-order.test.ts's
+ * `at()` covers its fifteen (#628): the point is that an offset a comparison is
+ * built on must never be a sentinel the comparison happens to satisfy.
+ */
+const flagAt = (args: string[], flag: string): number => {
+  const at = args.indexOf(flag);
+  expect(at, `npx is being handed \`${args.join(" ")}\` and there is no ${flag} in it — the spec is a positional argument, which npx RUNS`)
+    .toBeGreaterThan(-1);
+  return at;
+};
+
 describe("the arguments the pre-flight hands npx", () => {
   it("names the spec as a package to install, never as a command to run", () => {
     const args = npxPrefetchArgs("ccdeck@latest");
-    expect(args[args.indexOf("--package") + 1]).toBe("ccdeck@latest");
+    // Resolved before anything is compared, because everything below is built
+    // on this offset and a -1 satisfies all of it.
+    const pkg = flagAt(args, "--package");
+    expect(args[pkg + 1]).toBe("ccdeck@latest");
     // The regression this shape exists to avoid: as a positional, npx unpacks
     // the package AND starts its bin — a whole second deck, racing the running
     // one for the port it is still holding.
     expect(args.filter(a => a === "ccdeck@latest")).toHaveLength(1);
-    expect(args.indexOf("ccdeck@latest")).toBeGreaterThan(args.indexOf("--package"));
+    expect(args.indexOf("ccdeck@latest")).toBeGreaterThan(pkg);
   });
 
   it("runs a shell builtin, so a broken PATH cannot fail a fetch that worked", () => {
