@@ -694,6 +694,65 @@ export function pruneDoneSessions(state: GraphState, now: number, cap: number, g
   return bump(state, removed);
 }
 
+/** Whether this envelope is the answer to a call the graph is still waiting on
+ *  — a `PostToolUse` / `PostToolUseFailure` whose id is in flight right now.
+ *
+ *  Written for the pause gate's `protect` (#676) and exported so App.tsx and
+ *  the tests ask the same question of the same graph rather than each spelling
+ *  it out. The gate reads `seq` and `epoch` and nothing else on purpose; this
+ *  is the payload half of the question, and it belongs next to the map it
+ *  reads.
+ *
+ *  `toolIndex` is the right map and not merely a convenient one: it holds
+ *  exactly the calls that have not settled, and during a pause nothing is
+ *  applied, so it is frozen at the set of calls that were open when the freeze
+ *  began. That is the set whose settling events sit at the head of the hold and
+ *  the set the ceiling was eating.
+ *
+ *  It under-reports rather than over-reports, and that is the safe direction: a
+ *  call already evicted from the index — swept, or slid out of `trimTools`'s
+ *  200-call window — is one the deck stopped tracking long before this pause,
+ *  and spending a held slot on an outcome for it would cost a fresh event to
+ *  protect something the resume cannot draw any better. */
+export function settlesInFlightCall(state: GraphState, env: HookEnvelope): boolean {
+  const p = env?.payload;
+  const name = p?.hook_event_name;
+  if (name !== "PostToolUse" && name !== "PostToolUseFailure") return false;
+  const id = p?.tool_use_id;
+  return typeof id === "string" && id.length > 0 && state.toolIndex.has(id);
+}
+
+/** Tell the graph that the deck is about to apply a run with a hole in it, so
+ *  that a call left unanswered by that run is described as a gap rather than
+ *  blamed on its session. Returns true when anything was flagged. Mutates in
+ *  place, like the sweeps.
+ *
+ *  #676. The pause gate bounds its hold, and a hold at its ceiling drops events
+ *  the stream will never offer again — `through` and the browser's
+ *  `Last-Event-ID` both moved past them when they were offered. The reducer
+ *  cannot see that from the envelopes it gets: a run with 201 envelopes missing
+ *  from the middle is a run of strictly increasing seqs, exactly like a quiet
+ *  minute. So the drain says so, here, before it feeds the run in.
+ *
+ *  Every call in flight is flagged, not a guessed subset. The deck genuinely
+ *  does not know what was in the events it dropped, and the honest claim is
+ *  about all of them; the flag then burns off on the first real outcome for
+ *  each call, so what is still flagged an hour later is exactly the set nothing
+ *  ever answered. `agent.tools` rather than `toolIndex` because that is what
+ *  `sweepStaleTools` walks, and a call that fell out of the index but is still
+ *  drawn in-flight is one the sweep will still pass a verdict on. */
+export function noteDroppedEvents(state: GraphState): boolean {
+  let changed = false;
+  for (const a of state.agents.values()) {
+    for (const t of a.tools) {
+      if (t.endedAt != null || t.outcomeGap) continue;
+      t.outcomeGap = true;
+      changed = true;
+    }
+  }
+  return bump(state, changed);
+}
+
 /** Finalise every in-flight tool call belonging to a CLAUDE session that has
  *  gone completely silent for `maxMs` — the session was killed mid-call and the
  *  PostToolUse that would have settled the call is never coming. Without this
@@ -820,7 +879,22 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // false positive above; #397 settled the same wording question for Codex
         // by not asserting a cause at all, and this is the Claude equivalent for
         // the one case where a cause is actually known.
-        t.errorPreview = "session ended before this call returned";
+        //
+        // #676: known, as long as nothing went missing on the deck's own side.
+        // The whole argument for naming a cause here is that Claude emits a
+        // PostToolUse for every call it completes, so total silence for the full
+        // window leaves one explanation. A pause that overflowed its hold breaks
+        // that premise: the event was emitted, delivered and then discarded by
+        // this tab, and the stream will not offer it again. The sweep cannot
+        // detect that from the graph — a run with a hole in it is a run of
+        // increasing seqs like any other — so `noteDroppedEvents` records it at
+        // the moment the hole is applied, and the two strings are the two things
+        // the deck can honestly say. Naming the session in the second case is
+        // the expensive kind of wrong: a missing result is a gap the user can
+        // see through, a cause that never happened is a bug hunt.
+        t.errorPreview = t.outcomeGap
+          ? "no result reached the deck — events were dropped while the deck was paused"
+          : "session ended before this call returned";
         // Also drop it from the live tool index, so the id is not held open by a
         // session that is gone. This does NOT make the call unsettleable: the
         // PostToolUse handler falls back to scanning the owner's tool list and
@@ -1591,6 +1665,13 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // a flag on the object cannot.
       if (tc.outcomeApplied) break;
       tc.outcomeApplied = true;
+      // An outcome landed, so whatever the deck dropped while this call was
+      // open, it was not this call's answer (#676). The flag is a statement
+      // about not knowing, and this is the event that ends the not knowing —
+      // left standing it would eventually have the sweep describing a gap on a
+      // call that has been settled since, and would survive `sweepStaleTools`
+      // un-reaping the call when a late outcome overturns its guess.
+      tc.outcomeGap = undefined;
       tc.endedAt = now;
       tc.ok = name === "PostToolUse";
       // A response arriving for an already-trimmed call must not re-attach the

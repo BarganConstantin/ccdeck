@@ -55,6 +55,26 @@ export interface ToolCall {
    *  than THAT it is settled, because only the "who" says whether later evidence
    *  is allowed to reopen it. */
   outcomeApplied?: boolean;
+  /** Set when the deck KNOWINGLY discarded events while this call was in
+   *  flight — today only a pause that overflowed its hold (#676) — so a
+   *  missing outcome may be the deck's own doing rather than the session's.
+   *
+   *  It exists because `sweepStaleTools` asserts a cause, and the cause it
+   *  asserts is only sound when nothing has gone missing on the deck's side of
+   *  the wire: a Claude session emits `PostToolUse` for every call it
+   *  completes, so ninety minutes of total silence really does mean the session
+   *  died mid-call — unless the deck threw the answer away, which is not
+   *  something the sweep can see from the graph. This flag is the only record
+   *  that it happened, and the sweep reads it to choose between naming a cause
+   *  and naming a gap.
+   *
+   *  Deliberately a superset of the calls actually harmed. At the moment a hole
+   *  is applied the deck cannot know which of the events it dropped were
+   *  outcomes, so every call open at that instant is flagged and the flag is
+   *  cleared by the first real outcome that lands — which is most of them, on
+   *  the next event. What survives to the sweep is exactly the set where the
+   *  deck has no idea, and "no result reached the deck" is true of all of it. */
+  outcomeGap?: boolean;
 }
 
 export interface TokenUsage {

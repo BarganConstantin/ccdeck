@@ -316,7 +316,14 @@ describe("no useRef in the client is seeded with work", () => {
     // written this way; this is the form it is now matched to.
     expect(app).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
     expect(app).toMatch(/const dismissedSummaries = useState\(loadDismissedSummaries\)\[0\];/);
-    expect(app).toMatch(/const pauseGate = useState\(\(\) => createPauseGate<HookEnvelope>\(\)\)\[0\];/);
+    // #676 handed the gate an options object — a `protect` predicate the
+    // ceiling's eviction asks about each held envelope — so the argument list
+    // is no longer empty. What this case is about is the `() =>` in front of
+    // it, which is the whole of what keeps the construction off every render,
+    // so that is what stays pinned; the options are allowed to be there or not
+    // and are matched across lines, since they wrap.
+    expect(app).toMatch(
+      /const pauseGate = useState\(\(\) => createPauseGate<HookEnvelope>\((?:\{[\s\S]{0,400}?\})?\)\)\[0\];/);
   });
 
   it("has no seeded-once flag left over that nothing reads", () => {

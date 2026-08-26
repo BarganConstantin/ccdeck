@@ -62,6 +62,51 @@
 // upgrade, a supervisor bounce — a paused tab genuinely is offered the whole
 // re-ingested ring, and nothing can tell it apart from new traffic. The cap is
 // what stands between that and the tab.
+//
+// ── #676: which end goes was the wrong question ─────────────────────────────
+//
+// The ceiling dropped by POSITION, oldest first, and the note at the eviction
+// argued the tail was the safe end to keep: keeping the head would pin the
+// canvas to the moment the ceiling was hit and lose every event describing the
+// present, "so a tool that finished would pulse as running until the stale
+// sweep reaped it". Both halves of that are true and neither is answered by
+// swapping ends, because that sentence describes what keeping the TAIL does as
+// well. The head of a pause queue is where the settling events for calls that
+// were already in flight when the pause began live — a `Bash` open at the
+// freeze returns a few seconds into it — so oldest-out drops exactly those
+// `PostToolUse`s and keeps the newer traffic. Driven for real, one `Bash` open
+// and 1200 envelopes from six other sessions behind it: 1000 held, 201
+// dropped, and the call left `endedAt == null`, pinned in `toolIndex` with its
+// whole `tool_input`, until `sweepStaleTools` stamped it failed ninety minutes
+// later with a cause that was not true.
+//
+// What the old note got right is that position is the only thing an eviction
+// can be cheap about, and that the tail is what the canvas is FOR. What it
+// missed is that the two ends are not made of the same stuff. A fresh event
+// from another session is one more thing to draw; a settling event for a call
+// the reducer has ALREADY drawn is the only thing in the world that can close
+// that call, and nothing re-delivers it — `through` and the browser's
+// `Last-Event-ID` both advanced past it the moment it was offered. So the
+// eviction keeps its direction and stops being blind: it drops the oldest
+// event that is not the answer to something already on the canvas, and only
+// falls back to the plain head when every held event is one of those. The
+// ceiling itself does not move, and the survivors stay in arrival order, so
+// the drain is still one strictly increasing run the reducer applies whole.
+//
+// The gate cannot tell which those are — it reads two fields and would have to
+// grow a reducer to read more — so the caller says. `protect` is handed the
+// envelope and answers against the live graph, which during a pause is frozen
+// at exactly the set of calls that were open when it began. Left unset, the
+// gate evicts by position as it always did.
+//
+// It bounds the damage rather than ending it: a hold whose every slot is a
+// settling event still drops one, and an outcome can go missing for reasons
+// that have nothing to do with this file. That is why the other half of #676
+// lives in the reducer — see `noteDroppedEvents`. A drop policy decides how
+// often the deck loses an outcome; only the reducer can decide what the deck
+// SAYS about a call whose outcome it lost, and saying "the session ended
+// before this call returned" about an event the deck itself threw away is the
+// part that sent a user to debug a failure that never happened.
 
 /** The greatest number of events one pause will hold.
  *
@@ -78,9 +123,23 @@ export const PAUSE_QUEUE_LIMIT = 1000;
 /** What a gate can be built with. The limit is a parameter so tests can reach
  *  the ceiling in a handful of events instead of a thousand; production never
  *  passes it and takes PAUSE_QUEUE_LIMIT. */
-export interface PauseGateOptions {
+export interface PauseGateOptions<T = unknown> {
   /** Maximum events held before the oldest start falling off the back. */
   limit?: number;
+  /**
+   * Whether this event SETTLES something the deck has already drawn, and so is
+   * not interchangeable with a fresh one when the ceiling has to give.
+   *
+   * Asked once, when the event is taken into the hold, and asked of the caller
+   * because the gate reads two fields of an envelope and the answer is a fact
+   * about the graph. A pause freezes the graph, so "already drawn" means "open
+   * when this pause began", which is the set #676 is about. The gate treats a
+   * true as a preference and never as a guarantee: see the eviction.
+   *
+   * Absent — every existing caller but App.tsx, and every gate built before
+   * #676 — leaves the eviction purely positional, oldest first.
+   */
+  protect?: (event: T) => boolean;
 }
 
 /** Holds events back while the deck is paused, and hands them over in arrival
@@ -130,10 +189,18 @@ interface Sequenced {
   epoch?: string;
 }
 
-export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions = {}): PauseGate<T> {
+export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions<T> = {}): PauseGate<T> {
   const limit = Math.max(1, Math.floor(opts.limit ?? PAUSE_QUEUE_LIMIT));
+  const protect = opts.protect;
   let paused = false;
   let queue: T[] = [];
+  // The held events `protect` claimed, by identity. A set rather than a flag on
+  // the envelope, because the envelope belongs to the caller and this is the
+  // gate's own bookkeeping; and by identity rather than by seq, because a
+  // restart renumbers and two held envelopes can legitimately share a seq.
+  // It only ever references envelopes the queue is already holding, so it
+  // retains nothing the hold was not retaining anyway.
+  let guarded = new Set<T>();
   let dropped = 0;
   // The resume point, and the epoch it is counted in. Both advance whether or
   // not the deck is paused: a gate that only tracked while paused would have
@@ -178,6 +245,7 @@ export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions = {}
       if (alreadyReceived) return false;
 
       queue.push(event);
+      if (protect?.(event)) guarded.add(event);
       // Oldest out, rather than refusing the new one. Both truncate, and the
       // difference is which end of the pause survives: keeping the head would
       // pin the canvas to the moment the ceiling was hit and lose every event
@@ -186,8 +254,32 @@ export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions = {}
       // close to the server's now as the hold allowed, and the survivors are
       // contiguous and strictly increasing in seq, so the resume applies all of
       // them rather than feeding the reducer a run it will half reject.
+      //
+      // #676: oldest out, of the events that are ONLY old. The sentence above
+      // is a statement about freshness, and freshness is not what a settling
+      // event carries — a `PostToolUse` for a call the reducer drew before the
+      // freeze is the sole thing that can close that call, is worth one slot,
+      // and if it goes the call is stranded in-flight with no way to ask for it
+      // again. So the scan walks past whatever `protect` claimed and drops the
+      // oldest event that is merely old. Every survivor is still in arrival
+      // order and the run still increases strictly in seq, because nothing is
+      // reordered and the skipped events are older than the ones behind them.
       if (queue.length > limit) {
-        queue.shift();
+        // Bounded by how many of the hold are guarded, which is bounded by the
+        // calls open at the freeze — a handful on the busiest deck. The size
+        // check keeps the all-guarded hold from re-walking the whole queue for
+        // every arrival rather than leaving it to the loop to discover.
+        let i = 0;
+        if (guarded.size < queue.length) {
+          while (guarded.has(queue[i])) i++;
+        }
+        // i === 0 when nothing is guarded, which is the old `shift()` exactly.
+        // i === queue.length is unreachable past the size check, and the
+        // fallback it would need is the same line: a hold made entirely of
+        // settling events still has a ceiling, and the oldest of them goes.
+        // That is the case `noteDroppedEvents` exists for.
+        const [out] = queue.splice(i, 1);
+        guarded.delete(out);
         dropped++;
       }
       return false;
@@ -201,8 +293,11 @@ export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions = {}
       const held = queue;
       // Queue, count and flag go together in this one step. A resume that
       // emptied the queue but left `dropped` standing would have the pill
-      // reporting a truncation of a hold that is no longer open.
+      // reporting a truncation of a hold that is no longer open. The guarded
+      // set goes with them: it names envelopes of the hold that just closed,
+      // and the calls it was protecting are about to be settled by the drain.
       queue = [];
+      guarded = new Set();
       dropped = 0;
       return held;
     },
