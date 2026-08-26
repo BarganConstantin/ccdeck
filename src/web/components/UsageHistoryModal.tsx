@@ -111,7 +111,10 @@ function useCcusage(rangeDays: number) {
   // Responses can land out of order — a cached 7d range answers instantly while
   // an uncached 90d one runs the CLI for seconds — so only the newest request
   // is allowed to write data or clear `loading`.
-  const guard = useRef(createLatestGuard()).current;
+  // Seeded through a `useState` initialiser, not `useRef(createLatestGuard())`
+  // — that argument is re-evaluated on every render and all but the first
+  // guard is thrown away (#612).
+  const guard = useState(createLatestGuard)[0];
 
   const load = (force = false) => {
     const isCurrent = guard.begin();

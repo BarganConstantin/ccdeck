@@ -144,12 +144,15 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   // login-announce.ts for what each turn of it cost.
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
-  const announcerRef = useRef(createLoginAnnouncer());
+  // A `useState` initialiser rather than `useRef(createLoginAnnouncer())`:
+  // `useRef` runs its argument on every render and keeps only the first
+  // announcer, so the rest were allocated and dropped (#612).
+  const announcer = useState(createLoginAnnouncer)[0];
 
   useEffect(() => {
     if (login?.state === "awaiting_code") codeRef.current?.focus();
-    if (announcerRef.current.shouldAnnounce(login?.state)) onChangedRef.current();
-  }, [login?.state]);
+    if (announcer.shouldAnnounce(login?.state)) onChangedRef.current();
+  }, [login?.state, announcer]);
 
   // The share tab's field is the only thing on it; focusing it saves a click
   // and makes ⌘V the obvious next move.
