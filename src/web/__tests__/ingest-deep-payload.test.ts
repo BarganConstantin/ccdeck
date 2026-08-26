@@ -39,7 +39,8 @@
 //
 // Payloads are ~36 KB. That is the point of the report: the trigger is cheap.
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -377,6 +378,14 @@ describe("a payload the deck cannot serialise, with a log and no subscriber", ()
   // Second, not first: startServer only ever assigns persistPath, so a
   // persisting server in this worker cannot be un-persisted for a later block.
   const LOG = join(DIR, "events.jsonl");
+  /** The log as it stands, treating "not created yet" as empty. */
+  const readLog = () => {
+    try { return readFileSync(LOG, "utf8"); }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return "";
+      throw e;
+    }
+  };
 
   beforeAll(async () => { await shutdown(); await boot(LOG); });
   afterAll(async () => { await shutdown(); });
@@ -393,12 +402,20 @@ describe("a payload the deck cannot serialise, with a log and no subscriber", ()
     expect((await health()).ok).toBe(true);
 
     // The append is fire-and-forget, so the file is polled rather than read once.
-    await waitUntil(() => readFileSync(LOG, "utf8").includes(`"seq":${seq}`), "the event to reach the log");
+    // The log is appended fire-and-forget from pushEvent, so this waits for a
+    // file that does not exist yet on the first poll — and readFileSync throws
+    // ENOENT rather than answering false, out of the predicate, where waitUntil
+    // does not catch it. Observed once on a macOS runner:
+    //
+    //     ENOENT: no such file or directory, open '…/ccdeck-deep-ingest-DrbzQ3/events.jsonl'
+    //
+    // "not there yet" is one of the states being waited through, not a failure.
+    await waitUntil(() => readLog().includes(`"seq":${seq}`), "the event to reach the log");
 
     // JSONL means every line is a whole JSON document. A throw here would have
     // left a truncated one, and replayLog would refuse the file from that line
     // on — the deck's own canvas after a restart.
-    const lines = readFileSync(LOG, "utf8").split("\n").filter(Boolean);
+    const lines = readLog().split("\n").filter(Boolean);
     const parsed = lines.map(l => JSON.parse(l) as Record<string, unknown>);
     const written = parsed.find(e => e.seq === seq);
     expect(written).toEqual({
@@ -445,5 +462,9 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  // Not a bare rmSync: this server appends to events.jsonl fire-and-forget, so
+  // the write can still be in flight here and Windows answers rmdir with
+  // ENOTEMPTY. Observed on a windows-latest runner as a teardown failure with
+  // no failing assertion. See rm-temp-dir.ts.
+  rmTempDir(DIR);
 });
