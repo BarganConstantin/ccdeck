@@ -37,9 +37,10 @@ vi.mock("../../server/exec.mjs", () => ({
 vi.mock("../../server/cswap-install.mjs", () => ({ cswapBin: async () => "cswap" }));
 
 // @ts-expect-error — .mjs server module, no types
-const { readCswapConfig, externalAutoRunning } = await import("../../server/cswap-auto.mjs") as {
+const { readCswapConfig, externalAutoRunning, invalidateCswapAutoCache } = await import("../../server/cswap-auto.mjs") as {
   readCswapConfig: () => Promise<Record<string, { value: string | null; isDefault: boolean }> | null>;
   externalAutoRunning: () => Promise<boolean>;
+  invalidateCswapAutoCache: () => void;
 };
 
 const ok = (stdout: string) => ({ ok: true, code: 0, killed: false, stdout, stderr: "" });
@@ -48,7 +49,13 @@ const fail = () => ({ ok: false, code: 1, killed: false, stdout: "", stderr: "bo
 /** Answer the next `run` with this stdout, whatever it is asked. */
 const answer = (stdout: string) => { exec.reply = () => ok(stdout); };
 
-beforeEach(() => { exec.calls.length = 0; exec.reply = () => ok(""); });
+// #616 gave both readers a minimum gap and a shared in-flight promise, so a
+// finished reading answers the next caller instead of starting a second child.
+// Every case here wants its own child — a different `cswap config` listing, a
+// different process table, and in the Windows blocks a different platform
+// entirely — so each one has to say the previous reading is finished with.
+// invalidateCswapAutoCache is the module's own reset and drops both.
+beforeEach(() => { exec.calls.length = 0; exec.reply = () => ok(""); invalidateCswapAutoCache(); });
 
 // The platform branch inside externalAutoRunning reads process.platform at call
 // time, so both halves are reachable from either host — which is the only way
@@ -244,8 +251,13 @@ describe("externalAutoRunning on Windows", () => {
     // any of them.
     for (const exe of ["cswap.exe", "cswap.cmd", "cswap.bat", "cswap"]) {
       exec.calls.length = 0;
+      // Four readings in one case, so the reset belongs here as well as in
+      // beforeEach: without it the last three are handed the first one's answer
+      // and three of the four spellings are never actually looked at.
+      invalidateCswapAutoCache();
       answer(`C:\\Users\\dorin\\.local\\bin\\${exe} auto`);
       expect(await externalAutoRunning(), exe).toBe(true);
+      expect(exec.calls, exe).toHaveLength(1);
     }
   });
 

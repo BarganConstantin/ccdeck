@@ -77,6 +77,14 @@ beforeEach(async () => {
   state.releaseTick?.();
   state.releaseTick = null;
   state.configMs = 0;
+  // #616 gave `cswap config` a three-second floor, and tickInterval reads it
+  // through readCswapConfig like everybody else. Two of the cases below stand
+  // INSIDE that read — `state.configMs = 60` is the window they need startLoop
+  // to still be waiting in — and a reading left over from the previous case
+  // makes startLoop return before they can get there, so they would pass
+  // without the race they exist for ever happening. The module's own reset
+  // drops it.
+  mod.invalidateCswapAutoCache();
   await mod.setAutoEnabled(false);
   calls.length = 0;
 });
@@ -113,6 +121,14 @@ describe("enabling and disabling across the config read", () => {
     state.configMs = 60;
     const a = mod.setAutoEnabled(true);
     await rest(15);
+    // #616 gave `cswap config` a shared in-flight promise, and the race under
+    // test here is startLoop's rather than the reader's. Without this the second
+    // enable joins the first's read and both resume in the SAME microtask, where
+    // the one-tick-at-a-time guard collapses their two eager ticks into one and
+    // the count below can no longer tell one installed interval from two. The
+    // leak is still real — a second setInterval overwrites `_timer`, so the
+    // first can never be cleared again — it just stops being visible from here.
+    mod.invalidateCswapAutoCache();
     const b = mod.setAutoEnabled(true);
     await Promise.all([a, b]);
     state.configMs = 0;
