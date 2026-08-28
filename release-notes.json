@@ -22,7 +22,14 @@
     "Keys are versions exactly as package.json spells them. A key that is not a",
     "version, or an entry missing either field, fails the suite rather than",
     "being quietly dropped — see src/web/__tests__/release-notes-file.test.ts.",
-    "Ordering here is for humans; the deck sorts by version itself."
+    "Ordering here is for humans; the deck sorts by version itself.",
+    "",
+    "A title may open with an emoji, and if it does, put exactly ONE space after",
+    "it. Not two: the dialog gives a leading emoji its own optical gap, because",
+    "a colour glyph is drawn edge to edge inside its advance and one word space",
+    "after one reads as none. A second space here would be a lie in the data",
+    "about a defect in the type, and the suite refuses both it and no space at",
+    "all."
   ],
   "1.46.0": [
     {
@@ -31,7 +38,7 @@
     },
     {
       "title": "This dialog is new",
-      "body": "When an upgrade brings something you would notice, the deck now says so once, here, and then leaves you alone — most releases carry nothing and show nothing at all. You can read it again whenever you like from the What's new button beside the version in the top bar."
+      "body": "When an upgrade brings something you would notice, the deck now says so once, here, and then leaves you alone — most releases carry nothing and show nothing at all. You can read it again whenever you like by clicking the version number in the top bar, which also asks npm whether a newer one is out."
     }
   ],
   "1.45.0": [

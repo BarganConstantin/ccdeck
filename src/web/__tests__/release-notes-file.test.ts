@@ -13,7 +13,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isVersion, readNotes, RELEASE_NOTES } from "../release-notes";
+import { isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
+
+/** A title that OPENS with an emoji, whatever comes after it — deliberately
+ *  looser than splitNoteTitle's own pattern, which additionally demands the one
+ *  space. The gap between the two is the whole assertion below: a title this
+ *  matches and that one does not is a title whose emoji will render without its
+ *  gap, and the file is where that gets refused. */
+const LEADS_WITH_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[\u200D\uFE0F])/u;
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const rawText = readFileSync(at("../../../release-notes.json"), "utf8");
@@ -106,6 +113,44 @@ describe("what a note is allowed to say", () => {
       .filter(n => EMPTY.test(n.title) || EMPTY.test(n.body))
       .map(n => `${n.version}: ${n.title}`);
     expect(offenders).toEqual([]);
+  });
+
+  it("does not send the reader to a control that was taken away", () => {
+    // A note is written once and read for years, and this file already carried
+    // one telling people to click a "What's new button" that #715 deleted. A
+    // changelog that describes an interface the reader cannot find is worse
+    // than one that says nothing, because it is the entry teaching them the
+    // dialog is unreliable.
+    const everyWord = RELEASE_NOTES.flatMap(v => v.notes.map(n => `${v.version}: ${n.title} ${n.body}`));
+    expect(everyWord.filter(t => /What's new button/i.test(t))).toEqual([]);
+  });
+
+  it("separates a leading emoji from the first word with exactly one space", () => {
+    // The data half of #715. The renderer supplies the optical gap an emoji
+    // glyph has no side bearing for, and it can only do that for a title it can
+    // split — which means one space, no more and no fewer.
+    //
+    // Both failures are silent without this. "🔊Pick" renders genuinely flush
+    // and looks like the bug that was reported; "🔊  Pick" is the paper-over
+    // the renderer fix exists to make unnecessary, and it would sail past a
+    // reviewer as a stray keystroke. splitNoteTitle refuses both, so either one
+    // costs the note its gap and nothing says so.
+    const bad = RELEASE_NOTES.flatMap(v => v.notes
+      .filter(n => LEADS_WITH_EMOJI.test(n.title) && splitNoteTitle(n.title).icon === null)
+      .map(n => `${v.version}: ${JSON.stringify(n.title)}`));
+    expect(bad).toEqual([]);
+  });
+
+  it("is not a vacuous emoji sweep either — the rule catches both ways of breaking it", () => {
+    // The file may carry no emoji at all today, and a rule that can only pass
+    // is not a rule. These are what it is watching for.
+    expect(splitNoteTitle("🔊 Pick a volume and a sound").icon).toBe("🔊");
+    for (const bad of ["🔊Pick a volume and a sound", "🔊  Pick a volume and a sound"]) {
+      expect(LEADS_WITH_EMOJI.test(bad), bad).toBe(true);
+      expect(splitNoteTitle(bad).icon, bad).toBeNull();
+    }
+    // And a plain title is not dragged into the rule by it.
+    expect(LEADS_WITH_EMOJI.test("The deck no longer puts anything there")).toBe(false);
   });
 
   it("is not a vacuous sweep — the detector finds the phrases it is looking for", () => {

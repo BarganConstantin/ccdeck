@@ -63,7 +63,7 @@ import { boardTotals, BOARD_COST_LABEL, BOARD_SCOPE_TITLE, BOARD_TOKENS_LABEL } 
 // session's cumulative tokens by the one model it was last seen on. See
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
-import { versionChipLabel, versionChipTitle, versionNoticeLabel, whatsNewLabel, whatsNewTitle } from "./version-chip";
+import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
 // pure function over three values is the only shape a DOM-less suite can
@@ -1081,16 +1081,28 @@ function Inner() {
     if (decision.record) writeSeen(store, decision.record);
     if (decision.show.length) setReleaseNotes({ entries: decision.show, since: stored });
   }, [version?.running]);
-  // Everything this build has to say, for the topbar button — which is the way
+  // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
   // whose site data was cleared along with the marker above. The bundle's
-  // version is the fallback here and only here: the button is a browse, not an
-  // announcement, so a deck whose /api/version never answered should still be
-  // able to open it rather than lose the feature entirely.
+  // version is the fallback here and only here: the chip's route is a browse,
+  // not an announcement, so a deck whose /api/version never answered should
+  // still be able to open it rather than lose the feature entirely.
+  const chipVersion = version?.running ?? __APP_VERSION__;
   const everyReleaseNote = useMemo(
-    () => notesBetween(RELEASE_NOTES, null, version?.running ?? __APP_VERSION__),
-    [version?.running],
+    () => notesBetween(RELEASE_NOTES, null, chipVersion),
+    [chipVersion],
   );
+  // The browse route (#715). `since: null` is what makes it a browse: it is not
+  // an announcement, so it neither reads nor writes the seen marker, and it is
+  // NOT gated on the run being non-empty — a click that opens a dialog saying
+  // "nothing to report yet" is a click that answered; a click that does nothing
+  // at all is a broken button. The empty run is nearly unreachable in practice,
+  // because a release with nothing of its own still has every release before it
+  // to show, but the dialog is written for it and the chip therefore does not
+  // have to be.
+  const openReleaseNotes = useCallback(() => {
+    setReleaseNotes({ entries: everyReleaseNote, since: null });
+  }, [everyReleaseNote]);
 
   // Which sessions this deck is even allowed to see — "" for machine-wide, a
   // path when it was started with --workspace/--scope. Null until health
@@ -1132,12 +1144,22 @@ function Inner() {
   // silence next month's release.
   const noticeKey = notice ? `${notice.kind}:${notice.to}` : "";
   const noticeOpen = notice != null && versionDismissed !== noticeKey;
-  const toggleNotice = useCallback(() => {
+  // Two idempotent halves rather than one toggle (#715). The chip used to flip
+  // this, which was fine while flipping it was all the chip did; it now opens
+  // the release notes as well, and a click that opens a modal AND silently
+  // reverses the state of the strip behind it is a click nobody can predict the
+  // second time. So the chip only ever reveals — press it twice and the banner
+  // is shown twice — and putting the banner away moved entirely to the × that
+  // always spelled it.
+  const showNotice = useCallback(() => {
+    setVersionDismissed("");
+    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, ""); } catch { /* private mode */ }
+  }, []);
+  const dismissNotice = useCallback(() => {
     if (!notice) return;
-    const next = versionDismissed === noticeKey ? "" : noticeKey;
-    setVersionDismissed(next);
-    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, next); } catch { /* private mode */ }
-  }, [notice, noticeKey, versionDismissed]);
+    setVersionDismissed(noticeKey);
+    try { window.localStorage.setItem(VERSION_DISMISSED_KEY, noticeKey); } catch { /* private mode */ }
+  }, [notice, noticeKey]);
 
   // ── the name this deck was started under ──────────────────────────────────
   // Three npm names reach this same deck, every surface it draws says ccdeck,
@@ -2830,12 +2852,23 @@ function Inner() {
             {/* The server's own version, not the bundle's — an upgrade replaces
                 dist/ too, so a reloaded page can show a number the running
                 process never had. Stale → the chip stays lit even after the
-                banner is dismissed, and clicking it brings the banner back. */}
+                banner is dismissed, and clicking it brings the banner back.
+
+                One rule across both branches since #715: clicking the version
+                opens what changed in it. The rest of what a click does depends
+                on which branch is drawn — the healthy one asks npm, this one
+                puts the drift banner back — and neither of those can fail in a
+                way that costs the notes, which is the half that has to work
+                everywhere. It has to work here in particular: a deck that is
+                behind stays behind until somebody upgrades it, and while this
+                branch is the one on screen it is the ONLY way back into a
+                dismissed dialog. */}
             {notice ? (
               <button
                 type="button"
                 className="v stale"
-                onClick={toggleNotice}
+                onClick={() => { openReleaseNotes(); showNotice(); }}
+                aria-haspopup="dialog"
                 /* The healthy branch below has carried an accessible name since it
                    was written; this one did not, so its name was its text — the
                    same bare version string, which made the chip that HAS news
@@ -2843,8 +2876,8 @@ function Inner() {
                    versionNoticeLabel for the rest of the reasoning (#381). */
                 aria-label={versionNoticeLabel({ ...notice, open: noticeOpen })}
                 title={notice.kind === "restart"
-                  ? `Running v${notice.from}; v${notice.to} is installed on disk. Restart to pick it up.`
-                  : `Running v${notice.from}; v${notice.to} is on npm.`}
+                  ? `Running v${notice.from}; v${notice.to} is installed on disk. Restart to pick it up · click for what's new`
+                  : `Running v${notice.from}; v${notice.to} is on npm · click for what's new`}
               >
                 v{notice.from}
                 <span className="v-dot" aria-hidden />
@@ -2855,9 +2888,20 @@ function Inner() {
               // `npx ccdeck` the difference is the whole feature. Clicking asks
               // npm now, ahead of the poll — so it has to look like a control and
               // say so out loud, which a dim version number does neither of.
+              //
+              // And since #715 it opens the release notes too, which is the
+              // half that is answered instantly. The ORDER below is the
+              // interesting part and it is not incidental: the notes are in
+              // this bundle and npm is across a network that may not be there,
+              // so the dialog is on screen before the request leaves. Written
+              // the other way round — awaiting the check and opening after —
+              // the button would sit still for the length of a registry
+              // round-trip, and on a deck with no route to npm it would open
+              // nothing at all until the fetch gave up. Nothing the dialog
+              // draws depends on the answer, so there is nothing to wait for.
               (() => {
                 const copy = {
-                  running: version?.running ?? __APP_VERSION__,
+                  running: chipVersion,
                   latest: version?.latest,
                   latestPending: version?.latestPending,
                   checkedAgo: version?.checkedAt ? shortAgo(now - version.checkedAt) : null,
@@ -2868,8 +2912,15 @@ function Inner() {
                   <button
                     type="button"
                     className={versionChecking ? "v checking" : "v"}
-                    onClick={() => loadVersion(true)}
+                    onClick={() => { openReleaseNotes(); loadVersion(true); }}
                     aria-busy={versionChecking || undefined}
+                    /* No aria-pressed and no aria-expanded, for the reason the
+                       usage-history button gives: what this opens is a modal
+                       behind a scrim, so while it is open this button is out of
+                       the tree entirely and a `true` no reader can reach is
+                       worse than no state at all. aria-haspopup is the part
+                       that says what kind of thing opens. */
+                    aria-haspopup="dialog"
                     aria-label={versionChipLabel(copy)}
                     title={versionChipTitle(copy)}
                   >
@@ -2878,35 +2929,6 @@ function Inner() {
                 );
               })()
             )}
-            {/* The way back into the release notes (#712). A button of its own
-                rather than a second job for the chip beside it: the chip
-                already asks npm on a click, and that is the only way to tell
-                "no update" from "no check ran". It is drawn only where there
-                is something to read, so a build whose notes file says nothing
-                about any release this deck has reached shows nothing here.
-                No aria-pressed and no aria-expanded, for the reason the usage
-                history button gives: what it opens is a modal behind a scrim,
-                so while it is open this button is out of the tree entirely and
-                a `true` no reader can reach is worse than no state at all.
-                aria-haspopup is the part that says what kind of thing opens. */}
-            {everyReleaseNote.length > 0 && (() => {
-              const wn = {
-                running: version?.running ?? __APP_VERSION__,
-                releases: everyReleaseNote.length,
-              };
-              return (
-                <button
-                  type="button"
-                  className="v whats-new"
-                  onClick={() => setReleaseNotes({ entries: everyReleaseNote, since: null })}
-                  aria-haspopup="dialog"
-                  aria-label={whatsNewLabel(wn)}
-                  title={whatsNewTitle(wn)}
-                >
-                  What&apos;s new
-                </button>
-              );
-            })()}
           </div>
           {/* NOT a live region, and #372 is the issue that took the
               `role="status"` off it. Nothing in this strip is a status
@@ -3472,7 +3494,7 @@ function Inner() {
               and its Space branch existed only to undo the global preventDefault
               this handler now never reaches, since ownsKeystroke() leaves a
               focused <button> alone. */}
-          <button type="button" aria-label="Dismiss" className="ver-close" onClick={toggleNotice}>×</button>
+          <button type="button" aria-label="Dismiss" className="ver-close" onClick={dismissNotice}>×</button>
         </div>
       ) : oldNameOpen && oldName ? (
         // Last of the four, because it is the only one nobody has to act on
@@ -3999,6 +4021,10 @@ function Inner() {
         <ReleaseNotesModal
           entries={releaseNotes.entries}
           since={releaseNotes.since}
+          /* The same number the chip wears, and defaulted the same way, so the
+             dialog's first line and the chip that opened it cannot disagree
+             about which release the reader is on. */
+          running={chipVersion}
           onClose={() => setReleaseNotes(null)}
         />
       )}

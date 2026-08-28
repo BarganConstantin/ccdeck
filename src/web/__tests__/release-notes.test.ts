@@ -36,6 +36,7 @@ import {
   readSeen,
   RELEASE_NOTES,
   RELEASE_NOTES_SEEN_KEY,
+  splitNoteTitle,
   writeSeen,
   type VersionNotes,
 } from "../release-notes";
@@ -43,7 +44,6 @@ import {
 // self-update.mjs opens with node:fs and node:child_process, so the browser
 // bundle cannot import it. Held against this one below so the two cannot drift.
 import { isOlder } from "../../server/self-update.mjs";
-import { whatsNewLabel, whatsNewTitle } from "../version-chip";
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -371,53 +371,156 @@ describe("what the dialog says about itself", () => {
   it("answers 'why is this here' differently for the two ways in", () => {
     // The deck raised it: the first line has to name what the user has been
     // caught up to, or an unasked-for dialog is just an interruption.
-    const auto = releaseNotesIntro("1.42.0", NOTES);
+    const auto = releaseNotesIntro({ since: "1.42.0", running: "1.48.0", entries: NOTES });
     expect(auto).toContain("v1.42.0");
     expect(auto).toContain("3 releases");
     // …and the way back, because the dialog being dismissible without regret
-    // depends entirely on it. It has to name the control that exists: the
-    // button, not the version chip beside it, which asks npm for a newer
-    // release and has nothing to do with these notes.
-    expect(auto).toContain("What's new button in the topbar");
-    expect(auto).not.toMatch(/version chip/i);
+    // depends entirely on it. It has to name the control that exists, and since
+    // #715 that is the version in the topbar — the separate What's new button
+    // this sentence used to send people to is gone, and a dialog pointing at a
+    // control that is not there is worse than one that points at nothing.
+    expect(auto).toContain("Clicking the version in the topbar brings this back.");
+    expect(auto).not.toMatch(/What's new button/);
     // The user opened it: a different sentence, not a missing one.
-    const browsed = releaseNotesIntro(null, NOTES);
+    const browsed = releaseNotesIntro({ since: null, running: "1.48.0", entries: NOTES });
     expect(browsed).not.toContain("v1.42.0");
     expect(browsed).toMatch(/newest first/i);
   });
 
   it("counts one release in the singular", () => {
-    expect(releaseNotesIntro("1.47.0", NOTES.slice(0, 1))).toContain("one release");
-    expect(releaseNotesIntro("1.47.0", NOTES.slice(0, 1))).not.toContain("1 releases");
+    const one = { since: "1.47.0", running: "1.48.0", entries: NOTES.slice(0, 1) };
+    expect(releaseNotesIntro(one)).toContain("one release");
+    expect(releaseNotesIntro(one)).not.toContain("1 releases");
   });
 
   it("has something to say about an empty run rather than an empty box", () => {
+    // #715 stopped gating the chip on the run being non-empty, so this sentence
+    // is reachable by a click now rather than only by a caller's mistake: a
+    // deck older than everything in its own notes file opens this, and has to
+    // find a sentence in it rather than an empty dialog.
     for (const since of ["1.45.0", null]) {
-      expect(releaseNotesIntro(since, []).length).toBeGreaterThan(30);
+      expect(releaseNotesIntro({ since, running: "1.0.0", entries: [] }).length).toBeGreaterThan(30);
     }
   });
 });
 
-describe("the topbar button's copy", () => {
-  it("names what the notes are about, which the visible word does not", () => {
-    // "What's new" on its own is a category. After an upgrade the question is
-    // what it is new SINCE, and the accessible name is where that goes.
-    expect(whatsNewLabel({ running: "1.45.0", releases: 1 })).toContain("v1.45.0");
+// ── the sentence the browse route can most easily get wrong (#715) ──────────
+//
+// The chip opens this on any release, and most releases changed nothing a user
+// would notice. What the reader sees then is a list headed by an OLDER version
+// than the one in the topbar, and the failure there is not an empty box — it is
+// a full one that reads as though v1.45.0's notes describe the v1.47.0 they are
+// running.
+
+describe("what the first line says about the release you are actually on", () => {
+  const browse = (running: string | null, entries = NOTES) =>
+    releaseNotesIntro({ since: null, running, entries });
+
+  it("says so when the running release is the one at the top of the list", () => {
+    const line = browse("1.48.0");
+    expect(line).toContain("You are running v1.48.0");
+    expect(line).toContain("this is what it changed");
   });
 
-  it("says the notes are scarce on purpose, in both numbers", () => {
-    const one = whatsNewTitle({ running: "1.45.0", releases: 1 });
-    expect(one).toContain("One release");
-    // Both verbs, not just the first: the sentence used to switch number in the
-    // middle and read "It shows … and stay available", which is the kind of
-    // thing only a person looking at the tooltip finds.
-    expect(one).toContain("It shows");
-    expect(one).toContain("stays available");
-    const many = whatsNewTitle({ running: "1.48.0", releases: 4 });
-    expect(many).toContain("4 releases");
-    expect(many).toContain("They show");
-    expect(many).toContain("stay available");
-    expect(many).not.toContain("stays available");
+  it("says the running release had nothing, rather than letting an older one stand in", () => {
+    // The case that made this function need `running` at all. 1.47.0 is not in
+    // NOTES, so the list opens with 1.45.0. "Everything this build has to say"
+    // is true here and still misleads, because the number on the chip that
+    // opened it says 1.47.0.
+    const line = browse("1.47.0", notesBetween(NOTES, null, "1.47.0"));
+    expect(line).toContain("v1.47.0");
+    expect(line).toContain("changed nothing you would notice");
+    // And it must not read as an upgrade: nothing is new, nobody was caught up
+    // anywhere, and this is the reader asking rather than the deck announcing.
+    expect(line).not.toMatch(/caught up/);
+    expect(line).not.toMatch(/Since then/);
+  });
+
+  it("claims nothing about the running release when it does not know one", () => {
+    // /api/version never answered and the bundle's own number is standing in;
+    // the browse route still opens, and the sentence stays true by saying less.
+    for (const running of [null, "", "unknown"]) {
+      const line = browse(running);
+      expect(line, JSON.stringify(running)).toMatch(/newest first/);
+      expect(line, JSON.stringify(running)).not.toMatch(/You are running/);
+      expect(line, JSON.stringify(running)).not.toMatch(/changed nothing/);
+    }
+  });
+
+  it("does not claim a release ahead of the run is the one you are on", () => {
+    // Unreachable through the chip, which never asks for notes past the running
+    // version, and reachable by any other caller. The answer stays honest by
+    // naming no version at all.
+    const line = browse("1.44.0");
+    expect(line).not.toContain("You are running v1.44.0");
+    expect(line).toMatch(/newest first/);
+  });
+});
+
+// ── the emoji that read as flush against the first word (#715) ──────────────
+//
+// Reported from a screenshot as "🔊Pick a volume". The space is in the JSON,
+// survives the bundle and reaches the DOM — Chrome measures it at 3.332px
+// against a 3.324px word space at the same size — so nothing strips it and
+// nothing is missing from the data. What is missing is the side bearing a
+// colour glyph does not have, and supplying that is the renderer's job. This is
+// the half of it that can be wrong.
+
+describe("splitting a note title at its leading emoji", () => {
+  it("takes the emoji off and leaves the space on the text", () => {
+    const { icon, rest } = splitNoteTitle("🔊 Pick a volume");
+    expect(icon).toBe("🔊");
+    // The space stays in `rest` on purpose: it is what keeps the rendered
+    // string identical to the title, so the accessible name, a find-in-page and
+    // a copy out of the dialog are all unchanged by the split.
+    expect(rest).toBe(" Pick a volume");
+  });
+
+  it("is lossless on every string it is given", () => {
+    // The invariant the whole thing rests on. A split that dropped a character
+    // would be a renderer quietly editing release notes.
+    for (const title of [
+      "🔊 Pick a volume", "✨ This box is new", "🔕 The deck no longer puts anything there",
+      "No emoji at all", "", " ", "🔊", "🔊 ", "🔊  two spaces", "🔊Pick a volume",
+      "👍🏽 A skin tone", "👨‍👩‍👧 A joined family", "🇬🇧 A flag", "❤️ A variation selector",
+      "1.46.0 is out", "— an em dash", "🔊 🔕 two of them",
+    ]) {
+      const { icon, rest } = splitNoteTitle(title);
+      expect((icon ?? "") + rest, JSON.stringify(title)).toBe(title);
+    }
+  });
+
+  it("leaves a title that does not open with one exactly as it was", () => {
+    for (const title of ["The deck no longer puts anything there", "1.46.0 changed a default", ""]) {
+      expect(splitNoteTitle(title), title).toEqual({ icon: null, rest: title });
+    }
+  });
+
+  it("keeps a multi-codepoint emoji whole rather than splitting it in half", () => {
+    // A ZWJ sequence, a skin tone and a flag are each ONE thing on screen.
+    // Taking only the first codepoint would strand the rest of the glyph at the
+    // head of the sentence, which is a far worse bug than the one being fixed.
+    expect(splitNoteTitle("👨‍👩‍👧 A joined family").icon).toBe("👨‍👩‍👧");
+    expect(splitNoteTitle("👍🏽 A skin tone").icon).toBe("👍🏽");
+    expect(splitNoteTitle("🇬🇧 A flag").icon).toBe("🇬🇧");
+    expect(splitNoteTitle("❤️ A variation selector").icon).toBe("❤️");
+  });
+
+  it("refuses the two shapes the data must not be written in", () => {
+    // No space at all: the one case a reader really WOULD see as flush, and it
+    // is a data error. Handing it the optical gap here would hide it from the
+    // file test whose job is to fail on it.
+    expect(splitNoteTitle("🔊Pick a volume").icon).toBeNull();
+    // Two spaces: the paper-over this function exists to make unnecessary. It
+    // gains nothing from the split, and the file test refuses it as well.
+    expect(splitNoteTitle("🔊  Pick a volume").icon).toBeNull();
+  });
+
+  it("does not treat a bare emoji with nothing after it as a title's icon", () => {
+    // An icon with no sentence beside it is not a note title, and pulling it
+    // into a box of its own would leave the paragraph empty.
+    expect(splitNoteTitle("🔊").icon).toBeNull();
+    expect(splitNoteTitle("🔊 ").icon).toBeNull();
   });
 });
 
@@ -462,28 +565,99 @@ describe("how App.tsx wires it up", () => {
     expect(app).toMatch(/\|\| keyHelpOpen \|\| releaseNotes != null;/);
   });
 
-  it("offers the topbar button only where there is something to read", () => {
-    expect(app).toMatch(/\{everyReleaseNote\.length > 0 && \(\(\) => \{/);
-    expect(app).toMatch(/aria-haspopup="dialog"/);
-  });
-
-  it("opens the button's route with nothing marked seen, so it shows everything", () => {
+  it("opens the browse route with nothing marked seen, so it shows everything", () => {
     // `since: null` is what makes the browse route a browse: it is not an
     // announcement, so it neither reads nor writes the marker.
     expect(app).toMatch(/setReleaseNotes\(\{ entries: everyReleaseNote, since: null \}\)/);
   });
 
-  it("leaves the version chip's own click alone", () => {
-    // The chip asks npm now, which is the only way to tell "no update" from
-    // "no check ran". #712 adds a control; it does not take one over.
-    expect(app).toMatch(/onClick=\{\(\) => loadVersion\(true\)\}/);
+  it("does not gate the way back on the run being non-empty (#715)", () => {
+    // #712 drew a button only where there was something to read, which was
+    // reasonable for a button that would otherwise be an empty word in the
+    // topbar. The chip is there either way, so the gate would now only mean a
+    // click that does nothing at all — and the dialog has a sentence for the
+    // empty case precisely so it does not need one.
+    expect(code(app)).not.toMatch(/everyReleaseNote\.length > 0/);
+  });
+
+  it("opens the notes before it asks npm, because only one of the two is local", () => {
+    // The ordering, in the one place it can be read off. The dialog is drawn
+    // from a JSON file inlined into this bundle and the check is a round trip
+    // to a registry that may not be reachable at all; awaiting the check first
+    // would leave the button visibly dead for the length of it, and dead
+    // forever on a deck with no route out.
+    const chip = /onClick=\{\(\) => \{ openReleaseNotes\(\); loadVersion\(true\); \}\}/;
+    expect(app).toMatch(chip);
+    // Not the other way round, and not `await`ed: both are the same defect
+    // written differently.
+    expect(app).not.toMatch(/loadVersion\(true\)[^}]*openReleaseNotes/);
+    expect(app).not.toMatch(/await loadVersion\(true\)/);
+  });
+
+  it("keeps the check the chip has always done, exactly as it was", () => {
+    // #715 adds a job to this click. It must not quietly drop the one that was
+    // already there: forcing the check is the only way to tell "no update
+    // exists" from "no check has run", which on a machine that only ever runs
+    // `npx ccdeck` is the whole point of the chip.
+    expect(app).toMatch(/loadVersion\(true\)/);
+    expect(app).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
+  });
+
+  it("is reachable from the drift branch too, which is the branch that persists", () => {
+    // A deck that is behind stays behind until somebody upgrades it, and while
+    // the amber chip is the one drawn it is the ONLY way back into a dismissed
+    // dialog. Leaving this branch alone would have taken #712's reachability
+    // away for exactly as long as the drift lasted.
+    expect(app).toMatch(/onClick=\{\(\) => \{ openReleaseNotes\(\); showNotice\(\); \}\}/);
+    // And it reveals rather than toggles: a click that opens a modal AND
+    // silently reverses the strip behind it is a click nobody can predict the
+    // second time. Putting the banner away stayed with the × that spelled it.
+    expect(code(app)).not.toMatch(/toggleNotice/);
+    expect(app).toMatch(/className="ver-close" onClick=\{dismissNotice\}/);
+  });
+
+  it("tells the dialog the same version the chip is wearing", () => {
+    // One value, defaulted once, so the sentence in the dialog and the number
+    // on the control that opened it cannot disagree about which release the
+    // reader is on.
+    expect(app).toMatch(/const chipVersion = version\?\.running \?\? __APP_VERSION__;/);
+    expect(app).toMatch(/running=\{chipVersion\}/);
   });
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
     expect(modal).toMatch(/className="modal-backdrop"/);
     expect(modal).toMatch(/role="dialog"\n\s*aria-modal="true"/);
-    // No decision logic in the component: it draws what it is handed.
+    // No decision logic in the component: it draws what it is handed. The title
+    // split is release-notes.ts's for the same reason — the component calls it,
+    // it does not carry a regex of its own.
     expect(code(modal)).not.toMatch(/compareVersions|localStorage|decideReleaseNotes/);
+    expect(code(modal)).not.toMatch(/Extended_Pictographic/);
+    expect(modal).toMatch(/splitNoteTitle\(note\.title\)/);
+  });
+
+  it("hands the first line the running version rather than answering for it", () => {
+    // A component that passed `running: null` here would compile, render, and
+    // quietly go back to the sentence that never names the release you are on —
+    // which is the whole thing #715 added the argument for.
+    expect(modal).toMatch(/releaseNotesIntro\(\{ since, running, entries \}\)/);
+  });
+
+  it("gives the leading emoji a box of its own and the text the space", () => {
+    // The whole fix, in the two lines that carry it: an element the sheet can
+    // put a margin on, and the rest of the title — space included — beside it,
+    // so what a reader copies out of this dialog is the title unchanged.
+    expect(modal).toMatch(/\{icon && <span className="rn-note-icon">\{icon\}<\/span>\}/);
+    expect(modal).toMatch(/\{rest\}/);
+    // The rule's OWN body, not "somewhere after the selector": `[\s\S]*?` runs
+    // straight through a closing brace and would have found the margin on some
+    // later rule entirely, which is a green test for a stylesheet that no
+    // longer separates anything.
+    const rule = /\.release-notes \.rn-note-icon \{([^}]*)\}/.exec(src("../styles.css"));
+    expect(rule, ".rn-note-icon has no rule at all").not.toBeNull();
+    expect(rule![1]).toMatch(/margin-right:\s*[^;]+;/);
+    // Never a second space in the markup either — that is the same paper-over
+    // the JSON was not allowed to carry.
+    expect(modal).not.toMatch(/&nbsp;/);
   });
 });

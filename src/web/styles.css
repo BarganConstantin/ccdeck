@@ -651,18 +651,13 @@ button:focus-visible { outline-offset: 1px; }
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 18%, transparent);
 }
-/* The way back to the release notes, beside the number they are about (#712).
-   Everything that makes it a control — the pill, the hairline, the hover, the
-   press — is the chip's own rule above, because it IS the same kind of thing:
-   two quiet words in the version corner. What is different is the weight. The
-   chip resting at 400 is a caption that happens to be pressable; this is a word
-   whose only job is to be pressed, so it keeps the 500 the base rule sets and
-   the `:not(.stale)` rule below it takes away. Declared after that rule for
-   exactly that reason — the two selectors weigh the same, so order decides. */
-.topbar .brand button.v.whats-new {
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
+/* #712 put a second pill here — "What's new", the way back into the release
+   notes — and #715 took it away again. The chip beside it now opens them, so
+   the words were two of topbar spent permanently on a dialog most people open
+   once a month, next to a number that could carry it for nothing. Nothing about
+   the chip's own appearance changed with them; this comment is the only trace,
+   and it is here so the next person to want a control in this corner knows it
+   has been tried. */
 .topbar .brand button.v .v-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
@@ -4487,6 +4482,22 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-weight: 600;
   line-height: 1.45;
   color: var(--text);
+}
+/* The side bearing a colour emoji does not have (#715).
+   Reported as "🔊Pick a volume". The space is in the JSON, survives the bundle
+   and reaches the DOM: Chrome measures it at 3.332px here against a 3.324px
+   word space at the same size, so nothing is stripping anything. What is
+   missing is what a letter brings with it. A colour glyph is drawn edge to edge
+   inside its advance, so a word space after one is ALL the white between it and
+   the next word, where "Aa Bb" gets that space plus two bearings — and the eye
+   is calibrated on the second thing.
+   0.15em rather than a px so it tracks the 13px type if that ever moves, and on
+   the icon rather than as `word-spacing` on the title, which would have pushed
+   every other word in the sentence apart to fix the first gap. The space itself
+   stays in the text: splitNoteTitle keeps it, so what this margin adds is the
+   bearing and nothing else. */
+.release-notes .rn-note-icon {
+  margin-right: 0.15em;
 }
 /* 1.65 rather than the 1.5 the rest of the sheet uses. Everything else set at
    this size in the deck is a label or a number; this is the only place a user

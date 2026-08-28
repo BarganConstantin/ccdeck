@@ -192,26 +192,120 @@ export function versionRangeLabel(entries: VersionNotes[]): string {
   return newest === oldest ? `v${newest}` : `v${oldest} – v${newest}`;
 }
 
+export interface ReleaseNotesIntroInput {
+  /** The version the user had already been shown notes through — a string when
+   *  the deck raised this by itself, null when they opened it from the version
+   *  chip. The two need different sentences: one is answering "why is this
+   *  here", the other "what is this". */
+  since: string | null;
+  /** The version the deck is actually running. Only the browse route reads it,
+   *  and it reads it to avoid the one lie this dialog can tell — see below. */
+  running: string | null;
+  entries: VersionNotes[];
+}
+
 /**
  * The dialog's first line.
  *
- * `since` is the version the user had already been shown — a string when the
- * deck raised this by itself, null when they opened it from the topbar. The two
- * cases need different sentences: one is answering "why is this here", the
- * other is answering "what is this".
+ * The browse route is the one that needs `running`, and #715 is where that
+ * stopped being optional. The chip opens this dialog on any release, including
+ * one that changed nothing a user would notice — which is most of them. What
+ * the reader then sees is a list headed by some earlier version, and the
+ * dialog's job in that first line is to say so out loud. Left to say
+ * "everything this build has to say", it invites the obvious wrong reading:
+ * that v1.46.0's notes are notes about the v1.47.0 you are looking at. So the
+ * three cases are named separately, and the one that is easiest to get wrong —
+ * the running release having nothing of its own — says the quiet part first.
  */
-export function releaseNotesIntro(since: string | null, entries: VersionNotes[]): string {
+export function releaseNotesIntro({ since, running, entries }: ReleaseNotesIntroInput): string {
   if (!entries.length) {
     return "Nothing in this build has anything to report yet. Most releases do not, which is the point.";
   }
-  const releases = entries.length === 1 ? "one release" : `${entries.length} releases`;
-  return since === null
-    ? "Everything this build has to say, newest first. Most releases have nothing here, which is why the deck stays quiet about them."
+  if (since !== null) {
+    const releases = entries.length === 1 ? "one release" : `${entries.length} releases`;
     // Naming the way back, in the dialog itself, is what makes dismissing this
-    // safe. It has to name the control that actually exists: the button beside
-    // the version chip, not the chip — the chip asks npm for a newer release,
-    // which is a different thing entirely.
-    : `You were last caught up at v${since}. Since then ${releases} changed something you would notice. The What's new button in the topbar brings this back.`;
+    // safe. It has to name the control that actually exists, and since #715
+    // that is the version chip itself — the separate What's new button beside
+    // it is gone, and a sentence still pointing at it would be sending people
+    // to look for something that is not there.
+    return `You were last caught up at v${since}. Since then ${releases} changed something you would notice. Clicking the version in the topbar brings this back.`;
+  }
+  const newest = entries[0].version;
+  // Nothing to compare against: /api/version never answered and the bundle's
+  // own number is standing in. Say what is true of the list and nothing about
+  // the deck.
+  if (!isVersion(running)) {
+    return "Everything this build has to say, newest first. Most releases have nothing here, which is why the deck stays quiet about them.";
+  }
+  const drift = compareVersions(newest, running);
+  if (drift < 0) {
+    return `v${running} — the release you are running — changed nothing you would notice, which most releases do not. Below is the last release that did, and everything before it, newest first.`;
+  }
+  // drift > 0 cannot happen through the chip, which never asks for notes past
+  // the running version. It can happen to a caller that does, and the honest
+  // answer there is the one that claims nothing about which release is yours.
+  if (drift > 0) {
+    return "Everything this build has to say, newest first. Most releases have nothing here, which is why the deck stays quiet about them.";
+  }
+  return `You are running v${running}, and this is what it changed — and everything before it, newest first. Most releases have nothing here, which is why the deck stays quiet about them.`;
+}
+
+// ── a note title that opens with an emoji ────────────────────────────────────
+//
+// Reported as "🔊Pick a volume", and the space is not the thing that is wrong.
+// It is in the JSON, it survives the bundle, it reaches the DOM, and Chrome
+// renders it at 3.332px against a 3.324px word space at the same size. What is
+// missing is the side bearing. A colour emoji glyph is drawn edge to edge
+// inside its advance, so a word space after one is ALL the white there is;
+// between two Latin words the same space is padded by the previous letter's
+// right bearing and the next one's left, and the eye is calibrated on that.
+//
+// So the fix is optical and belongs to the renderer — a margin on the emoji,
+// applied by .rn-note-icon in styles.css. Which means the renderer has to know
+// an emoji is there, and that is this function: the one piece of the job that
+// can be wrong, pulled out where a test with no DOM can ask it.
+//
+// The alternative was a second space in the JSON. That is a lie in the data
+// about a defect in the type, it reads as a typo to the next person editing the
+// file, and it is invisible in a diff — and it would have to be repeated by
+// every author of every future note, correctly, forever.
+
+/** A note title in two pieces, which still add up to exactly the title. */
+export interface NoteTitleParts {
+  /** The emoji the title opens with, or null when it does not open with one. */
+  icon: string | null;
+  /** Everything after it — INCLUDING the single space that separated them.
+   *  The space stays in the text on purpose: it is what keeps the rendered
+   *  string identical to the title, so the accessible name, a find-in-page and
+   *  a copy out of the dialog are all unchanged by the split. The margin is the
+   *  only thing the icon's own box adds. */
+  rest: string;
+}
+
+/**
+ * A leading emoji, and everything the deck's authors actually write in front of
+ * a note title: a pictograph, optionally with a variation selector, a skin-tone
+ * modifier, or the zero-width joins that build one glyph out of several. Two
+ * regional indicators for a flag are the same shape of run.
+ *
+ * The `(?= \S)` at the end is the part with a job. It demands EXACTLY one space
+ * after the run, followed by something that is not another space, which means:
+ *   • "🔊Pick"  — no space at all — is not split, and gets no optical gap. The
+ *     data is wrong there and release-notes-file.test.ts fails it; papering it
+ *     over here would hide the one case a reader really would see as flush.
+ *   • "🔊  Pick" — two spaces, the paper-over this function exists to make
+ *     unnecessary — is not split either, so it gains nothing and is refused by
+ *     the same file test.
+ */
+const LEADING_EMOJI =
+  /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[\u200D\uFE0F])+(?= \S)/u;
+
+/** Splits a note title at its leading emoji, losslessly: `icon ?? ""` followed
+ *  by `rest` is the title it was given, for every string. */
+export function splitNoteTitle(title: string): NoteTitleParts {
+  const match = LEADING_EMOJI.exec(title);
+  if (!match) return { icon: null, rest: title };
+  return { icon: match[0], rest: title.slice(match[0].length) };
 }
 
 // ── remembering ──────────────────────────────────────────────────────────────
