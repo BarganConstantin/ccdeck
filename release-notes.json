@@ -33,18 +33,18 @@
   ],
   "1.46.0": [
     {
-      "title": "The speaker button now opens a sound menu, and the two tones are set separately",
-      "body": "Clicking the speaker in the top bar used to be the whole feature: on, or off. It now opens a small panel where the finish tone and the \"Claude is asking\" tone are configured independently — each has its own volume and its own choice of six sounds, and a Hear it button beside it so you can judge a setting without waiting for a real turn to end. The two lists are deliberately separate, so no combination can leave you with two tones that sound the same: every finish sound settles downwards and every asking one rises and stops there, which is what lets you tell them apart without looking at the screen. M still turns the sound on and off from anywhere."
+      "title": "🔊 Pick a volume and a sound for each of the two tones",
+      "body": "Click the speaker in the top bar and a small menu opens. There are two tones — one when a turn finishes, one when Claude is waiting for you — and each has its own volume and its own sound, six to choose from. Press \"Hear it\" to try one straight away, without waiting for a real turn.\n\nThe two lists are separate on purpose, so you can never end up with both tones sounding the same. A finish tone always falls; an asking tone always rises. That is how you tell them apart without looking at the screen.\n\nM still turns the sound on and off from anywhere."
     },
     {
-      "title": "This dialog is new",
-      "body": "When an upgrade brings something you would notice, the deck now says so once, here, and then leaves you alone — most releases carry nothing and show nothing at all. You can read it again whenever you like by clicking the version number in the top bar, which also asks npm whether a newer one is out."
+      "title": "✨ This box is new",
+      "body": "After an update, the deck tells you what changed — once, and only when there is something worth telling. Most updates have nothing to say and you will see nothing at all.\n\nClick the version at the top of the deck to read it again whenever you like."
     }
   ],
   "1.45.0": [
     {
-      "title": "The deck no longer keeps a sound hook in your settings.json",
-      "body": "Until this release the deck played its finish sound by writing a Stop hook into your Claude Code settings.json, pointing at a script inside its own install directory. That entry is now removed on start-up, and any sound hook of your own that the deck had parked out of the way while its own was in place is put back exactly where you wrote it. Nothing else in that file is touched. The deck plays the sound itself now, from the events it already receives — which is also why it finally sounds at the end of a Codex turn and not only a Claude one."
+      "title": "🔕 The deck no longer puts anything in your settings.json",
+      "body": "It used to add a hook there so Claude Code would play a sound when a turn ended. That entry is removed the first time you start this version, and any sound hook you wrote yourself is put back exactly where you had it. Nothing else in that file is touched. The deck makes the sound itself now — which is also why you finally hear one when a Codex turn ends, not just a Claude one."
     }
   ]
 }
