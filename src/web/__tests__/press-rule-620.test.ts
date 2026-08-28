@@ -248,8 +248,14 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
   // rule is about what the control does to itself under a press and the answer
   // has to stay "nothing" — a future handler that reintroduces a request must
   // not reintroduce `disabled={...}` with it.
-  ["the topbar finish-sound switch", "App.tsx",
-    /onClick=\{\(e\) => activateSound\(e\.shiftKey\)\}/,
+  // #711 turned this from a toggle into a disclosure — the click opens the
+  // sound menu — and that makes the rule matter MORE here, not less. A
+  // disclosure that disabled itself under its own press would drop focus off
+  // the very control the popover's Escape is supposed to hand focus back to, so
+  // the user would land on `<body>` with the menu gone. The anchor moves with
+  // the handler; the two attributes it must carry do not.
+  ["the topbar sound-menu button", "App.tsx",
+    /onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/,
     /\{\.\.\.selfPressProps\(false\)\}/],
   ["the version banner's Restart now", "App.tsx",
     /onClick=\{\(\) => askRestart\(\)\}/,

@@ -23,6 +23,7 @@
 // branches can then be read and tested without rendering React, and the branch
 // that matters most is the one nobody exercises by hand — a Codex-only machine.
 import type { Providers } from "./providers";
+import { clampLevel, DEFAULT_PREFS, type TonePrefs } from "./sound";
 
 /**
  * The CLIs this deck watches, named for the middle of a sentence.
@@ -207,6 +208,11 @@ export interface FinishSoundState {
    *  interacted with, and a switch that says "on" over silence is the report
    *  this feature exists to stop generating. */
   locked: boolean;
+  /** What the two tones are set to (#711), so the tooltip can report the
+   *  volumes without the menu being open. Optional, and absent means the
+   *  defaults: a caller that has not read the store back yet is a real render —
+   *  the on/off flag arrives in an effect — and "undefined%" is not a report. */
+  prefs?: TonePrefs;
 }
 
 /**
@@ -238,10 +244,19 @@ export interface FinishSoundState {
  * interacted with, so "on" over silence is a real state the copy has to name.
  */
 export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
-  // The key in parentheses is how every other control on this bar names its own.
+  // The key in parentheses is how every other control on this bar names its own
+  // — and here it is load-bearing rather than conventional, because the CLICK
+  // no longer toggles since #711. A user reading this tooltip is being told the
+  // press opens settings and the key is the fast way to silence.
+  const prefs = s.prefs ?? DEFAULT_PREFS;
+  const done = clampLevel(prefs.done.level);
+  const asking = clampLevel(prefs["needs-input"].level);
+  // Both figures at one number reads as one setting, which is the common case
+  // and the one a two-number sentence would make look complicated.
+  const levels = done === asking ? `${done}%` : `${done}% and ${asking}%`;
   const lead = s.on
-    ? "Sound: on — a tone when a turn finishes, another when Claude asks for you (M)"
-    : "Sound: off — click for a tone when a turn finishes (M)";
+    ? `Sound: on at ${levels} — a tone when a turn finishes, another when Claude asks for you (M)`
+    : "Sound: off — press M, or use the switch in here, for a tone when a turn finishes (M)";
 
   // Since #704 the deck plays the tones itself, from the events it already
   // receives, so this no longer says "Claude Code turns only" — a Codex rollout
@@ -264,5 +279,12 @@ export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
       "used at least once. Anything you press unlocks it."
     : "";
 
-  return lead + scope + locked;
+  // #711. What a press does, said out loud, because the press changed meaning:
+  // this control used to toggle and now discloses. A tooltip that only reported
+  // the state would leave the user to discover that by pressing — which is
+  // exactly the "a gesture you could not discover" complaint #709 was about,
+  // pointed the other way round.
+  const opens = "\n\nClick to set the volume and the sound of each tone, and to hear either one.";
+
+  return lead + scope + locked + opens;
 }

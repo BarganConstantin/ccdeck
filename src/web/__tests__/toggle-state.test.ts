@@ -404,8 +404,13 @@ describe("what each of the four toggles announces", () => {
     expect(sessionList).toMatch(/<aside className="session-list" id="session-list" aria-label="Sessions">/);
     // Enumerated rather than asked of `sessionListOpen` alone, so a control
     // that came back under another state name would fail here too.
+    // `soundMenuOpen` joined the list in #711 and it is the same rule, not an
+    // exception to it: the topbar speaker stopped being a setting-toggle and
+    // became a disclosure for a popover, so it reports what it discloses. The
+    // enumeration is the point — a control that came back under another state
+    // name still fails here.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "usagePanelOpen"]);
+    expect(expandeds).toEqual(["accountsPanelOpen", "soundMenuOpen", "usagePanelOpen"]);
     expect(app).not.toMatch(/aria-controls=\{sessionListOpen/);
   });
 
@@ -432,14 +437,28 @@ describe("what each of the four toggles announces", () => {
     expect(app).toMatch(/<kbd>L<\/kbd><span>session list<\/span>/);
   });
 
-  it("keeps aria-pressed for the sound button, the only one of them that is a setting", () => {
-    // It installs or removes a Stop hook on disk. Nothing appears when it goes
-    // on, so there is no region for aria-expanded to be about.
-    // The label names the CLI since #394 — the button is drawn only where
-    // Claude Code is, and it is the only turn the sound covers.
-    const sound = button("Toggle Claude Code finish sound");
-    expect(sound).toMatch(/aria-pressed=\{soundOn\}/);
-    expect(sound).not.toMatch(/aria-expanded/);
+  it("moved the sound button's aria-pressed onto the switch inside the menu it now opens", () => {
+    // This used to be the one genuine setting-toggle in the row, and #711 took
+    // that away deliberately rather than by accident. The press opens a popover
+    // now — a switch, two volumes, two sound choices, two previews — so
+    // "pressed" would describe an action the button no longer performs, and
+    // aria-expanded describes the one it does. It gains aria-haspopup="dialog"
+    // for the same reason the usage-history button carries it: the kind of
+    // thing that opens is part of what the press promises.
+    const sound = button("Sound settings");
+    expect(sound).toMatch(/aria-expanded=\{soundMenuOpen\}/);
+    expect(sound).toMatch(/aria-haspopup="dialog"/);
+    expect(sound).not.toMatch(/aria-pressed/);
+    // And the state did not evaporate on the way. It is on a real toggle inside
+    // the menu, which is also what M flips — so the setting still reports
+    // itself, one layer in.
+    const menu = markup("components", "SoundMenu.tsx");
+    expect(menu).toMatch(/className="btn sm-switch"[\s\S]{0,120}aria-pressed=\{soundOn\}/);
+    // Non-modal on purpose: nothing behind it is inert and there is no scrim,
+    // so claiming aria-modal would be the lie #518 removed from the modals that
+    // did have one.
+    expect(menu).toMatch(/role="dialog"/);
+    expect(menu).not.toMatch(/aria-modal/);
   });
 
   it("gives the usage-history button aria-haspopup and no state at all", () => {

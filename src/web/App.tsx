@@ -28,6 +28,7 @@ import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFail
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
+import SoundMenu from "./components/SoundMenu";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
@@ -79,7 +80,11 @@ import {
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
-import { chimeFor, createChimePlayer, type ChimeState } from "./sound";
+import {
+  chimeFor, clampLevel, createChimePlayer, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
+  PREVIEW_DELAY_MS, readPrefs,
+  type Chime, type ChimeState, type TonePrefs, type ToneSettings,
+} from "./sound";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
 import { fmtTokens } from "./token-format";
@@ -839,7 +844,11 @@ function Inner() {
   }, []);
 
   /** The single door to the sound switch, in the shape requestClear already
-   *  established for the one other control that answers to two devices. Shift
+   *  established for the one other control that answers to two devices.
+   *
+   *  Which devices those are changed in #711 and the door did not. The topbar
+   *  button no longer toggles — it opens the menu — so the two ways to the
+   *  switch are now M and the menu's own control, and both arrive here. Shift
    *  used to mean "put my own parked hooks back"; #704 removed the mechanism
    *  that parked them, so there is nothing left for it to mean and a press is
    *  a press whatever is held down. */
@@ -855,6 +864,92 @@ function Inner() {
   const soundOnRef = useRef(soundOn);
   soundOnRef.current = soundOn;
 
+  // ── what each tone is set to (#711) ───────────────────────────────────────
+  //
+  // Read in the initialiser rather than in an effect, unlike the on/off flag
+  // above. That one waits a render because the SWITCH would otherwise flash
+  // through "off" on a deck where it is on; these have nothing to flash — they
+  // are read by a menu nobody has opened yet, and by the player at play time.
+  // `readPrefs` takes the reader as an argument so the whole round trip is a
+  // pure function the suite can drive, and the one it is handed is `readStored`
+  // — the wrapped read. A private window and a browser with site data blocked
+  // throw out of the `localStorage` GETTER, and this is a useState initialiser,
+  // which is exactly where storage-blocked.test.ts says a throw takes the whole
+  // deck down with it.
+  const [tonePrefs, setTonePrefs] = useState<TonePrefs>(() => readPrefs(readStored));
+  // The player is built once, on mount, and reads these through the ref at play
+  // time — the same shape `enabled` already uses for the flag.
+  const tonePrefsRef = useRef(tonePrefs);
+  tonePrefsRef.current = tonePrefs;
+  /** The trailing timer for the tone a changed setting plays back. */
+  const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Play one tone as it is currently set.
+   *
+   * `unlock` first because pressing this may well be the first gesture of a
+   * reloaded tab, and the autoplay rules hold the context suspended until
+   * something is pressed — the wake listeners cover it, but these are the only
+   * controls in the app whose entire purpose is to make a sound, so they ask
+   * rather than assume.
+   *
+   * `true` is the audition flag: the switch governs the deck's own reports, not
+   * a press whose whole meaning is "let me hear it". See sound.ts.
+   *
+   * `soon` is what separates a drag from a press. A slider crossing a dozen
+   * steps must collapse to one figure, so a changed setting waits out
+   * PREVIEW_DELAY_MS and is superseded by the next change; the Hear-it button
+   * is not a stream and fires at once, cancelling anything pending so the two
+   * cannot overlap.
+   */
+  const previewTone = useCallback((chime: Chime, soon = false) => {
+    chimesRef.current?.unlock();
+    if (previewRef.current !== null) clearTimeout(previewRef.current);
+    previewRef.current = null;
+    if (!soon) { chimesRef.current?.play(chime, true); return; }
+    previewRef.current = setTimeout(() => {
+      previewRef.current = null;
+      chimesRef.current?.play(chime, true);
+    }, PREVIEW_DELAY_MS);
+  }, []);
+
+  /**
+   * One tone's settings, written and then played back.
+   *
+   * The level is clamped and the figure id is resolved here as well as inside
+   * the player, because this is what gets WRITTEN: a value that survived the
+   * round trip unchecked would come back on the next boot and be corrected
+   * silently forever after, which is a stored preference that does not match
+   * the control showing it.
+   */
+  const changeTone = useCallback((chime: Chime, patch: Partial<ToneSettings>) => {
+    setTonePrefs(prev => {
+      const next: ToneSettings = {
+        level: clampLevel(patch.level ?? prev[chime].level),
+        figure: figureIdFrom(chime, patch.figure ?? prev[chime].figure),
+      };
+      try {
+        localStorage.setItem(LEVEL_KEYS[chime], String(next.level));
+        localStorage.setItem(FIGURE_KEYS[chime], next.figure);
+      } catch { /* no storage */ }
+      return { ...prev, [chime]: next };
+    });
+    previewTone(chime, true);
+  }, [previewTone]);
+
+  // A timer outliving the tab it belongs to is a tone fired into an unmounted
+  // tree. Cheap to clear, and the only thing this component leaves running.
+  useEffect(() => () => { if (previewRef.current !== null) clearTimeout(previewRef.current); }, []);
+
+  /** The menu the topbar button opens (#711). Not persisted: a popover is a
+   *  thing you are doing, not a thing you have set, and a deck that reloaded
+   *  with a menu hanging open would be reporting a gesture nobody made. */
+  const [soundMenuOpen, setSoundMenuOpen] = useState(false);
+  /** The button itself, so the menu's outside-press rule can leave it alone —
+   *  its own onClick already toggles, and both running would close the menu and
+   *  reopen it in the same gesture. */
+  const soundButtonRef = useRef<HTMLButtonElement | null>(null);
+
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
   // constructed before the page has been interacted with is created suspended,
@@ -867,6 +962,7 @@ function Inner() {
   useEffect(() => {
     const player = createChimePlayer({
       enabled: () => soundOnRef.current === true,
+      prefs: () => tonePrefsRef.current,
       onState: setChimeState,
     });
     chimesRef.current = player;
@@ -3127,37 +3223,48 @@ function Inner() {
                 the two ways of making Codex audible that were considered and why
                 neither is this fix (#394). */}
             {providers.claude && soundOn !== null && (
+            <div className="sound-slot">
               <button
+                ref={soundButtonRef}
                 className="btn icon-btn"
-                /* Shift-click restores the user's own hooks. A modifier rather
-                   than another button: it is a one-off recovery, not a control
-                   that earns permanent space in the toolbar. It is no longer a
-                   modifier and nothing else, though — M presses this button and
-                   Shift+M is this gesture, through the same activateSound, and
-                   the sheet under ? writes both of them down. A gesture that
-                   exists only in the source is not a feature that shipped.
-                   The handler used to be spelled out here, at 1,450 characters
-                   of the longest opening tag in the app. It is a callback now
-                   for the reason above and for one more: TAG_BUDGET in
-                   tsx-scan.ts is measured against this tag. */
-                onClick={(e) => activateSound(e.shiftKey)}
+                /* #711: this used to toggle, and the click is now a disclosure.
+                   The gesture that was lost is put back rather than dropped —
+                   M still toggles from anywhere, and the menu carries the
+                   switch so a mouse has both routes. What made the change worth
+                   it is that the menu is no longer one number: it is a switch,
+                   two volumes, two sound choices and two previews, which is a
+                   panel's worth of controls about one subject.
+                   Shift used to restore the user's own parked hooks. #704
+                   removed the mechanism that parked them, so the modifier means
+                   nothing and is not read here.
+                   The handler is a callback rather than spelled out inline for
+                   TAG_BUDGET in tsx-scan.ts, which is measured against this
+                   tag. */
+                onClick={() => setSoundMenuOpen(o => !o)}
                 /* #620: this was `disabled={soundBusy}`, and the flag was set
                    before the first await — so the switch went disabled under
                    the press that had just come from it and Chrome dropped
-                   focus to `<body>`. #704 removed the request entirely: the
-                   toggle is a local flag now, there is nothing to be busy for,
-                   and the argument is the constant that says so. */
+                   focus to `<body>`. #704 removed the request entirely and
+                   #711 leaves nothing to be busy for either: opening a menu is
+                   synchronous, and the argument is the constant that says so.
+                   It matters more now, not less — a disclosure that disables
+                   itself takes focus off the very control the menu's Escape is
+                   supposed to hand focus back to. */
                 {...selfPressProps(false)}
-                title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked" })}
-                /* The name a screen reader announces, and it names the CLI too.
-                   `title` reaches assistive tech only as a description, which is
-                   announced later than the name and by no means everywhere — so
-                   the one qualification a Codex user needs cannot live only
-                   there. Static rather than derived from `providers` because the
-                   button does not render at all without Claude Code, which makes
-                   "Claude Code" true every time this string is read. */
-                aria-label="Toggle Claude Code finish sound"
-                aria-pressed={soundOn}
+                title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked", prefs: tonePrefs })}
+                /* The name a screen reader announces, and it names what the
+                   press DOES: it opens the settings. The on/off state is no
+                   longer here because the button no longer carries it — the
+                   menu's switch does, with aria-pressed of its own, and the
+                   icon keeps showing it. `title` reaches assistive tech only as
+                   a description, which is announced later than the name and by
+                   no means everywhere, so nothing a user needs lives only
+                   there. Static rather than derived, because the button does
+                   not render at all without Claude Code. */
+                aria-label="Sound settings"
+                aria-haspopup="dialog"
+                aria-expanded={soundMenuOpen}
+                aria-controls={soundMenuOpen ? "sound-menu" : undefined}
               >
                 <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z" />
@@ -3166,6 +3273,19 @@ function Inner() {
                     : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
                 </svg>
               </button>
+              {soundMenuOpen && (
+                <SoundMenu
+                  onClose={() => setSoundMenuOpen(false)}
+                  soundOn={soundOn === true}
+                  onToggleSound={toggleSound}
+                  prefs={tonePrefs}
+                  onLevel={(chime, level) => changeTone(chime, { level })}
+                  onFigure={(chime, figure) => changeTone(chime, { figure })}
+                  onPreview={chime => previewTone(chime)}
+                  openerRef={soundButtonRef}
+                />
+              )}
+            </div>
             )}
             <button
               className="btn icon-btn"
