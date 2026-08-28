@@ -374,7 +374,14 @@ export async function startLogin({ email } = {}) {
   // waiting only for a url meant this POST sat open for the whole fifteen
   // seconds afterwards: a spinner in front of a user whose answer was ready
   // almost immediately.
-  await waitFor(() => flow.url || flow.state === "failed", 15_000);
+  await waitFor(() => flow.url || flow.state === "failed" || flow.state === "done", 15_000);
+  // A sign-in that got somewhere without a link this could read is still a
+  // sign-in, and since #708 the done handler can carry one all the way to
+  // `done` on its own. Saying "no url" over that would throw a completed login
+  // away at the last step, which is the whole of the bug being fixed.
+  if (!flow.url && (flow.state === "registering" || flow.state === "done")) {
+    return { ok: true, ...loginState() };
+  }
   if (!flow.url) {
     flow.child.kill();
     // Same identity check as the done handler below, and for a sharper reason:
@@ -467,16 +474,134 @@ async function spawnLogin(email) {
     // A newline ended that line; whatever comes next is a new one.
     if (!partial) countedOnLine = 0;
   });
-  // The child dying before the code was accepted is a failure of the login, not
-  // of the deck; say so rather than leaving the dialog spinning.
-  child.done.then((r) => {
+  // The child ending before a code was pasted USED to be read as a failure, and
+  // on this CLI that is the ordinary end of a sign-in that worked (#708).
+  //
+  // `claude auth login` 2.1.246 does two things at once: it prints
+  // "Paste code here if prompted > " and blocks on stdin, AND it listens on a
+  // loopback port for the OAuth callback. Which half finishes the exchange is
+  // not decided by the CLI's version — it is decided by whether the browser
+  // that opened can reach this machine's loopback. On the deck's own machine it
+  // can, so the CLI takes the code itself, prints "Login successful." and exits
+  // 0 while the deck is still sitting in `awaiting_code`; the page that
+  // authorised says "You're all set up" and never shows a code to paste. On a
+  // deck reached from another machine it cannot, the page shows the code, and
+  // the paste path below is the one that runs.
+  //
+  // So the exit alone is not the verdict. The verdict is the identity, and
+  // `claude auth status --json` is the oracle this module already trusts for
+  // it — asked here against the identity recorded before the flow started.
+  child.done.then(async (r) => {
     if (flow !== _login) return;
-    if (flow.state === "awaiting_url" || flow.state === "awaiting_code") {
+    if (flow.state !== "awaiting_url" && flow.state !== "awaiting_code") return;
+    // Answered before any await, so that a `claude` which cannot be run at all
+    // is still reported within milliseconds: startLogin waits on this state to
+    // decide whether to keep holding its POST open, and the sentence naming
+    // AGENTS_DECK_CLAUDE is the only one in the flow that names a fix. Nothing
+    // was signed in either way, so there is nothing to ask about.
+    if (r.timedOut || cannotRun(r)) {
       flow.state = "failed";
-      flow.error = r.timedOut ? "the sign-in window expired" : failureText(r, "claude auth login") || "sign-in ended without a code";
+      flow.error = loginFailureText(r);
+      return;
     }
+    // Claimed before asking, for the same reason submitLoginCode claims it: a
+    // code posted while the question is out would otherwise register the same
+    // login a second time, with a second `cswap add` racing this one.
+    flow.state = "registering";
+    const identity = await currentIdentity();
+    if (flow !== _login) return;
+    // A clean exit with somebody logged in is a completed sign-in, including
+    // the re-sign-in of an account the deck already holds — an identity that
+    // did not CHANGE is not an identity that did not arrive. A dirty exit
+    // counts only when the identity moved, which is a login that landed in
+    // spite of whatever the CLI complained about on its way out.
+    if (identity && (r.ok || identity.email !== flow.previousEmail)) {
+      await registerSignedIn(flow, identity);
+      return;
+    }
+    flow.state = "failed";
+    flow.error = loginFailureText(r);
+  }).catch((err) => {
+    // This handler answers nobody's request — its promise is dropped — so a
+    // throw anywhere in it would be an unhandled rejection AND a dialog left
+    // spinning on `registering` until the poll gave up. It was three lines of
+    // synchronous assignment before; it now shells out twice.
+    console.error(`${PRODUCT} sign-in: the sign-in could not be finished:`, err?.message ?? err);
+    if (flow !== _login) return;
+    flow.state = "failed";
+    flow.error = "the sign-in could not be finished — see the deck's log";
   });
   return flow;
+}
+
+/** A run that never reached the CLI at all — nothing can have been signed in. */
+function cannotRun(r) {
+  return r?.code === "ENOENT" || looksMissing(`${r?.stderr ?? ""}\n${r?.stdout ?? ""}`, "", r?.code);
+}
+
+/**
+ * Why a sign-in failed, in words meant for the person who pressed the button.
+ *
+ * The child's own output is offered only when it is a diagnosis — see
+ * failureText, which since #708 refuses a line that announces success or is
+ * merely the prompt the CLI was still sitting on. What it printed is not thrown
+ * away; it goes to the deck's log, where an operator can read it, rather than
+ * onto a dialog as the reason.
+ */
+function loginFailureText(r) {
+  // One line, the way ccusage's `note` says everything it says: an operator
+  // watching the terminal is reading it beside the deck's own repainted status
+  // rows, and the escapes in it are a login link's OSC-8 wrapper.
+  //
+  // stderr goes LAST because the line is cut from the front. What should be
+  // lost to the bound is the CLI's chatter — the greeting and a sign-in link
+  // that is 400 characters by itself — never its complaint.
+  const tail = stripTerminalEscapes(`${r?.stdout ?? ""}\n${r?.stderr ?? ""}`).replace(/\s+/g, " ").trim();
+  if (tail) console.error(`${PRODUCT} sign-in: claude auth login did not complete:`, tail.slice(-300));
+  if (r?.timedOut) return "the sign-in window expired";
+  return failureText(r, "claude auth login", "the sign-in did not complete — nothing new was signed in");
+}
+
+/**
+ * Everything after the sign-in itself: confirm who we are now, record it with
+ * claude-swap, and put the previously-active account back in front.
+ *
+ * Shared by the two ways a sign-in can end (#708) — a code pasted into the
+ * prompt, and the CLI finishing the exchange through its own loopback callback
+ * — because the steps after it are identical and have to stay identical. An
+ * account the deck skipped `cswap add` for is signed in at the CLI level and
+ * invisible to the panel, with the account the user was on left switched away
+ * from.
+ *
+ * Returns the same `{ok, ...loginState()}` both callers answer their request
+ * with; the done handler simply drops it.
+ */
+async function registerSignedIn(flow, identity) {
+  return withStoreLock(async () => {
+    const add = await run(await cswapBin(), ["add"], { timeout: CSWAP_TIMEOUT_MS });
+    if (!add.ok) {
+      flow.state = "failed";
+      flow.error = addFailureText(add);
+      await restoreActive(flow.previousActive);
+      return { ok: false, reason: "add_failed", ...loginState() };
+    }
+
+    const after = await readStore();
+    const slot = newSlot(flow.before, after);
+    // No new slot means the account was already managed and cswap refreshed its
+    // credentials in place. That is a success with a different sentence.
+    const num = slot ?? Object.keys(after.emails).find(k => after.emails[k] === identity.email) ?? null;
+
+    await restoreActive(flow.previousActive);
+    invalidateClaudeAccountsCache();
+    // Collect straight away, so the new row shows numbers instead of "never
+    // collected" until the next poll — the same nudge seedFirstAccount uses.
+    runDetached(await cswapBin(), ["list"]);
+
+    flow.state = "done";
+    flow.account = { num, email: identity.email, added: slot != null };
+    return { ok: true, ...loginState() };
+  });
 }
 
 /**
@@ -515,7 +640,11 @@ export async function submitLoginCode(code) {
   }
   if (!r.ok) {
     flow.state = "failed";
-    flow.error = r.timedOut ? "the sign-in window expired" : failureText(r, "claude auth login") || "the code was not accepted";
+    // The `|| "the code was not accepted"` this used to end with could never
+    // run: failureText always answered with something, if only an exit status.
+    // The sentence is where it can be reached now — as the fallback failureText
+    // reaches for when the CLI printed nothing worth repeating.
+    flow.error = r.timedOut ? "the sign-in window expired" : failureText(r, "claude auth login", "the code was not accepted");
     return { ok: false, reason: "login_failed", ...loginState() };
   }
 
@@ -526,31 +655,7 @@ export async function submitLoginCode(code) {
     return { ok: false, reason: "no_identity", ...loginState() };
   }
 
-  return withStoreLock(async () => {
-    const add = await run(await cswapBin(), ["add"], { timeout: CSWAP_TIMEOUT_MS });
-    if (!add.ok) {
-      flow.state = "failed";
-      flow.error = addFailureText(add);
-      await restoreActive(flow.previousActive);
-      return { ok: false, reason: "add_failed", ...loginState() };
-    }
-
-    const after = await readStore();
-    const slot = newSlot(flow.before, after);
-    // No new slot means the account was already managed and cswap refreshed its
-    // credentials in place. That is a success with a different sentence.
-    const num = slot ?? Object.keys(after.emails).find(k => after.emails[k] === identity.email) ?? null;
-
-    await restoreActive(flow.previousActive);
-    invalidateClaudeAccountsCache();
-    // Collect straight away, so the new row shows numbers instead of "never
-    // collected" until the next poll — the same nudge seedFirstAccount uses.
-    runDetached(await cswapBin(), ["list"]);
-
-    flow.state = "done";
-    flow.account = { num, email: identity.email, added: slot != null };
-    return { ok: true, ...loginState() };
-  });
+  return registerSignedIn(flow, identity);
 }
 
 export async function cancelLogin() {
@@ -850,7 +955,7 @@ export async function moveAccount(num, slot) {
  * in every language. Without it, a German user pressing "share…" got the last
  * line of a translated sentence instead of the sentence about PATH.
  */
-export function failureText(r, what = "cswap") {
+export function failureText(r, what = "cswap", fallback = "") {
   const out = `${r?.stderr ?? ""}\n${r?.stdout ?? ""}`;
   const tool = String(what).split(" ")[0];
   if (r?.code === "ENOENT" || looksMissing(out, "", r?.code)) {
@@ -863,7 +968,34 @@ export function failureText(r, what = "cswap") {
   // Asked for one anyway, this said "cswap export exited 0", a success code for
   // a command that never completed.
   if (r?.timedOut || r?.code === "ETIMEDOUT") return `${what} took too long and was stopped`;
-  return firstUseful(out) || `${what} exited ${r?.code}`;
+  return diagnosis(r?.stderr) || diagnosis(r?.stdout) || fallback || `${what} exited ${r?.code}`;
+}
+
+/**
+ * A line that is NOT a diagnosis, however it reached us.
+ *
+ * Two shapes were being shown to users as the reason something failed (#708),
+ * both out of `claude auth login`: the CLI's own "Login successful." — a
+ * failure reason containing the word "successful" is not a diagnosis, it is a
+ * dump — and "Paste code here if prompted >", the unterminated prompt it was
+ * still sitting on, which says that something was ASKED and nothing about
+ * anything going wrong.
+ */
+const NOT_A_DIAGNOSIS = /\bsuccess(?:ful|fully)?\b|[>?]\s*$/i;
+
+/**
+ * One stream's last useful line, if it is worth showing a person.
+ *
+ * Split per stream because the two are not equal: a CLI's diagnosis goes to
+ * stderr and its ordinary progress chatter goes to stdout. Reading the LAST
+ * line of the two concatenated — which is what this module did — handed stdout
+ * the answer whenever it had written anything at all, so `claude auth login`
+ * explained itself with the prompt it had printed rather than with the "Login
+ * failed: …" it had put on stderr.
+ */
+function diagnosis(text) {
+  const line = firstUseful(text);
+  return line && !NOT_A_DIAGNOSIS.test(line) ? line : "";
 }
 
 /** The line worth showing a user out of a CLI's output. */
