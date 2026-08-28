@@ -18,17 +18,30 @@
 //  - the two tones stay tellable apart by CONTOUR. A choice of sounds is a new
 //    way to break #704: a shared catalogue would let both tones be set to the
 //    same figure. Two catalogues make that unrepresentable, and the sweeps
-//    below check the property rather than the three figures that satisfy it
-//    today;
+//    below check the property rather than the figures that satisfy it today;
 //  - the floor stays above zero, the ceiling stays under "well below full
 //    scale", every read and write stays wrapped, and every key stays in the
 //    `agent-dag.*` namespace.
 //
-// The half no assertion can reach is whether three sounds per tone are actually
-// tellable apart by ear, and whether the floor is still audible. What CAN be
-// checked is that they differ on axes a listener uses — note count, pitch
-// sequence, and whether a note repeats before it moves — and that is what the
-// distinctness sweep does. The rest was a listening job; see the pull request.
+// The set grew from three to six, and the sweeps grew with it rather than
+// getting a longer list. Three was argued as a ceiling and was one only inside
+// a single dimension: every figure was a sine, and every figure was a sequence
+// of single notes, so what had been exhausted was pitch contour under 400ms in
+// one timbre. Timbre, texture (two notes at once) and articulation (how long a
+// note rings) were all sitting unused and all free. So the distinctness check
+// now runs over FIVE axes — count, timbre, texture, rhythm, length — and a
+// seventh figure has to differ on one of them to be allowed in.
+//
+// Register is deliberately not an axis. Two figures that differ only by sitting
+// higher or lower make the menu longer without making it more useful, and a
+// laptop speaker flattens the difference anyway.
+//
+// The half no assertion can reach is whether six sounds per tone are actually
+// PLEASANT and tellable apart by ear. What can be checked is that each differs
+// from every other on a named axis, and that each is carried by the axis its
+// name promises — which is what the two sweeps below do, one as a property over
+// the set and one figure by figure. The rest was a listening job; the pull
+// request says which pair is closest and therefore worth hearing first.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -37,8 +50,8 @@ import {
   CHIME_ORDER, clampLevel, createChimePlayer, DEFAULT_FIGURE_ID, DEFAULT_LEVEL,
   DEFAULT_PREFS, figureFor, figureIdFrom, FIGURES, FIGURE_KEYS, FIGURE_SETS,
   GAIN_CEILING, GAIN_FLOOR, gainForLevel, LEVEL_KEYS, levelFrom, LEVEL_MAX,
-  LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, PREVIEW_DELAY_MS, readPrefs,
-  type Chime, type Note, type TonePrefs,
+  LEVEL_MIN, LEVEL_STEP, PEAK_GAIN, peakFor, PREVIEW_DELAY_MS, readPrefs,
+  type Chime, type Figure, type Note, type TonePrefs,
 } from "../sound";
 import { readStored } from "../storage";
 import { finishSoundTitle } from "../provider-copy";
@@ -57,6 +70,22 @@ const css = read("styles.css");
 
 const pitches = (notes: readonly Note[]) => notes.map(n => n.hz);
 const ends = (notes: readonly Note[]) => Math.max(...notes.map(n => n.at * 1000 + n.ms));
+
+// The five things that make one figure a different SOUND from another, each
+// named so a failure says which axis two figures collapsed onto. `two` and
+// `bell` share every pitch they contain and are not the same sound; `arc` and
+// `tap` share a note count and are not either.
+/** Which waveform, defaulting to the sine everything used before #711. */
+const timbre = (f: Figure) => f.type ?? "sine";
+/** Two notes starting at the same instant — a dyad rather than a sequence. */
+const dyad = (f: Figure) => f.notes.some((n, i) => i > 0 && n.at === f.notes[i - 1].at);
+/** A note repeated before the figure moves — a rhythm rather than a melody. */
+const repeats = (f: Figure) => f.notes.some((n, i) => i > 0 && n.hz === f.notes[i - 1].hz);
+/** End to end, in milliseconds: how long it rings. */
+const span = (f: Figure) => ends(f.notes);
+/** The whole sound as one comparable string. Pitches alone are not it. */
+const signature = (f: Figure) =>
+  [timbre(f), f.notes.map(n => `${n.at}:${n.hz}:${n.ms}`).join(","), f.trim ?? 1].join("|");
 /** Every level the slider can actually produce, floor to ceiling. */
 const TRACK = Array.from(
   { length: (LEVEL_MAX - LEVEL_MIN) / LEVEL_STEP + 1 },
@@ -77,6 +106,18 @@ describe("what a tone can be set to", () => {
     const ids = CHIME_ORDER.map(c => FIGURE_SETS[c].map(f => f.id));
     expect(ids[0]).toEqual(ids[1]);
     expect(ids[0]).toContain(DEFAULT_FIGURE_ID);
+  });
+
+  it("lists every one of them in the menu, by name", () => {
+    // A mutation slicing the select down to its first three survived until this
+    // was written: the catalogue was checked and what the MENU does with it was
+    // not. A sound the user cannot select is a sound that does not exist, and
+    // that gap grows with the list rather than shrinking.
+    expect(menu).toMatch(/\{FIGURE_SETS\[chime\]\.map\(f => \(/);
+    expect(menu).toMatch(/<option key=\{f\.id\} value=\{f\.id\}>\{f\.label\}<\/option>/);
+    // Nothing between the set and the options — no slice, no filter, no cap.
+    const rendered = menu.slice(menu.indexOf("FIGURE_SETS[chime]"), menu.indexOf("</select>"));
+    expect(rendered, "the select narrows the set before rendering it").not.toMatch(/slice|filter|splice/);
   });
 
   it("gives every figure an id and a label that says what you will hear", () => {
@@ -130,48 +171,189 @@ describe("the contour contract, which a choice of sounds could have broken", () 
 });
 
 describe("the sounds are tellable apart from each other, not only from the other tone", () => {
-  it("gives no two figures in a set the same notes", () => {
+  it("gives no two figures in a set the same sound", () => {
+    // The SIGNATURE, not the pitch list. `two` and `bell` contain the same two
+    // pitches and are a sine and a triangle over different lengths; comparing
+    // pitches alone would call them identical and comparing them as sounds does
+    // not. That distinction is the whole of why this set can hold six.
     for (const chime of CHIME_ORDER) {
-      const seqs = FIGURE_SETS[chime].map(f => pitches(f.notes).join(","));
-      expect(new Set(seqs).size, `${chime}: two figures sound the same`).toBe(seqs.length);
+      const sigs = FIGURE_SETS[chime].map(signature);
+      expect(new Set(sigs).size, `${chime}: two figures are the same sound`).toBe(sigs.length);
     }
   });
 
-  it("separates them on an axis a listener actually uses", () => {
-    // Note count, the pitch sequence, or whether a note repeats before it moves
-    // — a rhythm rather than a melody. Every pair has to differ on at least one
-    // of the three, which is what stops a fourth figure being added as a shade
-    // of an existing one.
-    const repeats = (n: readonly Note[]) => pitches(n).some((hz, i) => i > 0 && hz === pitches(n)[i - 1]);
+  it("separates every pair on an axis a listener actually uses", () => {
+    // Five axes, and a pair has to differ on at least one. Register is
+    // deliberately NOT among them: two figures that differ only by being higher
+    // or lower are the kind of "choice" that makes a menu longer without making
+    // it more useful, and a small speaker flattens the difference anyway.
+    //
+    // The sweep is what stops a seventh figure arriving as a shade of an
+    // existing one — it is a property over the set, not a list of the six.
     for (const chime of CHIME_ORDER) {
       const set = FIGURE_SETS[chime];
       for (let i = 0; i < set.length; i++) {
         for (let j = i + 1; j < set.length; j++) {
           const [a, b] = [set[i], set[j]];
-          const differs = a.notes.length !== b.notes.length
-            || repeats(a.notes) !== repeats(b.notes)
-            || pitches(a.notes).join() !== pitches(b.notes).join();
-          expect(differs, `${chime}: ${a.id} and ${b.id} vary on nothing`).toBe(true);
+          const axes = {
+            count: a.notes.length !== b.notes.length,
+            timbre: timbre(a) !== timbre(b),
+            texture: dyad(a) !== dyad(b),
+            rhythm: repeats(a) !== repeats(b),
+            // A fifth that is real but weakest, so it needs a MARGIN rather
+            // than any difference at all: 20% of the longer figure.
+            length: Math.abs(span(a) - span(b)) / Math.max(span(a), span(b)) >= 0.2,
+          };
+          const on = Object.entries(axes).filter(([, v]) => v).map(([k]) => k);
+          expect(on.length, `${chime}: ${a.id} and ${b.id} vary on nothing`).toBeGreaterThan(0);
         }
       }
     }
   });
 
-  it("holds the three the set actually ships to what their names claim", () => {
-    // The design claim, stated so a later edit that quietly makes `tap` a
-    // melody or `arc` a repeat has to argue with something.
+  it("says which axis carries each one, so none is only technically different", () => {
+    // The design claim per sound, stated so a later edit that quietly makes
+    // `tap` a melody or `bell` a sine has to argue with something. Each figure
+    // is named here by the axis its NAME promises.
     for (const chime of CHIME_ORDER) {
       const by = (id: string) => FIGURE_SETS[chime].find(f => f.id === id)!;
+
+      // COUNT: two notes, and the sine baseline #704 shipped.
       expect(by("two").notes).toHaveLength(2);
+      expect(timbre(by("two"))).toBe("sine");
+      expect(dyad(by("two")), "two is a sequence").toBe(false);
+
+      // COUNT and melody: three notes, all different, moving every time.
       expect(by("arc").notes).toHaveLength(3);
+      expect(repeats(by("arc")), `${chime}: arc repeats a note`).toBe(false);
+
+      // RHYTHM: three notes like arc, but the first is doubled AND the gaps are
+      // uneven. This pair shares a timbre, a note count and a length, so rhythm
+      // is all that separates them — and the claim has to be checked rather
+      // than asserted in prose, because it was FALSE when it was first written:
+      // both figures had evenly spaced onsets, which left them differing by one
+      // note's pitch and nothing a bad speaker preserves. Measuring is what
+      // found that.
       expect(by("tap").notes).toHaveLength(3);
-      // `arc` moves on every note; `tap` repeats before it moves. That is the
-      // whole of what separates the two three-note figures.
-      const arc = pitches(by("arc").notes);
-      expect(new Set(arc).size, `${chime}: arc repeats a note`).toBe(arc.length);
-      const tap = pitches(by("tap").notes);
-      expect(tap[0], `${chime}: tap does not double its first note`).toBe(tap[1]);
+      expect(repeats(by("tap")), `${chime}: tap does not double a note`).toBe(true);
+      expect(by("arc").notes.length).toBe(by("tap").notes.length);
+      const gaps = (f: Figure) => f.notes.slice(1).map((n, i) => Math.round((n.at - f.notes[i].at) * 1000));
+      const arcGaps = gaps(by("arc")), tapGaps = gaps(by("tap"));
+      // `arc` walks evenly; `tap` does not, by at least half again.
+      expect(Math.max(...arcGaps) / Math.min(...arcGaps), `${chime}: arc is not even`).toBeLessThan(1.2);
+      expect(Math.max(...tapGaps) / Math.min(...tapGaps), `${chime}: tap is evenly spaced, so rhythm separates nothing`)
+        .toBeGreaterThan(1.5);
+
+      // TEXTURE: the only figure that sounds two notes at once.
+      expect(dyad(by("chord")), `${chime}: chord has no dyad`).toBe(true);
+      const withDyad = FIGURE_SETS[chime].filter(dyad).map(f => f.id);
+      expect(withDyad, `${chime}: more than one figure is a chord`).toEqual(["chord"]);
+
+      // TIMBRE, and articulation: the only triangle, and the longest thing here.
+      expect(timbre(by("bell"))).toBe("triangle");
+      expect(span(by("bell"))).toBe(Math.max(...FIGURE_SETS[chime].map(span)));
+
+      // TIMBRE, and articulation the other way: the only square, the shortest,
+      // and the only one that needs a loudness trim.
+      expect(timbre(by("blip"))).toBe("square");
+      expect(span(by("blip"))).toBe(Math.min(...FIGURE_SETS[chime].map(span)));
+      expect(by("blip").trim!).toBeLessThan(1);
+
+      // One figure per non-sine waveform, so no two are competing on the same
+      // timbre and asking a listener to hear a smaller difference than the set
+      // otherwise offers.
+      const voices = FIGURE_SETS[chime].map(timbre);
+      for (const t of new Set(voices)) {
+        if (t === "sine") continue;
+        expect(voices.filter(v => v === t).length, `${chime}: two figures are ${t}`).toBe(1);
+      }
     }
+  });
+
+  it("uses no waveform it cannot vouch for", () => {
+    // Sawtooth is the brightest of the four and the one most likely to be
+    // unpleasant at notification level. Everything else here was reasoned
+    // about; that one could only be guessed at, so it is not offered.
+    for (const chime of CHIME_ORDER) {
+      for (const f of FIGURE_SETS[chime]) {
+        expect(["sine", "triangle", "square"], `${chime}/${f.id}`).toContain(timbre(f));
+      }
+    }
+  });
+});
+
+describe("a different sound is not a different volume", () => {
+  it("keeps the default figure at exactly the gain the slider asks for", () => {
+    // The trim exists to stop a sound change doubling as a volume change. The
+    // figure a tab starts on must be untouched by it, or #704's loudness moved.
+    for (const chime of CHIME_ORDER) {
+      const def = figureFor(chime, DEFAULT_FIGURE_ID);
+      expect(def.trim ?? 1).toBe(1);
+      for (const level of TRACK) {
+        expect(peakFor(level, def), `${chime} at ${level}`).toBe(gainForLevel(level));
+      }
+    }
+  });
+
+  it("trims the waveforms that are louder than a sine at the same peak", () => {
+    // RMS at a peak of A: sine 0.707A, triangle 0.577A, square a full A. So a
+    // square is the one that has to come down, and it comes down by roughly the
+    // ratio — the arithmetic is in the Figure doc, and this is the property.
+    for (const chime of CHIME_ORDER) {
+      const square = FIGURE_SETS[chime].find(f => timbre(f) === "square")!;
+      const sine = figureFor(chime, DEFAULT_FIGURE_ID);
+      expect(peakFor(LEVEL_MAX, square)).toBeLessThan(peakFor(LEVEL_MAX, sine));
+      expect(peakFor(LEVEL_MAX, square)).toBeGreaterThan(peakFor(LEVEL_MAX, sine) * 0.5);
+    }
+  });
+
+  it("pays for every voice a figure sounds at once", () => {
+    // The defect measurement found and assertion had missed. `peakFor` answers
+    // for ONE note; notes that start together SUM, so an untrimmed dyad ramps
+    // two oscillators to 0.24 each and puts 0.447 on the destination — nearly
+    // double the ceiling, out of a figure every per-note check called legal.
+    //
+    // Onset-sharing is the thing to count, not overlap in general: `two`'s
+    // notes overlap for 5ms at the seam, but one is decaying while the other
+    // attacks, so they are never both at peak. Notes at the same `at` are.
+    for (const chime of CHIME_ORDER) {
+      for (const f of FIGURE_SETS[chime]) {
+        const perOnset = new Map<number, number>();
+        for (const n of f.notes) perOnset.set(n.at, (perOnset.get(n.at) ?? 0) + 1);
+        const voices = Math.max(...perOnset.values());
+        // 1/√n is the factor that keeps a figure's ENERGY level with a
+        // single-note one; a hair of tolerance for a rounded trim.
+        expect(f.trim ?? 1, `${chime}/${f.id} sounds ${voices} at once untrimmed`)
+          .toBeLessThanOrEqual(1 / Math.sqrt(voices) + 0.001);
+      }
+    }
+  });
+
+  it("lets no figure at any level exceed the ceiling or reach zero", () => {
+    // The band is what a trim must not break. Above the ceiling would be an
+    // alarm; zero would be undefined behaviour, because the envelope ramps
+    // exponentially and an exponential ramp to zero has no meaning.
+    for (const chime of CHIME_ORDER) {
+      for (const f of FIGURE_SETS[chime]) {
+        for (const level of TRACK) {
+          const peak = peakFor(level, f);
+          expect(peak, `${chime}/${f.id} at ${level}`).toBeGreaterThan(0);
+          expect(peak, `${chime}/${f.id} at ${level}`).toBeLessThanOrEqual(GAIN_CEILING);
+        }
+      }
+    }
+  });
+
+  it("refuses a trim that is not a number it can use", () => {
+    // The one door to the oscillator, so a hand-edited or future figure cannot
+    // drive it out of the band from the other side.
+    for (const bad of [NaN, Infinity, -1, 2, undefined]) {
+      const peak = peakFor(LEVEL_MAX, { trim: bad as number });
+      expect(peak, `trim=${String(bad)}`).toBeGreaterThan(0);
+      expect(peak, `trim=${String(bad)}`).toBeLessThanOrEqual(GAIN_CEILING);
+    }
+    // A trim it CAN use is honoured exactly.
+    expect(peakFor(LEVEL_MAX, { trim: 0.5 })).toBe(GAIN_CEILING * 0.5);
   });
 });
 
@@ -200,10 +382,14 @@ describe("every figure is still a notification", () => {
         const hz = pitches(f.notes);
         expect(new Set(hz).size, `${chime}/${f.id} is one pitch`).toBeGreaterThan(1);
         expect(Math.max(...hz) / Math.min(...hz), `${chime}/${f.id} spread`).toBeGreaterThan(1.4);
-        // Notes arrive in the order they are written, so a figure cannot be
-        // read as a chord by mistake.
+        // Notes arrive in the order they are written. This used to require
+        // each onset to be strictly LATER than the last, which forbade a chord
+        // — and #711's `chord` is exactly a chord, so the rule is now that
+        // onsets never go BACKWARDS. A figure may sound two notes at the same
+        // instant; what it may not do is schedule note 3 before note 2, which
+        // would make the array order a lie about what is heard.
         for (let i = 1; i < f.notes.length; i++) {
-          expect(f.notes[i].at, `${chime}/${f.id} note ${i}`).toBeGreaterThan(f.notes[i - 1].at);
+          expect(f.notes[i].at, `${chime}/${f.id} note ${i}`).toBeGreaterThanOrEqual(f.notes[i - 1].at);
         }
       }
     }
@@ -213,8 +399,8 @@ describe("every figure is still a notification", () => {
 describe("what a tab that never opens the menu hears", () => {
   it("is exactly what #704 shipped", () => {
     expect(DEFAULT_FIGURE_ID).toBe("two");
-    expect(FIGURES.done).toEqual(figureFor("done", DEFAULT_FIGURE_ID));
-    expect(FIGURES["needs-input"]).toEqual(figureFor("needs-input", DEFAULT_FIGURE_ID));
+    expect(FIGURES.done).toEqual(figureFor("done", DEFAULT_FIGURE_ID).notes);
+    expect(FIGURES["needs-input"]).toEqual(figureFor("needs-input", DEFAULT_FIGURE_ID).notes);
     expect(pitches(FIGURES.done)).toEqual([740, 440]);
     expect(pitches(FIGURES["needs-input"])).toEqual([440, 740]);
     expect(DEFAULT_PREFS).toEqual({
@@ -230,12 +416,14 @@ describe("what a tab that never opens the menu hears", () => {
       for (const bad of [null, undefined, "", "nope", "TWO", "Two notes", "__proto__", "constructor"]) {
         expect(figureFor(chime, bad), `${chime}/${String(bad)}`)
           .toEqual(figureFor(chime, DEFAULT_FIGURE_ID));
+        expect(figureFor(chime, bad).notes, `${chime}/${String(bad)}`)
+          .toEqual(figureFor(chime, DEFAULT_FIGURE_ID).notes);
         expect(figureIdFrom(chime, bad), `${chime}/${String(bad)}`).toBe(DEFAULT_FIGURE_ID);
       }
       // And a real one is kept.
       for (const f of FIGURE_SETS[chime]) {
         expect(figureIdFrom(chime, f.id), f.id).toBe(f.id);
-        expect(figureFor(chime, f.id), f.id).toEqual(f.notes);
+        expect(figureFor(chime, f.id), f.id).toEqual(f);
       }
     }
   });
@@ -462,6 +650,7 @@ describe("both tones' settings, read back", () => {
 function fakeAudio() {
   const peaks: number[] = [];
   const started: number[] = [];
+  const voices: string[] = [];
   class Ctx {
     state: "suspended" | "running" = "suspended";
     currentTime = 0;
@@ -471,7 +660,10 @@ function fakeAudio() {
       const node = {
         type: "", frequency: { value: 0 },
         connect: (n: unknown) => n,
-        start() { started.push(node.frequency.value); },
+        // The WAVEFORM is recorded as well as the pitch. It was not, and a
+        // mutation pinning `osc.type = "sine"` survived the whole file: the
+        // catalogue's timbres were asserted as data and never as sound.
+        start() { started.push(node.frequency.value); voices.push(node.type); },
         stop() {},
       };
       return node as unknown as OscillatorNode;
@@ -486,7 +678,7 @@ function fakeAudio() {
       } as unknown as GainNode;
     }
   }
-  return { Ctx: Ctx as unknown as typeof AudioContext, peaks, started };
+  return { Ctx: Ctx as unknown as typeof AudioContext, peaks, started, voices };
 }
 
 const prefsOf = (done: [number, string], asking: [number, string]): TonePrefs => ({
@@ -507,13 +699,44 @@ describe("the player plays each tone as that tone is set", () => {
     p.unlock();
 
     expect(p.play("done")).toBe(true);
-    expect(started).toEqual(pitches(figureFor("done", "arc")));
-    expect(peaks).toEqual(figureFor("done", "arc").map(() => GAIN_FLOOR));
+    expect(started).toEqual(pitches(figureFor("done", "arc").notes));
+    expect(peaks).toEqual(figureFor("done", "arc").notes.map(() => GAIN_FLOOR));
 
     started.length = 0; peaks.length = 0;
     expect(p.play("needs-input")).toBe(true);
-    expect(started).toEqual(pitches(figureFor("needs-input", "tap")));
-    expect(peaks).toEqual(figureFor("needs-input", "tap").map(() => GAIN_CEILING));
+    expect(started).toEqual(pitches(figureFor("needs-input", "tap").notes));
+    expect(peaks).toEqual(figureFor("needs-input", "tap").notes.map(() => GAIN_CEILING));
+  });
+
+  it("plays each figure in its own voice, and at its own trimmed loudness", () => {
+    // Both halves survived a mutation before they were written here. The
+    // catalogue's timbres were asserted as DATA and never as sound, so pinning
+    // `osc.type = "sine"` in the player passed the whole file; and every figure
+    // the player cases used had a trim of 1, so dropping `peakFor` for
+    // `gainForLevel` was invisible. A set of six that the player flattens back
+    // to one sine at one loudness is not a set of six.
+    for (const chime of CHIME_ORDER) {
+      for (const f of FIGURE_SETS[chime]) {
+        const { Ctx, peaks, started, voices } = fakeAudio();
+        const p = createChimePlayer({
+          enabled: () => true,
+          prefs: () => prefsOf([LEVEL_MAX, f.id], [LEVEL_MAX, f.id]),
+          ctor: Ctx,
+        });
+        p.unlock();
+        expect(p.play(chime), `${chime}/${f.id}`).toBe(true);
+        expect(started, `${chime}/${f.id} notes`).toEqual(pitches(f.notes));
+        // One oscillator per note, every one of them the figure's waveform.
+        expect(voices, `${chime}/${f.id} waveform`).toEqual(f.notes.map(() => timbre(f)));
+        // And the trim is on the gain, not merely declared on the figure.
+        expect(peaks, `${chime}/${f.id} peak`).toEqual(f.notes.map(() => peakFor(LEVEL_MAX, f)));
+      }
+    }
+    // Vacuity guard: at least one figure must actually be trimmed and at least
+    // one must not be a sine, or the two assertions above prove nothing.
+    const all = CHIME_ORDER.flatMap(c => FIGURE_SETS[c]);
+    expect(all.filter(f => (f.trim ?? 1) < 1).length).toBeGreaterThan(0);
+    expect(all.filter(f => timbre(f) !== "sine").length).toBeGreaterThan(0);
   });
 
   it("reads the settings at play time, so changing one changes the next tone", () => {
@@ -527,7 +750,7 @@ describe("the player plays each tone as that tone is set", () => {
     prefs = prefsOf([LEVEL_MAX, "tap"], [DEFAULT_LEVEL, "two"]);
     started.length = 0; peaks.length = 0;
     p.play("done");
-    expect(started).toEqual(pitches(figureFor("done", "tap")));
+    expect(started).toEqual(pitches(figureFor("done", "tap").notes));
     expect(new Set(peaks)).toEqual(new Set([GAIN_CEILING]));
   });
 
@@ -576,7 +799,7 @@ describe("the one press allowed past the switch", () => {
     p.unlock();
     expect(p.play("done", true)).toBe(true);
     // And it previews the CHOSEN sound, which is the whole point of a preview.
-    expect(started).toEqual(pitches(figureFor("done", "arc")));
+    expect(started).toEqual(pitches(figureFor("done", "arc").notes));
   });
 
   it("does not waive the browser's own lock with it", () => {

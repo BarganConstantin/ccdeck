@@ -21,19 +21,49 @@ export const CHIME_ORDER: readonly Chime[] = ["done", "needs-input"];
 /** One note of a figure. `at` is seconds from the start of the figure. */
 export type Note = { at: number; hz: number; ms: number };
 
-/** One selectable sound: an id that goes in the store, a name for the menu, and
- *  the notes themselves. */
+/**
+ * One selectable sound: an id that goes in the store, a name for the menu, the
+ * notes, and the two things that make a set of six possible rather than a set
+ * of three (#711).
+ */
 export interface Figure {
   /** Stable, and written to localStorage. Renaming one costs every user who
    *  picked it their choice, so these are ids and not labels. */
   id: string;
   /** What the menu calls it — a description of what you will HEAR, which is
-   *  the only thing that helps somebody choosing between three of them. */
+   *  the only thing that helps somebody choosing in a dropdown of six. Each
+   *  one names a different QUALITY: how many notes, which direction, a rhythm,
+   *  a harmony, an instrument, a character. Never "Sound 4". */
   label: string;
+  /** The oscillator's waveform. Absent means the sine every figure used before
+   *  timbre was a lever at all. */
+  type?: OscillatorType;
+  /**
+   * Loudness matching, 0–1, applied on top of the user's level.
+   *
+   * Waveforms are not equally loud at equal PEAK amplitude — that is the number
+   * the envelope ramps to, and RMS is what the ear integrates. For a peak of A:
+   * a sine is 0.707A, a triangle 0.577A, a square a full A. So a square figure
+   * at the same slider position is about 3 dB hotter than a sine one before
+   * its harmonics are even considered, and switching sound would double as a
+   * volume change — which would make the volume control a liar.
+   *
+   * The second thing it pays for is VOICES. Notes that start together sum, so
+   * a dyad ramping two oscillators to the same peak reaches twice that peak at
+   * the destination — rendering `chord` untrimmed measured a true peak of 0.447
+   * against a ceiling of 0.24. `peakFor` could not have caught that on its own:
+   * it answers for one note, and the sum is what reaches the speaker. A figure
+   * sounding n notes at once therefore takes a trim of at most 1/√n, which is
+   * the factor that keeps its ENERGY level with a single-note figure's.
+   *
+   * The default figure's trim is exactly 1, so a tab that never opens the menu
+   * hears precisely what #704 shipped.
+   */
+  trim?: number;
   notes: readonly Note[];
 }
 
-// ── the sounds on offer (#711) ──────────────────────────────────────────────
+// ── the sounds on offer (#711) ──────────────────────────────────
 //
 // #704 built two figures and the argument for them is unchanged and is the
 // reason there is a set PER TONE rather than one shared list:
@@ -46,49 +76,107 @@ export interface Figure {
 // A single shared catalogue would let a user set both tones to the same sound
 // and throw that away, and they would not find out until the day they needed to
 // know which one had just fired. Two catalogues make it impossible: every
-// figure offered for `done` ends on its lowest note, every figure offered for
-// `needs-input` ends on its highest, so no choice of settings can produce two
-// tones that mean the same thing.
+// figure offered for `done` settles on the lowest note it contains, every
+// figure offered for `needs-input` ends on the highest, so no choice of
+// settings can produce two tones that mean the same thing.
 //
-// Three per tone, and three is a ceiling reached on purpose rather than a
-// number picked. A fourth was drafted for each — a longer five-note run, and a
-// version of `two` shifted down a fourth — and both were dropped: the five-note
-// run ran past the 400ms that keeps a figure a notification, and the shifted
-// one differed from `two` by register alone, which is the kind of "choice" that
-// makes a menu longer without making it more useful. Fewer and distinct beats
-// more and blurred.
+// ── why six, when three was argued as a ceiling ──────────────────────
 //
-// The three axes the set actually varies, which is what makes them tellable
-// apart rather than three shades of the same thing:
+// The first three of these shipped with an argument that three was the most a
+// set could hold and stay tellable apart. That argument was reached inside ONE
+// dimension and is wrong outside it: every figure was a SINE, and every figure
+// was a SEQUENCE OF SINGLE NOTES, so what was exhausted was pitch contour under
+// 400ms in one timbre — a far smaller space than the one available.
 //
-//   two   2 notes, one step        the quick blip #704 shipped
-//   arc   3 notes, a triad walk    a longer, more musical sweep
-//   tap   3 notes, first doubled   a rhythm rather than a melody
+// Three dimensions were sitting unused, and each is free: no asset, no fetch,
+// no extra milliseconds.
 //
-// `arc` and `tap` both have three notes, so note-count alone does not separate
-// them: one moves on every note and the other repeats before it moves, which is
-// a difference in rhythm and survives a bad speaker better than a difference in
-// pitch does.
+//   TIMBRE        `OscillatorNode.type`. A triangle and a sine playing the same
+//                 two notes are the same figure and a different sound, and the
+//                 difference survives a laptop speaker better than an interval
+//                 does — a small speaker rolls off the fundamental and leaves
+//                 the harmonics, which is exactly where timbre lives.
+//   TEXTURE       two notes at ONCE rather than in turn. A dyad costs no time
+//                 at all, because the notes overlap instead of following.
+//   ARTICULATION  how long a note is left ringing. The envelope is unchanged —
+//                 a 12ms attack and a decay to the note's end — so a 55ms note
+//                 is percussive and a 260ms one rings, out of the same code.
+//
+// So the six below are not six contours. They are six characters, and the
+// comment on each says which axis carries it — because a sound that is only
+// TECHNICALLY different from its neighbour makes the menu worse, not richer.
+//
+// Sawtooth is deliberately not used. It is the brightest of the four waveforms
+// and the one most likely to be unpleasant at notification level, and unlike
+// the other three there is no way to be sure of that without hearing it. Fewer
+// and certain beats more and hopeful.
 //
 // Frequencies stay inside roughly 400–1000 Hz. Below that a laptop speaker
 // rolls the note off into a click, and above it a sine at notification level
 // starts to sound like an alarm. A4 440 and F#5 740 are the two #704 chose;
 // E5 659 and B5 988 are the notes that complete a triad with them.
 
-/** The falling figures — the tone for a turn that finished. Each ends on its
- *  own lowest note, which is what "settled" is. */
+/** The falling figures — the tone for a turn that finished. Each settles on the
+ *  lowest note it contains, which is what "settled" is. */
 const DONE_FIGURES: readonly Figure[] = [
-  { id: "two", label: "Two notes", notes: [{ at: 0, hz: 740, ms: 90 }, { at: 0.085, hz: 440, ms: 150 }] },
-  { id: "arc", label: "Descent", notes: [{ at: 0, hz: 988, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 440, ms: 160 }] },
-  { id: "tap", label: "Double tap", notes: [{ at: 0, hz: 740, ms: 70 }, { at: 0.065, hz: 740, ms: 70 }, { at: 0.145, hz: 440, ms: 150 }] },
+  // COUNT, and the baseline. #704's own figure, byte for byte: no type, no
+  // trim, so a tab that never opens the menu is untouched by all of this.
+  { id: "two", label: "Two notes",
+    notes: [{ at: 0, hz: 740, ms: 90 }, { at: 0.085, hz: 440, ms: 150 }] },
+  // COUNT and melody: three notes walking down a triad rather than one step.
+  { id: "arc", label: "Descent",
+    notes: [{ at: 0, hz: 988, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 440, ms: 160 }] },
+  // RHYTHM: three notes again, but the first is repeated instead of moving,
+  // and — the part that took a measurement to get right — the gaps are UNEVEN.
+  // `arc` and `tap` are the one pair in this set sharing a timbre, a note count
+  // and a length, so rhythm has to be what separates them. It did not: both
+  // sets of onsets were evenly spaced (0/70/140 against 0/65/145), which left
+  // the pair differing by one note's pitch and nothing a bad speaker preserves.
+  // Two quick taps and then a landing — 55ms apart, then 110 — is a 1:2 gap
+  // against `arc`'s 1:1, and needs no pitch resolution at all to hear.
+  { id: "tap", label: "Double tap",
+    notes: [{ at: 0, hz: 740, ms: 55 }, { at: 0.055, hz: 740, ms: 55 }, { at: 0.165, hz: 440, ms: 150 }] },
+  // TEXTURE: the only figure here that sounds two notes at once. A dyad opens
+  // it and a single note resolves underneath — the same falling shape as the
+  // others, told with harmony rather than with a sequence, and in 270ms
+  // because the two notes overlap instead of queueing. Trimmed to 0.7 for the
+  // two voices, which is the 1/√2 that keeps its energy level with the
+  // single-note figures; untrimmed it measured a true peak of 0.447.
+  { id: "chord", label: "Chord", trim: 0.7,
+    notes: [{ at: 0, hz: 988, ms: 110 }, { at: 0, hz: 740, ms: 110 }, { at: 0.1, hz: 440, ms: 170 }] },
+  // TIMBRE and articulation: a triangle, left ringing. Two notes like `two`,
+  // so the timbre is what a listener is comparing — and 370ms against `two`'s
+  // 235ms, so it is not ONLY the timbre. Rendered and measured, the two sit an
+  // octave apart in spectral centroid (646Hz against 1296Hz), which is the
+  // objective form of "a different instrument playing the same figure".
+  { id: "bell", label: "Bell", type: "triangle",
+    notes: [{ at: 0, hz: 740, ms: 120 }, { at: 0.11, hz: 440, ms: 260 }] },
+  // TIMBRE and articulation, the other way: a square, clipped short. 150ms end
+  // to end, the shortest thing in either catalogue, and unmistakably digital
+  // rather than musical. Trimmed to 0.7 because a square's RMS is a full 1.0
+  // of its peak against a sine's 0.707.
+  { id: "blip", label: "Blip", type: "square", trim: 0.7,
+    notes: [{ at: 0, hz: 740, ms: 55 }, { at: 0.06, hz: 440, ms: 90 }] },
 ];
 
-/** The rising figures — the tone for Claude waiting on you. Each ends on its
- *  own highest note, which is what "unresolved" is. */
+/** The rising figures — the tone for Claude waiting on you. Each ends on the
+ *  highest note it contains, which is what "unresolved" is. Same six
+ *  characters, same axes, read the other way up. */
 const ASKING_FIGURES: readonly Figure[] = [
-  { id: "two", label: "Two notes", notes: [{ at: 0, hz: 440, ms: 90 }, { at: 0.085, hz: 740, ms: 150 }] },
-  { id: "arc", label: "Ascent", notes: [{ at: 0, hz: 440, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 988, ms: 160 }] },
-  { id: "tap", label: "Double tap", notes: [{ at: 0, hz: 440, ms: 70 }, { at: 0.065, hz: 440, ms: 70 }, { at: 0.145, hz: 740, ms: 150 }] },
+  { id: "two", label: "Two notes",
+    notes: [{ at: 0, hz: 440, ms: 90 }, { at: 0.085, hz: 740, ms: 150 }] },
+  { id: "arc", label: "Ascent",
+    notes: [{ at: 0, hz: 440, ms: 80 }, { at: 0.07, hz: 659, ms: 80 }, { at: 0.14, hz: 988, ms: 160 }] },
+  { id: "tap", label: "Double tap",
+    notes: [{ at: 0, hz: 440, ms: 55 }, { at: 0.055, hz: 440, ms: 55 }, { at: 0.165, hz: 740, ms: 150 }] },
+  // The dyad LANDS here rather than opening, which is what keeps the question
+  // mark: the figure ends on an unresolved pair instead of settling under it.
+  { id: "chord", label: "Chord", trim: 0.7,
+    notes: [{ at: 0, hz: 440, ms: 110 }, { at: 0.1, hz: 740, ms: 170 }, { at: 0.1, hz: 988, ms: 170 }] },
+  { id: "bell", label: "Bell", type: "triangle",
+    notes: [{ at: 0, hz: 440, ms: 120 }, { at: 0.11, hz: 740, ms: 260 }] },
+  { id: "blip", label: "Blip", type: "square", trim: 0.7,
+    notes: [{ at: 0, hz: 440, ms: 55 }, { at: 0.06, hz: 740, ms: 90 }] },
 ];
 
 /** Every sound each tone can be set to. */
@@ -97,40 +185,40 @@ export const FIGURE_SETS: Record<Chime, readonly Figure[]> = {
   "needs-input": ASKING_FIGURES,
 };
 
-/** What a tab that has never chosen hears. The two #704 shipped, so nobody's
+/** What a tab that has never chosen hears. The one #704 shipped, so nobody's
  *  deck changes its sound because this feature landed. */
 export const DEFAULT_FIGURE_ID = "two";
 
 /**
- * The notes for one tone's chosen sound, falling back to the default.
+ * The whole figure for one tone's chosen sound, falling back to the default.
  *
  * An unknown id is the default rather than an error or a silence: it arrives
  * from a store that is older, newer or hand-edited, and every one of those
  * should leave the deck audible.
  */
-export function figureFor(chime: Chime, id: string | null | undefined): readonly Note[] {
+export function figureFor(chime: Chime, id: string | null | undefined): Figure {
   const set = FIGURE_SETS[chime];
-  return (set.find(f => f.id === id) ?? set.find(f => f.id === DEFAULT_FIGURE_ID) ?? set[0]).notes;
+  return set.find(f => f.id === id) ?? set.find(f => f.id === DEFAULT_FIGURE_ID) ?? set[0];
 }
 
 /** One stored figure id, or the default when it names nothing on offer. Kept
  *  separate from `figureFor` because the MENU needs the id — to mark the right
- *  option selected — and the player needs the notes. */
+ *  option selected — and the player needs the figure. */
 export function figureIdFrom(chime: Chime, raw: string | null | undefined): string {
   const set = FIGURE_SETS[chime];
   return set.some(f => f.id === raw) ? (raw as string) : DEFAULT_FIGURE_ID;
 }
 
 /**
- * The two default figures, under the name #704 gave them.
+ * The two default figures' notes, under the name #704 gave them.
  *
  * Derived rather than restated: this is what `figureFor` answers for a tab that
  * has chosen nothing, so the defaults cannot drift away from the sets the menu
  * offers. deck-chimes-704.test.ts holds the contour argument against these.
  */
 export const FIGURES: Record<Chime, readonly Note[]> = {
-  done: figureFor("done", DEFAULT_FIGURE_ID),
-  "needs-input": figureFor("needs-input", DEFAULT_FIGURE_ID),
+  done: figureFor("done", DEFAULT_FIGURE_ID).notes,
+  "needs-input": figureFor("needs-input", DEFAULT_FIGURE_ID).notes,
 };
 
 // ── how loud (#711) ─────────────────────────────────────────────────────────
@@ -254,6 +342,32 @@ export function gainForLevel(level: number): number {
  *  will come here looking for — it is the DEFAULT now rather than the only
  *  value, and gainForLevel is what the player actually calls. */
 export const PEAK_GAIN = gainForLevel(DEFAULT_LEVEL);
+
+/**
+ * What one note of one figure actually ramps to: the user's level, trimmed for
+ * the waveform's own loudness.
+ *
+ * The trim is here rather than folded into the figure's notes so there stays
+ * exactly ONE door to the oscillator, and it is `gainForLevel`'s answer that
+ * goes through it. That keeps the two properties the band is worth having for:
+ * nothing can be louder than a sine at the ceiling, and nothing can reach zero
+ * — which matters twice over, because the envelope ramps EXPONENTIALLY and a
+ * ramp to zero is undefined in the spec.
+ *
+ * A trimmed figure sits below GAIN_FLOOR in peak terms and that is correct, not
+ * a violation: the floor is a loudness, and a square at 0.7 of a sine's peak is
+ * the same loudness. What must not happen is a figure exceeding the ceiling,
+ * which a trim of 1 or less cannot do.
+ */
+export function peakFor(level: number, figure: Pick<Figure, "trim">): number {
+  const raw = figure.trim;
+  // Out of range is UNTRIMMED, not clamped — the same rule a corrupt stored
+  // level gets, and for the same reason. Clamping instead would send a trim of
+  // 0 or -1 to zero, and zero is the one value the exponential ramp cannot
+  // express; a figure whose trim is nonsense should be audible, not undefined.
+  const trim = typeof raw === "number" && Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : 1;
+  return Math.round(gainForLevel(level) * trim * 10_000) / 10_000;
+}
 
 /**
  * How long after the last change to a tone the deck plays it back.
@@ -434,22 +548,31 @@ export function createChimePlayer(opts: {
   function play(chime: Chime, audition = false) {
     if ((!audition && !opts.enabled()) || !ctx || ctx.state !== "running") return false;
     const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
-    const peak = gainForLevel(tone.level);
+    const figure = figureFor(chime, tone.figure);
+    const peak = peakFor(tone.level, figure);
     const now = ctx.currentTime;
-    for (const note of figureFor(chime, tone.figure)) {
+    for (const note of figure.notes) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      // A sine with a shaped envelope, rather than a raw start/stop: an
-      // abruptly gated oscillator clicks, and a click is the part people find
-      // unpleasant, not the tone.
-      osc.type = "sine";
+      // A shaped envelope rather than a raw start/stop: an abruptly gated
+      // oscillator clicks, and a click is the part people find unpleasant, not
+      // the tone. One gain node PER NOTE, which is what lets two of them start
+      // at the same instant and sound as a dyad (#711's `chord`).
+      //
+      // The waveform is the figure's, defaulting to the sine every figure used
+      // before timbre was a lever. Nothing else about the synthesis changes:
+      // articulation is `ms` and texture is `at`, both of which this loop
+      // already honoured.
+      osc.type = figure.type ?? "sine";
       osc.frequency.value = note.hz;
       const t0 = now + note.at;
       const t1 = t0 + note.ms / 1000;
       gain.gain.setValueAtTime(0.0001, t0);
-      // `peak`, not PEAK_GAIN. The ramp is exponential and an exponential ramp
-      // to zero is undefined behaviour in the spec — which is the second
-      // reason GAIN_FLOOR is above zero rather than the first.
+      // `peak`, not PEAK_GAIN: the user's level, trimmed for this waveform. The
+      // ramp is exponential and an exponential ramp to zero is undefined
+      // behaviour in the spec — which is the second reason GAIN_FLOOR is above
+      // zero rather than the first, and the reason peakFor clamps the trim
+      // rather than trusting it.
       gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, t1);
       osc.connect(gain).connect(ctx.destination);
