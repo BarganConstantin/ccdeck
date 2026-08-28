@@ -35,13 +35,14 @@ process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 // @ts-expect-error — .mjs server module, no types
 const { writeFileAtomic, CLAUDE_DIR } = await import("../../server/installer.mjs");
 // @ts-expect-error — .mjs server module, no types
-const { setSoundHook, soundHookStatus, SETTINGS_PATH, PARKED_PATH } = await import("../../server/sound-hook.mjs");
+const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } =
+  await import("../../server/retire-sound-hook.mjs");
 
 // Belt and braces. If any of those paths ever stopped honouring the
 // environment, this file would be racing writes against the developer's own
 // settings.json — the exact file the bug corrupts — so fail before a single
 // test gets the chance.
-for (const p of [CLAUDE_DIR, SETTINGS_PATH, PARKED_PATH]) {
+for (const p of [CLAUDE_DIR, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH]) {
   if (!String(p).startsWith(FAKE_HOME)) {
     throw new Error(`refusing to run: server module resolved ${p}, outside ${FAKE_HOME}`);
   }
@@ -141,36 +142,47 @@ describe("two writes landing on one file at the same moment", () => {
   });
 });
 
-describe("two deck tabs toggling the sound within the same few milliseconds", () => {
+// The toggle this file was written against is gone (#704 — the deck plays its
+// own tones), and its two concurrent writers went with it. What replaced them is
+// a better version of the same scenario rather than a weaker one: retirement
+// runs on an ORDINARY BOOT, without anybody clicking anything, so two decks
+// started within a second of each other — a supervisor restart, a second tab's
+// `npx ccdeck`, a login item and a terminal — race over exactly this file with
+// nothing to serialise them and no user watching.
+describe("two decks retiring the old sound hook within the same few milliseconds", () => {
   it("leaves settings.json readable, with every setting the user had", async () => {
     // Bulky on purpose: the two rewrites overlap for long enough that a shared
     // temp file could not survive it, which is the whole scenario in the report.
     const allow = Array.from({ length: 4000 }, (_, i) => `Bash(cmd${i}:*)`);
-    writeFileSync(SETTINGS_PATH, JSON.stringify({ model: "opus", permissions: { allow } }, null, 2) + "\n", "utf8");
+    const ours = {
+      "__agent-dag-sound": true,
+      hooks: [{ type: "command", command: `"${process.execPath}" "${NOTIFY_PATH}"`, timeout: 5 }],
+    };
+    writeFileSync(SETTINGS_PATH, JSON.stringify({
+      model: "opus", permissions: { allow }, hooks: { Stop: [ours] },
+    }, null, 2) + "\n", "utf8");
 
-    // Both tabs click the same way, so the two toggles do the same work in the
-    // same order and arrive at the temp file together — which is what makes this
-    // the reachable version of the bug rather than a contrived one. They race
-    // over notify.mjs as well as settings.json, and both files have to survive it.
-    const done = await settle([setSoundHook(true), setSoundHook(true)]);
+    // Both decks boot the same way, so the two retirements do the same work in
+    // the same order and arrive at the temp file together — which is what makes
+    // this the reachable version of the bug rather than a contrived one.
+    const done = await settle([retireSoundHook(), retireSoundHook()]);
 
     expect(done).toEqual(["fulfilled", "fulfilled"]);
     const written = JSON.parse(readFileSync(SETTINGS_PATH, "utf8"));
     expect(written.model).toBe("opus");
     expect(written.permissions.allow).toHaveLength(4000);
+    // And the thing they were both there to remove is out exactly once.
+    expect(JSON.stringify(written)).not.toContain("__agent-dag-sound");
   });
 
-  it("does not leave the toggle refusing every later click with SETTINGS_UNREADABLE", async () => {
+  it("does not leave every later write refusing with SETTINGS_UNREADABLE", async () => {
     // The cost of the corruption, rather than the corruption itself: one torn
     // write used to end with a settings.json nothing would rewrite again until
-    // the user repaired it by hand.
-    const status = await soundHookStatus();
+    // the user repaired it by hand — including the hook install on every
+    // subsequent boot.
+    const again = await retireSoundHook();
 
-    expect(status.ok).toBe(true);
+    expect(again.ok).toBe(true);
     expect(strayTemps(CLAUDE_DIR)).toEqual([]);
-
-    const back = await setSoundHook(true);
-    expect(back.ok).toBe(true);
-    expect(JSON.stringify(JSON.parse(readFileSync(SETTINGS_PATH, "utf8")).hooks.Stop)).toContain("__agent-dag-sound");
   });
 });

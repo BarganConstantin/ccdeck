@@ -31,16 +31,16 @@ import {
   realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// installer.mjs and sound-hook.mjs both resolve the Claude config dir at import
-// time — CLAUDE_CONFIG_DIR when set, otherwise ~/.claude via os.homedir(), which
-// reads $HOME on POSIX and %USERPROFILE% on Windows — and sound-hook.mjs puts
-// its parked-hooks file under os.homedir() as well. All four are pointed at a
-// temp directory BEFORE either module is loaded, so nothing in this file can
-// reach the developer's own ~/.claude, ~/.codex or ~/.agents-deck on any
-// platform. The guard below refuses to run if that ever stops being true.
+// installer.mjs and retire-sound-hook.mjs both resolve the Claude config dir at
+// import time — CLAUDE_CONFIG_DIR when set, otherwise ~/.claude via os.homedir(),
+// which reads $HOME on POSIX and %USERPROFILE% on Windows — and
+// retire-sound-hook.mjs puts its parked-hooks file under os.homedir() as well.
+// All four are pointed at a temp directory BEFORE either module is loaded, so
+// nothing in this file can reach the developer's own ~/.claude, ~/.codex or
+// ~/.agents-deck on any platform. The guard below refuses to run if that ever stops being true.
 //
 // A realpath because resolveWriteTarget ANSWERS in resolved paths, and macOS
 // hands out /var/folders/… temp directories that are really /private/var/… — a
@@ -65,10 +65,10 @@ process.env.CODEX_HOME = join(FAKE_HOME, ".codex");
 // @ts-expect-error — .mjs server module, no types
 const installer = await import("../../server/installer.mjs");
 // @ts-expect-error — .mjs server module, no types
-const sound = await import("../../server/sound-hook.mjs");
+const sound = await import("../../server/retire-sound-hook.mjs");
 
 const { installHooks, uninstallHooks, writeFileAtomic, resolveWriteTarget, CLAUDE_DIR } = installer;
-const { setSoundHook, restoreParkedSoundHooks, SETTINGS_PATH, PARKED_PATH } = sound;
+const { retireSoundHook, SETTINGS_PATH, PARKED_PATH, NOTIFY_PATH } = sound;
 
 for (const p of [CLAUDE_DIR, SETTINGS_PATH, PARKED_PATH]) {
   if (!String(p).startsWith(FAKE_HOME)) {
@@ -106,6 +106,12 @@ const REPO_SETTINGS = JSON.stringify({
   model: "opus",
   env: { MY_VAR: "from-dotfiles" },
 }, null, 2) + "\n";
+
+/** The deck's own retired sound entry, as one on a real machine is shaped. */
+const OUR_SOUND_ENTRY = {
+  "__agent-dag-sound": true,
+  hooks: [{ type: "command", command: `"${process.execPath}" "${NOTIFY_PATH}"`, timeout: 5 }],
+};
 
 const isLink = (p: string) => lstatSync(p, { throwIfNoEntry: false })?.isSymbolicLink() === true;
 const json = (p: string) => JSON.parse(readFileSync(p, "utf8"));
@@ -167,31 +173,42 @@ describe.skipIf(process.platform === "win32")("a symlinked settings.json stays a
     expect(json(REPO_COPY).env.MY_VAR).toBe("from-dotfiles");
   });
 
-  it("keeps the link across the sound toggle, on and then off", async () => {
-    await setSoundHook(true);
-    expect(isLink(SETTINGS), "setSoundHook(true) replaced the link").toBe(true);
-    expect(readFileSync(REPO_COPY, "utf8")).toContain("__agent-dag-sound");
+  it("takes the retired sound hook out through the link too", async () => {
+    // The writer that runs on an upgrade, unasked, on a machine whose owner has
+    // never opened the deck's UI — which is exactly the shape #673 is about. A
+    // detached copy here would silently stop tracking the file the user's repo
+    // syncs, and the next sync would put the retired entry straight back.
+    linkSettingsIntoDotfiles(JSON.stringify({
+      env: { MY_VAR: "from-dotfiles" },
+      hooks: { Stop: [OUR_SOUND_ENTRY] },
+    }, null, 2) + "\n");
 
-    await setSoundHook(false);
-    expect(isLink(SETTINGS), "setSoundHook(false) replaced the link").toBe(true);
+    const res = await retireSoundHook();
+
+    expect(res).toMatchObject({ ok: true, removed: 1 });
+    expect(isLink(SETTINGS), "retireSoundHook replaced the link").toBe(true);
+    expect(realpathSync.native(SETTINGS)).toBe(REPO_COPY);
     expect(readFileSync(REPO_COPY, "utf8")).not.toContain("__agent-dag-sound");
     expect(json(REPO_COPY).env.MY_VAR).toBe("from-dotfiles");
   });
 
   it("keeps the link when the parked hooks are handed back", async () => {
-    // The third writer in sound-hook.mjs, and the one whose payload is the
-    // user's own hand-written hooks: restoring them into a detached file is
-    // losing them from the file that is actually read.
+    // The payload that is the user's own hand-written hooks, and the last time
+    // anything will ever be in a position to hand them back: restoring them into
+    // a detached file is losing them from the file that is actually read.
     linkSettingsIntoDotfiles(JSON.stringify({
       env: { MY_VAR: "from-dotfiles" },
-      hooks: { Stop: [{ hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff || true" }] }] },
+      hooks: { Stop: [OUR_SOUND_ENTRY] },
     }, null, 2) + "\n");
+    mkdirSync(dirname(String(PARKED_PATH)), { recursive: true });
+    writeFileSync(String(PARKED_PATH), JSON.stringify([{
+      hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff || true" }],
+    }], null, 2) + "\n", "utf8");
 
-    await setSoundHook(true);
-    const res = await restoreParkedSoundHooks();
+    const res = await retireSoundHook();
 
     expect(res).toMatchObject({ ok: true, restored: 1 });
-    expect(isLink(SETTINGS), "restoreParkedSoundHooks replaced the link").toBe(true);
+    expect(isLink(SETTINGS), "the restore replaced the link").toBe(true);
     expect(readFileSync(REPO_COPY, "utf8")).toContain("afplay");
   });
 

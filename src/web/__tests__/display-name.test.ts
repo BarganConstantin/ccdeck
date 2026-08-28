@@ -146,7 +146,7 @@ describe("the boundary the rename must not cross", () => {
     // ~/.agents-deck holds the update markers, the ccusage install and the
     // cswap state. A new root re-triggers every install and re-arms every
     // once-an-hour check on the first run after the upgrade.
-    for (const file of ["self-update.mjs", "cswap-install.mjs", "cswap-auto.mjs", "sound-hook.mjs"]) {
+    for (const file of ["self-update.mjs", "cswap-install.mjs", "cswap-auto.mjs", "retire-sound-hook.mjs"]) {
       expect(read("src", "server", file)).toContain(`homedir(), ".agents-deck"`);
     }
     expect(read("src", "server", "ccusage.mjs")).toContain(`os.homedir(), ".agents-deck"`);
@@ -157,7 +157,7 @@ describe("the boundary the rename must not cross", () => {
     // The mark is how uninstall tells the deck's hook entries from the user's.
     // Changing it strands every entry already in settings.json, permanently.
     expect(read("src", "server", "installer.mjs")).toContain(`MARK_KEY = "__agent-dag"`);
-    expect(read("src", "server", "sound-hook.mjs")).toContain(`MARK = "__agent-dag-sound"`);
+    expect(read("src", "server", "retire-sound-hook.mjs")).toContain(`MARK  = "__agent-dag-sound"`);
   });
 
   it("renames none of the environment variables a user may already have set", () => {

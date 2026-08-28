@@ -5,6 +5,9 @@
 //                   user's settings.json as a type:"command" hook, which Claude
 //                   Code runs THROUGH A SHELL on every tool call.
 //   sound-hook.mjs  `"<node>" "<notifyPath>"` — the same, at the end of a turn.
+//                   Retired by #704: the deck plays its own tones and writes no
+//                   sound hook at all, so there is no second command to escape
+//                   and the cases that pinned it went with the module.
 //   quota.mjs       `"<bin>" --print /usage < /dev/null` — straight into exec().
 //
 // Every ingredient comes from outside: $CLAUDE_CONFIG_DIR (resolve()d, never
@@ -16,9 +19,9 @@
 //
 // quota.mjs stopped building a string at all (see quota-source.test.ts —
 // quotaClaudeBin answers with the binary and exec.mjs spawns the vector). The
-// two hook commands cannot: the settings.json format is a string and has no argv
-// form, so they are escaped with a real escaper instead. These pin that escaper
-// against a real /bin/sh, which is the only authority worth citing.
+// The forwarder command cannot: the settings.json format is a string and has no
+// argv form, so it is escaped with a real escaper instead. These pin that
+// escaper against a real /bin/sh, which is the only authority worth citing.
 //
 // ── the Windows half, #624 ───────────────────────────────────────────────────
 //
@@ -57,8 +60,6 @@ import { parseWindowsArgv, throughCmd } from "./windows-command-line";
 import { shellQuoteArg } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
 import { hookCommand } from "../../server/installer.mjs";
-// @ts-expect-error — plain JS module, no types
-import { soundHookCommand } from "../../server/sound-hook.mjs";
 
 // Paths a real machine can have. The first two are the attack, the rest are the
 // ordinary characters that a naive escaper breaks instead.
@@ -324,38 +325,3 @@ describe("the hook command written into settings.json", () => {
   });
 });
 
-describe("the sound hook command", () => {
-  const NODE = "/usr/local/bin/node";
-
-  it.runIf(posix)("is one command with one argument, whatever the path contains", () => {
-    for (const path of NASTY) {
-      const cmd = soundHookCommand(path, NODE, "linux");
-      const argv = shellArgv(cmd.replace(shellQuoteArg(NODE, "linux"), "printf-args"));
-      expect(argv, path).toEqual(["printf-args", path]);
-    }
-  });
-
-  it("no longer wraps a path in double quotes and calls it escaped", () => {
-    const cmd = soundHookCommand("/home/a`id`b/notify.mjs", NODE, "linux");
-    expect(cmd).not.toContain('"/home/a`id`b/notify.mjs"');
-    expect(cmd).toContain("'/home/a`id`b/notify.mjs'");
-  });
-
-  it("is one command with one argument through cmd.exe too", () => {
-    // One line for the whole corpus, for the reasons the hook-command case
-    // above gives. One argument per entry here, so a leak is a length mismatch
-    // as well as a wrong element.
-    const tails = WIN_NASTY.map((p) => argumentsOf(soundHookCommand(p, WIN_NODE, "win32"), WIN_NODE));
-    const trip = throughCmd(tails.join(" "));
-    expect(trip.unquoted, `cmd.exe would read these as syntax: ${trip.line}`).toEqual([]);
-    expect(trip.argv).toEqual(WIN_NASTY);
-    expect(trip.modelArgv).toEqual(trip.argv);
-  });
-
-  it("uses cmd.exe's rule on Windows, the same as the forwarder entry", () => {
-    const cmd = soundHookCommand("C:\\Users\\John Smith\\notify.mjs",
-      "C:\\Program Files\\nodejs\\node.exe", "win32");
-    expect(cmd).toBe('"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\John Smith\\notify.mjs"');
-    expect(cmd).not.toContain("'");
-  });
-});

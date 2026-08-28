@@ -155,7 +155,6 @@ describe("mutations require the deck's own authority", () => {
     { path: "/api/claude-accounts/admin", body: '{"action":"__probe__"}', cleared: 400 },  // unknown_action
     { path: "/api/cswap-auto", body: '{"action":"__probe__"}', cleared: 400 },             // unknown_action
     { path: "/api/claude-accounts/switch", body: "not json", cleared: 400 },               // bad_request
-    { path: "/api/sound-hook", body: "not json", cleared: 400 },                           // bad_request
     { path: "/api/upgrade", body: "", cleared: 409 },                                      // declines to install
     { path: "/api/restart", body: "", cleared: 501 },                                      // unsupervised
     { path: "/api/clear", body: "", cleared: 200 },                                        // genuinely runs

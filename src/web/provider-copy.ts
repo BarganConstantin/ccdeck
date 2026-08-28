@@ -196,89 +196,73 @@ export function captureHints(p: Providers): CaptureHint[] {
   return [claude, codex];
 }
 
-/** What the finish-sound toggle knows about itself, from /api/sound-hook. */
+/** What the finish-sound switch knows about itself. Read from localStorage
+ *  and from the AudioContext, since #704 — there is no endpoint behind it. */
 export interface FinishSoundState {
-  /** Whether our Stop entry is currently in settings.json. */
+  /** Whether this tab is set to play the tones. Local to the tab since #704 —
+   *  the deck plays them itself, so there is no settings.json entry to report. */
   on: boolean;
-  /** Sound hooks the user wrote themselves that also fire on this machine. */
-  clash: number;
-  /** Sound hooks of theirs the toggle has set aside so it controls the sound. */
-  parked: number;
+  /** True while the browser has not yet let this page make a sound. The
+   *  autoplay rules hold an AudioContext suspended until the page has been
+   *  interacted with, and a switch that says "on" over silence is the report
+   *  this feature exists to stop generating. */
+  locked: boolean;
 }
 
 /**
- * The finish-sound toggle's tooltip — including the turns it does NOT cover.
+ * The finish-sound switch's tooltip — including the turns it does NOT cover.
  *
- * This switch is one line in Claude Code's settings.json: a `Stop` hook whose
- * command is notify.mjs, which Claude Code itself executes at the end of a turn.
- * Nothing about that reaches Codex. The deck installs no Codex hooks — it
- * stopped in the commit that introduced Codex support, because they do not fire
- * reliably on Windows — and reads the rollout JSONL files instead, after the
- * fact. So a Codex user turned this on, watched turn after turn finish in
- * silence, and had nothing anywhere to read it against (#394). An unqualified
- * "Sound on turn finish" is the whole of the problem: the silence is correct
- * behaviour and it is indistinguishable from a broken toggle.
+ * The switch used to be one line in Claude Code's settings.json: a `Stop` hook
+ * running a script the deck installed, which Claude Code executed at the end of
+ * a turn. Nothing about that reached Codex — the deck installs no Codex hooks,
+ * it tails the rollout JSONL files instead — so a Codex user turned this on,
+ * watched turn after turn finish in silence, and had nothing anywhere to read it
+ * against (#394). An unqualified "Sound on turn finish" was the whole of the
+ * problem: the silence was correct behaviour and indistinguishable from a broken
+ * toggle, so the sentence had to name the mechanism and not just the limit.
  *
- * Two other endings were available and both were rejected:
+ * #704 replaced the mechanism, and the limit moved with it. The tones are
+ * synthesized in the tab from the envelopes the deck already receives, so what
+ * they follow is the EVENT: a Codex `task_complete` is mapped to a synthetic
+ * `Stop` (#395) and gets the finish tone like any other. Codex has no
+ * `Notification` equivalent, so the second tone — Claude is waiting for you —
+ * stays Claude Code's, and that asymmetry is said out loud rather than left for
+ * a user to infer from a sound that never comes.
  *
- *   - Play it in the browser with Web Audio. The hook plays with no tab open at
- *     all, because it runs on the machine; a tab cannot. It would also be
- *     silent in a tab that has never been clicked, which autoplay policy makes
- *     the normal state of a monitoring deck left in the background — the exact
- *     tab this feature exists for. One switch would then mean two different
- *     promises, and the weaker one only where the user is not looking.
- *
- *   - Spawn notify.mjs from the server when the rollout watcher emits its
- *     synthetic Codex `Stop` (#395 added that event, so the moment is known
- *     now). Closer, but the switch still would not mean one thing: the Claude
- *     sound is a hook on the machine, so it fires once whether zero decks or
- *     four are running and whatever `--workspace` they were given, while a
- *     server-side sound fires once PER deck tailing that rollout (the
- *     writesCodexLog election that de-dupes the log only runs under --persist),
- *     only inside that deck's workspace, and not at all when no deck is up. And
- *     the switch has nowhere honest to keep its state for a machine that has no
- *     Claude Code: turning it on writes a `Stop` hook into a settings.json for a
- *     CLI that is not installed, which is the class of bug #402 and #404 just
- *     removed. That is a feature with its own design, not this defect.
- *
- * So the toggle stays what it is and says what it is. The sentence names the
- * mechanism, not just the limit, because "Claude Code only" is a fact a user can
- * act on and "sound" alone is not — and it is added only on a machine that has a
- * Codex to be silent about. On a Claude-only machine there is nothing to warn
- * anyone off, and the deck does not draw the button at all without Claude Code.
+ * What the change costs is one line and it is stated where the switch is: the
+ * hook fired with no browser open, because it ran on the machine. A tab cannot.
+ * For a dashboard whose normal state is left open that is a good trade, it was
+ * weighed rather than overlooked (see finish-sound-scope.test.ts, which used to
+ * argue the other side), and the same tab brings a second limit with it —
+ * autoplay policy keeps an AudioContext suspended until the page has been
+ * interacted with, so "on" over silence is a real state the copy has to name.
  */
 export function finishSoundTitle(p: Providers, s: FinishSoundState): string {
-  // The key in parentheses is how every other control on this bar names its
-  // own. This one had none until #511: it was the last topbar control with a
-  // control and no shortcut, which made it the odd one out under either of the
-  // two models the deck could have committed to.
+  // The key in parentheses is how every other control on this bar names its own.
   const lead = s.on
-    ? "Sound on turn finish: on — click to remove the hook (M)"
-    : "Sound on turn finish: off — click to add a Stop hook (M)";
+    ? "Sound: on — a tone when a turn finishes, another when Claude asks for you (M)"
+    : "Sound: off — click for a tone when a turn finishes (M)";
 
-  // First, ahead of the settings.json footnotes below: those are about hooks the
-  // user wrote, and this is about which of their turns the switch covers at all.
+  // Since #704 the deck plays the tones itself, from the events it already
+  // receives, so this no longer says "Claude Code turns only" — a Codex rollout
+  // emits a Stop the same way and gets the same tone. What Codex has no
+  // equivalent of is Notification, so the asking tone stays Claude Code's, and
+  // that is worth saying on a machine that runs both rather than leaving the
+  // user to notice the asymmetry on their own.
   const scope = p.codex
-    ? "\n\nClaude Code turns only. The sound is a Stop hook Claude Code runs itself when a turn ends; " +
-      "the deck installs nothing for Codex and reads its rollout files after the fact, " +
-      "so Codex turns finish in silence."
+    ? "\n\nBoth CLIs get the finish tone. The second tone — Claude is waiting for you — " +
+      "has no Codex equivalent to fire on, so it only ever plays for Claude Code."
     : "";
 
-  const clash = s.clash > 0
-    ? `\n\n${s.clash} sound hook${s.clash > 1 ? "s" : ""} of your own in settings.json also run${s.clash > 1 ? "" : "s"} here.`
+  // The autoplay rules, stated where the switch is rather than left as silence
+  // the user has to explain to themselves. A browser will not make a sound
+  // until the page has been interacted with, so a reloaded tab nobody has
+  // touched is armed and mute — and "on, but nothing happened" is exactly the
+  // report that used to arrive about the old hook.
+  const locked = s.on && s.locked
+    ? "\n\nWaiting for a click: this browser plays no sound until the page has been " +
+      "used at least once. Anything you press unlocks it."
     : "";
 
-  // The one recovery on this deck that exists nowhere else, and until #511 it
-  // was reachable by mouse and by nothing else — this sentence, in a tooltip,
-  // and only once something was already parked. It has a key now (Shift+M) and
-  // a line in the shortcuts sheet under `?`, so a keyboard user has a route and
-  // a reader who has parked nothing can still find out that the switch does
-  // this at all. The mouse wording is unchanged, because it is what a person
-  // who is already here reads.
-  const parked = s.parked > 0
-    ? `\n\n${s.parked} of your own sound hook${s.parked > 1 ? "s were" : " was"} set aside so this switch actually controls the sound. ` +
-      `Nothing was deleted — shift-click to put ${s.parked > 1 ? "them" : "it"} back (Shift+M does the same).`
-    : "";
-
-  return lead + scope + clash + parked;
+  return lead + scope + locked;
 }

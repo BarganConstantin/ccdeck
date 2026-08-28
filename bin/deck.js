@@ -89,22 +89,34 @@ if (flags.uninstall) {
       : `${PRODUCT}: no ${label} hooks to remove`);
   };
   report(await uninstallHooks({ provider: "claude" }), "Claude");
-  // The sound toggle is a second entry in the same file, marked
+  // The old finish sound was a second entry in the same file, marked
   // __agent-dag-sound rather than __agent-dag, and uninstallHooks does not know
   // that mark — so it used to be left behind, playing on every turn after the
-  // deck was supposedly gone. It also parks the user's own afplay/PowerShell
-  // Stop hooks while it is on, and once the deck is uninstalled nothing else can
-  // put them back, so this restores them too.
-  const { uninstallSoundHook } = await import(pathToFileURL(join(PKG_ROOT, "src/server/sound-hook.mjs")).href);
-  const sound = await uninstallSoundHook();
+  // deck was supposedly gone. #704 retired the mechanism outright, but the entry
+  // is still on every machine that had it, so removing it is still this
+  // command's job. So is the other half: turning the sound on parked the user's
+  // own afplay/PowerShell Stop hooks, and once the deck is uninstalled nothing
+  // else on the machine knows where they went.
+  const { retireSoundHook } = await import(pathToFileURL(join(PKG_ROOT, "src/server/retire-sound-hook.mjs")).href);
+  const sound = await retireSoundHook();
+  if (sound.removed) console.log(`${PRODUCT}: sound hook removed`);
+  if (sound.restored) console.log(`${PRODUCT}: restored ${sound.restored} of your own sound hook(s)`);
   if (sound.ok === false) {
     refused = true;
-    console.error(named.has(sound.settingsPath)
-      ? `${PRODUCT}: the sound hook is still in that file too.`
-      : `${PRODUCT}: sound hook left in place — ${sound.message}`);
-  } else {
-    if (sound.removed) console.log(`${PRODUCT}: sound hook removed`);
-    if (sound.restored) console.log(`${PRODUCT}: restored ${sound.restored} of your own sound hook(s)`);
+    // Two different refusals, and saying the wrong one sends the user to the
+    // wrong file. `settings_unreadable` means nothing was touched at all — and
+    // when the forwarders already named that same file, the whole path and
+    // parser error would only bury the one line that differs. `parked_unreadable`
+    // is the other file: our entry IS out (the lines above said so), and what is
+    // still owed is the user's own hooks, which stay parked until they repair it.
+    if (sound.reason === "settings_unreadable") {
+      console.error(named.has(sound.settingsPath)
+        ? `${PRODUCT}: the sound hook is still in that file too.`
+        : `${PRODUCT}: sound hook left in place — ${sound.message}`);
+      named.add(sound.settingsPath);
+    } else {
+      console.error(`${PRODUCT}: your own sound hooks were NOT restored — ${sound.message}`);
+    }
   }
   if (hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");

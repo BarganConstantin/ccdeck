@@ -94,12 +94,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
     title: "Settings",
     rows: [
-      { cap: "M", action: "finish sound on or off, on Claude Code turns", binds: ["m", "M"] },
-      // The keyboard's half of the shift-click gesture at the bottom of this
-      // table. Same control, same modifier, same recovery — and the deck's
-      // first Shift-sensitive letter, which is why it is written down here as
-      // its own row rather than left as a footnote on the row above.
-      { cap: "Shift + M", action: "put your own sound hooks back, when the switch has parked them", binds: ["m", "M"] },
+      { cap: "M", action: "finish sound on or off", binds: ["m", "M"] },
       { cap: "T", action: "light or dark theme", binds: ["t", "T"] },
     ],
   },
@@ -119,12 +114,6 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "drag", action: "move a node, and pin it where you dropped it", binds: [] },
       { cap: "shift-click", action: "add an agent to the selection", binds: [] },
-      // The one thing in the product that was otherwise unfindable. The sound
-      // switch sets aside any sound hook of the user's own that would fight it,
-      // and shift-clicking the switch puts them back; nothing else on the deck
-      // does that, and until this row nothing on screen said so except the
-      // switch's own tooltip, and only while something was parked.
-      { cap: "shift-click", action: "on the sound switch: put your own sound hooks back", binds: [] },
     ],
   },
 ];

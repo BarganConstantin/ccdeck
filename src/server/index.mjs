@@ -4074,25 +4074,6 @@ async function handleCswapAutoAction(req, res) {
   send(res, result.ok ? 200 : 400, result);
 }
 
-async function handleSoundHook(req, res) {
-  const { soundHookStatus } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/sound-hook.mjs")).href
-  );
-  send(res, 200, await soundHookStatus());
-}
-
-async function handleSoundHookSet(req, res) {
-  const { setSoundHook, restoreParkedSoundHooks } = await import(
-    pathToFileURL(join(PKG_ROOT, "src/server/sound-hook.mjs")).href
-  );
-  const body = await readBody(req).catch(() => null);
-  let parsed = null;
-  try { parsed = JSON.parse(body ?? ""); } catch { /* handled below */ }
-  if (!parsed || typeof parsed !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
-  if (parsed.action === "restore") return send(res, 200, await restoreParkedSoundHooks());
-  send(res, 200, await setSoundHook(parsed.enabled === true));
-}
-
 // The tree this deck was told to capture, "" when it captures the whole
 // machine. Set by startServer and never changed afterwards.
 //
@@ -4445,8 +4426,8 @@ export function requestUrl(rawUrl) {
 // secrets are. GET /api/events is the whole ring buffer: prompt text, the Bash
 // command lines the agent ran, the paths and contents it wrote, the contents of
 // every file it read back. /api/claude-accounts names the accounts,
-// /api/claude-accounts/login carries a live OAuth authorize URL, /api/sound-hook
-// the user's own hook command lines, /api/health the absolute workspace path.
+// /api/claude-accounts/login carries a live OAuth authorize URL, /api/health the
+// absolute workspace path.
 //
 // So the Host check runs for every method now. What it asks is only the
 // rebinding question — did this request arrive addressed to a name that can
@@ -4938,8 +4919,6 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/admin")  return guard(handleClaudeAccountAdmin(req, res), res);
-    if (req.method === "GET"  && url.pathname === "/api/sound-hook") return guard(handleSoundHook(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/sound-hook") return guard(handleSoundHookSet(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
 

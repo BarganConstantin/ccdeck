@@ -12,7 +12,7 @@
 // deck they believed they had removed, and nothing would ever tell them
 // otherwise because they had stopped looking.
 //
-// The other half of the same command already knew better: uninstallSoundHook
+// The other half of the same command already knew better: the sound-hook half
 // reads through readSettingsForWrite and refuses out loud. One command, one
 // file, two opposite verdicts, and the load-bearing one was the one that lied.
 //

@@ -151,22 +151,22 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the thirty platform-gated cases to skip on Windows, file by file", () => {
-    // Twenty-six behind `process.platform === "win32"`, three behind the posix
+  it("expects the twenty-nine platform-gated cases to skip on Windows, file by file", () => {
+    // Twenty-six behind `process.platform === "win32"`, two behind the posix
     // runIf family, and sound-hook-park's read-only-directory case, whose probe
     // reports false on Windows because chmod there toggles a read-only bit that
     // does not stop a write into the directory. Written out per file rather
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 30,
+      total: 29,
       byFile: {
         "codex-auth-rename-retry.test.ts": 1,
         "codex-auth-temp-collision.test.ts": 3,
         "exec-shim-callers.test.ts": 5,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
-        "no-shell-hook-commands.test.ts": 3,
+        "no-shell-hook-commands.test.ts": 2,
         "settings-atomic-write.test.ts": 1,
         "settings-symlink-target.test.ts": 7,
         "sound-hook-park.test.ts": 1,
@@ -182,7 +182,7 @@ describe("the register of conditionally-skipped cases", () => {
     // strongest one available — they always run — and CI is what turns that
     // expectation into a failure on the day the machine disagrees.
     const always = gates().filter((g) => g.condition === "!hardLinksWork" || g.condition === "!existsSync(dist)");
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(5);
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(4);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The sixth probe site is the read-only-directory one, the only probe with

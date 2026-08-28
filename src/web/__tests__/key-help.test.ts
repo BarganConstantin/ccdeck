@@ -184,42 +184,44 @@ describe("the sound switch, which had a control and no key", () => {
     // exactly how the shift-click ended up undocumented in the first place.
     expect(app).toMatch(/onClick=\{\(e\) => activateSound\(e\.shiftKey\)\}/);
     expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
-    expect(app).toMatch(/if \(withShift && soundParkedRef\.current > 0\) \{ restoreParkedHooks\(\); return; \}/);
+    // #704 removed the mechanism shift recovered from, so the door takes the
+    // modifier and ignores it rather than branching on it. One door is still
+    // the rule being pinned: the button and the key reach the same callback.
+    expect(app).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
   });
 
   it("guards M the way it guards A, plus the state the button waits for", () => {
-    // No Claude Code, no hook to install; no answer from /api/sound-hook yet,
-    // no state to invert. The button is not drawn in either case and the key
-    // must not fire in either case.
+    // No Claude Code, no button to draw; no sound state read back out of
+    // localStorage yet, no state to invert. The button is not drawn in either
+    // case and the key must not fire in either case.
     expect(app).toMatch(/providersRef\.current\.claude && soundOnRef\.current !== null/);
   });
 });
 
-describe("the shift-click that existed nowhere but the source", () => {
-  it("has a line in the sheet, in the group about the mouse", () => {
-    const mouse = KEY_HELP.find(g => /mouse/i.test(g.title));
-    expect(mouse, "the sheet has no group for gestures").toBeDefined();
-    const row = mouse!.rows.find(r => /sound/i.test(r.action));
-    expect(row, "the sound gesture is not written down").toBeDefined();
-    expect(row!.cap).toMatch(/shift-click/i);
-    expect(row!.action).toMatch(/put your own sound hooks back/i);
-  });
+describe("the sound gestures that outlived their mechanism", () => {
 
-  it("has a key as well, because a mouse-only recovery is not reachable", () => {
-    // The deck's own rule, applied to itself: #510 moved the last
-    // mouse-and-nothing-else sentence off a tooltip for the same reason. This
-    // is a recovery that exists in no other place in the product, so a keyboard
-    // user with parked hooks had no route to it at all.
+  it("no longer lists a key for a recovery that no longer exists", () => {
+    // Shift+M and the shift-click row put back sound hooks the switch had
+    // parked in settings.json. #704 deleted the parking, so both rows describe
+    // a gesture that does nothing. A sheet that lists a key which does nothing
+    // is worse than one that lists fewer keys.
     const rows = KEY_HELP.flatMap(g => g.rows);
-    const key = rows.find(r => /^shift \+ m$/i.test(r.cap));
-    expect(key, "Shift+M is not in the sheet").toBeDefined();
-    expect(key!.action).toMatch(/sound hooks back/i);
-    expect(key!.binds.map(lower)).toContain("m");
+    expect(rows.find(r => /^shift \+ m$/i.test(r.cap)), "Shift+M outlived its mechanism").toBeUndefined();
+    expect(
+      rows.find(r => /shift-click/i.test(r.cap) && /sound/i.test(r.action)),
+      "the sound shift-click row outlived its mechanism",
+    ).toBeUndefined();
+    // And the unrelated one is untouched: "shift-click" is a gesture, not a
+    // feature, and selection still uses it.
+    expect(rows.find(r => /shift-click/i.test(r.cap) && /selection/i.test(r.action))).toBeDefined();
+    expect(rows.some(r => /sound hooks back/i.test(r.action))).toBe(false);
   });
 
-  it("keeps the tooltip's own wording for the people already looking at it", () => {
-    const one = finishSoundTitle(ASSUMED, { on: true, clash: 0, parked: 1 });
-    expect(one).toContain("shift-click to put it back");
-    expect(one).toContain("Shift+M does the same");
+  it("still lists the plain key, and stops calling the sound Claude-only", () => {
+    // The tone follows the event now, and a Codex Stop is a Stop.
+    const row = KEY_HELP.flatMap(g => g.rows).find(r => /^m$/i.test(r.cap));
+    expect(row, "M is not in the sheet").toBeDefined();
+    expect(row!.action).toMatch(/finish sound on or off/);
+    expect(row!.action).not.toMatch(/Claude Code/);
   });
 });
