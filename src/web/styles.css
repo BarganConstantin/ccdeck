@@ -651,6 +651,18 @@ button:focus-visible { outline-offset: 1px; }
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 18%, transparent);
 }
+/* The way back to the release notes, beside the number they are about (#712).
+   Everything that makes it a control — the pill, the hairline, the hover, the
+   press — is the chip's own rule above, because it IS the same kind of thing:
+   two quiet words in the version corner. What is different is the weight. The
+   chip resting at 400 is a caption that happens to be pressable; this is a word
+   whose only job is to be pressed, so it keeps the 500 the base rule sets and
+   the `:not(.stale)` rule below it takes away. Declared after that rule for
+   exactly that reason — the two selectors weigh the same, so order decides. */
+.topbar .brand button.v.whats-new {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
 .topbar .brand button.v .v-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
@@ -4273,6 +4285,57 @@ button.tool.clickable:last-child { border-bottom: none; }
    gap; the margin above is the air BETWEEN groups and there is nothing above
    this one to be between. */
 .kh-group:first-child { margin-top: 0; }
+
+/* ---------------- what's new (#712) ---------------- */
+
+/* Prose, so it wants a measure rather than the inspector's 820px: at 620 the
+   body below runs about 75 characters, which is inside the band a paragraph is
+   comfortable to read at. Wider than the shortcuts sheet's 560 because that
+   sheet is a two-column table and this is sentences. */
+.modal.release-notes { width: min(620px, 92vw); }
+/* The release a run of notes belongs to. Monospace and quiet: it is a label on
+   the group, not a heading competing with the note titles under it, and the
+   version chip it echoes in the topbar is set the same way. */
+.release-notes .rn-version {
+  margin: 0 0 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.release-notes .rn-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* A hairline down the left of each note, which is what makes two notes in one
+   release read as two things rather than as four paragraphs. Cheaper than a
+   card: this dialog is read once and then dismissed, and boxing every entry
+   would make a short list look like an inventory. */
+.release-notes .rn-note {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+.release-notes .rn-note-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+/* 1.65 rather than the 1.5 the rest of the sheet uses. Everything else set at
+   this size in the deck is a label or a number; this is the only place a user
+   is asked to read three or four sentences, and the extra leading is what makes
+   that possible in a dialog they did not open on purpose. */
+.release-notes .rn-note-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
 
 /* ---------------- session-end summary modal ---------------- */
 

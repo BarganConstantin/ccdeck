@@ -13,6 +13,7 @@
     "hook",
     "src/server",
     "dist/web",
+    "release-notes.json",
     "LICENSE",
     "README.md"
   ],

@@ -175,6 +175,8 @@ describe("the modals themselves", () => {
       // rather than how it escapes one: the loop that follows asks the same
       // question of every file in this list.
       "KeyboardHelp.tsx",
+      // #712's release notes, named here for the same reason.
+      "ReleaseNotesModal.tsx",
       "SessionSummary.tsx", "ToolModal.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
