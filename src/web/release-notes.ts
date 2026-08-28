@@ -10,13 +10,34 @@
 //
 // Three states look identical from a chair and are not the same thing:
 //
-//   NEVER RUN HERE. Nothing in storage. The right answer is silence: notes
-//   answer "what changed since you last looked", and someone who has never
-//   looked has missed nothing. A changelog is the worst possible first contact
-//   with a dashboard. So a first run records the running version as seen and
-//   shows nothing — which is the one case that is easy to build backwards,
-//   because "no stored version" and "show everything" are the same `null` and
-//   the second reading dumps the whole file on a new install.
+//   NEVER RUN HERE. Nothing in storage — and #717 is where the first reading
+//   of that was corrected. It was built as "a person new to this product", and
+//   very often it is the same person on a second machine, or after clearing
+//   site data: someone who has missed exactly what anyone skipping a version
+//   misses, and who was handed silence at the one moment the deck had something
+//   to say. So a first run now shows the RUNNING version's notes, if that
+//   version has any, and records it as seen.
+//
+//   One release, and never the history behind it. Five releases of notes about
+//   controls in an app the reader has not looked at yet is the changelog in the
+//   face #712 was right to refuse; one release reads as "here is what you just
+//   installed" and is one screen. A running version with nothing to say — most
+//   of them — is still silent on a fresh install, exactly as before: the rule
+//   is "at least once per version that has something to say", not "always
+//   something on first contact". What has NOT moved is the trap underneath.
+//   "No stored version" and "show everything" are still the same `null`, and
+//   the second reading still dumps the whole file on a new install.
+//
+//   NOTHING TO REMEMBER WITH. A profile that cannot keep the marker at all —
+//   Safari's "Block All Cookies", Chrome with site data blocked — reads as
+//   "never run here" on every single load, so #717 would have it announce the
+//   running release on every single load. It keeps the old silence instead, and
+//   the rule underneath is worth stating plainly: an announcement that cannot
+//   be recorded is one that comes back forever, and a dialog that comes back
+//   forever is the one everybody learns to dismiss unread. The decision is
+//   therefore told whether the profile can remember; nothing else reads it,
+//   because every other branch is either silent already or unreachable without
+//   a store that answers.
 //
 //   SEEN UP TO HERE. A version is stored and it is older than the running one.
 //   Everything after it up to and including the running version is new to this
@@ -173,6 +194,22 @@ export function notesBetween(
     && (after === null || compareVersions(n.version, after) > 0));
 }
 
+/**
+ * The notes for one release and nothing else — what a first run is shown (#717).
+ *
+ * Deliberately not `notesBetween(notes, previous, running)`: there is no
+ * previous release to name here, and a range is not what is wanted. The answer
+ * is "the release you just installed", which is one entry or none.
+ *
+ * Compared rather than matched on the string, for the same reason everything
+ * else here is: a prerelease compares equal to its release, so a deck running
+ * 1.48.0-rc1 is welcomed with 1.48.0's notes, which are the notes for the code
+ * it is actually running.
+ */
+export function notesForVersion(notes: VersionNotes[], version: string): VersionNotes[] {
+  return notes.filter(n => compareVersions(n.version, version) === 0);
+}
+
 // ── what the dialog says about itself ────────────────────────────────────────
 //
 // Copy rather than markup, and here rather than in the component, for the
@@ -198,10 +235,17 @@ export interface ReleaseNotesIntroInput {
    *  chip. The two need different sentences: one is answering "why is this
    *  here", the other "what is this". */
   since: string | null;
-  /** The version the deck is actually running. Only the browse route reads it,
-   *  and it reads it to avoid the one lie this dialog can tell — see below. */
+  /** The version the deck is actually running. The browse route and the first
+   *  run read it, and they read it to avoid the two lies this dialog can tell —
+   *  see below. */
   running: string | null;
   entries: VersionNotes[];
+  /** True when the deck raised this on a profile it had never run in — #717's
+   *  welcome. A first run has nothing stored, so `since` is null and the browse
+   *  sentences would otherwise stand in; they are wrong here in a way a reader
+   *  cannot catch, because they promise "everything before it" and a welcome
+   *  shows exactly one release. Absent means the two routes that came first. */
+  firstRun?: boolean;
 }
 
 /**
@@ -216,8 +260,15 @@ export interface ReleaseNotesIntroInput {
  * that v1.46.0's notes are notes about the v1.47.0 you are looking at. So the
  * three cases are named separately, and the one that is easiest to get wrong —
  * the running release having nothing of its own — says the quiet part first.
+ *
+ * #717 adds a fourth, and it is the one the other three cannot be allowed to
+ * answer for: a first run. Nothing is stored, so `since` is null and the browse
+ * sentences are what a reader would get — and the closest of them ends "and
+ * everything before it, newest first", which a welcome does not show. The one
+ * sentence that must never reach this route is the upgrade's, because "you were
+ * last caught up at v1.47.0" names a release this reader has never run.
  */
-export function releaseNotesIntro({ since, running, entries }: ReleaseNotesIntroInput): string {
+export function releaseNotesIntro({ since, running, entries, firstRun }: ReleaseNotesIntroInput): string {
   if (!entries.length) {
     return "Nothing in this build has anything to report yet. Most releases do not, which is the point.";
   }
@@ -229,6 +280,16 @@ export function releaseNotesIntro({ since, running, entries }: ReleaseNotesIntro
     // it is gone, and a sentence still pointing at it would be sending people
     // to look for something that is not there.
     return `You were last caught up at v${since}. Since then ${releases} changed something you would notice. Clicking the version in the topbar brings this back.`;
+  }
+  // The welcome (#717). It says three things and each one is load-bearing: why
+  // an unasked-for dialog is on screen at all, which release the list belongs
+  // to, and — because this is deliberately NOT the whole history — that there
+  // is more behind it and where. `isVersion(running)` is what keeps it honest:
+  // decideReleaseNotes cannot produce a first run without a running version, so
+  // a caller that manages one gets the browse sentences below rather than a
+  // sentence naming a release the deck cannot name.
+  if (firstRun && isVersion(running)) {
+    return `The deck has not run in this browser before, so this is what v${running} — the release you have — changed. Earlier releases are not repeated here; clicking the version in the topbar brings all of them back.`;
   }
   const newest = entries[0].version;
   // Nothing to compare against: /api/version never answered and the bundle's
@@ -339,6 +400,30 @@ export function readSeen(store: Storeish | null | undefined): string | null {
   return isVersion(value) ? value : null;
 }
 
+/**
+ * Whether this profile can be relied on to remember what it was shown.
+ *
+ * Asked BEFORE the decision rather than after the write, because since #717 it
+ * changes what the decision is rather than what is done with it: a first run
+ * announces the release it just installed, and an announcement that cannot be
+ * recorded is one that comes back on every load for the rest of the release. A
+ * profile that refuses to remember therefore keeps the silence #712 gave every
+ * first run — it costs that profile one dialog, and the version chip is still
+ * the way to it.
+ *
+ * A read is enough to tell. The profiles that actually block storage throw from
+ * the `window.localStorage` accessor itself, which is what `seenStore` catches
+ * and why `null` is the common answer here; a store object that throws when
+ * asked is the other shape of the same refusal. A store that answers a read and
+ * then refuses the write is a full quota rather than a browser setting, and it
+ * is taken at its word here — the ref in App.tsx still holds it to one
+ * appearance per load, which is the same guard that has always covered it.
+ */
+export function remembersSeen(store: Storeish | null | undefined): boolean {
+  if (!store) return false;
+  try { store.getItem(RELEASE_NOTES_SEEN_KEY); return true; } catch { return false; }
+}
+
 /** Records a version as seen. Answers whether it stuck, which is the only thing
  *  the caller can act on: a false means the next load will decide "first run"
  *  again, and the caller's own guard — not a second modal — is what keeps that
@@ -358,9 +443,20 @@ export type ReleaseNotesReason =
   /** No running version to compare against — /api/version has not answered, or
    *  answered with nothing. Show nothing, remember nothing, ask again later. */
   | "no-version"
-  /** Nothing was ever stored: a new install, a cleared profile, or a browser
-   *  that refuses to remember. Record and stay quiet. */
+  /** Nothing was ever stored and the release being installed has nothing to
+   *  say for itself — which is most releases. A new install or a cleared
+   *  profile, on an ordinary version. Record and stay quiet. */
   | "first-run"
+  /** Nothing was ever stored and the running release DOES have something to say
+   *  (#717). Its notes and only its notes: this reader has never run anything
+   *  before it, and the releases behind it describe an app they have not looked
+   *  at yet. The second branch that opens a dialog, and the smaller one. */
+  | "welcome"
+  /** Nothing was ever stored and nothing ever can be — storage absent, or a
+   *  profile that refuses it. Indistinguishable from a first run by what is in
+   *  the store, and not the same event: announcing here would announce again on
+   *  every load, because the marker that would stop it cannot be written. */
+  | "cannot-remember"
   /** The stored version is the running one. The common case, every reload. */
   | "seen"
   /** The stored version is NEWER — a downgrade, or a profile shared with a
@@ -381,9 +477,10 @@ export interface ReleaseNotesDecision {
 
 export interface ReleaseNotesInput {
   /** What the store answered — a version, null when absent, and null again when
-   *  the store threw. Those two are the same event to this module on purpose: a
-   *  browser that cannot remember must fall through to the silent branch rather
-   *  than announce the same release on every load. */
+   *  the store threw. Those two look identical here and are told apart by
+   *  `remembers` below, which is the whole reason that field exists: since #717
+   *  a first run announces something, and a browser that cannot remember being
+   *  shown it would be shown it again on every single load. */
   stored: string | null;
   /** The version the server process actually booted with. Not the bundle's:
    *  an upgrade replaces dist/web on disk before the running process restarts,
@@ -391,15 +488,32 @@ export interface ReleaseNotesInput {
    *  behaviour that is not live yet are notes about nothing. */
   running: string | null;
   notes: VersionNotes[];
+  /** Whether this profile can keep the marker at all — `remembersSeen`'s
+   *  answer. Only the first run reads it, and there it is the difference
+   *  between a welcome and a dialog that reappears on every load of a blocked
+   *  profile; every other branch is silent already or unreachable without a
+   *  store that answers. Defaults to the ordinary browser, so a caller with no
+   *  opinion about storage does not have to state one. */
+  remembers?: boolean;
 }
 
 /** What to show and what to remember, on one load of the deck. */
-export function decideReleaseNotes({ stored, running, notes }: ReleaseNotesInput): ReleaseNotesDecision {
+export function decideReleaseNotes({ stored, running, notes, remembers = true }: ReleaseNotesInput): ReleaseNotesDecision {
   if (!isVersion(running)) return { show: [], record: null, reason: "no-version" };
-  // Absent, unreadable or junk: all first run, all silent. Recording the
-  // running version here is what makes the NEXT upgrade the first one this user
-  // hears about.
-  if (!isVersion(stored)) return { show: [], record: running, reason: "first-run" };
+  // Absent, unreadable or junk: all first run. What a first run is SHOWN is
+  // #717's correction — the running release's own notes, and nothing behind
+  // them — and recording the running version is what makes the NEXT upgrade an
+  // upgrade rather than a second first run.
+  if (!isVersion(stored)) {
+    // Silent, and recorded anyway on the chance the write is the half that
+    // works: a store that cannot remember cannot be told it was shown this, so
+    // showing it would show it again on every load for the rest of the release.
+    if (!remembers) return { show: [], record: running, reason: "cannot-remember" };
+    const own = notesForVersion(notes, running);
+    return own.length
+      ? { show: own, record: running, reason: "welcome" }
+      : { show: [], record: running, reason: "first-run" };
+  }
 
   const drift = compareVersions(stored, running);
   if (drift === 0) return { show: [], record: null, reason: "seen" };
