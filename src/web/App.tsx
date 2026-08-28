@@ -28,6 +28,7 @@ import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFail
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
+import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
@@ -61,7 +62,20 @@ import { boardTotals, BOARD_COST_LABEL, BOARD_SCOPE_TITLE, BOARD_TOKENS_LABEL } 
 // session's cumulative tokens by the one model it was last seen on. See
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
-import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
+import { versionChipLabel, versionChipTitle, versionNoticeLabel, whatsNewLabel, whatsNewTitle } from "./version-chip";
+// #712. What to show, and what to record as seen, is decided there rather
+// than here: it is the one part of this feature that can be wrong, and a
+// pure function over three values is the only shape a DOM-less suite can
+// ask "what would a user upgrading 1.42 to 1.48 have been shown?".
+import {
+  decideReleaseNotes,
+  notesBetween,
+  readSeen,
+  RELEASE_NOTES,
+  seenStore,
+  writeSeen,
+  type VersionNotes,
+} from "./release-notes";
 import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
@@ -937,6 +951,50 @@ function Inner() {
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
   const notice = version?.notice ?? null;
+
+  // ── what changed since you last looked (#712) ─────────────────────────────
+  // Most releases put nothing here and this stays shut for months at a time.
+  // That silence is the feature: v1.44.0 and v1.44.1 shipped on the same day,
+  // and a dialog that opens twice a day is one people learn to dismiss unread —
+  // and then it is worthless on the release that moved a hook in their own
+  // settings.json.
+  //
+  // One piece of state carries both halves, because "which notes" and "is it
+  // open" are never independently true: null is closed.
+  const [releaseNotes, setReleaseNotes] = useState<{ entries: VersionNotes[]; since: string | null } | null>(null);
+  // Decided once per load and then never again, and the ref is not belt and
+  // braces. The decision writes the running version to the store, so a second
+  // run would normally answer "seen" on its own — but a store that REFUSES the
+  // write keeps answering "nothing stored", and without this the same dialog
+  // would come back on every /api/version poll for as long as the tab is open.
+  // A deck that cannot remember must show the notes at most once, not forever.
+  const releaseNotesDecidedRef = useRef(false);
+  useEffect(() => {
+    if (releaseNotesDecidedRef.current) return;
+    const store = seenStore();
+    const stored = readSeen(store);
+    // The server's running version, never the bundle's __APP_VERSION__: an
+    // upgrade replaces dist/web on disk before the process restarts, so this
+    // page can be newer than the code answering it, and notes about behaviour
+    // that is not live yet are notes about nothing.
+    const decision = decideReleaseNotes({ stored, running: version?.running ?? null, notes: RELEASE_NOTES });
+    // Not an answer yet — /api/version has not come back, or came back without
+    // a version. Leave the ref down so the next poll gets to decide.
+    if (decision.reason === "no-version") return;
+    releaseNotesDecidedRef.current = true;
+    if (decision.record) writeSeen(store, decision.record);
+    if (decision.show.length) setReleaseNotes({ entries: decision.show, since: stored });
+  }, [version?.running]);
+  // Everything this build has to say, for the topbar button — which is the way
+  // back after the dialog is dismissed, and the only recovery for a profile
+  // whose site data was cleared along with the marker above. The bundle's
+  // version is the fallback here and only here: the button is a browse, not an
+  // announcement, so a deck whose /api/version never answered should still be
+  // able to open it rather than lose the feature entirely.
+  const everyReleaseNote = useMemo(
+    () => notesBetween(RELEASE_NOTES, null, version?.running ?? __APP_VERSION__),
+    [version?.running],
+  );
 
   // Which sessions this deck is even allowed to see — "" for machine-wide, a
   // path when it was started with --workspace/--scope. Null until health
@@ -2241,7 +2299,7 @@ function Inner() {
   // focused control keeps its own keys — but a click on the sheet's own prose
   // drops focus to <body>, and from there a stray "c" would reach Clear.
   modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
-    || summaryFor != null || keyHelpOpen;
+    || summaryFor != null || keyHelpOpen || releaseNotes != null;
 
   /** The single door to Clear. Both the toolbar button and the "c" shortcut
    *  come through here, so the confirmation cannot hold for one and not the
@@ -2724,6 +2782,35 @@ function Inner() {
                 );
               })()
             )}
+            {/* The way back into the release notes (#712). A button of its own
+                rather than a second job for the chip beside it: the chip
+                already asks npm on a click, and that is the only way to tell
+                "no update" from "no check ran". It is drawn only where there
+                is something to read, so a build whose notes file says nothing
+                about any release this deck has reached shows nothing here.
+                No aria-pressed and no aria-expanded, for the reason the usage
+                history button gives: what it opens is a modal behind a scrim,
+                so while it is open this button is out of the tree entirely and
+                a `true` no reader can reach is worse than no state at all.
+                aria-haspopup is the part that says what kind of thing opens. */}
+            {everyReleaseNote.length > 0 && (() => {
+              const wn = {
+                running: version?.running ?? __APP_VERSION__,
+                releases: everyReleaseNote.length,
+              };
+              return (
+                <button
+                  type="button"
+                  className="v whats-new"
+                  onClick={() => setReleaseNotes({ entries: everyReleaseNote, since: null })}
+                  aria-haspopup="dialog"
+                  aria-label={whatsNewLabel(wn)}
+                  title={whatsNewTitle(wn)}
+                >
+                  What&apos;s new
+                </button>
+              );
+            })()}
           </div>
           {/* NOT a live region, and #372 is the issue that took the
               `role="status"` off it. Nothing in this strip is a status
@@ -3784,6 +3871,17 @@ function Inner() {
           waiting for an answer. Escape agrees with the paint order — the prompt
           carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
           before arrival. */}
+      {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
+          dialog that arrives on its own belongs: it must not paint over the one
+          waiting for an answer, and the stack in modal-dismiss.ts settles Esc
+          the same way round. */}
+      {releaseNotes && (
+        <ReleaseNotesModal
+          entries={releaseNotes.entries}
+          since={releaseNotes.since}
+          onClose={() => setReleaseNotes(null)}
+        />
+      )}
       {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening

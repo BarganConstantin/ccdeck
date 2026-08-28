@@ -57,6 +57,47 @@ export function versionChipLabel(c: VersionChipCopy): string {
   return `${v}, check npm for a newer release`;
 }
 
+// ── the chip's neighbour: what changed (#712) ────────────────────────────────
+//
+// The release notes appear by themselves exactly once, on the first load after
+// an upgrade that had something to say. Once dismissed they have to be
+// reachable again — that is the whole reason dismissing them is safe, and it is
+// the only recovery a user has after clearing site data, which takes the "you
+// have seen this" marker with it.
+//
+// It is a button of its own rather than a second job for the chip. The chip
+// already does something on a click — it asks npm now, which is the only way to
+// tell "no update" apart from "no check ran" — and a control that does two
+// unrelated things depending on nothing the user can see is worse than a
+// control more. It sits beside the chip because that is where the version
+// lives, and its copy is here for the same reason the chip's is: the visible
+// word is two syllables and everything else it needs to say is invisible.
+
+export type WhatsNewCopy = {
+  /** The version whose notes, and everything before them, this opens. */
+  running: string;
+  /** How many releases this build has anything at all to say about. */
+  releases: number;
+};
+
+/** The button's accessible name. "What's new" alone is a category, not a
+ *  destination — it does not say what the notes are ABOUT, and after an upgrade
+ *  that is the thing being asked. */
+export function whatsNewLabel(c: WhatsNewCopy): string {
+  return `What's new — release notes up to v${c.running}`;
+}
+
+/** The tooltip. Two facts a first-time reader needs: these ship with the deck
+ *  rather than being fetched, and their scarcity is deliberate. */
+export function whatsNewTitle(c: WhatsNewCopy): string {
+  // Both halves have to agree in number, which is why the second one is not a
+  // single sentence with a switch in the middle of it: "It shows … and stay
+  // available" is what that costs, and a tooltip is read closely or not at all.
+  return c.releases === 1
+    ? "One release so far has had something a user would notice. It shows here once, when it is new, and stays available from this button."
+    : `${c.releases} releases so far have had something a user would notice. They show here once, when they are new, and stay available from this button.`;
+}
+
 /** What the chip is about once a drift has been found. */
 export type VersionNoticeCopy = {
   /** "restart" — the new code is already on disk; "upgrade" — it is on npm. */

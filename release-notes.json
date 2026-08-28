@@ -1,0 +1,34 @@
+{
+  "//": [
+    "What a user would NOTICE. One key per version that has something to say,",
+    "and no key at all for a version that has nothing — which is most of them.",
+    "",
+    "The rule this file exists to serve: before every release, ask 'what would a",
+    "user notice?' and write the answer here. 'Nothing user-visible' is a valid",
+    "and expected answer, and it is spelled by adding no key. A release with no",
+    "key shows no modal, and that silence is what keeps the modal worth reading",
+    "on the day it is not silent.",
+    "",
+    "What belongs here: something that changed on the user's machine or under",
+    "their hands — a hook written to or removed from settings.json, a default",
+    "that flipped, a control that moved or went away, a stored preference that",
+    "changed meaning. What does not: bounds, races, assertions that could not",
+    "fire, anything that is invisible when it is correct.",
+    "",
+    "Write it for the person running the deck, not for the person reading the",
+    "diff. `title` is the sentence they scan; `body` is what they need in order",
+    "to act on it, or to stop worrying about it.",
+    "",
+    "Keys are versions exactly as package.json spells them. A key that is not a",
+    "version, or an entry missing either field, fails the suite rather than",
+    "being quietly dropped — see src/web/__tests__/release-notes-file.test.ts.",
+    "Ordering here is for humans; the deck sorts by version itself."
+  ],
+
+  "1.45.0": [
+    {
+      "title": "The deck no longer keeps a sound hook in your settings.json",
+      "body": "Until this release the deck played its finish sound by writing a Stop hook into your Claude Code settings.json, pointing at a script inside its own install directory. That entry is now removed on start-up, and any sound hook of your own that the deck had parked out of the way while its own was in place is put back exactly where you wrote it. Nothing else in that file is touched. The deck plays the sound itself now, from the events it already receives — which is also why it finally sounds at the end of a Codex turn and not only a Claude one."
+    }
+  ]
+}
