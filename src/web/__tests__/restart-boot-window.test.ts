@@ -88,6 +88,56 @@ function post(port: number, path: string, body = "{}"): Promise<Answer> {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+/** The deck this file starts is TWO processes, and that is the whole of #702.
+ *
+ *  `spawn` here starts bin/agent-dag.js; the supervisor then spawns
+ *  bin/deck.js beside it. This file's teardown used to be
+ *  `killTree(child, "SIGKILL")`, which on POSIX is `child.kill("SIGKILL")` and
+ *  reaches exactly one of them. SIGKILL cannot be handled, so the supervisor
+ *  died without running the handler that stops its worker, and the worker was
+ *  re-parented to init still holding its port, its temp directory and 40–60 MB
+ *  of RSS. One per run of this file, every run, on every developer machine and
+ *  every CI leg: 310 were alive on the machine that reported this, the oldest a
+ *  day and four hours old.
+ *
+ *  So the stop is a stop rather than a kill: SIGTERM first, which is the signal
+ *  the supervisor is written to answer — it kills the worker, waits for the
+ *  worker's own shutdown, and then exits — and SIGKILL only if that has not
+ *  happened in time. killTree is what carries the last resort to Windows, where
+ *  there is no SIGTERM to answer and `taskkill /T /F` is the only thing that
+ *  reaches a grandchild.
+ *
+ *  The two halves are deliberate and neither is enough alone. If this process is
+ *  killed outright — Ctrl+C on a run, an agent's worktree pulled out from under
+ *  it — no teardown runs at all, and the leash below is what covers that. */
+function spawnSupervised(args: string[], env: Record<string, string>): ChildProcess {
+  const proc = spawn(process.execPath, args, {
+    // The fourth slot is the leash: the supervisor arms dieWithParent when it is
+    // handed a channel, so a vitest worker that dies without running a single
+    // afterAll still takes the whole deck with it. Unref'd immediately — it
+    // exists to be closed, and a ref'd channel would be one more handle holding
+    // this process open.
+    stdio: ["ignore", "pipe", "pipe", "ipc"],
+    env: { ...process.env, ...env },
+  });
+  proc.channel?.unref?.();
+  return proc;
+}
+
+/** SIGTERM, then SIGKILL, then done — and awaited, so the run does not end
+ *  before the signal has been acted on. Never rejects: a teardown that throws
+ *  is a teardown that stops reaping. */
+async function stopSupervised(proc: ChildProcess | null, ms = 8000): Promise<void> {
+  if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
+  const exited = new Promise<void>(done => { proc.once("exit", () => done()); });
+  try { proc.kill("SIGTERM"); } catch { /* already gone */ }
+  const timer = new Promise<"late">(done => { setTimeout(() => done("late"), ms).unref?.(); });
+  if (await Promise.race([exited.then(() => "gone" as const), timer]) === "late") {
+    killTree(proc, "SIGKILL");
+    await Promise.race([exited, new Promise<void>(done => { setTimeout(done, 2000).unref?.(); })]);
+  }
+}
+
 /** Wait for a condition that a timer or a subprocess will make true. Polled
  *  rather than awaited on an event, because the things being waited for here
  *  are a 120ms handoff and another process's stdout. */
@@ -279,7 +329,7 @@ describe("a restart clicked while the deck is still coming up", () => {
   let life: Lifetime;
 
   beforeAll(async () => {
-    child = spawn(process.execPath, [
+    child = spawnSupervised([
       join(PKG, "bin", "agent-dag.js"),
       // Port 0 so nothing can collide with a developer's own deck; the port
       // that was actually bound is read back off the banner, and the
@@ -287,16 +337,12 @@ describe("a restart clicked while the deck is still coming up", () => {
       "--port", "0", "--no-open", "--no-claude", "--no-codex",
       "--history", join(DIR, "deck-events.jsonl"),
     ], {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        HOME: DIR, USERPROFILE: DIR,
-        CLAUDE_CONFIG_DIR: join(DIR, "claude"),
-        CODEX_HOME: join(DIR, "codex"),
-        AGENTS_DECK_NO_INSTALL: "1",
-        STUB_BOOT_MS: String(BOOT_MS),
-        NO_COLOR: "1",
-      },
+      HOME: DIR, USERPROFILE: DIR,
+      CLAUDE_CONFIG_DIR: join(DIR, "claude"),
+      CODEX_HOME: join(DIR, "codex"),
+      AGENTS_DECK_NO_INSTALL: "1",
+      STUB_BOOT_MS: String(BOOT_MS),
+      NO_COLOR: "1",
     });
     child.stdout!.on("data", d => { out += String(d); });
     child.stderr!.on("data", d => { out += String(d); });
@@ -322,9 +368,14 @@ describe("a restart clicked while the deck is still coming up", () => {
     life = { first, second, out: () => out, restarts };
   }, 60_000);
 
-  afterAll(() => {
-    if (child) killTree(child, "SIGKILL");
+  // Runs whether the beforeAll above passed, threw or hit its 60s budget —
+  // which is exactly the set of paths that used to bank an orphan, since the
+  // supervisor is spawned on the hook's first line and every failure after it
+  // left a deck behind.
+  afterAll(async () => {
+    const proc = child;
     child = null;
+    await stopSupervised(proc);
   });
 
   it("is answered, and told the deck is still starting up", () => {

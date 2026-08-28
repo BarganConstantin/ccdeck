@@ -57,5 +57,13 @@ export default defineConfig({
     // one that is merely slow on Windows.
     hookTimeout: 30_000,
     setupFiles: ["./__tests__/budget.ts"],
+    // #702. Several suites here start a real deck out of a temp install and one
+    // of them stopped only half of it — a supervisor SIGKILLed, its worker
+    // re-parented to init with the port still bound — for months, on every
+    // green run. A globalSetup rather than a hook in a file, because the whole
+    // failure is that no file noticed: it counts the decks running out of the
+    // OS temp directory before and after the suite, and fails the run over any
+    // that appeared. Never the user's own deck, which is never installed there.
+    globalSetup: ["./__tests__/no-stray-decks.ts"],
   },
 });

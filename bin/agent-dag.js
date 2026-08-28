@@ -42,7 +42,7 @@ import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, installedName, installedVersion,
   lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure, successorRoot,
 } from "../src/server/self-update.mjs";
-import { dieOfSignal, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
+import { dieOfSignal, dieWithParent, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, unicodeOK } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
@@ -477,5 +477,29 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     }
   });
 }
+
+// And the same leash the worker is on, one link up (#702).
+//
+// Inert for every published way of starting the deck: `ccdeck`, `npx ccdeck` and
+// the npx relaunch in launchNpx all spawn this file with no IPC channel, so
+// dieWithParent declines to arm and this line costs nothing. It is armed by a
+// harness that DOES hand one over — the suite's spawnSupervised — and what it
+// buys there is the case no teardown can cover, because the teardown is not
+// running: a vitest worker killed outright leaves this supervisor orphaned, and
+// an orphaned supervisor keeps a worker alive under it.
+//
+// Taking the worker with us is the whole of the stop. `stopping` first, so the
+// worker's exit is not read as a request to bring it back; the kill is the
+// signal on POSIX and, through killTree, `taskkill /T /F` on Windows, which has
+// neither SIGTERM nor a process group to aim at.
+dieWithParent(() => {
+  stopping = true;
+  if (fetching) { killTree(fetching, "SIGTERM"); fetching = null; }
+  if (child) killTree(child, "SIGTERM");
+  // Long enough for the worker to unregister its discovery file and let the
+  // port go, short enough that nothing is waiting on us. Unref'd: if the worker
+  // leaves first its exit handler ends this process and the timer never fires.
+  setTimeout(() => process.exit(0), 3000).unref();
+});
 
 launch(false);
