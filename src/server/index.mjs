@@ -1949,7 +1949,9 @@ function maybeResolveCodex(payload) {
 // agent-dag event stream from them. Each rollout line is one append-only JSON
 // object {timestamp, type, payload}; we map the relevant ones to the same
 // synthetic hook payloads the reducer already understands:
-//   session_meta                       → SessionStart
+//   session_meta                       → SessionStart, but ONLY for a rollout
+//                                        this watcher read from byte 0 (#684).
+//                                        See ensureCodexRoot.
 //   event_msg/user_message             → UserPromptSubmit (Codex ≤ 0.144)
 //   event_msg/item_completed/UserMessage → UserPromptSubmit (Codex ≥ 0.147)
 //   response_item/function_call        → PreToolUse
@@ -1976,7 +1978,8 @@ function maybeResolveCodex(payload) {
 // broadcasts them exactly like a hook event, and persists them when this deck is
 // the one elected to log this rollout — see writesCodexLog. This path is
 // entirely additive — the Claude hook flow is untouched.
-const codexFileState = new Map();      // path -> { offset, sid, cwd, skip, seenAt }
+// path -> { offset, sid, cwd, skip, sawBeginning, rootOpened, seenAt }
+const codexFileState = new Map();
 const codexSessionModel = new Map();   // sid -> last model string
 // sid -> the `approval_policy` of the newest `turn_context` seen on this
 // session. See codexObjToPayload for why this is read and what it is NOT used
@@ -2553,12 +2556,71 @@ function emitCodexEvent(payload, persist) {
   pushEvent(payload, "codex", { persist });
 }
 
-// Emit the SessionStart root exactly once per file, lazily — only when the
-// session actually produces an event. This keeps long-dead sessions that were
-// merely on disk at startup from cluttering the canvas with empty roots.
+/**
+ * Open this rollout's session on the canvas, once, lazily — only when it
+ * actually produces an event. Emitting eagerly for every file on disk at
+ * startup would fill the canvas with empty roots for sessions nobody will ever
+ * append to again.
+ *
+ * WHETHER A `SessionStart` IS EMITTED AT ALL IS THE WHOLE OF #684.
+ *
+ * This used to mint one unconditionally, and for a rollout the deck joined
+ * partway through that event is a false statement. #683 made the falsehood
+ * visible rather than merely wrong: a root created by anything OTHER than a
+ * `SessionStart` is marked `synthetic` in the reducer — "the deck joined this
+ * session after it had already begun, so the start time, the prompt history and
+ * the early tool calls on this card are incomplete rather than empty" — and a
+ * Codex session that carries a minted `SessionStart` clears that marker and
+ * asserts a beginning nobody watched. The Claude side never had the problem: a
+ * deck that starts mid-session simply never receives a `SessionStart` hook for
+ * it, which is exactly the case the marker was built for.
+ *
+ * `sawBeginning` is the one fact that separates the two, and it is not a
+ * filesystem question. It is set where the tail cursor is: TRUE when this
+ * watcher opened the rollout at byte 0 and therefore holds every line the
+ * session ever wrote, FALSE when codexScanOnce's `firstRun` skipped a
+ * pre-existing file's history by seeking to its current size. That is the same
+ * fact the event states, read off the only thing that actually knows it, and it
+ * is the same on Linux, macOS and Windows because no platform API is consulted.
+ *
+ * WHY NOT `fs.watch`, AND WHY NOT `birthtime` — both measured rather than
+ * assumed, on Node 22.14 / darwin, plus the documented behaviour elsewhere:
+ *
+ *   • `fs.watch` on a path that does not exist throws ENOENT, and
+ *     ~/.codex/sessions/YYYY/MM/DD does not exist until the day's first
+ *     session — the same reason startCodexWatcher polls instead of watching.
+ *   • a NON-recursive watch on ~/.codex/sessions reports only `rename:2026`
+ *     when a rollout appears three levels below it; the file's creation is
+ *     invisible to it.
+ *   • `recursive: true` works here and on Windows, and on Linux only from a
+ *     Node 20.x release — while this package declares `"node": ">=18"`, so on
+ *     the OS Codex users most often run servers on it may simply not be there.
+ *   • even where it works the event does not mean "created": writing the file
+ *     and then rewriting it produced `rename:rollout.jsonl` BOTH times, and
+ *     Node documents the event type as not guaranteed and `filename` as
+ *     possibly null.
+ *   • `stat().birthtimeMs` is real on APFS, but Node documents it as falling
+ *     back to ctime or to the Unix epoch on filesystems that do not carry it —
+ *     so on some Linux hosts every rollout would look newborn.
+ *
+ * WHAT ANOTHER DECK SEES. Nothing new: the fix REMOVES a line from
+ * events.jsonl, it does not add one or change a shape. A joined-late Codex
+ * session now reaches the shared log looking exactly like a joined-late Claude
+ * one — a root conjured by its first real event — which every deck, including
+ * one older than #683 that has no marker to light, has always been able to
+ * replay. The events that create the root instead (`UserPromptSubmit`,
+ * `PreToolUse`, `ModelObserved`, …) each carry `provider: "codex"`, `cwd` and
+ * `approval_policy` from `base` in codexObjToPayload, so nothing an older deck
+ * read off the `SessionStart` is lost with it.
+ *
+ * `rootOpened` still flips in both cases, and deliberately: it gates the
+ * per-batch AGENTS.md resolution in codexScanOnce, which asks "is this session
+ * being drawn", not "did we announce it".
+ */
 function ensureCodexRoot(state, persist) {
-  if (state.rootEmitted) return;
-  state.rootEmitted = true;
+  if (state.rootOpened) return;
+  state.rootOpened = true;
+  if (!state.sawBeginning) return;
   emitCodexEvent({ session_id: state.sid, cwd: state.cwd, provider: "codex", hook_event_name: "SessionStart" }, persist);
 }
 
@@ -2585,16 +2647,32 @@ async function codexScanOnce(firstRun) {
         const header = await readCodexHeader(path);
         if (!header || !header.sid) continue; // not ready yet — retry next tick
         if (!codexCwdInWorkspace(header.cwd, codexWorkspace)) {
-          codexFileState.set(path, { offset: st.size, sid: header.sid, cwd: header.cwd, skip: true, rootEmitted: false, seenAt: now });
+          codexFileState.set(path, { offset: st.size, sid: header.sid, cwd: header.cwd, skip: true, sawBeginning: false, rootOpened: false, seenAt: now });
           continue;
         }
-        state = { offset: 0, sid: header.sid, cwd: header.cwd, skip: false, rootEmitted: false, seenAt: now };
+        // Opened at byte 0, so every line this session ever wrote is about to
+        // be read: this watcher HAS its beginning, and ensureCodexRoot may say
+        // so. The `firstRun` branch below is the one case that takes it away.
+        state = { offset: 0, sid: header.sid, cwd: header.cwd, skip: false, sawBeginning: true, rootOpened: false, seenAt: now };
         codexFileState.set(path, state);
         if (firstRun) {
           // On startup, skip a pre-existing session's history entirely — no
-          // root, no replay. Only future appends (a live session that keeps
-          // going) will lazily create the root via ensureCodexRoot.
+          // replay. Only future appends (a live session that keeps going) will
+          // lazily open the root via ensureCodexRoot.
+          //
+          // And it opens WITHOUT a `SessionStart` (#684). Seeking to the
+          // current size is precisely the admission that this deck did not
+          // watch the session begin, so it must not go on to emit the event
+          // that says it did — that is the input #683's joined-late marker is
+          // entitled to trust. A deck RESTARTING over a session that is still
+          // running lands here too, and correctly: the new process holds none
+          // of the old one's history either. If the log it replays at boot
+          // already contains a `SessionStart` this deck minted honestly in an
+          // earlier life, the root is rebuilt unmarked from that line and stays
+          // unmarked — the reducer only honours `synthetic` on the call that
+          // CREATES the node, and nothing here contradicts it.
           state.offset = st.size;
+          state.sawBeginning = false;
           continue;
         }
       }
@@ -2646,7 +2724,7 @@ async function codexScanOnce(firstRun) {
       // lines, and a batch whose roots and tool calls went to one deck's log
       // while its memory list went to every deck's is the split the election
       // exists to prevent (#447).
-      if (state.rootEmitted) maybeResolveCodexMemory(state.sid, state.cwd, persist);
+      if (state.rootOpened) maybeResolveCodexMemory(state.sid, state.cwd, persist);
     }
 
     // Rollout files fall out of the newest-2-days listing and never come back,
@@ -2676,8 +2754,10 @@ export function startCodexWatcher(workspace) {
   // filesystem watch is no help: fs.watch on a missing path throws, and
   // watching the parent recursively is macOS/Windows-only.
   //
-  // Initial catalog: create roots for in-progress sessions, skip their
-  // history, then poll for new lines.
+  // Initial catalog: park a cursor at the end of every rollout already on disk,
+  // skipping its history, then poll for new lines. The `true` is what tells
+  // codexScanOnce that these files pre-date this deck, and so that the roots
+  // they eventually open must arrive without a `SessionStart` (#684).
   codexScanOnce(true).catch(() => {});
   codexWatchTimer = setInterval(() => { codexScanOnce(false).catch(() => {}); }, 1500);
   if (codexWatchTimer.unref) codexWatchTimer.unref();

@@ -479,7 +479,15 @@ describe("the cwd each capture path compares", () => {
       // the log election — which models the other decks with this same predicate
       // against their published, canonical workspaces — puts it in the right
       // group too.
-      expect(drawn[0]).toMatchObject({ hook_event_name: "SessionStart", cwd: realpathSync.native(proj), provider: "codex" });
+      //
+      // Read off the prompt rather than off a leading `SessionStart` (#684).
+      // That event is now minted only for a rollout the watcher opened at byte
+      // 0, and whether this one existed before the startup catalogue ran is
+      // exactly the race the loop above is written to tolerate — so the root
+      // event is sometimes there and sometimes not, while the canonical cwd
+      // this case is about rides on every payload either way.
+      expect(drawn.find(p => p.hook_event_name === "UserPromptSubmit"))
+        .toMatchObject({ cwd: realpathSync.native(proj), provider: "codex" });
     } finally {
       clearInterval(timer);
     }
