@@ -15,25 +15,29 @@
 // draws is the answer.
 //
 // The dialog is dismissible without regret because it is reachable again from
-// the topbar button beside the version chip — see whatsNewLabel in
-// version-chip.ts. That matters more than it sounds: the "you have already seen
+// the version chip in the topbar — see versionChipLabel in version-chip.ts, and
+// #715 for why that is the chip itself rather than the separate button #712
+// put beside it. That matters more than it sounds: the "you have already seen
 // this" marker lives in the browser store, so clearing site data loses it, and
-// the button is the only way back.
-import { releaseNotesIntro, versionRangeLabel, type VersionNotes } from "../release-notes";
+// the chip is the only way back.
+import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 interface Props {
   /** The releases to show, newest first — decideReleaseNotes' answer, or every
-   *  release this build knows about when the topbar button opened it. */
+   *  release this build knows about when the version chip opened it. */
   entries: VersionNotes[];
   /** The version the user had already been caught up to, when the deck raised
-   *  this by itself. Null when they opened it from the topbar, which is a
+   *  this by itself. Null when they opened it from the chip, which is a
    *  different sentence and not a missing one. */
   since: string | null;
+  /** The version the deck is running, so the first line can say whether the
+   *  release at the top of this list is the one the reader is on. */
+  running: string | null;
   onClose: () => void;
 }
 
-export default function ReleaseNotesModal({ entries, since, onClose }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, onClose }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -78,7 +82,7 @@ export default function ReleaseNotesModal({ entries, since, onClose }: Props) {
               without being asked and does not say why is the one people learn
               to dismiss unread, which would make it worthless on the release it
               exists for. */}
-          <p className="modal-note">{releaseNotesIntro(since, entries)}</p>
+          <p className="modal-note">{releaseNotesIntro({ since, running, entries })}</p>
           {entries.map(entry => (
             <section className="modal-section" key={entry.version}>
               {/* h3, not h4: the level a dialog that names itself with
@@ -86,15 +90,28 @@ export default function ReleaseNotesModal({ entries, since, onClose }: Props) {
                   sheet makes for its group captions. */}
               <h3 className="rn-version">v{entry.version}</h3>
               <ul className="rn-notes">
-                {entry.notes.map((note, i) => (
-                  // The index is the key because a note has no identity beyond
-                  // its position in a file nobody edits at runtime: this list
-                  // is built once from a frozen import and never reorders.
-                  <li className="rn-note" key={i}>
-                    <p className="rn-note-title">{note.title}</p>
-                    <p className="rn-note-body">{note.body}</p>
-                  </li>
-                ))}
+                {entry.notes.map((note, i) => {
+                  // A leading emoji gets a box of its own so the sheet can give
+                  // it the side bearing its glyph does not have — see
+                  // splitNoteTitle, which is also where the reasoning lives for
+                  // why the space stays inside `rest` rather than being spelled
+                  // here. `icon` + `rest` is the title, character for character,
+                  // so nothing about the text this renders has changed.
+                  const { icon, rest } = splitNoteTitle(note.title);
+                  return (
+                    // The index is the key because a note has no identity
+                    // beyond its position in a file nobody edits at runtime:
+                    // this list is built once from a frozen import and never
+                    // reorders.
+                    <li className="rn-note" key={i}>
+                      <p className="rn-note-title">
+                        {icon && <span className="rn-note-icon">{icon}</span>}
+                        {rest}
+                      </p>
+                      <p className="rn-note-body">{note.body}</p>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

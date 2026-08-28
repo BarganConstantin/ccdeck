@@ -539,15 +539,34 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
 
   it("says which way the drift goes, in both kinds", () => {
     expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is available on npm — show the notice");
+      .toBe("Version v1.35.2, v1.36.0 is available on npm — show what's new and the notice");
     expect(versionNoticeLabel({ kind: "restart", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is installed and waiting for a restart — show the notice");
+      .toBe("Version v1.35.2, v1.36.0 is installed and waiting for a restart — show what's new and the notice");
   });
 
   it("describes the next click rather than the current state", () => {
+    // #715 turned this from a toggle into a reveal, and the lesson survives the
+    // change: the name is still what the next press DOES. What moved is that
+    // the notice is promised only while it is not already there — promising to
+    // show something the reader can see is how a name stops being trusted — and
+    // the release notes, which the press opens either way, are named in both.
     const open = versionNoticeLabel({ kind: "upgrade", from: "1.0.0", to: "1.1.0", open: true });
-    expect(open).toMatch(/hide the notice$/);
-    expect(open).not.toMatch(/show the notice/);
+    expect(open).toMatch(/show what's new$/);
+    expect(open).not.toMatch(/and the notice/);
+    // Never "hide": this chip cannot put the banner away any more, and a name
+    // offering that would be describing the × further down the page.
+    expect(open).not.toMatch(/hide/);
+  });
+
+  it("is a way into the release notes in the state that lasts longest (#715)", () => {
+    // The amber chip is drawn for as long as the deck is behind, which can be
+    // weeks. #712's dialog is safe to dismiss only because it is reachable
+    // again, so this branch has to offer it too or that reachability lapses for
+    // exactly as long as the drift does.
+    for (const open of [true, false]) {
+      expect(versionNoticeLabel({ kind: "restart", from: "1.35.2", to: "1.36.0", open }), String(open))
+        .toContain("show what's new");
+    }
   });
 
   it("carries the visible text inside the accessible name (2.5.3)", () => {
