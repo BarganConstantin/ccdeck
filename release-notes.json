@@ -24,7 +24,16 @@
     "being quietly dropped — see src/web/__tests__/release-notes-file.test.ts.",
     "Ordering here is for humans; the deck sorts by version itself."
   ],
-
+  "1.46.0": [
+    {
+      "title": "The speaker button now opens a sound menu, and the two tones are set separately",
+      "body": "Clicking the speaker in the top bar used to be the whole feature: on, or off. It now opens a small panel where the finish tone and the \"Claude is asking\" tone are configured independently — each has its own volume and its own choice of six sounds, and a Hear it button beside it so you can judge a setting without waiting for a real turn to end. The two lists are deliberately separate, so no combination can leave you with two tones that sound the same: every finish sound settles downwards and every asking one rises and stops there, which is what lets you tell them apart without looking at the screen. M still turns the sound on and off from anywhere."
+    },
+    {
+      "title": "This dialog is new",
+      "body": "When an upgrade brings something you would notice, the deck now says so once, here, and then leaves you alone — most releases carry nothing and show nothing at all. You can read it again whenever you like from the What's new button beside the version in the top bar."
+    }
+  ],
   "1.45.0": [
     {
       "title": "The deck no longer keeps a sound hook in your settings.json",
