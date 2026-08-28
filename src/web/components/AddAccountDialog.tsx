@@ -10,6 +10,14 @@
 // state rather than a single form — and why closing it has to cancel, not just
 // disappear.
 //
+// It blocks on stdin AND on a loopback port at the same time, and which of the
+// two ends the sign-in is not up to the CLI — it is up to whether the browser
+// that opened can reach this machine. On the deck's own machine it can, so the
+// CLI takes the code itself and step 2 below is never used; from another
+// machine it cannot, the page shows a code, and step 2 is the only way through.
+// The copy on step 2 says so rather than demanding a paste that most sign-ins
+// never produce (#708).
+//
 // And nothing starts until asked. This used to launch the sign-in the moment
 // the dialog opened, which threw a browser tab at anyone who came here to paste
 // a share — an irreversible side effect as the greeting. Opening a dialog is
@@ -308,7 +316,19 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">{login.url}</a>
                 </div>
                 <div className="aa-step">
-                  <h4>2 · Paste the code it gives you</h4>
+                  {/* #708: this said "Paste the code it gives you", and on most
+                      machines the page gives you none. `claude auth login`
+                      listens on a loopback port as well as on stdin, so when
+                      the browser can reach this machine the CLI takes the code
+                      itself and the page just says you are all set. The paste
+                      is the OTHER route — a deck opened from a different
+                      machine, where loopback cannot be reached and the page
+                      shows the code instead. Both are live at once and the CLI
+                      says so itself: "Paste code here IF PROMPTED". */}
+                  <h4>2 · Paste a code, if the page shows one</h4>
+                  <p className="aa-note">
+                    It usually finishes on its own — if the page says you are all set, there is nothing to do here.
+                  </p>
                   <div className="aa-field">
                     <input
                       ref={codeRef}
@@ -365,7 +385,8 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
               <div className="aa-step aa-primer">
                 <h4>Sign in to Anthropic</h4>
                 <p className="aa-note">
-                  Opens a browser tab where you approve the sign-in, then asks for the code it shows you.
+                  Opens a browser tab where you approve the sign-in. It normally completes by itself; only if the
+                  page hands you a code does it need pasting back here.
                   claude-swap records the account when it completes, and the account you are using now stays active.
                 </p>
                 <div className="aa-actions">
