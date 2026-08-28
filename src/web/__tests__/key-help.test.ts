@@ -178,16 +178,36 @@ describe("the sound switch, which had a control and no key", () => {
     }
   });
 
-  it("sends the button and the key through one door", () => {
+  it("sends both ways to the switch through one door", () => {
     // requestClear's shape, for the one other control that answers to two
     // devices: a modifier the mouse honours and the keyboard does not is
     // exactly how the shift-click ended up undocumented in the first place.
-    expect(app).toMatch(/onClick=\{\(e\) => activateSound\(e\.shiftKey\)\}/);
+    //
+    // WHICH two devices changed in #711 and the rule did not. The topbar button
+    // stopped toggling — it opens the menu — so the two routes to the switch
+    // are now M and the menu's own control, and both still land on toggleSound.
+    // A second setter, on either of them, is what this refuses.
     expect(app).toMatch(/activateSoundRef\.current\(e\.shiftKey\)/);
-    // #704 removed the mechanism shift recovered from, so the door takes the
-    // modifier and ignores it rather than branching on it. One door is still
-    // the rule being pinned: the button and the key reach the same callback.
     expect(app).toMatch(/const activateSound = useCallback\(\(_withShift: boolean\) => \{ toggleSound\(\); \}/);
+    expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
+    // Two writers of the flag and no more: the effect that reads the stored
+    // value back on mount, and the toggle itself. A third would be a second
+    // door — the exact thing this case exists to refuse.
+    expect([...app.matchAll(/setSoundOn\(/g)]).toHaveLength(2);
+    expect(app).toMatch(/const toggleSound = useCallback\(\(\) => \{\s*\n\s*setSoundOn\(prev => \{/);
+  });
+
+  it("keeps a one-press route to silence now that the click opens a menu", () => {
+    // The half of #711 that had to survive the redesign: a keyboard user must
+    // still be able to shut the deck up without opening anything. M is that,
+    // and the sheet is where it is promised.
+    const row = KEY_HELP.flatMap(g => g.rows).find(r => /^m$/i.test(r.cap));
+    expect(row!.action).toMatch(/sound on or off/);
+    // And the divergence is written down rather than left to be discovered,
+    // which is the whole reason #709 removed Shift+M: the click and M no longer
+    // agree, so the sheet says what each one does.
+    const mouse = KEY_HELP.find(g => g.title === "Mouse")!;
+    expect(mouse.rows.some(r => /speaker/i.test(r.action) && /settings/i.test(r.action))).toBe(true);
   });
 
   it("guards M the way it guards A, plus the state the button waits for", () => {
@@ -221,7 +241,10 @@ describe("the sound gestures that outlived their mechanism", () => {
     // The tone follows the event now, and a Codex Stop is a Stop.
     const row = KEY_HELP.flatMap(g => g.rows).find(r => /^m$/i.test(r.cap));
     expect(row, "M is not in the sheet").toBeDefined();
-    expect(row!.action).toMatch(/finish sound on or off/);
+    // "finish sound" became "sound" in #711: the key covers both tones and the
+    // menu it sits beside names them separately, so the narrower word was the
+    // one that had gone stale.
+    expect(row!.action).toMatch(/sound on or off/);
     expect(row!.action).not.toMatch(/Claude Code/);
   });
 });

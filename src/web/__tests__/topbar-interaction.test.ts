@@ -311,7 +311,13 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // and the settings, which is the split the bar was regrouped into.
     expect((app.match(/<div className="action-run">/g) ?? [])).toHaveLength(2);
     expect(app).toMatch(/aria-label="Toggle usage panel"/);
-    expect(app).toMatch(/aria-label="Toggle Claude Code finish sound"/);
+    // #711 renamed this one. The button used to toggle the sound and now opens
+    // a menu that holds the switch, two volumes, two sound choices and two
+    // previews, so its name says what the press does rather than what it used
+    // to do. What this case is about is unchanged and is why it still names a
+    // control in the second run: the settings run still exists and still has
+    // something in it.
+    expect(app).toMatch(/aria-label="Sound settings"/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {

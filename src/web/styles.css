@@ -694,6 +694,168 @@ button:focus-visible { outline-offset: 1px; }
   gap: 8px;
 }
 
+/* ---------------- the sound menu (#711) ---------------- */
+
+/* The deck's first popover, and the only thing in the topbar that hangs
+   something off a button. The slot is what gives the menu something to be
+   absolute against; it adds no box and no gap of its own, so the run's 8px
+   rhythm is unchanged and the button sits exactly where it always did. */
+.sound-slot { position: relative; display: flex; }
+
+/* Right-aligned to the button rather than centred on it, because this button is
+   near the right edge of a bar it can never overhang. 268px is the width the
+   longest row needs — a label, a range that can still be dragged, and a reading
+   wide enough for "100%" — and it is a fixed number rather than a min/max
+   because a popover that resizes as its own values change would move under the
+   pointer that is changing them.
+   z-index 40 sits above the canvas and its controls (the highest of those is
+   20) and below every dialog and its scrim (100), which is the honest order: a
+   modal opening over this must cover it, and it must cover the canvas.
+   Surface, edge and shadow are .modal's, one tier softer — 10px and --shadow-2
+   rather than 12px and the accent hairline — because a popover is attached to
+   something and a dialog is not. */
+.sound-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-2);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
+
+/* The switch. A `button.btn` rather than a shape of its own, so the box, the
+   hover, the press scale and the pointer cursor are the ones every other button
+   in the deck already has — and so canvas-motion.test.ts's press contract is
+   satisfied by the rule that already satisfies it, rather than by a second
+   spelling. What is added here is the layout: a label pushed left and the state
+   word pushed right, full width.
+
+   Written `button.btn.sm-switch` rather than `.sm-switch`, and that is not
+   defensive spelling: `button.btn` is 0-1-1 and declares `justify-content:
+   center` further down the sheet, so a bare class selector here would lose both
+   the specificity contest and the source-order one and every declaration in
+   this block would be dead. type-ladder.test.ts catches exactly that class of
+   silently-inert override.
+   No `width: 100%` either — `.sound-menu` is a flex column, whose default
+   `align-items: stretch` already gives this the full width. Declaring it as a
+   percentage would add the one thing panel-overflow.test.ts sweeps for. */
+button.btn.sm-switch {
+  justify-content: space-between;
+  gap: 12px;
+}
+.sm-switch-label { font-weight: 600; }
+/* The state, in the same two channels the topbar toggles use: a word, and the
+   accent. --muted when off is the same dim every inert control in the sheet
+   takes, so "off" reads as off without a second colour being invented. */
+.sm-switch-state { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sm-switch[aria-pressed="true"] .sm-switch-state { color: var(--accent); }
+
+/* One tone: a heading with its preview beside it, two rows of controls, and the
+   line saying which turns it covers. */
+.sm-tone { display: flex; flex-direction: column; gap: 8px; }
+.sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The caption the shortcuts sheet's group headings already are, restated for a
+   heading that is not in that grid. */
+.sm-tone-name {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+/* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
+   is a lot for two words on a caption line, so that is trimmed and the gap
+   between the ▶ and the word is stated — but --ctl-h is not touched: this deck
+   has one button height and panel-rhythm.test.ts keeps it that way, refusing
+   any rule that could put a second one back. A 30px button beside an 11px
+   caption looked wrong in the drafting and turned out to be the caption's
+   fault; the row is centred, so the two align on their middles and the height
+   never reads as oversized. */
+button.btn.sm-hear {
+  padding: 0 8px;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.sm-row { display: flex; align-items: center; gap: 10px; }
+.sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }
+/* Native, and left native on purpose. A custom track and thumb would have to
+   re-earn the arrow keys, Home and End, the drag, the announced percentage and
+   the focus ring — all of which the browser gives for nothing, and #620 is what
+   this deck's record on dropped focus is worth.
+
+   `accent-color` is the whole of the theming: it paints the filled half and the
+   thumb from the same token every other control here is drawn with, and it
+   answers data-theme because the token does. The unfilled half is the UA's own
+   widget colour, which follows `color-scheme` — declared in both theme blocks
+   at the top of this file — so it is dark on the dark canvas and light on the
+   white one with no rule of its own.
+
+   Deliberately no `cursor: pointer`. On this deck that declaration is a PROMISE
+   — canvas-motion.test.ts sweeps every rule carrying it and requires something
+   to give back under `:active`, eased, and neutralised under reduced motion. A
+   slider is not pressed, it is dragged, and squashing it under the thumb would
+   fight the gesture. What it gives back instead is more than any of those
+   controls do: the thumb moves, the fill follows it, the reading beside it
+   steps, and 160ms later the tone itself plays. */
+.sm-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  height: 20px;
+  accent-color: var(--accent);
+}
+/* Tabular, so stepping the value does not shuffle the row, and wide enough that
+   "100%" does not push the slider narrower than "0%" did. */
+.sm-read {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text);
+}
+/* The one control here the platform draws entirely: only the box it sits in is
+   ours, and `accent-color` tints the open list where the platform honours it. */
+.sm-select {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 6px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--ctl-edge);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  accent-color: var(--accent);
+}
+.sm-select:hover { border-color: var(--accent); }
+
+/* Which turns each tone covers. The asymmetry #394 is about — Codex has no
+   Notification — said next to the control it applies to rather than only in a
+   tooltip on the button that opened this. */
+.sm-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+/* The key, kept visible inside the menu it no longer lives on. The topbar
+   button stopped toggling when it started opening this, so the sentence that
+   says where the toggle went belongs where the user is looking. */
+.sm-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 /* Selected-agent ribbon — context chip that follows you across the canvas
    when an agent is selected. Click → fit-view to that agent. The × on
    the right clears selection without leaving the topbar. */
@@ -6778,5 +6940,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 
   .modal,
   .ctx-modal,
-  .uh-modal { animation: fadeIn 140ms ease-out; }
+  .uh-modal,
+  /* #711's popover. Not a dialog, and listed here for exactly the reason the
+     paragraph above gives: a media query does not inherit through a shared
+     shape, only through a selector actually written down. It carries the same
+     popIn — a 4px lift and a scale — over whatever the reader was looking at,
+     which is the case 2.3.3 is about whether the thing lifting is modal or not. */
+  .sound-menu { animation: fadeIn 140ms ease-out; }
 }

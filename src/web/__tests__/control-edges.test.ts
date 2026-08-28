@@ -491,6 +491,13 @@ const CONTROLS: Control[] = [
   // it came back.
   { at: "button.btn.danger", fillFrom: "button.btn", states: ["button.btn.danger:hover"], beds: ["--panel"] },
   { at: ".topbar .waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
+  // The sound menu's figure picker (#711). The one control in that popover with
+  // a boundary of its own — the switch and the Hear-it button are `button.btn`
+  // and are swept two lines up, and the range draws no edge at all. It earns
+  // the sweep rather than an exemption for the reason 1.4.11 gives: a `select`
+  // is identified by nothing but the option text inside it, so the box IS the
+  // control. Its bed is --panel, which is the popover's own surface.
+  { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
   // The skip link (#381). It is only ever on screen while it holds focus, and
   // it is drawn over the topbar it skips past — so the beds are the bar's two
   // ends, like every other control up here. It gets the sweep rather than an

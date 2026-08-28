@@ -94,7 +94,12 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
     title: "Settings",
     rows: [
-      { cap: "M", action: "finish sound on or off", binds: ["m", "M"] },
+      // #711 gave the topbar speaker a menu, so the click stopped toggling and
+      // this key became the only one-press route to silence. The action stays
+      // worded as the toggle it is, and the Mouse group below says what the
+      // button does now — the two gestures no longer agree, which is exactly
+      // the thing that has to be written down rather than discovered.
+      { cap: "M", action: "sound on or off", binds: ["m", "M"] },
       { cap: "T", action: "light or dark theme", binds: ["t", "T"] },
     ],
   },
@@ -114,6 +119,12 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "drag", action: "move a node, and pin it where you dropped it", binds: [] },
       { cap: "shift-click", action: "add an agent to the selection", binds: [] },
+      // #711. The speaker in the topbar used to toggle and now opens a menu, so
+      // the click and M no longer mean the same thing. That divergence is the
+      // shape #709 removed Shift+M for, and the difference is that this one is
+      // written down: a gesture that exists only in the source is not a feature
+      // that shipped, and this sheet is where the deck says otherwise.
+      { cap: "click", action: "the topbar speaker opens volume and sound settings", binds: [] },
     ],
   },
 ];
