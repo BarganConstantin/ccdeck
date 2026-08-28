@@ -26,7 +26,8 @@
 // browser tab and starts an OAuth flow against whoever is running the tests.
 // The bytes it emits are the real capture.
 import { describe, it, expect, afterEach, afterAll, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -262,8 +263,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_STORE, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_STORE);
 });
 
 // ── the sign-in the CLI finishes by itself ───────────────────────────────────

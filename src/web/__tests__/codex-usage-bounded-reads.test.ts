@@ -8,7 +8,8 @@
 // undercount. These tests pin the two caps and the line stitching the chunked
 // reader needs to get right.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -100,7 +101,7 @@ afterAll(() => {
   restore("HOME", prevHome);
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // An hour ago: inside both the 5h and the 7d window.
@@ -114,7 +115,7 @@ function rolloutName(id: string): string {
 
 /** sessions/<year>/<month>/<day>, wiped so each test starts from nothing. */
 function freshDayDir(): string {
-  rmSync(SESSIONS, { recursive: true, force: true });
+  rmTempDir(SESSIONS);
   const [y, m, d] = AT.toISOString().slice(0, 10).split("-");
   const dir = join(SESSIONS, y, m, d);
   mkdirSync(dir, { recursive: true });

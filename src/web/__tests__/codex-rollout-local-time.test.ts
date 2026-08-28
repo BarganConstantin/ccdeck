@@ -48,7 +48,8 @@
 // instead of passing six cases in the runner's own zone.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,7 +60,7 @@ const H = 60 * 60 * 1000;
 const D = 24 * H;
 
 const ROOT = mkdtempSync(join(tmpdir(), "ccdeck-609-"));
-afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
+afterAll(() => rmTempDir(ROOT));
 
 type Session = { id: string; startAgeMs: number; events: Array<{ ageMs: number; total: number }> };
 type Probe = {

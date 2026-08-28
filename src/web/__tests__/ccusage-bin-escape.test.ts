@@ -15,7 +15,8 @@
 // Nothing here downloads or runs anything: the package.json is written into a
 // temp directory that stands in for the real cache dir.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -51,7 +52,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 beforeEach(() => { writeFileSync(join(PKG_DIR, "src", "cli.js"), "// stand-in\n"); });

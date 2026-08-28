@@ -78,7 +78,8 @@
 // running the suite; and the store is seeded with nothing due, so nothing here
 // can spawn a `cswap` on a machine that happens to have one installed.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -163,7 +164,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // ── /api/version ────────────────────────────────────────────────────────────
@@ -213,7 +214,7 @@ type VersionModule = {
 /** The module under test, with no memory of the previous case — neither in
  *  variables nor on disk, since the marker outlives an import. */
 async function freshVersionModule(): Promise<VersionModule> {
-  rmSync(join(DIR, ".agents-deck"), { recursive: true, force: true });
+  rmTempDir(join(DIR, ".agents-deck"));
   vi.resetModules();
   return await import("../../server/self-update.mjs") as unknown as VersionModule;
 }

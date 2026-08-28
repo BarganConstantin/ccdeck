@@ -75,7 +75,8 @@
 // file, and both home variables are redirected before the module loads, so no
 // case here can reach the real ~/.codex of whoever is running the suite.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { withoutComments } from "./tsx-scan";
@@ -158,7 +159,7 @@ function tokenCount(total: number): string {
  *  expects. Rebuilt from nothing per case, so a count is never inherited. */
 const FILES = 12;
 function seedRollouts(count = FILES): void {
-  rmSync(SESSIONS, { recursive: true, force: true });
+  rmTempDir(SESSIONS);
   const [date, time] = AT.toISOString().slice(0, 19).split("T");
   const [y, m, d] = date.split("-");
   const dir = join(SESSIONS, y, m, d);
@@ -191,7 +192,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 describe("mayScanUsage, the rule on its own", () => {

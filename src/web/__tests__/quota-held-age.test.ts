@@ -14,7 +14,8 @@
 // network: child_process and claude-accounts.mjs are replaced wholesale, and
 // every home the module resolves at import time points into a temp directory.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -112,7 +113,7 @@ afterAll(() => {
     if (PREV[k] === undefined) delete process.env[k];
     else process.env[k] = PREV[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Serve one good store row, then take the store away and let the CLI answer

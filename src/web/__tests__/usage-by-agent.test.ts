@@ -28,7 +28,8 @@
 // so it must not find the developer's own managed install or a global copy on
 // their PATH, on any platform.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ASSUMED, readProviders } from "../providers";
@@ -195,7 +196,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 /** The deck's own managed install, in the state resolveEntry accepts. The
@@ -340,7 +341,7 @@ describe("an older ccusage, which does not know the flag", () => {
     // refusals. AGENTS_DECK_NO_INSTALL with nothing installed is refused by the
     // deck itself, and retrying it would spawn nothing and say the same thing
     // twice.
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
     process.env.AGENTS_DECK_NO_INSTALL = "1";
     try {
       const res = await quietly(() => fetchCcusageDaily({ since: "20260808" }));

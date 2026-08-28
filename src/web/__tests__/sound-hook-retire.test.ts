@@ -37,6 +37,7 @@
 // if that ever stops being true.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -88,7 +89,7 @@ afterAll(() => {
   restoreEnv("USERPROFILE", prevUserProfile);
   restoreEnv("CLAUDE_CONFIG_DIR", prevConfigDir);
   restoreEnv("CODEX_HOME", prevCodexHome);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 const SETTINGS = String(SETTINGS_PATH);
@@ -139,7 +140,7 @@ function writePark(entries: unknown[]): void {
 /** A machine with nothing of ours anywhere. */
 beforeEach(() => {
   rmSync(SETTINGS, { force: true });
-  rmSync(join(CLAUDE_DIR, "agent-dag"), { recursive: true, force: true });
+  rmTempDir(join(CLAUDE_DIR, "agent-dag"));
   rmSync(PARKED, { force: true });
 });
 

@@ -31,7 +31,8 @@
 // decides, and a hand-fed mapper cannot tell a rollout that pre-dates the deck
 // from one born under its watch.
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
@@ -62,7 +63,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[k];
     else process.env[k] = was;
   }
-  rmSync(ROOT, { recursive: true, force: true });
+  rmTempDir(ROOT);
 });
 
 type Envelope = { seq: number; source: string; receivedAt: number; payload: HookPayload };

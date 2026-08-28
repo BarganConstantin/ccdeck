@@ -13,7 +13,8 @@
 // its children a temp HOME of their own.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isOrphan, isStrayDeck, norm, parseListing, strayMessage, tempRoots, type Proc } from "./no-stray-decks";
@@ -159,7 +160,7 @@ describe("a child that is told to die with its parent", () => {
   // behind, so it had better not.
   afterAll(() => {
     for (const p of started) { try { p.kill("SIGKILL"); } catch { /* gone */ } }
-    rmSync(DIR, { recursive: true, force: true });
+    rmTempDir(DIR);
   });
 
   /** Does this pid still exist? Signal 0 asks without delivering anything, and

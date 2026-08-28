@@ -37,6 +37,7 @@
 // rollout in a temp sandbox, the third drives the real reducer.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -110,7 +111,7 @@ const PORT = (server.address() as AddressInfo).port;
 afterAll(async () => {
   await new Promise<void>(resolve => server.close(() => resolve()));
   for (const dir of [FAKE_HOME, FAKE_CONFIG, FAKE_CODEX]) {
-    rmSync(dir, { recursive: true, force: true });
+    rmTempDir(dir);
   }
   for (const [key, was] of Object.entries(prev)) {
     if (was === undefined) delete process.env[key];

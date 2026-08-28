@@ -15,7 +15,8 @@
 // server. What reached the person watching the dialog was a fifteen-second
 // spinner followed by a guess.
 import { describe, it, expect, afterAll, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -136,8 +137,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_STORE, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_STORE);
 });
 
 describe("a sign-in whose claude CLI cannot be run", () => {

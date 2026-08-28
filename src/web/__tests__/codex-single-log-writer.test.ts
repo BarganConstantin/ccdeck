@@ -14,6 +14,7 @@
 // same file — and a running deck that draws a rollout it was not elected to log.
 import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo, Server } from "node:net";
@@ -96,7 +97,7 @@ const hook = createRequire(import.meta.url)(HOOK_COPY) as {
 afterAll(async () => {
   await new Promise<void>(resolve => server.close(() => resolve()));
   for (const dir of [FAKE_HOME, FAKE_CONFIG, FAKE_CODEX, HOOK_DIR]) {
-    rmSync(dir, { recursive: true, force: true });
+    rmTempDir(dir);
   }
   for (const [key, was] of Object.entries(prev)) {
     if (was === undefined) delete process.env[key];

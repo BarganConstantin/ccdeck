@@ -23,7 +23,8 @@
 // explicit AGENTS_DECK_CCUSAGE is obeyed and its failures named as its own, and
 // that the sentence in the box is now true.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // npm and npx are .cmd shims on Windows, so their arguments arrive quoted
@@ -250,7 +251,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 /** A ccusage the user installed, as a file on this file's PATH. Never run — the
@@ -275,8 +276,8 @@ beforeEach(() => {
   calls.length = 0;
   runPlan.length = 0;
   installReply.current = null;
-  rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
-  rmSync(BIN_DIR, { recursive: true, force: true });
+  rmTempDir(join(FAKE_HOME, ".agents-deck"));
+  rmTempDir(BIN_DIR);
   delete process.env.AGENTS_DECK_NO_INSTALL;
   delete process.env.AGENTS_DECK_CCUSAGE;
 });

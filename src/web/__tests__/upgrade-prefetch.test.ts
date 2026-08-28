@@ -18,7 +18,8 @@
 // node scripts written into a temp directory: no npx runs here, nothing is
 // installed, and nothing is downloaded.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
@@ -45,7 +46,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // Stands in for npx. `fail` writes npm's own failure shape and exits non-zero,

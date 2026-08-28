@@ -31,7 +31,8 @@
 // Plain node — no DOM, no rendering. Every function here is pure except the
 // server's transcript reader, which gets a temp file.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -396,7 +397,7 @@ describe("the server reads a Bedrock model off a real transcript", () => {
   afterAll(() => {
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
     if (prevUserProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUserProfile;
-    rmSync(DIR, { recursive: true, force: true });
+    rmTempDir(DIR);
   });
 
   it("resolves the root model from a prefixed id", async () => {

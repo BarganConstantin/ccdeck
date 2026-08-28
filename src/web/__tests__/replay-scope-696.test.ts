@@ -58,7 +58,8 @@
 // a real log in a temp directory and then drives what comes back through the
 // real reducer — the canvas, which is where the bug was visible.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Server } from "node:http";
@@ -94,7 +95,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // ── 1. the predicate ────────────────────────────────────────────────────────

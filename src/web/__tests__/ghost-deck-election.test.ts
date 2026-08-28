@@ -21,6 +21,7 @@
 // was wrong.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { spawn } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -99,7 +100,7 @@ afterAll(async () => {
     s.close(() => done());
   })));
   for (const dir of [FAKE_HOME, FAKE_CONFIG, FAKE_CODEX, HOOK_DIR]) {
-    rmSync(dir, { recursive: true, force: true });
+    rmTempDir(dir);
   }
   for (const [key, was] of Object.entries(prev)) {
     if (was === undefined) delete process.env[key];

@@ -31,6 +31,7 @@ import {
   realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { rmTempDir } from "./rm-temp-dir";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -98,7 +99,7 @@ afterAll(() => {
   restoreEnv("USERPROFILE", prevUserProfile);
   restoreEnv("CLAUDE_CONFIG_DIR", prevConfigDir);
   restoreEnv("CODEX_HOME", prevCodexHome);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 /** What the user keeps in their dotfiles repo, and must still have afterwards. */

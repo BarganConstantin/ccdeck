@@ -63,7 +63,8 @@
 // measure a live frame landing on a drained buffer, not a frame landing behind
 // tens of megabytes of catch-up.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type IncomingMessage, type Server } from "node:http";
 import { connect, type AddressInfo, type Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -124,7 +125,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function post(body: unknown): Promise<void> {

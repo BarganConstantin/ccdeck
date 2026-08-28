@@ -37,7 +37,8 @@
 // call a zero exit a success when nothing runnable came of it (#432).
 import { describe, it, expect, afterAll, afterEach, beforeEach, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 // On Windows npm is a .cmd shim launched through cmd.exe, so `install` is a
@@ -163,7 +164,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => {
@@ -173,7 +174,7 @@ beforeEach(() => {
   npm.exit = 0;
   npm.ms = NPM_MS;
   npm.land = land;
-  rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+  rmTempDir(join(FAKE_HOME, ".agents-deck"));
 });
 
 // An install left in flight would be handed to the next test by the shared

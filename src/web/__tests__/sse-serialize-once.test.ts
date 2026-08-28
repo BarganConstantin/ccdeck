@@ -9,7 +9,8 @@
 // subscriber nor a persistence file, and when there is, the envelope is
 // serialized exactly once no matter how many consumers share it.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -45,7 +46,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function post(path: string, body: unknown): Promise<string> {

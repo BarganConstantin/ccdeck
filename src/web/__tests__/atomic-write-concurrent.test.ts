@@ -13,6 +13,7 @@
 // payload rather than a splice of two.
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -64,7 +65,7 @@ afterAll(() => {
   restoreEnv("USERPROFILE", prevUserProfile);
   restoreEnv("CLAUDE_CONFIG_DIR", prevConfigDir);
   restoreEnv("CODEX_HOME", prevCodexHome);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 // Payloads big enough that two of them are still in each other's way when the
@@ -138,7 +139,7 @@ describe("two writes landing on one file at the same moment", () => {
     await expect(writeFileAtomic(blocked, "{}\n")).rejects.toThrow();
 
     expect(strayTemps(CLAUDE_DIR)).toEqual([]);
-    rmSync(blocked, { recursive: true, force: true });
+    rmTempDir(blocked);
   });
 });
 

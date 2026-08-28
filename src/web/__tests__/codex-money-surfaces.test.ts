@@ -34,7 +34,8 @@
 // source the way manage-block.test.ts and panel-overflow.test.ts read theirs,
 // and everything arithmetic goes straight through pricing.ts, which is pure.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -404,7 +405,7 @@ afterAll(() => {
   for (const k of ENV_KEYS) {
     if (PREV[k] === undefined) delete process.env[k]; else process.env[k] = PREV[k]!;
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 describe("fetchCodexUsage fills the cache-write field its own shape declares", () => {
@@ -412,7 +413,7 @@ describe("fetchCodexUsage fills the cache-write field its own shape declares", (
     const at = new Date(Date.now() - 60 * 60 * 1000);
     const [y, m, d] = at.toISOString().slice(0, 10).split("-");
     const dir = join(SESSIONS, y, m, d);
-    rmSync(SESSIONS, { recursive: true, force: true });
+    rmTempDir(SESSIONS);
     mkdirSync(dir, { recursive: true });
     const [date, time] = at.toISOString().slice(0, 19).split("T");
     // Dashes in the time part — the filename shape is Windows-safe by design.

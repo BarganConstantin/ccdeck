@@ -7,6 +7,7 @@
 // halves of the fix: the file survives, and the refusal is loud.
 import { describe, it, expect, afterAll } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -51,7 +52,7 @@ afterAll(() => {
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
   restore("CLAUDE_CONFIG_DIR", prevClaudeConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("installHooks and a settings.json it cannot parse", () => {
@@ -142,7 +143,7 @@ describe("installHooks and a settings.json it can read", () => {
 
   it("writes nothing at all when it refuses — no stray hook dir left behind", async () => {
     const dir = join(CLAUDE_DIR, "agent-dag");
-    rmSync(dir, { recursive: true, force: true });
+    rmTempDir(dir);
     writeFileSync(SETTINGS, "{,}", "utf8");
     await expect(installHooks({ provider: "claude" })).rejects.toThrow(/Refusing to overwrite/);
     expect(existsSync(dir)).toBe(false);

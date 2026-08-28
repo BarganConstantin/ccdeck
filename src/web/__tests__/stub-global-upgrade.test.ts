@@ -33,6 +33,7 @@
 // downloaded, and npm is a recording fake that never runs.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,7 +81,7 @@ const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "stub-global-upgrade-"));
-afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
+afterAll(() => rmTempDir(SANDBOX));
 
 // The registry is never asked: every assertion here is about a name and a
 // command, and versionReport's local half answers without a lookup. The

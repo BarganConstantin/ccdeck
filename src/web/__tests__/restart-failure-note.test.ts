@@ -17,6 +17,7 @@
 // update". The note is named after the supervisor that wrote it as well.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,11 +95,11 @@ afterAll(() => {
   restore("CODEX_HOME", prevCodexHome);
   restore("AGENTS_DECK_NO_UPDATE_CHECK", prevNoCheck);
   restore("AGENTS_DECK_SUPERVISOR_PID", prevSupervisor);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => {
-  rmSync(MARKER_DIR, { recursive: true, force: true });
+  rmTempDir(MARKER_DIR);
   process.env.AGENTS_DECK_SUPERVISOR_PID = DECK_A;
 });
 

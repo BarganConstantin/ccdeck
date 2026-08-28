@@ -43,7 +43,8 @@
 // answer against the real one, so the model that the other two legs rely on is
 // itself checked by execution once per CI run.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -198,7 +199,7 @@ function printArgvHarness(): { node: string; script: string } {
   // rather than an afterAll hook because this module has no describe block to
   // hang one off, and it must not force its importers to remember.
   process.on("exit", () => {
-    try { rmSync(dir, { recursive: true, force: true }); } catch { /* already gone */ }
+    try { rmTempDir(dir); } catch { /* already gone */ }
   });
   harness = { node: process.execPath, script };
   return harness;

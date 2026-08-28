@@ -31,7 +31,8 @@
 // named.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -111,7 +112,7 @@ writeFileSync(join(SERVER_DIR, "installer.mjs"), [
   `}`,
 ].join("\n"));
 
-afterAll(() => { rmSync(DIR, { recursive: true, force: true }); });
+afterAll(() => { rmTempDir(DIR); });
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 

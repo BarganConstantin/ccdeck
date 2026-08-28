@@ -41,7 +41,8 @@
 // variables uv and pipx document, so no real install is looked at, let alone
 // touched.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -175,14 +176,14 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => {
   detached.length = 0;
-  rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
-  rmSync(UV_TOOL_DIR, { recursive: true, force: true });
-  rmSync(PIPX_HOME, { recursive: true, force: true });
+  rmTempDir(join(FAKE_HOME, ".agents-deck"));
+  rmTempDir(UV_TOOL_DIR);
+  rmTempDir(PIPX_HOME);
   delete process.env.AGENTS_DECK_CSWAP;
 });
 

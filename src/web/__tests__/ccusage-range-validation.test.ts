@@ -11,7 +11,8 @@
 // These pin the grammar and pin that the route enforces it before anything gets
 // near a child process.
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -98,7 +99,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function ccusage(query: string): Promise<{ status: number; body: Record<string, unknown> }> {

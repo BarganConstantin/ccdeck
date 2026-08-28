@@ -21,7 +21,8 @@
 // be rendered and the terminal rows are rebuilt here out of the same term.mjs
 // primitives bin/deck.js draws them with.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,7 +44,7 @@ const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
 // the disk — that file is npm's own record of the spec the user typed and the
 // only place it survives an npx run.
 const SANDBOX = mkdtempSync(join(tmpdir(), "invoked-as-"));
-afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
+afterAll(() => rmTempDir(SANDBOX));
 
 /** The layout npx unpacks into: `_npx/<hash>/node_modules/<pkg>` under a
  *  `<hash>/package.json` carrying `_npx.packages`. Returns the pkgRoot the deck

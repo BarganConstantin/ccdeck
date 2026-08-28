@@ -63,7 +63,8 @@
 // real ~/.claude is never read.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -327,7 +328,7 @@ const ENV = {
 const alive = new Set<ChildProcess>();
 afterAll(() => {
   for (const c of alive) { try { c.kill("SIGKILL"); } catch { /* already gone */ } }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Run bin/deck.js to completion. For invocations that are meant to exit. */

@@ -43,7 +43,8 @@
 // it reads is against a ring that has just been cleared, so the contiguity half
 // costs a few hundred bytes rather than the whole budget.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type IncomingMessage, type Server } from "node:http";
 import { connect, type AddressInfo, type Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -117,7 +118,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Post a body already encoded, and return the seq the server assigned it.

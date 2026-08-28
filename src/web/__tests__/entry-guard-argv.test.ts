@@ -22,7 +22,8 @@
 // than the one being fixed, so "no listening socket" is asserted, not assumed.
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -31,7 +32,7 @@ const ENTRY = fileURLToPath(new URL("../../server/index.mjs", import.meta.url));
 const ENTRY_HREF = pathToFileURL(ENTRY).href;
 
 const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-entry-guard-"));
-afterAll(() => rmSync(FAKE_HOME, { recursive: true, force: true }));
+afterAll(() => rmTempDir(FAKE_HOME));
 
 const ENV = {
   ...process.env,

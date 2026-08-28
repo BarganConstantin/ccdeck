@@ -17,6 +17,7 @@
 // stays in it until the user repairs the file.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -58,7 +59,7 @@ afterAll(() => {
   restore("HOME", prevHome);
   restore("USERPROFILE", prevUserProfile);
   restore("CLAUDE_CONFIG_DIR", prevConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 const SETTINGS = String(SETTINGS_PATH);
@@ -89,7 +90,7 @@ function installedTheOldWay(extra: Record<string, unknown[]> = {}) {
 
 beforeEach(() => {
   rmSync(PARKED, { force: true });
-  rmSync(dirname(NOTIFY), { recursive: true, force: true });
+  rmTempDir(dirname(NOTIFY));
 });
 
 // The reported reproduction: a settings.json a human would call valid, rejected

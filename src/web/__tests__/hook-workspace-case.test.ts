@@ -11,7 +11,8 @@
 // two different directories, and folding case would hand a deck scoped to one
 // the other's sessions — so the rule has to be per-platform, not blanket.
 import { describe, it, expect, afterAll } from "vitest";
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -32,7 +33,7 @@ const { cwdInWorkspace, foldsCase } = createRequire(import.meta.url)(COPY) as {
   foldsCase: (platform?: string) => boolean;
 };
 
-afterAll(() => rmSync(DIR, { recursive: true, force: true }));
+afterAll(() => rmTempDir(DIR));
 
 describe("which platforms compare paths case-insensitively", () => {
   it("folds case where the filesystem does, and nowhere else", () => {

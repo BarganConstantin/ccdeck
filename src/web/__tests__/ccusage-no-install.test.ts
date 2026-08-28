@@ -7,7 +7,8 @@
 // and, when ccusage was already installed, still ran `npm view ccusage
 // version` plus a background upgrade. These tests pin all three refusals.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // Every question below is "what did the deck run", and on Windows npm and npx
@@ -80,7 +81,7 @@ afterAll(() => {
   restore("AGENTS_DECK_NO_INSTALL", prevNoInstall);
   restore("PATH", prevPath);
   restore("AGENTS_DECK_CCUSAGE", prevOverride);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => { calls.length = 0; });
@@ -121,7 +122,7 @@ describe("fetchCcusageDaily under AGENTS_DECK_NO_INSTALL=1", () => {
 describe("fetchCcusageDaily without the opt-out", () => {
   it("still reaches the install path, so the tests above prove the guard", async () => {
     delete process.env.AGENTS_DECK_NO_INSTALL;
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
 
     await fetchCcusageDaily({ since: "20260103" });
 

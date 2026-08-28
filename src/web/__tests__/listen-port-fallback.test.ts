@@ -50,7 +50,8 @@
 // documentation space, which no machine is allowed to hold.
 import { describe, it, expect, afterAll } from "vitest";
 import { createServer, type Server as NetServer } from "node:net";
-import { mkdtempSync, rmSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -81,7 +82,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 describe("which failed binds another port could fix", () => {

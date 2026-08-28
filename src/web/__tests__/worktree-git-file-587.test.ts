@@ -61,7 +61,8 @@
 // `join`, so the file it writes carries whatever separator the host uses, and
 // asserts nothing about path text.
 import { describe, it, expect, afterAll, afterEach, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -96,7 +97,7 @@ vi.mock("node:child_process", async () => {
 import { upgradeBlock, upgradeCommand, upgradeMode, upgradeName, startUpgrade } from "../../server/self-update.mjs";
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "ccdeck-git-shape-587-"));
-afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
+afterAll(() => rmTempDir(SANDBOX));
 
 // `opted_out` outranks `git_checkout` in upgradeBlockedReason, so a developer
 // with AGENTS_DECK_NO_INSTALL=1 in their shell would have every refusal below

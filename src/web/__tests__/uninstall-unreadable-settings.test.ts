@@ -32,6 +32,7 @@
 // apart from another return value, and only running it can show that.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { spawnSync } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -131,7 +132,7 @@ beforeEach(() => {
 
 afterAll(() => {
   for (const key of Object.keys(prevEnv) as (keyof typeof prevEnv)[]) restore(key, prevEnv[key]);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("uninstallHooks against a settings.json it cannot parse", () => {

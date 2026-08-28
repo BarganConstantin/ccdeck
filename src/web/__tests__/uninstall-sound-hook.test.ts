@@ -19,6 +19,7 @@
 // the user's own hooks come back.
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -110,7 +111,7 @@ afterAll(() => {
   restoreEnv("HOME", prevHome);
   restoreEnv("USERPROFILE", prevUserProfile);
   restoreEnv("CLAUDE_CONFIG_DIR", prevConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("agents-deck --uninstall", () => {
@@ -205,7 +206,7 @@ describe("agents-deck --uninstall", () => {
 
   it("says nothing and changes nothing on a machine that never turned it on", async () => {
     rmSync(PARKED, { force: true });
-    rmSync(dirname(NOTIFY), { recursive: true, force: true });
+    rmTempDir(dirname(NOTIFY));
     const plain = JSON.stringify({ model: "opus", hooks: { Stop: [USER_SOUND_HOOK] } }, null, 2) + "\n";
     writeFileSync(SETTINGS, plain, "utf8");
 

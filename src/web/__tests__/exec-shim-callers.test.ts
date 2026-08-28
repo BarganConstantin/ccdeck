@@ -27,7 +27,8 @@
 // throughout, so the Windows answers are checked from macOS; the two end-to-end
 // runs stand cmd.exe up as a shell script, the way exec-windows.test.ts does.
 import { describe, it, expect } from "vitest";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
@@ -385,7 +386,7 @@ function onFakeWindows(stub: string, body: (dir: string, log: string) => Promise
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k]; else process.env[k] = v;
       }
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   };
 }

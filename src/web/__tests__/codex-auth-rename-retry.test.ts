@@ -12,7 +12,8 @@
 // The sharing violation is synthesized rather than provoked, so the Windows
 // behaviour is exercised on every platform the suite runs on.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -140,7 +141,7 @@ const onDisk = () => JSON.parse(readFileSync(AUTH, "utf8"));
 const strays = () => readdirSync(CODEX_DIR).filter(name => name !== "auth.json");
 
 beforeEach(() => {
-  rmSync(CODEX_DIR, { recursive: true, force: true });
+  rmTempDir(CODEX_DIR);
   mkdirSync(CODEX_DIR, { recursive: true });
   writeAuth();
   fsCtl.faults.length = 0;
@@ -153,7 +154,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("a refresh whose rename hits a sharing violation", () => {

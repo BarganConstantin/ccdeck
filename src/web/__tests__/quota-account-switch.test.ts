@@ -23,7 +23,8 @@
 // wholesale, and every home the module resolves at import time points into a
 // temp directory.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -126,7 +127,7 @@ afterAll(() => {
     if (PREV[k] === undefined) delete process.env[k];
     else process.env[k] = PREV[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Serve one good reading for account 2, the way a poll before the switch did. */

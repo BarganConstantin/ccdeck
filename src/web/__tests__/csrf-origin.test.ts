@@ -16,7 +16,8 @@
 // answered with the account's live OAuth refresh token in the clear. The second
 // half of this file pins the credential that mutations now require.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -131,7 +132,7 @@ describe("mutations require the deck's own authority", () => {
       if (prevEnv[k] === undefined) delete process.env[k];
       else process.env[k] = prevEnv[k];
     }
-    rmSync(DIR, { recursive: true, force: true });
+    rmTempDir(DIR);
   });
 
   function post(path: string, { headers = {}, body = "" }: { headers?: Record<string, string>; body?: string } = {}): Promise<number> {

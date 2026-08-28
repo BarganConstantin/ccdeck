@@ -31,7 +31,8 @@
 // contaminated, by the developer's own ~/.codex, and nothing can write a
 // credential outside the temp directory.
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,7 +86,7 @@ afterAll(() => {
     else process.env[k] = PREV[k];
   }
   vi.unstubAllGlobals();
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // codex-dir.mjs is the module this issue adds, and it is imported defensively so
@@ -130,7 +131,7 @@ const markerFor = (home: string) => basename(home).replace(/\W+/g, "") || "root"
 function seed(target: string, marker: string) {
   // Cleared rather than added to: three shapes share ~/.codex, and a rollout
   // left behind by the previous one would be counted a second time.
-  rmSync(target, { recursive: true, force: true });
+  rmTempDir(target);
   mkdirSync(target, { recursive: true });
   // No refresh_token: getCodexAuth() must not be tempted to spend one, and the
   // account id is per-shape so a stale module instance cannot pass by accident.

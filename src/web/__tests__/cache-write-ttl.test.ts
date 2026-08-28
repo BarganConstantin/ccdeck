@@ -11,7 +11,8 @@
 // three things that can regress: the per-TTL dollar arithmetic, the fallback
 // for usage that carries no split, and the scanner reaching the sub-object.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { cacheWriteBreakdown, costForUsage, ratesForModel } from "../pricing";
@@ -43,7 +44,7 @@ afterAll(() => {
   for (const k of ENV_KEYS) {
     if (PREV[k] === undefined) delete process.env[k]; else process.env[k] = PREV[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 const usage = (u: Partial<TokenUsage> = {}): TokenUsage => ({

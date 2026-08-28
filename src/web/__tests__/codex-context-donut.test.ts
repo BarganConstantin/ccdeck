@@ -54,7 +54,8 @@
 // the real reducer, the real scanners and the real copy rule, with the object
 // shapes copied from real rollout lines.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
@@ -95,7 +96,7 @@ afterAll(() => {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // @ts-expect-error — .mjs server module, no types
