@@ -41,7 +41,10 @@ import type { HookEnvelope, HookPayload } from "../types";
 // resolves a home from is pointed inside it BEFORE the server module is ever
 // imported. The developer's own ~/.claude and ~/.codex are unreachable from
 // this file.
-const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "ccdeck-684-")));
+// `.native` here too, and for the same reason as in codexHome below: everything
+// in this file is built from ROOT, so if the root keeps a short 8.3 component
+// while one derived path is expanded, the two spellings meet in an assertion.
+const ROOT = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-684-")));
 const prev = {
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
@@ -93,8 +96,18 @@ function codexHome(name: string): { home: string; day: string; workspace: string
   mkdirSync(day, { recursive: true });
   mkdirSync(workspace, { recursive: true });
   // The watcher canonicalises the header's cwd through realpath, so this is the
-  // spelling every payload will carry.
-  return { home, day, workspace, cwd: realpathSync(workspace) };
+  // spelling every payload will carry — and it must be the SAME realpath.
+  //
+  // Node ships two. `realpathSync` is a JavaScript lstat-and-readlink walk: it
+  // resolves symlinks and junctions and leaves a DOS 8.3 short component
+  // exactly as it found it. `realpathSync.native` is GetFinalPathNameByHandleW,
+  // which also expands the short name to its long form, and that is what
+  // `canonicalCwd` uses (#610/#632 put every canonicalisation site on `.native`
+  // for exactly this reason). `%TEMP%` on a GitHub Windows runner is the short
+  // spelling, so the plain call left this fixture expecting
+  // `C:\Users\RUNNER~1\...` while the deck produced `C:\Users\runneradmin\...`
+  // and two cases failed on that leg alone.
+  return { home, day, workspace, cwd: realpathSync.native(workspace) };
 }
 
 const rolloutPath = (day: string, sid: string) => join(day, `rollout-2026-08-24T09-00-00-${sid}.jsonl`);
