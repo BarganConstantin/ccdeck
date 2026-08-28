@@ -20,6 +20,12 @@
 // put beside it. That matters more than it sounds: the "you have already seen
 // this" marker lives in the browser store, so clearing site data loses it, and
 // the chip is the only way back.
+//
+// A profile with no marker at all is not a stranger, which is what #717
+// corrected: it is usually the same person on a second machine. They are shown
+// the release they just installed — one release, never the history behind it —
+// and `firstRun` is how this component knows to say that rather than either of
+// the two sentences that came before it.
 import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
 import { useModalDismiss } from "./use-modal-dismiss";
 
@@ -34,10 +40,16 @@ interface Props {
   /** The version the deck is running, so the first line can say whether the
    *  release at the top of this list is the one the reader is on. */
   running: string | null;
+  /** True when this is the deck's first contact with the profile — #717's
+   *  welcome, which shows the running release and nothing behind it. `since` is
+   *  null here as it is on a browse, and the two need different first lines:
+   *  one says "here is what you just installed", the other "here is everything
+   *  there is". */
+  firstRun: boolean;
   onClose: () => void;
 }
 
-export default function ReleaseNotesModal({ entries, since, running, onClose }: Props) {
+export default function ReleaseNotesModal({ entries, since, running, firstRun, onClose }: Props) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
   // default — the dialog's first tabbable — already lands there, and the body
   // below holds no control that would be a better first stop.
@@ -82,7 +94,7 @@ export default function ReleaseNotesModal({ entries, since, running, onClose }: 
               without being asked and does not say why is the one people learn
               to dismiss unread, which would make it worthless on the release it
               exists for. */}
-          <p className="modal-note">{releaseNotesIntro({ since, running, entries })}</p>
+          <p className="modal-note">{releaseNotesIntro({ since, running, firstRun, entries })}</p>
           {entries.map(entry => (
             <section className="modal-section" key={entry.version}>
               {/* h3, not h4: the level a dialog that names itself with

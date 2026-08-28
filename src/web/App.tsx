@@ -66,13 +66,16 @@ import { agentCost, otherModelIds } from "./usage-models";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
-// pure function over three values is the only shape a DOM-less suite can
-// ask "what would a user upgrading 1.42 to 1.48 have been shown?".
+// pure function over what the store said, what is running and what shipped
+// is the only shape a DOM-less suite can ask "what would a user upgrading
+// 1.42 to 1.48 have been shown?" — or, since #717, "what does somebody who
+// has never run this see on the release they just installed?".
 import {
   decideReleaseNotes,
   notesBetween,
   readSeen,
   RELEASE_NOTES,
+  remembersSeen,
   seenStore,
   writeSeen,
   type VersionNotes,
@@ -1057,7 +1060,9 @@ function Inner() {
   //
   // One piece of state carries both halves, because "which notes" and "is it
   // open" are never independently true: null is closed.
-  const [releaseNotes, setReleaseNotes] = useState<{ entries: VersionNotes[]; since: string | null } | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState<
+    { entries: VersionNotes[]; since: string | null; firstRun: boolean } | null
+  >(null);
   // Decided once per load and then never again, and the ref is not belt and
   // braces. The decision writes the running version to the store, so a second
   // run would normally answer "seen" on its own — but a store that REFUSES the
@@ -1073,13 +1078,24 @@ function Inner() {
     // upgrade replaces dist/web on disk before the process restarts, so this
     // page can be newer than the code answering it, and notes about behaviour
     // that is not live yet are notes about nothing.
-    const decision = decideReleaseNotes({ stored, running: version?.running ?? null, notes: RELEASE_NOTES });
+    // `remembers` is the half of #717 that is easy to leave out. A first run
+    // now announces the release it just installed, and a profile that refuses
+    // storage looks like a first run on EVERY load — so without this the same
+    // dialog would come back for the rest of the release on exactly the
+    // profiles that can least do anything about it.
+    const decision = decideReleaseNotes({ stored, running: version?.running ?? null, notes: RELEASE_NOTES, remembers: remembersSeen(store) });
     // Not an answer yet — /api/version has not come back, or came back without
     // a version. Leave the ref down so the next poll gets to decide.
     if (decision.reason === "no-version") return;
     releaseNotesDecidedRef.current = true;
     if (decision.record) writeSeen(store, decision.record);
-    if (decision.show.length) setReleaseNotes({ entries: decision.show, since: stored });
+    // `firstRun` is what keeps the dialog's first line from telling a new
+    // install it "was last caught up at" a version it has never run: on this
+    // route `stored` is null for a first run and for nothing else, and the
+    // sentence for that has to be its own rather than the browse route's.
+    if (decision.show.length) {
+      setReleaseNotes({ entries: decision.show, since: stored, firstRun: decision.reason === "welcome" });
+    }
   }, [version?.running]);
   // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
@@ -1101,7 +1117,7 @@ function Inner() {
   // to show, but the dialog is written for it and the chip therefore does not
   // have to be.
   const openReleaseNotes = useCallback(() => {
-    setReleaseNotes({ entries: everyReleaseNote, since: null });
+    setReleaseNotes({ entries: everyReleaseNote, since: null, firstRun: false });
   }, [everyReleaseNote]);
 
   // Which sessions this deck is even allowed to see — "" for machine-wide, a
@@ -4021,6 +4037,10 @@ function Inner() {
         <ReleaseNotesModal
           entries={releaseNotes.entries}
           since={releaseNotes.since}
+          /* Both are null-on-a-browse, and they are not the same thing: a first
+             run is the deck announcing one release to somebody who has never
+             seen any of them, and its first line has to say so (#717). */
+          firstRun={releaseNotes.firstRun}
           /* The same number the chip wears, and defaulted the same way, so the
              dialog's first line and the chip that opened it cannot disagree
              about which release the reader is on. */

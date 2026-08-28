@@ -1,11 +1,23 @@
 // #712. The deck now says what changed after an upgrade, and the interesting
 // half of that feature is every case in which it says nothing.
 //
-// Four ways to build it wrong, and one case each below:
+// #717 then corrected the half of it that was wrong: "nothing stored" was read
+// as "a person new to this product", and it is very often the same person on a
+// second machine — someone who has missed exactly what anyone skipping a
+// version misses, and who got silence at the one moment the deck had something
+// to say. A first run now shows the release it just installed, and only that.
+//
+// Five ways to build it wrong, and one case each below:
 //
 //   A fresh install is told the whole history. "Nothing stored" and "show
 //   everything" are the same null, and the wrong reading of it greets a new
-//   user with a changelog for software they have never run.
+//   user with five releases of notes about controls in an app they have not
+//   opened yet. Still wrong, and now one entry away from being right, which is
+//   the more dangerous shape of the same mistake.
+//
+//   A fresh install is told nothing, on a release that had something to say.
+//   #717 itself, reported from a real machine: the deck installed on a second
+//   PC, opened, and said nothing that had changed.
 //
 //   Versions are compared as strings. "1.10.0" < "1.9.0" is true of text and
 //   false of releases, so a deck on 1.10 would show 1.9's notes and then never
@@ -18,7 +30,9 @@
 //
 //   The store throws instead of answering. A blocked profile then looks like a
 //   first run on every single load, and a modal that reappears forever is worse
-//   than one that never appears at all.
+//   than one that never appears at all. #717 sharpened this one too: a first
+//   run is no longer silent by itself, so the silence a blocked profile needs
+//   has to be asked for by name.
 //
 // Plain node, no DOM: the whole decision is a pure function over three values,
 // which is the reason it is a module and not a hook.
@@ -32,10 +46,12 @@ import {
   decideReleaseNotes,
   isVersion,
   notesBetween,
+  notesForVersion,
   readNotes,
   readSeen,
   RELEASE_NOTES,
   RELEASE_NOTES_SEEN_KEY,
+  remembersSeen,
   splitNoteTitle,
   writeSeen,
   type VersionNotes,
@@ -138,38 +154,92 @@ describe("what counts as a version at all", () => {
   });
 });
 
-describe("a deck that has never run here", () => {
-  it("shows nothing and records the version it is running", () => {
+describe("a deck that has never run here (#717)", () => {
+  it("shows the release it just installed, and records it", () => {
+    // The defect, from the other side. Nothing stored is usually the same
+    // person on a second machine, and 1.45.0 changed something they would
+    // notice — so the deck says so once instead of waiting for the next upgrade
+    // to mention a release they are already running.
     const d = decideReleaseNotes({ stored: null, running: "1.45.0", notes: NOTES });
-    expect(d.reason).toBe("first-run");
-    expect(d.show).toEqual([]);
+    expect(d.reason).toBe("welcome");
+    expect(shown(d)).toEqual(["1.45.0"]);
     expect(d.record).toBe("1.45.0");
   });
 
+  it("hands a new install ONE release and not the file behind it", () => {
+    // The half #712 got right and #717 keeps: a brand-new install on the newest
+    // release, with three releases' worth of notes sitting in the package, is
+    // shown the one it is running. The other two describe controls in an app
+    // this reader has not looked at yet, and five of those is the changelog in
+    // the face the whole feature was designed to avoid.
+    const d = decideReleaseNotes({ stored: null, running: "1.48.0", notes: NOTES });
+    expect(shown(d)).toEqual(["1.48.0"]);
+    expect(shown(d)).not.toContain("1.45.0");
+    expect(shown(d)).not.toContain("1.43.0");
+  });
+
+  it("stays silent when the release it just installed said nothing", () => {
+    // Most releases, and the reason the dialog is worth reading when it does
+    // open. 1.47.0 is not in the file, so a fresh install lands on it in
+    // exactly the silence #712 gave every first run.
+    const d = decideReleaseNotes({ stored: null, running: "1.47.0", notes: NOTES });
+    expect(d.reason).toBe("first-run");
+    expect(d.show).toEqual([]);
+    // Recorded all the same: this is what makes the NEXT upgrade an upgrade
+    // rather than a second first run showing 1.48.0 on its own.
+    expect(d.record).toBe("1.47.0");
+  });
+
   it("is a different event from having seen these already", () => {
-    // Both show nothing, and conflating them is how the marker either never
-    // gets written or gets written when it must not be.
+    // The marker is the difference, and conflating the two is how it either
+    // never gets written or gets written when it must not be.
     const first = decideReleaseNotes({ stored: null, running: "1.45.0", notes: NOTES });
     const seen = decideReleaseNotes({ stored: "1.45.0", running: "1.45.0", notes: NOTES });
     expect(seen.reason).toBe("seen");
+    expect(seen.show).toEqual([]);
     expect(seen.record).toBeNull();
     expect(first.record).not.toBeNull();
   });
 
-  it("stays silent on a first run even when the file is full of notes", () => {
-    // The failure this whole branch exists to prevent, stated as a case: a
-    // brand-new install on the newest release, with three releases' worth of
-    // notes sitting in the package.
-    const d = decideReleaseNotes({ stored: null, running: "1.48.0", notes: NOTES });
-    expect(d.show).toEqual([]);
-  });
-
   it("treats an unreadable or junk marker as a first run, not as very old", () => {
+    // The assertion that matters is the second one. "" compares older than
+    // every release, so reading it as a version would replay the entire file —
+    // and now that a first run shows SOMETHING, a run of one is the only answer
+    // that tells "junk marker" from "very old marker" apart.
     for (const stored of ["", "  ", "null", "undefined", "1.45"]) {
       const d = decideReleaseNotes({ stored, running: "1.48.0", notes: NOTES });
-      expect(d.reason, JSON.stringify(stored)).toBe("first-run");
-      expect(d.show, JSON.stringify(stored)).toEqual([]);
+      expect(d.reason, JSON.stringify(stored)).toBe("welcome");
+      expect(shown(d), JSON.stringify(stored)).toEqual(["1.48.0"]);
     }
+  });
+
+  it("welcomes a prerelease with its release's notes", () => {
+    // 1.48.0-rc1 IS 1.48.0 to every comparison in this module, and the notes
+    // for 1.48.0 are the notes for the code an rc1 is running.
+    const d = decideReleaseNotes({ stored: null, running: "1.48.0-rc1", notes: NOTES });
+    expect(shown(d)).toEqual(["1.48.0"]);
+  });
+});
+
+describe("the one release a first run is shown", () => {
+  it("is the running release and nothing adjacent to it", () => {
+    expect(notesForVersion(NOTES, "1.48.0").map(v => v.version)).toEqual(["1.48.0"]);
+    // Neither the range below it nor the range above: this is not a range.
+    expect(notesForVersion(NOTES, "1.44.0")).toEqual([]);
+    expect(notesForVersion(NOTES, "1.47.0")).toEqual([]);
+  });
+
+  it("is not notesBetween wearing a different name", () => {
+    // The mistake worth pinning: `notesBetween(NOTES, null, running)` is what a
+    // first run must NOT be handed, and on the newest release it is the whole
+    // file. Same input, and the two answers have to differ.
+    expect(notesBetween(NOTES, null, "1.48.0").length).toBe(3);
+    expect(notesForVersion(NOTES, "1.48.0").length).toBe(1);
+  });
+
+  it("reads a missing trailing segment the way every other comparison here does", () => {
+    expect(notesForVersion([{ version: "1.30.0", notes: [note("x")] }], "1.30")
+      .map(v => v.version)).toEqual(["1.30.0"]);
   });
 });
 
@@ -286,13 +356,49 @@ describe("a browser that refuses to remember", () => {
     expect(writeSeen(null, "1.45.0")).toBe(false);
   });
 
+  it("is told apart from a profile that simply has nothing stored", () => {
+    // Since #717 this is the whole difference between the two, because the
+    // marker reads as null for both and one of them now announces a release.
+    expect(remembersSeen(hostile)).toBe(false);
+    expect(remembersSeen(null)).toBe(false);
+    expect(remembersSeen(undefined)).toBe(false);
+    const map = new Map<string, string>();
+    expect(remembersSeen({ getItem: (k: string) => map.get(k) ?? null, setItem: () => {} })).toBe(true);
+  });
+
   it("lands on silence, not on a modal every single load", () => {
-    // The full path, with the store standing in for a locked-down profile:
-    // nothing readable means first run, and first run shows nothing. A blocked
-    // store therefore costs the notes and never repeats them.
-    const d = decideReleaseNotes({ stored: readSeen(hostile), running: "1.48.0", notes: NOTES });
+    // The full path, with the store standing in for a locked-down profile.
+    // #717 made this the case that needs saying out loud: a first run on a
+    // release WITH notes announces it, and this profile cannot record having
+    // been shown anything — so announcing here would announce the same release
+    // on every load until the next upgrade. A blocked store costs the notes
+    // once and never repeats them; the version chip is still the way in.
+    const d = decideReleaseNotes({
+      stored: readSeen(hostile), running: "1.48.0", notes: NOTES, remembers: remembersSeen(hostile),
+    });
+    expect(d.reason).toBe("cannot-remember");
     expect(d.show).toEqual([]);
     expect(writeSeen(hostile, d.record!)).toBe(false);
+  });
+
+  it("is the only reason that silence is left, on a release with notes", () => {
+    // The contrast, so the case above cannot pass because the answer is silent
+    // for everybody. Same versions, same file, a store that answers: a dialog.
+    const map = new Map<string, string>();
+    const store = { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => { map.set(k, v); } };
+    const d = decideReleaseNotes({
+      stored: readSeen(store), running: "1.48.0", notes: NOTES, remembers: remembersSeen(store),
+    });
+    expect(d.reason).toBe("welcome");
+    expect(shown(d)).toEqual(["1.48.0"]);
+  });
+
+  it("assumes an ordinary browser when the caller says nothing about storage", () => {
+    // The default is what every case in this file that has no opinion about
+    // storage is relying on, so it is stated once rather than repeated.
+    const spelled = decideReleaseNotes({ stored: null, running: "1.48.0", notes: NOTES, remembers: true });
+    const silent = decideReleaseNotes({ stored: null, running: "1.48.0", notes: NOTES });
+    expect(silent).toEqual(spelled);
   });
 
   it("round-trips through a store that works", () => {
@@ -349,12 +455,20 @@ describe("the notes that actually shipped", () => {
     expect(text).toMatch(/Codex/);
   });
 
-  it("would be shown to somebody upgrading past it, and to nobody else", () => {
+  it("reaches everyone who arrives on it, by either road, and nobody else", () => {
+    // Upgraded onto it.
     expect(shown(decideReleaseNotes({ stored: "1.44.1", running: "1.45.0", notes: RELEASE_NOTES })))
       .toContain("1.45.0");
-    expect(decideReleaseNotes({ stored: null, running: "1.45.0", notes: RELEASE_NOTES }).show)
-      .toEqual([]);
+    // Installed straight onto it, on a machine that had never run the deck —
+    // #717, against the notes that actually shipped rather than a fixture.
+    expect(shown(decideReleaseNotes({ stored: null, running: "1.45.0", notes: RELEASE_NOTES })))
+      .toEqual(["1.45.0"]);
+    // And nobody else: not a reader who has already seen it…
     expect(decideReleaseNotes({ stored: "1.45.0", running: "1.45.0", notes: RELEASE_NOTES }).show)
+      .toEqual([]);
+    // …and not a first run on a release that said nothing of its own, which is
+    // what most first runs land on.
+    expect(decideReleaseNotes({ stored: null, running: "1.44.0", notes: RELEASE_NOTES }).show)
       .toEqual([]);
   });
 });
@@ -391,6 +505,19 @@ describe("what the dialog says about itself", () => {
     const one = { since: "1.47.0", running: "1.48.0", entries: NOTES.slice(0, 1) };
     expect(releaseNotesIntro(one)).toContain("one release");
     expect(releaseNotesIntro(one)).not.toContain("1 releases");
+  });
+
+  it("has a third sentence for a first run, and it is nobody else's", () => {
+    // Three routes, three first lines, and the failure mode is that two of them
+    // are the same sentence: a first run reads `since: null` exactly as a
+    // browse does, and the browse sentence for a list headed by the running
+    // release ends "and everything before it", which a welcome does not show.
+    const auto = releaseNotesIntro({ since: "1.42.0", running: "1.48.0", entries: NOTES });
+    const browsed = releaseNotesIntro({ since: null, running: "1.48.0", entries: NOTES });
+    const welcomed = releaseNotesIntro({
+      since: null, running: "1.48.0", entries: NOTES.slice(0, 1), firstRun: true,
+    });
+    expect(new Set([auto, browsed, welcomed]).size).toBe(3);
   });
 
   it("has something to say about an empty run rather than an empty box", () => {
@@ -454,6 +581,80 @@ describe("what the first line says about the release you are actually on", () =>
     const line = browse("1.44.0");
     expect(line).not.toContain("You are running v1.44.0");
     expect(line).toMatch(/newest first/);
+  });
+});
+
+// ── the sentence a first run must not be given (#717) ───────────────────────
+//
+// The deck now raises this dialog on a profile it has never run in, and that
+// route reads `since: null` exactly as the version chip does. The two are not
+// the same event and must not read as one: a welcome shows ONE release and the
+// browse sentence promises everything behind it, and the upgrade sentence —
+// which is the one a careless `since` would reach — names a version this reader
+// has never run.
+
+describe("what the first line says on a first run", () => {
+  const welcome = (running: string | null, entries = NOTES.slice(0, 1)) =>
+    releaseNotesIntro({ since: null, running, entries, firstRun: true });
+
+  it("names the release you just installed, in a sentence of its own", () => {
+    const line = welcome("1.48.0");
+    expect(line).toContain("v1.48.0");
+    // Not the browse sentence, which names the same version and then makes a
+    // promise about ordering over a list that has one entry in it. Every browse
+    // sentence says "newest first"; a welcome has no order to claim.
+    expect(line).not.toMatch(/newest first/);
+  });
+
+  it("does not tell somebody they were caught up at a version they never ran", () => {
+    // The lie this route can tell, and the one the issue names. There is no
+    // "since" for a first run — nothing was stored, nobody was caught up
+    // anywhere, and a sentence claiming otherwise is worse than none.
+    const line = welcome("1.48.0");
+    expect(line).not.toMatch(/caught up/);
+    expect(line).not.toMatch(/Since then/);
+    // …while the route that really does have a `since` still says it, so this
+    // is not passing because the sentence was deleted for everybody.
+    expect(releaseNotesIntro({ since: "1.42.0", running: "1.48.0", entries: NOTES }))
+      .toMatch(/caught up/);
+  });
+
+  it("does not promise the history it is deliberately not showing", () => {
+    // The browse sentence for the same shape of list ends "and everything
+    // before it, newest first". Below a welcome that is one release, that is a
+    // promise the dialog does not keep.
+    expect(welcome("1.48.0")).not.toMatch(/everything before it/);
+    expect(releaseNotesIntro({ since: null, running: "1.48.0", entries: NOTES }))
+      .toMatch(/everything before it/);
+  });
+
+  it("says where the releases it is not showing can be found", () => {
+    // A welcome withholds the history on purpose, so it owes the reader the way
+    // to it — and it is the same control every other route names, because it is
+    // the only one there is.
+    expect(welcome("1.48.0")).toContain("version in the topbar");
+  });
+
+  it("claims nothing about a release the deck cannot name", () => {
+    // Unreachable through decideReleaseNotes, which has no first run without a
+    // running version. A caller that manages it gets the browse sentence rather
+    // than a welcome to "vnull".
+    for (const running of [null, "", "unknown"]) {
+      const line = welcome(running);
+      expect(line, JSON.stringify(running)).not.toMatch(/has not run in this browser/);
+      expect(line, JSON.stringify(running)).toMatch(/newest first/);
+    }
+  });
+
+  it("leaves the two routes that came before it exactly as they were", () => {
+    // `firstRun` defaults to absent, and the day it starts leaking into the
+    // other two is the day the dialog begins welcoming people who have been
+    // running the deck for a year.
+    const auto = releaseNotesIntro({ since: "1.42.0", running: "1.48.0", entries: NOTES });
+    const browsed = releaseNotesIntro({ since: null, running: "1.48.0", entries: NOTES });
+    for (const line of [auto, browsed]) expect(line).not.toMatch(/has not run in this browser/);
+    expect(releaseNotesIntro({ since: "1.42.0", running: "1.48.0", entries: NOTES, firstRun: false }))
+      .toBe(auto);
   });
 });
 
@@ -532,7 +733,17 @@ describe("how App.tsx wires it up", () => {
     // An upgrade replaces dist/web on disk before the process restarts, so the
     // page can be newer than the code answering it. Announcing behaviour that
     // is not live yet is announcing nothing.
-    expect(app).toMatch(/decideReleaseNotes\(\{ stored, running: version\?\.running \?\? null, notes: RELEASE_NOTES \}\)/);
+    expect(app).toMatch(/decideReleaseNotes\(\{ stored, running: version\?\.running \?\? null, notes: RELEASE_NOTES,/);
+  });
+
+  it("asks whether the profile can remember before deciding to announce (#717)", () => {
+    // The field that keeps a blocked profile out of the welcome branch. Left
+    // off, the call still compiles and the decision defaults to the ordinary
+    // browser — which is a dialog on every load, forever, for the profiles that
+    // can do least about it.
+    expect(app).toMatch(/remembers: remembersSeen\(store\) \}\);/);
+    // From the same store the marker was read out of, not a second one.
+    expect(app).toMatch(/const store = seenStore\(\);/);
   });
 
   it("holds the decision open until /api/version has answered", () => {
@@ -567,8 +778,28 @@ describe("how App.tsx wires it up", () => {
 
   it("opens the browse route with nothing marked seen, so it shows everything", () => {
     // `since: null` is what makes the browse route a browse: it is not an
-    // announcement, so it neither reads nor writes the marker.
-    expect(app).toMatch(/setReleaseNotes\(\{ entries: everyReleaseNote, since: null \}\)/);
+    // announcement, so it neither reads nor writes the marker. `firstRun: false`
+    // is what keeps it from reading as one — since #717 those are two different
+    // dialogs and both of them have a null `since`.
+    expect(app).toMatch(/setReleaseNotes\(\{ entries: everyReleaseNote, since: null, firstRun: false \}\)/);
+  });
+
+  it("asks the chip for the whole range and never for a single release (#717)", () => {
+    // Two functions that differ by everything-but-one-entry now sit next to
+    // each other in that module, and the chip is the route that must have all
+    // of it: it is the way back to precisely the releases a first run was
+    // deliberately not shown. Which release a first run gets is the decision's
+    // business, and `notesForVersion` therefore has no business up here at all.
+    expect(app).toMatch(/notesBetween\(RELEASE_NOTES, null, chipVersion\)/);
+    expect(code(app)).not.toMatch(/notesForVersion/);
+  });
+
+  it("tells the dialog which of the two null-since routes raised it (#717)", () => {
+    // A first run and a browse both arrive with nothing stored. Passing the
+    // same flag for both would give a new install the browse sentence, which
+    // promises "everything before it" under a list of exactly one release.
+    expect(app).toMatch(/firstRun: decision\.reason === "welcome"/);
+    expect(app).toMatch(/firstRun=\{releaseNotes\.firstRun\}/);
   });
 
   it("does not gate the way back on the run being non-empty (#715)", () => {
@@ -640,7 +871,7 @@ describe("how App.tsx wires it up", () => {
     // A component that passed `running: null` here would compile, render, and
     // quietly go back to the sentence that never names the release you are on —
     // which is the whole thing #715 added the argument for.
-    expect(modal).toMatch(/releaseNotesIntro\(\{ since, running, entries \}\)/);
+    expect(modal).toMatch(/releaseNotesIntro\(\{ since, running, firstRun, entries \}\)/);
   });
 
   it("gives the leading emoji a box of its own and the text the space", () => {
