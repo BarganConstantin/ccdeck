@@ -32,7 +32,8 @@
 // 60ms so the enable/disable window is a place this file can stand rather than a
 // thing it has to race, and `cswap auto --once` is held open on demand.
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -100,7 +101,7 @@ afterAll(() => {
   for (const [k, v] of Object.entries(prev)) {
     if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
-  rmSync(HOME, { recursive: true, force: true });
+  rmTempDir(HOME);
 });
 
 describe("enabling and disabling across the config read", () => {

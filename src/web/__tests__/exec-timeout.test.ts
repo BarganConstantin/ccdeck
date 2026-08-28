@@ -10,6 +10,7 @@
 // outcome itself now, and only then kills; these pin that.
 import { describe, it, expect, afterAll } from "vitest";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -44,7 +45,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 const asWindows = () => {
@@ -162,7 +163,7 @@ describe("a run its own deadline stopped", () => {
         expect(second.stdout).toContain("ready");
       } finally {
         restore();
-        rmSync(dir, { recursive: true, force: true });
+        rmTempDir(dir);
       }
     }, 40_000);
 
@@ -221,7 +222,7 @@ describe("a run its own deadline stopped", () => {
         }
         if (existsSync(pidFile)) grandchild = Number(readFileSync(pidFile, "utf8").trim());
         if (grandchild) { try { process.kill(grandchild, "SIGKILL"); } catch { /* already gone */ } }
-        rmSync(dir, { recursive: true, force: true });
+        rmTempDir(dir);
       }
     }, 40_000);
 });

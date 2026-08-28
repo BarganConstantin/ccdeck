@@ -24,8 +24,9 @@
 // than swallowed.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { spawn } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { request } from "node:http";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -135,7 +136,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (server) await new Promise<void>(resolve => server.close(() => resolve()));
-  for (const dir of [FAKE_HOME, FAKE_CONFIG, FAKE_CODEX, SANDBOX]) rmSync(dir, { recursive: true, force: true });
+  for (const dir of [FAKE_HOME, FAKE_CONFIG, FAKE_CODEX, SANDBOX]) rmTempDir(dir);
   for (const [key, was] of Object.entries(prev)) {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;

@@ -14,8 +14,9 @@
 // on the port receives nothing but the challenge.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { randomBytes } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
@@ -40,7 +41,7 @@ const hook = createRequire(import.meta.url)(COPY) as {
 // @ts-expect-error — .mjs server module, no types
 const { challengeProof, hookToken } = await import("../../server/index.mjs");
 
-afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
+afterAll(() => rmTempDir(ROOT));
 
 type Seen = { method: string; path: string; body: string };
 

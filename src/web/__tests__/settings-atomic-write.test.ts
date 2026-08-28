@@ -12,6 +12,7 @@ import {
   rmSync, statSync, utimesSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { rmTempDir } from "./rm-temp-dir";
 import { join } from "node:path";
 
 // The installer resolves the Claude config dir at import time: CLAUDE_CONFIG_DIR
@@ -74,7 +75,7 @@ afterAll(() => {
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
   restore("CLAUDE_CONFIG_DIR", prevClaudeConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("installHooks writes settings.json atomically", () => {

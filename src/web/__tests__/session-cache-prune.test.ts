@@ -11,7 +11,8 @@
 // payload that carries no model with the model it remembers for that session.
 // A session still in the cache gets the stamp; an evicted one does not.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -65,7 +66,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function post(body: unknown): Promise<{ seq: number }> {

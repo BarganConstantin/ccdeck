@@ -16,7 +16,8 @@
 // owner's venv directory is created per case, which reads the same on all three
 // platforms and touches neither real one.
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -90,7 +91,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 /**
@@ -102,9 +103,9 @@ async function upgradeWith(available: (cmd: string) => boolean, owner: "uv" | "p
   probeOk.is = available;
   // The marker throttles the check to once a day, and the module caches both the
   // resolved binary and the python list — a fresh instance per case.
-  rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
-  rmSync(UV_TOOL_DIR, { recursive: true, force: true });
-  rmSync(PIPX_HOME, { recursive: true, force: true });
+  rmTempDir(join(FAKE_HOME, ".agents-deck"));
+  rmTempDir(UV_TOOL_DIR);
+  rmTempDir(PIPX_HOME);
   mkdirSync(owner === "uv" ? join(UV_TOOL_DIR, "claude-swap") : join(PIPX_HOME, "venvs", "claude-swap"),
     { recursive: true });
   vi.resetModules();

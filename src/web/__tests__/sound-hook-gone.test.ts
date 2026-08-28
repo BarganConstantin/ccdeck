@@ -22,6 +22,7 @@
 // directories at import time.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -80,7 +81,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 describe("the script the package used to ship", () => {
@@ -205,7 +206,7 @@ describe("a fresh install on a machine that never had the sound", () => {
     // other case in this file can be satisfied by moving code around.
     const settingsPath = join(FAKE_CLAUDE, "settings.json");
     rmSync(settingsPath, { force: true });
-    rmSync(join(FAKE_CLAUDE, "agent-dag"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_CLAUDE, "agent-dag"));
 
     const res = await installHooks({ provider: "claude" });
 

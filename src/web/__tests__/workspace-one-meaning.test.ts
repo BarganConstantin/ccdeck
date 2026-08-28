@@ -23,7 +23,8 @@
 // two answers is the bug.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
@@ -82,7 +83,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // ── the one rule, walked through both implementations of it ──────────────────

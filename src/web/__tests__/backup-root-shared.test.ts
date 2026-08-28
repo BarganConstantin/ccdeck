@@ -12,7 +12,8 @@
 // rule and, more importantly, pin that both halves land on the same directory
 // — which is the property that was actually broken.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -103,7 +104,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  for (const dir of SANDBOXES) rmSync(dir, { recursive: true, force: true });
+  for (const dir of SANDBOXES) rmTempDir(dir);
 });
 
 describe("where the claude-swap store is", () => {

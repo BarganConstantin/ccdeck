@@ -13,6 +13,7 @@ import {
   rmSync, statSync, writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -135,7 +136,7 @@ const hardLinksWork = (() => {
 const strays = () => readdirSync(UV_DIR).filter(name => name !== EXE);
 
 beforeEach(() => {
-  rmSync(UV_DIR, { recursive: true, force: true });
+  rmTempDir(UV_DIR);
   mkdirSync(UV_DIR, { recursive: true });
   staged = null;
   existingRuns.is = true;
@@ -152,7 +153,7 @@ afterAll(() => {
     else process.env[key] = was;
   }
   // Staging lives under FAKE_HOME now, so the one removal covers both.
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("a uv left over from an earlier run", () => {

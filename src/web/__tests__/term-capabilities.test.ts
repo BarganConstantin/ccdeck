@@ -14,7 +14,8 @@
 // execute. Every input is therefore injected — env, isTTY, platform — and both
 // answers are pinned.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -36,7 +37,7 @@ afterAll(() => {
     if (PREV[k] === undefined) delete process.env[k];
     else process.env[k] = PREV[k] as string;
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // @ts-expect-error — .mjs server module, no types

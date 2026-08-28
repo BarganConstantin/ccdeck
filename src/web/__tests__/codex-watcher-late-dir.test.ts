@@ -9,7 +9,8 @@
 // and Windows). These pin that the watcher arms itself with the directory
 // missing and picks up the first rollout that appears afterwards.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -47,7 +48,7 @@ afterAll(() => {
   if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   if (prevUserProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUserProfile;
   if (prevCodexHome === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = prevCodexHome;
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function line(obj: unknown): string {

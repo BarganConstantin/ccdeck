@@ -24,7 +24,8 @@
 // back and can be restarted again afterwards.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -54,7 +55,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 type Answer = { status: number; body: any };

@@ -20,7 +20,8 @@
 // one failure in ccusage.mjs that really was permanent: a managed install that
 // resolves but cannot run, which nothing ever re-checked.
 import { describe, it, expect, afterAll, beforeAll, beforeEach, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // npm and npx go through cmd.exe on Windows, where their arguments arrive
@@ -318,7 +319,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => { calls.length = 0; plan.length = 0; });
@@ -345,7 +346,7 @@ async function printed<T>(work: () => Promise<T> | T): Promise<{ value: T; lines
 // these failures into a pass.
 describe("what the deck prints when ccusage cannot run", () => {
   it("writes one line per failure, never the child's stack", async () => {
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
     plan.push({ stderr: NPX_STACK, code: 1 }, { stderr: NPX_STACK, code: 1 });
 
     const { lines } = await printed(() => fetchCcusageDaily({ since: "20260301" }));
@@ -362,7 +363,7 @@ describe("what the deck prints when ccusage cannot run", () => {
   });
 
   it("keeps the whole stack for the modal's title, where the evidence belongs", async () => {
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
     plan.push({ stderr: NPX_STACK, code: 1 }, { stderr: NPX_STACK, code: 1 });
 
     const { value: res } = await printed(() => fetchCcusageDaily({ since: "20260302" }));
@@ -379,7 +380,7 @@ describe("what the deck prints when ccusage cannot run", () => {
   });
 
   it("says one line at boot too, which is where such a machine sees it first", async () => {
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
 
     const { lines } = await printed(async () => {
       primeCcusage();
@@ -411,7 +412,7 @@ describe("a managed install that resolves but cannot run", () => {
     // disk, so resolveEntry answers "installed" and getRunner hands that entry
     // back on every call — while running it fails every time. Nothing re-checked
     // it, and the only fix was deleting ~/.agents-deck/ccusage by hand.
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
     damagedInstall();
 
     plan.push(

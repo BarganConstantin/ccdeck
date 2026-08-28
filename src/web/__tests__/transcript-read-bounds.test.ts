@@ -43,7 +43,8 @@
 // and the 8 MiB one is created with `ftruncate` and never written to — CI runs
 // three OSes and other suites share the process.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, statSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -103,7 +104,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** A file of `size` bytes with nothing written into it — no newline anywhere,

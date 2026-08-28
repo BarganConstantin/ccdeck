@@ -17,6 +17,7 @@
 // before it attaches anything, and says so rather than going quietly dark.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -113,7 +114,7 @@ describe("fetchCodexQuota against an untrusted base URL", () => {
       if (prevEnv[k] === undefined) delete process.env[k];
       else process.env[k] = prevEnv[k];
     }
-    rmSync(DIR, { recursive: true, force: true });
+    rmTempDir(DIR);
   });
 
   beforeEach(() => {

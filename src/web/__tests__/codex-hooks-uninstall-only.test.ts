@@ -11,6 +11,7 @@
 // hook, and the uninstall path still finds and removes the old ones.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -67,8 +68,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_CODEX, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_CODEX);
 });
 
 describe("installing hooks for Codex", () => {

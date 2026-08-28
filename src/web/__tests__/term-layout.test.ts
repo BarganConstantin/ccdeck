@@ -13,7 +13,8 @@
 // still be there at the narrowest of them.
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -37,7 +38,7 @@ afterAll(() => {
     if (PREV[k] === undefined) delete process.env[k];
     else process.env[k] = PREV[k] as string;
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // @ts-expect-error — .mjs server module, no types

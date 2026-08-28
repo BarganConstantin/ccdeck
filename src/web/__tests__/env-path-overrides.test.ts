@@ -23,7 +23,8 @@
 // it, so no assertion here can be satisfied — or contaminated — by the
 // developer's own configuration.
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,7 +81,7 @@ afterAll(() => {
     else process.env[key] = was;
   }
   vi.unstubAllGlobals();
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 describe("the OAuth credentials the quota chain borrows a token from", () => {

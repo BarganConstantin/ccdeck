@@ -9,7 +9,8 @@
 // object — it is an interactive process holding an open OAuth flow and an open
 // stdin, invisible to the user, alive until its five-minute timeout.
 import { describe, it, expect, afterAll, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -127,8 +128,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_STORE, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_STORE);
 });
 
 describe("two sign-in requests that overlap", () => {

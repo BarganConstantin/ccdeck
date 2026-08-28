@@ -26,6 +26,7 @@
 // so a cancelled sign-in cannot wedge the mutex either.
 import { describe, it, expect, afterAll } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -99,7 +100,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // The sentinels. Strings rather than symbols so a red case says what happened

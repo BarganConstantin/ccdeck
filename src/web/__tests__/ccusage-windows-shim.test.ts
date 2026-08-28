@@ -23,7 +23,8 @@
 // an install that reports honestly, and a failure that names which of ccusage's
 // two paths it came from ON SCREEN rather than in a title attribute.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { explainCcusageFailure } from "../admin-failure";
@@ -305,14 +306,14 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => {
   calls.length = 0;
   runPlan.length = 0;
   installReply.current = null;
-  rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+  rmTempDir(join(FAKE_HOME, ".agents-deck"));
 });
 
 /** Run `work` with console.error captured, since that is the module's only way

@@ -15,7 +15,8 @@
 // the live fan-out treats it.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { get, request, type IncomingMessage, type Server } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync } from "node:fs";
 import { connect, type AddressInfo, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -123,7 +124,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Post one event and return the seq the server assigned it. `agent: false`

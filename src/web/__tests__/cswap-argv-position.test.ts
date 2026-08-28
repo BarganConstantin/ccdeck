@@ -100,7 +100,8 @@
 // validator rejects must reach NO subprocess, which is asserted as an empty
 // recording rather than as a well-quoted one.
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EventEmitter } from "node:events";
@@ -271,8 +272,8 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_STORE, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_STORE);
 });
 
 describe("the recorded spawn, in both of the shapes a real one has", () => {

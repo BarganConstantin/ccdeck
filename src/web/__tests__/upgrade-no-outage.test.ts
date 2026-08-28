@@ -23,6 +23,7 @@
 // the handover — is the code that ships.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,7 +45,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // The layout npx unpacks into, because npxRestartSpec reads the deck's own

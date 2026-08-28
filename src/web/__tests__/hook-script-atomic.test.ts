@@ -8,6 +8,7 @@
 // would produce the same bytes does not touch the file at all.
 import { describe, it, expect, afterAll } from "vitest";
 import { linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,13 +76,13 @@ afterAll(() => {
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
   restore("CLAUDE_CONFIG_DIR", prevClaudeConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("installHooks puts hook.js in place atomically", () => {
   it("installs the packaged script byte for byte", async () => {
     rmSync(SETTINGS, { force: true });
-    rmSync(INSTALL_DIR, { recursive: true, force: true });
+    rmTempDir(INSTALL_DIR);
 
     const res = await installHooks({ provider: "claude" });
 
@@ -108,7 +109,7 @@ describe("installHooks puts hook.js in place atomically", () => {
   });
 
   it("leaves no temp file behind in the hook dir", async () => {
-    rmSync(INSTALL_DIR, { recursive: true, force: true });
+    rmTempDir(INSTALL_DIR);
     await installHooks({ provider: "claude" });
     expect(readdirSync(INSTALL_DIR).filter(name => name.includes(".tmp"))).toEqual([]);
   });

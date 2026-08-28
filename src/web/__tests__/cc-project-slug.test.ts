@@ -14,7 +14,8 @@
 // is stored as -Users-…-vcrm-core--claude-worktrees-agent-mail-mobile and the
 // Windows entries read C--Users-cbargan-….
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -33,7 +34,7 @@ const { ccProjectSlug } = await import("../../server/index.mjs");
 afterAll(() => {
   if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   if (prevUserProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUserProfile;
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // resolve() answers in the running platform's own absolute form — "/Users/…"

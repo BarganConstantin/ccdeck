@@ -28,7 +28,8 @@
 // No DOM. The server half drives the scanners over a sandboxed temp tree, the
 // reducer half drives `applyEvent` directly.
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
@@ -60,7 +61,7 @@ afterAll(() => {
   for (const [k, v] of Object.entries(prevEnv)) {
     if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // ─── Fixtures ────────────────────────────────────────────────────────────

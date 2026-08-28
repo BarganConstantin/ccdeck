@@ -11,7 +11,8 @@
 // These pin the fallback command line on both platforms and pin that neither
 // runner branch is given a shell.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cmdTokens, spawnedArgv } from "./spawned-argv";
@@ -95,7 +96,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => { calls.length = 0; });
@@ -169,7 +170,7 @@ describe("what fetchCcusageDaily actually spawns", () => {
   it("never gives the npx fallback a shell", async () => {
     // No managed install and npm fails, which is the only way to reach the npx
     // fallback at all — the precondition the original report named.
-    rmSync(join(FAKE_HOME, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(FAKE_HOME, ".agents-deck"));
 
     await fetchCcusageDaily({ since: "20260201" });
 

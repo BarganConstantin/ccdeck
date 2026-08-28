@@ -21,6 +21,7 @@
 // the same hooks back a second time on the next boot.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -74,7 +75,7 @@ afterAll(() => {
   restoreEnv("USERPROFILE", prevUserProfile);
   restoreEnv("CLAUDE_CONFIG_DIR", prevConfigDir);
   restoreEnv("CODEX_HOME", prevCodexHome);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 // A hook a user wrote by hand: one OS-specific command ending in `|| true`, the
@@ -121,12 +122,12 @@ const readOnlyDirBlocksWrites = (() => {
     return true;
   } finally {
     chmodSync(probe, 0o755);
-    rmSync(probe, { recursive: true, force: true });
+    rmTempDir(probe);
   }
 })();
 
 beforeEach(() => {
-  rmSync(PARK_DIR, { recursive: true, force: true });
+  rmTempDir(PARK_DIR);
   rmSync(SETTINGS, { force: true });
 });
 

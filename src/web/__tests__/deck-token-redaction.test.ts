@@ -21,7 +21,8 @@
 // Plain node, no DOM: the server is a .mjs module and the client here is
 // node:http.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request, type ClientRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -91,7 +92,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function post(path: string, body: string): Promise<{ status: number; text: string }> {

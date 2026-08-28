@@ -16,7 +16,8 @@
 // Plain node throughout: the assertions are module namespaces, source text and
 // pure functions, and nothing here renders.
 import { describe, it, expect } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -101,7 +102,7 @@ describe("everything those symbols decide still gets decided", () => {
         expect(upgradeCommand(root)).toBe("git pull && npm run build");
       }
     } finally {
-      rmSync(sandbox, { recursive: true, force: true });
+      rmTempDir(sandbox);
     }
   });
 

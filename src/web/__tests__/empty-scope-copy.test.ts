@@ -12,7 +12,8 @@
 // pinned here — that /api/health now reports the workspace it was started with,
 // and that each of the three answers it can give produces copy that is true.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,7 +51,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** Start a deck with the given scope and ask it what it thinks that scope is. */

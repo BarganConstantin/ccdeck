@@ -19,7 +19,8 @@
 // caller then.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
@@ -99,7 +100,7 @@ describe.skipIf(process.platform === "win32")("dieOfSignal in a process that tra
   const dir = mkdtempSync(join(tmpdir(), "ccdeck-signal-"));
   const script = join(dir, "supervisor-like.mjs");
   const supervisor = new URL("../../server/supervisor.mjs", import.meta.url).href;
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  afterAll(() => rmTempDir(dir));
 
   // Exactly the shape of bin/agent-dag.js: the same three traps, and the same
   // handler that exits 0 once there is no child left to stop.

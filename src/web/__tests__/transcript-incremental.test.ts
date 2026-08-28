@@ -8,7 +8,8 @@
 // already folded, and a cursor left pointing past the end of a file that
 // shrank.
 import { describe, it, expect, afterAll } from "vitest";
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -28,7 +29,7 @@ const { readModelFromTranscript, readUsageFromTranscript, readContextFromTranscr
 afterAll(() => {
   if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
   if (prevUserProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = prevUserProfile;
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 /** One transcript line. Transcripts are JSONL: one object, one "\n". */

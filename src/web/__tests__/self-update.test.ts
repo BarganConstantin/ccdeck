@@ -5,7 +5,8 @@
 // boot version, and the browser bundle shows whichever version it was served.
 // These tests pin the three-way comparison that makes that state visible.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // What a recorded spawn really ran, in one shape on every platform — on
@@ -273,7 +274,7 @@ describe("upgradeCommand — the command must match how this copy was installed"
         // dist/ is built, not shipped, so a pull alone leaves the old bundle.
         expect(upgradeCommand(root)).toBe("git pull && npm run build");
       } finally {
-        rmSync(root, { recursive: true, force: true });
+        rmTempDir(root);
       }
     });
   }
@@ -641,7 +642,7 @@ describe("an install that runs past its deadline", () => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    rmSync(dir, { recursive: true, force: true });
+    rmTempDir(dir);
   });
 
   const start = (os: string) => {
@@ -850,7 +851,7 @@ describe("the version check and the upgrade command must be about one package", 
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
-    rmSync(home, { recursive: true, force: true });
+    rmTempDir(home);
   });
 
   it("asks npm about ccdeck when the command will install ccdeck", async () => {

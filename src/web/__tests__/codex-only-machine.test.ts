@@ -25,7 +25,8 @@
 // CODEX_HOME and PATH all point inside it, so no assertion here can be satisfied
 // — or contaminated — by the developer's own machine, and nothing is installed.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -89,7 +90,7 @@ afterAll(async () => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 /** A fresh, empty config directory for one case, so no case can see another's. */

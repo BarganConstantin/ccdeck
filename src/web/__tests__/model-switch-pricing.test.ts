@@ -36,7 +36,8 @@
 // arithmetic; and no surface in the app has gone back to multiplying `a.usage`
 // by `a.model`.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,7 +75,7 @@ afterAll(() => {
   for (const k of ENV_KEYS) {
     if (PREV[k] === undefined) delete process.env[k]; else process.env[k] = PREV[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 // Pinned, not `Date.now()`. Sonnet 5's introductory $2/$10 runs to 2026-08-31

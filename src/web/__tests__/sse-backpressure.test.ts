@@ -11,7 +11,8 @@
 // subscriber which stops reading is hung up on, and — just as important — that
 // a subscriber which keeps reading is left alone and keeps receiving.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type IncomingMessage, type Server } from "node:http";
 import { connect, type AddressInfo, type Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -51,7 +52,7 @@ afterAll(async () => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 function post(path: string, body: unknown): Promise<void> {

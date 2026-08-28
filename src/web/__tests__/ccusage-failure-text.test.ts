@@ -15,7 +15,8 @@
 // cmd.exe's "is not recognized", or, from a deck old enough to have used a
 // shell, sh's or dash's own line.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,13 +74,13 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // Results are cached for two minutes per range, so every case asks for its own.
 describe("what /api/ccusage says went wrong", () => {
   it("names the opt-out that forbade the install rather than the exception it threw", async () => {
-    rmSync(join(SANDBOX, ".agents-deck"), { recursive: true, force: true });
+    rmTempDir(join(SANDBOX, ".agents-deck"));
     const res = await fetchCcusageDaily({ since: "20260201" });
 
     expect(res.ok).toBe(false);

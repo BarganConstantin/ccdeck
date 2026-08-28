@@ -52,7 +52,8 @@
 // USERPROFILE, CLAUDE_CONFIG_DIR and CLAUDE_SWAP_BACKUP all point inside a temp
 // directory that is checked before the modules are imported and removed after.
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -155,7 +156,7 @@ function writeStore(activeNum: number, pct: Record<number, number>) {
 
 /** No store at all, so quota.mjs has to fall through to the CLI. */
 function clearStore() {
-  rmSync(ROOT, { recursive: true, force: true });
+  rmTempDir(ROOT);
 }
 
 /** What `claude --print /usage` prints when it can answer. */
@@ -244,7 +245,7 @@ afterAll(() => {
     if (PREV[k] === undefined) delete process.env[k];
     else process.env[k] = PREV[k];
   }
-  rmSync(DIR, { recursive: true, force: true });
+  rmTempDir(DIR);
 });
 
 describe("a tick that moved the live Claude account", () => {

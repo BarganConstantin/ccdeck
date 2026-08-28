@@ -21,7 +21,8 @@
 // what these tests pin is that the temp name survives on its own, which is what
 // a second deck on the same home, or one refresh queue away, actually depends on.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -201,7 +202,7 @@ const settle = async (promises: Promise<any>[]) =>
       : `threw: ${(r.reason as any)?.code ?? r.reason}`);
 
 beforeEach(() => {
-  rmSync(CODEX_DIR, { recursive: true, force: true });
+  rmTempDir(CODEX_DIR);
   mkdirSync(CODEX_DIR, { recursive: true });
   writeAuth();
   fsCtl.temps.length = 0;
@@ -215,7 +216,7 @@ afterAll(() => {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 describe("two refreshes staging a rotated token at the same moment", () => {

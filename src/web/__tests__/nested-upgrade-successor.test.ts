@@ -23,7 +23,8 @@
 // does, and pins what each reader says afterwards. Nothing is installed and npm
 // is never spawned — every function under test answers from the filesystem.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -35,7 +36,7 @@ import {
 import { replacedNote } from "../../server/supervisor.mjs";
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "nested-upgrade-"));
-afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
+afterAll(() => rmTempDir(SANDBOX));
 
 const manifest = (dir: string, meta: Record<string, unknown>) => {
   mkdirSync(dir, { recursive: true });
@@ -61,7 +62,7 @@ function nested(name: string, version = "1.43.0") {
 /** What npm does to that layout when it installs the flat tarball over it:
  *  the launcher directory is rewritten, and everything under it goes. */
 function upgradeOverIt(host: string, version: string) {
-  rmSync(join(host, "node_modules"), { recursive: true, force: true });
+  rmTempDir(join(host, "node_modules"));
   manifest(host, { name: "ccdeck", version });   // no dependency any more
 }
 

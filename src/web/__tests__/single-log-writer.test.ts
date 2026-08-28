@@ -12,6 +12,7 @@
 // derives from the same session's transcript.
 import { describe, it, expect, afterAll, afterEach } from "vitest";
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { createRequire } from "node:module";
 import type { AddressInfo, Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -71,9 +72,9 @@ const { electWriters } = createRequire(import.meta.url)(HOOK_COPY) as {
 
 afterAll(async () => {
   await new Promise<void>(resolve => server.close(() => resolve()));
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_CONFIG, { recursive: true, force: true });
-  rmSync(HOOK_DIR, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_CONFIG);
+  rmTempDir(HOOK_DIR);
   for (const [key, was] of Object.entries(prev)) {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;

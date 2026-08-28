@@ -25,7 +25,8 @@
 // which the broken version also was. The two directories here are literals this
 // file created itself, and the assertions name them.
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
@@ -63,7 +64,7 @@ afterAll(() => {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  rmSync(SANDBOX, { recursive: true, force: true });
+  rmTempDir(SANDBOX);
 });
 
 // Imported after the environment is in place: a module that resolved anything

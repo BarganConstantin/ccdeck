@@ -5,7 +5,8 @@
 // --yes flag and must be answered by matching it, and a shared account is a
 // live credential that has to stop working on its own.
 import { describe, it, expect, vi, afterAll } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error — plain JS module, no types
@@ -524,11 +525,11 @@ describe("pythonVersionDirs", () => {
   it("answers nothing for a directory that has gone away mid-session", () => {
     // An uninstall, a roaming profile still syncing, a network drive that
     // dropped. Same answer as never having been there.
-    rmSync(root, { recursive: true, force: true });
+    rmTempDir(root);
     expect(pythonVersionDirs(root)).toEqual([]);
   });
 
-  afterAll(() => { rmSync(root, { recursive: true, force: true }); });
+  afterAll(() => { rmTempDir(root); });
 });
 
 // Two sign-ins overlap more easily than it sounds: the CLI is slow to print its
@@ -581,7 +582,7 @@ describe("a startLogin that gives up after a newer one took over", () => {
       else process.env.AGENTS_DECK_CLAUDE = claude;
       if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
       else process.env.CLAUDE_SWAP_BACKUP = backup;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   });
 });
@@ -613,7 +614,7 @@ describe("submitLoginCode and the second prompt", () => {
       else process.env.AGENTS_DECK_CSWAP = cswap;
       if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
       else process.env.CLAUDE_SWAP_BACKUP = backup;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     };
   }
 
@@ -738,7 +739,7 @@ describe("cancelLogin and the store lock", () => {
       else process.env.AGENTS_DECK_CSWAP = cswap;
       if (backup === undefined) delete process.env.CLAUDE_SWAP_BACKUP;
       else process.env.CLAUDE_SWAP_BACKUP = backup;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   });
 

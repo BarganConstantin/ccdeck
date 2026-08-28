@@ -44,7 +44,8 @@
 // here runs ccusage, powershell or ps, and no test in this file can read the
 // process table of the machine running the suite.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -153,7 +154,7 @@ afterAll(() => {
     if (prevEnv[k] === undefined) delete process.env[k];
     else process.env[k] = prevEnv[k];
   }
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 beforeEach(() => {

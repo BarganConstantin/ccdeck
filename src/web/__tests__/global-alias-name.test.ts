@@ -35,6 +35,7 @@
 // downloaded, and npm is a recording fake that never runs.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,7 +92,7 @@ const repo = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (...parts: string[]) => readFileSync(join(repo, ...parts), "utf8");
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "global-alias-name-"));
-afterAll(() => rmSync(SANDBOX, { recursive: true, force: true }));
+afterAll(() => rmTempDir(SANDBOX));
 
 // The registry is not asked by anything except the one marker test below, which
 // stubs fetch and clears this for its own duration. Everything else here is

@@ -8,8 +8,9 @@
 // never find the server.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -62,8 +63,8 @@ afterAll(() => {
   restore("USERPROFILE", prevUserProfile);
   restore("CODEX_HOME", prevCodexHome);
   restore("CLAUDE_CONFIG_DIR", prevClaudeConfigDir);
-  rmSync(FAKE_HOME, { recursive: true, force: true });
-  rmSync(FAKE_CONFIG, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
+  rmTempDir(FAKE_CONFIG);
 });
 
 describe("installHooks with CLAUDE_CONFIG_DIR set", () => {

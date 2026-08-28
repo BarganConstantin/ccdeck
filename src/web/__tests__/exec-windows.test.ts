@@ -5,7 +5,8 @@
 // exactly the platform this repo cannot execute. Hence tests.
 import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 // @ts-expect-error — .mjs server module, no types
@@ -86,7 +87,7 @@ describe("an interactive run that has to retry a spelling", () => {
       expect(lines).toContain("ready");
     } finally {
       Object.defineProperty(process, "platform", platform);
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   });
 });
@@ -220,7 +221,7 @@ describe("killing a child", () => {
         else process.env[key] = value;
       }
       if (grandchild) { try { process.kill(grandchild, "SIGKILL"); } catch { /* already gone */ } }
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   }, 30_000);
 
@@ -329,7 +330,7 @@ describe("killing a child", () => {
         else process.env[key] = value;
       }
       if (grandchild) { try { process.kill(grandchild, "SIGKILL"); } catch { /* already gone */ } }
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   }, 30_000);
 });
@@ -419,7 +420,7 @@ describe("a tool that ran and failed with a Windows ENOENT message", () => {
       Object.defineProperty(process, "platform", platform);
       if (comspec === undefined) delete process.env.ComSpec;
       else process.env.ComSpec = comspec;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   }, 30_000);
 
@@ -444,7 +445,7 @@ describe("a tool that ran and failed with a Windows ENOENT message", () => {
       Object.defineProperty(process, "platform", platform);
       if (comspec === undefined) delete process.env.ComSpec;
       else process.env.ComSpec = comspec;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   }, 30_000);
 });
@@ -497,7 +498,7 @@ describe("a .cmd spelling cmd.exe could not find", () => {
       Object.defineProperty(process, "platform", platform);
       if (comspec === undefined) delete process.env.ComSpec;
       else process.env.ComSpec = comspec;
-      rmSync(dir, { recursive: true, force: true });
+      rmTempDir(dir);
     }
   });
 });

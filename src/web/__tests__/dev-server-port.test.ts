@@ -10,8 +10,9 @@
 // the module is imported, so importing it would test nothing at all.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
+import { rmTempDir } from "./rm-temp-dir";
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,7 +29,7 @@ const children: ChildProcess[] = [];
 
 afterAll(() => {
   for (const child of children) child.kill();
-  rmSync(FAKE_HOME, { recursive: true, force: true });
+  rmTempDir(FAKE_HOME);
 });
 
 /** A port nothing is listening on, found by listening on it and stopping. */
