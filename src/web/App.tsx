@@ -2724,7 +2724,7 @@ function Inner() {
   // all of them.
   const ambientRef = useRef<AmbientSignal | null>(null);
   useEffect(() => {
-    const next = ambientSignal({ waiting: waitingSessions.length, running: runningSessions });
+    const next = ambientSignal({ waiting: waitingSessions.length, running: runningSessions, connected: live });
     const prev = ambientRef.current;
     ambientRef.current = next;
     if (prev?.title !== next.title) document.title = next.title;
@@ -2738,7 +2738,7 @@ function Inner() {
       const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
       if (link) link.href = FAVICON_HREF[next.icon];
     }
-  }, [waitingSessions.length, runningSessions]);
+  }, [waitingSessions.length, runningSessions, live]);
   // The same fact as the two lines above, on the one channel that had it from
   // neither: spoken.
   //
@@ -2994,6 +2994,13 @@ function Inner() {
                 connected: live, paused,
                 held: pauseGate.size, dropped: pauseGate.dropped,
               });
+              // Nothing at rest (#719). The ghost above explains why the box
+              // measures its own worst case; this is the case where the box
+              // itself is not earned. `.status` is a flex row, so the 14px gap
+              // leaves with it and SystemMeter becomes the first thing in the
+              // run without anything shifting on its own — the tone only ever
+              // changes because Space was pressed or the stream died.
+              if (pill.resting) return null;
               return (
                 <span className={`pill ${pill.tone}`} title={pill.title}>
                   <span className="pill-box">

@@ -125,11 +125,70 @@ describe("which icon wins", () => {
     expect(ambientSignal({ waiting: 0, running: 3 }).icon).toBe("running");
     expect(ambientSignal({ waiting: 0, running: 0 }).icon).toBe("idle");
   });
+
+  it("is red the moment the stream dies, whatever the board last looked like", () => {
+    // Offline outranks both, and #719 is the reasoning: while the stream is
+    // down, `waiting` and `running` are frozen readings of a board that has
+    // moved on without telling anyone. Blue would claim work is in flight that
+    // may have finished; grey would claim a quiet deck. And the alarm cannot be
+    // cleared by acting on it — approving the prompt changes nothing here,
+    // because nothing is arriving to say it was approved.
+    for (const board of [{ waiting: 3, running: 4 }, { waiting: 0, running: 4 }, { waiting: 0, running: 0 }]) {
+      expect(ambientSignal({ ...board, connected: false }).icon, JSON.stringify(board)).toBe("offline");
+    }
+  });
+
+  it("goes back to reading the board the moment the stream returns", () => {
+    // The mirror of the case above, and the one that would catch a `connected`
+    // that had become sticky.
+    expect(ambientSignal({ waiting: 3, running: 4, connected: false }).icon).toBe("offline");
+    expect(ambientSignal({ waiting: 3, running: 4, connected: true }).icon).toBe("waiting");
+  });
+
+  it("assumes a connection when nobody says otherwise", () => {
+    // The flag is optional so that a caller which has no opinion cannot
+    // accidentally paint every tab red. Absence means "not claiming the stream
+    // is down", never "the stream is down".
+    expect(ambientSignal({ waiting: 0, running: 1 }).icon).toBe("running");
+  });
+
+  it("keeps the count in the title while the stream is down", () => {
+    // The count is a last reading rather than a live one, and it stays: nobody
+    // answered those prompts while the deck was not looking, so dropping it
+    // would read as "they were dealt with". `(2)` beside a broken mark is the
+    // honest pair.
+    const dead = ambientSignal({ waiting: 2, running: 0, connected: false });
+    expect(dead.title).toBe(ambientSignal({ waiting: 2, running: 0 }).title);
+    expect(dead.icon).toBe("offline");
+  });
 });
 
 // ── the mark itself ─────────────────────────────────────────────────────────
 
-const STATES: AmbientIcon[] = ["waiting", "running", "idle"];
+/** Every state the icon has, read from the table rather than listed here.
+ *
+ *  It WAS listed here — `["waiting", "running", "idle"]` — and #719 is what that
+ *  cost: adding a fourth state and its mark left all eighteen cases in this file
+ *  green, because every loop below iterates this array and the array had never
+ *  heard of it. The new icon went unencoded, unmeasured for contrast, and
+ *  unchecked for animation, and the suite reported success. A list of states
+ *  maintained beside the states is the same drift `ambient-counts.ts` was
+ *  written to end, one file over.
+ *
+ *  The cast is safe and the assertion below is what makes it so: if the table
+ *  ever loses a key the type still allows, this fails naming the gap instead of
+ *  quietly testing a smaller set. */
+const STATES = Object.keys(FAVICON_HREF) as AmbientIcon[];
+
+it("covers every icon the signal can ask for", () => {
+  // The guard on the line above. `ambientSignal` returns an AmbientIcon and
+  // App.tsx indexes FAVICON_HREF with it, so a state with no href is a runtime
+  // `undefined` assigned to link.href — which browsers resolve against the page
+  // URL and quietly render as no icon at all.
+  const reachable: AmbientIcon[] = ["offline", "waiting", "running", "idle"];
+  expect([...STATES].sort()).toEqual([...reachable].sort());
+});
+
 const PREFIX = "data:image/svg+xml,";
 
 /** The SVG a browser will actually parse out of the href. */
@@ -181,15 +240,43 @@ describe("the favicon", () => {
     // so it is the shape this pins. Stripped of colour the three must still be
     // three different documents, and the ink must rise from idle to waiting.
     const geometry = STATES.map(icon => svgFor(icon).replace(/(?:fill|stroke)="#[0-9a-f]{6}"/gi, ""));
-    expect(new Set(geometry).size, "two states are the same drawing").toBe(3);
+    expect(new Set(geometry).size, "two states are the same drawing").toBe(STATES.length);
 
-    const [waiting, running, idle] = STATES.map(icon => svgFor(icon));
+    const waiting = svgFor("waiting"), running = svgFor("running"), idle = svgFor("idle");
     expect(waiting, "waiting is not the solid one").toMatch(/<circle[^>]*r="14\.5"[^>]*fill="#/);
     expect(waiting.match(/<circle/g)!, "waiting should be one filled disc").toHaveLength(1);
     expect(running.match(/<circle/g)!, "running should be a ring around a dot").toHaveLength(2);
     expect(idle.match(/<circle/g)!, "idle should be a bare ring").toHaveLength(1);
     expect(idle, "idle's ring is filled in, so it cannot read as the empty state")
       .toMatch(/fill="none"/);
+  });
+
+  it("draws offline as a ring that has come apart, not as a heavier one", () => {
+    // The ladder the three above form measures how much the deck wants you, and
+    // every rung on it is a READING of the board. Offline is the reading itself
+    // failing, so it must not be drawn as more ink — that would rank a dropped
+    // socket against a blocked session on a scale neither belongs on, and would
+    // make the deck look more certain at the moment it knows least (#719).
+    const offline = svgFor("offline");
+    expect(offline.match(/<circle/g)!, "offline should be one ring and nothing else").toHaveLength(1);
+    expect(offline, "offline's ring is filled, so it reads as a state rather than a break")
+      .toMatch(/fill="none"/);
+    const dash = offline.match(/stroke-dasharray="([\d.]+) ([\d.]+)"/);
+    expect(dash, "offline is a closed ring — nothing distinguishes it from idle but colour").toBeTruthy();
+
+    // A quarter of the circumference, and the arithmetic rather than the
+    // literal: at r=12 that is ~18.85 units, which at the 16px the icon is
+    // actually rendered at leaves ~4.7px of clear strip against a 2.5px stroke.
+    // A gap narrower than its own stroke reads as a printing flaw.
+    const [, drawn, gap] = dash!.map(Number);
+    const ring = 2 * Math.PI * 12;
+    expect(drawn + gap, "the dash pattern does not add up to one turn").toBeCloseTo(ring, 1);
+    expect(gap / ring, "the bite is too small to read at 16px").toBeGreaterThan(0.15);
+
+    // Same outer diameter as the other three, so it is one mark breaking rather
+    // than a fifth glyph.
+    expect(offline).toMatch(/r="12"/);
+    expect(offline).toMatch(/stroke-width="5"/);
   });
 
   it("percent-encodes the hex fills, which are fragment delimiters raw", () => {
@@ -219,9 +306,9 @@ describe("the favicon", () => {
     }
   });
 
-  it("uses a different colour for each of the three states", () => {
+  it("uses a different colour for every state", () => {
     const fills = STATES.map(icon => fillsOf(svgFor(icon))[0]);
-    expect(new Set(fills).size).toBe(3);
+    expect(new Set(fills).size).toBe(STATES.length);
   });
 
   it("reads on a white tab strip and on a #1f1f1f one alike", () => {
@@ -310,6 +397,20 @@ describe("what App.tsx does with it", () => {
     // would outlive the thing it was counting; the eviction case below proves
     // the behaviour, and this keeps a tally from creeping back in beside it.
     expect(app).not.toMatch(/set(Waiting|Running)Count/);
+  });
+
+  it("hands the signal the connection, and re-runs when it changes", () => {
+    // Two halves, and the second is the one that goes missing silently (#719).
+    // Passing `connected` without adding it to the dependency array gives an
+    // effect that reads the flag once and never again: the deck drops its
+    // stream, the counts stop moving because nothing is arriving, so nothing in
+    // the array changes, so the effect never re-runs and the tab keeps whatever
+    // mark it was wearing. That is the exact failure the offline state exists
+    // to fix, reintroduced by an omission a reviewer's eye slides over.
+    expect(app, "ambientSignal is no longer told whether the stream is alive")
+      .toMatch(/ambientSignal\(\s*\{[^}]*connected:\s*live[^}]*\}\s*\)/);
+    expect(app, "the ambient effect does not re-run when the connection changes")
+      .toMatch(/\}\s*,\s*\[\s*waitingSessions\.length\s*,\s*runningSessions\s*,\s*live\s*\]\s*\)/);
   });
 });
 
