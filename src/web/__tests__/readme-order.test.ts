@@ -157,6 +157,52 @@ describe("the order a first-time reader meets the page in", () => {
   });
 });
 
+describe("the first two lines, which are the whole first impression (#461)", () => {
+  /** Everything above the badges — the h1 and whatever states the case. */
+  const hero = readme.slice(0, readme.indexOf("[![npm]"));
+
+  it("states the problem before it names the tool", () => {
+    // The page used to open on "A live canvas for your AI agents", which is a
+    // category. A category tells a reader which shelf this sits on and leaves
+    // them to work out whether they are standing at it; the problem does the
+    // deciding for them. Both offsets are asserted so a deleted line fails here
+    // rather than passing an inequality against -1.
+    const problem = hero.indexOf("An agent session is a tree. Your terminal shows it as a scroll.");
+    const answer = hero.indexOf("**ccdeck draws the tree**");
+    expect(problem, "the README no longer opens by stating the problem").toBeGreaterThan(-1);
+    expect(answer, "the README no longer answers the problem it opens with").toBeGreaterThan(-1);
+    expect(problem).toBeLessThan(answer);
+  });
+
+  it("keeps the answer above the fold, not below the install command", () => {
+    // Badges and `npx ccdeck` are what a scanner's eye lands on next. The two
+    // lines only do their job while they are still the first thing read.
+    expect(hero).toContain("**ccdeck draws the tree**");
+  });
+
+  it("does not let the scan line promise subagents to a Codex user", () => {
+    // The noun list under the hero is read as a feature list with no provider
+    // attached to any entry, which is exactly where an unqualified "subagents"
+    // becomes the claim `codex-copy.test.ts` refuses: codexObjToPayload emits
+    // no SubagentStart, so a Codex session is a root and its tools. The word
+    // belongs in the tagline, where it can name the CLI, and nowhere that reads
+    // as spanning both.
+    // Found by what it says, not by the word it happens to start with: an
+    // anchored prefix would stop matching the moment a noun is prepended, which
+    // is the exact edit this case exists to catch, and it would then fail
+    // naming a missing line instead of the claim that was added.
+    const heroBlock = readme.slice(0, readme.indexOf("</div>"));
+    const scan = heroBlock.split("\n").map(l => l.trim())
+      .find(l => l.includes(" · ") && l.includes("no telemetry") && !l.startsWith("["));
+    expect(scan, "the README no longer carries the noun line under the hero image").toBeTruthy();
+    expect(scan).not.toMatch(/subagent/i);
+    // The claims it does make are each answered by a row in the table below.
+    for (const noun of ["cost", "quota", "blocked on you", "no telemetry"]) {
+      expect(scan).toContain(noun);
+    }
+  });
+});
+
 describe("the hero image", () => {
   /** Every path the README embeds, in order. */
   const embedded = [...readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)]

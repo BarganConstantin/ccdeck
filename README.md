@@ -2,15 +2,15 @@
 
 # ccdeck
 
-**A live canvas for your AI agents.** Watch Claude Code and OpenAI Codex call tools and finish — every Claude Code subagent on a node of its own — all on one calm graph, in real time.
+**An agent session is a tree. Your terminal shows it as a scroll.**
+
+**ccdeck draws the tree** — Claude Code and OpenAI Codex on one live canvas, with every Claude Code subagent on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![agents-deck downloads](https://img.shields.io/npm/dm/agents-deck?color=blue&label=agents-deck%20downloads)](https://www.npmjs.com/package/agents-deck)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org)
 [![macOS · Linux · Windows](https://img.shields.io/badge/macOS%20·%20Linux%20·%20Windows-supported-6aa9f7)](#requirements)
-
-[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options)
 
 ```bash
 npx ccdeck
@@ -19,6 +19,11 @@ npx ccdeck
 [![ccdeck — live agent DAG](assets/canvas.png)](assets/canvas.png)
 
 *An older shot — the deck was still called `agents-deck` then. Click through for full size.*
+
+tool calls · cost · quota · who is blocked on you · one canvas · local · no telemetry
+
+[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options)
+
 
 </div>
 

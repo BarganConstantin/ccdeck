@@ -253,9 +253,20 @@ describe("the README tagline, which is the npm page", () => {
     // removed the stub, so all three npm pages render this file and there is one
     // tagline rather than two that had to agree. What is left worth pinning is
     // that it exists and still says what the packages promise.
-    const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**A live canvas"));
-    expect(tagline).toBeTruthy();
+    //
+    // The line it matches on changed with #461. It used to open "**A live canvas
+    // for your AI agents.**", which names the shelf the tool sits on and leaves
+    // the reader to work out whether they are on it. The tagline now answers the
+    // problem stated one line above it. What did NOT change, and is the reason
+    // this case exists at all, is the second half: the subagent promise is the
+    // one claim on the page a Codex user must not read as theirs, so it is
+    // pinned as prose that names the CLI, beside the sibling case above that
+    // refuses the unqualified version.
+    const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**ccdeck draws the tree**"));
+    expect(tagline, "README.md no longer opens with the ccdeck tagline the three npm pages render").toBeTruthy();
     expect(tagline).toContain("Claude Code subagent");
+    // And the category line it replaced does not creep back in beside it.
+    expect(readme).not.toContain("**A live canvas for your AI agents.**");
   });
 });
 
