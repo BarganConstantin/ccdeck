@@ -162,6 +162,30 @@ describe("what a note is allowed to say", () => {
   });
 });
 
+describe("the blank lines in a body, which are load-bearing", () => {
+  it("is how the entries are actually written", () => {
+    // Not a hypothetical. Every release written so far splits its body into
+    // what changed and what to do about it, and the split is a `\n\n`.
+    const bodies = versionKeys.flatMap(k => (raw[k] as { body: string }[]).map(n => n.body));
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(bodies.some(b => b.includes("\n\n")), "no entry separates its thoughts any more — if that is deliberate, this case and the CSS below can go").toBe(true);
+  });
+
+  it("renders as a break rather than collapsing into a space", () => {
+    // `.rn-note-body` is a bare <p> holding the raw string, and HTML collapses
+    // a newline to a space — so every `\n\n` above was silently ignored and
+    // three releases shipped as one wall of text. The data and the rule that
+    // makes it mean something live in different files, and nothing but this
+    // connects them.
+    const css = readFileSync(at("../styles.css"), "utf8");
+    const rule = css.slice(css.indexOf(".release-notes .rn-note-body {"));
+    expect(rule.slice(0, 1), "styles.css no longer has a .release-notes .rn-note-body rule").toBe(".");
+    const body = rule.slice(0, rule.indexOf("}"));
+    expect(body, "the paragraph breaks in release-notes.json collapse to spaces again")
+      .toMatch(/white-space:\s*(pre-line|pre-wrap)\s*;/);
+  });
+});
+
 describe("shipping the file", () => {
   it("is listed in package.json files, so it is in the tarball", () => {
     // The bundle inlines it at build time, so the deck would work without this

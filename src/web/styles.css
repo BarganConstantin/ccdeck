@@ -4508,6 +4508,15 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-size: 12px;
   line-height: 1.65;
   color: var(--muted);
+  /* The blank lines in release-notes.json are paragraphs, and until now they
+     were not. Every entry in that file separates its thoughts with `\n\n` —
+     what changed, then what to do about it — and the component renders the
+     string into a bare <p>, where HTML's own whitespace collapsing turns the
+     break into one space. So all three releases written so far shipped as a
+     single wall of text, saying something the data had explicitly structured.
+     `pre-line` collapses runs of spaces the way normal text does and keeps the
+     line breaks, which is exactly the split the file's authors were making. */
+  white-space: pre-line;
 }
 
 /* ---------------- session-end summary modal ---------------- */
