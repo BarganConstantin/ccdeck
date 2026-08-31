@@ -1,0 +1,124 @@
+<!doctype html><meta charset="utf-8">
+<style>
+:root{
+  --bg:#0b0c10; --bg-soft:#0f1116; --panel:#14161b; --line:#1f2229;
+  --text:#d8dae0; --muted:#7e828c; --muted-dim:#50535b;
+  --ok:#86efac; --inflight:#f0abfc;
+  --node-grad:linear-gradient(180deg,var(--panel),var(--bg-soft));
+  --shadow-1:0 6px 18px rgba(0,0,0,.25);
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0}
+html,body{width:1280px;height:640px}
+body{
+  background:
+    radial-gradient(880px 520px at 76% 46%, rgba(240,171,252,.06), transparent 62%),
+    radial-gradient(720px 460px at 14% 30%, rgba(125,211,252,.075), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  display:grid; grid-template-columns:534px 626px; align-items:center;
+  padding:0 56px; gap:8px; overflow:hidden;
+}
+.mark{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.glyph{width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(150deg,#7dd3fc,#f0abfc);
+  box-shadow:0 0 0 1px rgba(125,211,252,.35),0 8px 22px rgba(125,211,252,.18)}
+.name{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.4px}
+h1{font-size:34px;line-height:1.26;font-weight:640;letter-spacing:-.6px}
+h1 .dim{color:#8f939c;font-weight:520}
+.answer{margin-top:17px;font-size:21px;line-height:1.45;color:#b7bbc4;font-weight:450;max-width:500px}
+.answer b{color:var(--text);font-weight:640}
+.cmd{margin-top:26px;display:inline-flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:19px;
+  background:var(--bg-soft);border:1px solid var(--line);
+  border-radius:9px;padding:10px 16px;box-shadow:var(--shadow-1)}
+.cmd .p{color:var(--muted-dim)}
+.nouns{margin-top:25px;font-family:var(--mono);font-size:14px;color:var(--muted);
+  letter-spacing:.1px;max-width:506px;line-height:1.7}
+
+.graph{position:relative;height:576px;transform:translateY(26px)}
+.node{position:absolute;background:var(--node-grad);border:1px solid var(--line);
+  border-radius:10px;box-shadow:var(--shadow-1);padding:9px 12px 9px 15px;
+  font-size:12px;overflow:hidden;width:206px}
+.node .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;opacity:.7}
+.node .head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.node .t{font-family:var(--mono);font-size:12.5px}
+.pill{font-family:var(--mono);font-size:9px;letter-spacing:.5px;border-radius:5px;
+  padding:2px 5px;text-transform:uppercase}
+.live{color:#f0abfc;background:rgba(240,171,252,.14)}
+.done{color:#86efac;background:rgba(134,239,172,.13)}
+.node .sub{margin-top:5px;font-family:var(--mono);font-size:10.5px;color:var(--muted-dim)}
+.node .foot{margin-top:8px;padding-top:7px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.chip{font-family:var(--mono);font-size:10.5px;background:var(--bg-soft);
+  border:1px solid var(--line);border-radius:6px;padding:3px 8px;position:absolute;
+  color:#c3c7cf;white-space:nowrap}
+.chip .ok{color:var(--ok)}
+.s-active{border-color:var(--inflight);box-shadow:0 0 0 1px rgba(240,171,252,.4),0 8px 22px rgba(240,171,252,.16)}
+.s-done{border-color:rgba(134,239,172,.45)}
+svg{position:absolute;inset:0;width:100%;height:100%}
+</style>
+
+<div>
+  <div class="mark"><div class="glyph"></div><div class="name">ccdeck</div></div>
+  <h1>An agent session is a tree.<br><span class="dim">Your terminal shows it as a scroll.</span></h1>
+  <div class="answer"><b>ccdeck draws the tree.</b><br>Claude Code and Codex, on one live canvas.</div>
+  <div class="cmd"><span class="p">$</span> npx ccdeck</div>
+  <div class="nouns">tool&nbsp;calls · cost · quota · who&nbsp;is&nbsp;blocked&nbsp;on&nbsp;you<br>local · no&nbsp;telemetry · macOS · Linux · Windows</div>
+</div>
+
+<div class="graph">
+  <svg>
+    <path d="M212,288 C246,288 246,64  282,64"  stroke="hsl(268 70% 62%)" stroke-width="2"   fill="none" opacity=".9"/>
+    <path d="M212,288 C246,288 246,190 282,190" stroke="hsl(268 70% 62%)" stroke-width="2"   fill="none" opacity=".9"/>
+    <path d="M212,298 C246,298 246,330 282,330" stroke="hsl(268 70% 55%)" stroke-width="1.5" fill="none" opacity=".6"/>
+    <path d="M212,298 C246,298 246,470 282,470" stroke="hsl(268 70% 55%)" stroke-width="1.5" fill="none" opacity=".6"/>
+    <path d="M488,60  C512,60  512,36  534,36"  stroke="#f0abfc" stroke-width="1.6" fill="none" opacity=".75"/>
+    <path d="M488,68  C512,68  512,96  534,96"  stroke="#f0abfc" stroke-width="1.6" fill="none" opacity=".75"/>
+    <path d="M488,186 C512,186 512,162 534,162" stroke="#4b525d" stroke-width="1.4" fill="none"/>
+    <path d="M488,194 C512,194 512,222 534,222" stroke="#4b525d" stroke-width="1.4" fill="none"/>
+    <path d="M488,326 C512,326 512,304 534,304" stroke="#4b525d" stroke-width="1.4" fill="none"/>
+    <path d="M488,334 C512,334 512,364 534,364" stroke="#4b525d" stroke-width="1.4" fill="none"/>
+    <path d="M488,466 C512,466 512,444 534,444" stroke="#4b525d" stroke-width="1.4" fill="none"/>
+  </svg>
+
+  <div class="node s-active" style="left:0;top:248px;">
+    <div class="stripe" style="background:hsl(268 70% 60%)"></div>
+    <div class="head"><span class="t">api-server</span><span class="pill live">live</span></div>
+    <div class="sub">session · Opus 5</div>
+    <div class="foot"><span>4 subagents</span><span>2.1M tok · $14.02</span></div>
+  </div>
+
+  <div class="node s-active" style="left:282px;top:34px;">
+    <div class="stripe" style="background:hsl(268 70% 60%)"></div>
+    <div class="head"><span class="t">reviewer</span><span class="pill live">live</span></div>
+    <div class="sub">subagent · Sonnet 5</div>
+  </div>
+
+  <div class="node s-done" style="left:282px;top:160px;">
+    <div class="stripe" style="background:hsl(268 70% 60%)"></div>
+    <div class="head"><span class="t">migrator</span><span class="pill done">done</span></div>
+    <div class="sub">subagent · Sonnet 5</div>
+  </div>
+
+  <div class="node s-done" style="left:282px;top:300px;">
+    <div class="stripe" style="background:hsl(268 70% 60%)"></div>
+    <div class="head"><span class="t">docs</span><span class="pill done">done</span></div>
+    <div class="sub">subagent · Sonnet 5</div>
+  </div>
+
+  <div class="node s-done" style="left:282px;top:440px;">
+    <div class="stripe" style="background:hsl(198 70% 60%)"></div>
+    <div class="head"><span class="t">codex-run</span><span class="pill done">done</span></div>
+    <div class="sub">session · GPT-5.5</div>
+  </div>
+
+  <div class="chip" style="left:534px;top:26px;">Read <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:86px;">Grep <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:152px;">Edit <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:212px;">Bash <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:294px;">Write <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:354px;">Read <span class="ok">✓</span></div>
+  <div class="chip" style="left:534px;top:434px;">Bash <span class="ok">✓</span></div>
+</div>

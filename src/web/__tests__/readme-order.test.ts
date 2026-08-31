@@ -231,6 +231,51 @@ describe("the hero image", () => {
   });
 });
 
+describe("the social preview card (#441)", () => {
+  // Not embedded anywhere — GitHub reads it from Settings, not from the page —
+  // so nothing else in this repo would notice it going missing, being replaced
+  // by a screenshot at whatever size the screen happened to be, or growing past
+  // the 1 MB the upload form refuses. It is checked here because this is the
+  // file that already owns "what a stranger sees first", and the card is the
+  // half of that a reader meets before they ever reach the README.
+  const card = join(repo, "assets", "social-preview.png");
+
+  /** width/height out of the IHDR, which is always the first chunk. */
+  const png = () => {
+    const b = readFileSync(card);
+    expect(b.subarray(1, 4).toString("latin1"), "assets/social-preview.png is not a PNG").toBe("PNG");
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), bytes: b.length };
+  };
+
+  it("is there, and is the size GitHub asks for", () => {
+    expect(existsSync(card), "assets/social-preview.png is gone — every shared link renders the grey default card").toBe(true);
+    const { w, h } = png();
+    expect({ w, h }).toEqual({ w: 1280, h: 640 });
+  });
+
+  it("stays under the 1 MB the upload form accepts", () => {
+    // Headroom rather than the limit itself: a card re-rendered with more detail
+    // should fail here, where the message says why, and not in a browser upload
+    // dialog months later.
+    expect(png().bytes).toBeLessThan(700_000);
+  });
+
+  it("keeps the source it was rendered from, so it can be re-rendered", () => {
+    // An asset whose source is lost is an asset that can never be corrected —
+    // the wordmark shot in assets/canvas.png is exactly that, and is why the
+    // README still carries a caption apologising for a stale screenshot.
+    const html = join(repo, "assets", "social-preview.html");
+    expect(existsSync(html), "assets/social-preview.html is gone — the card can no longer be re-rendered").toBe(true);
+    const src = readFileSync(html, "utf8");
+    expect(src).toContain("width:1280px;height:640px");
+    // The claims on the card are the README's, and drift between them is the
+    // failure this catches: a card promising something the page does not.
+    expect(src).toContain("An agent session is a tree.");
+    expect(src).toContain("npx ccdeck");
+    expect(src).not.toMatch(/subagents ·/);
+  });
+});
+
 describe("the two npm badges, which name two different packages", () => {
   it("says which package the download count belongs to", () => {
     // Deliberate — one tarball goes out under three names and the counts are
