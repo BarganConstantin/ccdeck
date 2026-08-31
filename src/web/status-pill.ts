@@ -59,6 +59,39 @@ export interface StatusPill {
    */
   widest: string;
   title: string;
+  /**
+   * Whether this is the resting state, and so should not be drawn at all.
+   *
+   * The pill is the leftmost thing in the readout run and it was on screen every
+   * second of every session — 49.89px plus a 14px gap — to report that nothing
+   * was wrong. The argument against that is already in this codebase, one
+   * surface over: `ambient.ts` refuses to write `(0) ccdeck` because "a badge
+   * that reports nothing is wrong is a badge that gets ignored — and a badge
+   * that gets ignored is ignored at (1) too." A pill that never leaves says the
+   * same thing at the same cost, and the two states worth reading were paying
+   * it: `paused · 12` and `offline` were competing for attention with a
+   * permanent neighbour of the same size and shape.
+   *
+   * WHAT THIS TRADES, said plainly, because it is a convention and not a
+   * deduction: absence now means `live`. It is safe rather than ambiguous — a
+   * dead stream renders `offline`, so a deck that has stopped talking never
+   * reads as a deck with nothing to say — but a first-time reader learns it
+   * rather than sees it, and that was the choice (#719).
+   *
+   * A FIELD RATHER THAN `tone === "live"` AT THE CALL SITE. The rule is about
+   * whether a state is worth a slot, which is this file's business — it already
+   * owns the precedence between the flags and the width each tone reserves —
+   * and a caller testing the tone would be a second copy of it, in a .tsx the
+   * suite cannot import. It also leaves room for a tone that is live and still
+   * worth drawing without every call site having to learn about it.
+   *
+   * The layout consequence is the one `widest` already argues about: what moves
+   * on its own is the count, and the count is inside a tone. A tone changes
+   * because somebody pressed Space, or because the stream died and redrew the
+   * top of the page anyway. `.topbar .status` is a flex row with `gap: 14px`,
+   * so rendering nothing takes the gap with it and leaves no hole.
+   */
+  resting: boolean;
 }
 
 /** "1 event" / "42 events" — the unit the count never carried. */
@@ -205,6 +238,7 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
   if (!s.connected) {
     return {
       tone: "dead",
+      resting: false,
       label: "offline",
       widest: "offline",
       title: s.paused
@@ -215,6 +249,7 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
   if (s.paused) {
     return {
       tone: "paused",
+      resting: false,
       label: pausedLabel(s.held, dropped),
       // Every label this tone can render is `paused · ` plus one of "0".."99",
       // "99+" or "full", and "full" is the longest of those — so the ghost is
@@ -233,5 +268,12 @@ export function statusPill(s: { connected: boolean; paused: boolean; held: numbe
           : "Connected — updates held until you resume (Space)",
     };
   }
-  return { tone: "live", label: "live", widest: "live", title: "Receiving events" };
+  // `label`, `widest` and `title` are still filled in, and that is not dead
+  // weight. `resting` says this pill is not worth a slot right now; it does not
+  // say the state has no name. A caller that wants to describe the connection
+  // somewhere other than the topbar — a tooltip, an aria description, a future
+  // status line — should get the same words from the same place rather than
+  // inventing a second "live". Returning a hollow object would make this file
+  // the reason that second copy had to exist.
+  return { tone: "live", resting: true, label: "live", widest: "live", title: "Receiving events" };
 }

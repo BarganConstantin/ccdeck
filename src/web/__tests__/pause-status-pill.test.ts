@@ -26,9 +26,15 @@
 // label, its cap, and the ghost string the pill reserves. The other half is
 // geometry and lives in topbar-interaction.test.ts.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL, pauseTitle, statusPill,
 } from "../status-pill";
+
+const HERE = fileURLToPath(new URL(".", import.meta.url));
+const src = (rel: string) => readFileSync(join(HERE, "..", rel), "utf8");
 
 describe("the status pill", () => {
   it("says live only while the deck is connected and following the stream", () => {
@@ -66,6 +72,48 @@ describe("the status pill", () => {
 
   it("keeps the offline title short when nothing else is wrong", () => {
     expect(statusPill({ connected: false, paused: false, held: 0 }).title).toBe("SSE disconnected");
+  });
+});
+
+describe("the slot it is worth (#719)", () => {
+  it("does not draw itself while everything is fine", () => {
+    // The pill led the readout run and held 49.89px plus a 14px gap for the
+    // whole of every session, to report that nothing was wrong. `ambient.ts`
+    // refuses to write `(0) ccdeck` for the same reason: a badge that reports
+    // nothing is wrong is a badge that gets ignored, and a badge that gets
+    // ignored is ignored when it finally has something to say.
+    expect(statusPill({ connected: true, paused: false, held: 0 }).resting).toBe(true);
+  });
+
+  it("draws itself for both states a reader has to act on", () => {
+    // The two the slot was being spent to keep company.
+    expect(statusPill({ connected: true, paused: true, held: 12 }).resting).toBe(false);
+    expect(statusPill({ connected: true, paused: true, held: 0 }).resting).toBe(false);
+    expect(statusPill({ connected: false, paused: false, held: 0 }).resting).toBe(false);
+    expect(statusPill({ connected: false, paused: true, held: 4 }).resting).toBe(false);
+  });
+
+  it("keeps its words even when it is not drawn", () => {
+    // `resting` says this is not worth a slot in the topbar right now. It does
+    // not say the state is nameless. A caller that wants to describe the
+    // connection anywhere else should get the same three strings from here
+    // rather than inventing a second "live" beside this file.
+    const pill = statusPill({ connected: true, paused: false, held: 0 });
+    expect(pill.label).toBe("live");
+    expect(pill.widest).toBe("live");
+    expect(pill.title).toBe("Receiving events");
+  });
+
+  it("is what App.tsx actually checks, rather than the tone", () => {
+    // The rule is "is this state worth a slot", which belongs to status-pill.ts
+    // — it already owns the precedence between the flags and the width each
+    // tone reserves. A call site testing `tone === "live"` would be a second
+    // copy of that rule living in a .tsx the suite cannot import, which is the
+    // shape of drift `ambient-counts.ts` exists to prevent one file over.
+    const app = src("App.tsx");
+    expect(app, "App.tsx no longer skips the pill at rest").toMatch(/if\s*\(\s*pill\.resting\s*\)\s*return null;/);
+    expect(app, "App.tsx decides the pill's fate from the tone instead of the field")
+      .not.toMatch(/pill\.tone\s*===\s*"live"/);
   });
 });
 
