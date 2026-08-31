@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "1.47.0": [
+    {
+      "title": "🔌 The top bar goes quiet when everything is fine",
+      "body": "The green \"live\" pill used to sit up there permanently to tell you nothing was broken. It is gone while things are working.\n\nYou will still see a pill when it matters: amber when you pause the canvas, with how many events are waiting, and red when the deck loses its connection to the server. No pill means all is well."
+    },
+    {
+      "title": "🔴 The browser tab tells you when the connection drops",
+      "body": "The little icon in the tab has always shown what your sessions are doing — grey when it is quiet, blue when something is working, amber when a session is waiting on you.\n\nIt could not say the one thing that matters most: that the deck has stopped hearing from the server. Until now it just kept showing whatever it had last seen. It turns into a broken red ring instead, so you can spot it from another tab without switching over."
+    }
+  ],
   "1.46.0": [
     {
       "title": "🔊 Pick a volume and a sound for each of the two tones",
