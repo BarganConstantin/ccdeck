@@ -18,7 +18,7 @@ npx ccdeck
 
 [![ccdeck — live agent DAG](assets/canvas.png)](assets/canvas.png)
 
-*An older shot — the deck was still called `agents-deck` then. Click through for full size.*
+*A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
 
 tool calls · cost · quota · who is blocked on you · one canvas · local · no telemetry
 

@@ -223,11 +223,38 @@ describe("the hero image", () => {
   });
 
   it("is reachable at full size, because GitHub renders it at about half scale", () => {
-    // 1917px wide in a ~890px column. The node labels, model chips and the cost
-    // table are a smear at that width; the link is what is left until the shot
-    // is re-taken narrower.
+    // The old shot was 1917 logical px in a ~890px column and its labels were a
+    // smear. The replacement is framed at 1600 and shot at 2x, so the same
+    // column shows the same content about 20% larger; the link stays for the
+    // reader who wants the pixels.
     expect(readme).toContain(`[![`);
     expect(readme).toContain(`](${embedded[0]})](${embedded[0]})`);
+  });
+
+  it("no longer apologises for itself", () => {
+    // The caption used to say the shot predated the rename. That sentence was
+    // honest and correct, and a caption admitting the page's only evidence is
+    // out of date is a thing a visitor reads before they read anything else.
+    // It came out with the shot it described, and this is what keeps it out.
+    expect(readme).not.toMatch(/older shot/i);
+    expect(readme).not.toMatch(/still called `agents-deck`/);
+  });
+
+  it("was not shot against somebody's real work", () => {
+    // The reason it was replaced (#441). The previous canvas showed client
+    // project names, source file names and a spend figure, on the front page of
+    // a public repo, in the one image a reader is invited to open full size.
+    // The generator is committed so the shot can be retaken without waiting for
+    // something photogenic to happen in real work.
+    const gen = join(repo, "assets", "canvas-demo.mjs");
+    expect(existsSync(gen), "assets/canvas-demo.mjs is gone — the hero can no longer be retaken from generated data").toBe(true);
+    const src = readFileSync(gen, "utf8");
+    // The two commands that turn it back into the picture.
+    expect(src).toContain("--history");
+    expect(src).toContain("--workspace");
+    // And the warning that matters, because the panel is open by default.
+    expect(src).toMatch(/accounts panel CLOSED/i);
+    expect(readme).toContain("assets/canvas-demo.mjs");
   });
 });
 
