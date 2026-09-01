@@ -46,6 +46,7 @@ interface Account {
   nextAt: number | null;     // unix ms — claude-swap's next planned read
   stale: boolean;
   error: string | null;
+  staleCopy?: boolean;
 }
 
 interface AccountsData {
@@ -762,6 +763,18 @@ export default function AccountsPanel({ onClose }: Props) {
                   good numbers, and switching to it on that basis would be a
                   decision made on old information. */}
               <div className="ap-meta">
+                {/* The collector cannot read this account, but the CLI says the
+                    user is signed in as it — so there is nothing for them to
+                    fix and nothing red to say. What is true is smaller: these
+                    numbers stopped moving, and re-capturing the slot is what
+                    starts them again. #721. */}
+                {a.staleCopy && (
+                  <span className="ap-stale-copy" title={
+                    "The deck can still see this account — its live usage is being read — but claude-swap's "
+                    + "own stored copy of the login was rejected, so the numbers below stopped updating. "
+                    + "Run `cswap add` to re-capture the slot. You do not need to sign in again."
+                  }>numbers paused</span>
+                )}
                 {a.error && (() => {
                   const e = errorText(a.error);
                   return (
