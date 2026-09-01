@@ -527,6 +527,16 @@ const CONTROLS: Control[] = [
   { at: ".ap-auto-state", states: ["button.ap-auto-state:hover:not(:disabled)", ".ap-auto-state.live"],
     beds: ["--panel"] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  // browser watch
+  { at: ".bw-controls select", states: [".bw-controls select:hover:not(:disabled)"], beds: ["--panel"] },
+  // The watch switch. Its ON state fills with --accent rather than the control
+  // fill, which is the point of listing both here: a switch whose two states
+  // are only told apart by a knob position needs each of them to hold its own
+  // boundary, not just the resting one.
+  { at: ".bw-toggle", states: [".bw-toggle:hover", '.bw-toggle[aria-checked="true"]'], beds: ["--panel"] },
+  // The view tabs. `.on` draws the selected one's underline, which is the only
+  // boundary either of them has.
+  { at: ".bw-tab", states: [".bw-tab.on"], beds: ["--panel"] },
   { at: ".ap-more:hover", fillFrom: ".ap-more", states: [".ap-more.on"], beds: ACCOUNTS },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },

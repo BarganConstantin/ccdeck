@@ -275,6 +275,13 @@ const PRESSES: Press[] = [
   [".ap-failure-x:active", "0.94", "transform"],
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
+  // Browser Watch's two range selects, in the same language as the panel's:
+  // the popup opens anchored to this box, so 0.97 rather than 0.94.
+  [".bw-controls select:active:not(:disabled)", "0.97", "transform"],
+  // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
+  [".bw-toggle:active", "0.97", "transform"],
+  // The two view tabs, in `.aa-tab`'s language — same control, same tier.
+  [".bw-tab:active", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
   // The account row's own disclosure — the control that opens the quota windows
   // the row is not showing. Written in `.ap-rotate`'s language one line up
@@ -289,6 +296,9 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // Browser Watch's episode disclosure. Same tier and same number as the row
+  // above it: a full-width row that opens to show what it is summarising.
+  [".bw-ep-head:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on
@@ -323,7 +333,15 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  cursor: "Don't transition transform — it's used inline for viewport scale."
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
-const EXEMPT: string[] = [".cluster-label"];
+const EXEMPT: string[] = [
+  ".cluster-label",
+  // Browser Watch's "what is this?" — underlined text inside a sentence, not a
+  // box. #355's argument for joining the convention was that a 9px word is
+  // still a thing being pressed; the argument against it here is that this one
+  // is shaped as a link and scaling a run of inline text shifts the words
+  // around it. It discloses a paragraph and changes nothing else.
+  ".bw-why",
+];
 
 describe("press feedback is one convention, applied everywhere", () => {
   it("gives every one of these controls something to give back on press", () => {

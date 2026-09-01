@@ -4009,6 +4009,90 @@ async function handleCodexQuota(req, res) {
  */
 export const isCliDate = (v) => v === undefined || /^\d{8}$/.test(v);
 
+/**
+ * What a program drove in this machine's browsers while nobody was browsing.
+ *
+ * A GET, and deliberately not on the event stream. The answer costs a copy of a
+ * History database that a browser holds locked, so it is pulled when the panel
+ * is open and never on a timer — the same reasoning that keeps
+ * /api/system/processes off the clock, for the same kind of cost.
+ *
+ * `refresh=1` drops the read cache. Without it a profile whose History has not
+ * been written since the last look is answered from memory, which is the normal
+ * case and the reason this route is cheap enough to poll while the panel is up.
+ */
+/**
+ * Turning the watch on or off, and how it is tuned.
+ *
+ * A POST, unlike its GET twin, because it writes to disk and because switching
+ * the watch ON starts the deck keeping its own copy of what it sees — a record
+ * of pages the user visited, which is not something a page they have open gets
+ * to arrange for them. The router's own gate is what enforces that: every
+ * non-GET goes through isTrustedMutation and isAuthorizedMutation before it
+ * reaches a handler, which is exactly the pair a GET deliberately skips.
+ */
+async function handleBrowserWatchSettings(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+
+  const { readStore, writeStore, normalise } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
+  );
+  const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
+  );
+  const store = await readStore();
+  // normalise() is the one place a value is judged, so a field this route has
+  // never heard of cannot arrive through it and a bad one falls back rather
+  // than reaching classify().
+  const settings = normalise({ ...store.settings, ...body });
+  await writeStore({ settings, episodes: store.episodes });
+  // The one line in the log that is somebody acting rather than the deck
+  // reading, which is exactly why it is worth its own entry.
+  if (settings.enabled !== store.settings.enabled) {
+    noteWatchSetting(settings.enabled ? "watch on — keeping its own copy" : "watch off — reading live only");
+  } else {
+    noteWatchSetting(`settings: quiet ${settings.quietMinutes}m, gap ${settings.gapMinutes}m`);
+  }
+  invalidateBrowserWatchCache();
+  return send(res, 200, { ok: true, settings });
+}
+
+async function handleBrowserWatch(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const force = url.searchParams.get("refresh") === "1";
+
+  // Numbers from a query string are refused rather than coerced: NaN would
+  // silently widen the quiet gate to "everything counts", which is the failure
+  // mode that turns this panel into noise nobody reads.
+  const minutes = name => {
+    const raw = url.searchParams.get(name);
+    if (raw === null) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 && n <= 24 * 60 ? n * 60_000 : undefined;
+  };
+
+  // Lazily, like every other handler here, and it earns it twice: the four
+  // readers underneath reach for node:sqlite and copy files, and none of that
+  // belongs on the path between `npx ccdeck` and a listening socket.
+  //
+  // Through fetchBrowserWatch rather than the snapshot directly, because
+  // `refresh=1` drops the mtime cache and copies every profile's History
+  // database. That module carries the floor and the inflight slot which bound
+  // what a page looping this GET can spend.
+  const { deckOwnOrigins, fetchBrowserWatch } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
+  );
+  return send(res, 200, await fetchBrowserWatch({
+    force,
+    deckOrigins: deckOwnOrigins(),
+    quietMs: minutes("quiet"),
+    gapMs: minutes("gap"),
+  }));
+}
+
 async function handleCcusage(req, res) {
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
@@ -4998,6 +5082,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);

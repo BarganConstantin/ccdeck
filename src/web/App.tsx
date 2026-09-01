@@ -46,6 +46,7 @@ import { blockedSessions, runningSessionCount } from "./ambient-counts";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
+import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
@@ -1280,6 +1281,46 @@ function Inner() {
   }, []);
   // ccusage history modal — transient (not persisted), opened from the toolbar.
   const [usageHistoryOpen, setUsageHistoryOpen] = useState(false);
+  const [browserWatchOpen, setBrowserWatchOpen] = useState(false);
+  /** Episodes the reader has not looked at yet, and the moment they last did.
+   *  The badge is the whole reason the topbar can afford another control: at
+   *  rest this button is an outline like the five beside it, and it only
+   *  acquires a number when something happened that nobody has read. #720 took
+   *  a resting pill OUT of this bar for saying nothing; a second one that said
+   *  "no findings" all day would be the same mistake with a different icon. */
+  const [watchSeenMs, setWatchSeenMs] = useState(() => {
+    try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; }
+  });
+  const [watchEpisodes, setWatchEpisodes] = useState<WatchEpisode[]>([]);
+  const [watchOn, setWatchOn] = useState(false);
+
+  // What the badge counts, fetched on its own slow timer rather than by opening
+  // the dialog — a badge that only appears once you have already looked is not
+  // a badge. Five minutes, and cheap at that rate: the server answers from a
+  // cache keyed on each History file's mtime, so a machine nobody is browsing
+  // on costs one stat per profile per poll and re-reads nothing.
+  useEffect(() => {
+    let alive = true;
+    const pull = () => {
+      fetch("/api/browser-watch")
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          if (!alive || !j?.ok) return;
+          setWatchEpisodes(j.episodes ?? []);
+          setWatchOn(j.settings?.enabled === true);
+        })
+        .catch(() => { /* the panel says so when it is opened; the badge stays quiet */ });
+    };
+    pull();
+    const t = setInterval(pull, 5 * 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const watchUnseen = useMemo(
+    () => unseenEpisodes(watchEpisodes, watchSeenMs).length,
+    [watchEpisodes, watchSeenMs],
+  );
+
   /** Bumped on each group-drag move so snapshotToFlow recomputes immediately
    *  (reads the freshly-pinned positions) rather than waiting for the 250ms
    *  tick. A plain counter — value is irrelevant, only the change matters. */
@@ -2433,7 +2474,7 @@ function Inner() {
   // focused control keeps its own keys — but a click on the sheet's own prose
   // drops focus to <body>, and from there a stray "c" would reach Clear.
   modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
-    || summaryFor != null || keyHelpOpen || releaseNotes != null;
+    || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;
 
   /** The single door to Clear. Both the toolbar button and the "c" shortcut
    *  come through here, so the confirmation cannot hold for one and not the
@@ -3251,6 +3292,34 @@ function Inner() {
                 <line x1="11" y1="11.5" x2="11" y2="8.5" />
               </svg>
             </button>
+            {/* THE SILHOUETTE CARRIES THE STATE, AND THE COLOUR ONLY AGREES
+                WITH IT. At 13px a hue change is not readable — ambient.ts makes
+                the same argument about the favicon, where amber and grey come
+                to 1.01:1 under protanopia — so watching and not watching are a
+                pupil and a slash, which differ in shape at any size.
+
+                The slash is not a warning. Off is the default and it is a fine
+                place to be, since the panel still answers retroactively; it
+                wears the same resting grey as every other icon in this bar
+                rather than the amber that belongs to a finding. */}
+            <button
+              className={`btn icon-btn bw-btn${watchUnseen > 0 ? " has-findings" : watchOn ? " watching" : ""}`}
+              onClick={() => setBrowserWatchOpen(o => !o)}
+              title={watchOn
+                ? "Browser watch — watching; the deck is keeping its own copy"
+                : "Browser watch — not watching; reading the browser's history live"}
+              aria-label={`Browser watch, ${watchOn ? "watching" : "not watching"}`
+                + (watchUnseen > 0 ? `, ${watchUnseen} unread` : "")}
+              aria-haspopup="dialog"
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />
+                {watchOn || watchUnseen > 0
+                  ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
+                  : <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
+              </svg>
+            {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
+            </button>
           </div>
           <div className="action-run">
             {/* The one genuine aria-pressed of the five, and it was already
@@ -4014,6 +4083,15 @@ function Inner() {
           flags, so a deck started with --no-codex can still be shown Codex
           spend, and the subtitle follows the data when there is any. */}
       {usageHistoryOpen && <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />}
+      {browserWatchOpen && (
+        <BrowserWatchModal
+          onClose={() => setBrowserWatchOpen(false)}
+          onSeen={ms => {
+            setWatchSeenMs(ms);
+            try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
+          }}
+        />
+      )}
       {contextFor && (() => {
         const root = stateRef.current.agents.get(contextFor);
         if (!root) return null;

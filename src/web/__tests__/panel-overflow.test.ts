@@ -255,7 +255,14 @@ describe("a percentage width under a horizontal margin", () => {
         if (solo && !Number.isNaN(pct(declIn(rule.body, "width")))) percentWidth.add(solo[1]);
       }
     }
-    expect([...percentWidth].sort()).toEqual(["cost-bar", "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table"]);
+    // `bw-ep-head` is a <button> laid out as a grid, which shrinks to its
+    // content without the declaration — the host and the meta would sit
+    // together on the left instead of at the two ends. It is named here rather
+    // than written another way so it enters the margin check below, which is
+    // what this list is for.
+    expect([...percentWidth].sort()).toEqual([
+      "bw-ep-head", "cost-bar", "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
+    ]);
 
     const violations: string[] = [];
     for (const rule of RULES) {

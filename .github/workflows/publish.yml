@@ -86,10 +86,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # 22, not 20. Node 20 reached end of life on 2026-04-30, so the suite was
+      # proving the deck works on a runtime nobody should be running and on no
+      # runtime anyone is. 22 is supported to 2027-04-30 and is the floor
+      # `node:sqlite` needs — the reader Browser Watch uses on every machine
+      # that has it, and a branch this matrix could not otherwise reach.
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -189,10 +194,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Kept in step with the test job above; see the note there.
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
 

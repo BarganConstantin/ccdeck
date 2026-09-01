@@ -281,6 +281,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
       "components/AddAccountDialog.tsx",
+      "components/BrowserWatchModal.tsx",
       "components/SessionSummary.tsx",
       "components/ToolModal.tsx",
     ]);

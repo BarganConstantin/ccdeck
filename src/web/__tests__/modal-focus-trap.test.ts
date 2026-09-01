@@ -260,13 +260,13 @@ describe("which overlay holds Tab", () => {
 
 // ── what each of the seven overlays does with it ────────────────────────────
 
-describe("the deck's eight overlays", () => {
-  it("has found all eight, so a new one cannot skip this file", () => {
+describe("the deck's nine overlays", () => {
+  it("has found all nine, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes. Raising the number is how a dialog joins the sweep, not
     // how one is excused from it: every assertion below is asked of the
     // newcomer unchanged.
-    expect(MODALS.length).toBe(8);
+    expect(MODALS.length).toBe(9);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
