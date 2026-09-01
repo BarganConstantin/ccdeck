@@ -277,7 +277,11 @@ const PRESSES: Press[] = [
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
-  [".bw-controls select:active:not(:disabled)", "0.97", "transform"],
+  [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
+  // The browser inventory's summary line. 0.99 rather than 0.97: it is a
+  // full-width row of small text with no box, and scaling it three percent
+  // moves the words under the pointer.
+  [".bw-foot-head:active", "0.99", "transform"],
   // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
   [".bw-toggle:active", "0.97", "transform"],
   // The two view tabs, in `.aa-tab`'s language — same control, same tier.

@@ -528,7 +528,7 @@ const CONTROLS: Control[] = [
     beds: ["--panel"] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
   // browser watch
-  { at: ".bw-controls select", states: [".bw-controls select:hover:not(:disabled)"], beds: ["--panel"] },
+  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
   // The watch switch. Its ON state fills with --accent rather than the control
   // fill, which is the point of listing both here: a switch whose two states
   // are only told apart by a knob position needs each of them to hold its own

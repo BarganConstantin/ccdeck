@@ -132,6 +132,7 @@ export default function BrowserWatchModal({
   const [open, setOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
+  const [showBrowsers, setShowBrowsers] = useState(false);
   // Opens on the Log, because that is the view that answers "is this thing
   // working" — and a panel that opens on an empty Episodes list looks broken on
   // the machine where nothing has happened, which is most machines most days.
@@ -215,7 +216,8 @@ export default function BrowserWatchModal({
     return out;
   }, [snap]);
 
-  const watched = snap?.profiles.filter(p => p.visits > 0 || p.hasClaudeExt) ?? [];
+  const watching = (snap?.browsers ?? []).filter(b => b.installed && b.profiles > 0);
+  const live = watching.filter(b => b.running).map(b => b.name);
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -264,23 +266,62 @@ export default function BrowserWatchModal({
           )}
 
           {snap && (
-            <section className="bw-controls">
-              {/* "Quiet for at least" was asked what it meant, which is the
-                  answer. This says the condition instead of naming it: nobody
-                  browsing for N minutes is exactly what has to be true before a
-                  program's navigation counts. */}
+            <div className="bw-bar">
+              <div className="bw-tabs" role="tablist" aria-label="Browser watch views" onKeyDown={onTabKeys}>
+                {TABS.map((t, i) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    id={bwTabId(t.id)}
+                    ref={el => { tabRefs.current[i] = el; }}
+                    aria-selected={tab === t.id}
+                    aria-controls={BW_PANEL_ID}
+                    tabIndex={tab === t.id ? 0 : -1}
+                    className={`bw-tab${tab === t.id ? " on" : ""}`}
+                    onClick={() => setTab(t.id)}
+                  >
+                    {t.label}
+                    {t.id === "history" && snap.episodes.length > 0 && (
+                      <span className="bw-tab-count">{snap.episodes.length}</span>
+                    )}
+                    {t.id === "live" && snap.settings.enabled && <span className="bw-tab-live" aria-hidden />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bw-bar-right">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={snap.settings.enabled}
+                  aria-label={`Watching, ${snap.settings.enabled ? "on" : "off"}`}
+                  className="bw-toggle"
+                  onClick={() => void save({ enabled: !snap.settings.enabled })}
+                  title={snap.settings.enabled
+                    ? "On — the deck keeps its own copy, so an episode it has seen survives the browsing history being cleared"
+                    : "Off — the list is still read live from the browser's own history; clearing that history would lose it"}
+                >
+                  <span className="bw-toggle-knob" />
+                </button>
+                <span className="bw-bar-state">
+                  {saving ? "saving" : snap.settings.enabled ? `watching · ${snap.coverage.archived} kept` : "not watching"}
+                </span>
+                <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
+                  settings
+                </button>
+              </div>
+            </div>
+          )}
+
+          {snap && why && (
+            <div className="bw-settings">
               <label title={
                 "A program opening a page counts as a finding only if nobody had touched the browser "
                 + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
               }>
                 <span>Nobody browsing for</span>
                 <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
-                  {/* One minute is the loosest setting the panel offers, and
-                      it is here because it is the one that makes the feature
-                      testable: at fifteen you wait a quarter of an hour to see
-                      whether anything works. It reports a great deal of the
-                      reader's own agent work, which is why it is not the
-                      default. */}
                   <option value={1}>1 min</option>
                   <option value={5}>5 min</option>
                   <option value={15}>15 min</option>
@@ -288,47 +329,7 @@ export default function BrowserWatchModal({
                   <option value={60}>60 min</option>
                 </select>
               </label>
-              {/* A real switch, not a button whose label names the action. "turn
-                  off" made the reader work out the current state from the verb
-                  offered — a toggle SHOWS it, and role="switch" says the same
-                  thing to a screen reader. It sits with the other two settings
-                  because that is what it is. */}
-              {/* CALLED "WATCHING", THE SAME WORD AS EVERYTHING ELSE. It was
-                  "Keep a copy" for one revision, which describes the mechanism
-                  accurately and named nothing anybody was looking for — the
-                  topbar tooltip says watching, the tab's dot means watching,
-                  and a person hunting for the watcher's switch read past it.
-                  One thing, one name. What it actually changes is on the row
-                  beside it and in the title. */}
-              <label className="bw-switch-field">
-                <span>Watching</span>
-                <span className="bw-switch-line">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={snap.settings.enabled}
-                    aria-label={`Watching, ${snap.settings.enabled ? "on" : "off"}`}
-                    className="bw-toggle"
-                    onClick={() => void save({ enabled: !snap.settings.enabled })}
-                    title={snap.settings.enabled
-                      ? "On — the deck keeps its own copy, so an episode it has seen survives the browsing history being cleared"
-                      : "Off — the list below is still read live from the browser's own history; clearing that history would lose it"}
-                  >
-                    <span className="bw-toggle-knob" />
-                  </button>
-                  <span className="bw-switch-state">
-                    {saving ? "saving"
-                      : snap.settings.enabled ? `on · ${snap.coverage.archived} kept`
-                      : "off"}
-                  </span>
-                </span>
-              </label>
 
-              {/* Only the modes this platform can carry out. A reaction that
-                  silently does nothing is worse than one never offered: the
-                  user arms it, believes they are covered, and finds out on the
-                  day it mattered. `close-tab` is macOS-only — AppleScript is
-                  the one interface that can close a single tab by URL. */}
               <label>
                 <span>When it finds one</span>
                 <select
@@ -337,7 +338,7 @@ export default function BrowserWatchModal({
                   disabled={!snap.settings.enabled}
                   title={snap.settings.enabled
                     ? "What to do besides writing it down."
-                    : "Turn Watching on to arm a reaction."}
+                    : "Turn watching on to arm a reaction."}
                 >
                   {(snap.reactions ?? ["notify"]).map(r => (
                     <option key={r} value={r}>
@@ -349,62 +350,12 @@ export default function BrowserWatchModal({
                 </select>
               </label>
 
-              <div className="bw-count">
-                <strong>{snap.episodes.length}</strong>
-                <span>{snap.episodes.length === 1 ? "episode" : "episodes"}</span>
-                <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
-                  what is this?
-                </button>
-              </div>
-            </section>
-          )}
-
-          {why && (
-            <p className="bw-lead">
-              Chrome marks a navigation that came from an extension or a command rather than from a
-              click. These are the ones that happened while nobody had touched the browser for {quiet} minutes.{" "}
-              <strong>Usually that is your own agent doing what you asked.</strong> Worth a look when it is not.
-              Nothing from before this deck started is read.
-            </p>
-          )}
-
-
-          {snap && (
-            /* Two views, because they answer two questions. The list says what
-               happened; the log says whether anything is looking. A watch whose
-               only output is an empty list cannot tell "I checked, and there was
-               nothing" from "I am not checking", and the shell tool this
-               descends from was trusted largely because it said the first one
-               out loud, every few minutes, in a running commentary. */
-            <div className="bw-tabs" role="tablist" aria-label="Browser watch views" onKeyDown={onTabKeys}>
-              {TABS.map((t, i) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  id={bwTabId(t.id)}
-                  ref={el => { tabRefs.current[i] = el; }}
-                  aria-selected={tab === t.id}
-                  aria-controls={BW_PANEL_ID}
-                  // One tab stop for the whole strip, which is the other half of
-                  // what the role means; the modal's focus trap already skips a
-                  // negative tabIndex.
-                  tabIndex={tab === t.id ? 0 : -1}
-                  className={`bw-tab${tab === t.id ? " on" : ""}`}
-                  onClick={() => setTab(t.id)}
-                >
-                  {t.label}
-                  {t.id === "live" && snap.settings.enabled && <span className="bw-tab-live" aria-hidden />}
-                </button>
-              ))}
-            </div>
-          )}
-          {snap && tab === "history" && snap.episodes.length === 0 && (
-            <div className="bw-empty">
-              <strong>Nothing a program did on its own</strong>
-              <p>
-                Nothing has been driven by a program since this deck started.
-                {snap && <> Watching since {new Date(snap.coverage.startedMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.</>}
+              <p className="bw-settings-note">
+                Chrome marks a navigation that came from an extension or a command rather than from a
+                click. These are the ones that happened while nobody had touched the browser for the
+                time above. <strong>Usually that is your own agent doing what you asked.</strong>{" "}
+                Nothing from before this deck started is read, and every address is written in full to{" "}
+                <code className="bw-path">{snap.coverage.logPath}</code>.
               </p>
             </div>
           )}
@@ -470,48 +421,38 @@ export default function BrowserWatchModal({
 
           {snap && (
             <section className="bw-foot">
-              <h4>Browsers</h4>
-              {/* Every browser the deck knows how to look at, installed or not.
-                  "Chrome is installed and has never been opened" and "Chrome is
-                  not installed" are different answers, and a list of only what
-                  was found cannot tell them apart. */}
-              <ul className="bw-browsers">
-                {(snap.browsers ?? []).map(b => (
-                  <li key={b.key} className={b.installed ? "" : "absent"}>
-                    <span className="bw-prof-name">{b.name}</span>
-                    <span className="bw-prof-meta">
-                      {!b.installed ? "not installed"
-                        : b.profiles === 0 ? "installed, never opened"
-                        : `${b.profiles} profile${b.profiles === 1 ? "" : "s"}`}
-                      {b.withExtension.length > 0 && " · Claude extension"}
-                      {b.installed && (b.running ? " · running" : " · not running")}
-                    </span>
-                    {b.installed && b.running && (
-                      <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
-                        {b.relay.state === "live" ? `relay: ${b.relay.count} connection${b.relay.count === 1 ? "" : "s"}`
-                          : b.relay.state === "none-seen" ? "relay: none seen"
-                          : "relay: cannot tell"}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              {/* One line, expandable. Which browsers are watched is asked once
+                  and then known; it was standing at the same weight as the
+                  findings, which are the reason the panel exists. */}
+              <button className="bw-foot-head" onClick={() => setShowBrowsers(v => !v)} aria-expanded={showBrowsers}>
+                <span className="bw-foot-chev" aria-hidden>{showBrowsers ? "▾" : "▸"}</span>
+                {watching.length} of {(snap.browsers ?? []).length} browsers watched
+                {live.length > 0 && <span className="bw-foot-live"> · {live.join(", ")} running</span>}
+              </button>
 
-              <p className="bw-note">
-                Only navigations since a deck was watching are read — nothing from before that,
-                and nothing while it is down.
-                {snap && (
-                  <> Every address is written in full to{" "}
-                    {/* Selectable in one click, because the next thing a person
-                        does with this path is paste it into a terminal. */}
-                    <code className="bw-path">{snap.coverage.logPath}</code>{" "}
-                    — query strings and fragments included, so an inspection later
-                    can tell a jobs list from a settings page.</>
-                )}
-                {" "}A relay reading is never conclusive: the name shares an address with
-                api.anthropic.com, and this probe cannot see some browsers' sockets at all.
-                {snap.degraded && " One profile could not be read in full; see the activity log."}
-              </p>
+              {showBrowsers && (
+                <ul className="bw-browsers">
+                  {(snap.browsers ?? []).map(b => (
+                    <li key={b.key} className={b.installed ? "" : "absent"}>
+                      <span className="bw-prof-name">{b.name}</span>
+                      <span className="bw-prof-meta">
+                        {!b.installed ? "not installed"
+                          : b.profiles === 0 ? "installed, never opened"
+                          : `${b.profiles} profile${b.profiles === 1 ? "" : "s"}`}
+                        {b.withExtension.length > 0 && " · Claude extension"}
+                        {b.installed && (b.running ? " · running" : " · not running")}
+                      </span>
+                      {b.installed && b.running && (
+                        <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
+                          {b.relay.state === "live" ? `relay: ${b.relay.count}`
+                            : b.relay.state === "none-seen" ? "relay: none seen"
+                            : "relay: cannot tell"}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
         </div>

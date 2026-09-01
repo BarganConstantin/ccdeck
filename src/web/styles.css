@@ -6881,8 +6881,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .bw-ep-head:active,
   .bw-toggle:active,
   .bw-tab:active,
-  .bw-controls select:active:not(:disabled) { transform: none; }
-  /* Two that cannot join the list above, for two different reasons.
+  .bw-foot-head:active,
+  .bw-settings select:active:not(:disabled),
+    /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot
      parse invalidates the whole list it sits in — put it there and an engine
      without `:has()` would lose reduced motion for every press in the app, not
@@ -7022,21 +7023,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-foreign { font-size: 11px; color: var(--warn); }
 .bw-foreign code { display: block; color: var(--muted); font-size: 11px; }
 
-.bw-controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
-.bw-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
-.bw-controls select {
-  background: var(--ctl-fill);
-  border: 1px solid var(--ctl-edge);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
-}
-/* The accounts panel's select convention, unchanged. */
-.bw-controls select:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.bw-controls select:active:not(:disabled) { transform: scale(0.97); }
 
 .bw-empty {
   border: 1px dashed var(--line);
@@ -7163,8 +7149,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-cmd-foot { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .bw-cmd-foot span { font-size: 11px; color: var(--text-dim); max-width: 62ch; line-height: 1.5; }
 
-.bw-count { margin-left: auto; display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--muted); }
-.bw-count strong { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
 .bw-why {
   background: none;
   border: 0;
@@ -7183,8 +7167,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    asked the reader to infer the current state from the verb on offer; a track
    and a knob show it, and role="switch" tells a screen reader the same thing.
    Sits in the controls row because that is what it is: a setting. */
-.bw-switch-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
-.bw-switch-line { display: flex; align-items: center; gap: 8px; height: 26px; }
 .bw-toggle {
   position: relative;
   width: 30px;
@@ -7214,7 +7196,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   transition: transform 140ms ease, background 140ms ease;
 }
 .bw-toggle[aria-checked="true"] .bw-toggle-knob { transform: translateX(13px); background: var(--bg); }
-.bw-switch-state { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ── Browser watch: the two views ─────────────────────────────────────────
    The list answers what happened; the log answers whether anything is looking.
@@ -7376,3 +7357,86 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* The log's path. `user-select: all` so one click takes the whole of it — the
    next thing anybody does with this string is paste it into a terminal. */
 .bw-path { user-select: all; word-break: break-all; }
+
+/* ── Browser watch: one bar, then the content ─────────────────────────────
+   The panel had a settings row, a tab strip, a count and a disclosure all
+   standing at the same weight above the thing they describe. One bar now: the
+   views on the left, the state and its switch on the right, and every setting
+   behind a press — they are chosen once and then left alone, and they were
+   taking the top of the panel from the findings that are its reason. */
+.bw-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.bw-bar-right { display: flex; align-items: center; gap: 8px; }
+.bw-bar-state { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The count rides on the tab it counts, rather than standing apart from it as
+   its own "1 episode" island. */
+.bw-tab-count {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--ctl-fill);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.bw-tab.on .bw-tab-count { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.bw-settings {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.bw-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.bw-settings select {
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-edge);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+.bw-settings select:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.bw-settings select:active:not(:disabled) { transform: scale(0.97); }
+.bw-settings-note {
+  margin: 0;
+  flex: 1 1 30ch;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 66ch;
+}
+.bw-settings-note strong { color: var(--muted); font-weight: 600; }
+
+/* The browser inventory, behind its own summary line. Which browsers are
+   watched is asked once and then known — it was standing at the same weight as
+   the findings the panel exists for. */
+.bw-foot-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms ease, transform 120ms ease;
+}
+.bw-foot-head:hover { color: var(--text); }
+.bw-foot-head:active { transform: scale(0.99); }
+.bw-foot-chev { color: var(--text-dim); font-size: 9px; }
+.bw-foot-live { color: var(--text-dim); }
