@@ -132,7 +132,10 @@ export default function BrowserWatchModal({
   const [open, setOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
-  const [tab, setTab] = useState<"history" | "live">("history");
+  // Opens on the Log, because that is the view that answers "is this thing
+  // working" — and a panel that opens on an empty Episodes list looks broken on
+  // the machine where nothing has happened, which is most machines most days.
+  const [tab, setTab] = useState<"history" | "live">("live");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   /** The keyboard half of what role="tab" promises. Arrows move and select;
@@ -161,6 +164,20 @@ export default function BrowserWatchModal({
   }, [quiet]);
 
   useEffect(() => { void load(false); }, [load]);
+
+  // LIVE WHILE THE LOG IS OPEN, AND ONLY THEN. The Log answers "is this thing
+  // working", and an answer that stops updating the moment you look at it
+  // answers the opposite. Ten seconds is fast enough to read as live and far
+  // above what it costs: the server serves from a cache keyed on each History
+  // file's mtime, so a browser nobody is using is one `stat` per profile.
+  //
+  // Not on the Episodes view: that list changes when an episode is found, which
+  // is a handful of times a month, and the badge already carries that news.
+  useEffect(() => {
+    if (tab !== "live") return;
+    const t = setInterval(() => { void load(false); }, 10_000);
+    return () => clearInterval(t);
+  }, [tab, load]);
 
   /** Change a setting on the server, which owns it: the file on disk is what
    *  the watch runs on, and a client that kept its own copy would disagree with
@@ -248,9 +265,23 @@ export default function BrowserWatchModal({
 
           {snap && (
             <section className="bw-controls">
-              <label>
-                <span>Quiet for at least</span>
+              {/* "Quiet for at least" was asked what it meant, which is the
+                  answer. This says the condition instead of naming it: nobody
+                  browsing for N minutes is exactly what has to be true before a
+                  program's navigation counts. */}
+              <label title={
+                "A program opening a page counts as a finding only if nobody had touched the browser "
+                + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
+              }>
+                <span>Nobody browsing for</span>
                 <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
+                  {/* One minute is the loosest setting the panel offers, and
+                      it is here because it is the one that makes the feature
+                      testable: at fifteen you wait a quarter of an hour to see
+                      whether anything works. It reports a great deal of the
+                      reader's own agent work, which is why it is not the
+                      default. */}
+                  <option value={1}>1 min</option>
                   <option value={5}>5 min</option>
                   <option value={15}>15 min</option>
                   <option value={30}>30 min</option>
@@ -384,8 +415,12 @@ export default function BrowserWatchModal({
                 <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
               ) : snap.log.map((l, i) => (
                 <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${i}`}>
+                  {/* 24-hour, and not the reader's locale. An en-US clock
+                      renders "06:28:55 PM", which is four characters wider than
+                      the column and collided with the text beside it — and a
+                      log is written in 24-hour time everywhere anyway. */}
                   <span className="bw-log-time">
-                    {new Date(l.atMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
                   </span>
                   <span className="bw-log-text">{l.text}</span>
                 </div>

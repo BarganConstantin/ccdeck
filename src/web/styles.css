@@ -7258,15 +7258,30 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   vertical-align: middle;
 }
 
-.bw-log { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
-.bw-log-line { display: grid; grid-template-columns: 10px 60px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
+/* Newest first and scrolling inside itself, so a long run does not push the
+   browsers and the footer off the panel. */
+.bw-log { display: flex; flex-direction: column; gap: 3px; max-height: 320px; overflow-y: auto; }
+/* 66px fits `06:28:55` with room to spare. It was 60 against a 12-hour clock
+   whose "06:28:55 PM" is four characters wider than that, so the stamp ran into
+   the text beside it — the column is sized for the string it now renders. */
+.bw-log-line { display: grid; grid-template-columns: 10px 66px 1fr; gap: 10px; font-size: 11px; align-items: baseline; }
 .bw-log-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.bw-log-text { color: var(--muted); word-break: break-word; }
+/* Monospace, like the stamp beside it. These lines are mostly identical except
+   for a profile name and two numbers, and in a proportional face the numbers
+   land in a different place on every row — the one thing a person scans this
+   column for. */
+.bw-log-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  word-break: break-word;
+}
 
 /* FOUR LEVELS, READ AS THREE WEIGHTS PLUS ONE COLOUR.
    `find` is the only line that means something happened, so it is the only one
