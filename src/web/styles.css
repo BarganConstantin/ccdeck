@@ -6880,6 +6880,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .aa-tab:active,
   .bw-ep-head:active,
   .bw-toggle:active,
+  .bw-tab:active,
   .bw-controls select:active:not(:disabled) { transform: none; }
   /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot
@@ -7208,3 +7209,82 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 .bw-toggle[aria-checked="true"] .bw-toggle-knob { transform: translateX(13px); background: var(--bg); }
 .bw-switch-state { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Browser watch: the two views ─────────────────────────────────────────
+   The list answers what happened; the log answers whether anything is looking.
+   A watch whose only output is an empty list cannot tell "I checked and found
+   nothing" from "I am not checking" — the shell tool this descends from was
+   trusted largely because it said the first one out loud every few minutes. */
+/* The accounts dialog's tab shape, not a second one. A design system's whole
+   job is that the second tab strip in an app looks like the first, and the
+   pill also carries a resting boundary — which an underline does not, and
+   which control-edges.test.ts is right to require of anything it is told is a
+   control. */
+.bw-tabs { display: inline-flex; gap: 4px; }
+.bw-tab {
+  position: relative;
+  padding: 4px 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.bw-tab:hover { color: var(--text); }
+.bw-tab:active { transform: scale(0.97); }
+.bw-tab.on {
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* A live dot on Activity while the watch is armed — the one place the panel
+   says "something is running" before anything is opened. */
+.bw-tab-live {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+.bw-log { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.bw-log-line { display: grid; grid-template-columns: 66px 1fr; gap: 10px; font-size: 11px; align-items: baseline; }
+.bw-log-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bw-log-text { color: var(--muted); word-break: break-word; }
+.bw-log-line.ok .bw-log-text { color: var(--text); }
+.bw-log-line.warn .bw-log-text { color: var(--warn); }
+
+/* One column per day of the window, standing on a continuous baseline.
+   
+   The baseline is the whole trick. Four bars floating in space with nothing
+   between them read as four unrelated marks; the same four standing on a line
+   that runs the width of the window read as four days out of thirty. The empty
+   days are not drawn at all — the line already says they are there, and a faint
+   tick per day was invisible at this height anyway. */
+.bw-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 30px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+}
+.bw-chart-day { flex: 1; min-width: 2px; height: 0; border-radius: 1px 1px 0 0; background: var(--accent); }
+.bw-chart-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding-top: 4px;
+  font-variant-numeric: tabular-nums;
+}

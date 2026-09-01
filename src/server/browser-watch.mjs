@@ -68,7 +68,7 @@ async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
   if (stamp === null) return { rows: [], degraded: true, reason: "no-history-file", stamp: null };
 
   const hit = cache.get(profile.historyPath);
-  if (hit && hit.stamp === stamp && hit.since === sinceChromeTime) return hit.value;
+  if (hit && hit.stamp === stamp && hit.since === sinceChromeTime) return { ...hit.value, cached: true };
 
   const read = await (deps.readVisitsSince ?? readVisitsSince)(
     profile.historyPath, sinceChromeTime, { copyDir },
@@ -185,6 +185,38 @@ export function relayState(platform = process.platform, env = process.env, deps 
 }
 
 
+/**
+ * What the watch has been doing, newest first.
+ *
+ * The shell tool this descends from printed a running commentary — armed,
+ * standing down, still watching, nothing found — and that commentary was most
+ * of what made it trustworthy: you could see it working rather than take its
+ * silence on faith. A panel that only ever shows a list has no way to say "I
+ * looked, and there was nothing", which reads identically to "I am not looking".
+ *
+ * In memory and bounded. It is a record of what this process did since it
+ * started, not an audit trail — the archive on disk is the thing that must
+ * survive, and it already does.
+ */
+const LOG_MAX = 200;
+const logLines = [];
+
+/** @param {"ok"|"info"|"warn"} level */
+function note(level, text, atMs = Date.now()) {
+  logLines.unshift({ atMs, level, text });
+  if (logLines.length > LOG_MAX) logLines.length = LOG_MAX;
+}
+
+export function watchLog() {
+  return logLines.slice();
+}
+
+/** Called by the settings route, which is the one moment worth a line of its
+ *  own: everything else here is the deck reading, and this is the user acting. */
+export function noteWatchSetting(text) {
+  note("ok", text);
+}
+
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
  *  episodes writes nothing — which is most polls, most of the time. */
@@ -254,6 +286,13 @@ export async function browserWatchSnapshot({
     const read = await visitsFor(profile, { sinceChromeTime, copyDir, deps });
     if (read.degraded) anyDegraded = true;
     const findings = classify(read.rows, { ...opts, exclude });
+    const where = `${profile.name}/${profile.profile}`;
+    if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
+    else if (read.cached) note("info", `${where} — unchanged, nothing to re-read`, now);
+    else {
+      const n = read.rows.length;
+      note("ok", `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}, ${findings.length} flagged`, now);
+    }
     allFindings = allFindings.concat(findings);
     for (const row of read.rows) {
       if (oldestSeen === null || row.timeMs < oldestSeen) oldestSeen = row.timeMs;
@@ -287,6 +326,7 @@ export async function browserWatchSnapshot({
   // pages they visited, on disk. The switch means what it says.
   const archived = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
   if (enabled && changedFrom(store.episodes, archived)) {
+    note("ok", `archive now holds ${archived.length} episode${archived.length === 1 ? "" : "s"}`, now);
     await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: archived }, undefined, deps);
   }
   const episodes = enabled ? archived : live;
@@ -297,6 +337,7 @@ export async function browserWatchSnapshot({
   return {
     ok: true,
     settings: store.settings,
+    log: watchLog(),
     verdict: verdict({ anyExtension, blocked: relay.blocked === true }),
     relay,
     profiles: reports,

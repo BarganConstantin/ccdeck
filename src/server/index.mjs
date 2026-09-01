@@ -4040,7 +4040,7 @@ async function handleBrowserWatchSettings(req, res) {
   const { readStore, writeStore, normalise } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
   );
-  const { invalidateBrowserWatchCache } = await import(
+  const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
   );
   const store = await readStore();
@@ -4049,6 +4049,13 @@ async function handleBrowserWatchSettings(req, res) {
   // than reaching classify().
   const settings = normalise({ ...store.settings, ...body });
   await writeStore({ settings, episodes: store.episodes });
+  // The one line in the log that is somebody acting rather than the deck
+  // reading, which is exactly why it is worth its own entry.
+  if (settings.enabled !== store.settings.enabled) {
+    noteWatchSetting(settings.enabled ? "watch on — keeping its own copy" : "watch off — reading live only");
+  } else {
+    noteWatchSetting(`settings: look back ${settings.windowDays}d, quiet ${settings.quietMinutes}m, gap ${settings.gapMinutes}m`);
+  }
   invalidateBrowserWatchCache();
   return send(res, 200, { ok: true, settings });
 }

@@ -12,8 +12,9 @@
 // A panel that cries theft on the first card teaches its reader to close it,
 // and then it is worthless on the day it is right. It reports what a program
 // did and shows the evidence; the person reading it decides what it was.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { tabStripMove } from "../tablist-keys";
 
 export interface WatchEpisode {
   host: string;
@@ -44,9 +45,16 @@ export interface WatchSettings {
   windowDays: number;
 }
 
+export interface WatchLine {
+  atMs: number;
+  level: "ok" | "info" | "warn";
+  text: string;
+}
+
 export interface WatchSnapshot {
   ok: true;
   settings: WatchSettings;
+  log: WatchLine[];
   verdict: "nothing-exposed" | "protected" | "exposed";
   relay: {
     path: string;
@@ -76,6 +84,32 @@ export const SEEN_KEY = "agent-dag.browserWatch.seenMs";
  *  people learn to ignore. */
 export function unseenEpisodes(episodes: WatchEpisode[], seenMs: number): WatchEpisode[] {
   return episodes.filter(e => e.startMs > seenMs);
+}
+
+/**
+ * One bucket per day across the window, oldest first.
+ *
+ * A shape rather than a number: six episodes in thirty days is a fact you can
+ * read in a sentence, but WHEN they happened is the thing that makes a person
+ * look twice — three in one afternoon reads differently from three across three
+ * weeks, and no count can say which of the two this was.
+ *
+ * Buckets on the local day boundary, because the reader's question is "which
+ * day was that" and their day is not UTC's.
+ */
+export function episodesByDay(episodes: WatchEpisode[], days: number, now: number) {
+  const DAY = 86_400_000;
+  const midnight = new Date(now).setHours(0, 0, 0, 0);
+  const out = Array.from({ length: days }, (_u, i) => ({
+    dayMs: midnight - (days - 1 - i) * DAY,
+    count: 0,
+  }));
+  for (const e of episodes) {
+    const at = new Date(e.startMs).setHours(0, 0, 0, 0);
+    const i = Math.round((at - midnight) / DAY) + days - 1;
+    if (i >= 0 && i < days) out[i].count += 1;
+  }
+  return out;
 }
 
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
@@ -114,6 +148,17 @@ const VERDICT_COPY: Record<WatchSnapshot["verdict"], { label: string; detail: st
   },
 };
 
+/** The two views, in order. Kept as data because the strip's keyboard model is
+ *  index arithmetic and a hand-written pair of buttons cannot take part in it. */
+const TABS = [
+  { id: "history" as const, label: "History" },
+  { id: "live" as const, label: "Activity" },
+];
+const BW_PANEL_ID = "bw-view";
+/** The selected tab names the panel and the panel names it back, which is how
+ *  a screen reader gets from "selected, 1 of 2" to the thing that was selected. */
+const bwTabId = (id: string) => `bw-tab-${id}`;
+
 export default function BrowserWatchModal({
   onClose,
   onSeen,
@@ -132,6 +177,19 @@ export default function BrowserWatchModal({
   const [saving, setSaving] = useState(false);
   const [showCmd, setShowCmd] = useState(false);
   const [why, setWhy] = useState(false);
+  const [tab, setTab] = useState<"history" | "live">("history");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  /** The keyboard half of what role="tab" promises. Arrows move and select;
+   *  anything else passes through, so Tab still leaves the strip and Escape
+   *  still reaches the dialog. Same rule as the accounts dialog's strip. */
+  const onTabKeys = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const move = tabStripMove(e, TABS.findIndex(t => t.id === tab), TABS.length);
+    if (move.kind === "pass") return;
+    e.preventDefault();
+    setTab(TABS[move.index].id);
+    tabRefs.current[move.index]?.focus();
+  }, [tab]);
 
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true);
@@ -298,7 +356,7 @@ export default function BrowserWatchModal({
             </p>
           )}
 
-          {snap && snap.episodes.length === 0 && (
+          {snap && tab === "history" && snap.episodes.length === 0 && (
             <div className="bw-empty">
               <strong>Nothing a program did on its own</strong>
               <p>
@@ -308,7 +366,72 @@ export default function BrowserWatchModal({
             </div>
           )}
 
-          {grouped.map(g => (
+          {snap && (
+            /* Two views, because they answer two questions. The list says what
+               happened; the log says whether anything is looking. A watch whose
+               only output is an empty list cannot tell "I checked, and there was
+               nothing" from "I am not checking", and the shell tool this
+               descends from was trusted largely because it said the first one
+               out loud, every few minutes, in a running commentary. */
+            <div className="bw-tabs" role="tablist" aria-label="Browser watch views" onKeyDown={onTabKeys}>
+              {TABS.map((t, i) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={bwTabId(t.id)}
+                  ref={el => { tabRefs.current[i] = el; }}
+                  aria-selected={tab === t.id}
+                  aria-controls={BW_PANEL_ID}
+                  // One tab stop for the whole strip, which is the other half of
+                  // what the role means; the modal's focus trap already skips a
+                  // negative tabIndex.
+                  tabIndex={tab === t.id ? 0 : -1}
+                  className={`bw-tab${tab === t.id ? " on" : ""}`}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.label}
+                  {t.id === "live" && snap.settings.enabled && <span className="bw-tab-live" aria-hidden />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {snap && tab === "live" && (
+            <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
+              {snap.log.length === 0 ? (
+                <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
+              ) : snap.log.map((l, i) => (
+                <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${i}`}>
+                  <span className="bw-log-time">
+                    {new Date(l.atMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                  <span className="bw-log-text">{l.text}</span>
+                </div>
+              ))}
+            </section>
+          )}
+
+          {snap && tab === "history" && snap.episodes.length > 0 && (
+            <div id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
+              <div className="bw-chart" aria-hidden>
+                {episodesByDay(snap.episodes, days, snap.coverage.now).map(d => (
+                  <span
+                    key={d.dayMs}
+                    className="bw-chart-day"
+                    style={{ height: d.count > 0 ? `${Math.min(100, 34 + d.count * 22)}%` : 0 }}
+                    title={`${day(d.dayMs)} — ${d.count} ${d.count === 1 ? "episode" : "episodes"}`}
+                  />
+                ))}
+              </div>
+              <div className="bw-chart-foot" aria-hidden>
+                <span>{day(snap.coverage.now - (days - 1) * 86_400_000)}</span>
+                <span>today</span>
+              </div>
+            </div>
+          )}
+
+          {tab === "history" && grouped.map(g => (
             <section className="bw-day" key={g.label}>
               <h4>{g.label}</h4>
               {g.episodes.map(e => {
