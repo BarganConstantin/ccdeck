@@ -301,10 +301,23 @@ export function killswitchCommand(platform = process.platform, { on }) {
   // BSD sed wants the backup suffix as its own argument and reads an empty one
   // as "no backup"; GNU sed reads a following argument as the script.
   const inPlace = platform === "darwin" ? "sed -i ''" : "sed -i";
+  // ALWAYS A LEADING NEWLINE, WHICH IS WHY THIS IS ONE SHORT LINE.
+  //
+  // The first version tested whether the file already ended in one — `[ -n
+  // "$(tail -c1 …)" ] && printf …` inside a `sudo sh -c '…'` with nested quotes
+  // — because appending to a hosts file with no trailing newline glues the new
+  // entry onto its last line and corrupts it. Correct, and three lines of
+  // shell that a person is asked to read before running as root, which is
+  // exactly the wrong place to spend somebody's attention.
+  //
+  // A leading `\n` is correct in BOTH cases and needs no test: a file that ends
+  // in a newline gains a blank line, which every hosts parser ignores, and one
+  // that does not gets its last line finished. `tee -a` also drops the nested
+  // quoting entirely, since only `tee` needs to be root — the printf runs as
+  // the user and the pipe carries the text.
   const command = on
-    ? `sudo sh -c '[ -n "$(tail -c1 ${file} 2>/dev/null)" ] && printf "\\n" >> ${file}; ` +
-      `printf "%s\\n" "${KILLSWITCH_LINE}" >> ${file}'; ${flush}`
-    : `sudo ${inPlace} '/${TAGGED_BRE}/d' ${file}; ${flush}`;
+    ? `printf '\\n%s\\n' "${KILLSWITCH_LINE}" | sudo tee -a ${file} >/dev/null\n${flush}`
+    : `sudo ${inPlace} '/${TAGGED_BRE}/d' ${file}\n${flush}`;
   return { command, needsAdmin: true, note: note(platform, on) };
 }
 

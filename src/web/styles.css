@@ -7001,58 +7001,15 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-btn.has-findings { color: var(--warn); }
 
 .bw-modal { width: min(860px, 94vw); }
-.bw-body { display: flex; flex-direction: column; gap: 18px; }
+/* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a
+   column flex container with a bounded height, so a child that overflows it
+   gets SHRUNK rather than scrolled — the state rows collapsed to a four-pixel
+   sliver and read as if they had not rendered at all. The body is the thing
+   that scrolls; its children keep the height their content asks for. */
+.bw-body { display: flex; flex-direction: column; gap: 16px; }
+.bw-body > * { flex: none; }
 
-.bw-verdict {
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--muted);
-  border-radius: 6px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.bw-verdict.ok  { border-left-color: var(--ok); }
-.bw-verdict.err { border-left-color: var(--err); }
-.bw-verdict strong { font-size: 13px; }
-.bw-verdict.ok  strong { color: var(--ok); }
-.bw-verdict.err strong { color: var(--err); }
-.bw-verdict p { margin: 0; font-size: 12px; color: var(--muted); max-width: 68ch; line-height: 1.55; }
 
-.bw-cmd {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-}
-.bw-cmd-label { font-size: 11px; color: var(--muted); }
-/* user-select: all so one click takes the whole command — the same affordance
-   the accounts panel gives its copy blocks. It wraps rather than scrolls: a
-   command a person is about to run as root should be readable in full before
-   they run it, not hidden past the right edge.
-
-   BREAKS AT SPACES, NEVER MID-WORD. `word-break: break-all` was the first try
-   and it split `killall` across two lines as `k illall`, which reads as a
-   corrupted command — the worst possible impression for the one string in this
-   app a person is asked to run with sudo. `overflow-wrap: break-word` breaks a
-   token only when the token alone cannot fit, so the shell words stay whole. */
-.bw-cmd code {
-  display: block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.65;
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: normal;
-  user-select: all;
-}
-.bw-cmd .btn { align-self: flex-start; }
-.bw-cmd-note { font-size: 11px; color: var(--text-dim); margin: 0; }
 .bw-foreign { font-size: 11px; color: var(--warn); }
 .bw-foreign code { display: block; color: var(--muted); font-size: 11px; }
 
@@ -7154,21 +7111,60 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 .bw-lead strong { color: var(--text); font-weight: 600; }
 
-.bw-switch {
-  display: flex;
-  gap: 16px;
+
+/* ── Browser watch: the two state rows ────────────────────────────────────
+   One row each, not one card each. The panel's content is the list of
+   episodes, and two paragraphs of prose above it pushed that list a full
+   screen down — a reader had to scroll past the explanation to reach the
+   thing being explained. */
+.bw-state { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.bw-row {
+  display: grid;
+  grid-template-columns: 8px auto 1fr auto;
+  gap: 10px;
   align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--muted-dim);
-  border-radius: 6px;
-  padding: 12px 14px;
+  background: var(--panel);
+  padding: 10px 14px;
 }
-/* The only colour the switch carries, and it is on the state that costs
-   something: the deck writing pages the user visited to disk. Off is the
-   default and needs no announcement. */
-.bw-switch.on { border-left-color: var(--accent); }
-.bw-switch-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.bw-switch strong { font-size: 13px; }
-.bw-switch p { margin: 0; font-size: 12px; color: var(--muted); max-width: 62ch; line-height: 1.55; }
-.bw-switch .btn { flex: none; }
+.bw-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-dim); }
+.bw-row.err .bw-dot { background: var(--err); }
+.bw-row.ok  .bw-dot { background: var(--ok); }
+.bw-row.on  .bw-dot { background: var(--accent); }
+.bw-row-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.bw-row.err .bw-row-label { color: var(--err); }
+.bw-row-detail { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bw-row .btn { white-space: nowrap; }
+
+/* The command, behind a press. `user-select: all` so one click takes the whole
+   of it, and it wraps at spaces rather than mid-word — `word-break: break-all`
+   once split `killall` as `k illall`, which reads as a corrupted command in
+   the one string this app asks anyone to run as root. */
+.bw-cmd { background: var(--bg-soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.bw-cmd code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  user-select: all;
+}
+.bw-cmd-foot { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.bw-cmd-foot span { font-size: 11px; color: var(--text-dim); max-width: 62ch; line-height: 1.5; }
+
+.bw-count { margin-left: auto; display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.bw-count strong { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+.bw-why {
+  background: none;
+  border: 0;
+  padding: 0 0 0 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bw-why:hover { color: var(--text); }

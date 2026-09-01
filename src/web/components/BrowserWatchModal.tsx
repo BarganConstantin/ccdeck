@@ -99,17 +99,17 @@ function lasted(e: WatchEpisode): string {
 const VERDICT_COPY: Record<WatchSnapshot["verdict"], { label: string; detail: string; tone: string }> = {
   "nothing-exposed": {
     label: "Nothing exposed",
-    detail: "The Claude in Chrome extension is not installed in any browser here.",
+    detail: "the Claude in Chrome extension is not installed here",
     tone: "ok",
   },
   protected: {
     label: "Protected",
-    detail: "The relay does not resolve, so no new session can attach. A connection the browser already holds survives until it restarts.",
+    detail: "the relay does not resolve, so no new session can attach",
     tone: "ok",
   },
   exposed: {
     label: "Exposed",
-    detail: "Any Claude Code session signed in to your Anthropic account — on any machine — can attach to this browser without a prompt here.",
+    detail: "any session on your Anthropic account, on any machine, can attach without a prompt here",
     tone: "err",
   },
 };
@@ -130,6 +130,8 @@ export default function BrowserWatchModal({
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showCmd, setShowCmd] = useState(false);
+  const [why, setWhy] = useState(false);
 
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true);
@@ -224,58 +226,71 @@ export default function BrowserWatchModal({
 
         <div className="modal-body bw-body">
           {error && (
-            <div className="bw-verdict err">
-              <strong>Could not read</strong>
-              <p>{error}</p>
+            <div className="bw-state">
+              <div className="bw-row err">
+                <span className="bw-dot" aria-hidden />
+                <span className="bw-row-label">Could not read</span>
+                <span className="bw-row-detail">{error}</span>
+              </div>
             </div>
           )}
 
           {v && snap && (
-            <section className={`bw-verdict ${v.tone}`}>
-              <strong>{v.label}</strong>
-              <p>{v.detail}</p>
-              {snap.relay.command && snap.verdict !== "nothing-exposed" && (
-                <div className="bw-cmd">
-                  <div className="bw-cmd-label">
-                    {snap.relay.blocked ? "To allow the relay again" : "To close it"} — run this yourself; the deck never asks for your password.
-                  </div>
-                  <code>{snap.relay.command.command}</code>
-                  <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
-                    {copied ? "copied" : "copy"}
+            <section className="bw-state">
+              {/* Two rows, not two cards. What a person needs at a glance is
+                  which of two states each thing is in; the paragraph that used
+                  to explain it pushed the list — the actual content — a full
+                  screen down. */}
+              <div className={`bw-row ${v.tone}`}>
+                <span className="bw-dot" aria-hidden />
+                <span className="bw-row-label">{v.label}</span>
+                <span className="bw-row-detail">{v.detail}</span>
+                {snap.relay.command && snap.verdict !== "nothing-exposed" && (
+                  <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
+                    {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
                   </button>
-                  <p className="bw-cmd-note">{snap.relay.command.note}</p>
+                )}
+              </div>
+
+              {showCmd && snap.relay.command && (
+                // Behind a press, because it is three quarters of a screen of
+                // shell and it is not what anybody opened this panel to read.
+                <div className="bw-cmd">
+                  <code>{snap.relay.command.command}</code>
+                  <div className="bw-cmd-foot">
+                    <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
+                      {copied ? "copied" : "copy"}
+                    </button>
+                    {/* The server's note already says who runs this and what it
+                        does not do; a preamble here repeated it word for word. */}
+                    <span>{snap.relay.command.note}</span>
+                  </div>
                 </div>
               )}
+
+              <div className={`bw-row ${snap.settings.enabled ? "on" : "off"}`}>
+                <span className="bw-dot" aria-hidden />
+                <span className="bw-row-label">{snap.settings.enabled ? "Watching" : "Not watching"}</span>
+                <span className="bw-row-detail">
+                  {snap.settings.enabled
+                    ? `keeping its own copy, so a cleared history loses nothing — ${snap.coverage.archived} kept`
+                    : "reading the browser's history live; clearing it would lose what is below"}
+                </span>
+                <button
+                  className="btn"
+                  onClick={() => void save({ enabled: !snap.settings.enabled })}
+                  aria-pressed={snap.settings.enabled}
+                >
+                  {saving ? "saving" : snap.settings.enabled ? "turn off" : "turn on"}
+                </button>
+              </div>
+
               {snap.relay.foreign.length > 0 && (
                 <p className="bw-foreign">
                   Something else already maps this host in {snap.relay.path}:{" "}
                   {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
                 </p>
               )}
-            </section>
-          )}
-
-          {snap && (
-            <section className={`bw-switch${snap.settings.enabled ? " on" : ""}`}>
-              <div className="bw-switch-text">
-                <strong>{snap.settings.enabled ? "Watching" : "Not watching"}</strong>
-                <p>
-                  {snap.settings.enabled
-                    ? <>The deck is keeping its own copy of what it finds, so an episode it has
-                        already seen survives the browsing history being cleared.
-                        {snap.coverage.archived > 0 && <> {snap.coverage.archived} kept so far.</>}</>
-                    : <>The list below is read live out of the browser's own history, which works
-                        whether or not the deck was running. Turn this on and the deck also writes
-                        down what it sees — the half a cleared history would otherwise take with it.</>}
-                </p>
-              </div>
-              <button
-                className="btn"
-                onClick={() => void save({ enabled: !snap.settings.enabled })}
-                aria-pressed={snap.settings.enabled}
-              >
-                {saving ? "saving…" : snap.settings.enabled ? "turn off" : "turn on"}
-              </button>
             </section>
           )}
 
@@ -298,7 +313,22 @@ export default function BrowserWatchModal({
                   <option value={60}>60 min</option>
                 </select>
               </label>
+              <div className="bw-count">
+                <strong>{snap.episodes.length}</strong>
+                <span>{snap.episodes.length === 1 ? "episode" : "episodes"}</span>
+                <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
+                  what is this?
+                </button>
+              </div>
             </section>
+          )}
+
+          {why && (
+            <p className="bw-lead">
+              Chrome marks a navigation that came from an extension or a command rather than from a
+              click. These are the ones that happened while nobody had touched the browser for {quiet} minutes.{" "}
+              <strong>Usually that is your own agent doing what you asked.</strong> Worth a look when it is not.
+            </p>
           )}
 
           {snap && snap.episodes.length === 0 && (
@@ -309,22 +339,6 @@ export default function BrowserWatchModal({
                 {reach !== null && <> The oldest visit on record is {day(reach)}.</>}
               </p>
             </div>
-          )}
-
-          {snap && snap.episodes.length > 0 && (
-            // Said once, above the list, because without it the first row reads
-            // as an accusation with no evidence: "www.google.com · 1 page" is
-            // meaningless until you know both what put it there and what it is
-            // not. Most of these are the reader's own agent doing what they
-            // asked, and the panel should say so before they wonder.
-            <p className="bw-lead">
-              {snap.episodes.length} {snap.episodes.length === 1 ? "time" : "times"} in the last {days} days,
-              a program opened a page here while nobody had used the browser for {quiet} minutes.
-              Chrome marks these itself — it is how it records a navigation that came from an
-              extension or a command rather than from a click.{" "}
-              <strong>Usually that is your own agent doing what you asked.</strong>{" "}
-              Worth a look when it is not.
-            </p>
           )}
 
           {grouped.map(g => (

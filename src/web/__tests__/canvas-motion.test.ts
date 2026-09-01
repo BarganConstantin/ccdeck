@@ -329,7 +329,15 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  cursor: "Don't transition transform — it's used inline for viewport scale."
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
-const EXEMPT: string[] = [".cluster-label"];
+const EXEMPT: string[] = [
+  ".cluster-label",
+  // Browser Watch's "what is this?" — underlined text inside a sentence, not a
+  // box. #355's argument for joining the convention was that a 9px word is
+  // still a thing being pressed; the argument against it here is that this one
+  // is shaped as a link and scaling a run of inline text shifts the words
+  // around it. It discloses a paragraph and changes nothing else.
+  ".bw-why",
+];
 
 describe("press feedback is one convention, applied everywhere", () => {
   it("gives every one of these controls something to give back on press", () => {

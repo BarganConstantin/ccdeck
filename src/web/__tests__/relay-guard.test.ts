@@ -108,18 +108,26 @@ const posix = process.platform === "win32" ? it.skip : it;
 
 /**
  * The half of a generated command that touches the hosts file, aimed at a copy
- * and stripped of `sudo` so a test can run it as an ordinary user.
+ * and stripped of EVERY `sudo` so a test can run it as an ordinary user.
  *
- * It cuts at the flush tool's name rather than at the first `;`, because the
- * block command's own body contains semicolons inside its `sh -c`. Asserting
- * the cut found something is also how every command gets checked for HAVING a
- * flush step at all.
+ * Every occurrence, not a leading one. The block command is now a pipe —
+ * `printf … | sudo tee -a` — so the elevation sits in the middle, which is
+ * where it belongs when only the write needs to be root. A leading-anchored
+ * strip left it in place and the case became a password prompt in a test run.
+ *
+ * It cuts at the flush tool's name rather than at the first `;`, because a
+ * command's own body may contain semicolons. Asserting the cut found something
+ * is also how every command gets checked for HAVING a flush step at all.
  */
 function fileHalf(command: string, file: string): string {
   const at = command.search(/(?:dscacheutil|command -v resolvectl|ipconfig) /);
   expect(at, `no DNS flush step in: ${command}`).toBeGreaterThan(0);
-  return command.slice(0, at).replace(/;\s*$/, "").replace(/^sudo /, "")
+  const half = command.slice(0, at).replace(/[;\n]\s*$/, "").replaceAll(/\bsudo /g, "")
     .replaceAll("/etc/hosts", file);
+  // Nothing may reach the shell still asking for root: a test that prompts for
+  // a password is a test that hangs a CI run rather than failing it.
+  expect(half, "sudo survived the strip").not.toMatch(/\bsudo\b/);
+  return half;
 }
 
 /** Write a fixture, run a command against it, hand back what the file became. */
@@ -317,9 +325,17 @@ describe("killswitchCommand", () => {
   });
 
   posix("appends the tagged line and leaves the rest of the file alone", () => {
+    // The blank line is deliberate and it is what buys the one-line command.
+    // Rather than testing whether the file already ends in a terminator — three
+    // lines of `sh -c` with nested quotes, in front of somebody about to run
+    // this as root — the append always leads with a newline, which is correct
+    // both ways. A hosts file ignores blank lines and the stock macOS one ships
+    // with one already; what must not change is any line that carries meaning.
     const before = INNOCENT.join("\n") + "\n";
     const after = afterRunning(killswitchCommand(process.platform, { on: true }).command, before, "block-lf");
-    expect(after).toBe(before + TAGGED + "\n");
+    expect(after).toBe(before + "\n" + TAGGED + "\n");
+    expect(after.split("\n").filter(l => l.trim() !== ""))
+      .toEqual([...INNOCENT.filter(l => l.trim() !== ""), TAGGED]);
     expect(readKillswitch(after).ours).toEqual([TAGGED]);
     expect(readKillswitch(after).blocked).toBe(true);
   });
@@ -336,9 +352,10 @@ describe("killswitchCommand", () => {
     expect(readKillswitch(after).ours).toEqual([TAGGED]);
   });
 
-  posix("appends nothing but the line to an empty file", () => {
+  posix("puts nothing but the line, and its leading blank, into an empty file", () => {
     const after = afterRunning(killswitchCommand(process.platform, { on: true }).command, "", "block-empty");
-    expect(after).toBe(TAGGED + "\n");
+    expect(after).toBe("\n" + TAGGED + "\n");
+    expect(readKillswitch(after).blocked).toBe(true);
   });
 
   posix("deletes its own two lines out of the adversarial file and no others", () => {
@@ -353,13 +370,24 @@ describe("killswitchCommand", () => {
     expect(readKillswitch(after).ours).toEqual([]);
   });
 
-  posix("round-trips a hosts file back to the byte", () => {
-    // Block then unblock is the sequence a user who changed their mind runs,
-    // and the file they are left with is the file they started with.
+  posix("round-trips every line that carries meaning, leaving one blank behind", () => {
+    // Block then unblock is the sequence a user who changed their mind runs.
+    // What comes back is every line that means anything, in order, unchanged —
+    // plus the blank line the append leads with, which the delete does not
+    // reach. That is the whole price of the one-line command, and it is a
+    // blank line in a file that already ships with one: the stock macOS
+    // /etc/hosts has a blank line and ten lines total.
+    //
+    // Toggling repeatedly therefore leaves a blank line each time. Pinned here
+    // rather than hidden, so that if it ever stops being acceptable this case
+    // is where the argument is.
     const before = INNOCENT.join("\n") + "\n";
     const blocked = afterRunning(killswitchCommand(process.platform, { on: true }).command, before, "round-a");
     const restored = afterRunning(killswitchCommand(process.platform, { on: false }).command, blocked, "round-b");
-    expect(restored).toBe(before);
+    const meaningful = (t: string) => t.split("\n").filter(l => l.trim() !== "");
+    expect(meaningful(restored)).toEqual(meaningful(before));
+    expect(readKillswitch(restored).blocked).toBe(false);
+    expect(restored).toBe(before + "\n");
   });
 
   posix("removes a line pasted twice, because the block is not idempotent", () => {
@@ -556,7 +584,11 @@ describe("the module cannot elevate or write", () => {
     // deleted, and the blanking would be proving nothing.
     expect(SOURCE).toMatch(/\bsudo\b/);
     expect(CODE).toContain("killswitchCommand");
-    expect(killswitchCommand("darwin", { on: true }).command).toMatch(/^sudo /);
+    // Present, not first. The block command pipes into `sudo tee`, because only
+    // the write needs root — which is both shorter to read and narrower in what
+    // it elevates than wrapping the whole thing in `sudo sh -c`.
+    expect(killswitchCommand("darwin", { on: true }).command).toMatch(/\bsudo\b/);
+    expect(killswitchCommand("darwin", { on: false }).command).toMatch(/^sudo /);
     expect(killswitchCommand("win32", { on: true }).command).not.toMatch(/\bsudo\b/);
   });
 

@@ -160,7 +160,7 @@ describe("what an unreadable hosts file is allowed to claim", () => {
   it("offers the direction the machine is not already in", () => {
     const open = relayState("darwin", {}, { readFileSync: () => "127.0.0.1 localhost\n" });
     expect(open.blocked).toBe(false);
-    expect(open.command!.command).toMatch(/>> \/etc\/hosts/);
+    expect(open.command!.command).toMatch(/\| sudo tee -a \/etc\/hosts/);
 
     const shut = relayState("darwin", {}, {
       readFileSync: () => "0.0.0.0 bridge.claudeusercontent.com # ccdeck killswitch\n",
