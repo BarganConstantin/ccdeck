@@ -4054,7 +4054,7 @@ async function handleBrowserWatchSettings(req, res) {
   if (settings.enabled !== store.settings.enabled) {
     noteWatchSetting(settings.enabled ? "watch on — keeping its own copy" : "watch off — reading live only");
   } else {
-    noteWatchSetting(`settings: look back ${settings.windowDays}d, quiet ${settings.quietMinutes}m, gap ${settings.gapMinutes}m`);
+    noteWatchSetting(`settings: quiet ${settings.quietMinutes}m, gap ${settings.gapMinutes}m`);
   }
   invalidateBrowserWatchCache();
   return send(res, 200, { ok: true, settings });
@@ -4073,7 +4073,6 @@ async function handleBrowserWatch(req, res) {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 && n <= 24 * 60 ? n * 60_000 : undefined;
   };
-  const days = Number(url.searchParams.get("days"));
 
   // Lazily, like every other handler here, and it earns it twice: the four
   // readers underneath reach for node:sqlite and copy files, and none of that
@@ -4091,7 +4090,6 @@ async function handleBrowserWatch(req, res) {
     deckOrigins: deckOwnOrigins(),
     quietMs: minutes("quiet"),
     gapMs: minutes("gap"),
-    windowDays: Number.isFinite(days) && days > 0 && days <= 90 ? days : undefined,
   }));
 }
 

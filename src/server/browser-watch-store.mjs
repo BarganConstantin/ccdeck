@@ -17,7 +17,7 @@
 // `~/.claude/agent-dag`: readLiveDecks() reads every `.json` in that directory
 // and would have to keep skipping this one forever. A subdirectory is not a
 // name it can collide with.
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 
@@ -32,7 +32,6 @@ export const DEFAULTS = {
   reaction: "notify",
   quietMinutes: 15,
   gapMinutes: 15,
-  windowDays: 30,
 };
 
 /** How many archived episodes are kept. Roughly two years at the measured rate
@@ -42,6 +41,34 @@ const KEEP = 500;
 
 export const storeDir = (home = claudeConfigDir()) => join(home, "agent-dag", "browser-watch");
 export const storePath = (home = claudeConfigDir()) => join(storeDir(home), "state.json");
+
+/** The plain-text log, which is the one file here a person opens themselves.
+ *  state.json is the deck's own record and is JSON because the deck reads it
+ *  back; this is the same events in the shape `tail -f` wants. */
+export const logPath = (home = claudeConfigDir()) => join(storeDir(home), "watch.log");
+
+/**
+ * Append one line per episode, oldest first.
+ *
+ * Append-only and never rewritten: a log a program edits is not a log. It is
+ * also the only part of this feature that outlives the process by design — the
+ * panel shows what this deck has seen, and this file is what somebody reads
+ * three days later without opening the panel at all.
+ */
+export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
+  if (!episodes.length) return;
+  const mk = deps.mkdir ?? mkdir;
+  const add = deps.appendFile ?? appendFile;
+  const line = e => {
+    const at = new Date(e.startMs).toISOString().replace("T", " ").slice(0, 19);
+    const span = e.endMs - e.startMs >= 60_000
+      ? ` over ${Math.round((e.endMs - e.startMs) / 60_000)}m`
+      : "";
+    return `${at}  ${e.host}  ${e.count} page${e.count === 1 ? "" : "s"}${span}`;
+  };
+  await mk(storeDir(home), { recursive: true });
+  await add(logPath(home), episodes.map(line).join("\n") + "\n", "utf8");
+}
 
 /**
  * Settings as they will be used, whatever the file said.
@@ -63,7 +90,6 @@ export function normalise(raw) {
     reaction: REACTIONS.includes(it.reaction) ? it.reaction : DEFAULTS.reaction,
     quietMinutes: num(it.quietMinutes, DEFAULTS.quietMinutes, 1, 24 * 60),
     gapMinutes: num(it.gapMinutes, DEFAULTS.gapMinutes, 1, 24 * 60),
-    windowDays: num(it.windowDays, DEFAULTS.windowDays, 1, 90),
   };
 }
 

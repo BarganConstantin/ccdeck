@@ -47,11 +47,13 @@ describe("settings as they will be used, whatever the file said", () => {
     expect(normalise({ quietMinutes: 5 }).quietMinutes).toBe(5);
   });
 
-  it("keeps the window inside what Chrome can answer for", () => {
-    // Chrome expires history at 90 days, so a wider window promises a past the
-    // browser has already forgotten.
-    expect(normalise({ windowDays: 365 }).windowDays).toBe(DEFAULTS.windowDays);
-    expect(normalise({ windowDays: 90 }).windowDays).toBe(90);
+  it("has no window to configure, because the watch only looks forward", () => {
+    // There was a `windowDays` here, and a select in the panel offering thirty
+    // or ninety days of the user's browsing history. The watch reads nothing
+    // from before the deck started now, so the setting is not tightened — it is
+    // gone, and this case is what stops it coming back by habit.
+    expect("windowDays" in normalise({ windowDays: 30 })).toBe(false);
+    expect("windowDays" in DEFAULTS).toBe(false);
   });
 
   it("names a reaction the server knows, or none", () => {
@@ -65,7 +67,7 @@ describe("settings as they will be used, whatever the file said", () => {
     // stops a POST writing arbitrary keys into the file.
     const out = normalise({ enabled: true, sudo: true, path: "/etc/passwd" }) as Record<string, unknown>;
     expect(Object.keys(out).sort()).toEqual(
-      ["enabled", "gapMinutes", "quietMinutes", "reaction", "v", "windowDays"]);
+      ["enabled", "gapMinutes", "quietMinutes", "reaction", "v"]);
   });
 });
 

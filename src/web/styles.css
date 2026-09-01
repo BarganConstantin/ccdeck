@@ -7253,7 +7253,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 
 .bw-log { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
-.bw-log-line { display: grid; grid-template-columns: 66px 1fr; gap: 10px; font-size: 11px; align-items: baseline; }
+.bw-log-line { display: grid; grid-template-columns: 10px 60px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
 .bw-log-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--text-dim);
@@ -7261,8 +7261,32 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   white-space: nowrap;
 }
 .bw-log-text { color: var(--muted); word-break: break-word; }
+
+/* FOUR LEVELS, READ AS THREE WEIGHTS PLUS ONE COLOUR.
+   `find` is the only line that means something happened, so it is the only one
+   that takes a hue — and it takes the accent rather than a warning colour,
+   because a program driving the browser is usually the reader's own agent doing
+   what they asked. Dressing it as an error would teach them to ignore the log,
+   which costs it the day it is right.
+   `ok` is the deck working and sits at full text weight; `info` is the deck
+   deciding NOT to work and recedes; `warn` is the only true fault here. */
+.bw-log-line.find .bw-log-text { color: var(--accent); font-weight: 600; }
 .bw-log-line.ok .bw-log-text { color: var(--text); }
+.bw-log-line.info .bw-log-text { color: var(--text-dim); }
 .bw-log-line.warn .bw-log-text { color: var(--warn); }
+
+/* A gutter mark, so the level survives being printed, copied, or read by
+   somebody who cannot separate the hues — the same argument ambient.ts makes
+   about the favicon and the topbar eye. */
+.bw-log-line::before {
+  content: "·";
+  grid-column: 1;
+  justify-self: end;
+  margin-right: -6px;
+  color: var(--text-dim);
+}
+.bw-log-line.find::before { content: "▸"; color: var(--accent); }
+.bw-log-line.warn::before { content: "!"; color: var(--warn); }
 
 /* One column per day of the window, standing on a continuous baseline.
    

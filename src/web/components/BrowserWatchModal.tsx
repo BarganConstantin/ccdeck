@@ -65,19 +65,10 @@ export interface WatchSnapshot {
   ok: true;
   settings: WatchSettings;
   log: WatchLine[];
-  verdict: "nothing-exposed" | "protected" | "exposed";
-  relay: {
-    path: string;
-    readable: boolean;
-    blocked: boolean | null;
-    ours: string[];
-    foreign: string[];
-    command: { command: string; needsAdmin: boolean; note: string } | null;
-  };
   profiles: WatchProfile[];
   browsers: WatchBrowser[];
   episodes: WatchEpisode[];
-  coverage: { requestedSinceMs: number; oldestVisitMs: number | null; archived: number; now: number };
+  coverage: { startedMs: number; oldestVisitMs: number | null; logPath: string; archived: number; now: number };
   degraded: boolean;
 }
 
@@ -97,32 +88,6 @@ export function unseenEpisodes(episodes: WatchEpisode[], seenMs: number): WatchE
   return episodes.filter(e => e.startMs > seenMs);
 }
 
-/**
- * One bucket per day across the window, oldest first.
- *
- * A shape rather than a number: six episodes in thirty days is a fact you can
- * read in a sentence, but WHEN they happened is the thing that makes a person
- * look twice — three in one afternoon reads differently from three across three
- * weeks, and no count can say which of the two this was.
- *
- * Buckets on the local day boundary, because the reader's question is "which
- * day was that" and their day is not UTC's.
- */
-export function episodesByDay(episodes: WatchEpisode[], days: number, now: number) {
-  const DAY = 86_400_000;
-  const midnight = new Date(now).setHours(0, 0, 0, 0);
-  const out = Array.from({ length: days }, (_u, i) => ({
-    dayMs: midnight - (days - 1 - i) * DAY,
-    count: 0,
-  }));
-  for (const e of episodes) {
-    const at = new Date(e.startMs).setHours(0, 0, 0, 0);
-    const i = Math.round((at - midnight) / DAY) + days - 1;
-    if (i >= 0 && i < days) out[i].count += 1;
-  }
-  return out;
-}
-
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
 function span(e: WatchEpisode): string {
   const t = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -140,24 +105,6 @@ function lasted(e: WatchEpisode): string {
   const mins = Math.round((e.endMs - e.startMs) / 60_000);
   return mins < 1 ? "" : `${mins} min`;
 }
-
-const VERDICT_COPY: Record<WatchSnapshot["verdict"], { label: string; detail: string; tone: string }> = {
-  "nothing-exposed": {
-    label: "Nothing exposed",
-    detail: "the Claude in Chrome extension is not installed here",
-    tone: "ok",
-  },
-  protected: {
-    label: "Protected",
-    detail: "the relay does not resolve, so no new session can attach",
-    tone: "ok",
-  },
-  exposed: {
-    label: "Exposed",
-    detail: "any session on your Anthropic account, on any machine, can attach without a prompt here",
-    tone: "err",
-  },
-};
 
 /** The two views, in order. Kept as data because the strip's keyboard model is
  *  index arithmetic and a hand-written pair of buttons cannot take part in it. */
@@ -181,12 +128,9 @@ export default function BrowserWatchModal({
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [days, setDays] = useState(30);
   const [quiet, setQuiet] = useState(15);
   const [open, setOpen] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showCmd, setShowCmd] = useState(false);
   const [why, setWhy] = useState(false);
   const [tab, setTab] = useState<"history" | "live">("history");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -205,7 +149,7 @@ export default function BrowserWatchModal({
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true);
     try {
-      const r = await fetch(`/api/browser-watch?days=${days}&quiet=${quiet}${refresh ? "&refresh=1" : ""}`);
+      const r = await fetch(`/api/browser-watch?quiet=${quiet}${refresh ? "&refresh=1" : ""}`);
       if (!r.ok) throw new Error(`the deck answered ${r.status}`);
       setSnap(await r.json());
       setError(null);
@@ -214,7 +158,7 @@ export default function BrowserWatchModal({
     } finally {
       setBusy(false);
     }
-  }, [days, quiet]);
+  }, [quiet]);
 
   useEffect(() => { void load(false); }, [load]);
 
@@ -243,13 +187,6 @@ export default function BrowserWatchModal({
   // still counts, but the badge does not clear before the list has rendered.
   useEffect(() => () => onSeen(Date.now()), [onSeen]);
 
-  const copy = useCallback((text: string) => {
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, []);
-
   const grouped = useMemo(() => {
     const out: { label: string; episodes: WatchEpisode[] }[] = [];
     for (const e of snap?.episodes ?? []) {
@@ -261,9 +198,7 @@ export default function BrowserWatchModal({
     return out;
   }, [snap]);
 
-  const v = snap ? VERDICT_COPY[snap.verdict] : null;
   const watched = snap?.profiles.filter(p => p.visits > 0 || p.hasClaudeExt) ?? [];
-  const reach = snap?.coverage.oldestVisitMs ?? null;
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -313,14 +248,6 @@ export default function BrowserWatchModal({
 
           {snap && (
             <section className="bw-controls">
-              <label>
-                <span>Look back</span>
-                <select value={days} onChange={e => { setDays(Number(e.target.value)); void save({ windowDays: Number(e.target.value) }); }}>
-                  <option value={7}>7 days</option>
-                  <option value={30}>30 days</option>
-                  <option value={90}>90 days</option>
-                </select>
-              </label>
               <label>
                 <span>Quiet for at least</span>
                 <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
@@ -381,6 +308,7 @@ export default function BrowserWatchModal({
               Chrome marks a navigation that came from an extension or a command rather than from a
               click. These are the ones that happened while nobody had touched the browser for {quiet} minutes.{" "}
               <strong>Usually that is your own agent doing what you asked.</strong> Worth a look when it is not.
+              Nothing from before this deck started is read.
             </p>
           )}
 
@@ -388,8 +316,8 @@ export default function BrowserWatchModal({
             <div className="bw-empty">
               <strong>Nothing a program did on its own</strong>
               <p>
-                Every navigation in the last {days} days happened while somebody was using the browser.
-                {reach !== null && <> The oldest visit on record is {day(reach)}.</>}
+                Nothing has been driven by a program since this deck started.
+                {snap && <> Watching since {new Date(snap.coverage.startedMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.</>}
               </p>
             </div>
           )}
@@ -440,27 +368,8 @@ export default function BrowserWatchModal({
             </section>
           )}
 
-          {snap && tab === "history" && snap.episodes.length > 0 && (
-            <div id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
-              <div className="bw-chart" aria-hidden>
-                {episodesByDay(snap.episodes, days, snap.coverage.now).map(d => (
-                  <span
-                    key={d.dayMs}
-                    className={`bw-chart-day${d.count > 0 ? " hit" : ""}${d.count > 2 ? " many" : ""}`}
-                    style={d.count > 0 ? { opacity: Math.min(1, 0.55 + d.count * 0.15) } : undefined}
-                    title={`${day(d.dayMs)} — ${d.count} ${d.count === 1 ? "episode" : "episodes"}`}
-                  />
-                ))}
-              </div>
-              <div className="bw-chart-foot" aria-hidden>
-                <span>{day(snap.coverage.now - (days - 1) * 86_400_000)}</span>
-                <span>today</span>
-              </div>
-            </div>
-          )}
-
-          {tab === "history" && grouped.map(g => (
-            <section className="bw-day" key={g.label}>
+          {tab === "history" && grouped.map((g, i) => (
+            <section className="bw-day" key={g.label} {...(i === 0 ? { id: BW_PANEL_ID, role: "tabpanel", "aria-labelledby": bwTabId(tab) } : {})}>
               <h4>{g.label}</h4>
               {g.episodes.map(e => {
                 const id = `${e.host}-${e.startMs}`;
@@ -528,49 +437,10 @@ export default function BrowserWatchModal({
                 ))}
               </ul>
 
-              {/* The exposure verdict, at the foot with the browsers it is about.
-                  It answers "can somebody else drive these", which is context
-                  for the whole panel rather than an entry in it. */}
-              {v && (
-                <div className="bw-state">
-                  <div className={`bw-row ${v.tone}`}>
-                    <span className="bw-dot" aria-hidden />
-                    <span className="bw-row-label">{v.label}</span>
-                    <span className="bw-row-detail">{v.detail}</span>
-                    {snap.relay.command && snap.verdict !== "nothing-exposed" && (
-                      <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
-                        {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
-                      </button>
-                    )}
-                  </div>
-
-                  {showCmd && snap.relay.command && (
-                    // Behind a press, because it is a screenful of shell and it
-                    // is not what anybody opened this panel to read.
-                    <div className="bw-cmd">
-                      <code>{snap.relay.command.command}</code>
-                      <div className="bw-cmd-foot">
-                        <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
-                          {copied ? "copied" : "copy"}
-                        </button>
-                        <span>{snap.relay.command.note}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {snap.relay.foreign.length > 0 && (
-                    <p className="bw-foreign">
-                      Something else already maps this host in {snap.relay.path}:{" "}
-                      {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-
               <p className="bw-note">
-                Read from each browser's own history, which it writes whether or not the deck is
-                running — so a deck that was closed all weekend still answers for it.
+                Only navigations since this deck started are read — nothing from before it was
+                running, and nothing while it is down.
+                {snap && <> Written to <code>{snap.coverage.logPath}</code>.</>}
                 {" "}A relay reading is never conclusive: the name shares an address with
                 api.anthropic.com, and this probe cannot see some browsers' sockets at all.
                 {snap.degraded && " One profile could not be read in full; see the activity log."}

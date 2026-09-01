@@ -32,15 +32,25 @@ import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
 import { hostsPath, killswitchCommand, readKillswitch, extensionReport, verdict } from "./relay-guard.mjs";
-import { mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
+import { appendLog, logPath, mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { RELAY_HOST } from "./relay-guard.mjs";
 
-/** Chrome expires history at 90 days by default, so a window wider than that
- *  promises a past the browser has already forgotten. Thirty is the panel's
- *  default reach: long enough to cover a holiday, short enough that the first
- *  read of a large profile is not the user's first impression of the feature. */
-const DEFAULT_WINDOW_DAYS = 30;
+/**
+ * The moment this deck started, and the only floor any read uses.
+ *
+ * THE WATCH LOOKS FORWARD, NEVER BACK. An earlier version swept thirty days of
+ * Chrome's history on every open, which answered "what happened while you were
+ * away last month" — and to do it, read a month of the user's browsing. That is
+ * a great deal of somebody's private life to hold in memory for a feature whose
+ * job is to notice a program driving their browser.
+ *
+ * So the floor is process start. Nothing before this deck was running is read,
+ * reported, or kept, and the panel says so rather than leaving a reader to
+ * wonder how far back it went. What happened while the deck was down is the
+ * browser's business.
+ */
+const STARTED_MS = Date.now();
 
 /** One cached read per profile: the mtime it was taken at, and what it found.
  *  Keyed by history path, so two browsers and two profiles never share an
@@ -204,7 +214,18 @@ export function relayState(platform = process.platform, env = process.env, deps 
 const LOG_MAX = 200;
 const logLines = [];
 
-/** @param {"ok"|"info"|"warn"} level */
+/**
+ * One line of what the watch did.
+ *
+ * FOUR LEVELS, AND THEY ARE NOT SEVERITIES. `find` is the only one that means
+ * something happened; `ok` is the deck working, `info` is the deck deciding not
+ * to work, and `warn` is the deck unable to. A log where every line is the same
+ * weight is a log nobody scans — and the one line worth catching here is a
+ * program having driven the browser, which is not an error and must not be
+ * dressed as one.
+ *
+ * @param {"find"|"ok"|"info"|"warn"} level
+ */
 function note(level, text, atMs = Date.now()) {
   logLines.unshift({ atMs, level, text });
   if (logLines.length > LOG_MAX) logLines.length = LOG_MAX;
@@ -264,7 +285,6 @@ export async function browserWatchSnapshot({
   deckOrigins = [],
   quietMs,
   gapMs,
-  windowDays = DEFAULT_WINDOW_DAYS,
   copyDir,
   now = Date.now(),
   platform = process.platform,
@@ -279,18 +299,14 @@ export async function browserWatchSnapshot({
   const minutes = m => m * 60_000;
   if (quietMs === undefined) quietMs = minutes(store.settings.quietMinutes);
   if (gapMs === undefined) gapMs = minutes(store.settings.gapMinutes);
-  if (windowDays === DEFAULT_WINDOW_DAYS) windowDays = store.settings.windowDays;
 
   const profiles = (deps.discoverProfiles ?? discoverProfiles)(platform, env, undefined, deps.fs);
-  // THE FLOOR IS A DAY BOUNDARY, AND THE CACHE ABOVE DEPENDS ON IT. A window
-  // measured from `now` moves every millisecond, so it lands in the cache key as
-  // a value that never repeats — which silently turned the mtime cache into a
-  // no-op that re-read and re-copied every database on every single request. It
-  // read as working, because the answers were right; only the cost was wrong.
-  //
-  // Whole days are also the truer reading of the control: "look back 30 days"
-  // is a span of days, not of milliseconds since whenever the panel opened.
-  const sinceMs = Math.floor((now - windowDays * 86_400_000) / 86_400_000) * 86_400_000;
+  // Fixed for the life of the process, which is also what keeps the mtime cache
+  // working: a floor computed from `now` moves every millisecond and would land
+  // in the cache key as a value that never repeats — that bug shipped once, and
+  // it re-read and re-copied every database on every request while looking
+  // perfectly correct, because only the cost was wrong.
+  const sinceMs = STARTED_MS;
   // Chrome counts microseconds from 1601. Built here rather than imported so the
   // window is one expression the reader can check against the reader's own.
   const sinceChromeTime = String((BigInt(sinceMs) + 11644473600000n) * 1000n);
@@ -313,7 +329,8 @@ export async function browserWatchSnapshot({
     else if (read.cached) note("info", `${where} — unchanged, nothing to re-read`, now);
     else {
       const n = read.rows.length;
-      note("ok", `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}, ${findings.length} flagged`, now);
+      note(findings.length > 0 ? "find" : "ok",
+           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}, ${findings.length} flagged`, now);
     }
     allFindings = allFindings.concat(findings);
     for (const row of read.rows) {
@@ -346,12 +363,19 @@ export async function browserWatchSnapshot({
   // Only while it is ON. An archive that filled itself whether or not the user
   // had asked for a watch would be a record they never consented to keep, of
   // pages they visited, on disk. The switch means what it says.
-  const archived = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
-  if (enabled && changedFrom(store.episodes, archived)) {
-    note("ok", `archive now holds ${archived.length} episode${archived.length === 1 ? "" : "s"}`, now);
-    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: archived }, undefined, deps);
+  const kept = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
+  if (enabled && changedFrom(store.episodes, kept)) {
+    // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
+    // grown, so writing the whole set every time would repeat one episode once
+    // per page it gained.
+    const known = new Set(store.episodes.map(e => `${e.host} ${e.startMs}`));
+    const fresh = kept.filter(e => !known.has(`${e.host} ${e.startMs}`));
+    note(fresh.length > 0 ? "find" : "ok",
+         `${fresh.length || "no"} new · ${kept.length} since this deck started`, now);
+    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept }, undefined, deps);
+    await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
   }
-  const episodes = enabled ? archived : live;
+  const episodes = enabled ? kept : live;
 
   const browsers = await surveyBrowsers(platform, env, now, deps);
   const anyExtension = reports.some(r => r.hasClaudeExt && r.extension?.enabled !== false);
@@ -371,12 +395,16 @@ export async function browserWatchSnapshot({
       // window it asked for: a profile whose history only goes back a week
       // cannot answer for the month, and saying so is the difference between
       // "nothing happened" and "nothing was recorded".
-      requestedSinceMs: sinceMs,
+      // When this deck started, which is the only moment the watch looks
+      // forward from — the panel says so rather than leaving a reader to guess
+      // how far back it went.
+      startedMs: sinceMs,
       oldestVisitMs: oldestSeen,
-      // How much of what is on screen the deck itself is holding. Zero with the
-      // watch off is not a fault, it is the switch doing what it says, and the
+      logPath: logPath(),
+      // How many episodes this deck has seen since it started. Zero with the
+      // watch off is not a fault — it is the switch doing what it says — and the
       // panel needs the number to be able to say which of the two it is.
-      archived: archived.length,
+      archived: kept.length,
       now,
     },
     degraded: anyDegraded,
