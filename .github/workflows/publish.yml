@@ -44,7 +44,7 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 29 skipped cases in all — together with the
+  #                   here — 35 skipped cases in all — together with the
   #                   `runIf(posix)` family and sound-hook-park's read-only
   #                   directory case, whose probe cannot block a write on
   #                   Windows. Windows is where this repo's recurring bugs live:

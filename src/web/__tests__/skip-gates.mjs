@@ -139,6 +139,12 @@ export const GATES = [
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 
   { file: "no-shell-hook-commands.test.ts", gate: "it.runIf", condition: "posix", sites: 2, cases: 2 },
+  // #721's killswitch commands. Six cases RUN the generated block and unblock
+  // lines against a fixture built from every adversarial hosts entry, which
+  // needs `sh` and `sed`. The Windows pattern is not left unchecked: it is
+  // lifted out of the command and evaluated as a JS regex over the same
+  // fixture, on all three legs.
+  { file: "relay-guard.test.ts", gate: "it.runIf", condition: "posix", sites: 6, cases: 6 },
 
   { file: "hook-script-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },

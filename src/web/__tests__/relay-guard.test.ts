@@ -103,8 +103,14 @@ afterAll(() => rmTempDir(TMP));
 
 /** POSIX-only cases: they run `sh` and `sed`, neither of which is on Windows.
  *  The Windows delete pattern is checked by other means below rather than left
- *  unchecked — see "the shipped Windows pattern". */
-const posix = process.platform === "win32" ? it.skip : it;
+ *  unchecked — see "the shipped Windows pattern".
+ *
+ *  Spelled as a boolean fed to `it.runIf`, which is the form skip-gates.mjs can
+ *  see and the form no-shell-hook-commands.test.ts already uses for the same
+ *  condition. An alias for `it.skip` reads the same at the call site and is
+ *  invisible to the register — which is exactly how six cases went quiet on the
+ *  Windows leg without anything saying so. */
+const posix = process.platform !== "win32";
 
 /**
  * The half of a generated command that touches the hosts file, aimed at a copy
@@ -324,7 +330,7 @@ describe("killswitchCommand", () => {
     expect(killswitchCommand("linux", { on: false }).command).toContain("sed -i '/");
   });
 
-  posix("appends the tagged line and leaves the rest of the file alone", () => {
+  it.runIf(posix)("appends the tagged line and leaves the rest of the file alone", () => {
     // The blank line is deliberate and it is what buys the one-line command.
     // Rather than testing whether the file already ends in a terminator — three
     // lines of `sh -c` with nested quotes, in front of somebody about to run
@@ -340,7 +346,7 @@ describe("killswitchCommand", () => {
     expect(readKillswitch(after).blocked).toBe(true);
   });
 
-  posix("adds the newline the file was missing before appending", () => {
+  it.runIf(posix)("adds the newline the file was missing before appending", () => {
     // A hosts file whose last line has no terminator is an ordinary file and
     // what several config-management tools leave behind. Appending to it welds
     // our text onto that last line and produces one corrupt entry out of two
@@ -352,13 +358,13 @@ describe("killswitchCommand", () => {
     expect(readKillswitch(after).ours).toEqual([TAGGED]);
   });
 
-  posix("puts nothing but the line, and its leading blank, into an empty file", () => {
+  it.runIf(posix)("puts nothing but the line, and its leading blank, into an empty file", () => {
     const after = afterRunning(killswitchCommand(process.platform, { on: true }).command, "", "block-empty");
     expect(after).toBe("\n" + TAGGED + "\n");
     expect(readKillswitch(after).blocked).toBe(true);
   });
 
-  posix("deletes its own two lines out of the adversarial file and no others", () => {
+  it.runIf(posix)("deletes its own two lines out of the adversarial file and no others", () => {
     // The regression, run rather than reasoned about. Every trap line is in
     // this file, including the private-address mapping shaped like the one the
     // original pattern destroyed.
@@ -370,7 +376,7 @@ describe("killswitchCommand", () => {
     expect(readKillswitch(after).ours).toEqual([]);
   });
 
-  posix("round-trips every line that carries meaning, leaving one blank behind", () => {
+  it.runIf(posix)("round-trips every line that carries meaning, leaving one blank behind", () => {
     // Block then unblock is the sequence a user who changed their mind runs.
     // What comes back is every line that means anything, in order, unchanged —
     // plus the blank line the append leads with, which the delete does not
@@ -390,7 +396,7 @@ describe("killswitchCommand", () => {
     expect(restored).toBe(before + "\n");
   });
 
-  posix("removes a line pasted twice, because the block is not idempotent", () => {
+  it.runIf(posix)("removes a line pasted twice, because the block is not idempotent", () => {
     const twice = `${TAGGED}\n${TAGGED}\n${INNOCENT.join("\n")}\n`;
     const after = afterRunning(killswitchCommand(process.platform, { on: false }).command, twice, "double");
     expect(after).toBe(INNOCENT.join("\n") + "\n");
