@@ -34,6 +34,7 @@ import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
 import { hostsPath, killswitchCommand, readKillswitch, extensionReport, verdict } from "./relay-guard.mjs";
 import { appendLog, logPath, mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
+import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST } from "./relay-guard.mjs";
 
 /**
@@ -323,7 +324,12 @@ export async function browserWatchSnapshot({
   for (const profile of profiles) {
     const read = await visitsFor(profile, { sinceChromeTime, copyDir, deps });
     if (read.degraded) anyDegraded = true;
-    const findings = classify(read.rows, { ...opts, exclude });
+    // Tagged with the browser they came from, which is the one thing a reaction
+    // cannot work out for itself: closing a tab means telling ONE application to
+    // close it, and a finding that has forgotten which browser it was in can
+    // only be guessed at.
+    const findings = classify(read.rows, { ...opts, exclude })
+      .map(f => ({ ...f, browser: profile.browser }));
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
     else if (read.cached) note("info", `${where} — unchanged, nothing to re-read`, now);
@@ -374,6 +380,23 @@ export async function browserWatchSnapshot({
          `${fresh.length || "no"} new · ${kept.length} since this deck started`, now);
     await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept }, undefined, deps);
     await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
+
+    // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
+    // in the store a moment ago, so an episode still growing does not notify
+    // again on every page it gains — which is the difference between a watch
+    // and a nuisance.
+    //
+    // After the write, deliberately. A reaction that closed a tab and then lost
+    // the record of why would leave the user with a vanished page and nothing
+    // to read about it.
+    const reaction = store.settings.reaction;
+    if (fresh.length && performable(reaction, platform)) {
+      for (const episode of fresh) {
+        const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
+          .catch(() => []);
+        for (const line of acted) note("find", `${episode.host} — ${line}`, now);
+      }
+    }
   }
   const episodes = enabled ? kept : live;
 
@@ -384,6 +407,9 @@ export async function browserWatchSnapshot({
   return {
     ok: true,
     settings: store.settings,
+    // What this platform can actually do, so the panel never offers a mode
+    // that would silently do nothing. See browser-react.mjs.
+    reactions: available(platform),
     log: watchLog(),
     verdict: verdict({ anyExtension, blocked: relay.blocked === true }),
     relay,

@@ -64,6 +64,7 @@ interface WatchBrowser {
 export interface WatchSnapshot {
   ok: true;
   settings: WatchSettings;
+  reactions: WatchSettings["reaction"][];
   log: WatchLine[];
   profiles: WatchProfile[];
   browsers: WatchBrowser[];
@@ -291,6 +292,31 @@ export default function BrowserWatchModal({
                       : "off"}
                   </span>
                 </span>
+              </label>
+
+              {/* Only the modes this platform can carry out. A reaction that
+                  silently does nothing is worse than one never offered: the
+                  user arms it, believes they are covered, and finds out on the
+                  day it mattered. `close-tab` is macOS-only — AppleScript is
+                  the one interface that can close a single tab by URL. */}
+              <label>
+                <span>When it finds one</span>
+                <select
+                  value={snap.settings.reaction}
+                  onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
+                  disabled={!snap.settings.enabled}
+                  title={snap.settings.enabled
+                    ? "What to do besides writing it down."
+                    : "Turn Watching on to arm a reaction."}
+                >
+                  {(snap.reactions ?? ["notify"]).map(r => (
+                    <option key={r} value={r}>
+                      {r === "notify" ? "notify me"
+                        : r === "close-tab" ? "close the tab"
+                        : "quit the browser"}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <div className="bw-count">

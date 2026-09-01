@@ -442,6 +442,7 @@ export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
   if (!Array.isArray(findings) || findings.length === 0) return [];
 
   const byHost = new Map();
+  const browserOf = new Map();
   for (const finding of findings) {
     const host = typeof finding?.host === "string" && finding.host !== "" ? finding.host : null;
     const url = typeof finding?.url === "string" ? finding.url : null;
@@ -450,6 +451,13 @@ export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
     const rows = byHost.get(host);
     if (rows === undefined) byHost.set(host, [{ url, timeMs }]);
     else rows.push({ url, timeMs });
+    // `browser` rides on the HOST, not on each url row: a url row is evidence
+    // and its shape is pinned by a test that is right to pin it. A reaction
+    // downstream has to know which application to tell, and one host's findings
+    // all came from the same profile.
+    if (!browserOf.has(host) && typeof finding?.browser === "string") {
+      browserOf.set(host, finding.browser);
+    }
   }
 
   const groups = [];
@@ -465,7 +473,7 @@ export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
         open.endMs = row.timeMs;
         continue;
       }
-      open = { host, startMs: row.timeMs, endMs: row.timeMs, urls: [row] };
+      open = { host, browser: browserOf.get(host) ?? null, startMs: row.timeMs, endMs: row.timeMs, urls: [row] };
       groups.push(open);
     }
   }
