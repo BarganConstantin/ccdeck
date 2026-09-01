@@ -807,6 +807,48 @@ export function removePromptMatches(line, num) {
   return Boolean(m) && m[1] === String(num);
 }
 
+/**
+ * Re-capture the active slot's credentials, which is what unfreezes a row whose
+ * stored copy died.
+ *
+ * WHY THIS EXISTS AND WHY IT IS NOT A LOGIN. claude-swap keeps its own copy of
+ * each account's credentials, taken when the slot was added. When that copy's
+ * refresh token dies it quarantines the row: no further collection is
+ * attempted, so the numbers freeze and every Refresh re-reads a store that
+ * cannot change. #721 fixed the sentence the panel said about that state; this
+ * is the button that ends it.
+ *
+ * `cswap add` on an account already in the store is an idempotent credential
+ * refresh — registerSignedIn above says so in its own words: "No new slot means
+ * the account was already managed and cswap refreshed its credentials in
+ * place." It captures whatever is signed in RIGHT NOW, which for the active
+ * slot is the account the row belongs to, with the working credentials the user
+ * already has. Nobody is signed in or out, no browser opens, and the active
+ * account does not change.
+ *
+ * It only ever repairs the ACTIVE slot, because "what is signed in right now"
+ * is the only thing `cswap add` can see. The panel offers it nowhere else.
+ */
+export async function recaptureActive() {
+  return withStoreLock(async () => {
+    // Who is actually signed in, asked before and after, because `cswap add`
+    // captures the live credentials and this is the one check that the thing it
+    // captured is the thing the user meant.
+    const before = await currentIdentity();
+    if (!before?.email) return { ok: false, reason: "not_signed_in" };
+
+    const add = await run(await cswapBin(), ["add"], { timeout: CSWAP_TIMEOUT_MS });
+    if (!add.ok) return { ok: false, reason: "add_failed", error: addFailureText(add) };
+
+    invalidateClaudeAccountsCache();
+    // Collect straight away rather than waiting for the next poll: the whole
+    // point of the press is that the numbers are stale, and claude-swap will
+    // now attempt the row it had been skipping.
+    runDetached(await cswapBin(), ["list"]);
+    return { ok: true, email: before.email };
+  });
+}
+
 export async function removeAccount(num) {
   const n = Number(num);
   if (!Number.isInteger(n) || n < 1 || n > 999) return { ok: false, reason: "bad_account" };

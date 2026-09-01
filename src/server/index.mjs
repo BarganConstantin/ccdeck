@@ -4109,6 +4109,9 @@ async function handleClaudeAccountAdmin(req, res) {
     case "share":        result = await admin.shareAccount(parsed.account); break;
     case "import":       result = await admin.importAccount(parsed.blob); break;
     case "remove":       result = await admin.removeAccount(parsed.account); break;
+    // #721. Re-captures the active slot's credentials in place; see
+    // recaptureActive for why this is not a login and cannot become one.
+    case "recapture":    result = await admin.recaptureActive(); break;
     case "alias":        result = await admin.setAlias(parsed.account, parsed.alias); break;
     case "move":         result = await admin.moveAccount(parsed.account, parsed.slot); break;
     default: return send(res, 400, { ok: false, reason: "unknown_action" });

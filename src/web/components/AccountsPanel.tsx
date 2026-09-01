@@ -769,11 +769,27 @@ export default function AccountsPanel({ onClose }: Props) {
                     numbers stopped moving, and re-capturing the slot is what
                     starts them again. #721. */}
                 {a.staleCopy && (
-                  <span className="ap-stale-copy" title={
-                    "The deck can still see this account — its live usage is being read — but claude-swap's "
-                    + "own stored copy of the login was rejected, so the numbers below stopped updating. "
-                    + "Run `cswap add` to re-capture the slot. You do not need to sign in again."
-                  }>numbers paused</span>
+                  <>
+                    <span className="ap-stale-copy" title={
+                      "The deck can still see this account — its live usage is being read — but claude-swap's "
+                      + "own stored copy of the login was rejected, so these numbers stopped updating. "
+                      + "Resume re-captures the copy from the login you already have."
+                    }>numbers paused</span>
+                    {/* The button Refresh could never be. Refresh re-reads the
+                        store; this is what makes the store able to change —
+                        claude-swap stopped attempting the row, and re-capturing
+                        the credentials is what clears that. Nobody is signed in
+                        or out and the active account does not change. */}
+                    <button type="button" className="ap-fix"
+                      {...pressProps("recapture")}
+                      onClick={async () => {
+                        const out = await admin({ action: "recapture" }, "recapture");
+                        if (out?.ok) load(true);
+                      }}
+                      title="Re-capture this account's stored credentials from the login you already have. No sign-in, no switch.">
+                      {busy === "recapture" ? "resuming…" : "resume"}
+                    </button>
+                  </>
                 )}
                 {a.error && (() => {
                   const e = errorText(a.error);

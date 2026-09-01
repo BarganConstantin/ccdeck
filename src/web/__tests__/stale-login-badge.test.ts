@@ -114,13 +114,54 @@ describe("what the panel is allowed to offer", () => {
     expect(rowOpeners, "a second row control opens the sign-in dialog").toBe(1);
   });
 
+  it("offers the repair that Refresh cannot be", () => {
+    // The user pressed Refresh and nothing moved, which is correct and useless:
+    // Refresh re-reads the store, and claude-swap had stopped attempting the
+    // row, so the store could not change. `resume` is what ends that — it
+    // re-captures the credentials, which is what clears the quarantine.
+    expect(panel).toMatch(/action: "recapture"/);
+    expect(panel).toMatch(/resuming…/);
+    // Through the panel's own press convention, which does NOT disable the
+    // control it came from (#518/#620) — a button that removes itself on press
+    // takes the focus with it. `admin` refuses the second press instead.
+    expect(panel).toMatch(/\{\.\.\.pressProps\("recapture"\)\}/);
+    expect(panel).toMatch(/if \(out\?\.ok\) load\(true\)/);
+  });
+
   it("says the quieter true thing instead", () => {
     expect(panel).toMatch(/a\.staleCopy && \(/);
     expect(panel).toMatch(/numbers paused/);
     // And names the remedy that actually applies, rather than the one that
     // would log the user out of a working session.
-    expect(panel).toMatch(/cswap add/);
-    expect(panel).toMatch(/do not need to sign in again/i);
+    expect(panel).toMatch(/Resume re-captures/);
+    expect(panel).toMatch(/No sign-in, no switch/);
+  });
+});
+
+describe("the repair itself", () => {
+  const adminSrc = src("../../server/cswap-admin.mjs");
+
+  it("re-captures rather than logs anybody in", () => {
+    // `cswap add` on an account already in the store is an idempotent
+    // credential refresh — registerSignedIn says so in its own words. It
+    // captures what is signed in right now, which for the active slot is this
+    // account, with the working credentials the user already has.
+    expect(adminSrc).toMatch(/export async function recaptureActive\(\)/);
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    const fn = body.slice(0, body.indexOf("\nexport "));
+    expect(fn).toMatch(/\["add"\]/);
+    // Never these: they would sign the user out of the session they are in.
+    expect(fn).not.toMatch(/auth", "login|startLogin|"switch"/);
+  });
+
+  it("takes the store lock, like every other mutation here", () => {
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    expect(body.slice(0, 400)).toMatch(/withStoreLock/);
+  });
+
+  it("refuses when nobody is signed in, rather than capturing nothing", () => {
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    expect(body.slice(0, 700)).toMatch(/not_signed_in/);
   });
 });
 
