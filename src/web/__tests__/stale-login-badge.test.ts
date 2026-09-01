@@ -159,6 +159,27 @@ describe("the repair itself", () => {
     expect(body.slice(0, 400)).toMatch(/withStoreLock/);
   });
 
+  it("waits for the collection, so the press has something to show for itself", () => {
+    // `cswap add` clears the strike instantly and the collection takes seconds.
+    // Detached, that left a window where the badge was gone but the numbers were
+    // twenty hours old and the row still said "due" — a press that looked like
+    // it had done nothing, which is the complaint the button exists to answer.
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    const fn = body.slice(0, body.indexOf("\nexport "));
+    expect(fn).toMatch(/await run\(await cswapBin\(\), \["list"\]/);
+    expect(fn, "a detached collection is the bug this replaced").not.toMatch(/runDetached/);
+  });
+
+  it("still succeeds when that collection does not, because the capture held", () => {
+    // The credentials are captured either way and claude-swap's own schedule
+    // will collect within minutes. Failing the press over a slow subprocess
+    // would report a repair that did happen as one that did not.
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    const fn = body.slice(0, body.indexOf("\nexport "));
+    expect(fn).toMatch(/\.catch\(\(\) => null\)/);
+    expect(fn).toMatch(/ok: true, email: before\.email, collected:/);
+  });
+
   it("refuses when nobody is signed in, rather than capturing nothing", () => {
     const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
     expect(body.slice(0, 700)).toMatch(/not_signed_in/);

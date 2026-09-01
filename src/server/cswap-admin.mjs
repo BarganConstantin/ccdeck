@@ -841,11 +841,21 @@ export async function recaptureActive() {
     if (!add.ok) return { ok: false, reason: "add_failed", error: addFailureText(add) };
 
     invalidateClaudeAccountsCache();
-    // Collect straight away rather than waiting for the next poll: the whole
-    // point of the press is that the numbers are stale, and claude-swap will
-    // now attempt the row it had been skipping.
-    runDetached(await cswapBin(), ["list"]);
-    return { ok: true, email: before.email };
+    // AWAITED, NOT DETACHED, AND THAT IS THE WHOLE DIFFERENCE THE PRESS MAKES.
+    // `cswap add` clears the strike instantly, so a detached collection left a
+    // window where the badge was gone but the numbers were still twenty hours
+    // old and the row still said "due" in amber — a press that looked like it
+    // had done nothing, which is the complaint this button exists to answer.
+    // Waiting costs a few seconds and returns a row that has actually moved.
+    //
+    // Its failure is not the press's failure: the credentials are captured
+    // either way, and claude-swap's own schedule will collect within minutes.
+    // So a timeout here still reports success, with `collected: false` for a
+    // caller that wants to say so.
+    const collect = await run(await cswapBin(), ["list"], { timeout: CSWAP_TIMEOUT_MS })
+      .catch(() => null);
+    invalidateClaudeAccountsCache();
+    return { ok: true, email: before.email, collected: collect?.ok === true };
   });
 }
 
