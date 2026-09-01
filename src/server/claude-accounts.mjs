@@ -16,6 +16,10 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cswapBin, cswapVersion, installHint } from "./cswap-install.mjs";
 import { run, runDetached } from "./exec.mjs";
+// The CLI identity oracle, already written and already trusted by the account
+// admin routes. #721 needs the same answer, so it reuses the same function
+// rather than shelling out a second way to ask one question.
+import { currentIdentity } from "./cswap-admin.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -398,6 +402,17 @@ async function readRoster(now, gen) {
   // fetched at all.
   nudgeCollector(rows, Object.keys(seq.accounts), now, seq.activeAccountNumber);
 
+  // Who the CLI says is signed in, asked ONLY when the store claims the active
+  // account is in trouble — see authTrouble. That is the one case where the
+  // stored verdict and the live truth can disagree, and it is rare: a healthy
+  // machine never spends this subprocess. Never fatal, because a CLI that
+  // cannot be reached is not evidence either way.
+  const activeNum = seq.activeAccountNumber != null ? String(seq.activeAccountNumber) : null;
+  const activeRow = activeNum ? rows[activeNum] : null;
+  const identity = (activeRow?.consecutiveFailures ?? 0) > 0
+    ? await currentIdentity().catch(() => null)
+    : null;
+
   const order = Array.isArray(seq.sequence) && seq.sequence.length
     ? seq.sequence.map(String)
     : Object.keys(seq.accounts).sort((a, b) => Number(a) - Number(b));
@@ -417,6 +432,8 @@ async function readRoster(now, gen) {
     const good = matches ? row.lastGood : null;
 
     const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
+    const isActive = String(seq.activeAccountNumber) === num;
+    const trouble = authTrouble(row, { matches, isActive, identity, email: acct.email });
 
     const lanes = [
       lane("five_hour", "5h", good?.five_hour),
@@ -442,21 +459,74 @@ async function readRoster(now, gen) {
       // plan and, for a healthy active account, the deck's freshen tick. The
       // plan alone would promise "next in 15m" while the panel actually
       // updates in three.
-      nextAt: nextReadAt(row, matches, fetchedAtMs, String(seq.activeAccountNumber) === num, now),
+      nextAt: nextReadAt(row, matches, fetchedAtMs, isActive, now),
       stale:     fetchedAtMs == null || now - fetchedAtMs > STALE_AFTER_MS,
       // Surfaced rather than hidden: a rate-limited or re-login-needed account
       // is exactly the one the user is about to try switching to.
       //
-      // Keyed off consecutiveFailures, not lastError: claude-swap keeps
-      // lastError as history and only advances fetchedAt on success, so an
-      // account that hit a 429 an hour ago and has been fine since still
-      // carries the string. Reading it directly pins a red badge on a healthy
-      // account forever.
-      error: (matches && row.consecutiveFailures > 0) ? (row.lastError ?? "error") : null,
+      // Through authTrouble rather than read straight off the row: see #721.
+      // consecutiveFailures says the COLLECTOR is failing, which for the active
+      // account is not the same claim as the user being signed out — and the
+      // CLI can settle that.
+      error: trouble?.error ?? null,
+      // True when the collector cannot read this account but the user is signed
+      // in as it anyway. The panel says so quietly instead of offering to log
+      // them in again.
+      staleCopy: trouble?.kind === "stale-copy",
     });
   }
 
   return finish({ ok: true, accounts, activeNum: seq.activeAccountNumber ?? null, fetchedAt: now });
+}
+
+/**
+ * What to say about an account whose collector is failing — which is not the
+ * same question as whether the user is signed out.
+ *
+ * TWO FACTS, AND #721 SHIPPED THEM AS ONE. claude-swap keeps its own copy of
+ * each account's credentials, taken when `cswap add` captured the slot. When
+ * that copy's refresh token dies, claude-swap can no longer collect usage for
+ * the row and says `relogin_required`. That is true, and it is about the COPY.
+ *
+ * It says nothing about whether the user is signed in. Measured on the machine
+ * that reported this, at the same instant:
+ *
+ *   claude auth status --json  ->  loggedIn: true, claude3@sapec.md
+ *   cswap list --json          ->  claude3@sapec.md: relogin_required
+ *   GET /api/quota             ->  source: cli, 5h 33%, 7d 37%
+ *
+ * The user had signed in again in a terminal, which refreshes the LIVE
+ * credentials and leaves claude-swap's stored copy exactly as dead as it was.
+ * The deck held live quota numbers for that account and printed "login expired"
+ * beside them, and the button it offered ran `claude auth login` — a full
+ * re-login of the account the user was mid-session in, to fix a problem they
+ * did not have.
+ *
+ * So: for the ACTIVE account the CLI is the authority, because it is the one
+ * thing that can answer about the live credentials rather than about a copy.
+ * When it says the user is signed in as this account, there is no login
+ * failure to report — only a collector that cannot see it, which is quieter,
+ * true, and fixed by re-capturing the slot rather than by signing in again.
+ *
+ * `identity` is null when the CLI could not be asked at all. That is not
+ * evidence of anything, so the stored verdict stands: refusing to show a real
+ * expiry because a subprocess failed is the opposite mistake.
+ */
+export function authTrouble(row, { matches, isActive, identity, email } = {}) {
+  if (!matches || !((row?.consecutiveFailures ?? 0) > 0)) return null;
+
+  const signedInHere = isActive
+    && identity
+    && typeof identity.email === "string"
+    && email
+    && identity.email.toLowerCase() === String(email).toLowerCase();
+
+  if (signedInHere) {
+    // Deliberately not the `error` field: this is not the user's problem to
+    // fix under a red badge, and it must not offer to sign them in again.
+    return { kind: "stale-copy", error: null };
+  }
+  return { kind: "auth", error: row.lastError ?? "error" };
 }
 
 /**

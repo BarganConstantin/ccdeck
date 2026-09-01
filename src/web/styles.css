@@ -6968,3 +6968,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
   .sound-menu { animation: fadeIn 140ms ease-out; }
 }
+
+/* "numbers paused" — the collector cannot read an account the user is plainly
+   signed in as. Not an error colour: there is nothing for them to fix, and the
+   red badge this replaces was offering to sign them out of a live session. It
+   sits in the annotation tier with the other freshness notes. */
+.ap-stale-copy { font-size: 10px; color: var(--text-dim); }

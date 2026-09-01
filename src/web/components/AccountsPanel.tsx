@@ -46,6 +46,7 @@ interface Account {
   nextAt: number | null;     // unix ms — claude-swap's next planned read
   stale: boolean;
   error: string | null;
+  staleCopy?: boolean;
 }
 
 interface AccountsData {
@@ -762,6 +763,34 @@ export default function AccountsPanel({ onClose }: Props) {
                   good numbers, and switching to it on that basis would be a
                   decision made on old information. */}
               <div className="ap-meta">
+                {/* The collector cannot read this account, but the CLI says the
+                    user is signed in as it — so there is nothing for them to
+                    fix and nothing red to say. What is true is smaller: these
+                    numbers stopped moving, and re-capturing the slot is what
+                    starts them again. #721. */}
+                {a.staleCopy && (
+                  <>
+                    <span className="ap-stale-copy" title={
+                      "The deck can still see this account — its live usage is being read — but claude-swap's "
+                      + "own stored copy of the login was rejected, so these numbers stopped updating. "
+                      + "Resume re-captures the copy from the login you already have."
+                    }>numbers paused</span>
+                    {/* The button Refresh could never be. Refresh re-reads the
+                        store; this is what makes the store able to change —
+                        claude-swap stopped attempting the row, and re-capturing
+                        the credentials is what clears that. Nobody is signed in
+                        or out and the active account does not change. */}
+                    <button type="button" className="ap-fix"
+                      {...pressProps("recapture")}
+                      onClick={async () => {
+                        const out = await admin({ action: "recapture" }, "recapture");
+                        if (out?.ok) load(true);
+                      }}
+                      title="Re-capture this account's stored credentials from the login you already have. No sign-in, no switch.">
+                      {busy === "recapture" ? "resuming…" : "resume"}
+                    </button>
+                  </>
+                )}
                 {a.error && (() => {
                   const e = errorText(a.error);
                   return (
