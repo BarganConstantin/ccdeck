@@ -19,6 +19,7 @@ import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
+import { browserWatchSnapshot, deckOwnOrigins, invalidateBrowserWatchCache } from "./browser-watch.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -4009,6 +4010,42 @@ async function handleCodexQuota(req, res) {
  */
 export const isCliDate = (v) => v === undefined || /^\d{8}$/.test(v);
 
+/**
+ * What a program drove in this machine's browsers while nobody was browsing.
+ *
+ * A GET, and deliberately not on the event stream. The answer costs a copy of a
+ * History database that a browser holds locked, so it is pulled when the panel
+ * is open and never on a timer — the same reasoning that keeps
+ * /api/system/processes off the clock, for the same kind of cost.
+ *
+ * `refresh=1` drops the read cache. Without it a profile whose History has not
+ * been written since the last look is answered from memory, which is the normal
+ * case and the reason this route is cheap enough to poll while the panel is up.
+ */
+async function handleBrowserWatch(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  if (url.searchParams.get("refresh") === "1") invalidateBrowserWatchCache();
+
+  // Numbers from a query string are refused rather than coerced: NaN would
+  // silently widen the quiet gate to "everything counts", which is the failure
+  // mode that turns this panel into noise nobody reads.
+  const minutes = name => {
+    const raw = url.searchParams.get(name);
+    if (raw === null) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 && n <= 24 * 60 ? n * 60_000 : undefined;
+  };
+
+  const days = Number(url.searchParams.get("days"));
+  const snapshot = await browserWatchSnapshot({
+    deckOrigins: deckOwnOrigins(),
+    quietMs: minutes("quiet"),
+    gapMs: minutes("gap"),
+    windowDays: Number.isFinite(days) && days > 0 && days <= 90 ? days : undefined,
+  });
+  return send(res, 200, snapshot);
+}
+
 async function handleCcusage(req, res) {
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
@@ -4995,6 +5032,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
