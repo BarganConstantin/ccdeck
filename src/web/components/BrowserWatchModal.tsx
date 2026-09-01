@@ -36,8 +36,17 @@ interface WatchProfile {
   extension: { present: boolean; enabled: boolean; allUrls: boolean; sensitiveApis: string[] } | null;
 }
 
+export interface WatchSettings {
+  enabled: boolean;
+  reaction: "notify" | "close-tab" | "quit-browser";
+  quietMinutes: number;
+  gapMinutes: number;
+  windowDays: number;
+}
+
 export interface WatchSnapshot {
   ok: true;
+  settings: WatchSettings;
   verdict: "nothing-exposed" | "protected" | "exposed";
   relay: {
     path: string;
@@ -49,7 +58,7 @@ export interface WatchSnapshot {
   };
   profiles: WatchProfile[];
   episodes: WatchEpisode[];
-  coverage: { requestedSinceMs: number; oldestVisitMs: number | null; now: number };
+  coverage: { requestedSinceMs: number; oldestVisitMs: number | null; archived: number; now: number };
   degraded: boolean;
 }
 
@@ -120,6 +129,7 @@ export default function BrowserWatchModal({
   const [quiet, setQuiet] = useState(15);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true);
@@ -136,6 +146,26 @@ export default function BrowserWatchModal({
   }, [days, quiet]);
 
   useEffect(() => { void load(false); }, [load]);
+
+  /** Change a setting on the server, which owns it: the file on disk is what
+   *  the watch runs on, and a client that kept its own copy would disagree with
+   *  it the moment a second tab was open. */
+  const save = useCallback(async (patch: Partial<WatchSettings>) => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/browser-watch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!r.ok) throw new Error(`the deck answered ${r.status}`);
+      await load(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [load]);
 
   // Reading the panel is what marks it read, and it is recorded on the way out
   // rather than on the way in: a dialog opened and dismissed in the same second
@@ -226,10 +256,34 @@ export default function BrowserWatchModal({
           )}
 
           {snap && (
+            <section className={`bw-switch${snap.settings.enabled ? " on" : ""}`}>
+              <div className="bw-switch-text">
+                <strong>{snap.settings.enabled ? "Watching" : "Not watching"}</strong>
+                <p>
+                  {snap.settings.enabled
+                    ? <>The deck is keeping its own copy of what it finds, so an episode it has
+                        already seen survives the browsing history being cleared.
+                        {snap.coverage.archived > 0 && <> {snap.coverage.archived} kept so far.</>}</>
+                    : <>The list below is read live out of the browser's own history, which works
+                        whether or not the deck was running. Turn this on and the deck also writes
+                        down what it sees — the half a cleared history would otherwise take with it.</>}
+                </p>
+              </div>
+              <button
+                className="btn"
+                onClick={() => void save({ enabled: !snap.settings.enabled })}
+                aria-pressed={snap.settings.enabled}
+              >
+                {saving ? "saving…" : snap.settings.enabled ? "turn off" : "turn on"}
+              </button>
+            </section>
+          )}
+
+          {snap && (
             <section className="bw-controls">
               <label>
                 <span>Look back</span>
-                <select value={days} onChange={e => setDays(Number(e.target.value))}>
+                <select value={days} onChange={e => { setDays(Number(e.target.value)); void save({ windowDays: Number(e.target.value) }); }}>
                   <option value={7}>7 days</option>
                   <option value={30}>30 days</option>
                   <option value={90}>90 days</option>
@@ -237,7 +291,7 @@ export default function BrowserWatchModal({
               </label>
               <label>
                 <span>Quiet before it counts</span>
-                <select value={quiet} onChange={e => setQuiet(Number(e.target.value))}>
+                <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
                   <option value={5}>5 min</option>
                   <option value={15}>15 min</option>
                   <option value={30}>30 min</option>

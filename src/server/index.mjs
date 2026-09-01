@@ -4021,6 +4021,38 @@ export const isCliDate = (v) => v === undefined || /^\d{8}$/.test(v);
  * been written since the last look is answered from memory, which is the normal
  * case and the reason this route is cheap enough to poll while the panel is up.
  */
+/**
+ * Turning the watch on or off, and how it is tuned.
+ *
+ * A POST, unlike its GET twin, because it writes to disk and because switching
+ * the watch ON starts the deck keeping its own copy of what it sees — a record
+ * of pages the user visited, which is not something a page they have open gets
+ * to arrange for them. The router's own gate is what enforces that: every
+ * non-GET goes through isTrustedMutation and isAuthorizedMutation before it
+ * reaches a handler, which is exactly the pair a GET deliberately skips.
+ */
+async function handleBrowserWatchSettings(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+
+  const { readStore, writeStore, normalise } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
+  );
+  const { invalidateBrowserWatchCache } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
+  );
+  const store = await readStore();
+  // normalise() is the one place a value is judged, so a field this route has
+  // never heard of cannot arrive through it and a bad one falls back rather
+  // than reaching classify().
+  const settings = normalise({ ...store.settings, ...body });
+  await writeStore({ settings, episodes: store.episodes });
+  invalidateBrowserWatchCache();
+  return send(res, 200, { ok: true, settings });
+}
+
 async function handleBrowserWatch(req, res) {
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
@@ -5043,6 +5075,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);

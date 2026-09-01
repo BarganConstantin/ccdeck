@@ -32,6 +32,7 @@ import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
 import { hostsPath, killswitchCommand, readKillswitch, extensionReport, verdict } from "./relay-guard.mjs";
+import { mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
 
 /** Chrome expires history at 90 days by default, so a window wider than that
  *  promises a past the browser has already forgotten. Thirty is the panel's
@@ -183,6 +184,19 @@ export function relayState(platform = process.platform, env = process.env, deps 
   return { path, readable: true, ...state, command };
 }
 
+
+/** Whether the archive gained or altered anything worth a disk write. Compared
+ *  on the shape a card is drawn from, so a re-read that found exactly the same
+ *  episodes writes nothing — which is most polls, most of the time. */
+function changedFrom(before, after) {
+  if (before.length !== after.length) return true;
+  for (let i = 0; i < after.length; i++) {
+    const a = after[i], b = before[i];
+    if (a.host !== b.host || a.startMs !== b.startMs || a.endMs !== b.endMs || a.count !== b.count) return true;
+  }
+  return false;
+}
+
 /**
  * Everything the panel draws, in one object.
  *
@@ -203,6 +217,16 @@ export async function browserWatchSnapshot({
   env = process.env,
   deps = {},
 } = {}) {
+  // The store answers first and the caller's arguments override it, so the
+  // panel's own selects still work while the watch is off — the settings on
+  // disk are what the WATCH runs on, not a lock on what a reader may look at.
+  const store = await (deps.readStore ?? readStore)(undefined, deps);
+  const enabled = store.settings.enabled;
+  const minutes = m => m * 60_000;
+  if (quietMs === undefined) quietMs = minutes(store.settings.quietMinutes);
+  if (gapMs === undefined) gapMs = minutes(store.settings.gapMinutes);
+  if (windowDays === DEFAULT_WINDOW_DAYS) windowDays = store.settings.windowDays;
+
   const profiles = (deps.discoverProfiles ?? discoverProfiles)(platform, env, undefined, deps.fs);
   // THE FLOOR IS A DAY BOUNDARY, AND THE CACHE ABOVE DEPENDS ON IT. A window
   // measured from `now` moves every millisecond, so it lands in the cache key as
@@ -250,12 +274,29 @@ export async function browserWatchSnapshot({
     });
   }
 
-  const episodes = toEpisodes(allFindings, gapMs === undefined ? undefined : { gapMs });
+  const live = toEpisodes(allFindings, gapMs === undefined ? undefined : { gapMs });
+
+  // THE UNION, AND WHY IT IS NOT JUST THE LIVE READ. Chrome's history is the
+  // better source right up to the moment somebody clears it — and whoever can
+  // drive this browser can clear it, with the same button the user has. While
+  // the watch is on, everything it sees is written down, and what was written
+  // down outlives the browser's own memory of it.
+  //
+  // Only while it is ON. An archive that filled itself whether or not the user
+  // had asked for a watch would be a record they never consented to keep, of
+  // pages they visited, on disk. The switch means what it says.
+  const archived = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
+  if (enabled && changedFrom(store.episodes, archived)) {
+    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: archived }, undefined, deps);
+  }
+  const episodes = enabled ? archived : live;
+
   const anyExtension = reports.some(r => r.hasClaudeExt && r.extension?.enabled !== false);
   const relay = relayState(platform, env, deps);
 
   return {
     ok: true,
+    settings: store.settings,
     verdict: verdict({ anyExtension, blocked: relay.blocked === true }),
     relay,
     profiles: reports,
@@ -267,6 +308,10 @@ export async function browserWatchSnapshot({
       // "nothing happened" and "nothing was recorded".
       requestedSinceMs: sinceMs,
       oldestVisitMs: oldestSeen,
+      // How much of what is on screen the deck itself is holding. Zero with the
+      // watch off is not a fault, it is the switch doing what it says, and the
+      // panel needs the number to be able to say which of the two it is.
+      archived: archived.length,
       now,
     },
     degraded: anyDegraded,

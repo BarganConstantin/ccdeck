@@ -189,7 +189,36 @@ let memo = null;
  * module throws here exactly as the dynamic import did.
  */
 const requireNode = createRequire(import.meta.url);
-const loadSqlite = async () => requireNode("node:sqlite");
+
+/**
+ * Node prints `ExperimentalWarning: SQLite is an experimental feature` to
+ * stderr the first time the module is loaded, and that stderr is the terminal
+ * the user started the deck in. It is a warning about a decision they did not
+ * make, about a module they cannot choose, at a moment they were looking at a
+ * browser tab — and there is nothing they can do with it.
+ *
+ * Only this one warning, and only by swapping the default listener for one that
+ * forwards everything else untouched: a blanket NODE_NO_WARNINGS would also
+ * swallow a deprecation the deck genuinely needs to hear about. Installed lazily
+ * on the first load rather than at import, so a deck whose panel is never opened
+ * never touches the process's listeners at all.
+ */
+let quieted = false;
+function quietSqliteWarning() {
+  if (quieted) return;
+  quieted = true;
+  const existing = process.listeners("warning");
+  process.removeAllListeners("warning");
+  process.on("warning", warning => {
+    if (warning?.name === "ExperimentalWarning" && /\bSQLite\b/.test(warning.message ?? "")) return;
+    for (const listener of existing) listener(warning);
+  });
+}
+
+const loadSqlite = async () => {
+  quietSqliteWarning();
+  return requireNode("node:sqlite");
+};
 
 /**
  * Which SQLite reader this machine has, resolved once and cached.

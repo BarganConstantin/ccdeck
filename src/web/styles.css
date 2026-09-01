@@ -7153,3 +7153,22 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   max-width: 72ch;
 }
 .bw-lead strong { color: var(--text); font-weight: 600; }
+
+.bw-switch {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted-dim);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+/* The only colour the switch carries, and it is on the state that costs
+   something: the deck writing pages the user visited to disk. Off is the
+   default and needs no announcement. */
+.bw-switch.on { border-left-color: var(--accent); }
+.bw-switch-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bw-switch strong { font-size: 13px; }
+.bw-switch p { margin: 0; font-size: 12px; color: var(--muted); max-width: 62ch; line-height: 1.55; }
+.bw-switch .btn { flex: none; }
