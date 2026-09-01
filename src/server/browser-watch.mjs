@@ -204,10 +204,18 @@ export async function browserWatchSnapshot({
   deps = {},
 } = {}) {
   const profiles = (deps.discoverProfiles ?? discoverProfiles)(platform, env, undefined, deps.fs);
-  const sinceMs = now - windowDays * 86_400_000;
+  // THE FLOOR IS A DAY BOUNDARY, AND THE CACHE ABOVE DEPENDS ON IT. A window
+  // measured from `now` moves every millisecond, so it lands in the cache key as
+  // a value that never repeats — which silently turned the mtime cache into a
+  // no-op that re-read and re-copied every database on every single request. It
+  // read as working, because the answers were right; only the cost was wrong.
+  //
+  // Whole days are also the truer reading of the control: "look back 30 days"
+  // is a span of days, not of milliseconds since whenever the panel opened.
+  const sinceMs = Math.floor((now - windowDays * 86_400_000) / 86_400_000) * 86_400_000;
   // Chrome counts microseconds from 1601. Built here rather than imported so the
   // window is one expression the reader can check against the reader's own.
-  const sinceChromeTime = String((BigInt(Math.trunc(sinceMs)) + 11644473600000n) * 1000n);
+  const sinceChromeTime = String((BigInt(sinceMs) + 11644473600000n) * 1000n);
 
   const exclude = defaultExclusions(deckOrigins);
   const opts = {};
