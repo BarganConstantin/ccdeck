@@ -34,7 +34,6 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
-import { hostsPath, killswitchCommand, readKillswitch, extensionReport, verdict } from "./relay-guard.mjs";
 import { appendLog, logPath, mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
@@ -182,31 +181,6 @@ export function deckOwnOrigins(portRange = [4317, 4400]) {
   const out = [];
   for (let port = lo; port <= hi; port++) out.push(`http://127.0.0.1:${port}`);
   return out;
-}
-
-/**
- * Whether the relay is reachable, and what to paste to change that.
- *
- * Reads the hosts file, which needs no privileges, and returns a command the
- * person runs themselves. Nothing in this path writes or elevates — see
- * relay-guard.mjs for why that is a rule and not a preference.
- *
- * A hosts file that cannot be read is reported as unknown rather than as
- * "open": claiming a machine is exposed on the strength of a failed read would
- * put a red banner on every locked-down corporate laptop in the world.
- */
-export function relayState(platform = process.platform, env = process.env, deps = {}) {
-  const path = hostsPath(platform, env);
-  let text = null;
-  try { text = (deps.readFileSync ?? readFileSync)(path, "utf8"); } catch { /* unknown */ }
-  if (text === null) {
-    return { path, readable: false, blocked: null, ours: [], foreign: [], command: null };
-  }
-  const state = readKillswitch(text);
-  // The command offered is always the OTHER direction: a blocked relay gets the
-  // unblock line, an open one gets the block line.
-  const command = killswitchCommand(platform, { on: !state.blocked });
-  return { path, readable: true, ...state, command };
 }
 
 
@@ -418,7 +392,6 @@ export async function browserWatchSnapshot({
       // Null rather than 0 for a profile with no file: "never written" and
       // "written at the epoch" are different answers and only one is true.
       lastWrittenMs: read.stamp,
-      extension: readExtension(profile, deps),
     });
   }
 
@@ -469,8 +442,6 @@ export async function browserWatchSnapshot({
   const episodes = enabled ? kept : live;
 
   const browsers = await surveyBrowsers(platform, env, now, deps);
-  const anyExtension = reports.some(r => r.hasClaudeExt && r.extension?.enabled !== false);
-  const relay = relayState(platform, env, deps);
 
   return {
     ok: true,
@@ -479,8 +450,6 @@ export async function browserWatchSnapshot({
     // that would silently do nothing. See browser-react.mjs.
     reactions: available(platform),
     log: watchLog(),
-    verdict: verdict({ anyExtension, blocked: relay.blocked === true }),
-    relay,
     profiles: reports,
     browsers,
     episodes,
@@ -503,16 +472,4 @@ export async function browserWatchSnapshot({
     },
     degraded: anyDegraded,
   };
-}
-
-/** The extension's own permissions, out of the profile's Secure Preferences.
- *  Unreadable is reported as unknown, not as absent: a profile the deck cannot
- *  open is not a profile without the extension. */
-function readExtension(profile, deps) {
-  try {
-    const raw = (deps.readFileSync ?? readFileSync)(profile.securePrefsPath, "utf8");
-    return extensionReport(JSON.parse(raw));
-  } catch {
-    return null;
-  }
 }

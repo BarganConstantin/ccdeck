@@ -13,7 +13,6 @@ import {
   fetchBrowserWatch,
   invalidateBrowserWatchCache,
   mayForceRead,
-  relayState,
 } from "../../server/browser-watch.mjs";
 import { unseenEpisodes, SEEN_KEY } from "../components/BrowserWatchModal";
 
@@ -143,39 +142,6 @@ describe("what a forced read is allowed to spend", () => {
     ]);
     expect(a).toBe(b);
     expect(h.calls).toEqual(["/p/History"]);
-  });
-});
-
-describe("what an unreadable hosts file is allowed to claim", () => {
-  it("says it does not know, rather than saying the relay is open", () => {
-    // A red EXPOSED banner on the strength of a failed read would put one on
-    // every locked-down machine whose /etc/hosts the deck cannot open. Unknown
-    // is a different answer from open and this is where they stay different.
-    const state = relayState("darwin", {}, { readFileSync: () => { throw new Error("EACCES"); } });
-    expect(state.readable).toBe(false);
-    expect(state.blocked).toBeNull();
-    expect(state.command).toBeNull();
-  });
-
-  it("offers the direction the machine is not already in", () => {
-    const open = relayState("darwin", {}, { readFileSync: () => "127.0.0.1 localhost\n" });
-    expect(open.blocked).toBe(false);
-    expect(open.command!.command).toMatch(/\| sudo tee -a \/etc\/hosts/);
-
-    const shut = relayState("darwin", {}, {
-      readFileSync: () => "0.0.0.0 bridge.claudeusercontent.com # ccdeck killswitch\n",
-    });
-    expect(shut.blocked).toBe(true);
-    expect(shut.command!.command).toMatch(/sed/);
-  });
-
-  it("never returns a command that runs itself", () => {
-    // The rule relay-guard.mjs is built around, restated at the layer that
-    // hands the string to a route: what comes back is text for a person to
-    // paste. Nothing here executes it and nothing here elevates.
-    const state = relayState("darwin", {}, { readFileSync: () => "" });
-    expect(state.command!.needsAdmin).toBe(true);
-    expect(src("../../server/browser-watch.mjs")).not.toMatch(/child_process|execSync|spawn\(/);
   });
 });
 

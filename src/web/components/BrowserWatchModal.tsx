@@ -34,7 +34,6 @@ interface WatchProfile {
   degraded: boolean;
   reason: string | null;
   lastWrittenMs: number | null;
-  extension: { present: boolean; enabled: boolean; allUrls: boolean; sensitiveApis: string[] } | null;
 }
 
 export interface WatchSettings {
