@@ -247,3 +247,39 @@ describe("how App.tsx wires it up", () => {
     expect(app).toMatch(/\|\| browserWatchOpen \|\| keyHelpOpen/);
   });
 });
+
+describe("erasing what an older rule left behind", () => {
+  it("writes the file back rather than only hiding the rows", async () => {
+    // "Nothing from before the watch is kept" is a claim about the DISK, not
+    // only about the screen. readStore refuses to write it away itself — a read
+    // with a side effect is a trap for the next caller — so it reports and the
+    // snapshot performs.
+    const server = src("../../server/browser-watch.mjs");
+    expect(server).toMatch(/if \(store\.migrated\) \{/);
+    expect(server).toMatch(/episodes: \[\] \}, undefined, deps\)/);
+    const store = src("../../server/browser-watch-store.mjs");
+    expect(store, "readStore must not write").not.toMatch(/export async function readStore[\s\S]{0,900}writeFile/);
+  });
+});
+
+describe("the floor the watch reads from", () => {
+  it("is the deck's start, not the moment the panel was first opened", async () => {
+    // This module is imported lazily, on the first request to the panel. Taking
+    // `Date.now()` at load therefore meant "when somebody first opened Browser
+    // Watch" — so a deck that had been running an hour lost that hour while the
+    // panel claimed to cover it. Found by driving a real navigation and finding
+    // it invisible: the floor was two seconds newer than the visit.
+    const server = src("../../server/browser-watch.mjs");
+    expect(server).toMatch(/Date\.now\(\) - Math\.round\(process\.uptime\(\) \* 1000\)/);
+  });
+
+  it("reports that floor, so the panel can say since when", async () => {
+    const h = harness();
+    const snap = await browserWatchSnapshot({ deps: h.deps });
+    expect(typeof snap.coverage.startedMs).toBe("number");
+    // Not in the future, and not the epoch: it is a real moment this process
+    // can name.
+    expect(snap.coverage.startedMs).toBeLessThanOrEqual(Date.now());
+    expect(snap.coverage.startedMs).toBeGreaterThan(Date.now() - 86_400_000);
+  });
+});

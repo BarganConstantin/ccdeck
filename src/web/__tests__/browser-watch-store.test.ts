@@ -98,6 +98,17 @@ describe("the archive, which is what an intruder cannot reach", () => {
     expect(out).toHaveLength(2);
   });
 
+  it("keeps which browser it happened in", () => {
+    // A reaction has to tell ONE application to close a tab, and a log line
+    // naming the host but not the browser leaves a two-browser machine
+    // guessing. This is the one place the tag was lost between finding and
+    // acting: it survived classify and toEpisodes and died in the archive.
+    const out = mergeEpisodes([], [{ ...episode("a.example.com", 1000), browser: "brave" }]);
+    expect(out[0].browser).toBe("brave");
+    // Absent stays absent rather than becoming a guess.
+    expect(mergeEpisodes([], [episode("b.example.com", 1000)])[0].browser).toBeNull();
+  });
+
   it("holds the evidence, not just the accusation", () => {
     // An archive that kept the host and the count but dropped the URLs would
     // preserve the claim and lose the thing that lets a person judge it.
@@ -257,5 +268,53 @@ describe("the log file, which is what gets inspected later", () => {
       await appendLog([], home);
       expect(existsSync(logPath(home))).toBe(false);
     });
+  });
+});
+
+describe("a store written under rules that no longer apply", () => {
+  const v1 = {
+    v: 1,
+    settings: { enabled: true, reaction: "quit-browser", quietMinutes: 30, gapMinutes: 20 },
+    episodes: [{ host: "old.example.com", startMs: 1, endMs: 2, count: 1, urls: [], archivedMs: 1 }],
+  };
+
+  it("keeps the settings and drops the findings", async () => {
+    // They are not the same kind of thing. Settings are what the user chose and
+    // stay chosen; a FINDING produced by a rule the deck no longer applies is
+    // not one it can stand behind. Version 1 archived whatever a thirty-day
+    // sweep of the browser's history turned up — the user's own past browsing,
+    // read before the watch existed.
+    const home = mkdtempSync(join(tmpdir(), "bw-mig-"));
+    try {
+      const { mkdirSync, writeFileSync } = await import("node:fs");
+      mkdirSync(join(home, "agent-dag", "browser-watch"), { recursive: true });
+      writeFileSync(storePath(home), JSON.stringify(v1));
+
+      const out = await readStore(home);
+      expect(out.episodes).toEqual([]);
+      expect(out.settings.enabled).toBe(true);
+      expect(out.settings.quietMinutes).toBe(30);
+      expect(out.settings.reaction).toBe("quit-browser");
+      // And it says so, because hiding the rows is not the same as erasing them
+      // and the caller is the one that can write.
+      expect(out.migrated).toBe(true);
+    } finally { rmTempDir(home); }
+  });
+
+  it("says nothing to migrate for a current store", async () => {
+    const home = mkdtempSync(join(tmpdir(), "bw-mig-"));
+    try {
+      await writeStore({ settings: DEFAULTS, episodes: [] }, home);
+      expect((await readStore(home)).migrated).toBe(false);
+    } finally { rmTempDir(home); }
+  });
+
+  it("writes back at the current version, so it migrates once", async () => {
+    const home = mkdtempSync(join(tmpdir(), "bw-mig-"));
+    try {
+      await writeStore({ settings: DEFAULTS, episodes: [] }, home);
+      const raw = JSON.parse(readFileSync(storePath(home), "utf8"));
+      expect(raw.v).toBeGreaterThan(1);
+    } finally { rmTempDir(home); }
   });
 });

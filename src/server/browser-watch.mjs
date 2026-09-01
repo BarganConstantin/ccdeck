@@ -50,8 +50,16 @@ import { RELAY_HOST } from "./relay-guard.mjs";
  * reported, or kept, and the panel says so rather than leaving a reader to
  * wonder how far back it went. What happened while the deck was down is the
  * browser's business.
+ *
+ * FROM `process.uptime()`, NOT FROM MODULE LOAD. This file is imported lazily,
+ * on the first request to the panel — so `Date.now()` at load is "when somebody
+ * first opened Browser Watch", and a deck running for an hour before that lost
+ * the hour while the panel claimed to cover it. Caught by driving a real
+ * navigation and finding it invisible: the floor was two seconds newer than the
+ * visit. `process.uptime()` is the deck's own start whenever this module is
+ * first read.
  */
-const STARTED_MS = Date.now();
+const STARTED_MS = Date.now() - Math.round(process.uptime() * 1000);
 
 /** One cached read per profile: the mtime it was taken at, and what it found.
  *  Keyed by history path, so two browsers and two profiles never share an
@@ -297,6 +305,15 @@ export async function browserWatchSnapshot({
   // disk are what the WATCH runs on, not a lock on what a reader may look at.
   const store = await (deps.readStore ?? readStore)(undefined, deps);
   const enabled = store.settings.enabled;
+
+  // The store was written by a version whose rules produced rows this one would
+  // never produce, and readStore has already hidden them. Erase them, because
+  // "nothing from before the watch is kept" is a claim about the disk and not
+  // only about the screen.
+  if (store.migrated) {
+    note("info", "cleared episodes kept under an older rule", now);
+    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: [] }, undefined, deps);
+  }
   const minutes = m => m * 60_000;
   if (quietMs === undefined) quietMs = minutes(store.settings.quietMinutes);
   if (gapMs === undefined) gapMs = minutes(store.settings.gapMinutes);

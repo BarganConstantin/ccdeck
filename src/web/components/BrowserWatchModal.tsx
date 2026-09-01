@@ -338,15 +338,6 @@ export default function BrowserWatchModal({
             </p>
           )}
 
-          {snap && tab === "history" && snap.episodes.length === 0 && (
-            <div className="bw-empty">
-              <strong>Nothing a program did on its own</strong>
-              <p>
-                Nothing has been driven by a program since this deck started.
-                {snap && <> Watching since {new Date(snap.coverage.startedMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.</>}
-              </p>
-            </div>
-          )}
 
           {snap && (
             /* Two views, because they answer two questions. The list says what
@@ -376,6 +367,15 @@ export default function BrowserWatchModal({
                   {t.id === "live" && snap.settings.enabled && <span className="bw-tab-live" aria-hidden />}
                 </button>
               ))}
+            </div>
+          )}
+          {snap && tab === "history" && snap.episodes.length === 0 && (
+            <div className="bw-empty">
+              <strong>Nothing a program did on its own</strong>
+              <p>
+                Nothing has been driven by a program since this deck started.
+                {snap && <> Watching since {new Date(snap.coverage.startedMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.</>}
+              </p>
             </div>
           )}
 
@@ -464,8 +464,8 @@ export default function BrowserWatchModal({
               </ul>
 
               <p className="bw-note">
-                Only navigations since this deck started are read — nothing from before it was
-                running, and nothing while it is down.
+                Only navigations since a deck was watching are read — nothing from before that,
+                and nothing while it is down.
                 {snap && (
                   <> Every address is written in full to{" "}
                     {/* Selectable in one click, because the next thing a person

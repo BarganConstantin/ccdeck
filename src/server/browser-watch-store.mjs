@@ -34,6 +34,15 @@ export const DEFAULTS = {
   gapMinutes: 15,
 };
 
+/**
+ * The store's schema version.
+ *
+ * Bumped when the rule that PRODUCES episodes changes, not when their shape
+ * does — see readStore. Version 1 kept rows from a thirty-day sweep of the
+ * browser's history; version 2 keeps only what the deck saw while watching.
+ */
+const STORE_VERSION = 2;
+
 /** How many archived episodes are kept. Roughly two years at the measured rate
  *  of one card every eight days, and small enough that the file stays a thing a
  *  person could open and read. Trimmed oldest-first. */
@@ -125,6 +134,11 @@ export function normalise(raw) {
 function archivable(e) {
   return {
     host: String(e.host ?? ""),
+    // Which browser it happened in. Kept because a reaction has to tell ONE
+    // application to close a tab, and because a log line that names the host
+    // but not the browser leaves a two-browser machine guessing. Dropping it
+    // here was the one place the tag was lost between finding and acting.
+    browser: typeof e.browser === "string" ? e.browser : null,
     startMs: Number(e.startMs),
     endMs: Number(e.endMs),
     count: Number(e.count),
@@ -152,10 +166,33 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
   let parsed = null;
   try { parsed = JSON.parse(await read(storePath(home), "utf8")); } catch { /* absent or corrupt */ }
   const settings = normalise(parsed?.settings);
+
+  // A VERSION BUMP DROPS THE EPISODES AND KEEPS THE SETTINGS, because the two
+  // are not the same kind of thing. Settings are what the user chose and stay
+  // chosen; episodes are FINDINGS, and a finding produced by a rule the deck no
+  // longer applies is not a finding it can stand behind.
+  //
+  // Version 1 archived whatever a thirty-day sweep of the browser's history
+  // turned up, so its rows are the user's own past browsing — read before the
+  // watch existed, under a rule that has since been removed. Keeping them would
+  // put "nothing from before this deck started" on screen directly above four
+  // episodes from a fortnight earlier, which is the panel calling itself a liar.
+  //
+  // Dropping rather than migrating: there is no way to re-derive which of those
+  // rows the current rule WOULD have found, because the evidence for that
+  // question is exactly the history the deck no longer reads.
+  //
+  // `migrated` tells the caller to write the file back. Hiding the rows is not
+  // enough: the promise is that nothing from before the watch is KEPT, and rows
+  // left on disk are kept whatever the panel chooses to draw. readStore does not
+  // write them away itself — a read with a side effect is a trap for the next
+  // caller — so it says so and the snapshot does it.
+  if (parsed && parsed.v !== STORE_VERSION) return { settings, episodes: [], migrated: true };
+
   const episodes = Array.isArray(parsed?.episodes)
     ? parsed.episodes.map(archivable).filter(e => Number.isFinite(e.startMs))
     : [];
-  return { settings, episodes };
+  return { settings, episodes, migrated: false };
 }
 
 /**
@@ -172,7 +209,7 @@ export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
   const mv = deps.rename ?? rename;
   await mk(storeDir(home), { recursive: true });
   const body = JSON.stringify({
-    v: 1,
+    v: STORE_VERSION,
     settings: normalise(state.settings),
     episodes: (state.episodes ?? []).map(archivable),
   }, null, 2) + "\n";
