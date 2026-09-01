@@ -7271,15 +7271,15 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    that runs the width of the window read as four days out of thirty. The empty
    days are not drawn at all — the line already says they are there, and a faint
    tick per day was invisible at this height anyway. */
-.bw-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 30px;
-  padding-bottom: 3px;
-  border-bottom: 1px solid var(--line);
-}
-.bw-chart-day { flex: 1; min-width: 2px; height: 0; border-radius: 1px 1px 0 0; background: var(--accent); }
+/* A row of day cells rather than a bar chart. At this width thirty columns are
+   thirty pixels each, so a bar carrying its count in HEIGHT is wider than it is
+   tall and reads as a block anyway — the shape was fighting the space. Uniform
+   cells, presence in the fill and the count in the opacity, reads as what it is:
+   a timeline of the window with four days marked on it. */
+.bw-chart { display: flex; gap: 2px; height: 10px; }
+.bw-chart-day { flex: 1; min-width: 2px; border-radius: 2px; background: var(--line-soft); }
+.bw-chart-day.hit { background: var(--accent); }
+.bw-chart-day.hit.many { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 .bw-chart-foot {
   display: flex;
   justify-content: space-between;
@@ -7302,3 +7302,28 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    thing this badge is allowed to mean is "worth knowing". */
 .bw-relay.live { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
 .bw-relay.unknown { color: var(--text-dim); }
+
+/* The first read copies a History database and classifies tens of thousands of
+   rows, so the panel is briefly empty on open. A header over nothing reads as
+   broken rather than busy. */
+.bw-loading { display: flex; flex-direction: column; gap: 10px; padding: 18px 0; }
+.bw-loading p { margin: 0; font-size: 12px; color: var(--muted); }
+/* A fixed track with a moving sliver, rather than a moving gradient. Reduced
+   motion then needs only `animation: none` — the bar keeps its own colours and
+   still reads as a progress track, where restyling it inside the media block
+   would have made "less motion" mean "a different look". */
+.bw-loading-bar { position: relative; height: 2px; border-radius: 1px; background: var(--line); overflow: hidden; }
+.bw-loading-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32%;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: bw-sweep 1.4s ease-in-out infinite;
+}
+@keyframes bw-sweep { from { transform: translateX(-110%); } to { transform: translateX(320%); } }
+@media (prefers-reduced-motion: reduce) {
+  .bw-loading-bar::after { animation: none; }
+}

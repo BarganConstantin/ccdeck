@@ -162,8 +162,8 @@ const VERDICT_COPY: Record<WatchSnapshot["verdict"], { label: string; detail: st
 /** The two views, in order. Kept as data because the strip's keyboard model is
  *  index arithmetic and a hand-written pair of buttons cannot take part in it. */
 const TABS = [
-  { id: "history" as const, label: "History" },
-  { id: "live" as const, label: "Activity" },
+  { id: "history" as const, label: "Episodes" },
+  { id: "live" as const, label: "Log" },
 ];
 const BW_PANEL_ID = "bw-view";
 /** The selected tab names the panel and the panel names it back, which is how
@@ -294,6 +294,13 @@ export default function BrowserWatchModal({
         </header>
 
         <div className="modal-body bw-body">
+          {!snap && !error && (
+            <div className="bw-loading">
+              <span className="bw-loading-bar" aria-hidden />
+              <p>Reading each browser's history. The first look copies the file, which takes a moment.</p>
+            </div>
+          )}
+
           {error && (
             <div className="bw-state">
               <div className="bw-row err">
@@ -315,7 +322,7 @@ export default function BrowserWatchModal({
                 </select>
               </label>
               <label>
-                <span>Quiet before it counts</span>
+                <span>Quiet for at least</span>
                 <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
                   <option value={5}>5 min</option>
                   <option value={15}>15 min</option>
@@ -328,23 +335,33 @@ export default function BrowserWatchModal({
                   offered — a toggle SHOWS it, and role="switch" says the same
                   thing to a screen reader. It sits with the other two settings
                   because that is what it is. */}
+              {/* CALLED "WATCHING", THE SAME WORD AS EVERYTHING ELSE. It was
+                  "Keep a copy" for one revision, which describes the mechanism
+                  accurately and named nothing anybody was looking for — the
+                  topbar tooltip says watching, the tab's dot means watching,
+                  and a person hunting for the watcher's switch read past it.
+                  One thing, one name. What it actually changes is on the row
+                  beside it and in the title. */}
               <label className="bw-switch-field">
-                <span>Keep a copy</span>
+                <span>Watching</span>
                 <span className="bw-switch-line">
                   <button
                     type="button"
                     role="switch"
                     aria-checked={snap.settings.enabled}
+                    aria-label={`Watching, ${snap.settings.enabled ? "on" : "off"}`}
                     className="bw-toggle"
                     onClick={() => void save({ enabled: !snap.settings.enabled })}
                     title={snap.settings.enabled
-                      ? "On — an episode the deck has seen survives the history being cleared"
-                      : "Off — the list is read live, and clearing the history would lose it"}
+                      ? "On — the deck keeps its own copy, so an episode it has seen survives the browsing history being cleared"
+                      : "Off — the list below is still read live from the browser's own history; clearing that history would lose it"}
                   >
                     <span className="bw-toggle-knob" />
                   </button>
                   <span className="bw-switch-state">
-                    {saving ? "saving" : snap.settings.enabled ? `${snap.coverage.archived} kept` : "off"}
+                    {saving ? "saving"
+                      : snap.settings.enabled ? `on · ${snap.coverage.archived} kept`
+                      : "off"}
                   </span>
                 </span>
               </label>
@@ -429,8 +446,8 @@ export default function BrowserWatchModal({
                 {episodesByDay(snap.episodes, days, snap.coverage.now).map(d => (
                   <span
                     key={d.dayMs}
-                    className="bw-chart-day"
-                    style={{ height: d.count > 0 ? `${Math.min(100, 34 + d.count * 22)}%` : 0 }}
+                    className={`bw-chart-day${d.count > 0 ? " hit" : ""}${d.count > 2 ? " many" : ""}`}
+                    style={d.count > 0 ? { opacity: Math.min(1, 0.55 + d.count * 0.15) } : undefined}
                     title={`${day(d.dayMs)} — ${d.count} ${d.count === 1 ? "episode" : "episodes"}`}
                   />
                 ))}
