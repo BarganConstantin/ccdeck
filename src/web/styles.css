@@ -6877,7 +6877,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ap-field select:active:not(:disabled),
   .ap-rotate:active:not(:disabled),
   .ap-lanes-more:active,
-  .aa-tab:active { transform: none; }
+  .aa-tab:active,
+  .bw-ep-head:active,
+  .bw-controls select:active:not(:disabled) { transform: none; }
   /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot
      parse invalidates the whole list it sits in — put it there and an engine
@@ -6968,3 +6970,182 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
   .sound-menu { animation: fadeIn 140ms ease-out; }
 }
+
+/* ── Browser watch ────────────────────────────────────────────────────────
+   The topbar control is an outline like the five beside it and gains nothing
+   at rest. #720 took a resting pill OUT of this bar for saying nothing all
+   day; a second control that reported "no findings" would be the same mistake
+   wearing an eye. The badge is the only thing that ever appears, and only when
+   an episode nobody has read exists. */
+.bw-btn { position: relative; }
+.bw-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--warn);
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* The icon itself carries the state too, not only the badge: at 14px a small
+   coloured disc is the first thing that reads, and under protanopia the warn
+   amber and the resting foreground sit close enough that colour alone is not
+   the signal. See ambient.ts for the same argument about the favicon. */
+.bw-btn.has-findings { color: var(--warn); }
+
+.bw-modal { width: min(860px, 94vw); }
+.bw-body { display: flex; flex-direction: column; gap: 18px; }
+
+.bw-verdict {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bw-verdict.ok  { border-left-color: var(--ok); }
+.bw-verdict.err { border-left-color: var(--err); }
+.bw-verdict strong { font-size: 13px; }
+.bw-verdict.ok  strong { color: var(--ok); }
+.bw-verdict.err strong { color: var(--err); }
+.bw-verdict p { margin: 0; font-size: 12px; color: var(--muted); max-width: 68ch; line-height: 1.55; }
+
+.bw-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.bw-cmd-label { font-size: 11px; color: var(--muted); }
+/* user-select: all so one click takes the whole command — the same affordance
+   the accounts panel gives its copy blocks. It wraps rather than scrolls: a
+   command a person is about to run as root should be readable in full before
+   they run it, not hidden past the right edge.
+
+   BREAKS AT SPACES, NEVER MID-WORD. `word-break: break-all` was the first try
+   and it split `killall` across two lines as `k illall`, which reads as a
+   corrupted command — the worst possible impression for the one string in this
+   app a person is asked to run with sudo. `overflow-wrap: break-word` breaks a
+   token only when the token alone cannot fit, so the shell words stay whole. */
+.bw-cmd code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  user-select: all;
+}
+.bw-cmd .btn { align-self: flex-start; }
+.bw-cmd-note { font-size: 11px; color: var(--text-dim); margin: 0; }
+.bw-foreign { font-size: 11px; color: var(--warn); }
+.bw-foreign code { display: block; color: var(--muted); font-size: 11px; }
+
+.bw-controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+.bw-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.bw-controls select {
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-edge);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease;
+}
+/* The accounts panel's select convention, unchanged. */
+.bw-controls select:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.bw-controls select:active:not(:disabled) { transform: scale(0.97); }
+
+.bw-empty {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bw-empty strong { font-size: 13px; }
+.bw-empty p { margin: 0; font-size: 12px; color: var(--muted); }
+
+.bw-day { display: flex; flex-direction: column; gap: 6px; }
+.bw-day h4 {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.bw-ep { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.bw-ep.open { border-color: var(--ctl-edge); }
+.bw-ep-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease;
+}
+.bw-ep-head:hover { background: var(--bg-soft); }
+/* Joins the press convention rather than taking the exemption, for the reason
+   #355 gave the control before it. A full-width row presses at 0.97 the way
+   `.session-list .sl-row` does — the same tier, the same number. */
+.bw-ep-head:active { transform: scale(0.97); }
+.bw-ep-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-ep-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-ep-chev { font-size: 9px; color: var(--muted); width: 10px; text-align: center; }
+.bw-ep-head:hover .bw-ep-chev { color: var(--text); }
+
+.bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 3px; }
+/* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
+   locale renders and what wrapped "08:03 PM" onto two lines at 44px. The
+   column is sized for the widest form rather than the current one, because the
+   locale here belongs to whoever opened the deck. */
+.bw-urls li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
+.bw-url-time { color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-url { color: var(--muted); word-break: break-all; }
+
+.bw-foot { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.bw-foot h4 {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.bw-profiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bw-profiles li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
+.bw-prof-name { font-weight: 600; }
+.bw-prof-meta { color: var(--muted); font-size: 11px; }
+.bw-note { margin: 0; font-size: 11px; color: var(--text-dim); max-width: 72ch; line-height: 1.55; }
+.bw-lead {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 72ch;
+}
+.bw-lead strong { color: var(--text); font-weight: 600; }

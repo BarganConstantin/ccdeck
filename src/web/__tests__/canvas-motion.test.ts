@@ -275,6 +275,9 @@ const PRESSES: Press[] = [
   [".ap-failure-x:active", "0.94", "transform"],
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
+  // Browser Watch's two range selects, in the same language as the panel's:
+  // the popup opens anchored to this box, so 0.97 rather than 0.94.
+  [".bw-controls select:active:not(:disabled)", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
   // The account row's own disclosure — the control that opens the quota windows
   // the row is not showing. Written in `.ap-rotate`'s language one line up
@@ -289,6 +292,9 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // Browser Watch's episode disclosure. Same tier and same number as the row
+  // above it: a full-width row that opens to show what it is summarising.
+  [".bw-ep-head:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   [".selected-ribbon .selected-close:active", "0.94", "transform"],
   // The × is a span inside the ribbon's own button, and `:active` is set on

@@ -527,6 +527,8 @@ const CONTROLS: Control[] = [
   { at: ".ap-auto-state", states: ["button.ap-auto-state:hover:not(:disabled)", ".ap-auto-state.live"],
     beds: ["--panel"] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  // browser watch
+  { at: ".bw-controls select", states: [".bw-controls select:hover:not(:disabled)"], beds: ["--panel"] },
   { at: ".ap-more:hover", fillFrom: ".ap-more", states: [".ap-more.on"], beds: ACCOUNTS },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },

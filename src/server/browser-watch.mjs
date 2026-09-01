@@ -82,6 +82,55 @@ async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
  *  person disagrees with that is the one where they pressed refresh. */
 export function invalidateBrowserWatchCache() {
   cache.clear();
+  _lastForced = 0;
+}
+
+/** The floor between two reads somebody paid for, spelled the way quota.mjs,
+ *  codex-quota.mjs, codex-usage.mjs, self-update.mjs and claude-accounts.mjs
+ *  spell it — one idea, one name, one number. */
+const FORCE_POLL_MS = 60_000;
+
+let _lastForced = 0;
+let _inflight = null;
+
+/**
+ * Whether a forced read is allowed to spend anything right now.
+ *
+ * `?refresh=1` on this route is not a cheap ask: it drops the mtime cache and
+ * copies every profile's History database — 21 MB and 168 ms for one browser on
+ * the machine this was tuned on, and databases only grow. A GET needs no CORS,
+ * no preflight and no ability to read the reply, and `isTrustedRead` deliberately
+ * does not apply the Sec-Fetch-Site test that would stop one, so ANY page the
+ * user has open can send this in a loop. Without the floor that loop is
+ * unbounded disk traffic on their machine, at their cost, from a page they are
+ * not even looking at.
+ *
+ * A minute is far longer than a person clicking Refresh will notice — the button
+ * still re-renders, it is just answered from a cache that is at most a minute
+ * old — and short enough that a real "something just happened, look again" is
+ * served.
+ */
+export function mayForceRead(now = Date.now()) {
+  return now - _lastForced >= FORCE_POLL_MS;
+}
+
+/**
+ * The snapshot, with the two guards a forcible route owes.
+ *
+ * `_inflight` is the second half and it is not the same protection: the floor
+ * bounds how often a NEW read starts, and this bounds how many run at once.
+ * Ten simultaneous requests before any of them finishes would otherwise be ten
+ * concurrent copies of the same database, all of which the floor lets through
+ * because none of them has completed yet to move the clock.
+ */
+export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
+  if (_inflight) return _inflight;
+  if (force && mayForceRead()) {
+    cache.clear();
+    _lastForced = Date.now();
+  }
+  _inflight = browserWatchSnapshot(opts).finally(() => { _inflight = null; });
+  return _inflight;
 }
 
 /**

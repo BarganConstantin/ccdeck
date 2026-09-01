@@ -477,6 +477,17 @@ const CENSUS: Record<string, {
     note: "#580/#597. Plus a cooldown set from a 429 or a rejected refresh, "
         + "because what a forced read spends here is the user's ChatGPT session.",
   },
+  "/api/browser-watch": {
+    module: "browser-watch.mjs", fn: "fetchBrowserWatch", guards: ["floor", "inflight"],
+    predicate: "mayForceRead",
+    note: "Browser Watch. One forced read drops the mtime cache and COPIES every "
+        + "Chromium profile's History database, because the live file is locked "
+        + "while the browser holds it — 21MB and 168ms for one browser on the "
+        + "machine this was tuned on, and a history only grows. The cost is the "
+        + "user's own disk rather than a third party's API, which is the one way "
+        + "it is gentler than #580's shape and no reason at all to leave it "
+        + "unbounded: a page they are not looking at can send this in a loop.",
+  },
   "/api/ccusage": {
     module: "ccusage.mjs", fn: "fetchCcusageDaily", guards: ["inflight", "outstanding"],
     insteadOfFloor:
@@ -503,7 +514,7 @@ const CENSUS: Record<string, {
 describe("every route that lets a caller force a read", () => {
   const discovered = forcedReadRoutes(serverSource("index.mjs"));
 
-  it("is one of exactly six, and a seventh has to be named here before it ships", () => {
+  it("is one of exactly seven, and an eighth has to be named here before it ships", () => {
     // The assertion #600 is really about. Nobody was counting: `?refresh=1` was
     // added an endpoint at a time and each one decided for itself what a forced
     // read costs, so the answer to "which of them has a guard" lived nowhere.
@@ -575,8 +586,8 @@ describe("every route that lets a caller force a read", () => {
     // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
     expect(withFloor.map(r => r.module).sort()).toEqual([
-      "claude-accounts.mjs", "codex-quota.mjs", "codex-usage.mjs",
-      "quota.mjs", "self-update.mjs",
+      "browser-watch.mjs", "claude-accounts.mjs", "codex-quota.mjs",
+      "codex-usage.mjs", "quota.mjs", "self-update.mjs",
     ]);
     for (const row of withFloor) {
       expect(withoutComments(serverSource(row.module)), row.module)

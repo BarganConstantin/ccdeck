@@ -19,7 +19,6 @@ import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
-import { browserWatchSnapshot, deckOwnOrigins, invalidateBrowserWatchCache } from "./browser-watch.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -4024,7 +4023,7 @@ export const isCliDate = (v) => v === undefined || /^\d{8}$/.test(v);
  */
 async function handleBrowserWatch(req, res) {
   const url = new URL(req.url, "http://localhost");
-  if (url.searchParams.get("refresh") === "1") invalidateBrowserWatchCache();
+  const force = url.searchParams.get("refresh") === "1";
 
   // Numbers from a query string are refused rather than coerced: NaN would
   // silently widen the quiet gate to "everything counts", which is the failure
@@ -4035,15 +4034,26 @@ async function handleBrowserWatch(req, res) {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 && n <= 24 * 60 ? n * 60_000 : undefined;
   };
-
   const days = Number(url.searchParams.get("days"));
-  const snapshot = await browserWatchSnapshot({
+
+  // Lazily, like every other handler here, and it earns it twice: the four
+  // readers underneath reach for node:sqlite and copy files, and none of that
+  // belongs on the path between `npx ccdeck` and a listening socket.
+  //
+  // Through fetchBrowserWatch rather than the snapshot directly, because
+  // `refresh=1` drops the mtime cache and copies every profile's History
+  // database. That module carries the floor and the inflight slot which bound
+  // what a page looping this GET can spend.
+  const { deckOwnOrigins, fetchBrowserWatch } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
+  );
+  return send(res, 200, await fetchBrowserWatch({
+    force,
     deckOrigins: deckOwnOrigins(),
     quietMs: minutes("quiet"),
     gapMs: minutes("gap"),
     windowDays: Number.isFinite(days) && days > 0 && days <= 90 ? days : undefined,
-  });
-  return send(res, 200, snapshot);
+  }));
 }
 
 async function handleCcusage(req, res) {
