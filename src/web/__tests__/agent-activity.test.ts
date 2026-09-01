@@ -689,17 +689,33 @@ describe("classify at the size of a real profile", () => {
       return seen;
     };
     unit(); // once to let the loop reach its steady state before it is timed.
-    const calibrationStart = performance.now();
-    unit();
-    const calibration = performance.now() - calibrationStart;
 
-    const started = performance.now();
-    const findings = classify(visits, { quietMs: 15 * MINUTE });
-    const took = performance.now() - started;
+    /** The best ratio of three, because a ratio is not as steady as it looks.
+     *  One GC pause landing in the measured half and not in the calibrating one
+     *  inflates a single reading by several times, and this case failed exactly
+     *  that way once in four full-suite runs on the machine it was written on —
+     *  which on a shared CI runner is a release blocked by nothing. Three
+     *  readings and the best of them keeps the claim: a scanning classify is
+     *  over the ceiling on every one of the three, never near it. */
+    let best = Infinity;
+    let findings: ReturnType<typeof classify> = [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const calibrationStart = performance.now();
+      unit();
+      const calibration = performance.now() - calibrationStart;
+
+      const started = performance.now();
+      findings = classify(visits, { quietMs: 15 * MINUTE });
+      best = Math.min(best, (performance.now() - started) / calibration);
+    }
 
     // Every program visit sits in the stretch with no human visits in it, so
     // the answer is known exactly and the case is not only about the clock.
     expect(findings).toHaveLength(20_000);
-    expect(took / calibration).toBeLessThan(15);
+    // 25 rather than the 15 first written. The real implementation measures
+    // 2.2-2.9 and a scan 47-85, so the ceiling has an order of magnitude of gap
+    // to sit in; 15 spent that on the algorithm's side and left a quarter of it
+    // for the machine, which turned out to be the wrong half to be generous to.
+    expect(best).toBeLessThan(25);
   });
 });

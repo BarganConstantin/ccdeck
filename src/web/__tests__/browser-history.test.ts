@@ -37,9 +37,12 @@
 // gives, so they are real assertions on all three legs rather than a skip
 // wearing a condition.
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { withoutComments } from "./tsx-scan";
 import { dirname, join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
@@ -598,5 +601,43 @@ describe("this machine, whichever of the three answers it gives", () => {
     } finally {
       rmTempDir(root);
     }
+  });
+});
+
+describe("the branch most users run, and the reason it was untestable", () => {
+  it("resolves to node:sqlite here, rather than quietly falling to the CLI", async () => {
+    // This is the whole point of the createRequire loader. `await
+    // import("node:sqlite")` is what this module used to say, and under vitest
+    // vite strips the `node:` prefix and looks for a package called `sqlite`
+    // (vitest-dev/vitest#7177) — so the import threw, the catch swallowed it,
+    // and sqliteBackend() answered `sqlite3-cli` in EVERY case here. Nothing
+    // failed. The suite was green about a branch it could not reach, which is
+    // worse than a red one.
+    //
+    // Guarded on the runtime rather than skipped, so this case says something
+    // on a Node without the module too: there it must be the CLI or nothing,
+    // and it must never be node-sqlite.
+    let has = true;
+    try { createRequire(import.meta.url)("node:sqlite"); } catch { has = false; }
+
+    const backend = await sqliteBackend();
+    if (has) {
+      expect(backend.kind, "the runtime has node:sqlite and the module must use it").toBe("node-sqlite");
+    } else {
+      expect(["sqlite3-cli", "none"]).toContain(backend.kind);
+    }
+  });
+
+  it("does not reach for the module through the bundler", () => {
+    // The spelling that reintroduces the bug, refused by name. A dynamic
+    // `import("node:sqlite")` reads as more idiomatic and would pass every
+    // other case in this file.
+    // Through withoutComments, because the module explains the trap in prose
+    // directly above the fix — and a check that cannot tell the warning from
+    // the mistake would fail on the file that gets it right.
+    const src = withoutComments(readFileSync(
+      fileURLToPath(new URL("../../server/browser-history.mjs", import.meta.url)), "utf8"));
+    expect(src).not.toMatch(/import\(\s*["']node:sqlite["']\s*\)/);
+    expect(src).toMatch(/createRequire\(import\.meta\.url\)/);
   });
 });

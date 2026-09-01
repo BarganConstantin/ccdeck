@@ -60,6 +60,7 @@
 // weaker signal than a list of URLs and it is a great deal better than a blank
 // panel and a crash.
 import { copyFile, mkdir, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathLookup, run } from "./exec.mjs";
@@ -171,6 +172,26 @@ function why(err) {
 let memo = null;
 
 /**
+ * `node:sqlite`, loaded through Node's own resolver rather than the bundler's.
+ *
+ * `await import("node:sqlite")` is the obvious spelling and it is the wrong one
+ * here. Vite's builtin list predates the module, so under the test runner it
+ * strips the `node:` prefix and looks for a package called `sqlite` instead:
+ * "Failed to load url sqlite (resolved id: sqlite)". vitest 2 carries that bug
+ * (vitest-dev/vitest#7177, fixed upstream in #7179 and not in the 2.x pinned
+ * here), and its cost was not a failing test. `sqliteBackend()` simply resolved
+ * to the CLI arm in every case, so the branch most users actually run was the
+ * one branch no test could reach — and the suite was green about it.
+ *
+ * `createRequire` goes straight to Node, which knows the module on any runtime
+ * that has it, and behaves identically in production, where no bundler is
+ * involved at all. Still inside the caller's try/catch: a Node without the
+ * module throws here exactly as the dynamic import did.
+ */
+const requireNode = createRequire(import.meta.url);
+const loadSqlite = async () => requireNode("node:sqlite");
+
+/**
  * Which SQLite reader this machine has, resolved once and cached.
  *
  * `{ kind: "node-sqlite" }` | `{ kind: "sqlite3-cli", bin }` | `{ kind: "none" }`
@@ -206,7 +227,7 @@ export async function sqliteBackend(deps) {
 }
 
 async function probeBackend({
-  importSqlite = () => import("node:sqlite"),
+  importSqlite = loadSqlite,
   lookup = pathLookup,
   platform = process.platform,
   env = process.env,
@@ -261,7 +282,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     mkdir: makeDir = mkdir,
     rm: remove = rm,
     run: exec = run,
-    importSqlite = () => import("node:sqlite"),
+    importSqlite = loadSqlite,
   } = deps;
 
   const floor = chromeFloor(sinceChromeTime);
