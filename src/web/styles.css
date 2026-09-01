@@ -7100,6 +7100,10 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   grid-template-columns: 1fr auto auto;
   gap: 12px;
   align-items: baseline;
+  /* A <button> shrinks to its content even as a grid container, so without this
+     the host and the meta collapse together on the left instead of sitting at
+     the two ends of the row. */
+  width: 100%;
   padding: 10px 12px;
   background: none;
   border: 0;
