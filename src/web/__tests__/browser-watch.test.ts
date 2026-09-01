@@ -222,6 +222,25 @@ describe("how App.tsx wires it up", () => {
     expect(app).toMatch(/localStorage\.setItem\(SEEN_KEY, String\(ms\)\)/);
   });
 
+  it("says whether the watch is armed, in the shape and not only the hue", () => {
+    // The topbar is where a person finds out without opening anything, and at
+    // 13px a hue change does not carry it — ambient.ts measured the same amber
+    // and grey at 1.01:1 under protanopia. So the two states are a pupil and a
+    // slash, which differ as silhouettes at any size, and the colour only
+    // agrees with them.
+    expect(app).toMatch(/watchOn \|\| watchUnseen > 0/);
+    expect(app, "the armed icon needs its filled pupil").toMatch(/<circle cx="7" cy="7" r="1\.8" fill="currentColor"/);
+    expect(app, "the resting icon needs its slash").toMatch(/<line x1="2\.4" y1="11\.6" x2="11\.6" y2="2\.4"/);
+    // And in words, for anyone who reads the button rather than sees it.
+    expect(app).toMatch(/Browser watch, \$\{watchOn \? "watching" : "not watching"\}/);
+  });
+
+  it("learns the armed state from the poll it already runs", () => {
+    // Not from opening the dialog: the whole point is that the topbar answers
+    // the question before anything is opened.
+    expect(app).toMatch(/setWatchOn\(j\.settings\?\.enabled === true\)/);
+  });
+
   it("gates the canvas shortcuts while it is up, like every other dialog", () => {
     // A click on the dialog's prose drops focus to <body>, and from there a
     // stray "c" would reach Clear behind it.

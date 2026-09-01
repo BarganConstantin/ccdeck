@@ -1292,6 +1292,7 @@ function Inner() {
     try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; }
   });
   const [watchEpisodes, setWatchEpisodes] = useState<WatchEpisode[]>([]);
+  const [watchOn, setWatchOn] = useState(false);
 
   // What the badge counts, fetched on its own slow timer rather than by opening
   // the dialog — a badge that only appears once you have already looked is not
@@ -1303,7 +1304,11 @@ function Inner() {
     const pull = () => {
       fetch("/api/browser-watch")
         .then(r => (r.ok ? r.json() : null))
-        .then(j => { if (alive && j?.ok) setWatchEpisodes(j.episodes ?? []); })
+        .then(j => {
+          if (!alive || !j?.ok) return;
+          setWatchEpisodes(j.episodes ?? []);
+          setWatchOn(j.settings?.enabled === true);
+        })
         .catch(() => { /* the panel says so when it is opened; the badge stays quiet */ });
     };
     pull();
@@ -3287,22 +3292,33 @@ function Inner() {
                 <line x1="11" y1="11.5" x2="11" y2="8.5" />
               </svg>
             </button>
-            {/* Quiet at rest, like every outline beside it, and carrying a
-                number only when something happened that nobody has read. */}
+            {/* THE SILHOUETTE CARRIES THE STATE, AND THE COLOUR ONLY AGREES
+                WITH IT. At 13px a hue change is not readable — ambient.ts makes
+                the same argument about the favicon, where amber and grey come
+                to 1.01:1 under protanopia — so watching and not watching are a
+                pupil and a slash, which differ in shape at any size.
+
+                The slash is not a warning. Off is the default and it is a fine
+                place to be, since the panel still answers retroactively; it
+                wears the same resting grey as every other icon in this bar
+                rather than the amber that belongs to a finding. */}
             <button
-              className={`btn icon-btn bw-btn${watchUnseen > 0 ? " has-findings" : ""}`}
+              className={`btn icon-btn bw-btn${watchUnseen > 0 ? " has-findings" : watchOn ? " watching" : ""}`}
               onClick={() => setBrowserWatchOpen(o => !o)}
-              title="Browser watch — what a program drove while you were away"
-              aria-label={watchUnseen > 0
-                ? `Browser watch, ${watchUnseen} unread`
-                : "Browser watch"}
+              title={watchOn
+                ? "Browser watch — watching; the deck is keeping its own copy"
+                : "Browser watch — not watching; reading the browser's history live"}
+              aria-label={`Browser watch, ${watchOn ? "watching" : "not watching"}`
+                + (watchUnseen > 0 ? `, ${watchUnseen} unread` : "")}
               aria-haspopup="dialog"
             >
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                 <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />
-                <circle cx="7" cy="7" r="1.8" />
+                {watchOn || watchUnseen > 0
+                  ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
+                  : <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
               </svg>
-              {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
+            {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
             </button>
           </div>
           <div className="action-run">

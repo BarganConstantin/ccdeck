@@ -6994,10 +6994,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* The icon itself carries the state too, not only the badge: at 14px a small
-   coloured disc is the first thing that reads, and under protanopia the warn
-   amber and the resting foreground sit close enough that colour alone is not
-   the signal. See ambient.ts for the same argument about the favicon. */
+/* Colour agrees with the silhouette, it does not carry the state on its own —
+   see the note in App.tsx. Three tiers, the same three the panel's own dots
+   use: resting grey for off, the deck's accent for armed, amber for a finding
+   nobody has read. */
+.bw-btn.watching { color: var(--accent); }
 .bw-btn.has-findings { color: var(--warn); }
 
 .bw-modal { width: min(860px, 94vw); }
