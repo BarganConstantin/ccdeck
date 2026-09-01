@@ -330,3 +330,33 @@ describe("one machine, one store, usually more than one deck", () => {
     expect(body).toMatch(/process\.kill\(d\.pid, 0\)/);
   });
 });
+
+describe("a log a person can read", () => {
+  it("writes nothing for a poll that found the file unchanged", async () => {
+    // The Log view polls every ten seconds while it is open, and one line per
+    // profile per poll is twelve lines a minute of nothing — which buried the
+    // one line saying a visit had been read. The view answering "is this
+    // working" answered it by making its own answer unfindable.
+    const server = src("../../server/browser-watch.mjs");
+    expect(server).not.toMatch(/unchanged, nothing to re-read/);
+    expect(server).toMatch(/else if \(read\.cached\) quiet \+= 1;/);
+  });
+
+  it("proves it is alive on a clock instead, and only when every profile was quiet", () => {
+    // A watch has to show it is running; proving it twelve times a minute
+    // proves nothing. Same trade the shell tool made with its heartbeat. And a
+    // poll that DID read something has already said so in its own line, so the
+    // beat is for the case where nothing spoke at all.
+    const server = src("../../server/browser-watch.mjs");
+    expect(server).toMatch(/const HEARTBEAT_MS = 5 \* 60_000;/);
+    expect(server).toMatch(/quiet === reports\.length && quiet > 0 && now - _lastBeat >= HEARTBEAT_MS/);
+  });
+
+  it("beats again after a manual refresh", () => {
+    // Pressing Refresh is a person asking whether it is working. Answering with
+    // silence because the clock has not come round is the wrong answer.
+    const server = src("../../server/browser-watch.mjs");
+    const fn = server.slice(server.indexOf("export function invalidateBrowserWatchCache"));
+    expect(fn.slice(0, 320)).toMatch(/_lastBeat = 0;/);
+  });
+});

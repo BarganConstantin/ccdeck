@@ -106,6 +106,7 @@ async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
  *  person disagrees with that is the one where they pressed refresh. */
 export function invalidateBrowserWatchCache() {
   cache.clear();
+  _lastBeat = 0;   // a manual refresh deserves a fresh proof of life
   _lastForced = 0;
   surveyCache = { atMs: 0, rows: [] };
 }
@@ -290,6 +291,23 @@ async function surveyBrowsers(platform, env, now, deps) {
   return rows;
 }
 
+/**
+ * How often the log says "still watching" when nothing has happened.
+ *
+ * THE LOG BECAME UNREADABLE THE MOMENT IT WENT LIVE. The panel polls every ten
+ * seconds while the Log view is open, and every poll wrote one line per profile
+ * saying the History file was unchanged — twelve lines a minute of nothing,
+ * burying the one line that said a visit had been read. The view answering "is
+ * this working" answered it by making its own answer unfindable.
+ *
+ * A quiet poll writes nothing now. Instead the log says so once every five
+ * minutes, which is the same trade the shell tool this descends from made with
+ * CLAUDE_CHROME_HEARTBEAT: a watch has to prove it is alive, and proving it
+ * twelve times a minute proves nothing at all.
+ */
+const HEARTBEAT_MS = 5 * 60_000;
+let _lastBeat = 0;
+
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
  *  episodes writes nothing — which is most polls, most of the time. */
@@ -355,6 +373,7 @@ export async function browserWatchSnapshot({
   if (quietMs !== undefined) opts.quietMs = quietMs;
 
   const reports = [];
+  let quiet = 0;   // profiles whose History had not moved, for the heartbeat
   let allFindings = [];
   let anyDegraded = false;
   let oldestSeen = null;
@@ -370,7 +389,8 @@ export async function browserWatchSnapshot({
       .map(f => ({ ...f, browser: profile.browser }));
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
-    else if (read.cached) note("info", `${where} — unchanged, nothing to re-read`, now);
+    // A poll that found the file unchanged says nothing. See HEARTBEAT_MS.
+    else if (read.cached) quiet += 1;
     else {
       const n = read.rows.length;
       note(findings.length > 0 ? "find" : "ok",
@@ -393,6 +413,13 @@ export async function browserWatchSnapshot({
       // "written at the epoch" are different answers and only one is true.
       lastWrittenMs: read.stamp,
     });
+  }
+
+  // Proof of life, at a rate a person can read. Only when every profile was
+  // quiet — a poll that read something has already said so in its own line.
+  if (quiet === reports.length && quiet > 0 && now - _lastBeat >= HEARTBEAT_MS) {
+    _lastBeat = now;
+    note("info", `still watching ${quiet} profile${quiet === 1 ? "" : "s"} — nothing new`, now);
   }
 
   const live = toEpisodes(allFindings, gapMs === undefined ? undefined : { gapMs });
