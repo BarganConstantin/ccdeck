@@ -7288,3 +7288,17 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   padding-top: 4px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Every browser the deck knows how to look at, installed or not — the absent
+   ones dimmed rather than dropped, because "not installed" and "installed and
+   never opened" are different answers and a list of only what was found cannot
+   tell them apart. */
+.bw-browsers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.bw-browsers li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
+.bw-browsers li.absent { opacity: 0.45; }
+.bw-relay { font-size: 10px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+/* Amber, never red. A connection to that address is not proof of a relay
+   session — an open claude.ai tab is indistinguishable — so the strongest
+   thing this badge is allowed to mean is "worth knowing". */
+.bw-relay.live { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.bw-relay.unknown { color: var(--text-dim); }

@@ -33,6 +33,8 @@ import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
 import { hostsPath, killswitchCommand, readKillswitch, extensionReport, verdict } from "./relay-guard.mjs";
 import { mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
+import { browserSurvey } from "./browser-presence.mjs";
+import { RELAY_HOST } from "./relay-guard.mjs";
 
 /** Chrome expires history at 90 days by default, so a window wider than that
  *  promises a past the browser has already forgotten. Thirty is the panel's
@@ -84,6 +86,7 @@ async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
 export function invalidateBrowserWatchCache() {
   cache.clear();
   _lastForced = 0;
+  surveyCache = { atMs: 0, rows: [] };
 }
 
 /** The floor between two reads somebody paid for, spelled the way quota.mjs,
@@ -217,6 +220,25 @@ export function noteWatchSetting(text) {
   note("ok", text);
 }
 
+/**
+ * The browser survey, behind a short cache.
+ *
+ * It costs a `dig`, a `pgrep` per browser and an `lsof` per running one — up to
+ * a dozen subprocesses — and none of what it reports moves quickly: a browser
+ * does not get installed twice a minute. Thirty seconds is far below the
+ * interval the badge polls on and far above the rate a person clicks Refresh.
+ */
+const SURVEY_TTL_MS = 30_000;
+let surveyCache = { atMs: 0, rows: [] };
+
+async function surveyBrowsers(platform, env, now, deps) {
+  if (deps.browserSurvey) return deps.browserSurvey();
+  if (now - surveyCache.atMs < SURVEY_TTL_MS) return surveyCache.rows;
+  const rows = await browserSurvey({ relayHost: RELAY_HOST, platform, env, deps }).catch(() => []);
+  surveyCache = { atMs: now, rows };
+  return rows;
+}
+
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
  *  episodes writes nothing — which is most polls, most of the time. */
@@ -331,6 +353,7 @@ export async function browserWatchSnapshot({
   }
   const episodes = enabled ? archived : live;
 
+  const browsers = await surveyBrowsers(platform, env, now, deps);
   const anyExtension = reports.some(r => r.hasClaudeExt && r.extension?.enabled !== false);
   const relay = relayState(platform, env, deps);
 
@@ -341,6 +364,7 @@ export async function browserWatchSnapshot({
     verdict: verdict({ anyExtension, blocked: relay.blocked === true }),
     relay,
     profiles: reports,
+    browsers,
     episodes,
     coverage: {
       // What the panel can honestly claim to know about, which is not the

@@ -51,6 +51,16 @@ export interface WatchLine {
   text: string;
 }
 
+interface WatchBrowser {
+  key: string;
+  name: string;
+  installed: boolean;
+  profiles: number;
+  withExtension: string[];
+  running: boolean | null;
+  relay: { state: "live" | "none-seen" | "unknown"; count: number; why: string };
+}
+
 export interface WatchSnapshot {
   ok: true;
   settings: WatchSettings;
@@ -65,6 +75,7 @@ export interface WatchSnapshot {
     command: { command: string; needsAdmin: boolean; note: string } | null;
   };
   profiles: WatchProfile[];
+  browsers: WatchBrowser[];
   episodes: WatchEpisode[];
   coverage: { requestedSinceMs: number; oldestVisitMs: number | null; archived: number; now: number };
   degraded: boolean;
@@ -473,67 +484,79 @@ export default function BrowserWatchModal({
 
           {snap && (
             <section className="bw-foot">
-              <h4>Watched</h4>
-              <ul className="bw-profiles">
-                {watched.map(p => (
-                  <li key={`${p.browser}/${p.profile}`}>
-                    <span className="bw-prof-name">{p.name}{p.profile !== "Default" && ` · ${p.profile}`}</span>
+              <h4>Browsers</h4>
+              {/* Every browser the deck knows how to look at, installed or not.
+                  "Chrome is installed and has never been opened" and "Chrome is
+                  not installed" are different answers, and a list of only what
+                  was found cannot tell them apart. */}
+              <ul className="bw-browsers">
+                {(snap.browsers ?? []).map(b => (
+                  <li key={b.key} className={b.installed ? "" : "absent"}>
+                    <span className="bw-prof-name">{b.name}</span>
                     <span className="bw-prof-meta">
-                      {p.visits.toLocaleString()} visits
-                      {p.hasClaudeExt && p.extension?.allUrls && " · extension can read every site"}
-                      {p.hasClaudeExt && p.extension?.enabled === false && " · extension disabled"}
-                      {!p.hasClaudeExt && " · no Claude extension"}
-                      {p.degraded && ` · ${p.reason ?? "could not read"}`}
+                      {!b.installed ? "not installed"
+                        : b.profiles === 0 ? "installed, never opened"
+                        : `${b.profiles} profile${b.profiles === 1 ? "" : "s"}`}
+                      {b.withExtension.length > 0 && " · Claude extension"}
+                      {b.installed && (b.running ? " · running" : " · not running")}
                     </span>
+                    {b.installed && b.running && (
+                      <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
+                        {b.relay.state === "live" ? `relay: ${b.relay.count} connection${b.relay.count === 1 ? "" : "s"}`
+                          : b.relay.state === "none-seen" ? "relay: none seen"
+                          : "relay: cannot tell"}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
+
               {/* The exposure verdict, at the foot with the browsers it is about.
                   It answers "can somebody else drive these", which is context
-                  for the whole panel rather than an entry in it — and at the
-                  top it was the first thing read and the thing most often
-                  scrolled past. */}
+                  for the whole panel rather than an entry in it. */}
               {v && (
                 <div className="bw-state">
-              <div className={`bw-row ${v.tone}`}>
-                <span className="bw-dot" aria-hidden />
-                <span className="bw-row-label">{v.label}</span>
-                <span className="bw-row-detail">{v.detail}</span>
-                {snap.relay.command && snap.verdict !== "nothing-exposed" && (
-                  <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
-                    {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
-                  </button>
-                )}
-              </div>
-
-              {showCmd && snap.relay.command && (
-                // Behind a press, because it is three quarters of a screen of
-                // shell and it is not what anybody opened this panel to read.
-                <div className="bw-cmd">
-                  <code>{snap.relay.command.command}</code>
-                  <div className="bw-cmd-foot">
-                    <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
-                      {copied ? "copied" : "copy"}
-                    </button>
-                    {/* The server's note already says who runs this and what it
-                        does not do; a preamble here repeated it word for word. */}
-                    <span>{snap.relay.command.note}</span>
+                  <div className={`bw-row ${v.tone}`}>
+                    <span className="bw-dot" aria-hidden />
+                    <span className="bw-row-label">{v.label}</span>
+                    <span className="bw-row-detail">{v.detail}</span>
+                    {snap.relay.command && snap.verdict !== "nothing-exposed" && (
+                      <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
+                        {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
+                      </button>
+                    )}
                   </div>
+
+                  {showCmd && snap.relay.command && (
+                    // Behind a press, because it is a screenful of shell and it
+                    // is not what anybody opened this panel to read.
+                    <div className="bw-cmd">
+                      <code>{snap.relay.command.command}</code>
+                      <div className="bw-cmd-foot">
+                        <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
+                          {copied ? "copied" : "copy"}
+                        </button>
+                        <span>{snap.relay.command.note}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {snap.relay.foreign.length > 0 && (
+                    <p className="bw-foreign">
+                      Something else already maps this host in {snap.relay.path}:{" "}
+                      {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
+                    </p>
+                  )}
                 </div>
               )}
-              {snap.relay.foreign.length > 0 && (
-                <p className="bw-foreign">
-                  Something else already maps this host in {snap.relay.path}:{" "}
-                  {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
-                </p>
-              )}
-                </div>
-              )}
+
 
               <p className="bw-note">
-                Read from each browser's own history, which it writes whether or not the deck is running —
-                so a deck that was closed all weekend still answers for it.
-                {snap.degraded && " One profile could not be read in full; see the note beside it."}
+                Read from each browser's own history, which it writes whether or not the deck is
+                running — so a deck that was closed all weekend still answers for it.
+                {" "}A relay reading is never conclusive: the name shares an address with
+                api.anthropic.com, and this probe cannot see some browsers' sockets at all.
+                {snap.degraded && " One profile could not be read in full; see the activity log."}
               </p>
             </section>
           )}
