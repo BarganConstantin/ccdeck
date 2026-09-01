@@ -283,3 +283,84 @@ describe("the floor the watch reads from", () => {
     expect(snap.coverage.startedMs).toBeGreaterThan(Date.now() - 86_400_000);
   });
 });
+
+describe("one machine, one store, usually more than one deck", () => {
+  /** One program navigation in silence — enough that there IS something to
+   *  record, which is what makes the two cases below able to fail. */
+  const FROM_API = 0x08000000;
+  const finding = (atMs: number) => ({
+    url: "https://gitlab.example.com/-/jobs", timeMs: atMs, transition: FROM_API,
+  });
+
+  const armed = (extra: Record<string, unknown>) => ({
+    ...harness({ rows: [finding(Date.now() - 5_000)] }).deps,
+    readStore: async () => ({
+      settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
+      episodes: [],
+      migrated: false,
+    }),
+    react: async () => ["notified"],
+    appendLog: async () => {},
+    ...extra,
+  });
+
+  it("records and reacts from a single deck", async () => {
+    // Both decks read the same Chrome history and find the same new episode, so
+    // without a rule each writes a line and fires a notification: one event,
+    // told twice. Verified rather than assumed — two decks were live on this
+    // machine when this was written, so it is the ordinary case.
+    let wrote = 0;
+    await browserWatchSnapshot({ deps: armed({
+      isReactingDeck: () => false,
+      writeStore: async () => { wrote += 1; },
+    }) });
+    expect(wrote, "the deck that is not elected wrote anyway").toBe(0);
+
+    // And the elected one does write, so the case cannot pass by finding
+    // nothing to record.
+    let wroteWinner = 0;
+    await browserWatchSnapshot({ deps: armed({
+      isReactingDeck: () => true,
+      writeStore: async () => { wroteWinner += 1; },
+    }) });
+    expect(wroteWinner, "the elected deck recorded nothing").toBeGreaterThan(0);
+  });
+
+  it("never reacts twice for one event", async () => {
+    // The consequence that reaches the user: two notifications for one episode,
+    // and two lines in the log they inspect later.
+    let reacted = 0;
+    const count = { react: async () => { reacted += 1; return ["notified"]; } };
+    await browserWatchSnapshot({ deps: armed({ isReactingDeck: () => false, ...count }) });
+    expect(reacted).toBe(0);
+    await browserWatchSnapshot({ deps: armed({ isReactingDeck: () => true, ...count }) });
+    expect(reacted).toBe(1);
+  });
+
+  it("still SHOWS everything on the deck that is not recording", async () => {
+    // A second panel that went blank would be a worse bug than the one this
+    // prevents. Reading the store is free; only the writing is exclusive.
+    const snap = await browserWatchSnapshot({ deps: armed({ isReactingDeck: () => false }) });
+    expect(snap.ok).toBe(true);
+    expect(snap.episodes.length, "the unelected deck shows nothing").toBeGreaterThan(0);
+  });
+
+  it("assumes it is alone when it cannot see the other decks", async () => {
+    // A deck that cannot read the discovery directory must not fall silent —
+    // for the common case of one deck, "alone" is the right answer anyway, and
+    // the failure mode of the opposite choice is a watch that never reports.
+    const server = src("../../server/browser-watch.mjs");
+    expect(server).toMatch(/catch \{ return true; \}\s+\/\/ cannot look/);
+  });
+
+  it("claims nothing on disk to decide it", () => {
+    // The shell tool this descends from lost its lock on SIGHUP and then
+    // refused to watch anything ever again. This reads and compares; there is
+    // no claim to strand.
+    const server = src("../../server/browser-watch.mjs");
+    const fn = server.slice(server.indexOf("async function isReactingDeck"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).not.toMatch(/writeFile|mkdir|open\(|rename/);
+    expect(body).toMatch(/process\.kill\(d\.pid, 0\)/);
+  });
+});

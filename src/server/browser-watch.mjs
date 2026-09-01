@@ -28,6 +28,9 @@
 // question completely — which is why there is no process to keep alive and no
 // gap to apologise for.
 import { readFileSync, statSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
@@ -251,6 +254,50 @@ export function noteWatchSetting(text) {
 }
 
 /**
+ * Whether THIS deck is the one that reacts and writes.
+ *
+ * ONE MACHINE, ONE STORE, AND USUALLY MORE THAN ONE DECK. The archive and the
+ * log live at a single path per machine, but running two decks is ordinary here
+ * — the repo has electWriters and a discovery directory precisely because it is.
+ * Both would read the same Chrome history, find the same new episode, and each
+ * write a line and fire a notification: one event, told twice.
+ *
+ * Verified rather than assumed: at the moment this was written, two decks were
+ * live on this machine (ports 4317 and 4393), so the collision is the ordinary
+ * case and not a corner.
+ *
+ * The rule is log-writer.mjs's, reused rather than reinvented: among live decks,
+ * the LOWEST PORT wins, with the pid breaking a tie a stale discovery file could
+ * invent. Deterministic, needs no lock file, and cannot strand the feature — a
+ * deck that reads a directory it cannot open decides it is alone, which for the
+ * common case of one deck is the right answer anyway.
+ *
+ * Reading only, never writing: this is a question about who else is running, and
+ * a watcher that had to claim something to answer it could leave the claim
+ * behind. The shell tool this descends from lost its lock on SIGHUP and then
+ * refused to watch anything ever again.
+ */
+async function isReactingDeck(deps = {}) {
+  if (deps.isReactingDeck) return deps.isReactingDeck();
+  const dir = join(claudeConfigDir(), "agent-dag");
+  let files;
+  try { files = await readdir(dir); } catch { return true; }   // cannot look — assume alone
+
+  let best = null;
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const d = JSON.parse(await readFile(join(dir, f), "utf8"));
+      if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
+      // A record whose process is gone is a leftover, not a rival.
+      try { process.kill(d.pid, 0); } catch { continue; }
+      if (!best || d.port < best.port || (d.port === best.port && d.pid < best.pid)) best = d;
+    } catch { /* corrupt, or gone between listing and read */ }
+  }
+  return best === null || best.pid === process.pid;
+}
+
+/**
  * The browser survey, behind a short cache.
  *
  * It costs a `dig`, a `pgrep` per browser and an `lsof` per running one — up to
@@ -387,7 +434,11 @@ export async function browserWatchSnapshot({
   // had asked for a watch would be a record they never consented to keep, of
   // pages they visited, on disk. The switch means what it says.
   const kept = enabled ? mergeEpisodes(store.episodes, live, now) : store.episodes;
-  if (enabled && changedFrom(store.episodes, kept)) {
+  // Only one deck records and reacts; the others still SHOW everything, because
+  // reading the store is free and a second panel that went blank would be a
+  // worse bug than the one this prevents.
+  const acting = enabled ? await isReactingDeck(deps) : false;
+  if (acting && changedFrom(store.episodes, kept)) {
     // Only what is NEW gets a log line. mergeEpisodes replaces a run that has
     // grown, so writing the whole set every time would repeat one episode once
     // per page it gained.
