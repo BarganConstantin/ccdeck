@@ -278,6 +278,8 @@ const PRESSES: Press[] = [
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-controls select:active:not(:disabled)", "0.97", "transform"],
+  // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
+  [".bw-toggle:active", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
   // The account row's own disclosure — the control that opens the quota windows
   // the row is not showing. Written in `.ap-rotate`'s language one line up

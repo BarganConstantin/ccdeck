@@ -235,65 +235,6 @@ export default function BrowserWatchModal({
             </div>
           )}
 
-          {v && snap && (
-            <section className="bw-state">
-              {/* Two rows, not two cards. What a person needs at a glance is
-                  which of two states each thing is in; the paragraph that used
-                  to explain it pushed the list — the actual content — a full
-                  screen down. */}
-              <div className={`bw-row ${v.tone}`}>
-                <span className="bw-dot" aria-hidden />
-                <span className="bw-row-label">{v.label}</span>
-                <span className="bw-row-detail">{v.detail}</span>
-                {snap.relay.command && snap.verdict !== "nothing-exposed" && (
-                  <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
-                    {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
-                  </button>
-                )}
-              </div>
-
-              {showCmd && snap.relay.command && (
-                // Behind a press, because it is three quarters of a screen of
-                // shell and it is not what anybody opened this panel to read.
-                <div className="bw-cmd">
-                  <code>{snap.relay.command.command}</code>
-                  <div className="bw-cmd-foot">
-                    <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
-                      {copied ? "copied" : "copy"}
-                    </button>
-                    {/* The server's note already says who runs this and what it
-                        does not do; a preamble here repeated it word for word. */}
-                    <span>{snap.relay.command.note}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className={`bw-row ${snap.settings.enabled ? "on" : "off"}`}>
-                <span className="bw-dot" aria-hidden />
-                <span className="bw-row-label">{snap.settings.enabled ? "Watching" : "Not watching"}</span>
-                <span className="bw-row-detail">
-                  {snap.settings.enabled
-                    ? `keeping its own copy, so a cleared history loses nothing — ${snap.coverage.archived} kept`
-                    : "reading the browser's history live; clearing it would lose what is below"}
-                </span>
-                <button
-                  className="btn"
-                  onClick={() => void save({ enabled: !snap.settings.enabled })}
-                  aria-pressed={snap.settings.enabled}
-                >
-                  {saving ? "saving" : snap.settings.enabled ? "turn off" : "turn on"}
-                </button>
-              </div>
-
-              {snap.relay.foreign.length > 0 && (
-                <p className="bw-foreign">
-                  Something else already maps this host in {snap.relay.path}:{" "}
-                  {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
-                </p>
-              )}
-            </section>
-          )}
-
           {snap && (
             <section className="bw-controls">
               <label>
@@ -313,6 +254,32 @@ export default function BrowserWatchModal({
                   <option value={60}>60 min</option>
                 </select>
               </label>
+              {/* A real switch, not a button whose label names the action. "turn
+                  off" made the reader work out the current state from the verb
+                  offered — a toggle SHOWS it, and role="switch" says the same
+                  thing to a screen reader. It sits with the other two settings
+                  because that is what it is. */}
+              <label className="bw-switch-field">
+                <span>Keep a copy</span>
+                <span className="bw-switch-line">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={snap.settings.enabled}
+                    className="bw-toggle"
+                    onClick={() => void save({ enabled: !snap.settings.enabled })}
+                    title={snap.settings.enabled
+                      ? "On — an episode the deck has seen survives the history being cleared"
+                      : "Off — the list is read live, and clearing the history would lose it"}
+                  >
+                    <span className="bw-toggle-knob" />
+                  </button>
+                  <span className="bw-switch-state">
+                    {saving ? "saving" : snap.settings.enabled ? `${snap.coverage.archived} kept` : "off"}
+                  </span>
+                </span>
+              </label>
+
               <div className="bw-count">
                 <strong>{snap.episodes.length}</strong>
                 <span>{snap.episodes.length === 1 ? "episode" : "episodes"}</span>
@@ -398,6 +365,48 @@ export default function BrowserWatchModal({
                   </li>
                 ))}
               </ul>
+              {/* The exposure verdict, at the foot with the browsers it is about.
+                  It answers "can somebody else drive these", which is context
+                  for the whole panel rather than an entry in it — and at the
+                  top it was the first thing read and the thing most often
+                  scrolled past. */}
+              {v && (
+                <div className="bw-state">
+              <div className={`bw-row ${v.tone}`}>
+                <span className="bw-dot" aria-hidden />
+                <span className="bw-row-label">{v.label}</span>
+                <span className="bw-row-detail">{v.detail}</span>
+                {snap.relay.command && snap.verdict !== "nothing-exposed" && (
+                  <button className="btn" onClick={() => setShowCmd(c => !c)} aria-expanded={showCmd}>
+                    {showCmd ? "hide" : snap.relay.blocked ? "how to allow" : "how to close"}
+                  </button>
+                )}
+              </div>
+
+              {showCmd && snap.relay.command && (
+                // Behind a press, because it is three quarters of a screen of
+                // shell and it is not what anybody opened this panel to read.
+                <div className="bw-cmd">
+                  <code>{snap.relay.command.command}</code>
+                  <div className="bw-cmd-foot">
+                    <button className="btn" onClick={() => copy(snap.relay.command!.command)}>
+                      {copied ? "copied" : "copy"}
+                    </button>
+                    {/* The server's note already says who runs this and what it
+                        does not do; a preamble here repeated it word for word. */}
+                    <span>{snap.relay.command.note}</span>
+                  </div>
+                </div>
+              )}
+              {snap.relay.foreign.length > 0 && (
+                <p className="bw-foreign">
+                  Something else already maps this host in {snap.relay.path}:{" "}
+                  {snap.relay.foreign.map(l => <code key={l}>{l}</code>)}
+                </p>
+              )}
+                </div>
+              )}
+
               <p className="bw-note">
                 Read from each browser's own history, which it writes whether or not the deck is running —
                 so a deck that was closed all weekend still answers for it.
