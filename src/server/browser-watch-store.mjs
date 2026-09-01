@@ -48,26 +48,52 @@ export const storePath = (home = claudeConfigDir()) => join(storeDir(home), "sta
 export const logPath = (home = claudeConfigDir()) => join(storeDir(home), "watch.log");
 
 /**
- * Append one line per episode, oldest first.
+ * Append one episode, and EVERY ADDRESS IN IT, oldest first.
+ *
+ * THE URLs ARE THE POINT OF THE FILE. A summary line — host, count, duration —
+ * says something happened and leaves the reader unable to act on it: the
+ * question three days later is not "did a program touch gitlab" but "WHICH
+ * pages", because a jobs list and a settings page mean different things. So
+ * every address is written in full, unshortened and unescaped, exactly as
+ * Chrome recorded it.
+ *
+ * Query strings and fragments included. They are frequently the whole content
+ * of the visit — `?scope=all`, `#servicii` — and a log that dropped them would
+ * be tidier and useless for the one job it has.
+ *
+ * Indented under their episode so the shape survives `grep`: a summary line
+ * starts at column zero, a URL line does not, which is what lets
+ * `grep -v '^ '` give the summary alone and `grep '^  '` give the addresses.
  *
  * Append-only and never rewritten: a log a program edits is not a log. It is
- * also the only part of this feature that outlives the process by design — the
- * panel shows what this deck has seen, and this file is what somebody reads
- * three days later without opening the panel at all.
+ * the only part of this feature that outlives the process by design — the panel
+ * shows what this deck has seen, this file is what somebody reads three days
+ * later without opening the panel at all.
  */
 export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
   if (!episodes.length) return;
   const mk = deps.mkdir ?? mkdir;
   const add = deps.appendFile ?? appendFile;
-  const line = e => {
-    const at = new Date(e.startMs).toISOString().replace("T", " ").slice(0, 19);
+  // Local time, not UTC. The reader's question is "what was happening at four
+  // yesterday afternoon", and their afternoon is not UTC's — the ISO stamp this
+  // replaced was off by the offset for everyone outside London.
+  const stamp = ms => {
+    const d = new Date(ms);
+    const p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+         + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+  const block = e => {
     const span = e.endMs - e.startMs >= 60_000
       ? ` over ${Math.round((e.endMs - e.startMs) / 60_000)}m`
       : "";
-    return `${at}  ${e.host}  ${e.count} page${e.count === 1 ? "" : "s"}${span}`;
+    const where = e.browser ? ` [${e.browser}]` : "";
+    const head = `${stamp(e.startMs)}  ${e.host}  ${e.count} page${e.count === 1 ? "" : "s"}${span}${where}`;
+    const rows = (e.urls ?? []).map(u => `    ${stamp(u.timeMs).slice(11)}  ${u.url}`);
+    return [head, ...rows].join("\n");
   };
   await mk(storeDir(home), { recursive: true });
-  await add(logPath(home), episodes.map(line).join("\n") + "\n", "utf8");
+  await add(logPath(home), episodes.map(block).join("\n") + "\n", "utf8");
 }
 
 /**

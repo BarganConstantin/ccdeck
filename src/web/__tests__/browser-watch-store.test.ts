@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DEFAULTS, REACTIONS, mergeEpisodes, normalise, readStore, storePath, writeStore,
+  DEFAULTS, REACTIONS, appendLog, logPath, mergeEpisodes, normalise, readStore, storePath, writeStore,
 } from "../../server/browser-watch-store.mjs";
 
 const episode = (host: string, startMs: number, over = {}) => ({
@@ -175,5 +175,87 @@ describe("the file on disk", () => {
     // to keep skipping this one forever. A directory is not a name it can
     // collide with.
     expect(storePath("/h")).toBe(join("/h", "agent-dag", "browser-watch", "state.json"));
+  });
+});
+
+describe("the log file, which is what gets inspected later", () => {
+  const withHome = async (fn: (home: string) => Promise<void>) => {
+    const home = mkdtempSync(join(tmpdir(), "bw-log-"));
+    try { await fn(home); } finally { rmTempDir(home); }
+  };
+
+  const run = {
+    host: "gitlab.example.com", browser: "brave", count: 3,
+    startMs: Date.UTC(2026, 7, 24, 17, 3, 0),
+    endMs: Date.UTC(2026, 7, 24, 17, 44, 0),
+    urls: [
+      { url: "https://gitlab.example.com/x/-/jobs?scope=all&page=2", timeMs: Date.UTC(2026, 7, 24, 17, 3, 0) },
+      { url: "https://gitlab.example.com/-/settings/ci_cd#runners", timeMs: Date.UTC(2026, 7, 24, 17, 44, 0) },
+    ],
+  };
+
+  it("writes every address, in full", async () => {
+    // THE REASON THE FILE EXISTS. A summary line says something happened and
+    // leaves the reader unable to act: the question three days later is not
+    // "did a program touch gitlab" but WHICH pages, because a jobs list and a
+    // settings page mean different things.
+    await withHome(async home => {
+      await appendLog([run], home);
+      const text = readFileSync(logPath(home), "utf8");
+      for (const u of run.urls) expect(text).toContain(u.url);
+    });
+  });
+
+  it("keeps the query string and the fragment", async () => {
+    // Frequently the whole content of the visit. A log that tidied them away
+    // would be neater and useless for its one job.
+    await withHome(async home => {
+      await appendLog([run], home);
+      const text = readFileSync(logPath(home), "utf8");
+      expect(text).toContain("?scope=all&page=2");
+      expect(text).toContain("#runners");
+    });
+  });
+
+  it("indents the addresses, so grep can separate them from the summary", async () => {
+    await withHome(async home => {
+      await appendLog([run], home);
+      const lines = readFileSync(logPath(home), "utf8").split("\n").filter(Boolean);
+      const summaries = lines.filter(l => !l.startsWith(" "));
+      const urls = lines.filter(l => l.startsWith("    "));
+      expect(summaries).toHaveLength(1);
+      expect(urls).toHaveLength(2);
+      expect(summaries[0]).toContain("gitlab.example.com");
+      expect(summaries[0]).toContain("[brave]");
+    });
+  });
+
+  it("stamps in local time, because the reader's afternoon is not UTC's", async () => {
+    // The ISO stamp this replaced was off by the offset for everyone outside
+    // London, and "what was happening at four yesterday" is the question.
+    await withHome(async home => {
+      await appendLog([run], home);
+      const head = readFileSync(logPath(home), "utf8").split("\n")[0];
+      const local = new Date(run.startMs);
+      expect(head).toContain(String(local.getHours()).padStart(2, "0") + ":"
+        + String(local.getMinutes()).padStart(2, "0"));
+    });
+  });
+
+  it("appends rather than rewrites — a log a program edits is not a log", async () => {
+    await withHome(async home => {
+      await appendLog([run], home);
+      await appendLog([{ ...run, host: "second.example.com", urls: [] }], home);
+      const text = readFileSync(logPath(home), "utf8");
+      expect(text).toContain("gitlab.example.com");
+      expect(text).toContain("second.example.com");
+    });
+  });
+
+  it("writes nothing at all for nothing found", async () => {
+    await withHome(async home => {
+      await appendLog([], home);
+      expect(existsSync(logPath(home))).toBe(false);
+    });
   });
 });

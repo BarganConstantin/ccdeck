@@ -466,7 +466,14 @@ export default function BrowserWatchModal({
               <p className="bw-note">
                 Only navigations since this deck started are read — nothing from before it was
                 running, and nothing while it is down.
-                {snap && <> Written to <code>{snap.coverage.logPath}</code>.</>}
+                {snap && (
+                  <> Every address is written in full to{" "}
+                    {/* Selectable in one click, because the next thing a person
+                        does with this path is paste it into a terminal. */}
+                    <code className="bw-path">{snap.coverage.logPath}</code>{" "}
+                    — query strings and fragments included, so an inspection later
+                    can tell a jobs list from a settings page.</>
+                )}
                 {" "}A relay reading is never conclusive: the name shares an address with
                 api.anthropic.com, and this probe cannot see some browsers' sockets at all.
                 {snap.degraded && " One profile could not be read in full; see the activity log."}

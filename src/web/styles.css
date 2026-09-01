@@ -7357,3 +7357,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 @media (prefers-reduced-motion: reduce) {
   .bw-loading-bar::after { animation: none; }
 }
+
+/* The log's path. `user-select: all` so one click takes the whole of it — the
+   next thing anybody does with this string is paste it into a terminal. */
+.bw-path { user-select: all; word-break: break-all; }
