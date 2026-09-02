@@ -60,10 +60,17 @@ describe("the radar and its legend", () => {
     expect(source.slice(0, source.indexOf(inlined[0]))).toContain("export function watchedBrowsers");
   });
 
-  it("both call it", () => {
-    // Two call sites in the live view plus the footer's count. Fewer means one
-    // of them went back to filtering for itself.
+  it("read it once and share the array, rather than each calling for itself", () => {
+    // Stronger than the old "at least four call sites". The component derives
+    // `watching` once and every consumer reads that one array — the radar, the
+    // legend, the profile rows, the counts and the status bar's tally. Sharing
+    // the array is what makes "blip i is legend item i" true by construction
+    // rather than by two filters happening to agree.
     const calls = source.match(/watchedBrowsers\(/g) ?? [];
-    expect(calls.length).toBeGreaterThanOrEqual(4);
+    expect(calls.length, "watchedBrowsers is being called per consumer again").toBeLessThanOrEqual(2);
+    expect(source).toMatch(/const watching = watchedBrowsers\(/);
+    // And the consumers read the shared name, not a fresh call.
+    expect(source).toMatch(/browsers=\{watching\.map\(/);
+    expect(source).toMatch(/\{watching\.map\(b => \(\s*<li key=\{b\.key\} className=\{b\.running/);
   });
 });

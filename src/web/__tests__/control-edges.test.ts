@@ -534,9 +534,10 @@ const CONTROLS: Control[] = [
   // are only told apart by a knob position needs each of them to hold its own
   // boundary, not just the resting one.
   { at: ".bw-toggle", states: [".bw-toggle:hover", '.bw-toggle[aria-checked="true"]'], beds: ["--panel"] },
-  // The view tabs. `.on` draws the selected one's underline, which is the only
-  // boundary either of them has.
-  { at: ".bw-tab", states: [".bw-tab.on"], beds: ["--panel"] },
+  // The two views, one segmented control. The group carries the outline; the
+  // selected half's only boundary is its accent underline, which is why `.on`
+  // is measured here rather than the halves' own (absent) borders.
+  { at: ".bw-seg", states: [".bw-seg-btn.on"], beds: ["--panel"] },
   { at: ".ap-more:hover", fillFrom: ".ap-more", states: [".ap-more.on"], beds: ACCOUNTS },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },

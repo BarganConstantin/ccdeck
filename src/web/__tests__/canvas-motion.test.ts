@@ -278,14 +278,13 @@ const PRESSES: Press[] = [
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
-  // The browser inventory's summary line. 0.99 rather than 0.97: it is a
-  // full-width row of small text with no box, and scaling it three percent
-  // moves the words under the pointer.
-  [".bw-foot-head:active", "0.99", "transform"],
   // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
   [".bw-toggle:active", "0.97", "transform"],
-  // The two view tabs, in `.aa-tab`'s language — same control, same tier.
-  [".bw-tab:active", "0.97", "transform"],
+  // The two views, in `.aa-tab`'s language — same control, same tier. They are
+  // one segmented control now rather than two free-standing pills, and the
+  // press is still on each half: the group is the container, the half is what
+  // was pressed.
+  [".bw-seg-btn:active", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
   // The account row's own disclosure — the control that opens the quota windows
   // the row is not showing. Written in `.ap-rotate`'s language one line up
@@ -345,6 +344,13 @@ const EXEMPT: string[] = [
   // is shaped as a link and scaling a run of inline text shifts the words
   // around it. It discloses a paragraph and changes nothing else.
   ".bw-why",
+  // The status bar's switch LABEL, which is a label and not a second control:
+  // it carries `cursor: pointer` because clicking the words toggles the switch
+  // via `htmlFor`, and the press it starts is already answered — by the knob
+  // travelling and by `.bw-toggle`'s own 0.97. Scaling the label too would move
+  // the words out from under the pointer to say a second time what the switch
+  // beside them has already said.
+  ".bw-switch",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

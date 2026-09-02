@@ -220,8 +220,20 @@ const logLines = [];
  *
  * @param {"find"|"act"|"ok"|"info"|"warn"} level
  */
-function note(level, text, atMs = Date.now()) {
-  logLines.unshift({ atMs, level, text });
+function note(level, text, atMs = Date.now(), parts = null) {
+  // `parts` is the same line said as columns, for the one shape that HAS
+  // columns: a profile read. The panel aligns those into a grid, where the
+  // count lands in the same place on every row instead of at the end of a
+  // sentence whose length depends on the browser's name. Composed here rather
+  // than parsed back out of `text` in the client — a program that has to
+  // reverse its own formatting has two spellings of one fact and will
+  // eventually disagree with itself.
+  //
+  // Null for every other line, and that is not a gap: "still watching 2
+  // profiles" and "closed the tab" are the deck talking, not events with a
+  // browser and a number, and the panel renders them as a different kind of
+  // row on purpose.
+  logLines.unshift(parts ? { atMs, level, text, parts } : { atMs, level, text });
   if (logLines.length > LOG_MAX) logLines.length = LOG_MAX;
 }
 
@@ -444,7 +456,13 @@ export async function browserWatchSnapshot({
       const n = read.rows.length;
       const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
       note(findings.length > 0 ? "find" : "ok",
-           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}${found}`, now);
+           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}${found}`, now,
+           {
+             browser: profile.name,
+             profile: profile.profile,
+             value: `${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}`,
+             flagged: findings.length,
+           });
     }
     allFindings = allFindings.concat(findings);
     if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
