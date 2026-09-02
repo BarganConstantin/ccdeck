@@ -7282,6 +7282,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* THE FEED HEADER, so the column starts with what it is rather than with an
    event, and has somewhere to grow a filter later. */
 .bw-feed { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+/* Tighter to the rows it describes than the 12px the section uses between its
+   own parts — it belongs to the log, not beside it. */
+.bw-feed-note { margin-bottom: -4px; max-width: 68ch; }
 /* One head row, used by Findings and by Live activity — the name says
    what it is rather than which section first needed it. */
 .bw-head-row { align-items: baseline; }

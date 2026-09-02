@@ -736,6 +736,16 @@ export default function BrowserWatchModal({
                     {snap.log.length} {snap.log.length === 1 ? "event" : "events"}
                   </span>
                 </h4>
+                {/* WHY THESE ROWS HAVE NO ADDRESSES, said once. `+3 entries`
+                    is a number about the reader's OWN browsing, and the panel
+                    was never explaining why it would not say more — which
+                    reads as a gap rather than as the deliberate line it is.
+                    Only a finding gets its addresses written down; ordinary
+                    pages are counted to run the rule and never kept. */}
+                <p className="bw-since bw-feed-note">
+                  Pages you opened yourself — counted to run the rule, never written down.
+                  Addresses appear under Findings, and only for pages a program opened.
+                </p>
                 <div className="bw-log" aria-live="polite" aria-relevant="additions">
                   {snap.log.length === 0 ? (
                     <p className="bw-note">The deck writes a line here each time it looks at a profile.</p>
