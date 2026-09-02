@@ -61,7 +61,7 @@ describe("anyTouches", () => {
 // timer is a staleness indicator and the warning about what the text IS sits
 // beside it rather than on it. Pinned here because the wording drifted into a
 // security claim once already.
-import { shareExpiry } from "../components/AccountsPanel";
+import { shareExpiry } from "../share-bundle";
 
 describe("shareExpiry", () => {
   /** `left` is how many seconds remain, so the sign reads the way it is said. */

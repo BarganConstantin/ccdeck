@@ -7848,3 +7848,131 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    one — so the note says so rather than leaving the reader to wonder whether
    the panel is broken. */
 .bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+
+/* ---------------- share a set of accounts ---------------- */
+/* The panel-level share, on the shared .modal shell. Wider than the sign-in
+   dialog by nothing at all: both are forms, and a picker that spans the screen
+   makes five short rows look like a table of data. */
+.sa-modal { width: min(560px, 92vw); }
+.sa-body { display: flex; flex-direction: column; gap: 18px; }
+.sa-step { display: flex; flex-direction: column; gap: 10px; }
+.sa-step h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sa-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.sa-actions { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+
+/* The count of tokens, not of rows. It is the line that has to land before the
+   copy, so it carries the dialog's only body-weight sentence — and it stops
+   carrying it when nothing is ticked, because there is then nothing to warn
+   about and a warning about nothing teaches people to skip the line. */
+.sa-count {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sa-count.empty { color: var(--muted); }
+
+.sa-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+/* Bounded so a machine with fifteen accounts still shows its buttons without
+   the dialog growing past the viewport; the list is what scrolls, never the
+   decision beneath it. */
+.sa-pick { max-height: min(46vh, 320px); overflow-y: auto; gap: 2px; }
+.sa-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  /* The whole row is the hit area, not the 13px box: a checkbox list where only
+     the box answers is a list that misses on touch and on a hurried mouse. */
+}
+.sa-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sa-row input { flex: none; accent-color: var(--accent); cursor: pointer; }
+.sa-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sa-who { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
+/* The disambiguator only appears where the label cannot stand alone, so it is
+   quiet by default — it is there to be read once, when two rows look alike. */
+.sa-sub { color: var(--text-dim); font-size: 11px; overflow-wrap: anywhere; }
+
+/* An account the bundle could not carry. Loud enough to be read before the
+   copy, because the alternative is somebody pasting four accounts believing
+   they pasted five. */
+.sa-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 6px;
+}
+.sa-failed-head { margin: 0; color: var(--warn); font-size: 12px; }
+.sa-failed .sa-list { gap: 4px; }
+.sa-failed li { display: flex; flex-direction: column; }
+.sa-why { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+/* Past its expiry the text is refused by the other deck's import dialog, so the
+   block reads as spent rather than as something still worth copying. */
+.sa-dead { opacity: var(--dim-stale); }
+
+/* ---------------- what an import did, per account ---------------- */
+/* One row per account in the bundle. Left-aligned inside a centred success
+   block on purpose: the heading is the verdict and belongs in the middle, while
+   these are a list to be scanned down, and a centred list has no column to scan.
+   Each row is who, then what happened to them — never a bare total, which is
+   what makes people run an import twice and wonder if they doubled something. */
+.aa-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(38vh, 260px);
+  overflow-y: auto;
+  text-align: left;
+}
+.aa-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.aa-result-who { color: var(--text); overflow-wrap: anywhere; }
+/* The outcome word carries the colour, and only where the outcome is not the
+   ordinary one: an account that arrived is the point of the exercise, one that
+   was already here is a non-event, and one that did not arrive is the only row
+   that needs the eye. */
+.aa-result-what { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.aa-result.imported .aa-result-what { color: var(--ok); }
+.aa-result.healed .aa-result-what,
+.aa-result.updated .aa-result-what { color: var(--accent); }
+.aa-result.failed .aa-result-what { color: var(--err); }
+.aa-result.failed { background: color-mix(in srgb, var(--err) 8%, transparent); }
+/* Present at rest, because a row that reveals its escape hatch on hover is one
+   a keyboard and a touch screen never find. Quiet, because overwriting a
+   working login is the rare thing and not the suggested one. */
+.aa-result-fix {
+  padding: 2px 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.aa-result-fix:hover { color: var(--text); border-color: var(--accent); }
+.aa-result-fix:active { transform: scale(0.97); }
+.aa-result-err { flex-basis: 100%; color: var(--err); font-size: 11px; line-height: 1.5; }
