@@ -65,11 +65,30 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // focal point of that view — it is the difference between a paste that works
   // on the other machine and one that is refused — so it is not a number that
   // may sit half a minute out of date the way the panel's row can.
+  //
+  // The clock is re-read as the bundle lands, not left at the value it had when
+  // the dialog opened: somebody who reads the warning for three minutes before
+  // pressing Share would otherwise meet "expires in 13m" for the one second
+  // before the first tick corrects it.
   useEffect(() => {
     if (!bundle) return;
+    setNowSec(Math.floor(Date.now() / 1000));
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
     return () => window.clearInterval(t);
   }, [bundle]);
+
+  // The panel repolls every fifteen seconds and this dialog stays up across
+  // those polls, so an account can leave the store while it is open. Without
+  // this the count above the copy button — the one number this dialog exists to
+  // get right before anything reaches a clipboard — would go on counting a row
+  // that is no longer there, and `Clear all` would mislabel itself as `Select
+  // all` whenever the stale set and the live one happened to match in size.
+  useEffect(() => {
+    setPicked(p => {
+      const live = p.filter(n => accounts.some(a => a.num === n));
+      return live.length === p.length ? p : live;
+    });
+  }, [accounts]);
 
   const rows = pickerRows(accounts);
   const toggle = (num: number) =>
@@ -213,6 +232,21 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                   Pick again
                 </button>
                 <button type="button" className="btn primary" onClick={onClose}>Done</button>
+              </div>
+            </div>
+          ) : accounts.length === 0 ? (
+            /* The roster is empty, which is not the same as the dialog being
+               wrong to exist: it is what the panel shows for the moment
+               claude-swap spends rewriting its store, and for a machine that
+               has no accounts yet. */
+            <div className="sa-step">
+              <h4>Nothing to share</h4>
+              <p className="sa-note">
+                This deck is not holding any accounts right now. Sign one in with <strong>+</strong>,
+                or wait — the panel is still reading the store.
+              </p>
+              <div className="sa-actions">
+                <button type="button" className="btn primary" ref={primaryRef} onClick={onClose}>Close</button>
               </div>
             </div>
           ) : (

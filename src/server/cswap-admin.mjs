@@ -949,7 +949,13 @@ export function bundleAccounts(payload) {
     if (!email) continue;
     out.push({ email, org: typeof a.organizationUuid === "string" ? a.organizationUuid : "" });
   }
-  return out;
+  // All of them or none. `wanted` is what the result list counts against, so a
+  // bundle read as three when it holds four reports "1 of 3 imported" about a
+  // paste of four - the missing one arrives and is never named, and a non-empty
+  // list keeps the store-diff fallback from running to catch it. claude-swap
+  // itself refuses an envelope whose entry has no address, so this is a guard
+  // against a shape neither project has today rather than a live case.
+  return out.length === env.accounts.length ? out : [];
 }
 
 /**
@@ -990,6 +996,12 @@ export function narrowBundle(payload, key) {
  * `Overwrote` is a `--force`. If either line is ever reworded the nuance is
  * lost and the row reads "already here", which is still true - the degradation
  * is a less specific report, never a wrong one.
+ *
+ * And it is applied ONLY where the address names exactly one row in the bundle.
+ * cswap's line carries no organization, so with one address held under two of
+ * them a single `Replaced me@x.com` would mark both rows healed and one of
+ * those would be false - which is the thing the paragraph above promises this
+ * never does.
  */
 export function importOutcomes(before, after, wanted, stderr = "") {
   const slotsBy = (store) => new Map(
@@ -998,10 +1010,20 @@ export function importOutcomes(before, after, wanted, stderr = "") {
   const had = slotsBy(before);
   const now = slotsBy(after);
 
+  // How many rows in this bundle share each address. An address held twice is
+  // an address cswap's own narration cannot resolve.
+  const byAddress = new Map();
+  for (const w of wanted) {
+    const a = String(w.email ?? "").trim().toLowerCase();
+    byAddress.set(a, (byAddress.get(a) ?? 0) + 1);
+  }
   const rewritten = new Map();
   for (const line of String(stderr ?? "").split(/\r?\n/)) {
     const m = /^\s*(Replaced|Overwrote)\s+(\S+)/.exec(line);
-    if (m) rewritten.set(String(m[2]).trim().toLowerCase(), m[1] === "Replaced" ? "healed" : "updated");
+    if (!m) continue;
+    const addr = String(m[2]).trim().toLowerCase();
+    if ((byAddress.get(addr) ?? 0) !== 1) continue;
+    rewritten.set(addr, m[1] === "Replaced" ? "healed" : "updated");
   }
 
   return wanted.map(w => {

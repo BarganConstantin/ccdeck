@@ -40,8 +40,12 @@ describe("pickerRows", () => {
   });
 
   it("still separates them when the roster never learned the organization's name", () => {
+    // A literal "no organization" on both rows would leave them identical,
+    // which is the failure the second line exists to prevent. The slot number
+    // is the tiebreak the roster always has.
     const rows = pickerRows([acct(2, "me@x.com"), acct(3, "me@x.com")]);
-    expect(rows.map(r => r.sub)).toEqual(["no organization", "no organization"]);
+    expect(rows.map(r => r.sub)).toEqual(["slot 2", "slot 3"]);
+    expect(new Set(rows.map(r => `${r.label} ${r.sub}`)).size).toBe(2);
   });
 
   it("treats two spellings of one address as the repeat they are", () => {

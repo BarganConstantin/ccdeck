@@ -361,8 +361,12 @@ describe("a second press is refused by the handler, not by the browser", () => {
 
   it("holds one admin call at a time in the add-account dialog", () => {
     const dialog = codeOf("components/AddAccountDialog.tsx");
-    // start, submitCode and submitBlob — one `busy`, one lock, three writers.
-    expect([...dialog.matchAll(/if \(!selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(3);
-    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setBusy\(false\);/g)].length).toBe(3);
+    // start, submitCode, submitBlob and — since #723 — the "update anyway" on
+    // an import result row: one `busy`, one lock, four writers. The fourth is
+    // why the count is here rather than left implied: it ran without touching
+    // `busy` at first, which left the Import button on the paste form looking
+    // idle while refusing every press.
+    expect([...dialog.matchAll(/if \(!selfPressAccepted\(busyRef\.current\)\) return;/g)].length).toBe(4);
+    expect([...dialog.matchAll(/busyRef\.current = false;\s*\n\s*setBusy\(false\);/g)].length).toBe(4);
   });
 });

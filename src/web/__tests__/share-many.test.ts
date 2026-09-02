@@ -313,6 +313,14 @@ describe("bundleAccounts", () => {
     expect(bundleAccounts("not json")).toEqual([]);
     expect(bundleAccounts('{"accounts":"nope"}')).toEqual([]);
   });
+
+  it("names all of them or none, so no count is taken against a short list", () => {
+    // A bundle read as one when it holds two reports "1 of 1 imported" about a
+    // paste of two: the second arrives and is never named, and a non-empty list
+    // stops the store-diff fallback from running to catch it.
+    const short = envelope([acct("2", "a@x.com"), { number: "3", config: {}, credentials: {} }]);
+    expect(bundleAccounts(short)).toEqual([]);
+  });
 });
 
 describe("importOutcomes", () => {
@@ -353,6 +361,23 @@ describe("importOutcomes", () => {
     const out = importOutcomes(before, after, [{ email: "here@x.com", org: "org-a" }],
       "Swapped-in here@x.com (slot 2)");
     expect(out[0].state).toBe("present");
+  });
+
+  it("refuses to guess which of two same-address rows a Replaced line meant", () => {
+    // cswap's narration carries the address and not the organization, so with
+    // one address held under two of them the line resolves to neither. Marking
+    // both healed would be the wrong report, which is the one thing the store
+    // diff exists to rule out; both stay at what the slots say.
+    const before = {
+      slots: ["2", "6"],
+      emails: { "2": "here@x.com", "6": "here@x.com" },
+      orgs: { "2": "org-a", "6": "org-b" },
+    };
+    const out = importOutcomes(before, before, [
+      { email: "here@x.com", org: "org-a" },
+      { email: "here@x.com", org: "org-b" },
+    ], "Replaced here@x.com (slot 2 was quarantined: refresh token dead)");
+    expect(out.map((r: any) => r.state)).toEqual(["present", "present"]);
   });
 
   it("judges one address under two organizations separately", () => {

@@ -75,6 +75,14 @@ export const REASONS: Record<string, string> = {
   wrong_version: `that share was made by a newer ${PRODUCT}`,
   expired: "that share has expired — make a new one",
   import_failed: "claude-swap refused the import",
+  // #723. A bundle is folded from one `cswap export` per account, so it
+  // can fail in ways a single share never could — most reachably when a
+  // claude-swap upgrade lands between two exports in the same fold.
+  unreadable_export: "claude-swap wrote something this deck could not read — try again, and upgrade it if this repeats",
+  mixed_versions: "claude-swap changed format part-way through — try again",
+  nothing_to_share: "none of those accounts could be exported",
+  too_many: "that is more accounts than one share can carry",
+  not_in_bundle: "that account is not in this share",
   // The two free-text fields this route accepts, so the two that can be refused
   // for their spelling. Naming the allowed characters is the difference between
   // a rule and a wall — and the leading dash gets said out loud in both, since

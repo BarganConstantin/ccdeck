@@ -67,6 +67,11 @@ export interface PickerRow {
  * picker where the user cannot tell which one they are about to put on their
  * clipboard. The organization is what separates them; an account whose address
  * appears once needs nothing.
+ *
+ * When the roster carries no organization NAME — it holds the name, never the
+ * uuid the identity is really keyed by — the slot number is the tiebreak. A
+ * literal "no organization" on both rows would leave them identical, which is
+ * the exact failure this line exists to prevent.
  */
 export function pickerRows(accounts: NamedAccount[]): PickerRow[] {
   const seen = new Map<string, number>();
@@ -79,7 +84,7 @@ export function pickerRows(accounts: NamedAccount[]): PickerRow[] {
     const label = a.alias || email || `account ${a.num}`;
     const parts: string[] = [];
     if (a.alias && email) parts.push(email);
-    if (email && (seen.get(email.toLowerCase()) ?? 0) > 1) parts.push(a.org || "no organization");
+    if (email && (seen.get(email.toLowerCase()) ?? 0) > 1) parts.push(a.org || `slot ${a.num}`);
     return { num: a.num, label, sub: parts.length ? parts.join(" · ") : null };
   });
 }

@@ -264,8 +264,16 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     const key = `${row.email}|${row.org ?? ""}`;
     // The same guard the two submits above take, from the same helper: this
     // button is never disabled either, so a second press reaches the handler.
-    if (!selfPressAccepted(busyRef.current) || !bundleRef.current) return;
+    if (!selfPressAccepted(busyRef.current)) return;
+    // The bundle is gone once the result list is dismissed, and there is
+    // nothing to narrow without it.
+    if (!bundleRef.current) return;
     busyRef.current = true;
+    // `busy` as well as the ref, so the rest of the dialog knows a request is
+    // out. Without it, pressing "Import another" mid-update put the paste form
+    // back with an Import button that looked idle, was not disabled, and
+    // refused every press in silence because the ref said otherwise.
+    setBusy(true);
     setForcing(key);
     setRowError(null);
     const out = await admin({
@@ -275,13 +283,18 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
       only: { email: row.email, org: row.org ?? "" },
     }).catch(() => null);
     busyRef.current = false;
+    setBusy(false);
     setForcing(null);
     if (!out?.ok) {
       setRowError({ key, text: explainFailure(out, "that account could not be updated") });
       return;
     }
     const fresh = ((out.results ?? []) as ImportResult[])[0];
-    if (fresh) setImported(rows => (rows ?? []).map(r => (`${r.email}|${r.org ?? ""}` === key ? fresh : r)));
+    // Only into a list that is still on screen. `rows ?? []` turned a dismissed
+    // result — "Import another" sets it to null — into an empty ARRAY, which is
+    // truthy, so the paste form the user had just asked for flipped back to a
+    // success screen reading "Nothing to import."
+    if (fresh) setImported(rows => (rows ? rows.map(r => (`${r.email}|${r.org ?? ""}` === key ? fresh : r)) : rows));
     onChanged();
   }, [onChanged]);
 

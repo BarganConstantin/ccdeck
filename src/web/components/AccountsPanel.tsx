@@ -1205,13 +1205,21 @@ export default function AccountsPanel({ onClose }: Props) {
         />
       )}
 
-      {shareSetOpen && data?.accounts?.length ? (
+      {/* Gated on the open flag ALONE, the way the add dialog is. Adding
+          `data?.accounts?.length` to the condition made a poll that came back
+          empty — /api/claude-accounts answers 200 with `no_accounts` when
+          sequence.json cannot be read, which is every moment cswap spends
+          rewriting it — unmount a dialog holding a bundle the user had not
+          copied yet, and then silently reopen it on a fresh picker. The roster
+          being empty is a state for the dialog to show, not a reason to
+          destroy it. */}
+      {shareSetOpen && (
         <ShareAccountsDialog
-          accounts={data.accounts.map(a => ({ num: a.num, email: a.email, alias: a.alias, org: a.org }))}
+          accounts={(data?.accounts ?? []).map(a => ({ num: a.num, email: a.email, alias: a.alias, org: a.org }))}
           onClose={() => setShareSetOpen(false)}
           copyText={copyText}
         />
-      ) : null}
+      )}
     </aside>
   );
 }
