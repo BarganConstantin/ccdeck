@@ -7739,3 +7739,37 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .bw-tab-count,
   .bw-settings { animation: bw-state-fade 220ms ease; }
 }
+
+/* THE STATES THAT ARE NOT THE HAPPY PATH. A monitoring tool is judged on these,
+   because they are when somebody actually looks at it — and each of these
+   existed in the data with no designed form: a profile the deck could not read
+   said so in a log line and nowhere else, and a machine with no browser open
+   looked exactly like a quiet one. */
+.bw-trouble {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text);
+}
+/* Only the one the deck cannot work around takes the warning colour. "No
+   browser is running" is a fact about the machine, not a fault. */
+.bw-trouble.unreadable {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+/* What the panel touches, as a definition list — the shape the content already
+   has, and one a screen reader reads as pairs rather than as prose. */
+.bw-access { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; }
+.bw-access dt {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--muted); }

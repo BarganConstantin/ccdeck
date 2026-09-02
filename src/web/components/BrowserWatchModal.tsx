@@ -216,6 +216,53 @@ export function agoLabel(atMs: number | null, nowMs: number): string | null {
   return `${Math.round(mins / 60)} hr ago`;
 }
 
+/**
+ * What the panel should be saying about itself right now, when that is not
+ * simply "watching and nothing happened".
+ *
+ * A monitoring tool is judged on its bad states, because they are when somebody
+ * actually looks at it. These existed in the data and had no designed form: a
+ * profile the deck could not read said so in a log line and nowhere else, and a
+ * machine with no browser open was indistinguishable from a quiet one.
+ *
+ * Returns null when the ordinary case holds, so the banner is absent rather
+ * than reassuring — a panel that says "everything is fine" on every render
+ * teaches its reader to stop looking at that line.
+ */
+export function watchTrouble(snap: {
+  profiles: { name: string; profile: string; degraded: boolean; reason: string | null }[];
+  browsers: WatchBrowser[];
+}): { kind: "no-profiles" | "none-running" | "unreadable"; text: string } | null {
+  const unreadable = snap.profiles.filter(p => p.degraded);
+  if (unreadable.length > 0) {
+    // The reason comes from the reader that failed — "database is locked",
+    // "no such file" — and is worth more than any sentence written here,
+    // because it is the one thing that says WHICH failure this is.
+    const first = unreadable[0];
+    const rest = unreadable.length - 1;
+    return {
+      kind: "unreadable",
+      text: `${first.name}/${first.profile} could not be read — ${first.reason ?? "no reason given"}`
+        + (rest > 0 ? `, and ${rest} more` : "")
+        + ". The watch continues on the profiles it can read.",
+    };
+  }
+  const watched = watchedBrowsers(snap.browsers);
+  if (watched.length === 0) {
+    return {
+      kind: "no-profiles",
+      text: "No browser on this machine has a profile to read. Open one of the browsers below once and it will be watched from then on.",
+    };
+  }
+  if (!watched.some(b => b.running)) {
+    return {
+      kind: "none-running",
+      text: "No watched browser is running, so nothing can be navigated right now. Their history is still read, and anything found while they were open is still here.",
+    };
+  }
+  return null;
+}
+
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
 function span(e: WatchEpisode): string {
   const t = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -277,6 +324,7 @@ export default function BrowserWatchModal({
   const [open, setOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
+  const [access, setAccess] = useState(false);
   // Its own clock, so the countdown moves every second rather than jumping
   // whenever the panel happens to refetch.
   const [tick, setTick] = useState(() => Date.now());
@@ -393,6 +441,7 @@ export default function BrowserWatchModal({
   const rest = (snap?.browsers ?? []).filter(b => !(b.installed && b.profiles > 0));
   /** The newest of the per-profile read stamps, so the disc can say how fresh
    *  the picture under it is rather than leaving the reader to guess. */
+  const trouble = snap ? watchTrouble(snap) : null;
   const lastRead = (snap?.profiles ?? []).reduce<number | null>(
     (best, p) => (p.lastWrittenMs !== null && (best === null || p.lastWrittenMs > best) ? p.lastWrittenMs : best),
     null,
@@ -512,6 +561,13 @@ export default function BrowserWatchModal({
                 settings
               </button>
             </div>
+          )}
+
+          {snap && trouble && (
+            /* Absent when the ordinary case holds, rather than green. A line
+               that says "everything is fine" on every render is one its reader
+               learns to skip, and then it is worthless on the day it changes. */
+            <p className={`bw-trouble ${trouble.kind}`} role="status">{trouble.text}</p>
           )}
 
           {snap && tab === "live" && (
@@ -730,13 +786,48 @@ export default function BrowserWatchModal({
                 </select>
               </label>
 
-              <p className="bw-settings-note">
-                Chrome marks a navigation that came from an extension or a command rather than from a
-                click. These are the ones that happened while nobody had touched the browser for the
-                time above. <strong>Usually that is your own agent doing what you asked.</strong>{" "}
-                Nothing from before this deck started is read, and every address is written in full to{" "}
-                <code className="bw-path">{snap.coverage.logPath}</code>.
-              </p>
+              <div className="bw-settings-note">
+                <p>
+                  Chrome marks a navigation that came from an extension or a command rather than from a
+                  click. These are the ones that happened while nobody had touched the browser for the
+                  time above. <strong>Usually that is your own agent doing what you asked.</strong>
+                </p>
+                {/* WHAT IT TOUCHES, SAID PLAINLY. This panel watches browsing,
+                    which makes "where does this go" the first question a reader
+                    has and the one nothing on screen was answering. Every line
+                    below is a fact about the code, not a reassurance: the read
+                    floor is the deck's own start, the store is that path, and
+                    the deck opens no socket for any of it. */}
+                <button className="bw-why" onClick={() => setAccess(a => !a)} aria-expanded={access}>
+                  {access ? "▾" : "▸"} What Browser Watch can access
+                </button>
+                {access && (
+                  <dl className="bw-access">
+                    <dt>Reads</dt>
+                    <dd>
+                      A copy of each browser&apos;s own history database — the live file is locked while
+                      the browser holds it. Only rows newer than the moment this deck started:{" "}
+                      {new Date(snap.coverage.startedMs).toLocaleString()}.
+                    </dd>
+                    <dt>Keeps</dt>
+                    <dd>
+                      Only while the switch is on, and only the episodes it flagged — never your ordinary
+                      browsing. In <code className="bw-path">{snap.coverage.logPath}</code>, with every
+                      address written in full so you can check it yourself.
+                    </dd>
+                    <dt>Sends</dt>
+                    <dd>
+                      Nothing. No part of this reads or writes over the network; the deck serves on
+                      127.0.0.1 and this panel talks only to it.
+                    </dd>
+                    <dt>Does not read</dt>
+                    <dd>
+                      Anything from before this deck started, cookies, saved passwords, page contents, or
+                      any browser profile with no history file.
+                    </dd>
+                  </dl>
+                )}
+              </div>
             </div>
           )}
           {snap && (

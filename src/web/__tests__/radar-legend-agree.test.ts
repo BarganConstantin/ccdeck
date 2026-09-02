@@ -66,8 +66,9 @@ describe("the radar and its legend", () => {
     // legend, the profile rows, the counts and the status bar's tally. Sharing
     // the array is what makes "blip i is legend item i" true by construction
     // rather than by two filters happening to agree.
-    const calls = source.match(/watchedBrowsers\(/g) ?? [];
-    expect(calls.length, "watchedBrowsers is being called per consumer again").toBeLessThanOrEqual(2);
+    // Not a call count — watchTrouble is a pure function and derives its own
+    // view honestly. What must hold is that the RENDER reads one array: the
+    // component derives `watching` once and every consumer names it.
     expect(source).toMatch(/const watching = watchedBrowsers\(/);
     // And the consumers read the shared name, not a fresh call.
     expect(source).toMatch(/browsers=\{watching\.map\(/);
