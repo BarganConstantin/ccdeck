@@ -6880,6 +6880,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .aa-tab:active,
   .bw-ep-head:active,
   .bw-toggle:active,
+  .bw-help:active,
   .bw-seg-btn:active,
   .bw-settings select:active:not(:disabled),
     /* Two that cannot join the list above, for two different reasons.
@@ -7072,7 +7073,18 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    `.session-list .sl-row` does — the same tier, the same number. */
 .bw-ep-head:active { transform: scale(0.97); }
 .bw-ep-host { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Episodes reads like Activity: the same disclosure chevron, the same right-
+   aligned tabular count, so the two views are two modes of one product rather
+   than two screens that share a dialog. */
 .bw-ep-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-ep-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bw-ep-head:hover .bw-ep-count { color: var(--text); }
 .bw-ep-chev { font-size: 9px; color: var(--muted); width: 10px; text-align: center; }
 .bw-ep-head:hover .bw-ep-chev { color: var(--text); }
 
@@ -7103,7 +7115,17 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    first-time reader of a browsing watcher actually has, and the one the old
    subtitle did not touch. Dimmer than the sentence it qualifies. */
 .bw-local { color: var(--text-dim); }
-.bw-switch { display: flex; align-items: center; gap: 10px; margin-left: auto; cursor: pointer; }
+/* The panel's primary control, and the whole label operates it. Padded so the
+   band a pointer has to hit is 32px tall rather than the switch's own 17 —
+   the size of the target, not of the drawing, is what a hand has to find. */
+.bw-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  padding: 8px 0;
+  cursor: pointer;
+}
 .bw-switch-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .bw-switch:hover .bw-switch-label { color: var(--text); }
 
@@ -7261,12 +7283,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      2.46:1 on --panel in light, and a boundary nobody can see is not one. */
   box-shadow: inset 0 -2px 0 var(--accent);
 }
-/* A live dot on Activity while the watch is armed — the one place the panel
-   says "something is running" before anything is opened. */
-}
-
-/* Newest first and scrolling inside itself, so a long run does not push the
-   browsers and the footer off the panel. */
 /* No padding, and the rows carry their own: a negative margin bleeding into a
    container's padding is two numbers that have to stay equal, and when they
    drifted by six pixels the log grew a horizontal scrollbar with nothing to
@@ -7278,8 +7294,17 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* THE FEED HEADER, so the column starts with what it is rather than with an
    event, and has somewhere to grow a filter later. */
 .bw-feed { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-.bw-feed-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.bw-feed-count { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.bw-feed-head { align-items: baseline; }
+/* A count, not a label. It sat inside the section head and inherited its
+   uppercase, so "4 ENTRIES" shouted a number nobody needs shouted. */
+.bw-feed-count {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
 
 /* COLUMNS, NOT A SENTENCE. `Brave/Default — read 27 visits` reads once; read
    sixteen times down a column it makes somebody re-parse the same sentence to
@@ -7380,7 +7405,10 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    identically the two flatten into one texture with no rhythm to scan. A
    system row spans the columns and recedes; events keep their weight. */
 .bw-log-sys { grid-column: 2 / -1; color: var(--text-dim); font-style: italic; }
-.bw-log-line.sys { opacity: 0.85; }
+/* No opacity. The italic and the dim colour already say "the deck talking",
+   and opacity multiplies whatever contrast the text had — it was the only
+   thing on this panel pushing a string toward the 4.5:1 floor, to repeat a
+   distinction that was already made. */
 
 .bw-log-browser { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-log-profile {
@@ -7426,27 +7454,28 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* The browsers with nothing to report, as one sentence rather than six rows.
    Sized and coloured like the panel's other explanatory prose, because that is
    what it is. */
-.bw-rest { margin: 2px 0 0; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+/* Behind a press. Six names of browsers that are not installed is
+   implementation inventory, and it was three lines of it standing at the same
+   weight as the profiles that are actually being read. */
+.bw-rest { margin: 0; font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+.bw-rest-head { align-self: flex-start; }
+.bw-chev { color: var(--text-dim); font-size: 9px; }
+/* NEUTRAL, AND THAT IS THE POINT. This was amber, which made it one of the
+   strongest accents on the panel — for a fact the probe cannot actually
+   establish. The relay shares an address with claude.ai and api.anthropic.com,
+   so an open tab is indistinguishable from an agent channel, and what a tool
+   cannot distinguish must not be the loudest thing on its screen. It states
+   what was seen; the qualification is on its title, and the help cursor says
+   there is one. Amber comes back the day the probe can tell them apart. */
 .bw-relay {
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  border: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--text-dim);
   white-space: nowrap;
   cursor: help;
-  transition: border-color 140ms ease, color 140ms ease;
+  border-bottom: 1px dotted var(--ctl-edge);
+  transition: color 140ms ease, border-color 140ms ease;
 }
-/* Every one of the three answers is qualified, and the qualification lives in
-   the title. The help cursor and the edge lighting on hover are how the badge
-   says there is more to read without spending a line saying it. */
-.bw-relay:hover { color: var(--text); border-color: var(--ctl-edge); }
-.bw-relay.live:hover { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
-/* Amber, never red. A connection to that address is not proof of a relay
-   session — an open claude.ai tab is indistinguishable — so the strongest
-   thing this badge is allowed to mean is "worth knowing". */
-.bw-relay.live { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
-.bw-relay.unknown { color: var(--text-dim); }
+.bw-relay:hover { color: var(--text); border-color: var(--accent); }
 
 /* The first read copies a History database and classifies tens of thousands of
    rows, so the panel is briefly empty on open. A header over nothing reads as
@@ -7633,12 +7662,14 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    decoration — a log answers "what happened" well and "is this alive, and over
    what" badly, and that second question is the one somebody opens this view to
    ask. Every mark carries a fact; see WatchRadar.tsx. */
+/* No plate under it. At 176px square the surface read as a chart's canvas; at
+   88, sitting inline beside two figures, it read as a box drawn around a
+   circle — a rectangle with nothing in its corners. The disc is a mark on the
+   panel, so it sits on the panel. */
 .bw-radar {
   display: block;
   width: 100%;
   height: 168px;
-  border-radius: 6px;
-  background: var(--bg-soft);
 }
 @media (prefers-reduced-motion: reduce) {
   /* The sweep already freezes itself; nothing here needs to change colour. */
@@ -7661,12 +7692,20 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    stopped mid-panel and left a field of nothing under it. Stretched, the log
    takes that room as scroll space, which is the one thing here that can always
    use more. */
-.bw-work { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: stretch; }
-.bw-side { display: flex; flex-direction: column; gap: 24px; }
+/* 280, not 340. The sidebar is secondary and should look it: at 340 it read
+   as a co-equal column, and its content then had to be stretched to fill a
+   width it did not need. The feed is the workspace and takes what is left. */
+.bw-work { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 32px; align-items: stretch; }
+.bw-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .bw-sec { display: flex; flex-direction: column; gap: 12px; }
 /* A section label, so each region says what it is instead of leaving the
    reader to infer it from the shapes inside. */
+/* One label treatment for every section on both views, so Activity and
+   Episodes read as two modes of one product rather than two screens. */
 .bw-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 10px;
   font-weight: 600;
@@ -7674,37 +7713,105 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* The one place this panel spends a glyph that is not already a deck
+   convention, and it is a question mark rather than an icon — it has a name a
+   screen reader can read and needs no legend of its own. */
+.bw-help {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+/* The circle stays 16px because it is a mark beside a label, not a button in a
+   row of buttons — but a 16px hit target is a miss for anyone without a mouse
+   they can place exactly. The pointer target is 24, matching every glyph
+   control in the deck, without the drawing changing size. */
+.bw-help { position: relative; }
+.bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+.bw-help:hover { color: var(--text); border-color: var(--accent); }
+.bw-help:active { transform: scale(0.94); }
+.bw-help[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
 
 /* THE NUMBERS THE PANEL NEVER HAD. Between "is this alive" and "what exactly
    happened" there was no answer to "how much", which for a monitoring tool is
    the first question. */
-.bw-counts { list-style: none; margin: 0; padding: 0; display: flex; gap: 24px; flex-wrap: wrap; }
-.bw-counts li { display: flex; flex-direction: column; gap: 2px; }
+/* THE DISC IS A SIGNATURE, NOT A CHART. At 176px it was the largest thing on
+   the panel, and most of what it said — which browsers, running or not — was
+   already in Watched Profiles under it and in the feed beside it. What it
+   alone gives is the glance: something is sweeping, so something is alive.
+   That is worth 88px next to the numbers, not 176 above them. */
+.bw-glance { display: flex; align-items: center; gap: 16px; }
+.bw-counts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Baseline-aligned so the figures sit on one line with their names, and
+   right-aligned in a fixed box so a 1 and a 1,024 share an edge. */
+.bw-counts li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .bw-count-n {
-  font-size: 22px;
+  min-width: 3ch;
+  text-align: right;
+  font-size: 18px;
   line-height: 1.1;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.bw-count-of { font-size: 11px; color: var(--muted); }
+.bw-count-of {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* What the figures ARE, said once under them rather than guessed at. They are
+   rows in the browser's own history newer than this deck's start — not visits
+   a person made, and not findings. */
+.bw-since { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
+.bw-since + .bw-since { margin-top: -8px; }
+/* The quiet gate, beside the numbers it decides. */
+.bw-gate { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The disc's key, behind the `?` on the section label. Three pairs, which is
+   the whole of what the drawing means — as permanent prose it was three lines
+   of documentation standing in a column that has real work to do. */
+.bw-key {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+.bw-key dt { font-size: 10px; font-weight: 600; color: var(--muted); }
+.bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
 
 /* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
    none of it was written where a reader could see — a visualization whose
    legend is a source comment is one nobody can read. */
-.bw-legend-key { margin: 0; font-size: 10px; line-height: 1.6; color: var(--text-dim); }
+
 
 .bw-profiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.bw-profiles li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+/* One height for every row, badge or no badge. `flex-wrap` let a row with a
+   relay note grow taller than its neighbours, and a list whose rows are
+   different heights reads as a list of different things. */
+.bw-profiles li { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 12px; min-width: 0; }
+.bw-prof-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-prof-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex: none; }
 .bw-prof-dot.on { background: var(--accent); }
-.bw-prof-state { font-size: 11px; color: var(--muted); margin-left: auto; }
+.bw-prof-state { font-size: 11px; color: var(--muted); margin-left: auto; flex: none; }
 /* Both columns hold the same box, so the row does not grow as lines arrive and
    the disc does not sit in a taller frame than the text beside it. */
 /* A square, and bounded. Given the sidebar's full 340px the canvas drew a
    190px disc in the middle of a 340px box, so most of what the eye read as
    "the visualization" was empty canvas. It is the size it needs and no
    larger. */
-.bw-work .bw-radar { width: 176px; height: 176px; }
+.bw-work .bw-radar { width: 88px; height: 88px; flex: none; }
 .bw-work .bw-log { flex: 1 1 auto; min-height: 300px; max-height: none; }
 /* THE PANEL'S OWN WIDTH DECIDES, NOT THE WINDOW'S. Measured: below about
    230px of feed column the log's four columns stop fitting and it overflows by
@@ -7714,7 +7821,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    them, where the viewport is at least correlated. */
 @container bw (max-width: 720px) {
   .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .bw-work .bw-radar { width: 176px; height: 176px; }
+  .bw-work .bw-radar { width: 88px; height: 88px; }
 }
 @media (max-width: 640px) {
   .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
@@ -7722,20 +7829,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* The radar and the names it needs, as one column. */
 .bw-scope { display: flex; flex-direction: column; gap: 8px; }
-.bw-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.bw-legend li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  color: var(--text-dim);
-}
-/* Blue for a browser that is running, matching its blip. The dot is what ties
-   the two together — a legend whose marks do not look like the marks they
-   explain is a second thing to learn. */
-.bw-legend li.on { color: var(--accent); }
-.bw-legend-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+
 
 /* BROWSER WATCH UNDER REDUCED MOTION, in one place and after every rule it
    answers — the census reads position, and an answer above the declaration it

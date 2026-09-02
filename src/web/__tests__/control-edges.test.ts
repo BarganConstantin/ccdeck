@@ -534,6 +534,9 @@ const CONTROLS: Control[] = [
   // are only told apart by a knob position needs each of them to hold its own
   // boundary, not just the resting one.
   { at: ".bw-toggle", states: [".bw-toggle:hover", '.bw-toggle[aria-checked="true"]'], beds: ["--panel"] },
+  // The overview's help disclosure — a 16px circle whose border IS the control,
+  // so all three of its states are measured.
+  { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
   // The two views, one segmented control. The group carries the outline; the
   // selected half's only boundary is its accent underline, which is why `.on`
   // is measured here rather than the halves' own (absent) borders.

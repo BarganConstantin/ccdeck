@@ -280,6 +280,10 @@ const PRESSES: Press[] = [
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
   // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
   [".bw-toggle:active", "0.97", "transform"],
+  // The overview's help disclosure. 0.94 like the other small round controls
+  // it is shaped as: a 16px circle is a box, and 0.97 of a box that size is
+  // not visible.
+  [".bw-help:active", "0.94", "transform"],
   // The two views, in `.aa-tab`'s language — same control, same tier. They are
   // one segmented control now rather than two free-standing pills, and the
   // press is still on each half: the group is the container, the half is what

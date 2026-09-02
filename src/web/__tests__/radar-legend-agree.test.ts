@@ -47,7 +47,7 @@ describe("the browsers the watch reads", () => {
   });
 });
 
-describe("the radar and its legend", () => {
+describe("the radar and the rows beside it", () => {
   const source = readFileSync(new URL("../components/BrowserWatchModal.tsx", import.meta.url), "utf8");
 
   it("read from one list, not two copies of one predicate", () => {
@@ -70,9 +70,12 @@ describe("the radar and its legend", () => {
     // view honestly. What must hold is that the RENDER reads one array: the
     // component derives `watching` once and every consumer names it.
     expect(source).toMatch(/const watching = watchedBrowsers\(/);
-    // And the consumers read the shared name, not a fresh call.
+    // And the consumers read the shared name, not a fresh call. The radar and
+    // the profile rows are the pair that must agree: the disc puts blip i at
+    // angle i/n and the row list is what names them.
     expect(source).toMatch(/browsers=\{watching\.map\(/);
-    expect(source).toMatch(/\{watching\.map\(b => \(\s*<li key=\{b\.key\} className=\{b\.running/);
+    expect(source).toMatch(/<ul className="bw-profiles">\s*\{watching\.map\(/);
+    expect(source).toMatch(/visitTotals\(watching,/);
   });
 });
 

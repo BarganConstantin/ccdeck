@@ -150,48 +150,27 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
  * flickering while the countdown counts: `counting` holds for fourteen minutes
  * while its own last characters move every second.
  */
-export function barState(
-  snap: { settings: { enabled: boolean }; coverage: { lastHumanMs: number | null; quietMs: number; archived: number } },
+export function modeState(
+  snap: { settings: { enabled: boolean }; coverage: { archived: number } },
   saving: boolean,
-  nowMs: number,
-): { kind: "saving" | "off" | "watching" | "counting"; word: string; detail: string } {
+): { kind: "saving" | "off" | "on"; word: string; detail: string } {
   if (saving) return { kind: "saving", word: "Saving", detail: "" };
-  if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "showing this run only" };
-  const left = armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, nowMs);
-  // The gate, said as the thing a person sitting at the browser wants to know:
-  // not "quiet gate 15m" but "a page opened now would not count, and here is
-  // when it would".
-  return left === null
-    ? { kind: "watching", word: "Watching", detail: `${snap.coverage.archived} kept` }
-    : { kind: "counting", word: "Watching", detail: `you are browsing · counts in ${untilLabel(left)}` };
+  if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "this run only" };
+  const n = snap.coverage.archived;
+  return {
+    kind: "on",
+    word: "Watching",
+    // "0 kept" was cryptic: nobody should have to work out what it counts. It
+    // counts episodes the watch has recorded, so that is what it says — and at
+    // zero it says the state rather than the number, because "nothing yet" is
+    // a sentence and "0" is a puzzle.
+    detail: n === 0 ? "nothing captured yet" : `${n} ${n === 1 ? "episode" : "episodes"} captured`,
+  };
 }
 
-/**
- * What this deck can honestly say about a browser's link to Anthropic's relay.
- *
- * IT USED TO PRINT `relay: 2`, AND TWO OF WHAT WAS THE QUESTION NOBODY COULD
- * ANSWER. The number counted ESTABLISHED TCP sockets from that browser to an
- * address `bridge.claudeusercontent.com` resolves to — an address it SHARES
- * with claude.ai and api.anthropic.com. So two could be two agent channels or
- * two open claude.ai tabs, and the count implied a precision the probe does not
- * have. What was actually observed is a connection, so a connection is what it
- * says; the qualification stays on the badge's title, where it reads as a
- * detail rather than as a correction to the label.
- */
-export function relayLabel(state: "live" | "none-seen" | "unknown"): string {
-  if (state === "live") return "connected to Anthropic";
-  if (state === "none-seen") return "no connection seen";
-  return "cannot tell";
-}
-
-/**
- * How many visits each watched browser contributed to the current read.
- *
- * The panel had a disc and a transcript and no NUMBER anywhere — "is this
- * alive" and "what exactly happened", with "how much" missing between them.
- * Summed across a browser's profiles, because a browser is what the reader
- * names and a profile is how the deck stores it.
- */
+/** What the watch actually reads: visits per browser, summed across its
+ *  profiles, because a browser is what the reader names and a profile is how
+ *  the deck stores it. */
 export function visitTotals(
   browsers: WatchBrowser[],
   profiles: { browser: string; visits: number }[],
@@ -205,8 +184,8 @@ export function visitTotals(
 }
 
 /** `12 sec ago`, `4 min ago`, or null when nothing has been read yet. Said in
- *  full words rather than `12s`: this sits under a number, and two numbers
- *  side by side invite being read as one quantity. */
+ *  full words rather than `12s`: this sits beside figures, and two numbers side
+ *  by side invite being read as one quantity. */
 export function agoLabel(atMs: number | null, nowMs: number): string | null {
   if (atMs === null) return null;
   const secs = Math.max(0, Math.round((nowMs - atMs) / 1000));
@@ -325,6 +304,8 @@ export default function BrowserWatchModal({
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
+  const [showKey, setKey] = useState(false);
+  const [restOpen, setRestOpen] = useState(false);
   // Its own clock, so the countdown moves every second rather than jumping
   // whenever the panel happens to refetch.
   const [tick, setTick] = useState(() => Date.now());
@@ -442,6 +423,13 @@ export default function BrowserWatchModal({
   /** The newest of the per-profile read stamps, so the disc can say how fresh
    *  the picture under it is rather than leaving the reader to guess. */
   const trouble = snap ? watchTrouble(snap) : null;
+  /** Watched profiles, summed — the header's scope line, which is the shortest
+   *  true answer to "how much is this looking at". */
+  const profileCount = watching.reduce((n, b) => n + b.profiles, 0);
+  /** The quiet gate, if it is currently closed. It lives beside the numbers it
+   *  decides rather than in the toolbar, where it was a third idea competing
+   *  with the mode and its count. */
+  const gate = snap ? armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, tick) : null;
   const lastRead = (snap?.profiles ?? []).reduce<number | null>(
     (best, p) => (p.lastWrittenMs !== null && (best === null || p.lastWrittenMs > best) ? p.lastWrittenMs : best),
     null,
@@ -457,35 +445,29 @@ export default function BrowserWatchModal({
         aria-modal="true"
         aria-labelledby="bw-title"
       >
+        {/* `modal-tool-id` is an IDENTIFIER slot everywhere else in the deck —
+            a truncated tool id, a session id, a version range — and it was
+            carrying a twelve-word sentence here. What belongs in it is the
+            watch's scope, which is short, true, and happens to be the two
+            things a first-time reader wants: how much is being watched, and
+            where it goes. The explanation lives in the empty state and in
+            "What Browser Watch can access", which is where somebody looks for
+            it rather than reads past it. */}
         <header className="modal-head">
           <div className="modal-title">
             <span className="modal-tool-name" id="bw-title">Browser watch</span>
-            {/* Precise, and it must stay precise: this does not watch "browser
-                activity", it reports navigation Chrome itself marked as coming
-                from an extension or a command, in a window when nobody had
-                touched the browser. The easier sentence would be a lie.
-                What the old subtitle left out is the thing a first-time reader
-                actually needs, which is not what is detected but where it
-                goes. */}
             <span className="modal-tool-id">
-              what a program opened while nobody was browsing
-              <span className="bw-local"> · read and kept on this machine only</span>
+              {snap
+                ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} · local only`
+                : "local only"}
             </span>
           </div>
           <div className="modal-actions">
-            {/* Both glyphs, which is what every other header in the deck is:
-                the accounts panel and the usage history each pair `↻` with `×`
-                at the same size and weight. A worded pill beside a glyph close
-                read as two different kinds of control doing the same kind of
-                job, and it was the only header in the deck spelt that way.
-                `…` while it works, like theirs — the busy state is the glyph,
-                so the button does not change size mid-press.
-
-                No `disabled` (#620/#518): a control that removes itself on
-                press takes the focus with it and leaves the reader nowhere.
-                `selfPressProps` carries `aria-busy` and leaves it enabled, and
-                a second press costs nothing — the server holds one read at a
-                time and hands a concurrent caller the same promise. */}
+            {/* Two glyphs, one component, which is what every other header in
+                the deck is. `…` while it works, so the box does not change
+                size mid-press. No `disabled` (#620/#518): a control that
+                removes itself on press takes the focus with it, so the handler
+                refuses the second press instead. */}
             <button
               className="glyph-btn"
               onClick={() => void load(true)}
@@ -501,7 +483,7 @@ export default function BrowserWatchModal({
           {!snap && !error && (
             <div className="bw-loading">
               <span className="bw-loading-bar" aria-hidden />
-              <p>Reading each browser's history. The first look copies the file, which takes a moment.</p>
+              <p>Reading each browser&apos;s history. The first look copies the file, which takes a moment.</p>
             </div>
           )}
 
@@ -517,10 +499,9 @@ export default function BrowserWatchModal({
 
           {snap && (
             <div className="bw-toolbar">
-              {/* ONE CONTAINER, TWO VIEWS. As two free-standing outlined pills
-                  they read as two buttons that each do something, which is the
-                  opposite of what they are: navigation between two views of one
-                  subject. The outline moves from each pill to the group. */}
+              {/* One container, two views: as free-standing pills they read as
+                  two buttons that each do something rather than as navigation
+                  between two views of one subject. */}
               <div className="bw-seg" role="tablist" aria-label="Browser watch views" onKeyDown={onTabKeys}>
                 {TABS.map((t, i) => (
                   <button
@@ -543,238 +524,24 @@ export default function BrowserWatchModal({
                 ))}
               </div>
 
-              {/* THREE IDEAS, THREE PLACES. This was one sentence carrying the
-                  mode, what the watch currently sees, and how long until the
-                  gate opens — and a reader had to take it apart every time. The
-                  dot and its word are the mode; the countdown is its own
-                  column; the switch that changes the mode is in the status bar
-                  at the foot, next to a label that says what it controls. */}
-              <div className="bw-mode">
+              {/* THE STATE, SAID IN WORDS SOMEBODY CAN ACT ON. It read
+                  "Watching · 0 kept", and nobody should have to work out what
+                  "kept" counts. It counts episodes the watch has recorded, so
+                  that is what it says. The quiet gate's countdown is a
+                  different fact about detection sensitivity and moved to the
+                  overview, beside the numbers it qualifies. */}
+              <p className="bw-mode">
                 <span className={`bw-mode-dot${snap.settings.enabled ? " on" : ""}`} aria-hidden />
-                <span className="bw-mode-word" key={barState(snap, saving, tick).kind}>
-                  {barState(snap, saving, tick).word}
+                <span className="bw-mode-word" key={modeState(snap, saving).kind}>
+                  {modeState(snap, saving).word}
                 </span>
-                <span className="bw-mode-detail">{barState(snap, saving, tick).detail}</span>
-              </div>
+                <span className="bw-mode-detail">{modeState(snap, saving).detail}</span>
+              </p>
 
               <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
                 settings
               </button>
             </div>
-          )}
-
-          {snap && trouble && (
-            /* Absent when the ordinary case holds, rather than green. A line
-               that says "everything is fine" on every render is one its reader
-               learns to skip, and then it is worthless on the day it changes. */
-            <p className={`bw-trouble ${trouble.kind}`} role="status">{trouble.text}</p>
-          )}
-
-          {snap && tab === "live" && (
-            <div className="bw-work">
-              {/* THE LEFT COLUMN HAS A PURPOSE NOW. It was three fragments that
-                  happened to be stacked — a canvas, a legend, a footer — and
-                  read as a chart that occupied whatever width was left. Two
-                  named sections: how much is happening, and to what. */}
-              <aside className="bw-side">
-                <section className="bw-sec">
-                  <h4 className="bw-sec-head">Activity overview</h4>
-                  {/* The numbers the panel never had. The disc answers "is this
-                      alive, and over what", which a column of figures answers
-                      badly; the figures answer "how much", which the disc
-                      answers badly. Neither replaces the other. */}
-                  <ul className="bw-counts">
-                    {visitTotals(watching, snap.profiles).map(t => (
-                      <li key={t.key}>
-                        <span className="bw-count-n">{t.visits.toLocaleString("en-US")}</span>
-                        <span className="bw-count-of">{t.name}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <WatchRadar
-                    browsers={watching.map(b => ({
-                      key: b.key,
-                      name: b.name,
-                      running: b.running,
-                      lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
-                    }))}
-                    findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
-                    watching={snap.settings.enabled}
-                    palette={palette}
-                  />
-
-                  {/* THE LEGEND SAYS WHAT THE MARKS MEAN, not only which name
-                      goes with which dot. Every mark on that disc encodes
-                      something — the sweep is a poll, the distance out is how
-                      stale a profile's read is, a ring leaving a blip is a
-                      finding — and none of it was written anywhere a reader
-                      could see. A visualization whose legend is a source
-                      comment is one nobody can read. */}
-                  <ul className="bw-legend">
-                    {watching.map(b => (
-                      <li key={b.key} className={b.running ? "on" : ""}>
-                        <span className="bw-legend-dot" aria-hidden />
-                        {b.name}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="bw-legend-key">
-                    The sweep is one poll. A dot sits further out the longer it has been
-                    since that browser&apos;s history was read; a ring leaving one is a finding.
-                    {lastRead !== null && <> Last read {agoLabel(lastRead, tick)}.</>}
-                  </p>
-                </section>
-
-                <section className="bw-sec">
-                  <h4 className="bw-sec-head">Watched profiles</h4>
-                  <ul className="bw-profiles">
-                    {watching.map(b => (
-                      <li key={b.key}>
-                        <span className={`bw-prof-dot${b.running ? " on" : ""}`} aria-hidden />
-                        <span className="bw-prof-name">{b.name}</span>
-                        <span className="bw-prof-state">{b.running ? "running" : "idle"}</span>
-                        {b.running && (
-                          <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
-                            {relayLabel(b.relay.state)}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {rest.length > 0 && (
-                    <p className="bw-rest">
-                      Not watched: {rest.map(b => b.name).join(", ")} — not installed, or installed and
-                      never opened, so there is no history to read.
-                    </p>
-                  )}
-                </section>
-              </aside>
-
-              <section className="bw-feed" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
-                <div className="bw-feed-head">
-                  <h4 className="bw-sec-head">Live activity</h4>
-                  <span className="bw-feed-count">
-                    {snap.log.length} {snap.log.length === 1 ? "entry" : "entries"}
-                  </span>
-                </div>
-                <div className="bw-log">
-                  {snap.log.length === 0 ? (
-                    <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
-                  ) : snap.log.map(l => (
-                    /* Keyed on what the line SAYS, not on where it sits. The log
-                       is newest-first, so a new line at the top shifts every
-                       index below it — an index in the key remounts the whole
-                       transcript, and the arrival animation fires on all sixteen
-                       lines instead of the one that is actually new. */
-                    <div
-                      className={`bw-log-line ${l.level}${l.parts ? "" : " sys"}`}
-                      key={`${l.atMs}-${l.level}-${l.text}`}
-                    >
-                      {/* 24-hour, and not the reader's locale. An en-US clock
-                          renders "06:28:55 PM", which is four characters wider than
-                          the column and collided with the text beside it — and a
-                          log is written in 24-hour time everywhere anyway. */}
-                      <span className="bw-log-time">
-                        {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
-                      </span>
-                      {l.parts ? (
-                        /* COLUMNS, because the count is what somebody scans for
-                           and at the end of a sentence it lands in a different
-                           place on every row — the browser's name decides where.
-                           Composed on the server: a client that parsed this back
-                           out of the sentence would be a second spelling of one
-                           fact, and the two would eventually disagree. */
-                        <>
-                          <span className="bw-log-browser">{l.parts.browser}</span>
-                          <span className="bw-log-profile" title={l.parts.profile}>{l.parts.profile}</span>
-                          <span className="bw-log-value">
-                            {l.parts.value}
-                            {l.parts.flagged > 0 && (
-                              <span className="bw-log-flag"> · {l.parts.flagged} flagged</span>
-                            )}
-                          </span>
-                        </>
-                      ) : (
-                        /* THE DECK TALKING, not an event. "still watching 2
-                           profiles — nothing new" is a different kind of
-                           statement from "read 27 visits", and rendered
-                           identically the two flatten into one texture. It
-                           spans the columns and recedes. */
-                        <span className="bw-log-sys">{l.text}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          )}
-
-          {snap && tab === "history" && (
-            /* THE PANEL EXISTS EVEN WHEN THE LIST DOES NOT. `role="tabpanel"`
-               and the id the tabs point at used to ride on the FIRST day
-               section, so a machine with nothing found rendered no panel at
-               all — the view was blank and `aria-controls` named an element
-               that was not there. The section is the panel; the days are its
-               contents. */
-            <section className="bw-eps" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
-              {grouped.length === 0 ? (
-                <div className="bw-empty">
-                  <p className="bw-empty-head">Nothing has been found yet.</p>
-                  <p className="bw-empty-note">
-                    An episode appears here when a program opened pages in a browser nobody had
-                    touched for {snap.settings.quietMinutes}{" "}
-                    {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
-                    rare, and an empty list is the ordinary result rather than a sign something is
-                    wrong — the Activity view is where you can see the watch working.
-                  </p>
-                  {!snap.settings.enabled && (
-                    <p className="bw-empty-note">
-                      The watch is paused, so this list shows only what this deck has seen since it
-                      started. Anything an earlier run archived comes back when you switch it on.
-                    </p>
-                  )}
-                </div>
-              ) : grouped.map(g => (
-                <div className="bw-day" key={g.label}>
-                  <h4>{g.label}</h4>
-                  {g.episodes.map(e => {
-                    const id = `${e.host}-${e.startMs}`;
-                    const isOpen = open === id;
-                    return (
-                      <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
-                        <button
-                          className="bw-ep-head"
-                          onClick={() => setOpen(isOpen ? null : id)}
-                          aria-expanded={isOpen}
-                        >
-                          <span className="bw-ep-host">{e.host}</span>
-                          <span className="bw-ep-meta">
-                            {span(e)}
-                            {lasted(e) && <> · {lasted(e)}</>}
-                            {" · "}
-                            {e.count} {e.count === 1 ? "page" : "pages"}
-                          </span>
-                          <span className="bw-ep-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
-                        </button>
-                        {isOpen && (
-                          <ul className="bw-urls">
-                            {e.urls.map((u, i) => (
-                              <li key={`${u.url}-${u.timeMs}-${i}`}>
-                                <span className="bw-url-time">
-                                  {new Date(u.timeMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                                <span className="bw-url">{u.url}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </section>
           )}
 
           {snap && why && (
@@ -819,14 +586,8 @@ export default function BrowserWatchModal({
                   click. These are the ones that happened while nobody had touched the browser for the
                   time above. <strong>Usually that is your own agent doing what you asked.</strong>
                 </p>
-                {/* WHAT IT TOUCHES, SAID PLAINLY. This panel watches browsing,
-                    which makes "where does this go" the first question a reader
-                    has and the one nothing on screen was answering. Every line
-                    below is a fact about the code, not a reassurance: the read
-                    floor is the deck's own start, the store is that path, and
-                    the deck opens no socket for any of it. */}
                 <button className="bw-why" onClick={() => setAccess(a => !a)} aria-expanded={access}>
-                  {access ? "▾" : "▸"} What Browser Watch can access
+                  <span className="bw-chev" aria-hidden>{access ? "▾" : "▸"}</span> What Browser Watch can access
                 </button>
                 {access && (
                   <dl className="bw-access">
@@ -847,7 +608,7 @@ export default function BrowserWatchModal({
                       Nothing. No part of this reads or writes over the network; the deck serves on
                       127.0.0.1 and this panel talks only to it.
                     </dd>
-                    <dt>Does not read</dt>
+                    <dt>Never reads</dt>
                     <dd>
                       Anything from before this deck started, cookies, saved passwords, page contents, or
                       any browser profile with no history file.
@@ -857,16 +618,246 @@ export default function BrowserWatchModal({
               </div>
             </div>
           )}
+
+          {snap && trouble && (
+            /* Absent when the ordinary case holds, rather than green. A line
+               that reads "everything is fine" on every render is one its reader
+               learns to skip, and then it says nothing on the day it changes. */
+            <p className={`bw-trouble ${trouble.kind}`} role="status">{trouble.text}</p>
+          )}
+
+          {snap && tab === "live" && (
+            <div className="bw-work">
+              <aside className="bw-side">
+                <section className="bw-sec">
+                  <h4 className="bw-sec-head">
+                    Activity overview
+                    {/* Progressive disclosure. The three-line explanation of
+                        what the disc's marks mean was permanent furniture in a
+                        column that has real work to do — and it is read once,
+                        by one reader, on one day. Behind a press, and the press
+                        is a real control with a real name rather than an icon
+                        that has to be guessed at. */}
+                    <button
+                      className="bw-help"
+                      onClick={() => setKey(k => !k)}
+                      aria-expanded={showKey}
+                      aria-label="What the sweep and the dots mean"
+                    >?</button>
+                  </h4>
+
+                  {/* The disc is a SIGNATURE, not a chart. At 176px it was the
+                      largest thing on the panel and most of what it said —
+                      which browsers, running or not — was already in Watched
+                      Profiles below it and in the feed beside it. What it alone
+                      gives is the glance: something is sweeping, so something
+                      is alive. That is worth 88px, not 176. */}
+                  <div className="bw-glance">
+                    <WatchRadar
+                      browsers={watching.map(b => ({
+                        key: b.key,
+                        name: b.name,
+                        running: b.running,
+                        lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
+                      }))}
+                      findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
+                      watching={snap.settings.enabled}
+                      palette={palette}
+                    />
+                    <ul className="bw-counts">
+                      {visitTotals(watching, snap.profiles).map(t => (
+                        <li key={t.key}>
+                          <span className="bw-count-n">{t.visits.toLocaleString("en-US")}</span>
+                          <span className="bw-count-of">{t.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Two short lines by design rather than one long one that
+                      wraps wherever the column happens to end. The first says
+                      what the figures ARE — rows in the browser's own history,
+                      newer than this deck's start, not visits a person made and
+                      not findings. The second is the only part that moves. */}
+                  <p className="bw-since">History entries since this deck started</p>
+                  {lastRead !== null && (
+                    <p className="bw-since">Last look {agoLabel(lastRead, tick)}</p>
+                  )}
+                  {gate !== null && (
+                    /* The quiet gate, where it belongs: beside the numbers it
+                       decides. In the toolbar it was a third idea competing
+                       with the mode and its count. */
+                    <p className="bw-gate">You are browsing — a program page would count in {untilLabel(gate)}</p>
+                  )}
+
+                  {showKey && (
+                    <dl className="bw-key">
+                      <dt>Sweep</dt><dd>one poll of every watched profile</dd>
+                      <dt>Dot</dt><dd>a browser, further out the longer since its history was read</dd>
+                      <dt>Ring</dt><dd>a finding, leaving the browser it came from</dd>
+                    </dl>
+                  )}
+                </section>
+
+                <section className="bw-sec">
+                  <h4 className="bw-sec-head">Watched profiles</h4>
+                  <ul className="bw-profiles">
+                    {watching.map(b => (
+                      <li key={b.key}>
+                        <span className={`bw-prof-dot${b.running ? " on" : ""}`} aria-hidden />
+                        <span className="bw-prof-name">{b.name}</span>
+                        <span className="bw-prof-state">{b.running ? "running" : "idle"}</span>
+                        {b.running && b.relay.state === "live" && (
+                          /* NEUTRAL, NOT AMBER. This was one of the strongest
+                             accents on the panel, for a fact the probe cannot
+                             actually establish: the relay shares an address
+                             with claude.ai, so an open tab is indistinguishable
+                             from an agent channel. What a tool cannot
+                             distinguish must not be the loudest thing on its
+                             screen. It states what was seen and keeps the
+                             qualification on its title. */
+                          <span className="bw-relay" title={b.relay.why}>connected to Anthropic</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {rest.length > 0 && (
+                    <>
+                      <button className="bw-why bw-rest-head" onClick={() => setRestOpen(v => !v)} aria-expanded={restOpen}>
+                        <span className="bw-chev" aria-hidden>{restOpen ? "▾" : "▸"}</span>{" "}
+                        {rest.length} not watched
+                      </button>
+                      {restOpen && (
+                        <p className="bw-rest">
+                          {rest.map(b => b.name).join(", ")} — not installed, or installed and never
+                          opened, so there is no history to read.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </section>
+              </aside>
+
+              <section className="bw-feed" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
+                <h4 className="bw-sec-head bw-feed-head">
+                  Live activity
+                  <span className="bw-feed-count">
+                    {snap.log.length} {snap.log.length === 1 ? "entry" : "entries"}
+                  </span>
+                </h4>
+                <div className="bw-log" aria-live="polite" aria-relevant="additions">
+                  {snap.log.length === 0 ? (
+                    <p className="bw-note">The deck writes a line here each time it looks at a profile.</p>
+                  ) : snap.log.map(l => (
+                    /* Keyed on what the line SAYS, not where it sits: the log is
+                       newest-first, so an index in the key remounts the whole
+                       transcript and the arrival animation fires on all sixteen
+                       lines instead of the one that is new. */
+                    <div
+                      className={`bw-log-line ${l.level}${l.parts ? "" : " sys"}`}
+                      key={`${l.atMs}-${l.level}-${l.text}`}
+                    >
+                      {/* 24-hour and not the reader's locale: an en-US clock
+                          renders "06:28:55 PM", four characters wider than the
+                          column, and a log is 24-hour everywhere anyway. */}
+                      <span className="bw-log-time">
+                        {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
+                      </span>
+                      {l.parts ? (
+                        <>
+                          <span className="bw-log-browser">{l.parts.browser}</span>
+                          <span className="bw-log-profile" title={l.parts.profile}>{l.parts.profile}</span>
+                          <span className="bw-log-value">
+                            {l.parts.value}
+                            {l.parts.flagged > 0 && (
+                              <span className="bw-log-flag"> · {l.parts.flagged} flagged</span>
+                            )}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="bw-log-sys">{l.text}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {snap && tab === "history" && (
+            /* The panel exists even when the list does not. `role="tabpanel"`
+               and the id the tabs point at used to ride on the first day
+               section, so a machine that had found nothing rendered no panel at
+               all and `aria-controls` named an element that was not there. */
+            <section className="bw-eps" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
+              {grouped.length === 0 ? (
+                <div className="bw-empty">
+                  <p className="bw-empty-head">Nothing found yet</p>
+                  <p className="bw-empty-note">
+                    An episode lands here when a program opens pages in a browser nobody has touched for{" "}
+                    {snap.settings.quietMinutes}{" "}
+                    {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
+                    rare, so an empty list is the ordinary result rather than a sign something is wrong.
+                  </p>
+                  {!snap.settings.enabled && (
+                    <p className="bw-empty-note">
+                      Watching is off, so this shows only what this deck has seen since it started.
+                      Anything an earlier run recorded comes back when you switch it on.
+                    </p>
+                  )}
+                </div>
+              ) : grouped.map(g => (
+                <div className="bw-day" key={g.label}>
+                  <h4 className="bw-sec-head">{g.label}</h4>
+                  {g.episodes.map(e => {
+                    const id = `${e.host}-${e.startMs}`;
+                    const isOpen = open === id;
+                    return (
+                      <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
+                        <button
+                          className="bw-ep-head"
+                          onClick={() => setOpen(isOpen ? null : id)}
+                          aria-expanded={isOpen}
+                        >
+                          <span className="bw-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
+                          <span className="bw-ep-host">{e.host}</span>
+                          <span className="bw-ep-meta">
+                            {span(e)}
+                            {lasted(e) && <> · {lasted(e)}</>}
+                          </span>
+                          <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
+                        </button>
+                        {isOpen && (
+                          <ul className="bw-urls">
+                            {e.urls.map((u, i) => (
+                              <li key={`${u.url}-${u.timeMs}-${i}`}>
+                                <span className="bw-url-time">
+                                  {new Date(u.timeMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                                </span>
+                                <span className="bw-url">{u.url}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </section>
+          )}
+
           {snap && (
-            /* A STATUS BAR, not debug text appended to the panel. It says the
-               same thing wherever the view has scrolled to, and it is where the
-               switch lives — beside a label that says what it controls, which
-               an unlabelled toggle in a toolbar never did. */
+            /* THE CONTROL ZONE. It used to restate "2 of 8 browsers watched ·
+               Brave running", which Watched Profiles already says two hundred
+               pixels away — three places telling one fact. The left half now
+               says the thing that changes with the switch and is said nowhere
+               else, and the right half is the switch, labelled. */
             <footer className="bw-status">
-              <span className={`bw-mode-dot${snap.settings.enabled ? " on" : ""}`} aria-hidden />
               <span className="bw-status-text">
-                {watching.length} of {(snap.browsers ?? []).length} browsers watched
-                {live.length > 0 && <span className="bw-status-dim"> · {live.join(", ")} running</span>}
+                {snap.settings.enabled
+                  ? `Recording what it finds · ${snap.coverage.archived} ${snap.coverage.archived === 1 ? "episode" : "episodes"} on disk`
+                  : "Paused — nothing new is being recorded"}
               </span>
               <label className="bw-switch" htmlFor="bw-enabled">
                 <span className="bw-switch-label">Watch browser activity</span>
@@ -877,13 +868,6 @@ export default function BrowserWatchModal({
                   aria-checked={snap.settings.enabled}
                   className="bw-toggle"
                   onClick={() => void save({ enabled: !snap.settings.enabled })}
-                  /* The old off-text said "the list is still read live from the
-                     browser's own history", which is true and still leaves the
-                     reader wrong about what they are looking at: the live read
-                     starts at this deck's boot, so switching off also drops
-                     every episode an earlier run had archived. They come back
-                     on the way in — nothing is deleted — but a list that halves
-                     itself needs the sentence that explains it. */
                   title={snap.settings.enabled
                     ? "On — every episode it finds is written down, so the list outlives the browsing history being cleared"
                     : "Off — showing only what this deck has seen since it started. Anything an earlier run archived is hidden until you switch back on, and nothing new is kept"}
