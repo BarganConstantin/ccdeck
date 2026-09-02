@@ -257,6 +257,15 @@ describe("shareAccounts", () => {
     expect(out.shared).toHaveLength(1);
   });
 
+  it("refuses a list longer than any store, before spawning anything", async () => {
+    // One spawn per account, so the length of the list is a length of time the
+    // request holds open. Nine hundred numbers is not a person picking from a
+    // panel of three.
+    const many = Array.from({ length: 51 }, (_, i) => i + 1);
+    expect(await shareAccounts(many)).toEqual({ ok: false, reason: "too_many" });
+    expect(cli.calls).toHaveLength(0);
+  });
+
   it("runs nothing for a slot number that is not one", async () => {
     for (const bad of [0, 1000, -1, 1.5, "x", null]) {
       expect(await shareAccounts([2, bad])).toEqual({ ok: false, reason: "bad_account" });

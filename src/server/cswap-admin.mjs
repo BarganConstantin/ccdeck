@@ -37,6 +37,8 @@ const CODE_VERDICT_MS = 60_000;
 // How long a shared account stays importable. Long enough to walk to the other
 // machine, short enough that a copy left in clipboard history goes stale.
 export const SHARE_TTL_MS = 10 * 60_000;
+// How many accounts one bundle may carry. See shareAccounts.
+const MAX_SHARE_ACCOUNTS = 50;
 const SHARE_PREFIX = "ccdeck1:";
 
 // ── serialization ────────────────────────────────────────────────────────────
@@ -855,6 +857,11 @@ export function mergeExports(texts) {
  */
 export async function shareAccounts(nums) {
   const asked = Array.isArray(nums) ? nums : [nums];
+  // One spawn per account, so the length of this list is a length of time the
+  // request holds. A store never has fifty accounts; a caller that sends nine
+  // hundred numbers is not a person picking from a panel, and the ceiling
+  // costs nothing to the one who is.
+  if (asked.length > MAX_SHARE_ACCOUNTS) return { ok: false, reason: "too_many" };
   const wanted = [];
   for (const raw of asked) {
     const n = Number(raw);

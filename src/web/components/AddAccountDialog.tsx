@@ -262,7 +262,9 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
    */
   const forceOne = useCallback(async (row: ImportResult) => {
     const key = `${row.email}|${row.org ?? ""}`;
-    if (busyRef.current || !bundleRef.current) return;
+    // The same guard the two submits above take, from the same helper: this
+    // button is never disabled either, so a second press reaches the handler.
+    if (!selfPressAccepted(busyRef.current) || !bundleRef.current) return;
     busyRef.current = true;
     setForcing(key);
     setRowError(null);
@@ -473,7 +475,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                     const key = `${r.email}|${r.org ?? ""}`;
                     return (
                       <li key={key} className={`aa-result ${r.state}`}>
-                        <span className="aa-result-who">{r.email || `slot ${r.num}`}</span>
+                        <span className="aa-result-who">{r.email || (r.num ? `slot ${r.num}` : "an account")}</span>
                         <span className="aa-result-what">{outcomeWord(r.state)}</span>
                         {/* The way out of the one case the default import
                             cannot see: a token that died on a deck which never
