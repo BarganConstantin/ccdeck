@@ -750,13 +750,16 @@ export default function BrowserWatchModal({
                   answer to "has anything been found" needs no press at all. */}
               <div className="bw-main">
                 <section className="bw-findings">
-                  <h4 className="bw-sec-head bw-feed-head">
+                  <h4 className="bw-sec-head bw-head-row">
                     Findings
-                    <span className="bw-feed-count">
-                      {snap.episodes.length === 0
-                        ? "none"
-                        : `${snap.episodes.length} ${snap.episodes.length === 1 ? "episode" : "episodes"}`}
-                    </span>
+                    {/* No count at zero: the body directly below already says
+                        "Nothing found yet", and a `none` beside it is the same
+                        sentence twice in two vocabularies. */}
+                    {snap.episodes.length > 0 && (
+                      <span className="bw-feed-count">
+                        {snap.episodes.length} {snap.episodes.length === 1 ? "episode" : "episodes"}
+                      </span>
+                    )}
                   </h4>
                   <div className="bw-eps">
                     {grouped.length === 0 ? (
@@ -817,7 +820,7 @@ export default function BrowserWatchModal({
                 </section>
 
                 <section className="bw-feed">
-                <h4 className="bw-sec-head bw-feed-head">
+                <h4 className="bw-sec-head bw-head-row">
                   Live activity
                   {/* `entries` counted log rows and collided with the
                       overview's "history entries", which are a different thing

@@ -7045,17 +7045,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-foreign code { display: block; color: var(--muted); font-size: 11px; }
 
 
-.bw-empty {
-  border: 1px dashed var(--line);
-  border-radius: 6px;
-  padding: 18px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.bw-empty strong { font-size: 13px; }
-.bw-empty p { margin: 0; font-size: 12px; color: var(--muted); }
+/* The dashed centred card that used to live here is gone. It was a second
+   `.bw-empty` from a superseded version of this panel, 770 lines above the one
+   that replaced it — so it won on source order and put a boxed, centre-aligned
+   card into a panel where everything else is flush left. Its `.bw-empty p` was
+   also beating `.bw-empty-note` on specificity, which quietly undid that
+   string's move to --text-secondary. */
 
 .bw-day { display: flex; flex-direction: column; gap: 8px; }
 .bw-day h4 {
@@ -7261,7 +7256,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* THE FEED HEADER, so the column starts with what it is rather than with an
    event, and has somewhere to grow a filter later. */
 .bw-feed { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-.bw-feed-head { align-items: baseline; }
+/* One head row, used by Findings and by Live activity — the name says
+   what it is rather than which section first needed it. */
+.bw-head-row { align-items: baseline; }
 /* A count, not a label. It sat inside the section head and inherited its
    uppercase, so "4 ENTRIES" shouted a number nobody needs shouted. */
 .bw-feed-count {
