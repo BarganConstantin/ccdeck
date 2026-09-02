@@ -5,7 +5,7 @@
 // own: which tabs are the deck's, when a read is worth paying for, what an
 // unreadable hosts file is allowed to claim, and what the topbar badge counts.
 import { describe, it, expect, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   browserWatchSnapshot,
@@ -25,11 +25,29 @@ const PROFILE = {
   hasClaudeExt: true,
 };
 
-/** A snapshot driven entirely from literals: no disk, no browser, no clock. */
+/** A snapshot driven entirely from literals: no disk, no browser, no clock.
+ *
+ *  THE STORE STUBS ARE PART OF THE HARNESS, NOT OF THE CASES THAT HAPPEN TO
+ *  NEED THEM. Left to the real ones, a snapshot here read the developer's own
+ *  settings, ran the real deck election, elected itself, and wrote this file's
+ *  fixture — `gitlab.example.com/-/jobs` — into
+ *  ~/.claude/agent-dag/browser-watch/state.json, where it then showed up in a
+ *  running deck's panel as an episode that had never happened. It also made the
+ *  suite's behaviour depend on whether the developer's watch was switched on.
+ *  Sealed here so no case can reach the real config directory by omission. */
 function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profiles = [PROFILE] } = {}) {
   const calls: string[] = [];
+  const wrote: unknown[] = [];
   let tick = 0;
   const deps = {
+    readStore: async () => ({
+      settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
+      episodes: [],
+      migrated: false,
+    }),
+    writeStore: async (state: unknown) => { wrote.push(state); },
+    appendLog: async () => {},
+    react: async () => [],
     discoverProfiles: () => profiles,
     statSync: () => {
       const m = mtimes[Math.min(tick, mtimes.length - 1)];
@@ -42,7 +60,7 @@ function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profil
     },
     readFileSync: () => { throw new Error("ENOENT"); },
   };
-  return { deps, calls, advance: () => { tick++; } };
+  return { deps, calls, wrote, advance: () => { tick++; } };
 }
 
 beforeEach(() => invalidateBrowserWatchCache());
@@ -260,13 +278,7 @@ describe("one machine, one store, usually more than one deck", () => {
 
   const armed = (extra: Record<string, unknown>) => ({
     ...harness({ rows: [finding(Date.now() - 5_000)] }).deps,
-    readStore: async () => ({
-      settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
-      episodes: [],
-      migrated: false,
-    }),
     react: async () => ["notified"],
-    appendLog: async () => {},
     ...extra,
   });
 
@@ -358,5 +370,109 @@ describe("a log a person can read", () => {
     const server = src("../../server/browser-watch.mjs");
     const fn = server.slice(server.indexOf("export function invalidateBrowserWatchCache"));
     expect(fn.slice(0, 320)).toMatch(/_lastBeat = 0;/);
+  });
+});
+
+describe("a history file that has not moved", () => {
+  const FROM_API = 0x08000000;
+  const finding = (atMs: number) => ({
+    url: "https://gitlab.example.com/-/jobs", timeMs: atMs, transition: FROM_API,
+  });
+
+  /** Two polls against one profile: the first reads the file, the second finds
+   *  its mtime unchanged and is served from the cache. */
+  const twoPolls = async (enabled: boolean) => {
+    const h = harness({ rows: [finding(Date.now() - 5_000)], mtimes: [1, 1] });
+    const deps = {
+      ...h.deps,
+      readStore: async () => ({
+        settings: { v: 1, enabled, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
+        episodes: [],
+        migrated: false,
+      }),
+      isReactingDeck: () => false,
+    };
+    const first = await browserWatchSnapshot({ deps });
+    h.advance();
+    const second = await browserWatchSnapshot({ deps });
+    return { first, second, reads: h.calls.length };
+  };
+
+  it("is served from the cache, so the second poll costs nothing", async () => {
+    // The premise the rest of this rests on. Without it the case below would
+    // pass by re-reading rather than by remembering.
+    const { reads } = await twoPolls(false);
+    expect(reads, "the unchanged file was read twice").toBe(1);
+  });
+
+  it("still reports what it found, with the watch off", async () => {
+    // THE BUG THIS PINS. "Unchanged since you last looked" was being read as
+    // "empty", so a cached poll produced no findings at all. With the watch ON
+    // the archive in the store hid it — the episodes were still on screen,
+    // carried by a different code path. With it OFF there is no archive, and
+    // the list emptied itself one poll after opening the panel, while the
+    // switch's own tooltip promised the opposite: "the list is still read live
+    // from the browser's own history".
+    const { first, second } = await twoPolls(false);
+    expect(first.episodes.length, "nothing was found on the first read").toBe(1);
+    expect(second.episodes.length, "a cached poll erased the live list").toBe(1);
+  });
+
+  it("still knows when a person last browsed", async () => {
+    // The same erasure, with a second consequence: the bar reads lastHumanMs to
+    // say "you are browsing · counts in 14m". A cached poll that forgot it
+    // would drop the countdown and claim the gate was already open — the panel
+    // saying a program page would be reported when it would not.
+    const human = Date.now() - 30_000;
+    const h = harness({
+      rows: [finding(Date.now() - 5_000), { url: "https://example.com", timeMs: human, transition: 0 }],
+      mtimes: [1, 1],
+    });
+    const deps = {
+      ...h.deps,
+      readStore: async () => ({
+        settings: { v: 1, enabled: false, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
+        episodes: [],
+        migrated: false,
+      }),
+      isReactingDeck: () => false,
+    };
+    const first = await browserWatchSnapshot({ deps });
+    h.advance();
+    const second = await browserWatchSnapshot({ deps });
+    expect(first.coverage.lastHumanMs).toBe(human);
+    expect(second.coverage.lastHumanMs, "a cached poll forgot the last person").toBe(human);
+  });
+});
+
+describe("what the test suite is allowed to touch", () => {
+  it("reaches no real config directory, whatever this machine's watch is set to", async () => {
+    // THE REGRESSION THIS STOPS. The harness used to stub the profile discovery
+    // and the history read but not the store, so a snapshot here read the
+    // developer's own settings, ran the real deck election, elected itself, and
+    // wrote this file's fixture host into
+    // ~/.claude/agent-dag/browser-watch/state.json. It then appeared in a
+    // running deck's panel as an episode that never happened, with a badge
+    // counting it.
+    //
+    // Asserted against the store module's own path rather than a guess, so a
+    // future change to where the store lives cannot quietly re-open the hole.
+    const { storePath, logPath } = await import("../../server/browser-watch-store.mjs");
+    const stamp = (p: string) => {
+      try { return statSync(p).mtimeMs; } catch { return null; }
+    };
+    const before = [stamp(storePath()), stamp(logPath())];
+
+    const FROM_API = 0x08000000;
+    const h = harness({
+      rows: [{ url: "https://nowhere.invalid/x", timeMs: Date.now() - 5_000, transition: FROM_API }],
+    });
+    // Elected on purpose: the deck that IS recording is the one that would
+    // write, so this is the case that could fail rather than the one that
+    // cannot.
+    await browserWatchSnapshot({ deps: { ...h.deps, isReactingDeck: () => true } });
+
+    expect(h.wrote.length, "the elected deck wrote nothing, so this proves nothing").toBeGreaterThan(0);
+    expect([stamp(storePath()), stamp(logPath())], "a test wrote to the real store").toEqual(before);
   });
 });

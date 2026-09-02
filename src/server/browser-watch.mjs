@@ -109,6 +109,10 @@ export function invalidateBrowserWatchCache() {
   _lastBeat = 0;   // a manual refresh deserves a fresh proof of life
   _lastForced = 0;
   surveyCache = { atMs: 0, rows: [] };
+  // The memo of what each profile last really said goes with it. It exists to
+  // stand in for a read the cache skipped, and there are no skipped reads left
+  // to stand in for.
+  _lastRead.clear();
 }
 
 /** The floor between two reads somebody paid for, spelled the way quota.mjs,
@@ -311,6 +315,26 @@ async function surveyBrowsers(platform, env, now, deps) {
 const HEARTBEAT_MS = 5 * 60_000;
 let _lastBeat = 0;
 
+/**
+ * What the last REAL read of each profile produced, keyed by browser/profile.
+ *
+ * The mtime cache answers "this file has not moved since you last looked", and
+ * the honest reading of that is "the same as last time" — but the code read it
+ * as an empty file, so a cached poll produced no findings, no oldest visit and
+ * no last human navigation.
+ *
+ * With the watch ON that stayed invisible: the archive in the store carried the
+ * episodes and nobody noticed the live read had gone blank underneath it. With
+ * the watch OFF there is no archive, so the list emptied itself within one
+ * poll — the panel claiming "still read live from the browser's own history"
+ * while showing nothing, which is exactly the failure the sentence promises
+ * cannot happen.
+ *
+ * Process-scoped, like STARTED_MS: it describes a window that begins when this
+ * deck begins, and a deck that restarts re-reads everything anyway.
+ */
+const _lastRead = new Map();
+
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
  *  episodes writes nothing — which is most polls, most of the time. */
@@ -394,8 +418,21 @@ export async function browserWatchSnapshot({
     // cannot work out for itself: closing a tab means telling ONE application to
     // close it, and a finding that has forgotten which browser it was in can
     // only be guessed at.
-    const findings = classify(read.rows, { ...opts, exclude })
+    const key = `${profile.browser}/${profile.profile}`;
+    let findings = classify(read.rows, { ...opts, exclude })
       .map(f => ({ ...f, browser: profile.browser }));
+    // Everything this profile contributes, so a cached poll can hand back what
+    // the last real one found instead of erasing it.
+    let oldest = null;
+    let human = null;
+    for (const row of read.rows) {
+      if (oldest === null || row.timeMs < oldest) oldest = row.timeMs;
+      if (!isProgramNavigation(row.transition) && (human === null || row.timeMs > human)) {
+        human = row.timeMs;
+      }
+    }
+    if (read.cached) ({ findings, oldest, human } = _lastRead.get(key) ?? { findings: [], oldest: null, human: null });
+    else if (!read.degraded) _lastRead.set(key, { findings, oldest, human });
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
     // A poll that found the file unchanged says nothing. See HEARTBEAT_MS.
@@ -410,12 +447,8 @@ export async function browserWatchSnapshot({
            `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}${found}`, now);
     }
     allFindings = allFindings.concat(findings);
-    for (const row of read.rows) {
-      if (oldestSeen === null || row.timeMs < oldestSeen) oldestSeen = row.timeMs;
-      if (!isProgramNavigation(row.transition) && (lastHuman === null || row.timeMs > lastHuman)) {
-        lastHuman = row.timeMs;
-      }
-    }
+    if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
+    if (human !== null && (lastHuman === null || human > lastHuman)) lastHuman = human;
     reports.push({
       browser: profile.browser,
       name: profile.name,

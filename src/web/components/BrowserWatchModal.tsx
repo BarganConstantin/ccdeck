@@ -137,6 +137,47 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
   return (browsers ?? []).filter(b => b.installed && b.profiles > 0);
 }
 
+/**
+ * What the bar says about the watch, and which of four things it is saying.
+ *
+ * The kind exists so the text can cross-fade when the meaning changes without
+ * flickering while the countdown counts: `counting` holds for fourteen minutes
+ * while its own last characters move every second.
+ */
+export function barState(
+  snap: { settings: { enabled: boolean }; coverage: { lastHumanMs: number | null; quietMs: number; archived: number } },
+  saving: boolean,
+  nowMs: number,
+): { kind: "saving" | "off" | "watching" | "counting"; text: string } {
+  if (saving) return { kind: "saving", text: "saving" };
+  if (!snap.settings.enabled) return { kind: "off", text: "not watching" };
+  const left = armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, nowMs);
+  // The gate, said as the thing a person sitting at the browser wants to know:
+  // not "quiet gate 15m" but "a page opened now would not count, and here is
+  // when it would".
+  return left === null
+    ? { kind: "watching", text: `watching · ${snap.coverage.archived} kept` }
+    : { kind: "counting", text: `you are browsing · counts in ${untilLabel(left)}` };
+}
+
+/**
+ * What this deck can honestly say about a browser's link to Anthropic's relay.
+ *
+ * IT USED TO PRINT `relay: 2`, AND TWO OF WHAT WAS THE QUESTION NOBODY COULD
+ * ANSWER. The number counted ESTABLISHED TCP sockets from that browser to an
+ * address `bridge.claudeusercontent.com` resolves to — an address it SHARES
+ * with claude.ai and api.anthropic.com. So two could be two agent channels or
+ * two open claude.ai tabs, and the count implied a precision the probe does not
+ * have. What was actually observed is a connection, so a connection is what it
+ * says; the qualification stays on the badge's title, where it reads as a
+ * detail rather than as a correction to the label.
+ */
+export function relayLabel(state: "live" | "none-seen" | "unknown"): string {
+  if (state === "live") return "connected to Anthropic";
+  if (state === "none-seen") return "no connection seen";
+  return "cannot tell";
+}
+
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
 function span(e: WatchEpisode): string {
   const t = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -186,7 +227,10 @@ export default function BrowserWatchModal({
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [quiet, setQuiet] = useState(15);
+  /* Null until the first snapshot answers. The stored value is the truth and
+     this control only displays it — seeded from a literal, it showed 15 to
+     somebody who had chosen 1, and then sent that 15 back on every poll. */
+  const [quiet, setQuiet] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
@@ -218,10 +262,21 @@ export default function BrowserWatchModal({
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true);
     try {
-      const r = await fetch(`/api/browser-watch?quiet=${quiet}${refresh ? "&refresh=1" : ""}`);
+      /* NO `?quiet=`. The server treats that parameter as an override of the
+         stored setting, and the panel was sending its own un-seeded default on
+         every poll — so a person who chose a 1-minute gate had their episodes
+         classified against 15 minutes, silently, for as long as the panel was
+         open. The select saves on change, so the store is already the truth by
+         the time the next poll goes out; there was never anything for the
+         override to add. */
+      const r = await fetch(`/api/browser-watch${refresh ? "?refresh=1" : ""}`);
       if (!r.ok) throw new Error(`the deck answered ${r.status}`);
       const next = await r.json();
       setSnap(next);
+      // Follow the store, except while a save is in flight — the optimistic
+      // value the user just picked must not be overwritten by a snapshot that
+      // was already on its way out when they picked it.
+      setQuiet(q => (q === null ? next?.settings?.quietMinutes ?? 15 : q));
       onWatching(next?.settings?.enabled === true);
       setError(null);
     } catch (e) {
@@ -229,7 +284,7 @@ export default function BrowserWatchModal({
     } finally {
       setBusy(false);
     }
-  }, [quiet, onWatching]);
+  }, [onWatching]);
 
   useEffect(() => { void load(false); }, [load]);
 
@@ -285,6 +340,7 @@ export default function BrowserWatchModal({
 
   const watching = watchedBrowsers(snap?.browsers);
   const live = watching.filter(b => b.running).map(b => b.name);
+  const rest = (snap?.browsers ?? []).filter(b => !(b.installed && b.profiles > 0));
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -356,7 +412,12 @@ export default function BrowserWatchModal({
                     {t.id === "history" && snap.episodes.length > 0 && (
                       <span className="bw-tab-count">{snap.episodes.length}</span>
                     )}
-                    {t.id === "live" && snap.settings.enabled && <span className="bw-tab-live" aria-hidden />}
+                    {/* Always rendered, lit or dark. Appearing and vanishing
+                        made this tab 22px wider and narrower on every press of
+                        a switch sitting somewhere else entirely. */}
+                    {t.id === "live" && (
+                      <span className={`bw-tab-live${snap.settings.enabled ? " on" : ""}`} aria-hidden />
+                    )}
                   </button>
                 ))}
               </div>
@@ -369,24 +430,24 @@ export default function BrowserWatchModal({
                   aria-label={`Watching, ${snap.settings.enabled ? "on" : "off"}`}
                   className="bw-toggle"
                   onClick={() => void save({ enabled: !snap.settings.enabled })}
+                  /* The old off-text said "the list is still read live from the
+                     browser's own history", which is true and still leaves the
+                     reader wrong about what they are looking at: the live read
+                     starts at this deck's boot, so switching off also drops
+                     every episode an earlier run had archived. They come back
+                     on the way in — nothing is deleted — but a list that halves
+                     itself needs the sentence that explains it. */
                   title={snap.settings.enabled
-                    ? "On — the deck keeps its own copy, so an episode it has seen survives the browsing history being cleared"
-                    : "Off — the list is still read live from the browser's own history; clearing that history would lose it"}
+                    ? "On — every episode it finds is written down, so the list outlives the browsing history being cleared"
+                    : "Off — showing only what this deck has seen since it started. Anything an earlier run archived is hidden until you switch back on, and nothing new is kept"}
                 >
                   <span className="bw-toggle-knob" />
                 </button>
-                <span className="bw-bar-state">
-                  {(() => {
-                    if (saving) return "saving";
-                    if (!snap.settings.enabled) return "not watching";
-                    const left = armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, tick);
-                    // The gate, said as the thing a person sitting at the
-                    // browser wants to know: not "quiet gate 15m" but "a page
-                    // opened now would not count, and here is when it would".
-                    return left === null
-                      ? `watching · ${snap.coverage.archived} kept`
-                      : `you are browsing · counts in ${untilLabel(left)}`;
-                  })()}
+                {/* Keyed on the KIND of state, not on the text. The countdown
+                    changes its own last two characters every second, and a
+                    fade rekeyed on that would strobe once a second forever. */}
+                <span className="bw-bar-state" key={barState(snap, saving, tick).kind}>
+                  {barState(snap, saving, tick).text}
                 </span>
                 <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
                   settings
@@ -432,8 +493,13 @@ export default function BrowserWatchModal({
               <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
                 {snap.log.length === 0 ? (
                   <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
-                ) : snap.log.map((l, i) => (
-                  <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${i}`}>
+                ) : snap.log.map(l => (
+                  /* Keyed on what the line SAYS, not on where it sits. The log
+                     is newest-first, so a new line at the top shifts every
+                     index below it — an index in the key remounts the whole
+                     transcript, and the arrival animation fires on all sixteen
+                     lines instead of the one that is actually new. */
+                  <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${l.level}-${l.text}`}>
                     {/* 24-hour, and not the reader's locale. An en-US clock
                         renders "06:28:55 PM", which is four characters wider than
                         the column and collided with the text beside it — and a
@@ -500,27 +566,34 @@ export default function BrowserWatchModal({
               </button>
 
               {showBrowsers && (
-                <ul className="bw-browsers">
-                  {(snap.browsers ?? []).map(b => (
-                    <li key={b.key} className={b.installed ? "" : "absent"}>
-                      <span className="bw-prof-name">{b.name}</span>
-                      <span className="bw-prof-meta">
-                        {!b.installed ? "not installed"
-                          : b.profiles === 0 ? "installed, never opened"
-                          : `${b.profiles} profile${b.profiles === 1 ? "" : "s"}`}
-                        {b.withExtension.length > 0 && " · Claude extension"}
-                        {b.installed && (b.running ? " · running" : " · not running")}
-                      </span>
-                      {b.installed && b.running && (
-                        <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
-                          {b.relay.state === "live" ? `relay: ${b.relay.count}`
-                            : b.relay.state === "none-seen" ? "relay: none seen"
-                            : "relay: cannot tell"}
+                <>
+                  {/* Only the ones with something to say. Eight rows of which
+                      six read "not installed" or "installed, never opened" is
+                      six lines spent restating the count in the line above. */}
+                  <ul className="bw-browsers">
+                    {watching.map(b => (
+                      <li key={b.key}>
+                        <span className="bw-prof-name">{b.name}</span>
+                        <span className="bw-prof-meta">
+                          {`${b.profiles} profile${b.profiles === 1 ? "" : "s"}`}
+                          {b.withExtension.length > 0 && " · Claude extension"}
+                          {b.running ? " · running" : " · not running"}
                         </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                        {b.running && (
+                          <span className={`bw-relay ${b.relay.state}`} title={b.relay.why}>
+                            {relayLabel(b.relay.state)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {rest.length > 0 && (
+                    <p className="bw-rest">
+                      Not watched: {rest.map(b => b.name).join(", ")} — not installed, or installed and
+                      never opened, so there is no history to read.
+                    </p>
+                  )}
+                </>
               )}
             </section>
           )}
@@ -532,7 +605,7 @@ export default function BrowserWatchModal({
                 + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
               }>
                 <span>Nobody browsing for</span>
-                <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
+                <select value={quiet ?? snap.settings.quietMinutes} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
                   <option value={1}>1 min</option>
                   <option value={5}>5 min</option>
                   <option value={15}>15 min</option>

@@ -6894,6 +6894,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .tool-burst.clickable:active { scale: none; }
 }
 
+
 /* The one failure in this panel that waiting cannot fix. Sized like the other
    row affordances, coloured like the error it belongs to. */
 .ap-fix {
@@ -7207,7 +7208,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    pill also carries a resting boundary — which an underline does not, and
    which control-edges.test.ts is right to require of anything it is told is a
    control. */
-.bw-tabs { display: inline-flex; gap: 4px; }
+.bw-tabs { display: inline-flex; gap: 10px; }
 .bw-tab {
   position: relative;
   padding: 4px 12px;
@@ -7237,15 +7238,84 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   border-radius: 50%;
   background: var(--accent);
   vertical-align: middle;
+  /* Dark, not absent. Rendering it only while armed made this tab 22px wider
+     and narrower on every press of a switch at the other end of the bar. */
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 200ms ease, transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bw-tab-live.on { opacity: 1; transform: none; }
+/* A slow breath while it is armed, so "running" is legible without reading a
+   word — the same claim the sweep makes on the disc, made where the panel is
+   still closed to the log. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-tab-live.on { animation: bw-pulse 2.6s ease-in-out infinite; }
+}
+@keyframes bw-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
 /* Newest first and scrolling inside itself, so a long run does not push the
    browsers and the footer off the panel. */
-.bw-log { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+/* The 6px inset is the room the rows' hover bleeds into. Without it their
+   negative margin overflowed this box and put a horizontal scrollbar under a
+   log that has nothing to scroll sideways to. */
+.bw-log { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; padding: 0 6px; }
 /* 66px fits `06:28:55` with room to spare. It was 60 against a 12-hour clock
    whose "06:28:55 PM" is four characters wider than that, so the stamp ran into
    the text beside it — the column is sized for the string it now renders. */
-.bw-log-line { display: grid; grid-template-columns: 10px 66px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
+.bw-log-line {
+  display: grid;
+  grid-template-columns: 10px 66px 1fr;
+  gap: 8px;
+  font-size: 11px;
+  align-items: baseline;
+  /* Padding pulled back out by the margin, so the hover has a body to fill
+     without the resting log growing a 6px indent it does not need. */
+  padding: 2px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  transition: background 140ms ease;
+}
+/* A transcript is scanned by running a finger down it, and until now the
+   finger had nothing to land on: sixteen near-identical rows, no way to hold
+   your place between the stamp on the left and the text on the right. The
+   hover is that place. Background only — the row must not move, or the next
+   line arrives under a cursor that was pointing at this one. */
+.bw-log-line:hover { background: var(--bg-soft); }
+.bw-log-line:hover .bw-log-time { color: var(--text); }
+.bw-log-line:hover .bw-log-text { color: var(--text); }
+.bw-log-line.info:hover .bw-log-text { color: var(--muted); }
+.bw-log-line:hover::before { color: var(--text); }
+.bw-log-line.find:hover::before,
+.bw-log-line.find:hover .bw-log-text { color: var(--accent); }
+.bw-log-line.warn:hover::before,
+.bw-log-line.warn:hover .bw-log-text { color: var(--warn); }
+.bw-log-time, .bw-log-text { transition: color 140ms ease; }
+
+/* Arrival. The log is the panel's transcript and a new line in it is the one
+   thing here that means something JUST happened — it should be seen landing,
+   not discovered on the next glance. Keyed by content in the component, so
+   this fires on the line that is new and not on the fifteen that shifted down
+   to make room for it. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-log-line { animation: bw-line-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-line-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+/* A finding is the reason the panel exists, so it arrives differently: the
+   accent washes out of the row rather than the row sliding in. One authored
+   moment, spent on the one line anybody is meant to catch. */
+@media (prefers-reduced-motion: no-preference) {
+  .bw-log-line.find { animation: bw-find-in 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-find-in {
+  from { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  to { background: transparent; }
+}
 .bw-log-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--text-dim);
@@ -7328,7 +7398,25 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-browsers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .bw-browsers li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
 .bw-browsers li.absent { opacity: 0.45; }
-.bw-relay { font-size: 10px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+/* The browsers with nothing to report, as one sentence rather than six rows.
+   Sized and coloured like the panel's other explanatory prose, because that is
+   what it is. */
+.bw-rest { margin: 2px 0 0; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.bw-relay {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: help;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+/* Every one of the three answers is qualified, and the qualification lives in
+   the title. The help cursor and the edge lighting on hover are how the badge
+   says there is more to read without spending a line saying it. */
+.bw-relay:hover { color: var(--text); border-color: var(--ctl-edge); }
+.bw-relay.live:hover { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
 /* Amber, never red. A connection to that address is not proof of a relay
    session — an open claude.ai tab is indistinguishable — so the strongest
    thing this badge is allowed to mean is "worth knowing". */
@@ -7377,20 +7465,76 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   gap: 16px;
   flex-wrap: wrap;
 }
-.bw-bar-right { display: flex; align-items: center; gap: 8px; }
-.bw-bar-state { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* THE SWITCH DOES NOT MOVE. It used to travel 163px on a single press — right
+   to "saving", back to "not watching", further back when the countdown
+   returned — so the control ran away from the finger that had just pressed it,
+   three times, for one click. The state is a sentence whose length is the
+   thing that changes, so the sentence is what absorbs the slack: the switch
+   sits at this group's left edge, the text grows rightward into empty space,
+   and the settings press stays pinned at the far right. */
+.bw-bar-right { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.bw-bar-state {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Fires when the MEANING changes — the span is keyed on the kind, so the
+   countdown's own ticking does not restart it. Opacity and a hair of travel:
+   the sentence is being replaced, not moved. */
+@keyframes bw-state-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bw-state-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* The count rides on the tab it counts, rather than standing apart from it as
-   its own "1 episode" island. */
+   its own "1 episode" island.
+   OUT OF FLOW, because in flow it was a width: the badge appears when the first
+   finding lands and vanishes when the list empties, and the tab grew and shrank
+   22px underneath it — dragging every control to its right along with it. A
+   count is a mark on a control, not a part of its size. */
 .bw-tab-count {
-  margin-left: 6px;
-  padding: 0 5px;
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  min-width: 15px;
+  padding: 0 4px;
   border-radius: 8px;
+  border: 1px solid var(--panel);
   background: var(--ctl-fill);
-  font-size: 10px;
+  color: var(--text);
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .bw-tab-count { animation: bw-count-in 320ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+/* It lands. A number that simply exists on the next frame is a number nobody
+   sees change, and the whole point of the badge is the moment it changes. */
+@keyframes bw-count-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: none; }
+}
+/* Room for the corner it now sits in, so it is not clipped by the row above
+   or overlapped by the tab beside it. */
+.bw-tabs { padding-top: 6px; }
 .bw-tab.on .bw-tab-count { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
+/* Opens rather than appears. This block pushes the whole panel down when it
+   arrives, and a shove with no motion behind it reads as a glitch — the eye
+   has to re-find everything below it. The entrance explains where the space
+   came from. */
 .bw-settings {
   display: flex;
   gap: 16px;
@@ -7400,7 +7544,18 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 6px;
+  transform-origin: top;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .bw-settings { animation: bw-settings-in 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+@keyframes bw-settings-in {
+  from { opacity: 0; transform: translateY(-6px) scaleY(0.96); }
+  to { opacity: 1; transform: none; }
+}
+/* The chevron on the press that owns it, so the control says which way it is
+   about to go before it is pressed. */
+.bw-why[aria-expanded="true"] { color: var(--text); }
 .bw-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
 .bw-settings select {
   background: var(--ctl-fill);
@@ -7498,3 +7653,23 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    explain is a second thing to learn. */
 .bw-legend li.on { color: var(--accent); }
 .bw-legend-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* BROWSER WATCH UNDER REDUCED MOTION, in one place and after every rule it
+   answers — the census reads position, and an answer above the declaration it
+   answers is not one.
+
+   Reduced motion means gentler, not blind. Every entrance here keeps its
+   opacity and loses its travel: the state still cross-fades when its MEANING
+   changes, because that fade is the feedback that the press landed; the count
+   still lands; the settings block still arrives rather than materialising. What
+   goes is the movement, which is the part that costs somebody something. */
+@media (prefers-reduced-motion: reduce) {
+  .bw-bar-state,
+  .bw-log-line,
+  .bw-tab-count,
+  .bw-settings { animation: bw-state-fade 220ms ease; }
+  /* Lit versus dark IS the state, so the dot keeps its fade and drops the
+     scale it grew in with. */
+  .bw-tab-live { transition: opacity 200ms ease; transform: none; }
+  .bw-tab-live.on { transform: none; }
+}
