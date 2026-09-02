@@ -482,6 +482,16 @@ export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
   // number on the card cannot disagree with the list under it.
   const episodes = groups.map(g => ({
     host: g.host,
+    // THE TAG THIS FUNCTION SPENDS A MAP BUILDING. It was set on the group and
+    // then dropped here, because this rebuilds each episode field by field and
+    // the field was never added — so `browserOf` above was careful, commented,
+    // dead code, and every episode reached the panel with `browser: null`.
+    //
+    // What that cost, none of it visible as an error: a reaction had nothing to
+    // tell which application to close, and the radar's ring for a finding fell
+    // through `findIndex(...) === -1` into `Math.max(0, -1)` and drew itself on
+    // whichever browser happened to be first.
+    browser: g.browser,
     startMs: g.startMs,
     endMs: g.endMs,
     count: g.urls.length,

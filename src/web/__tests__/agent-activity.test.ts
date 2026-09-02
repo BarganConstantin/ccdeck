@@ -460,7 +460,12 @@ describe("toEpisodes collapses a burst into a card", () => {
     expect(episodes[0].urls).toHaveLength(BURST_COUNT);
     expect(episodes[0].urls.map(u => u.timeMs)).toEqual(
       Array.from({ length: BURST_COUNT }, (_u, i) => BURST_START + i * BURST_STEP));
-    expect(Object.keys(episodes[0]).sort()).toEqual(["count", "endMs", "host", "startMs", "urls"]);
+    // `browser` belongs in this list and was missing from it, which is how the
+    // tag stayed dropped: `toEpisodes` built a `browserOf` map, set the field on
+    // each group, and then rebuilt every episode without it — and this
+    // assertion agreed, so nothing complained for as long as the bug existed.
+    // A shape test that pins the wrong shape defends it.
+    expect(Object.keys(episodes[0]).sort()).toEqual(["browser", "count", "endMs", "host", "startMs", "urls"]);
     expect(Object.keys(episodes[0].urls[0]).sort()).toEqual(["timeMs", "url"]);
   });
 
@@ -717,5 +722,55 @@ describe("classify at the size of a real profile", () => {
     // to sit in; 15 spent that on the algorithm's side and left a quarter of it
     // for the machine, which turned out to be the wrong half to be generous to.
     expect(best).toBeLessThan(25);
+  });
+});
+
+describe("which browser an episode came from", () => {
+  const FROM_API_BIT = 0x08000000;
+  const human = (t: number) => ({ url: "https://human.invalid/a", timeMs: t, transition: 0 });
+  const program = (t: number, url = "https://example.invalid/x") =>
+    ({ url, timeMs: t, transition: FROM_API_BIT });
+
+  it("survives the grouping, which is where it used to be dropped", () => {
+    // `toEpisodes` builds a `browserOf` map, sets `browser` on each open group,
+    // and then rebuilt every episode field by field WITHOUT it — so the map was
+    // careful, commented, dead code and every episode reached the panel with
+    // `browser: null`.
+    //
+    // Neither consequence looked like an error. A reaction had nothing to tell
+    // which application to close, and the radar's ring fell through
+    // `findIndex(...) === -1` into `Math.max(0, -1)` and drew itself on
+    // whichever browser happened to be first in the list.
+    const now = 1_000_000_000;
+    const tagged = classify(
+      [human(now - 600_000), program(now - 60_000)],
+      { quietMs: 60_000 },
+    ).map(f => ({ ...f, browser: "brave" }));
+
+    const [episode] = toEpisodes(tagged);
+    expect(episode.browser, "the browser tag was dropped in grouping again").toBe("brave");
+  });
+
+  it("keeps each host with the browser its finding came from", () => {
+    // Two browsers, two hosts, one sweep. The tag rides on the HOST because a
+    // url row's shape is pinned elsewhere, so this is the case that proves the
+    // map is keyed the way the rest of the function assumes.
+    const now = 1_000_000_000;
+    const findings = [
+      ...classify([human(now - 600_000), program(now - 60_000, "https://one.invalid/a")], { quietMs: 60_000 })
+        .map(f => ({ ...f, browser: "brave" })),
+      ...classify([human(now - 600_000), program(now - 50_000, "https://two.invalid/b")], { quietMs: 60_000 })
+        .map(f => ({ ...f, browser: "chrome" })),
+    ];
+    const byHost = Object.fromEntries(toEpisodes(findings).map(e => [e.host, e.browser]));
+    expect(byHost).toEqual({ "one.invalid": "brave", "two.invalid": "chrome" });
+  });
+
+  it("says null rather than guessing when no finding carried a tag", () => {
+    // An untagged finding is a caller that forgot, and inventing a browser for
+    // it would send a reaction at whichever application sorted first.
+    const now = 1_000_000_000;
+    const untagged = classify([human(now - 600_000), program(now - 60_000)], { quietMs: 60_000 });
+    expect(toEpisodes(untagged)[0].browser).toBeNull();
   });
 });
