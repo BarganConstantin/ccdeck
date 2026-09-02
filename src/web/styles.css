@@ -7125,12 +7125,25 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-status {
   display: flex;
   align-items: center;
+  /* Wraps rather than overflows. At 320px the state and the two controls do
+     not fit on one line, and measured before this the bar ran 74px past the
+     panel — a status bar that is off the edge is worse than one on two lines. */
+  flex-wrap: wrap;
   gap: 10px;
   min-height: 48px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
-.bw-status-text { font-size: 12px; color: var(--muted); }
+/* Shrinks first: it is the one part of this bar that is prose rather than a
+   control or a state word, so it is the one that can give. */
+.bw-status-text {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .bw-status-dim { color: var(--muted); }
 /* One `auto` in the row, on the first of the two controls: it pushes the pair
    to the far end together, so the state reads from the left edge and the gear
@@ -7498,6 +7511,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 .bw-mode-word {
+  flex: none;
   font-size: 12px;
   color: var(--text);
   font-weight: 600;
