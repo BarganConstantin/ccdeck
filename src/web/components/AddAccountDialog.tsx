@@ -494,9 +494,16 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   })}
                 </ul>
               )}
+              {/* This used to end "no account already here was touched unless
+                  you asked for it above", which the healed row on the same
+                  screen contradicts: claude-swap replaces a slot it has itself
+                  quarantined without being asked, and that is the point of it.
+                  A reassurance a reader can see is false costs more than it
+                  buys. */}
               <p className="aa-note">
-                Nothing changed on the deck you copied this from, and no account already
-                here was touched unless you asked for it above.
+                Nothing changed on the deck you copied this from. An account already here
+                is left as it is, unless its stored login was dead or you pressed
+                <strong> update anyway</strong>.
               </p>
               <div className="aa-actions">
                 <button type="button" className="btn primary" onClick={onClose}>Done</button>
