@@ -593,9 +593,19 @@ export async function browserWatchSnapshot({
     const reaction = store.settings.reaction;
     if (fresh.length && performable(reaction, platform)) {
       for (const episode of fresh) {
+        // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
+        // blew up into a reaction that had never been asked for, and the feed
+        // then said nothing at all about a finding the panel had promised to
+        // act on. The message goes in the line, because the one thing a reader
+        // needs when a reaction fails is which failure it was.
         const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
-          .catch(() => []);
-        for (const line of acted) note("find", `${episode.host} — ${line}`, now);
+          .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
+        // `could not` lines are the deck unable to do what it said it would,
+        // which is what `warn` is for; the rest is the reaction working.
+        for (const line of acted) {
+          note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
+               `${episode.host} — ${line}`, now);
+        }
       }
     }
   }

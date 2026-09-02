@@ -171,21 +171,34 @@ export async function react(reaction, episode, { platform = process.platform, de
   const pages = `${episode.count} page${episode.count === 1 ? "" : "s"}`;
   if (await notify("Browser watch", `${episode.host} — ${pages} while you were away`, platform, deps)) {
     done.push("notified");
+  } else {
+    done.push("could not notify");
   }
 
   if (!performable(reaction, platform) || reaction === "notify") return done;
 
+  // A REACTION THAT COULD NOT ACT MUST SAY SO. This reported only its
+  // successes, so every failure was silent — and there were two whole months of
+  // them: `episode.browser` was null until it was fixed, `appName(null)` is
+  // null, and both destructive reactions returned `unknown_browser` and pushed
+  // nothing. The panel said a finding had been handled and nothing had been.
+  //
+  // The failures that remain are ordinary and will happen: macOS asks once for
+  // permission to control another application and refuses forever if declined;
+  // a tab can be closed by hand before the poll reaches it; a browser can quit
+  // on its own. Each of those is something the reader has to be able to see,
+  // because the alternative is believing a tab was closed that is still open.
   if (reaction === "close-tab") {
     // Every URL in the episode, because an episode is a run and closing only
     // its first page leaves the rest of the run open.
     for (const u of episode.urls ?? []) {
       const out = await closeTab(episode.browser, u.url, platform, deps);
-      if (out.ok) done.push(`closed ${u.url}`);
+      done.push(out.ok ? `closed ${u.url}` : `could not close ${u.url} — ${out.reason}`);
     }
     return done;
   }
 
   const out = await quitBrowser(episode.browser, platform, deps);
-  if (out.ok) done.push("quit the browser");
+  done.push(out.ok ? "quit the browser" : `could not quit the browser — ${out.reason}`);
   return done;
 }
