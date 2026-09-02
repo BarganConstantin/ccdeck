@@ -117,7 +117,13 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
         <section className="modal-body sa-body">
           {bundle ? (
             <div className="sa-step">
-              <h4>{carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`}</h4>
+              {/* Once the countdown is out, "ready to paste" is the one thing
+                  this text is not: the other deck refuses it. The heading is
+                  the first thing read, so it is the first thing to stop
+                  saying so. */}
+              <h4>{dead
+                ? "This share has expired"
+                : carried === 1 ? "1 account, ready to paste" : `${carried} accounts, ready to paste`}</h4>
               <code className={`ap-share-blob${dead ? " sa-dead" : ""}`}>{bundle.blob}</code>
               <div className="ap-share-foot">
                 {/* Past the expiry the import dialog on the other deck refuses
@@ -129,7 +135,11 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     body; nothing is in flight on this branch anyway. */}
                 <button type="button" className="ap-manage-btn" ref={primaryRef}
                   onClick={async () => {
-                    if (dead) { setBundle(null); return; }
+                    // "Make a new share" makes one, out of the same selection
+                    // the user already made. Dropping them back on the picker
+                    // would be a button that names an outcome and delivers a
+                    // step towards it.
+                    if (dead) { setBundle(null); void make(); return; }
                     if (await copyText(bundle.blob)) {
                       setCopied(true);
                       window.setTimeout(() => setCopied(false), COPIED_MS);
@@ -173,8 +183,17 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
               )}
 
               <p className="sa-note">
-                Paste it into the other deck with <strong>+</strong> → <strong>Paste a share</strong>.
-                Accounts it already holds are left exactly as they are.
+                {dead ? (
+                  <>
+                    Another deck will refuse this text now. Make a new one — the same accounts
+                    are still picked.
+                  </>
+                ) : (
+                  <>
+                    Paste it into the other deck with <strong>+</strong> → <strong>Paste a share</strong>.
+                    Accounts it already holds are left exactly as they are.
+                  </>
+                )}
               </p>
               <div className="sa-actions">
                 <button type="button" className="btn" onClick={() => { setBundle(null); setCopied(false); }}>
