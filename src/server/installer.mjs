@@ -620,6 +620,19 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // than win it and record a rollout it is not even reading. See
     // writesCodexLog in src/server/log-writer.mjs.
     codex: codex !== false,
+    // Does this deck run Browser Watch? The watch elects a single writer among
+    // the decks on a machine, and it elected on port alone — so an older ccdeck
+    // that predates the feature won the election by having the lower port and
+    // then wrote nothing, while the deck that HAS the watch stood down. Measured
+    // on this machine: a v1.46 deck from an npx cache held 4317, answered the
+    // watch route with the SPA's index.html, and Browser Watch silently
+    // recorded nothing for as long as both were up. No error, no log line — the
+    // panel showed findings on screen and the disk stayed empty.
+    //
+    // Same shape as `codex` above, and for the same reason: a deck that is not
+    // doing the work must be left out of the election rather than win it. An
+    // older deck has no such field, so it is excluded by construction.
+    watch: true,
     startedAt: new Date().toISOString(),
   };
   await writeFileAtomic(file, JSON.stringify(data, null, 2) + "\n");

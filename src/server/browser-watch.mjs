@@ -290,6 +290,17 @@ async function isReactingDeck(deps = {}) {
     try {
       const d = JSON.parse(await readFile(join(dir, f), "utf8"));
       if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
+      // ONLY DECKS THAT RUN THE WATCH GET A VOTE. This elected on port alone,
+      // so an older ccdeck that predates the feature won by holding the lower
+      // port and then wrote nothing — while the deck that has the watch stood
+      // down and also wrote nothing. Measured here: a v1.46 deck out of an npx
+      // cache held 4317, answered this route with the SPA's index.html, and the
+      // watch recorded nothing at all for as long as both were up. Findings on
+      // screen, an empty disk, and not one line anywhere saying why.
+      //
+      // An older deck has no such field, so it loses by construction rather
+      // than by a version comparison this would otherwise have to keep.
+      if (d.watch !== true) continue;
       // A record whose process is gone is a leftover, not a rival.
       try { process.kill(d.pid, 0); } catch { continue; }
       if (!best || d.port < best.port || (d.port === best.port && d.pid < best.pid)) best = d;

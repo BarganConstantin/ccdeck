@@ -483,3 +483,37 @@ describe("what the test suite is allowed to touch", () => {
     expect([stamp(storePath()), stamp(logPath())], "a test wrote to the real store").toEqual(before);
   });
 });
+
+describe("which deck is allowed to win the election", () => {
+  const server = src("../../server/browser-watch.mjs");
+
+  it("skips a deck that does not run the watch", () => {
+    // THE BUG THIS CLOSES, measured on a real machine. The election ran on port
+    // alone, so a v1.46 ccdeck out of an npx cache held 4317, won by having the
+    // lower port, and wrote nothing — it predates the feature and answers the
+    // watch route with the SPA's index.html. The deck that HAS the watch stood
+    // down. Result: findings on screen, an empty disk, and not one line
+    // anywhere saying why.
+    expect(server, "the election takes every registered deck again")
+      .toMatch(/if \(d\.watch !== true\) continue;/);
+    // Before the liveness check, so a dead deck that also lacks the field costs
+    // no signal.
+    const skip = server.indexOf("if (d.watch !== true) continue;");
+    const kill = server.indexOf("process.kill(d.pid, 0)");
+    expect(skip).toBeGreaterThan(0);
+    expect(skip).toBeLessThan(kill);
+  });
+
+  it("declares the capability where the other capabilities are declared", () => {
+    // `codex` is already there for the same reason, in the same words: a deck
+    // that is not doing the work must be left out of the election rather than
+    // win it. An older deck has no such field and loses by construction, which
+    // is why this is a capability flag and not a version comparison.
+    const installer = src("../../server/installer.mjs");
+    expect(installer).toMatch(/watch: true,/);
+    const codex = installer.indexOf("codex: codex !== false,");
+    const watch = installer.indexOf("watch: true,");
+    expect(codex).toBeGreaterThan(0);
+    expect(watch).toBeGreaterThan(codex);
+  });
+});
