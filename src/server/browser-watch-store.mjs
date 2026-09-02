@@ -223,6 +223,17 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
  * driven — the one file whose loss this feature cannot absorb. installer.mjs
  * makes the same argument about settings.json, for the same reason.
  */
+/**
+ * Write the whole store, atomically.
+ *
+ * IT WRITES WHAT IT IS HANDED. There is no merge with what is on disk, on
+ * purpose — a writer that read first would have to decide what wins, and two
+ * decks racing on that is worse than one deck writing a whole state. The cost
+ * is that every caller must pass every field, and the cost was paid once: the
+ * settings route omitted `dismissed` and so erased every episode the reader had
+ * marked reviewed, from a change that had nothing to do with them. There is a
+ * test that greps this file's callers for the field.
+ */
 export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
   const mk = deps.mkdir ?? mkdir;
   const write = deps.writeFile ?? writeFile;

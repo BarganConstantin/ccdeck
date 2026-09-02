@@ -4048,7 +4048,12 @@ async function handleBrowserWatchSettings(req, res) {
   // never heard of cannot arrive through it and a bad one falls back rather
   // than reaching classify().
   const settings = normalise({ ...store.settings, ...body });
-  await writeStore({ settings, episodes: store.episodes });
+  // `dismissed` carried forward, and it has to be spelled: writeStore takes a
+  // whole state and writes exactly what it is handed, so a caller that omits
+  // this field ERASES it. Measured — changing the reaction wiped every
+  // dismissal, so every episode the reader had reviewed came straight back on
+  // the next poll, from a settings change that had nothing to do with them.
+  await writeStore({ settings, episodes: store.episodes, dismissed: store.dismissed });
   // The one line in the log that is somebody acting rather than the deck
   // reading, which is exactly why it is worth its own entry.
   if (settings.enabled !== store.settings.enabled) {
