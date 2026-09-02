@@ -6901,7 +6901,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .bw-ep-head:active,
   .bw-toggle:active,
   .bw-help:active,
-  .bw-seg-btn:active,
   .bw-settings select:active:not(:disabled),
     /* Two that cannot join the list above, for two different reasons.
      The ribbon's selector carries `:has()`, and one selector a browser cannot
@@ -7251,47 +7250,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    pill also carries a resting boundary — which an underline does not, and
    which control-edges.test.ts is right to require of anything it is told is a
    control. */
-/* ONE CONTAINER, TWO VIEWS. The outline used to be on each pill, which made
-   them read as two free-standing buttons that each do something rather than as
-   navigation between two views of one subject. It is on the group now, and
-   that also takes two shapes out of this panel's border count. */
-.bw-seg {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  /* `--ctl-edge`, not `--line` (#332): a control's boundary is a control token.
-     `--line` is what a panel divides itself with, and at this size it does not
-     clear 3:1 against every surface this group can land on. */
-  border: 1px solid var(--ctl-edge);
-  border-radius: 8px;
-  background: var(--bg-soft);
-}
-.bw-seg-btn {
-  position: relative;
-  padding: 4px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
-}
-.bw-seg-btn:hover { color: var(--text); }
-.bw-seg-btn:active { transform: scale(0.97); }
-/* Surface, not outline: inside a bordered group a second border on thechosen
-   item is two edges saying one thing. */
-.bw-seg-btn.on {
-  color: var(--text);
-  background: var(--panel);
-  /* Surface plus one indicator, not a second outline: inside a bordered group a
-     full ring on the chosen half is two edges saying one thing. The surface
-     says "this one", the underline says which. At full accent strength because
-     it is the ONLY boundary this half has — mixed down to 55% it measured
-     2.46:1 on --panel in light, and a boundary nobody can see is not one. */
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
 /* No padding, and the rows carry their own: a negative margin bleeding into a
    container's padding is two numbers that have to stay equal, and when they
    drifted by six pixels the log grew a horizontal scrollbar with nothing to
@@ -7573,41 +7531,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   to { opacity: 1; }
 }
 
-/* The count rides on the tab it counts, rather than standing apart from it as
-   its own "1 episode" island.
-   OUT OF FLOW, because in flow it was a width: the badge appears when the first
-   finding lands and vanishes when the list empties, and the tab grew and shrank
-   22px underneath it — dragging every control to its right along with it. A
-   count is a mark on a control, not a part of its size. */
-.bw-tab-count {
-  position: absolute;
-  top: -6px;
-  right: -5px;
-  min-width: 15px;
-  padding: 0 4px;
-  border-radius: 8px;
-  border: 1px solid var(--panel);
-  background: var(--ctl-fill);
-  color: var(--text);
-  font-size: 9px;
-  line-height: 14px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .bw-tab-count { animation: bw-count-in 320ms cubic-bezier(0.16, 1, 0.3, 1); }
-}
-/* It lands. A number that simply exists on the next frame is a number nobody
-   sees change, and the whole point of the badge is the moment it changes. */
-@keyframes bw-count-in {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: none; }
-}
-/* Room for the corner it now sits in, so it is not clipped by the row above
-   or overlapped by the tab beside it. */
-.bw-seg { margin-top: 4px; }
-.bw-seg-btn.on .bw-tab-count { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-
 /* Opens rather than appears. This block pushes the whole panel down when it
    arrives, and a shove with no motion behind it reads as a glitch — the eye
    has to re-find everything below it. The entrance explains where the space
@@ -7817,7 +7740,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    — which holds the switch — sat 6000px down the page, so the panel's primary
    control left the screen on exactly the long session this feed is built for.
    It still fills its column, and scrolls inside itself past that. */
-.bw-work .bw-log { flex: 1 1 auto; min-height: 300px; max-height: min(52vh, 440px); }
+.bw-work .bw-log { flex: 1 1 auto; min-height: 220px; max-height: min(42vh, 360px); }
 /* THE PANEL'S OWN WIDTH DECIDES, NOT THE WINDOW'S. Measured: below about
    230px of feed column the log's four columns stop fitting and it overflows by
    as much as 196px. The viewport is the wrong thing to ask, because this is a
@@ -7848,7 +7771,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 @media (prefers-reduced-motion: reduce) {
   .bw-mode-word,
   .bw-log-line,
-  .bw-tab-count,
   .bw-settings { animation: bw-state-fade 220ms ease; }
 }
 
@@ -7889,7 +7811,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* The Episodes view, which is the panel whether or not it has contents. The
    tabpanel role and the id the tabs point at used to ride on the first day
    section, so a machine that had found nothing rendered no panel at all. */
-.bw-eps { display: flex; flex-direction: column; gap: 24px; min-height: 200px; }
+/* The main column: findings above, the feed below, each bounded so neither
+   pushes the other — or the status bar — off the panel. */
+.bw-main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.bw-findings { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.bw-eps { display: flex; flex-direction: column; gap: 16px; max-height: min(30vh, 260px); overflow-y: auto; }
 .bw-empty { display: flex; flex-direction: column; gap: 8px; max-width: 62ch; }
 .bw-empty-head { margin: 0; font-size: 13px; color: var(--text); }
 /* An empty list here is the ORDINARY result — most machines go weeks without

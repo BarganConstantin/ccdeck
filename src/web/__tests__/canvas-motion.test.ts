@@ -284,11 +284,6 @@ const PRESSES: Press[] = [
   // it is shaped as: a 16px circle is a box, and 0.97 of a box that size is
   // not visible.
   [".bw-help:active", "0.94", "transform"],
-  // The two views, in `.aa-tab`'s language — same control, same tier. They are
-  // one segmented control now rather than two free-standing pills, and the
-  // press is still on each half: the group is the container, the half is what
-  // was pressed.
-  [".bw-seg-btn:active", "0.97", "transform"],
   [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
   // The account row's own disclosure — the control that opens the quota windows
   // the row is not showing. Written in `.ap-rotate`'s language one line up

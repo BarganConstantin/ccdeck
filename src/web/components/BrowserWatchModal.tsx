@@ -16,7 +16,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useModalDismiss } from "./use-modal-dismiss";
 import WatchRadar from "./WatchRadar";
 import type { Palette } from "../palette";
-import { tabStripMove } from "../tablist-keys";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 export interface WatchEpisode {
@@ -266,14 +265,13 @@ function lasted(e: WatchEpisode): string {
    "is this working". `Log` named the implementation — it sounds like debug
    output, and the question somebody brings to this view is not a question
    about logs. */
-const TABS = [
-  { id: "live" as const, label: "Activity" },
-  { id: "history" as const, label: "Episodes" },
-];
-const BW_PANEL_ID = "bw-view";
-/** The selected tab names the panel and the panel names it back, which is how
- *  a screen reader gets from "selected, 1 of 2" to the thing that was selected. */
-const bwTabId = (id: string) => `bw-tab-${id}`;
+/* NO TABS. Two views were never two modes: one of them is the product — what
+   a program opened while nobody was browsing — and the other is the evidence
+   the machinery is running. They are not peers, and a tab strip claims they
+   are. Worse, on an ordinary machine the product's view is EMPTY (findings are
+   rare, which the panel says itself) and the diagnostic view is full, so the
+   press that reached the thing this panel exists for always led to nothing.
+   One column, findings above the feed. */
 
 export default function BrowserWatchModal({
   onClose,
@@ -317,19 +315,8 @@ export default function BrowserWatchModal({
   // Opens on the Log, because that is the view that answers "is this thing
   // working" — and a panel that opens on an empty Episodes list looks broken on
   // the machine where nothing has happened, which is most machines most days.
-  const [tab, setTab] = useState<"history" | "live">("live");
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  /** The keyboard half of what role="tab" promises. Arrows move and select;
-   *  anything else passes through, so Tab still leaves the strip and Escape
-   *  still reaches the dialog. Same rule as the accounts dialog's strip. */
-  const onTabKeys = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    const move = tabStripMove(e, TABS.findIndex(t => t.id === tab), TABS.length);
-    if (move.kind === "pass") return;
-    e.preventDefault();
-    setTab(TABS[move.index].id);
-    tabRefs.current[move.index]?.focus();
-  }, [tab]);
+
 
   const load = useCallback(async (refresh: boolean) => {
     /* #620 leaves the pressed control enabled, so the HANDLER is what refuses
@@ -374,13 +361,12 @@ export default function BrowserWatchModal({
   // above what it costs: the server serves from a cache keyed on each History
   // file's mtime, so a browser nobody is using is one `stat` per profile.
   //
-  // Not on the Episodes view: that list changes when an episode is found, which
-  // is a handful of times a month, and the badge already carries that news.
+  // One view now, so no condition: the feed and the findings are on screen
+  // together and both want the same poll.
   useEffect(() => {
-    if (tab !== "live") return;
     const t = setInterval(() => { void load(false); }, 10_000);
     return () => clearInterval(t);
-  }, [tab, load]);
+  }, [load]);
 
   /** Change a setting on the server, which owns it: the file on disk is what
    *  the watch runs on, and a client that kept its own copy would disagree with
@@ -503,28 +489,6 @@ export default function BrowserWatchModal({
               {/* One container, two views: as free-standing pills they read as
                   two buttons that each do something rather than as navigation
                   between two views of one subject. */}
-              <div className="bw-seg" role="tablist" aria-label="Browser watch views" onKeyDown={onTabKeys}>
-                {TABS.map((t, i) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    id={bwTabId(t.id)}
-                    ref={el => { tabRefs.current[i] = el; }}
-                    aria-selected={tab === t.id}
-                    aria-controls={BW_PANEL_ID}
-                    tabIndex={tab === t.id ? 0 : -1}
-                    className={`bw-seg-btn${tab === t.id ? " on" : ""}`}
-                    onClick={() => setTab(t.id)}
-                  >
-                    {t.label}
-                    {t.id === "history" && snap.episodes.length > 0 && (
-                      <span className="bw-tab-count">{snap.episodes.length}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
               {/* THE STATE, SAID IN WORDS SOMEBODY CAN ACT ON. It read
                   "Watching · 0 kept", and nobody should have to work out what
                   "kept" counts. It counts episodes the watch has recorded, so
@@ -627,7 +591,7 @@ export default function BrowserWatchModal({
             <p className={`bw-trouble ${trouble.kind}`} role="status">{trouble.text}</p>
           )}
 
-          {snap && tab === "live" && (
+          {snap && (
             <div className="bw-work">
               <aside className="bw-side">
                 <section className="bw-sec">
@@ -777,7 +741,82 @@ export default function BrowserWatchModal({
                 </section>
               </aside>
 
-              <section className="bw-feed" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
+              {/* THE PRODUCT, ABOVE THE EVIDENCE. This was a second tab,
+                  which claimed the two were peers. They are not: this is what
+                  the panel exists to report, and the feed below is how you can
+                  see the machinery running. On an ordinary machine this list is
+                  empty — findings are rare, which the panel says itself — so
+                  the press that reached it always led to nothing. Now the
+                  answer to "has anything been found" needs no press at all. */}
+              <div className="bw-main">
+                <section className="bw-findings">
+                  <h4 className="bw-sec-head bw-feed-head">
+                    Findings
+                    <span className="bw-feed-count">
+                      {snap.episodes.length === 0
+                        ? "none"
+                        : `${snap.episodes.length} ${snap.episodes.length === 1 ? "episode" : "episodes"}`}
+                    </span>
+                  </h4>
+                  <div className="bw-eps">
+                    {grouped.length === 0 ? (
+                      <div className="bw-empty">
+                        <p className="bw-empty-head">Nothing found yet</p>
+                        <p className="bw-empty-note">
+                          An episode lands here when a program opens pages in a browser nobody has touched for{" "}
+                          {snap.settings.quietMinutes}{" "}
+                          {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
+                          rare, so an empty list is the ordinary result rather than a sign something is wrong.
+                        </p>
+                        {!snap.settings.enabled && (
+                          <p className="bw-empty-note">
+                            Watching is off, so this shows only what this deck has seen since it started.
+                            Anything an earlier run recorded comes back when you switch it on.
+                          </p>
+                        )}
+                      </div>
+                    ) : grouped.map(g => (
+                      <div className="bw-day" key={g.label}>
+                        <h4 className="bw-sec-head">{g.label}</h4>
+                        {g.episodes.map(e => {
+                          const id = `${e.host}-${e.startMs}`;
+                          const isOpen = open === id;
+                          return (
+                            <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
+                              <button
+                                className="bw-ep-head"
+                                onClick={() => setOpen(isOpen ? null : id)}
+                                aria-expanded={isOpen}
+                              >
+                                <span className="bw-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
+                                <span className="bw-ep-host">{e.host}</span>
+                                <span className="bw-ep-meta">
+                                  {span(e)}
+                                  {lasted(e) && <> · {lasted(e)}</>}
+                                </span>
+                                <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
+                              </button>
+                              {isOpen && (
+                                <ul className="bw-urls">
+                                  {e.urls.map((u, i) => (
+                                    <li key={`${u.url}-${u.timeMs}-${i}`}>
+                                      <span className="bw-url-time">
+                                        {new Date(u.timeMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                                      </span>
+                                      <span className="bw-url">{u.url}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bw-feed">
                 <h4 className="bw-sec-head bw-feed-head">
                   Live activity
                   {/* `entries` counted log rows and collided with the
@@ -825,71 +864,9 @@ export default function BrowserWatchModal({
                     </div>
                   ))}
                 </div>
-              </section>
+                </section>
+              </div>
             </div>
-          )}
-
-          {snap && tab === "history" && (
-            /* The panel exists even when the list does not. `role="tabpanel"`
-               and the id the tabs point at used to ride on the first day
-               section, so a machine that had found nothing rendered no panel at
-               all and `aria-controls` named an element that was not there. */
-            <section className="bw-eps" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
-              {grouped.length === 0 ? (
-                <div className="bw-empty">
-                  <p className="bw-empty-head">Nothing found yet</p>
-                  <p className="bw-empty-note">
-                    An episode lands here when a program opens pages in a browser nobody has touched for{" "}
-                    {snap.settings.quietMinutes}{" "}
-                    {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
-                    rare, so an empty list is the ordinary result rather than a sign something is wrong.
-                  </p>
-                  {!snap.settings.enabled && (
-                    <p className="bw-empty-note">
-                      Watching is off, so this shows only what this deck has seen since it started.
-                      Anything an earlier run recorded comes back when you switch it on.
-                    </p>
-                  )}
-                </div>
-              ) : grouped.map(g => (
-                <div className="bw-day" key={g.label}>
-                  <h4 className="bw-sec-head">{g.label}</h4>
-                  {g.episodes.map(e => {
-                    const id = `${e.host}-${e.startMs}`;
-                    const isOpen = open === id;
-                    return (
-                      <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
-                        <button
-                          className="bw-ep-head"
-                          onClick={() => setOpen(isOpen ? null : id)}
-                          aria-expanded={isOpen}
-                        >
-                          <span className="bw-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
-                          <span className="bw-ep-host">{e.host}</span>
-                          <span className="bw-ep-meta">
-                            {span(e)}
-                            {lasted(e) && <> · {lasted(e)}</>}
-                          </span>
-                          <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
-                        </button>
-                        {isOpen && (
-                          <ul className="bw-urls">
-                            {e.urls.map((u, i) => (
-                              <li key={`${u.url}-${u.timeMs}-${i}`}>
-                                <span className="bw-url-time">
-                                  {new Date(u.timeMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}
-                                </span>
-                                <span className="bw-url">{u.url}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </section>
           )}
 
           {snap && (
