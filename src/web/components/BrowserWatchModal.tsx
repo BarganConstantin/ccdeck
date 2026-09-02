@@ -488,106 +488,6 @@ export default function BrowserWatchModal({
             </div>
           )}
 
-          {snap && (
-            <div className="bw-toolbar">
-              {/* One container, two views: as free-standing pills they read as
-                  two buttons that each do something rather than as navigation
-                  between two views of one subject. */}
-              {/* THE STATE, SAID IN WORDS SOMEBODY CAN ACT ON. It read
-                  "Watching · 0 kept", and nobody should have to work out what
-                  "kept" counts. It counts episodes the watch has recorded, so
-                  that is what it says. The quiet gate's countdown is a
-                  different fact about detection sensitivity and moved to the
-                  overview, beside the numbers it qualifies. */}
-              <p className="bw-mode">
-                <span className={`bw-mode-dot${snap.settings.enabled ? " on" : ""}`} aria-hidden />
-                <span className="bw-mode-word" key={modeState(snap, saving).kind}>
-                  {modeState(snap, saving).word}
-                </span>
-                <span className="bw-mode-detail">{modeState(snap, saving).detail}</span>
-              </p>
-
-              <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
-                settings
-              </button>
-            </div>
-          )}
-
-          {snap && why && (
-            <div className="bw-settings">
-              <label title={
-                "A program opening a page counts as a finding only if nobody had touched the browser "
-                + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
-              }>
-                <span>Nobody browsing for</span>
-                <select value={quiet ?? snap.settings.quietMinutes} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
-                  <option value={1}>1 min</option>
-                  <option value={5}>5 min</option>
-                  <option value={15}>15 min</option>
-                  <option value={30}>30 min</option>
-                  <option value={60}>60 min</option>
-                </select>
-              </label>
-
-              <label>
-                <span>When it finds one</span>
-                <select
-                  value={snap.settings.reaction}
-                  onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
-                  disabled={!snap.settings.enabled}
-                  title={snap.settings.enabled
-                    ? "What to do besides writing it down."
-                    : "Turn watching on to arm a reaction."}
-                >
-                  {(snap.reactions ?? ["notify"]).map(r => (
-                    <option key={r} value={r}>
-                      {r === "notify" ? "notify me"
-                        : r === "close-tab" ? "close the tab"
-                        : "quit the browser"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="bw-settings-note">
-                <p>
-                  Chrome marks a navigation that came from an extension or a command rather than from a
-                  click. These are the ones that happened while nobody had touched the browser for the
-                  time above. <strong>Usually that is your own agent doing what you asked.</strong>
-                </p>
-                <button className="bw-why" onClick={() => setAccess(a => !a)} aria-expanded={access}>
-                  <span className="bw-chev" aria-hidden>{access ? "▾" : "▸"}</span> What Browser Watch can access
-                </button>
-                {access && (
-                  <dl className="bw-access">
-                    <dt>Reads</dt>
-                    <dd>
-                      A copy of each browser&apos;s own history database — the live file is locked while
-                      the browser holds it. Only rows newer than the moment this deck started:{" "}
-                      {new Date(snap.coverage.startedMs).toLocaleString()}.
-                    </dd>
-                    <dt>Keeps</dt>
-                    <dd>
-                      Only while the switch is on, and only the episodes it flagged — never your ordinary
-                      browsing. In <code className="bw-path">{snap.coverage.logPath}</code>, with every
-                      address written in full so you can check it yourself.
-                    </dd>
-                    <dt>Sends</dt>
-                    <dd>
-                      Nothing. No part of this reads or writes over the network; the deck serves on
-                      127.0.0.1 and this panel talks only to it.
-                    </dd>
-                    <dt>Never reads</dt>
-                    <dd>
-                      Anything from before this deck started, cookies, saved passwords, page contents, or
-                      any browser profile with no history file.
-                    </dd>
-                  </dl>
-                )}
-              </div>
-            </div>
-          )}
-
           {snap && trouble && (
             /* Absent when the ordinary case holds, rather than green. A line
                that reads "everything is fine" on every render is one its reader
@@ -876,6 +776,81 @@ export default function BrowserWatchModal({
             </div>
           )}
 
+          {snap && why && (
+            <div className="bw-settings">
+              <label title={
+                "A program opening a page counts as a finding only if nobody had touched the browser "
+                + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
+              }>
+                <span>Nobody browsing for</span>
+                <select value={quiet ?? snap.settings.quietMinutes} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
+                  <option value={1}>1 min</option>
+                  <option value={5}>5 min</option>
+                  <option value={15}>15 min</option>
+                  <option value={30}>30 min</option>
+                  <option value={60}>60 min</option>
+                </select>
+              </label>
+
+              <label>
+                <span>When it finds one</span>
+                <select
+                  value={snap.settings.reaction}
+                  onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
+                  disabled={!snap.settings.enabled}
+                  title={snap.settings.enabled
+                    ? "What to do besides writing it down."
+                    : "Turn watching on to arm a reaction."}
+                >
+                  {(snap.reactions ?? ["notify"]).map(r => (
+                    <option key={r} value={r}>
+                      {r === "notify" ? "notify me"
+                        : r === "close-tab" ? "close the tab"
+                        : "quit the browser"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="bw-settings-note">
+                <p>
+                  Chrome marks a navigation that came from an extension or a command rather than from a
+                  click. These are the ones that happened while nobody had touched the browser for the
+                  time above. <strong>Usually that is your own agent doing what you asked.</strong>
+                </p>
+                <button className="bw-why" onClick={() => setAccess(a => !a)} aria-expanded={access}>
+                  <span className="bw-chev" aria-hidden>{access ? "▾" : "▸"}</span> What Browser Watch can access
+                </button>
+                {access && (
+                  <dl className="bw-access">
+                    <dt>Reads</dt>
+                    <dd>
+                      A copy of each browser&apos;s own history database — the live file is locked while
+                      the browser holds it. Only rows newer than the moment this deck started:{" "}
+                      {new Date(snap.coverage.startedMs).toLocaleString()}.
+                    </dd>
+                    <dt>Keeps</dt>
+                    <dd>
+                      Only while the switch is on, and only the episodes it flagged — never your ordinary
+                      browsing. In <code className="bw-path">{snap.coverage.logPath}</code>, with every
+                      address written in full so you can check it yourself.
+                    </dd>
+                    <dt>Sends</dt>
+                    <dd>
+                      Nothing. No part of this reads or writes over the network; the deck serves on
+                      127.0.0.1 and this panel talks only to it.
+                    </dd>
+                    <dt>Never reads</dt>
+                    <dd>
+                      Anything from before this deck started, cookies, saved passwords, page contents, or
+                      any browser profile with no history file.
+                    </dd>
+                  </dl>
+                )}
+              </div>
+            </div>
+          )}
+
           {snap && (
             /* THE CONTROL ZONE. It used to restate "2 of 8 browsers watched ·
                Brave running", which Watched Profiles already says two hundred
@@ -883,10 +858,18 @@ export default function BrowserWatchModal({
                says the thing that changes with the switch and is said nowhere
                else, and the right half is the switch, labelled. */
             <footer className="bw-status">
-              {/* THE ONE PLACE PERSISTENCE IS SAID, in the noun the Episodes
-                  tab uses. It was also in the toolbar, in a different word
-                  ("captured"), beside a state that answers a different
-                  question. One concept, one noun, one place. */}
+              {/* THE STATE SITS BESIDE THE CONTROL THAT CHANGES IT. It had a
+                  row of its own holding one word and one link, which is a whole
+                  band of the panel spent on two small things — and it put the
+                  readout at the top while the switch it describes was at the
+                  bottom. Together they are one sentence: what the watch is
+                  doing, and the control for it. */}
+              <span className={`bw-mode-dot${snap.settings.enabled ? " on" : ""}`} aria-hidden />
+              <span className="bw-mode-word" key={modeState(snap, saving).kind}>
+                {modeState(snap, saving).word}
+              </span>
+              {/* THE ONE PLACE PERSISTENCE IS SAID, in the noun the Findings
+                  section uses. One concept, one noun, one place. */}
               <span className="bw-status-text">
                 {snap.coverage.archived === 0
                   ? (snap.settings.enabled ? "No episodes recorded yet" : "No episodes on disk")
@@ -898,6 +881,25 @@ export default function BrowserWatchModal({
                   So the switch was announcing itself as "switch, on" with no
                   word for what it switches. `aria-labelledby` points at the
                   same visible text, so the two cannot drift apart. */}
+              {/* A GEAR, NOT THE WORD. `settings` spelled out took a control's
+                  worth of width for a disclosure nobody opens twice, and the
+                  deck already draws icons this way — the topbar's eye is inline
+                  SVG at 13px, stroke 1.5, in currentColor. Same drawing, same
+                  `.glyph-btn` box as the header's ↻ and ×, and a real
+                  accessible name so the picture never has to carry the meaning
+                  on its own. */}
+              <button
+                className={`glyph-btn bw-gear${why ? " on" : ""}`}
+                onClick={() => setWhy(w => !w)}
+                aria-expanded={why}
+                aria-label="Settings"
+                title="Settings"
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
+                  <circle cx="7" cy="7" r="2.1" />
+                  <path d="M7 1.2v1.6M7 11.2v1.6M1.2 7h1.6M11.2 7h1.6M2.9 2.9l1.1 1.1M10 10l1.1 1.1M11.1 2.9L10 4M4 10l-1.1 1.1" />
+                </svg>
+              </button>
               <label className="bw-switch" htmlFor="bw-enabled">
                 <span className="bw-switch-label" id="bw-enabled-label">Watch browser activity</span>
                 <button

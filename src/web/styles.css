@@ -7119,16 +7119,26 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    same sentence in the same place, and it is where the switch lives — beside a
    label saying what it controls, which an unlabelled toggle in a toolbar never
    did. */
+/* THE STATE AND ITS CONTROL, ONE BAND. The mode had a row of its own holding
+   one word and one link — a whole band of the panel for two small things, with
+   the readout at the top and the switch it describes at the bottom. */
 .bw-status {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-height: 48px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
-.bw-status-text { font-size: 12px; color: var(--text); }
+.bw-status-text { font-size: 12px; color: var(--muted); }
 .bw-status-dim { color: var(--muted); }
+/* One `auto` in the row, on the first of the two controls: it pushes the pair
+   to the far end together, so the state reads from the left edge and the gear
+   and the switch sit side by side at the right. Two of them would have split
+   the slack between them and left the gear stranded mid-row. */
+.bw-gear { margin-left: auto; }
+.bw-gear.on { color: var(--accent); }
+
 /* The half of the subtitle that answers "where does this go" — the question a
    first-time reader of a browsing watcher actually has, and the one the old
    subtitle did not touch. Dimmer than the sentence it qualifies. */
@@ -7140,7 +7150,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-left: auto;
   padding: 8px 0;
   cursor: pointer;
 }
@@ -7469,22 +7478,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    views on the left, the state and its switch on the right, and every setting
    behind a press — they are chosen once and then left alone, and they were
    taking the top of the panel from the findings that are its reason. */
-/* THE TOOLBAR. Views on the left, the mode in the middle, settings on the
-   right — and nothing here changes size when the mode does, which is what the
-   previous version got wrong three different ways. */
-.bw-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-/* THE MODE, AS THREE THINGS AND NOT ONE SENTENCE. It carried whether the watch
-   is on, what it currently sees, and how long until the gate opens, all in one
-   run of text a reader had to take apart every time. The dot and its word are
-   the mode; the detail is everything qualifying it; the switch that changes it
-   is at the foot, next to a label saying what it controls. */
-.bw-mode { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
 .bw-mode-dot {
   width: 7px;
   height: 7px;
