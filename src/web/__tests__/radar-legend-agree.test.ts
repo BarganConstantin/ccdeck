@@ -75,3 +75,26 @@ describe("the radar and its legend", () => {
     expect(source).toMatch(/\{watching\.map\(b => \(\s*<li key=\{b\.key\} className=\{b\.running/);
   });
 });
+
+describe("the disc on the ground it is drawn on", () => {
+  it("knows a light ground from a dark one", async () => {
+    // Alpha is contrast against the ground, and the radar was using one set of
+    // alphas for both: a 26% accent wash reads as a beam over #0b0c10 and as
+    // almost nothing over white, so the disc arrived in light as an empty
+    // circle with a legend under it.
+    const { isLight } = await import("../components/WatchRadar");
+    expect(isLight("#0b0c10")).toBe(false);
+    expect(isLight("#14161b")).toBe(false);
+    expect(isLight("#eef1f6")).toBe(true);
+    expect(isLight("#ffffff")).toBe(true);
+  });
+
+  it("assumes dark when it cannot tell, which is the ground it was tuned on", async () => {
+    // A missing or unparseable token must not flip the disc into its pale
+    // treatment on a dark ground, where the boosted alphas would glare.
+    const { isLight } = await import("../components/WatchRadar");
+    expect(isLight(undefined)).toBe(false);
+    expect(isLight("")).toBe(false);
+    expect(isLight("var(--something)")).toBe(false);
+  });
+});

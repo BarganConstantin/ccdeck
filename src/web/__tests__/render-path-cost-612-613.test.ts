@@ -133,13 +133,13 @@ const DARK: Record<string, string> = {
   "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac",
   "--grid-line": "#1a1d24", "--minimap-mask": "rgba(11,12,16,.85)",
   "--panel": "#14161b", "--line": "#1f2229",
-  "--accent": "#7dd3fc", "--text-dim": "#7e828c",
+  "--accent": "#7dd3fc", "--text-dim": "#7e828c", "--bg": "#0b0c10",
 };
 const LIGHT: Record<string, string> = {
   "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a",
   "--grid-line": "#d0d5dd", "--minimap-mask": "rgba(238,241,246,.85)",
   "--panel": "#ffffff", "--line": "#c8cdd6",
-  "--accent": "#0369a1", "--text-dim": "#5b5f68",
+  "--accent": "#0369a1", "--text-dim": "#5b5f68", "--bg": "#eef1f6",
 };
 
 describe("the canvas palette is read once per theme", () => {
@@ -160,7 +160,11 @@ describe("the canvas palette is read once per theme", () => {
     // reason they joined the list rather than being read off the sheet per
     // frame, which is what this whole file is about.
     for (const token of ["--err", "--inflight", "--ok", "--grid-line", "--minimap-mask", "--panel", "--line",
-                         "--accent", "--text-dim"]) {
+                         // `--bg` is the GROUND, and the radar needs it because
+                         // alpha is contrast against the ground: the same 26%
+                         // accent wash is a beam over #0b0c10 and almost
+                         // nothing over white.
+                         "--accent", "--text-dim", "--bg"]) {
       expect(CANVAS_TOKENS as readonly string[]).toContain(token);
     }
   });

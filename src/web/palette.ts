@@ -38,6 +38,11 @@ export const CANVAS_TOKENS = [
   // is exactly the render path this list exists to keep getComputedStyle off.
   "--accent",
   "--text-dim",
+  // The GROUND, which the radar needs because alpha is contrast against it: a
+  // 26% accent wash reads as a beam over #0b0c10 and as almost nothing over
+  // white, and the disc arrived in light as an empty circle. Read here so the
+  // canvas never has to ask the stylesheet on its render path.
+  "--bg",
 ] as const;
 
 export type CanvasToken = (typeof CANVAS_TOKENS)[number];

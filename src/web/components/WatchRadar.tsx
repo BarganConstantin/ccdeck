@@ -30,6 +30,21 @@
 import React, { useEffect, useRef } from "react";
 import type { Palette } from "../palette";
 
+/** Whether the ground this is drawn on is a light one, from the palette's own
+ *  background token. Relative luminance rather than a theme name: the canvas
+ *  cares about the colour behind it, and a caller that hands it a pale palette
+ *  under any name is still drawing on pale. */
+export function isLight(bg: string | undefined): boolean {
+  const hex = /^#?([0-9a-f]{6})$/i.exec((bg ?? "").trim());
+  if (!hex) return false;
+  const n = parseInt(hex[1], 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] > 0.5;
+}
+
 export interface RadarBrowser {
   key: string;
   name: string;
@@ -91,6 +106,16 @@ export default function WatchRadar({
       const accent = palette["--accent"] || "#7dd3fc";
       const line = palette["--line"] || "#1f2229";
       const dim = palette["--text-dim"] || "#6e727c";
+      // THE SAME ALPHAS DO NOT READ ON BOTH GROUNDS. A 26% accent wash over
+      // #0b0c10 is a clear beam; over white it is almost nothing, and the disc
+      // arrived in light as an empty circle. Alpha is contrast against the
+      // ground, so it has to be told which ground it is on — read from the
+      // palette rather than from the stylesheet, because this runs sixty times
+      // a second and getComputedStyle on that path is what the palette exists
+      // to have already done.
+      const pale = isLight(palette["--bg"]);
+      const sweepMix = pale ? 42 : 26;
+      const beamAlpha = pale ? 0.85 : 0.65;
       const t = now();
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -110,6 +135,9 @@ export default function WatchRadar({
       // The rings. Three, because more is a texture and fewer is a circle.
       ctx.strokeStyle = line;
       ctx.lineWidth = 1;
+      // The grid, which is structure rather than data: it may sit under the
+      // 3:1 a control needs, but not under visible.
+      ctx.globalAlpha = pale ? 1 : 0.9;
       for (const k of [0.4, 0.7, 1]) {
         ctx.beginPath();
         ctx.arc(cx, cy, r * k, 0, Math.PI * 2);
@@ -119,6 +147,7 @@ export default function WatchRadar({
       ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
       ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
       ctx.stroke();
+      ctx.globalAlpha = 1;
 
       // The sweep. Frozen at the top when the watch is off — a still radar is
       // the truthful picture of a watch that is not looking, and a moving one
@@ -130,7 +159,7 @@ export default function WatchRadar({
         const grad = ctx.createConicGradient?.(sweep - 0.85, cx, cy);
         if (grad) {
           grad.addColorStop(0, "transparent");
-          grad.addColorStop(0.85 / (Math.PI * 2), `color-mix(in srgb, ${accent} 26%, transparent)`);
+          grad.addColorStop(0.85 / (Math.PI * 2), `color-mix(in srgb, ${accent} ${sweepMix}%, transparent)`);
           grad.addColorStop(1, "transparent");
           ctx.fillStyle = grad;
           ctx.beginPath();
@@ -140,7 +169,7 @@ export default function WatchRadar({
           ctx.fill();
         }
         ctx.strokeStyle = accent;
-        ctx.globalAlpha = 0.65;
+        ctx.globalAlpha = beamAlpha;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + Math.cos(sweep) * r, cy + Math.sin(sweep) * r);

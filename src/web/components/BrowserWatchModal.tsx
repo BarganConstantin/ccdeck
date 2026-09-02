@@ -710,45 +710,72 @@ export default function BrowserWatchModal({
             </div>
           )}
 
-          {tab === "history" && grouped.map((g, i) => (
-            <section className="bw-day" key={g.label} {...(i === 0 ? { id: BW_PANEL_ID, role: "tabpanel", "aria-labelledby": bwTabId(tab) } : {})}>
-              <h4>{g.label}</h4>
-              {g.episodes.map(e => {
-                const id = `${e.host}-${e.startMs}`;
-                const isOpen = open === id;
-                return (
-                  <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
-                    <button
-                      className="bw-ep-head"
-                      onClick={() => setOpen(isOpen ? null : id)}
-                      aria-expanded={isOpen}
-                    >
-                      <span className="bw-ep-host">{e.host}</span>
-                      <span className="bw-ep-meta">
-                        {span(e)}
-                        {lasted(e) && <> · {lasted(e)}</>}
-                        {" · "}
-                        {e.count} {e.count === 1 ? "page" : "pages"}
-                      </span>
-                      <span className="bw-ep-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
-                    </button>
-                    {isOpen && (
-                      <ul className="bw-urls">
-                        {e.urls.map((u, i) => (
-                          <li key={`${u.url}-${u.timeMs}-${i}`}>
-                            <span className="bw-url-time">
-                              {new Date(u.timeMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            <span className="bw-url">{u.url}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
+          {snap && tab === "history" && (
+            /* THE PANEL EXISTS EVEN WHEN THE LIST DOES NOT. `role="tabpanel"`
+               and the id the tabs point at used to ride on the FIRST day
+               section, so a machine with nothing found rendered no panel at
+               all — the view was blank and `aria-controls` named an element
+               that was not there. The section is the panel; the days are its
+               contents. */
+            <section className="bw-eps" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
+              {grouped.length === 0 ? (
+                <div className="bw-empty">
+                  <p className="bw-empty-head">Nothing has been found yet.</p>
+                  <p className="bw-empty-note">
+                    An episode appears here when a program opened pages in a browser nobody had
+                    touched for {snap.settings.quietMinutes}{" "}
+                    {snap.settings.quietMinutes === 1 ? "minute" : "minutes"}. On most machines that is
+                    rare, and an empty list is the ordinary result rather than a sign something is
+                    wrong — the Activity view is where you can see the watch working.
+                  </p>
+                  {!snap.settings.enabled && (
+                    <p className="bw-empty-note">
+                      The watch is paused, so this list shows only what this deck has seen since it
+                      started. Anything an earlier run archived comes back when you switch it on.
+                    </p>
+                  )}
+                </div>
+              ) : grouped.map(g => (
+                <div className="bw-day" key={g.label}>
+                  <h4>{g.label}</h4>
+                  {g.episodes.map(e => {
+                    const id = `${e.host}-${e.startMs}`;
+                    const isOpen = open === id;
+                    return (
+                      <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
+                        <button
+                          className="bw-ep-head"
+                          onClick={() => setOpen(isOpen ? null : id)}
+                          aria-expanded={isOpen}
+                        >
+                          <span className="bw-ep-host">{e.host}</span>
+                          <span className="bw-ep-meta">
+                            {span(e)}
+                            {lasted(e) && <> · {lasted(e)}</>}
+                            {" · "}
+                            {e.count} {e.count === 1 ? "page" : "pages"}
+                          </span>
+                          <span className="bw-ep-chev" aria-hidden>{isOpen ? "▾" : "▸"}</span>
+                        </button>
+                        {isOpen && (
+                          <ul className="bw-urls">
+                            {e.urls.map((u, i) => (
+                              <li key={`${u.url}-${u.timeMs}-${i}`}>
+                                <span className="bw-url-time">
+                                  {new Date(u.timeMs).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                                <span className="bw-url">{u.url}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </section>
-          ))}
+          )}
 
           {snap && why && (
             <div className="bw-settings">

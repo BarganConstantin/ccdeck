@@ -7016,7 +7016,8 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    gets SHRUNK rather than scrolled — the state rows collapsed to a four-pixel
    sliver and read as if they had not rendered at all. The body is the thing
    that scrolls; its children keep the height their content asks for. */
-.bw-body { display: flex; flex-direction: column; gap: 16px; }
+.bw-body {
+  container: bw / inline-size; display: flex; flex-direction: column; gap: 16px; }
 .bw-body > * { flex: none; }
 
 
@@ -7288,7 +7289,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    truncates with its full text on hover. */
 .bw-log-line {
   display: grid;
-  grid-template-columns: 66px minmax(64px, 96px) minmax(0, 1fr) auto;
+  /* Every column but the stamp can give: a browser name and a profile name
+     truncate with their full text on hover, and the count keeps its own width
+     because it is the reason anybody reads this column. Fixed minimums here
+     were what made the row wider than what held it. */
+  grid-template-columns: 66px minmax(0, 96px) minmax(0, 1fr) max-content;
   gap: 8px;
   font-size: 11px;
   align-items: baseline;
@@ -7377,7 +7382,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-log-sys { grid-column: 2 / -1; color: var(--text-dim); font-style: italic; }
 .bw-log-line.sys { opacity: 0.85; }
 
-.bw-log-browser { color: var(--text); }
+.bw-log-browser { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-log-profile {
   color: var(--muted);
   overflow: hidden;
@@ -7701,8 +7706,16 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    larger. */
 .bw-work .bw-radar { width: 176px; height: 176px; }
 .bw-work .bw-log { flex: 1 1 auto; min-height: 300px; max-height: none; }
-/* Under about 640px there is no room for two columns of anything, so they
-   stack — the radar first, since it is the glance. */
+/* THE PANEL'S OWN WIDTH DECIDES, NOT THE WINDOW'S. Measured: below about
+   230px of feed column the log's four columns stop fitting and it overflows by
+   as much as 196px. The viewport is the wrong thing to ask, because this is a
+   dialog whose width is its own — a container query asks the box that actually
+   holds it. The media query below stays as the fallback for an engine without
+   them, where the viewport is at least correlated. */
+@container bw (max-width: 720px) {
+  .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .bw-work .bw-radar { width: 176px; height: 176px; }
+}
 @media (max-width: 640px) {
   .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
 }
@@ -7773,3 +7786,14 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   color: var(--text-dim);
 }
 .bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
+
+/* The Episodes view, which is the panel whether or not it has contents. The
+   tabpanel role and the id the tabs point at used to ride on the first day
+   section, so a machine that had found nothing rendered no panel at all. */
+.bw-eps { display: flex; flex-direction: column; gap: 24px; min-height: 200px; }
+.bw-empty { display: flex; flex-direction: column; gap: 8px; max-width: 62ch; }
+.bw-empty-head { margin: 0; font-size: 13px; color: var(--text); }
+/* An empty list here is the ORDINARY result — most machines go weeks without
+   one — so the note says so rather than leaving the reader to wonder whether
+   the panel is broken. */
+.bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-dim); }
