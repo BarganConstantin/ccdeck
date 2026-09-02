@@ -14,10 +14,15 @@
 // did and shows the evidence; the person reading it decides what it was.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
+import WatchRadar from "./WatchRadar";
+import type { Palette } from "../palette";
 import { tabStripMove } from "../tablist-keys";
 
 export interface WatchEpisode {
   host: string;
+  /** Which browser it happened in — a reaction has to tell one application to
+   *  close a tab, and the radar has to know which blip the finding left from. */
+  browser: string | null;
   startMs: number;
   endMs: number;
   count: number;
@@ -121,6 +126,7 @@ export default function BrowserWatchModal({
   onClose,
   onSeen,
   onWatching,
+  palette,
 }: {
   onClose: () => void;
   onSeen: (ms: number) => void;
@@ -129,6 +135,8 @@ export default function BrowserWatchModal({
    *  lit for up to five minutes after it is turned off — the one control whose
    *  whole job is to be true at a glance, lying. */
   onWatching: (on: boolean) => void;
+  /** Handed down rather than read here — see WatchRadar. */
+  palette: Palette;
 }) {
   const dialogRef = useModalDismiss(onClose);
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
@@ -320,6 +328,25 @@ export default function BrowserWatchModal({
                 </button>
               </div>
             </div>
+          )}
+
+          {snap && tab === "live" && (
+            // Above the transcript, not instead of it. The radar answers "is
+            // this alive, and over what" in a glance; the lines under it answer
+            // "what exactly happened", which no picture does well.
+            <WatchRadar
+              browsers={(snap.browsers ?? [])
+                .filter(b => b.installed && b.profiles > 0)
+                .map(b => ({
+                  key: b.key,
+                  name: b.name,
+                  running: b.running,
+                  lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
+                }))}
+              findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
+              watching={snap.settings.enabled}
+              palette={palette}
+            />
           )}
 
           {snap && tab === "live" && (

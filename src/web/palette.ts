@@ -34,6 +34,10 @@ export const CANVAS_TOKENS = [
   "--minimap-mask",
   "--panel",
   "--line",
+  // WatchRadar paints its sweep, its blips and their labels on a canvas, which
+  // is exactly the render path this list exists to keep getComputedStyle off.
+  "--accent",
+  "--text-dim",
 ] as const;
 
 export type CanvasToken = (typeof CANVAS_TOKENS)[number];

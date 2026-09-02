@@ -4095,6 +4095,7 @@ function Inner() {
              minutes after the watch is turned off — the one control whose whole
              job is to be true at a glance, lying. */
           onWatching={setWatchOn}
+          palette={palette}
         />
       )}
       {contextFor && (() => {

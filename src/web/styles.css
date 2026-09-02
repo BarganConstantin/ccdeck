@@ -7446,3 +7446,19 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-foot-head:active { transform: scale(0.99); }
 .bw-foot-chev { color: var(--text-dim); font-size: 9px; }
 .bw-foot-live { color: var(--text-dim); }
+
+/* The watch as the thing it is: a sweep over the browsers it visits. Not
+   decoration — a log answers "what happened" well and "is this alive, and over
+   what" badly, and that second question is the one somebody opens this view to
+   ask. Every mark carries a fact; see WatchRadar.tsx. */
+.bw-radar {
+  display: block;
+  width: 100%;
+  height: 168px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep already freezes itself; nothing here needs to change colour. */
+  .bw-radar { opacity: 1; }
+}

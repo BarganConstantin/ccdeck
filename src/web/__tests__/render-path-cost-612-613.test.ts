@@ -133,11 +133,13 @@ const DARK: Record<string, string> = {
   "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac",
   "--grid-line": "#1a1d24", "--minimap-mask": "rgba(11,12,16,.85)",
   "--panel": "#14161b", "--line": "#1f2229",
+  "--accent": "#7dd3fc", "--text-dim": "#7e828c",
 };
 const LIGHT: Record<string, string> = {
   "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a",
   "--grid-line": "#d0d5dd", "--minimap-mask": "rgba(238,241,246,.85)",
   "--panel": "#ffffff", "--line": "#c8cdd6",
+  "--accent": "#0369a1", "--text-dim": "#5b5f68",
 };
 
 describe("the canvas palette is read once per theme", () => {
@@ -154,7 +156,11 @@ describe("the canvas palette is read once per theme", () => {
     // is what this is guarding. The three minimap fills are checked through
     // minimapNodeColor itself below.
     expect(new Set(CANVAS_TOKENS).size).toBe(CANVAS_TOKENS.length);
-    for (const token of ["--err", "--inflight", "--ok", "--grid-line", "--minimap-mask", "--panel", "--line"]) {
+    // WatchRadar paints its sweep, blips and labels from the last two — the
+    // reason they joined the list rather than being read off the sheet per
+    // frame, which is what this whole file is about.
+    for (const token of ["--err", "--inflight", "--ok", "--grid-line", "--minimap-mask", "--panel", "--line",
+                         "--accent", "--text-dim"]) {
       expect(CANVAS_TOKENS as readonly string[]).toContain(token);
     }
   });
