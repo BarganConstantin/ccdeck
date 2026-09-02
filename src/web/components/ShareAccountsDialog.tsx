@@ -50,7 +50,18 @@ async function admin(body: Record<string, unknown>) {
 const COPIED_MS = 1800;
 
 export default function ShareAccountsDialog({ accounts, onClose, copyText }: Props) {
-  const [picked, setPicked] = useState<number[]>(() => accounts.map(a => a.num));
+  // What the user has taken OUT, not what they have left in.
+  //
+  // The picker opens with everything ticked, so "ticked" is the resting state
+  // and the exclusions are the only thing a person actually chose. Holding it
+  // this way round makes the selection derived from the live roster instead of
+  // a copy of a roster taken at mount: an account that leaves the store while
+  // the dialog is open drops out of the count on its own, and one that comes
+  // back — the panel repolls every fifteen seconds, and claude-swap rewriting
+  // sequence.json is a moment where it reads as gone — comes back ticked,
+  // rather than leaving the user staring at a picker that quietly emptied
+  // itself. An account they unticked stays unticked through all of it.
+  const [unpicked, setUnpicked] = useState<number[]>([]);
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,22 +88,12 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
     return () => window.clearInterval(t);
   }, [bundle]);
 
-  // The panel repolls every fifteen seconds and this dialog stays up across
-  // those polls, so an account can leave the store while it is open. Without
-  // this the count above the copy button — the one number this dialog exists to
-  // get right before anything reaches a clipboard — would go on counting a row
-  // that is no longer there, and `Clear all` would mislabel itself as `Select
-  // all` whenever the stale set and the live one happened to match in size.
-  useEffect(() => {
-    setPicked(p => {
-      const live = p.filter(n => accounts.some(a => a.num === n));
-      return live.length === p.length ? p : live;
-    });
-  }, [accounts]);
-
   const rows = pickerRows(accounts);
+  // Derived, so it can never disagree with the list on screen.
+  const picked = accounts.filter(a => !unpicked.includes(a.num)).map(a => a.num);
+  const allPicked = picked.length === accounts.length;
   const toggle = (num: number) =>
-    setPicked(p => (p.includes(num) ? p.filter(n => n !== num) : [...p, num]));
+    setUnpicked(u => (u.includes(num) ? u.filter(n => n !== num) : [...u, num]));
 
   const make = useCallback(async () => {
     // The other half of #620: the control stays pressable while its own
@@ -104,10 +105,9 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
     setBusy(true);
     setError(null);
     setCopied(false);
-    // Ask in the order the panel draws them, so the bundle's own list reads the
-    // way the picker did.
-    const order = accounts.map(a => a.num).filter(n => picked.includes(n));
-    const out = await admin({ action: "share", accounts: order }).catch(() => null);
+    // Already in the order the panel draws them, so the bundle's own list reads
+    // the way the picker did.
+    const out = await admin({ action: "share", accounts: picked }).catch(() => null);
     busyRef.current = false;
     setBusy(false);
     if (!out?.ok) { setError(explainFailure(out, "the share could not be made")); return; }
@@ -271,8 +271,8 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
               {error && <p className="aa-err">{error}</p>}
               <div className="sa-actions">
                 <button type="button" className="btn"
-                  onClick={() => setPicked(picked.length === accounts.length ? [] : accounts.map(a => a.num))}>
-                  {picked.length === accounts.length ? "Clear all" : "Select all"}
+                  onClick={() => setUnpicked(allPicked ? accounts.map(a => a.num) : [])}>
+                  {allPicked ? "Clear all" : "Select all"}
                 </button>
                 {/* #620's two attributes, from the helper rather than spelled
                     here: enabled while its own request is out, disabled only

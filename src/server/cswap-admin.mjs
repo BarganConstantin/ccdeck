@@ -925,7 +925,17 @@ export async function shareAccounts(nums) {
   };
 }
 
-/** The one-account case, which is a bundle of one and takes the same path. */
+/**
+ * The one-account case, which is a bundle of one and takes the same path.
+ *
+ * That path PARSES what cswap wrote, where this used to hand its stdout on
+ * opaquely — the cost of `shared` being able to promise that the count on the
+ * copy button is the count in the blob. So an export shape the fold cannot read
+ * now fails the single share too, not just the bundle. Deliberate: one path
+ * means the two cannot drift into two envelope shapes, and a share that
+ * silently carried something this deck could not account for is the failure
+ * the count exists to prevent.
+ */
 export async function shareAccount(num) {
   return shareAccounts([num]);
 }
