@@ -47,7 +47,7 @@ One canvas. No tabs. No kanban.
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
 | **Click to inspect** | Any node opens its prompt, tool calls, token usage and timing. |
 | **Survives restarts** | Events are appended to `~/.claude/agent-dag/events.jsonl` and replayed on open. |
-| **Accounts without a terminal** | Sign a new Claude account in, share one to another machine, rename, reorder, remove — from the panel. |
+| **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
 | **Knows when it is stale** | Node caches modules at startup, so an upgraded-while-running deck keeps executing old code. This one says so, and can restart itself when nothing is running. |
 | **Workspace scoping** | `--scope` for the current directory, `--workspace <path>` for any subtree — for Claude Code and Codex alike. |
 
@@ -100,8 +100,12 @@ The Accounts panel reads the store [claude-swap](https://pypi.org/project/claude
 
 **`share`** on an account produces a `ccdeck1:…` blob to paste into another deck's **`+` → Paste a share**.
 
+**`↗`** in the panel header does the same for a set of them, which is what moving your accounts from home to work actually is. Tick the ones to send — all of them to start — and one blob carries the set. The dialog counts sign-in tokens rather than rows, and an account that cannot be exported is named rather than quietly dropped, so the number on the copy button is always the number in the blob.
+
+An import adds what is missing and leaves a working account exactly as it is. The one it does rewrite unasked is a slot claude-swap has itself quarantined as refresh-token-dead, which is what heals a machine whose login stopped working. The result names every account in the paste — imported, already here, healed, or refused — and an account it skipped can be overwritten one at a time with **update anyway**.
+
 > [!WARNING]
-> A share carries that account's **live login in the clear** — claude-swap's export format has no encryption. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it like a password: anything that can read your clipboard can read the account.
+> A share carries the **live login of every account in it, in the clear** — claude-swap's export format has no encryption, and five ticked boxes is five passwords on your clipboard. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it as those passwords: anything that can read your clipboard can read the accounts.
 
 Renaming, reordering and removing are on the same row menu. Removal takes two clicks and cannot be undone.
 

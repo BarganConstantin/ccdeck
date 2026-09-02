@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickerRows, shareCountLine, shareExpiry } from "../share-bundle";
 
@@ -75,7 +76,11 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
     setPicked(p => (p.includes(num) ? p.filter(n => n !== num) : [...p, num]));
 
   const make = useCallback(async () => {
-    if (busyRef.current || !picked.length) return;
+    // The other half of #620: the control stays pressable while its own
+    // request is out, so the handler is what refuses the second press. Read off
+    // the ref, because the state a handler closed over is a render old and the
+    // second press happens before the next one.
+    if (!selfPressAccepted(busyRef.current) || !picked.length) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -235,13 +240,20 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                   onClick={() => setPicked(picked.length === accounts.length ? [] : accounts.map(a => a.num))}>
                   {picked.length === accounts.length ? "Clear all" : "Select all"}
                 </button>
-                {/* Enabled while its own request is out, disabled only when
-                    there is nothing to send — the same split every control in
-                    the accounts surface makes between "somebody is working" and
-                    "this is unavailable". */}
+                {/* #620's two attributes, from the helper rather than spelled
+                    here: enabled while its own request is out, disabled only
+                    when there is nothing to send. A control that wrote either
+                    half by hand would be the second answer that issue asks
+                    against.
+                    The label drops the count at zero — "Share 0 accounts" is a
+                    sentence no one means, and the line above already says
+                    nothing is picked. */}
                 <button type="button" className="btn primary" ref={primaryRef}
-                  disabled={!picked.length} aria-busy={busy} onClick={make}>
-                  {busy ? "making the share…" : picked.length === 1 ? "Share 1 account" : `Share ${picked.length} accounts`}
+                  {...selfPressProps(busy, !picked.length)} onClick={make}>
+                  {busy ? "making the share…"
+                    : picked.length === 0 ? "Share"
+                    : picked.length === 1 ? "Share 1 account"
+                    : `Share ${picked.length} accounts`}
                 </button>
               </div>
             </div>
