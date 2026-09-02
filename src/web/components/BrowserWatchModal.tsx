@@ -55,7 +55,7 @@ export interface WatchLine {
   text: string;
 }
 
-interface WatchBrowser {
+export interface WatchBrowser {
   key: string;
   name: string;
   installed: boolean;
@@ -118,6 +118,23 @@ export function untilLabel(ms: number): string {
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+/**
+ * The browsers the watch actually reads.
+ *
+ * ONE definition, because three places render it and two of them have to agree
+ * mark for mark: the radar puts blip i at angle i/n and the legend under it
+ * names item i. Filter them separately and the day one list changes without the
+ * other, every name sits beside the wrong dot — a defect that still looks like
+ * a working radar, which is the kind the eye never catches.
+ *
+ * Installed but never opened is excluded on purpose: it has no profile, so
+ * there is no history to read and a blip for it would be a light with nothing
+ * behind it.
+ */
+export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrowser[] {
+  return (browsers ?? []).filter(b => b.installed && b.profiles > 0);
 }
 
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
@@ -266,7 +283,7 @@ export default function BrowserWatchModal({
     return out;
   }, [snap]);
 
-  const watching = (snap?.browsers ?? []).filter(b => b.installed && b.profiles > 0);
+  const watching = watchedBrowsers(snap?.browsers);
   const live = watching.filter(b => b.running).map(b => b.name);
 
   return (
@@ -387,8 +404,7 @@ export default function BrowserWatchModal({
             <div className="bw-live">
               <div className="bw-scope">
                 <WatchRadar
-                browsers={(snap.browsers ?? [])
-                  .filter(b => b.installed && b.profiles > 0)
+                browsers={watchedBrowsers(snap.browsers)
                   .map(b => ({
                     key: b.key,
                     name: b.name,
@@ -405,7 +421,7 @@ export default function BrowserWatchModal({
                     and text themes, wraps and reads aloud, which canvas text
                     does none of. */}
                 <ul className="bw-legend">
-                  {(snap.browsers ?? []).filter(b => b.installed && b.profiles > 0).map(b => (
+                  {watchedBrowsers(snap.browsers).map(b => (
                     <li key={b.key} className={b.running ? "on" : ""}>
                       <span className="bw-legend-dot" aria-hidden />
                       {b.name}
