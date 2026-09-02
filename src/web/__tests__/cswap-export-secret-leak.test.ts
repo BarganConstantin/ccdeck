@@ -56,6 +56,17 @@ const { shareAccount } = await import("../../server/cswap-admin.mjs");
 // alone, exactly as it would sit in the middle of the document.
 const SECRET_LINE = '  "refreshToken": "sk-ant-ort01-DEADBEEFdeadbeef-not-a-real-token",';
 
+/** What `cswap export - --account N` writes, with the credential left out. */
+const ENVELOPE = JSON.stringify({
+  version: 3,
+  exportedAt: "2026-09-02T00:00:00Z",
+  exportedFrom: "macos",
+  swapVersion: "0.25.0",
+  encrypted: false,
+  activeAccountNumber: 2,
+  accounts: [{ number: "2", email: "one@example.com", organizationUuid: "org-a", config: {}, credentials: {} }],
+});
+
 beforeEach(() => { calls.length = 0; });
 
 describe("shareAccount when the export fails after writing", () => {
@@ -105,10 +116,20 @@ describe("shareAccount when the export fails after writing", () => {
   });
 
   it("hands the blob back when the export works, which is the case all this protects", async () => {
-    nextRun.value = { ok: true, code: 0, killed: false, timedOut: false, stdout: '{"account":1}', stderr: "" };
+    // A real envelope rather than a token JSON object: since #723 the share
+    // path folds what cswap wrote into one bundle, so it parses this and would
+    // refuse a stand-in that has no `accounts` array. The fixture is the shape
+    // `export_accounts` actually writes, minus the credential body.
+    nextRun.value = { ok: true, code: 0, killed: false, timedOut: false, stdout: ENVELOPE, stderr: "" };
     const out = await shareAccount(2);
     expect(out.ok).toBe(true);
     expect(out.blob.startsWith("ccdeck1:")).toBe(true);
     expect(calls[0]).toEqual({ cmd: "cswap-under-test", args: ["export", "-", "--account", "2"] });
+    // What went in came out: one account, named, under the envelope cswap's
+    // own version stamp rather than one this repo invented.
+    expect(out.shared).toEqual([{ num: "2", email: "one@example.com" }]);
+    expect(out.failed).toEqual([]);
+    const body = JSON.parse(Buffer.from(out.blob.slice("ccdeck1:".length), "base64").toString("utf8"));
+    expect(JSON.parse(body.payload)).toMatchObject({ version: 3, accounts: [{ email: "one@example.com" }] });
   });
 });
