@@ -7065,7 +7065,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-ep.open { border-color: var(--ctl-edge); }
 .bw-ep-head {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  /* FOUR columns: chevron, host, span, count. It was three, from before the
+     chevron joined the row — so the chevron took the `1fr` meant for the host,
+     the host and its times were pushed to the right, and the count wrapped to
+     a line of its own and centred. The whole card read as centre-aligned in a
+     panel that is flush left everywhere else. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: baseline;
   /* A <button> shrinks to its content even as a grid container, so without this
@@ -7092,7 +7097,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    than two screens that share a dialog. */
 .bw-ep-meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bw-ep-count {
-  margin-left: auto;
   font-size: 11px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
