@@ -17,6 +17,7 @@ import { useModalDismiss } from "./use-modal-dismiss";
 import WatchRadar from "./WatchRadar";
 import type { Palette } from "../palette";
 import { tabStripMove } from "../tablist-keys";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 export interface WatchEpisode {
   host: string;
@@ -227,6 +228,7 @@ export default function BrowserWatchModal({
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   /* Null until the first snapshot answers. The stored value is the truth and
      this control only displays it — seeded from a literal, it showed 15 to
      somebody who had chosen 1, and then sent that 15 back on every poll. */
@@ -260,6 +262,13 @@ export default function BrowserWatchModal({
   }, [tab]);
 
   const load = useCallback(async (refresh: boolean) => {
+    /* #620 leaves the pressed control enabled, so the HANDLER is what refuses
+       the second press. Read off a ref rather than `busy`: the state a handler
+       closed over is a render old, and the second press lands before the next
+       one. Only a forced read is guarded — the ten-second poll is not somebody
+       pressing anything, and must not be turned away by a press still out. */
+    if (refresh && !selfPressAccepted(busyRef.current)) return;
+    busyRef.current = refresh;
     setBusy(true);
     try {
       /* NO `?quiet=`. The server treats that parameter as an override of the
@@ -282,6 +291,7 @@ export default function BrowserWatchModal({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [onWatching]);
@@ -358,18 +368,26 @@ export default function BrowserWatchModal({
             <span className="modal-tool-id">program navigation while nobody was browsing</span>
           </div>
           <div className="modal-actions">
-            {/* No `disabled` while it works (#620): a control that removes
-                itself on press takes the focus with it and leaves the reader
-                nowhere, and the label already says what is happening. A second
-                press costs nothing — the server holds one read at a time and
-                hands a concurrent caller the same promise. */}
-            {/* `glyph-btn` for the close, which is what every other modal
-                header in the deck uses — ToolModal, the accounts dialog, the
-                usage history. A second spelling of the same control is a second
-                thing to maintain and a visible seam. */}
-            <button className="ap-manage-btn" onClick={() => void load(true)} title="Re-read every profile now">
-              {busy ? "reading…" : "refresh"}
-            </button>
+            {/* Both glyphs, which is what every other header in the deck is:
+                the accounts panel and the usage history each pair `↻` with `×`
+                at the same size and weight. A worded pill beside a glyph close
+                read as two different kinds of control doing the same kind of
+                job, and it was the only header in the deck spelt that way.
+                `…` while it works, like theirs — the busy state is the glyph,
+                so the button does not change size mid-press.
+
+                No `disabled` (#620/#518): a control that removes itself on
+                press takes the focus with it and leaves the reader nowhere.
+                `selfPressProps` carries `aria-busy` and leaves it enabled, and
+                a second press costs nothing — the server holds one read at a
+                time and hands a concurrent caller the same promise. */}
+            <button
+              className="glyph-btn"
+              onClick={() => void load(true)}
+              {...selfPressProps(busy)}
+              aria-label="Re-read every profile now"
+              title="Re-read every profile now"
+            >{busy ? "…" : "↻"}</button>
             <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
