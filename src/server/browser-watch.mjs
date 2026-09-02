@@ -34,7 +34,7 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
-import { appendLog, logPath, mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
+import { appendLog, logPath, mergeEpisodes, readStore, undismissed, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST } from "./relay-guard.mjs";
@@ -413,7 +413,7 @@ export async function browserWatchSnapshot({
   // only about the screen.
   if (store.migrated) {
     note("info", "cleared episodes kept under an older rule", now);
-    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: [] }, undefined, deps);
+    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: [], dismissed: store.dismissed }, undefined, deps);
   }
   const minutes = m => m * 60_000;
   if (quietMs === undefined) quietMs = minutes(store.settings.quietMinutes);
@@ -571,13 +571,15 @@ export async function browserWatchSnapshot({
     // grown, so writing the whole set every time would repeat one episode once
     // per page it gained.
     const known = new Set(store.episodes.map(e => `${e.host} ${e.startMs}`));
-    const fresh = kept.filter(e => !known.has(`${e.host} ${e.startMs}`));
+    // Already-dismissed episodes are not fresh news: the reader has seen them
+    // and said so, and notifying about one again is the panel arguing.
+    const fresh = undismissed(kept.filter(e => !known.has(`${e.host} ${e.startMs}`)), store.dismissed);
     // Only when something actually arrived. "no new · 3 since this deck
     // started" is the deck telling itself it wrote a file, which is not news.
     if (fresh.length > 0) {
       note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
     }
-    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept }, undefined, deps);
+    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept, dismissed: store.dismissed }, undefined, deps);
     await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
 
     // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not
@@ -597,7 +599,10 @@ export async function browserWatchSnapshot({
       }
     }
   }
-  const episodes = enabled ? kept : live;
+  // FILTERED ON BOTH PATHS, because the panel builds episodes from the
+  // browser's own history on every poll: dropping only the archived copy would
+  // be undone within ten seconds by the next read of the same visits.
+  const episodes = undismissed(enabled ? kept : live, store.dismissed);
 
   // Stamped after the work, so it means "a poll finished" rather than "a poll
   // began" — the difference shows on the first look, which copies every
@@ -641,7 +646,7 @@ export async function browserWatchSnapshot({
       // How many episodes this deck has seen since it started. Zero with the
       // watch off is not a fault — it is the switch doing what it says — and the
       // panel needs the number to be able to say which of the two it is.
-      archived: kept.length,
+      archived: undismissed(kept, store.dismissed).length,
       now,
     },
     degraded: anyDegraded,

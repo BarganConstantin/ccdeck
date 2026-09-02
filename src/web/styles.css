@@ -7062,6 +7062,21 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 
 .bw-ep { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+/* Two controls side by side, not one inside the other. The disclosure takes
+   the row; the dismiss is a fixed square at its end. */
+.bw-ep-row { display: flex; align-items: stretch; }
+.bw-ep-row .bw-ep-head { flex: 1 1 auto; min-width: 0; }
+/* Dim at rest and legible on focus. Always drawn rather than revealed on
+   hover: a control that only exists under a pointer does not exist for a
+   keyboard, and this one removes a row for good. */
+.bw-ep-x {
+  flex: none;
+  align-self: center;
+  margin-right: 6px;
+  color: var(--text-dim);
+  transition: color 120ms ease;
+}
+.bw-ep-x:hover, .bw-ep-x:focus-visible { color: var(--warn); }
 .bw-ep.open { border-color: var(--ctl-edge); }
 .bw-ep-head {
   display: grid;

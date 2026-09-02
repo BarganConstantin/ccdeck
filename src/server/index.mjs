@@ -4060,6 +4060,47 @@ async function handleBrowserWatchSettings(req, res) {
   return send(res, 200, { ok: true, settings });
 }
 
+/**
+ * Mark one episode as reviewed, so it leaves the Findings list and stays gone.
+ *
+ * A DISMISSAL AND NOT A DELETION, and the difference is the whole design. The
+ * panel rebuilds episodes from the browser's own history on every poll, so
+ * removing the archived row would be undone within ten seconds by the next read
+ * of the same visits. What is stored is that the reader has seen this one.
+ *
+ * The log file is untouched. It is the append-only record the panel promises —
+ * "every address is written in full so you can check it yourself" — and a list
+ * you can tidy is not the same thing as a record you can trust.
+ */
+async function handleBrowserWatchDismiss(req, res) {
+  // No gate of its own: the router runs isTrustedMutation and
+  // isAuthorizedMutation on every non-GET before a handler sees it, which is
+  // the pair its GET twin deliberately skips. A second check here would be a
+  // second thing to keep correct.
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  const host = typeof body?.host === "string" ? body.host : null;
+  const startMs = typeof body?.startMs === "number" && Number.isFinite(body.startMs) ? body.startMs : null;
+  if (host === null || startMs === null) return send(res, 400, { ok: false, reason: "bad_request" });
+
+  const { readStore, writeStore, episodeKey } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
+  );
+  const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
+  );
+  const store = await readStore();
+  const key = episodeKey(host, startMs);
+  const dismissed = [...new Set([...(store.dismissed ?? []), key])];
+  await writeStore({ settings: store.settings, episodes: store.episodes, dismissed });
+  // The reader acting on their own list, which is exactly the kind of line the
+  // `act` level exists for.
+  noteWatchSetting(`dismissed ${host}`);
+  invalidateBrowserWatchCache();
+  return send(res, 200, { ok: true });
+}
+
 async function handleBrowserWatch(req, res) {
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
@@ -5084,6 +5125,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/browser-watch/dismiss") return guard(handleBrowserWatchDismiss(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);

@@ -161,6 +161,18 @@ function archivable(e) {
 // raw NUL makes grep skip the whole file without ever saying so.
 const keyOf = e => `${e.host}\u0000${e.startMs}`;
 
+/** The same key, from the two fields a caller has. Exported because the route
+ *  that dismisses an episode is handed a host and a start, not an episode. */
+export const episodeKey = (host, startMs) => `${host}\u0000${startMs}`;
+
+/** How many dismissals are remembered. A dismissal is a few dozen bytes and
+ *  the archive it filters is capped at 500, so this is generous — but it is
+ *  capped all the same, because a set that only grows is a file that only
+ *  grows. Trimmed oldest-first, and the cost of forgetting the oldest is that
+ *  an episode from two years ago could reappear if it were still live, which
+ *  it cannot be. */
+const DISMISS_KEEP = 2000;
+
 export async function readStore(home = claudeConfigDir(), deps = {}) {
   const read = deps.readFile ?? readFile;
   let parsed = null;
@@ -187,12 +199,20 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
   // left on disk are kept whatever the panel chooses to draw. readStore does not
   // write them away itself — a read with a side effect is a trap for the next
   // caller — so it says so and the snapshot does it.
-  if (parsed && parsed.v !== STORE_VERSION) return { settings, episodes: [], migrated: true };
+  if (parsed && parsed.v !== STORE_VERSION) return { settings, episodes: [], dismissed: [], migrated: true };
 
   const episodes = Array.isArray(parsed?.episodes)
     ? parsed.episodes.map(archivable).filter(e => Number.isFinite(e.startMs))
     : [];
-  return { settings, episodes, migrated: false };
+  // WHAT THE READER HAS ALREADY LOOKED AT. It has to be its own list rather
+  // than a deletion from `episodes`, because the panel reads the browser's
+  // history live as well as its own archive — delete the row and the very next
+  // poll finds the same visits and puts it back, which is worse than having no
+  // delete at all.
+  const dismissed = Array.isArray(parsed?.dismissed)
+    ? parsed.dismissed.filter(k => typeof k === "string" && k.includes("\u0000")).slice(-DISMISS_KEEP)
+    : [];
+  return { settings, episodes, dismissed, migrated: false };
 }
 
 /**
@@ -212,6 +232,7 @@ export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
     v: STORE_VERSION,
     settings: normalise(state.settings),
     episodes: (state.episodes ?? []).map(archivable),
+    dismissed: [...new Set(state.dismissed ?? [])].slice(-DISMISS_KEEP),
   }, null, 2) + "\n";
   const tmp = `${storePath(home)}.${process.pid}.tmp`;
   await write(tmp, body, "utf8");
@@ -235,4 +256,22 @@ export function mergeEpisodes(archive, seen, now = Date.now()) {
     byKey.set(key, archivable({ ...e, archivedMs: had?.archivedMs ?? now }));
   }
   return [...byKey.values()].sort((a, b) => b.startMs - a.startMs).slice(0, KEEP);
+}
+
+/**
+ * Episodes the reader has not dismissed.
+ *
+ * Applied to the LIVE read as well as to the archive, which is the whole point:
+ * an episode is rebuilt from the browser's own history on every poll, so a
+ * dismissal that only removed the archived copy would be undone within ten
+ * seconds by the next read of the same visits.
+ *
+ * Keyed on host and START, never on the end or the count: a run that is still
+ * going gains pages, and a key that moved with them would let a dismissed
+ * episode return the moment its program opened one more tab.
+ */
+export function undismissed(episodes, dismissed) {
+  if (!Array.isArray(dismissed) || dismissed.length === 0) return episodes;
+  const gone = new Set(dismissed);
+  return episodes.filter(e => !gone.has(keyOf(e)));
 }

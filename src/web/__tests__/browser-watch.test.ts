@@ -240,7 +240,7 @@ describe("erasing what an older rule left behind", () => {
     // snapshot performs.
     const server = src("../../server/browser-watch.mjs");
     expect(server).toMatch(/if \(store\.migrated\) \{/);
-    expect(server).toMatch(/episodes: \[\] \}, undefined, deps\)/);
+    expect(server).toMatch(/episodes: \[\], dismissed: store\.dismissed \}, undefined, deps\)/);
     const store = src("../../server/browser-watch-store.mjs");
     expect(store, "readStore must not write").not.toMatch(/export async function readStore[\s\S]{0,900}writeFile/);
   });
@@ -376,7 +376,7 @@ describe("a log a person can read", () => {
     expect(assign, "_checkedMs is never assigned").toBeGreaterThan(0);
     expect(assign, "the stamp is taken before the work it claims to have finished")
       .toBeLessThan(survey);
-    expect(server.slice(0, assign)).toContain("const episodes = enabled ? kept : live;");
+    expect(server.slice(0, assign)).toContain("const episodes = undismissed(enabled ? kept : live, store.dismissed);");
   });
 });
 

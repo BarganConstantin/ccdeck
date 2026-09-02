@@ -372,6 +372,27 @@ export default function BrowserWatchModal({
     return () => clearInterval(t);
   }, [load]);
 
+  /** Mark an episode reviewed, so it leaves the list and stays gone.
+   *
+   *  The server owns it. A client that hid the row locally would show it again
+   *  on the very next poll, because the panel rebuilds episodes from the
+   *  browser's history rather than from its own memory — which is the same
+   *  reason the server stores a dismissal instead of deleting a row.
+   *
+   *  Reloads in `finally`: if the write failed, the row coming back is the
+   *  honest report of that, and a row that vanished on a failed write would be
+   *  a lie the next poll would correct anyway. */
+  const dismiss = useCallback(async (e: WatchEpisode) => {
+    try {
+      await fetch("/api/browser-watch/dismiss", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ host: e.host, startMs: e.startMs }),
+      });
+    } finally {
+      await load(false);
+    }
+  }, [load]);
   /** Change a setting on the server, which owns it: the file on disk is what
    *  the watch runs on, and a client that kept its own copy would disagree with
    *  it the moment a second tab was open. */
@@ -690,6 +711,13 @@ export default function BrowserWatchModal({
                           const isOpen = open === id;
                           return (
                             <div className={`bw-ep${isOpen ? " open" : ""}`} key={id}>
+                              {/* A row holding two controls rather than one
+                                  control holding another: a button inside a
+                                  button is invalid markup and the inner one is
+                                  unreachable. The disclosure keeps the whole
+                                  row it always had; the dismiss sits beside
+                                  it. */}
+                              <div className="bw-ep-row">
                               <button
                                 className="bw-ep-head"
                                 onClick={() => setOpen(isOpen ? null : id)}
@@ -703,6 +731,22 @@ export default function BrowserWatchModal({
                                 </span>
                                 <span className="bw-ep-count">{e.count} {e.count === 1 ? "page" : "pages"}</span>
                               </button>
+                              {/* DISMISS, NOT DELETE, and the title says which.
+                                  The panel rebuilds episodes from the browser's
+                                  own history every ten seconds, so a row that
+                                  was merely removed would come straight back;
+                                  what this records is that the reader has seen
+                                  it. The log file keeps the addresses either
+                                  way — a list you can tidy is not the same
+                                  thing as a record you can trust, and this
+                                  panel promises the second one. */}
+                              <button
+                                className="glyph-btn bw-ep-x"
+                                onClick={() => void dismiss(e)}
+                                aria-label={`Dismiss ${e.host}`}
+                                title="Dismiss — it leaves this list for good, and stays in the log file"
+                              >×</button>
+                              </div>
                               {isOpen && (
                                 <ul className="bw-urls">
                                   {e.urls.map((u, i) => (
