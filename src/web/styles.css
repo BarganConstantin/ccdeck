@@ -7236,7 +7236,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 .bw-seg-btn {
   position: relative;
-  padding: 4px 14px;
+  padding: 4px 12px;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -7294,7 +7294,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   align-items: baseline;
   /* Its own padding and no negative margin — see .bw-log. The hover has a body
      to fill and the row cannot be wider than what holds it. */
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
   min-width: 0;
   transition: background 140ms ease;
@@ -7585,7 +7585,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   gap: 16px;
   flex-wrap: wrap;
   align-items: flex-start;
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -7747,7 +7747,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    looked exactly like a quiet one. */
 .bw-trouble {
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--bg-soft);
