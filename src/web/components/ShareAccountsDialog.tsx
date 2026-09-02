@@ -172,12 +172,20 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                       : `${bundle.failed.length} accounts are not in this bundle:`}
                   </p>
                   <ul className="sa-list">
-                    {bundle.failed.map(f => (
-                      <li key={`${f.num}-${f.email}`}>
-                        <span className="sa-who">{f.email || `account ${f.num}`}</span>
-                        <span className="sa-why">{f.detail || "could not be exported"}</span>
-                      </li>
-                    ))}
+                    {bundle.failed.map(f => {
+                      // claude-swap's own reasons already name the account -
+                      // "no backup credentials found for account 3
+                      // (claude2@sapec.md)" - so printing the address above it
+                      // says the same thing twice in three lines. The name line
+                      // is for the reasons that do not carry one.
+                      const named = Boolean(f.email && f.detail?.includes(f.email));
+                      return (
+                        <li key={`${f.num}-${f.email}`}>
+                          {!named && <span className="sa-who">{f.email || `account ${f.num}`}</span>}
+                          <span className="sa-why">{f.detail || "could not be exported"}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
