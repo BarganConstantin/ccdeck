@@ -79,7 +79,7 @@ export interface WatchSnapshot {
   profiles: WatchProfile[];
   browsers: WatchBrowser[];
   episodes: WatchEpisode[];
-  coverage: { startedMs: number; oldestVisitMs: number | null; lastHumanMs: number | null; quietMs: number; logPath: string; archived: number; now: number };
+  coverage: { startedMs: number; oldestVisitMs: number | null; lastHumanMs: number | null; quietMs: number; logPath: string; checkedMs: number; checks: number; archived: number; now: number };
   degraded: boolean;
 }
 
@@ -151,21 +151,18 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
  * while its own last characters move every second.
  */
 export function modeState(
-  snap: { settings: { enabled: boolean }; coverage: { archived: number } },
+  snap: { settings: { enabled: boolean } },
   saving: boolean,
 ): { kind: "saving" | "off" | "on"; word: string; detail: string } {
   if (saving) return { kind: "saving", word: "Saving", detail: "" };
-  if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "this run only" };
-  const n = snap.coverage.archived;
-  return {
-    kind: "on",
-    word: "Watching",
-    // "0 kept" was cryptic: nobody should have to work out what it counts. It
-    // counts episodes the watch has recorded, so that is what it says — and at
-    // zero it says the state rather than the number, because "nothing yet" is
-    // a sentence and "0" is a puzzle.
-    detail: n === 0 ? "nothing captured yet" : `${n} ${n === 1 ? "episode" : "episodes"} captured`,
-  };
+  // ONE QUESTION, ONE ANSWER. This carried an episode count as well — "Watching
+  // · nothing captured yet" — and the two ideas fought: a reader with visible
+  // browser activity in the feed below was being told nothing had been
+  // captured, which is true of episodes and reads as false of the panel.
+  // Persistence belongs to the footer, which says it in the same noun the
+  // Episodes tab uses. This line says whether the watch is running.
+  if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "nothing new is recorded" };
+  return { kind: "on", word: "Watching", detail: "" };
 }
 
 /** What the watch actually reads: visits per browser, summed across its
@@ -189,6 +186,9 @@ export function visitTotals(
 export function agoLabel(atMs: number | null, nowMs: number): string | null {
   if (atMs === null) return null;
   const secs = Math.max(0, Math.round((nowMs - atMs) / 1000));
+  // "0 sec ago" is a machine reading a clock out loud. Under five seconds the
+  // honest thing a person says is "just now".
+  if (secs < 5) return "just now";
   if (secs < 60) return `${secs} sec ago`;
   const mins = Math.round(secs / 60);
   if (mins < 60) return `${mins} min ago`;
@@ -680,8 +680,17 @@ export default function BrowserWatchModal({
                       newer than this deck's start, not visits a person made and
                       not findings. The second is the only part that moves. */}
                   <p className="bw-since">History entries since this deck started</p>
-                  {lastRead !== null && (
-                    <p className="bw-since">Last look {agoLabel(lastRead, tick)}</p>
+                  {/* THE DECK'S OWN CLOCK, NOT THE BROWSER'S. This read
+                      `lastWrittenMs`, which is the History file's mtime — when
+                      the BROWSER last wrote, not when the watch last looked. On
+                      a machine nobody is browsing it would climb past an hour
+                      while the deck kept checking every ten seconds, and the
+                      panel would read as though the watch had stopped. */}
+                  {snap.coverage.checkedMs > 0 && (
+                    <p className="bw-since">
+                      Last checked {agoLabel(snap.coverage.checkedMs, tick)}
+                      {snap.coverage.checks > 1 && <> · {snap.coverage.checks.toLocaleString("en-US")} checks</>}
+                    </p>
                   )}
                   {gate !== null && (
                     /* The quiet gate, where it belongs: beside the numbers it
@@ -693,7 +702,7 @@ export default function BrowserWatchModal({
                   {showKey && (
                     <dl className="bw-key">
                       <dt>Sweep</dt><dd>one poll of every watched profile</dd>
-                      <dt>Dot</dt><dd>a browser, further out the longer since its history was read</dd>
+                      <dt>Dot</dt><dd>a browser, further out the longer since it last wrote history</dd>
                       <dt>Ring</dt><dd>a finding, leaving the browser it came from</dd>
                     </dl>
                   )}
@@ -741,8 +750,14 @@ export default function BrowserWatchModal({
               <section className="bw-feed" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)}>
                 <h4 className="bw-sec-head bw-feed-head">
                   Live activity
+                  {/* `entries` counted log rows and collided with the
+                      overview's "history entries", which are a different thing
+                      entirely. These rows are events — a browser adding
+                      history, a read failing, the reader changing a setting —
+                      and the successful checks that found nothing are no
+                      longer among them. */}
                   <span className="bw-feed-count">
-                    {snap.log.length} {snap.log.length === 1 ? "entry" : "entries"}
+                    {snap.log.length} {snap.log.length === 1 ? "event" : "events"}
                   </span>
                 </h4>
                 <div className="bw-log" aria-live="polite" aria-relevant="additions">
@@ -854,10 +869,14 @@ export default function BrowserWatchModal({
                says the thing that changes with the switch and is said nowhere
                else, and the right half is the switch, labelled. */
             <footer className="bw-status">
+              {/* THE ONE PLACE PERSISTENCE IS SAID, in the noun the Episodes
+                  tab uses. It was also in the toolbar, in a different word
+                  ("captured"), beside a state that answers a different
+                  question. One concept, one noun, one place. */}
               <span className="bw-status-text">
-                {snap.settings.enabled
-                  ? `Recording what it finds · ${snap.coverage.archived} ${snap.coverage.archived === 1 ? "episode" : "episodes"} on disk`
-                  : "Paused — nothing new is being recorded"}
+                {snap.coverage.archived === 0
+                  ? (snap.settings.enabled ? "No episodes recorded yet" : "No episodes on disk")
+                  : `${snap.coverage.archived} ${snap.coverage.archived === 1 ? "episode" : "episodes"} on disk`}
               </span>
               <label className="bw-switch" htmlFor="bw-enabled">
                 <span className="bw-switch-label">Watch browser activity</span>

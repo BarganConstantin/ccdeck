@@ -28,3 +28,26 @@ describe("when a program page would start counting", () => {
     expect(untilLabel(1)).toBe("1s");
   });
 });
+
+describe("how long ago the deck last looked", () => {
+  it("says `just now` rather than reading a zero off a clock", async () => {
+    // "0 sec ago" is a machine speaking. Under five seconds a person says
+    // "just now", and this line is read most often at exactly that moment —
+    // the panel polls every ten seconds while it is open.
+    const { agoLabel } = await import("../components/BrowserWatchModal");
+    const now = 1_000_000;
+    expect(agoLabel(now, now)).toBe("just now");
+    expect(agoLabel(now - 4_000, now)).toBe("just now");
+    expect(agoLabel(now - 6_000, now)).toBe("6 sec ago");
+  });
+
+  it("climbs through seconds, minutes and hours", async () => {
+    const { agoLabel } = await import("../components/BrowserWatchModal");
+    const now = 10_000_000;
+    expect(agoLabel(now - 45_000, now)).toBe("45 sec ago");
+    expect(agoLabel(now - 4 * 60_000, now)).toBe("4 min ago");
+    expect(agoLabel(now - 3 * 3600_000, now)).toBe("3 hr ago");
+    // Nothing read yet is a different answer from "a long time ago".
+    expect(agoLabel(null, now)).toBeNull();
+  });
+});

@@ -106,13 +106,13 @@ async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
  *  person disagrees with that is the one where they pressed refresh. */
 export function invalidateBrowserWatchCache() {
   cache.clear();
-  _lastBeat = 0;   // a manual refresh deserves a fresh proof of life
   _lastForced = 0;
   surveyCache = { atMs: 0, rows: [] };
   // The memo of what each profile last really said goes with it. It exists to
   // stand in for a read the cache skipped, and there are no skipped reads left
   // to stand in for.
   _lastRead.clear();
+  _lastCount.clear();
 }
 
 /** The floor between two reads somebody paid for, spelled the way quota.mjs,
@@ -311,21 +311,21 @@ async function surveyBrowsers(platform, env, now, deps) {
 }
 
 /**
- * How often the log says "still watching" when nothing has happened.
+ * Polls completed since this process started, and when the last one finished.
  *
- * THE LOG BECAME UNREADABLE THE MOMENT IT WENT LIVE. The panel polls every ten
- * seconds while the Log view is open, and every poll wrote one line per profile
- * saying the History file was unchanged — twelve lines a minute of nothing,
- * burying the one line that said a visit had been read. The view answering "is
- * this working" answered it by making its own answer unfindable.
+ * THIS REPLACED A HEARTBEAT ROW. A five-minute "still watching 2 profiles —
+ * nothing new" proved the deck was alive by writing into the feed it was
+ * supposed to be reporting on, and the feed is bounded at 200: on a machine
+ * somebody actually browses, bookkeeping does not merely clutter it, it evicts
+ * the findings the panel exists to show. Liveness is a number the panel reads,
+ * which costs no rows at all.
  *
- * A quiet poll writes nothing now. Instead the log says so once every five
- * minutes, which is the same trade the shell tool this descends from made with
- * CLAUDE_CHROME_HEARTBEAT: a watch has to prove it is alive, and proving it
- * twelve times a minute proves nothing at all.
+ * NOT `lastWrittenMs`, which is the History file's mtime — when the BROWSER
+ * last wrote, a fact about the browser rather than about the watch. On an idle
+ * machine that climbs past an hour while this keeps checking every ten seconds.
  */
-const HEARTBEAT_MS = 5 * 60_000;
-let _lastBeat = 0;
+let _checks = 0;
+let _checkedMs = 0;
 
 /**
  * What the last REAL read of each profile produced, keyed by browser/profile.
@@ -346,6 +346,11 @@ let _lastBeat = 0;
  * deck begins, and a deck that restarts re-reads everything anyway.
  */
 const _lastRead = new Map();
+
+/** How many rows each profile had at its last real read, so a row can report
+ *  what was ADDED rather than the running total. */
+const _lastCount = new Map();
+
 
 /** Whether the archive gained or altered anything worth a disk write. Compared
  *  on the shape a card is drawn from, so a re-read that found exactly the same
@@ -412,7 +417,6 @@ export async function browserWatchSnapshot({
   if (quietMs !== undefined) opts.quietMs = quietMs;
 
   const reports = [];
-  let quiet = 0;   // profiles whose History had not moved, for the heartbeat
   let allFindings = [];
   let anyDegraded = false;
   let oldestSeen = null;
@@ -447,22 +451,40 @@ export async function browserWatchSnapshot({
     else if (!read.degraded) _lastRead.set(key, { findings, oldest, human });
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
-    // A poll that found the file unchanged says nothing. See HEARTBEAT_MS.
-    else if (read.cached) quiet += 1;
+    // A poll that found the file unchanged says nothing at all.
+    else if (read.cached) { /* silent */ }
     else {
       // `, 0 flagged` on every line is what made them all look alike: the
       // count that matters is the one that is not zero, and printing the zero
       // beside it buried the difference. Absence is the message.
+      // THE DELTA, NOT THE RUNNING TOTAL. `read.rows` is every row since this
+      // deck started, so re-reporting its length made the feed a counter
+      // dressed as a log: "2 visits", "4 visits", "7 visits" are not three
+      // events of those sizes, they are one number growing. Each row is now a
+      // discrete fact — what this browser added since the last time the file
+      // moved — which is what a log line is supposed to be.
+      //
+      // And a read that added nothing says nothing. Chrome touches this file
+      // for reasons of its own, so an mtime that moved is not proof that
+      // anything happened; only a row count that grew is.
       const n = read.rows.length;
-      const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
-      note(findings.length > 0 ? "find" : "ok",
-           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}${found}`, now,
-           {
-             browser: profile.name,
-             profile: profile.profile,
-             value: `${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}`,
-             flagged: findings.length,
-           });
+      const added = n - (_lastCount.get(key) ?? 0);
+      _lastCount.set(key, n);
+      if (added > 0 || findings.length > 0) {
+        const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
+        note(findings.length > 0 ? "find" : "ok",
+             `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
+             {
+               browser: profile.name,
+               profile: profile.profile,
+               // `+` because the whole point of the change was that this is a
+               // DELTA and not a total, and a bare number in a column of
+               // numbers reads as a quantity of something rather than as
+               // growth. The noun matches the overview's caption above it.
+               value: `+${added.toLocaleString("en-US")} ${added === 1 ? "entry" : "entries"}`,
+               flagged: findings.length,
+             });
+      }
     }
     allFindings = allFindings.concat(findings);
     if (oldest !== null && (oldestSeen === null || oldest < oldestSeen)) oldestSeen = oldest;
@@ -482,12 +504,17 @@ export async function browserWatchSnapshot({
     });
   }
 
-  // Proof of life, at a rate a person can read. Only when every profile was
-  // quiet — a poll that read something has already said so in its own line.
-  if (quiet === reports.length && quiet > 0 && now - _lastBeat >= HEARTBEAT_MS) {
-    _lastBeat = now;
-    note("info", `still watching ${quiet} profile${quiet === 1 ? "" : "s"} — nothing new`, now);
-  }
+  // NO HEARTBEAT ROW. A successful check that found nothing is not an event,
+  // and writing one made the feed's own bookkeeping its main content — after
+  // two hours the panel would hold a hundred lines saying nothing happened and
+  // the three that said something would be buried among them, or evicted by
+  // them, since this buffer is bounded at 200.
+  //
+  // Liveness is said where it costs nothing: the sweep turns, the dot is lit,
+  // and `checkedMs` below is the honest timestamp of the last poll. Errors,
+  // access failures and the reader's own actions still get rows, because those
+  // are not "nothing happened".
+  _checks += 1;
 
   const live = toEpisodes(allFindings, gapMs === undefined ? undefined : { gapMs });
 
@@ -511,8 +538,11 @@ export async function browserWatchSnapshot({
     // per page it gained.
     const known = new Set(store.episodes.map(e => `${e.host} ${e.startMs}`));
     const fresh = kept.filter(e => !known.has(`${e.host} ${e.startMs}`));
-    note(fresh.length > 0 ? "find" : "ok",
-         `${fresh.length || "no"} new · ${kept.length} since this deck started`, now);
+    // Only when something actually arrived. "no new · 3 since this deck
+    // started" is the deck telling itself it wrote a file, which is not news.
+    if (fresh.length > 0) {
+      note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
+    }
     await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept }, undefined, deps);
     await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
 
@@ -534,6 +564,11 @@ export async function browserWatchSnapshot({
     }
   }
   const episodes = enabled ? kept : live;
+
+  // Stamped after the work, so it means "a poll finished" rather than "a poll
+  // began" — the difference shows on the first look, which copies every
+  // database and can take a second.
+  _checkedMs = now;
 
   const browsers = await surveyBrowsers(platform, env, now, deps);
 
@@ -562,6 +597,13 @@ export async function browserWatchSnapshot({
       lastHumanMs: lastHuman,
       quietMs: quietMs ?? 15 * 60_000,
       logPath: logPath(),
+      // When the deck last FINISHED a poll, and how many it has done. The
+      // panel's liveness reads from these; the heartbeat row that used to
+      // carry it is gone. Not `lastWrittenMs` — that is the History file's
+      // mtime, a fact about the browser rather than about the watch, and on an
+      // idle machine it grows forever while the watch keeps looking.
+      checkedMs: _checkedMs,
+      checks: _checks,
       // How many episodes this deck has seen since it started. Zero with the
       // watch off is not a fault — it is the switch doing what it says — and the
       // panel needs the number to be able to say which of the two it is.

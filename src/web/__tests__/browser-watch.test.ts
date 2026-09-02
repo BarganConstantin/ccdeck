@@ -351,25 +351,32 @@ describe("a log a person can read", () => {
     // working" answered it by making its own answer unfindable.
     const server = src("../../server/browser-watch.mjs");
     expect(server).not.toMatch(/unchanged, nothing to re-read/);
-    expect(server).toMatch(/else if \(read\.cached\) quiet \+= 1;/);
+    expect(server).toMatch(/else if \(read\.cached\) \{ \/\* silent \*\/ \}/);
   });
 
-  it("proves it is alive on a clock instead, and only when every profile was quiet", () => {
-    // A watch has to show it is running; proving it twelve times a minute
-    // proves nothing. Same trade the shell tool made with its heartbeat. And a
-    // poll that DID read something has already said so in its own line, so the
-    // beat is for the case where nothing spoke at all.
+  it("proves it is alive with a number, not with a row", () => {
+    // This used to be a five-minute heartbeat line. It proved the watch was
+    // running by writing into the feed it was reporting on — and the feed is
+    // bounded at 200, so on a machine somebody browses, bookkeeping does not
+    // merely clutter it, it evicts the findings the panel exists to show.
+    // A count and a timestamp say the same thing and cost no rows.
     const server = src("../../server/browser-watch.mjs");
-    expect(server).toMatch(/const HEARTBEAT_MS = 5 \* 60_000;/);
-    expect(server).toMatch(/quiet === reports\.length && quiet > 0 && now - _lastBeat >= HEARTBEAT_MS/);
+    expect(server, "the heartbeat row is back").not.toMatch(/still watching \$\{quiet\}/);
+    expect(server).toMatch(/checkedMs: _checkedMs,/);
+    expect(server).toMatch(/checks: _checks,/);
   });
 
-  it("beats again after a manual refresh", () => {
-    // Pressing Refresh is a person asking whether it is working. Answering with
-    // silence because the clock has not come round is the wrong answer.
+  it("stamps the check when the poll FINISHED, not when it began", () => {
+    // The difference shows on the first look, which copies every database and
+    // can take a second — a stamp taken at the start would claim the deck had
+    // just finished looking while it was still looking.
     const server = src("../../server/browser-watch.mjs");
-    const fn = server.slice(server.indexOf("export function invalidateBrowserWatchCache"));
-    expect(fn.slice(0, 320)).toMatch(/_lastBeat = 0;/);
+    const assign = server.indexOf("_checkedMs = now;");
+    const survey = server.indexOf("const browsers = await surveyBrowsers");
+    expect(assign, "_checkedMs is never assigned").toBeGreaterThan(0);
+    expect(assign, "the stamp is taken before the work it claims to have finished")
+      .toBeLessThan(survey);
+    expect(server.slice(0, assign)).toContain("const episodes = enabled ? kept : live;");
   });
 });
 
