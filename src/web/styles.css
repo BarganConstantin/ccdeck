@@ -7273,6 +7273,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    `ok` is the deck working and sits at full text weight; `info` is the deck
    deciding NOT to work and recedes; `warn` is the only true fault here. */
 .bw-log-line.find .bw-log-text { color: var(--accent); font-weight: 600; }
+/* The reader's own hand. These are the only lines in the file a person put
+   there, and they are what somebody scans for when asking "what did I change
+   and when" — so they read as a different KIND of line rather than a louder
+   one: full text weight, and a switch glyph in the gutter instead of a dot. */
+.bw-log-line.act .bw-log-text { color: var(--text); }
 .bw-log-line.ok .bw-log-text { color: var(--text); }
 .bw-log-line.info .bw-log-text { color: var(--text-dim); }
 .bw-log-line.warn .bw-log-text { color: var(--warn); }
@@ -7288,6 +7293,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   color: var(--text-dim);
 }
 .bw-log-line.find::before { content: "▸"; color: var(--accent); }
+.bw-log-line.act::before { content: "◆"; color: var(--muted); }
 .bw-log-line.warn::before { content: "!"; color: var(--warn); }
 
 /* One column per day of the window, standing on a continuous baseline.

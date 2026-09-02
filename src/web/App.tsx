@@ -4090,6 +4090,11 @@ function Inner() {
             setWatchSeenMs(ms);
             try { localStorage.setItem(SEEN_KEY, String(ms)); } catch { /* private window */ }
           }}
+          /* The switch lives in the dialog and the eye lives up here, reading a
+             five-minute poll. Without this the eye stays lit for up to five
+             minutes after the watch is turned off — the one control whose whole
+             job is to be true at a glance, lying. */
+          onWatching={setWatchOn}
         />
       )}
       {contextFor && (() => {

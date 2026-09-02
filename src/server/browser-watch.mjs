@@ -204,14 +204,17 @@ const logLines = [];
 /**
  * One line of what the watch did.
  *
- * FOUR LEVELS, AND THEY ARE NOT SEVERITIES. `find` is the only one that means
- * something happened; `ok` is the deck working, `info` is the deck deciding not
- * to work, and `warn` is the deck unable to. A log where every line is the same
- * weight is a log nobody scans — and the one line worth catching here is a
- * program having driven the browser, which is not an error and must not be
- * dressed as one.
+ * FIVE LEVELS, AND THEY ARE NOT SEVERITIES. `find` is the only one that means
+ * something was found; `act` is the reader themselves, changing a setting or
+ * the switch — the only lines in the file a person put there, and the ones they
+ * scan for when asking "what did I change and when"; `ok` is the deck working,
+ * `info` is the deck deciding not to work, and `warn` is the deck unable to.
  *
- * @param {"find"|"ok"|"info"|"warn"} level
+ * A log where every line is the same weight is a log nobody scans — and the one
+ * line worth catching here is a program having driven the browser, which is not
+ * an error and must not be dressed as one.
+ *
+ * @param {"find"|"act"|"ok"|"info"|"warn"} level
  */
 function note(level, text, atMs = Date.now()) {
   logLines.unshift({ atMs, level, text });
@@ -225,7 +228,7 @@ export function watchLog() {
 /** Called by the settings route, which is the one moment worth a line of its
  *  own: everything else here is the deck reading, and this is the user acting. */
 export function noteWatchSetting(text) {
-  note("ok", text);
+  note("act", text);
 }
 
 /**
@@ -392,9 +395,13 @@ export async function browserWatchSnapshot({
     // A poll that found the file unchanged says nothing. See HEARTBEAT_MS.
     else if (read.cached) quiet += 1;
     else {
+      // `, 0 flagged` on every line is what made them all look alike: the
+      // count that matters is the one that is not zero, and printing the zero
+      // beside it buried the difference. Absence is the message.
       const n = read.rows.length;
+      const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
       note(findings.length > 0 ? "find" : "ok",
-           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}, ${findings.length} flagged`, now);
+           `${where} — read ${n.toLocaleString("en-US")} visit${n === 1 ? "" : "s"}${found}`, now);
     }
     allFindings = allFindings.concat(findings);
     for (const row of read.rows) {

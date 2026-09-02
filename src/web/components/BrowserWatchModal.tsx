@@ -46,7 +46,7 @@ export interface WatchSettings {
 
 export interface WatchLine {
   atMs: number;
-  level: "ok" | "info" | "warn";
+  level: "find" | "act" | "ok" | "info" | "warn";
   text: string;
 }
 
@@ -120,9 +120,15 @@ const bwTabId = (id: string) => `bw-tab-${id}`;
 export default function BrowserWatchModal({
   onClose,
   onSeen,
+  onWatching,
 }: {
   onClose: () => void;
   onSeen: (ms: number) => void;
+  /** The topbar keeps its own copy of "is it watching", refreshed on a
+   *  five-minute poll. The switch is in here, so without this the eye stays
+   *  lit for up to five minutes after it is turned off — the one control whose
+   *  whole job is to be true at a glance, lying. */
+  onWatching: (on: boolean) => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
@@ -155,14 +161,16 @@ export default function BrowserWatchModal({
     try {
       const r = await fetch(`/api/browser-watch?quiet=${quiet}${refresh ? "&refresh=1" : ""}`);
       if (!r.ok) throw new Error(`the deck answered ${r.status}`);
-      setSnap(await r.json());
+      const next = await r.json();
+      setSnap(next);
+      onWatching(next?.settings?.enabled === true);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
-  }, [quiet]);
+  }, [quiet, onWatching]);
 
   useEffect(() => { void load(false); }, [load]);
 
@@ -314,52 +322,6 @@ export default function BrowserWatchModal({
             </div>
           )}
 
-          {snap && why && (
-            <div className="bw-settings">
-              <label title={
-                "A program opening a page counts as a finding only if nobody had touched the browser "
-                + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
-              }>
-                <span>Nobody browsing for</span>
-                <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
-                  <option value={1}>1 min</option>
-                  <option value={5}>5 min</option>
-                  <option value={15}>15 min</option>
-                  <option value={30}>30 min</option>
-                  <option value={60}>60 min</option>
-                </select>
-              </label>
-
-              <label>
-                <span>When it finds one</span>
-                <select
-                  value={snap.settings.reaction}
-                  onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
-                  disabled={!snap.settings.enabled}
-                  title={snap.settings.enabled
-                    ? "What to do besides writing it down."
-                    : "Turn watching on to arm a reaction."}
-                >
-                  {(snap.reactions ?? ["notify"]).map(r => (
-                    <option key={r} value={r}>
-                      {r === "notify" ? "notify me"
-                        : r === "close-tab" ? "close the tab"
-                        : "quit the browser"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <p className="bw-settings-note">
-                Chrome marks a navigation that came from an extension or a command rather than from a
-                click. These are the ones that happened while nobody had touched the browser for the
-                time above. <strong>Usually that is your own agent doing what you asked.</strong>{" "}
-                Nothing from before this deck started is read, and every address is written in full to{" "}
-                <code className="bw-path">{snap.coverage.logPath}</code>.
-              </p>
-            </div>
-          )}
-
           {snap && tab === "live" && (
             <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
               {snap.log.length === 0 ? (
@@ -454,6 +416,52 @@ export default function BrowserWatchModal({
                 </ul>
               )}
             </section>
+          )}
+
+          {snap && why && (
+            <div className="bw-settings">
+              <label title={
+                "A program opening a page counts as a finding only if nobody had touched the browser "
+                + "for this long. Shorter catches more and reports more of your own work; longer is quieter."
+              }>
+                <span>Nobody browsing for</span>
+                <select value={quiet} onChange={e => { setQuiet(Number(e.target.value)); void save({ quietMinutes: Number(e.target.value) }); }}>
+                  <option value={1}>1 min</option>
+                  <option value={5}>5 min</option>
+                  <option value={15}>15 min</option>
+                  <option value={30}>30 min</option>
+                  <option value={60}>60 min</option>
+                </select>
+              </label>
+
+              <label>
+                <span>When it finds one</span>
+                <select
+                  value={snap.settings.reaction}
+                  onChange={e => void save({ reaction: e.target.value as WatchSettings["reaction"] })}
+                  disabled={!snap.settings.enabled}
+                  title={snap.settings.enabled
+                    ? "What to do besides writing it down."
+                    : "Turn watching on to arm a reaction."}
+                >
+                  {(snap.reactions ?? ["notify"]).map(r => (
+                    <option key={r} value={r}>
+                      {r === "notify" ? "notify me"
+                        : r === "close-tab" ? "close the tab"
+                        : "quit the browser"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="bw-settings-note">
+                Chrome marks a navigation that came from an extension or a command rather than from a
+                click. These are the ones that happened while nobody had touched the browser for the
+                time above. <strong>Usually that is your own agent doing what you asked.</strong>{" "}
+                Nothing from before this deck started is read, and every address is written in full to{" "}
+                <code className="bw-path">{snap.coverage.logPath}</code>.
+              </p>
+            </div>
           )}
         </div>
       </div>
