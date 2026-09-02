@@ -331,41 +331,42 @@ export default function BrowserWatchModal({
           )}
 
           {snap && tab === "live" && (
-            // Above the transcript, not instead of it. The radar answers "is
-            // this alive, and over what" in a glance; the lines under it answer
-            // "what exactly happened", which no picture does well.
-            <WatchRadar
-              browsers={(snap.browsers ?? [])
-                .filter(b => b.installed && b.profiles > 0)
-                .map(b => ({
-                  key: b.key,
-                  name: b.name,
-                  running: b.running,
-                  lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
-                }))}
-              findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
-              watching={snap.settings.enabled}
-              palette={palette}
-            />
-          )}
-
-          {snap && tab === "live" && (
-            <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
-              {snap.log.length === 0 ? (
-                <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
-              ) : snap.log.map((l, i) => (
-                <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${i}`}>
-                  {/* 24-hour, and not the reader's locale. An en-US clock
-                      renders "06:28:55 PM", which is four characters wider than
-                      the column and collided with the text beside it — and a
-                      log is written in 24-hour time everywhere anyway. */}
-                  <span className="bw-log-time">
-                    {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
-                  </span>
-                  <span className="bw-log-text">{l.text}</span>
-                </div>
-              ))}
-            </section>
+            /* Side by side, because each was wasting the other's space: the
+               disc is bounded by height and left the width beside it empty,
+               and the lines are short and left a field of nothing to their
+               right. The picture answers "is this alive", the transcript
+               answers "what exactly happened", and they are read together. */
+            <div className="bw-live">
+              <WatchRadar
+                browsers={(snap.browsers ?? [])
+                  .filter(b => b.installed && b.profiles > 0)
+                  .map(b => ({
+                    key: b.key,
+                    name: b.name,
+                    running: b.running,
+                    lastReadMs: snap.profiles.find(p => p.browser === b.key)?.lastWrittenMs ?? null,
+                  }))}
+                findings={snap.episodes.slice(0, 6).map(e => ({ browser: e.browser ?? null, atMs: e.endMs }))}
+                watching={snap.settings.enabled}
+                palette={palette}
+              />
+              <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
+                {snap.log.length === 0 ? (
+                  <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
+                ) : snap.log.map((l, i) => (
+                  <div className={`bw-log-line ${l.level}`} key={`${l.atMs}-${i}`}>
+                    {/* 24-hour, and not the reader's locale. An en-US clock
+                        renders "06:28:55 PM", which is four characters wider than
+                        the column and collided with the text beside it — and a
+                        log is written in 24-hour time everywhere anyway. */}
+                    <span className="bw-log-time">
+                      {new Date(l.atMs).toLocaleTimeString("en-GB", { hour12: false })}
+                    </span>
+                    <span className="bw-log-text">{l.text}</span>
+                  </div>
+                ))}
+              </section>
+            </div>
           )}
 
           {tab === "history" && grouped.map((g, i) => (

@@ -7462,3 +7462,20 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   /* The sweep already freezes itself; nothing here needs to change colour. */
   .bw-radar { opacity: 1; }
 }
+
+/* Radar left, transcript right. Each was wasting the other's space: the disc is
+   bounded by height and left the width beside it empty, while the lines are
+   short and left a field of nothing to their right. Read together, the picture
+   answers "is this alive" and the lines answer "what exactly happened".
+
+   The radar takes a fixed column and the log takes the rest, because the disc
+   has an intrinsic size and text does not — a fraction each would shrink the
+   circle on a narrow panel to keep a column of wrapped log lines company. */
+.bw-live { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; align-items: start; }
+.bw-live .bw-radar { height: 200px; }
+.bw-live .bw-log { max-height: 200px; }
+/* Under about 640px there is no room for two columns of anything, so they
+   stack — the radar first, since it is the glance. */
+@media (max-width: 640px) {
+  .bw-live { grid-template-columns: minmax(0, 1fr); }
+}
