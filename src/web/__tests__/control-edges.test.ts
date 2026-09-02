@@ -556,6 +556,9 @@ const CONTROLS: Control[] = [
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
   { at: ".aa-link", states: [".aa-link:hover"], beds: ["--panel"] },
   { at: ".aa-field input", beds: ["--panel"] },
+  // The escape hatch on an import result row — a pill whose border is the
+  // whole of its boundary, so its hover is measured with it.
+  { at: ".aa-result-fix", states: [".aa-result-fix:hover"], beds: ["--panel"] },
 ];
 
 /** What the control is filled with at rest. `background: none` and a rule that

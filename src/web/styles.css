@@ -6898,6 +6898,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ap-rotate:active:not(:disabled),
   .ap-lanes-more:active,
   .aa-tab:active,
+  .aa-result-fix:active,
   .bw-ep-head:active,
   .bw-toggle:active,
   .bw-help:active,
@@ -7895,8 +7896,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      the box answers is a list that misses on touch and on a hurried mouse. */
 }
 .sa-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sa-row input { flex: none; accent-color: var(--accent); cursor: pointer; }
-.sa-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sa-row input { flex: none; accent-color: var(--accent); }
 .sa-who { color: var(--text); font-size: 12px; overflow-wrap: anywhere; }
 /* The disambiguator only appears where the label cannot stand alone, so it is
    quiet by default — it is there to be read once, when two rows look alike. */
@@ -7931,7 +7931,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   margin: 0;
   padding: 0;
   list-style: none;
-  width: 100%;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -7976,3 +7976,8 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .aa-result-fix:hover { color: var(--text); border-color: var(--accent); }
 .aa-result-fix:active { transform: scale(0.97); }
 .aa-result-err { flex-basis: 100%; color: var(--err); font-size: 11px; line-height: 1.5; }
+
+/* The panel-level share, beside the + and the reload. An arrow glyph rides a
+   little high in a 24px box; 1px 6px is the same seat `.ap-refresh` takes and
+   changes no pixel of the box, only where the glyph sits inside it. */
+.ap-share-set { padding: 1px 6px; }

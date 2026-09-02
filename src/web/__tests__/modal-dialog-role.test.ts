@@ -32,11 +32,12 @@ const MODALS = readdirSync(dir)
   .filter(f => backdropTag(read(f)) !== null);
 
 describe("the deck's modals", () => {
-  it("has found all nine of them, so a new one cannot skip this file", () => {
+  it("has found all ten of them, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
-    // release notes. The count is not an allowlist: raising it is how a dialog
-    // enters the sweep, and every assertion below then applies to it unchanged.
-    expect(MODALS.length).toBe(9);
+    // release notes, nine until #723 added the share picker. The count is not
+    // an allowlist: raising it is how a dialog enters the sweep, and every
+    // assertion below then applies to it unchanged.
+    expect(MODALS.length).toBe(10);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

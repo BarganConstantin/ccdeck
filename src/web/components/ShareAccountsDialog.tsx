@@ -124,7 +124,10 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                     this text, so offering to copy it is offering a dead end.
                     That is the only thing the expiry does — see shareExpiry —
                     and it is a statement about the dialog, not about the copy. */}
-                <button type="button" className="ap-manage-btn" ref={primaryRef} disabled={busy}
+                {/* #620: never `disabled={busy}`. A control that disables
+                    itself on its own press drops focus to the document
+                    body; nothing is in flight on this branch anyway. */}
+                <button type="button" className="ap-manage-btn" ref={primaryRef}
                   onClick={async () => {
                     if (dead) { setBundle(null); return; }
                     if (await copyText(bundle.blob)) {
