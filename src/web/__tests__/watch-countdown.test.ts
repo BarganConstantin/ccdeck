@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { armsIn, untilLabel } from "../components/BrowserWatchModal";
 
 describe("when a program page would start counting", () => {
@@ -49,5 +51,34 @@ describe("how long ago the deck last looked", () => {
     expect(agoLabel(now - 3 * 3600_000, now)).toBe("3 hr ago");
     // Nothing read yet is a different answer from "a long time ago".
     expect(agoLabel(null, now)).toBeNull();
+  });
+});
+
+describe("one clock, everywhere in the panel", () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../components/BrowserWatchModal.tsx", import.meta.url)), "utf8");
+
+  it("reads no time in the viewer's own locale", () => {
+    // An en-US machine renders `01:28 PM` where the rest of the panel renders
+    // `13:28`, and the episode head sat directly above its own URL rows doing
+    // exactly that — two clocks in one card, the reader left to work out they
+    // are the same minute. Every stamp here is 24-hour, which is also what the
+    // log file on disk is written in.
+    const locales = [...source.matchAll(/toLocaleTimeString\(([^,)]*)/g)].map(m => m[1].trim());
+    expect(locales.length, "no clock found — this test has stopped testing anything")
+      .toBeGreaterThan(0);
+    expect(locales.filter(l => l !== '"en-GB"'), "a clock reads the viewer's locale")
+      .toEqual([]);
+    // And every one of them says so explicitly rather than trusting en-GB's
+    // default, which a future ICU could change.
+    const calls = [...source.matchAll(/toLocaleTimeString\("en-GB"[^)]*\)/g)].map(m => m[0]);
+    expect(calls.every(c => /hour12:\s*false/.test(c)), `a clock omits hour12: ${calls.join(" | ")}`)
+      .toBe(true);
+  });
+
+  it("leaves the DATE in the reader's locale, which is a different question", () => {
+    // A day heading is read, not scanned into a column, and "Wed, Sep 2" versus
+    // "mié, 2 sept" costs nothing and gains the reader their own month names.
+    expect(source).toMatch(/toLocaleDateString\(undefined,/);
   });
 });

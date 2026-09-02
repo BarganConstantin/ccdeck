@@ -243,7 +243,11 @@ export function watchTrouble(snap: {
 
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
 function span(e: WatchEpisode): string {
-  const t = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  // 24-hour, like every other clock in this panel. It was the reader's locale,
+  // so on an en-US machine an episode's head read `01:28 PM` directly above its
+  // own URL rows reading `13:28` — two clocks in one card, and the reader left
+  // to work out they are the same minute.
+  const t = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
   return e.count === 1 || e.endMs - e.startMs < 60_000 ? t(e.startMs) : `${t(e.startMs)} → ${t(e.endMs)}`;
 }
 
