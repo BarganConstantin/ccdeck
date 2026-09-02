@@ -7031,12 +7031,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .bw-empty strong { font-size: 13px; }
 .bw-empty p { margin: 0; font-size: 12px; color: var(--muted); }
 
-.bw-day { display: flex; flex-direction: column; gap: 6px; }
+.bw-day { display: flex; flex-direction: column; gap: 8px; }
 .bw-day h4 {
   margin: 0;
   font-size: 10px;
@@ -7075,7 +7075,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-ep-chev { font-size: 9px; color: var(--muted); width: 10px; text-align: center; }
 .bw-ep-head:hover .bw-ep-chev { color: var(--text); }
 
-.bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 3px; }
+.bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 4px; }
 /* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
    locale renders and what wrapped "08:03 PM" onto two lines at 44px. The
    column is sized for the widest form rather than the current one, because the
@@ -7093,7 +7093,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   color: var(--text-dim);
 }
 .bw-profiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.bw-profiles li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
+.bw-profiles li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
 .bw-prof-name { font-weight: 600; }
 .bw-prof-meta { color: var(--muted); font-size: 11px; }
 .bw-note { margin: 0; font-size: 11px; color: var(--text-dim); max-width: 72ch; line-height: 1.55; }
@@ -7116,7 +7116,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-row {
   display: grid;
   grid-template-columns: 8px auto 1fr auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   background: var(--panel);
   padding: 10px 14px;
@@ -7134,7 +7134,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    of it, and it wraps at spaces rather than mid-word — `word-break: break-all`
    once split `killall` as `k illall`, which reads as a corrupted command in
    the one string this app asks anyone to run as root. */
-.bw-cmd { background: var(--bg-soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.bw-cmd { background: var(--bg-soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .bw-cmd code {
   display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -7146,7 +7146,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   word-break: normal;
   user-select: all;
 }
-.bw-cmd-foot { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.bw-cmd-foot { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .bw-cmd-foot span { font-size: 11px; color: var(--text-dim); max-width: 62ch; line-height: 1.5; }
 
 .bw-why {
@@ -7241,11 +7241,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* Newest first and scrolling inside itself, so a long run does not push the
    browsers and the footer off the panel. */
-.bw-log { display: flex; flex-direction: column; gap: 3px; max-height: 320px; overflow-y: auto; }
+.bw-log { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
 /* 66px fits `06:28:55` with room to spare. It was 60 against a 12-hour clock
    whose "06:28:55 PM" is four characters wider than that, so the stamp ran into
    the text beside it — the column is sized for the string it now renders. */
-.bw-log-line { display: grid; grid-template-columns: 10px 66px 1fr; gap: 10px; font-size: 11px; align-items: baseline; }
+.bw-log-line { display: grid; grid-template-columns: 10px 66px 1fr; gap: 8px; font-size: 11px; align-items: baseline; }
 .bw-log-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--text-dim);
@@ -7325,8 +7325,8 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    ones dimmed rather than dropped, because "not installed" and "installed and
    never opened" are different answers and a list of only what was found cannot
    tell them apart. */
-.bw-browsers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-.bw-browsers li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
+.bw-browsers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bw-browsers li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 12px; }
 .bw-browsers li.absent { opacity: 0.45; }
 .bw-relay { font-size: 10px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 /* Amber, never red. A connection to that address is not proof of a relay
@@ -7338,7 +7338,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* The first read copies a History database and classifies tens of thousands of
    rows, so the panel is briefly empty on open. A header over nothing reads as
    broken rather than busy. */
-.bw-loading { display: flex; flex-direction: column; gap: 10px; padding: 18px 0; }
+.bw-loading { display: flex; flex-direction: column; gap: 8px; padding: 18px 0; }
 .bw-loading p { margin: 0; font-size: 12px; color: var(--muted); }
 /* A fixed track with a moving sliver, rather than a moving gradient. Reduced
    motion then needs only `animation: none` — the bar keeps its own colours and
@@ -7472,10 +7472,29 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    has an intrinsic size and text does not — a fraction each would shrink the
    circle on a narrow panel to keep a column of wrapped log lines company. */
 .bw-live { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; align-items: start; }
-.bw-live .bw-radar { height: 200px; }
-.bw-live .bw-log { max-height: 200px; }
+/* Both columns hold the same box, so the row does not grow as lines arrive and
+   the disc does not sit in a taller frame than the text beside it. */
+.bw-live .bw-radar { height: 158px; }
+.bw-live .bw-log { min-height: 200px; max-height: 200px; }
 /* Under about 640px there is no room for two columns of anything, so they
    stack — the radar first, since it is the glance. */
 @media (max-width: 640px) {
   .bw-live { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The radar and the names it needs, as one column. */
+.bw-scope { display: flex; flex-direction: column; gap: 8px; }
+.bw-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bw-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+/* Blue for a browser that is running, matching its blip. The dot is what ties
+   the two together — a legend whose marks do not look like the marks they
+   explain is a second thing to learn. */
+.bw-legend li.on { color: var(--accent); }
+.bw-legend-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }

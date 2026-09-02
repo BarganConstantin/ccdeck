@@ -13,7 +13,12 @@
 //                  it is not, and that is the honest picture of watch-off.
 //   a blip         one watched browser, at a fixed angle so the picture is the
 //                  same every time you open it. Its ring is how recently that
-//                  profile was actually read.
+//                  profile was actually read. Named in the legend beneath
+//                  rather than on the canvas: a label long enough to matter —
+//                  "Google Chrome" — is wider than half this column, and
+//                  reserving room for it collapsed the disc to a coin. Real
+//                  text also themes, wraps and reads to a screen reader, none
+//                  of which canvas text does.
 //   brightening    the sweep passing over it. The pass is when a read happens,
 //                  so the light IS the event rather than an ornament on it.
 //   a finding      a ring that expands and fades from the browser it came from.
@@ -167,18 +172,6 @@ export default function WatchRadar({
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        // The name, on the side the blip is on. A radar whose points are
-        // anonymous is a pattern rather than a reading, and the panel has the
-        // width to spare — the disc is bounded by height, so the space beside
-        // it was doing nothing.
-        const right = Math.cos(angle) >= 0;
-        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
-        ctx.textAlign = right ? "left" : "right";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = b.running ? accent : dim;
-        ctx.globalAlpha = b.running ? 0.5 + lit * 0.5 : 0.4;
-        ctx.fillText(b.name, x + (right ? 9 : -9), y);
-        ctx.globalAlpha = 1;
       });
 
       // Findings: a ring leaving the browser it came from. It outlives the

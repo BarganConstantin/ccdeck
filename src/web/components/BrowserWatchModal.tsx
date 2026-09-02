@@ -337,7 +337,8 @@ export default function BrowserWatchModal({
                right. The picture answers "is this alive", the transcript
                answers "what exactly happened", and they are read together. */
             <div className="bw-live">
-              <WatchRadar
+              <div className="bw-scope">
+                <WatchRadar
                 browsers={(snap.browsers ?? [])
                   .filter(b => b.installed && b.profiles > 0)
                   .map(b => ({
@@ -350,6 +351,20 @@ export default function BrowserWatchModal({
                 watching={snap.settings.enabled}
                 palette={palette}
               />
+                {/* The names, as real text under the disc rather than drawn on
+                    it: "Google Chrome" is wider than half this column, so
+                    reserving canvas room for it collapsed the disc to a coin —
+                    and text themes, wraps and reads aloud, which canvas text
+                    does none of. */}
+                <ul className="bw-legend">
+                  {(snap.browsers ?? []).filter(b => b.installed && b.profiles > 0).map(b => (
+                    <li key={b.key} className={b.running ? "on" : ""}>
+                      <span className="bw-legend-dot" aria-hidden />
+                      {b.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <section className="bw-log" id={BW_PANEL_ID} role="tabpanel" aria-labelledby={bwTabId(tab)} aria-label="What the watch has been doing">
                 {snap.log.length === 0 ? (
                   <p className="bw-note">Nothing yet. The deck writes a line here each time it looks.</p>
