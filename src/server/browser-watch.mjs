@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
-import { classify, toEpisodes, defaultExclusions } from "./agent-activity.mjs";
+import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
 import { appendLog, logPath, mergeEpisodes, readStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
@@ -380,6 +380,12 @@ export async function browserWatchSnapshot({
   let allFindings = [];
   let anyDegraded = false;
   let oldestSeen = null;
+  // The newest visit a PERSON made, across every profile. It is what the quiet
+  // gate measures against, so it is also the honest answer to "would a program
+  // page opened right now be reported" — which is the question somebody has
+  // when they are sitting in front of the browser wondering whether the watch
+  // is doing anything.
+  let lastHuman = null;
 
   for (const profile of profiles) {
     const read = await visitsFor(profile, { sinceChromeTime, copyDir, deps });
@@ -406,6 +412,9 @@ export async function browserWatchSnapshot({
     allFindings = allFindings.concat(findings);
     for (const row of read.rows) {
       if (oldestSeen === null || row.timeMs < oldestSeen) oldestSeen = row.timeMs;
+      if (!isProgramNavigation(row.transition) && (lastHuman === null || row.timeMs > lastHuman)) {
+        lastHuman = row.timeMs;
+      }
     }
     reports.push({
       browser: profile.browser,
@@ -497,6 +506,10 @@ export async function browserWatchSnapshot({
       // how far back it went.
       startedMs: sinceMs,
       oldestVisitMs: oldestSeen,
+      // Null when nobody has browsed since the deck started, which is itself
+      // the answer: the gate is already open.
+      lastHumanMs: lastHuman,
+      quietMs: quietMs ?? 15 * 60_000,
       logPath: logPath(),
       // How many episodes this deck has seen since it started. Zero with the
       // watch off is not a fault — it is the switch doing what it says — and the

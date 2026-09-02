@@ -73,7 +73,7 @@ export interface WatchSnapshot {
   profiles: WatchProfile[];
   browsers: WatchBrowser[];
   episodes: WatchEpisode[];
-  coverage: { startedMs: number; oldestVisitMs: number | null; logPath: string; archived: number; now: number };
+  coverage: { startedMs: number; oldestVisitMs: number | null; lastHumanMs: number | null; quietMs: number; logPath: string; archived: number; now: number };
   degraded: boolean;
 }
 
@@ -91,6 +91,33 @@ export const SEEN_KEY = "agent-dag.browserWatch.seenMs";
  *  people learn to ignore. */
 export function unseenEpisodes(episodes: WatchEpisode[], seenMs: number): WatchEpisode[] {
   return episodes.filter(e => e.startMs > seenMs);
+}
+
+/**
+ * How long until a program opening a page would be reported — or null when it
+ * already would be.
+ *
+ * The shell tool this descends from counted down to "armed" off the keyboard's
+ * idle clock. There is no keyboard here and no armed state: the gate is
+ * measured from the last navigation a PERSON made, so the honest version of the
+ * same question is "you browsed N seconds ago, and the gate opens in M".
+ *
+ * Ticking, because a countdown that only moves when the panel refetches is a
+ * stopped clock that lies for ten seconds at a time.
+ */
+export function armsIn(lastHumanMs: number | null, quietMs: number, nowMs: number): number | null {
+  if (lastHumanMs === null) return null;
+  const left = lastHumanMs + quietMs - nowMs;
+  return left > 0 ? left : null;
+}
+
+/** `2m 30s`, `45s`. Seconds all the way up, because this is a countdown and a
+ *  countdown that rounds to minutes appears frozen for a minute at a time. */
+export function untilLabel(ms: number): string {
+  const total = Math.ceil(ms / 1000);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
 /** `17:03 → 17:44`, or a single time when an episode is one page. */
@@ -147,6 +174,13 @@ export default function BrowserWatchModal({
   const [saving, setSaving] = useState(false);
   const [why, setWhy] = useState(false);
   const [showBrowsers, setShowBrowsers] = useState(false);
+  // Its own clock, so the countdown moves every second rather than jumping
+  // whenever the panel happens to refetch.
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
   // Opens on the Log, because that is the view that answers "is this thing
   // working" — and a panel that opens on an empty Episodes list looks broken on
   // the machine where nothing has happened, which is most machines most days.
@@ -256,10 +290,14 @@ export default function BrowserWatchModal({
                 nowhere, and the label already says what is happening. A second
                 press costs nothing — the server holds one read at a time and
                 hands a concurrent caller the same promise. */}
-            <button className="btn" onClick={() => void load(true)} title="Re-read every profile now">
+            {/* `glyph-btn` for the close, which is what every other modal
+                header in the deck uses — ToolModal, the accounts dialog, the
+                usage history. A second spelling of the same control is a second
+                thing to maintain and a visible seam. */}
+            <button className="ap-manage-btn" onClick={() => void load(true)} title="Re-read every profile now">
               {busy ? "reading…" : "refresh"}
             </button>
-            <button className="btn icon-btn" onClick={onClose} aria-label="Close">×</button>
+            <button className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
 
@@ -321,7 +359,17 @@ export default function BrowserWatchModal({
                   <span className="bw-toggle-knob" />
                 </button>
                 <span className="bw-bar-state">
-                  {saving ? "saving" : snap.settings.enabled ? `watching · ${snap.coverage.archived} kept` : "not watching"}
+                  {(() => {
+                    if (saving) return "saving";
+                    if (!snap.settings.enabled) return "not watching";
+                    const left = armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, tick);
+                    // The gate, said as the thing a person sitting at the
+                    // browser wants to know: not "quiet gate 15m" but "a page
+                    // opened now would not count, and here is when it would".
+                    return left === null
+                      ? `watching · ${snap.coverage.archived} kept`
+                      : `you are browsing · counts in ${untilLabel(left)}`;
+                  })()}
                 </span>
                 <button className="bw-why" onClick={() => setWhy(w => !w)} aria-expanded={why}>
                   settings
