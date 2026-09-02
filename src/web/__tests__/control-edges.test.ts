@@ -298,7 +298,14 @@ type Theme = (typeof themes)[number];
 
 function rootTokens(theme: Theme): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [, name, value] of bodyOf(`:root[data-theme="${theme}"]`).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+  // COMMENTS STRIPPED FIRST, and this is not tidiness. `[^;]+` is greedy, so a
+  // single `--name:` written inside a comment in the :root block swallows every
+  // declaration after it up to the next semicolon — and the tokens it ate are
+  // then simply absent from this Record, which every sweep in this file reads
+  // by name. A census that silently stops seeing a colour reports no failures
+  // for it. Found by writing exactly that comment while adding --text-secondary.
+  const body = bodyOf(`:root[data-theme="${theme}"]`).replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
     out[name] = value.trim();
   }
   return out;

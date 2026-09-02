@@ -6,6 +6,17 @@
   --line: #1f2229;
   --line-soft: #1a1c22;
   --text: #d8dae0;
+  /* SECONDARY READABLE TEXT — prose somebody reads to understand something,
+     as distinct from metadata they glance at.
+     It exists because dark had no room below the muted tier, which sits at
+     4.70:1 on --panel, two tenths above the AA floor — a third level under it
+     is arithmetically impossible (#787c86 measures 4.33). The level had to be
+     added ABOVE, and adding one costs nothing that already works, because
+     nothing existing moves to reach it.
+     6.89:1 on --panel, 7.19 on --bg-soft, 7.44 on --bg, and the same on both
+     stops of the topbar and node gradients. The step down to --muted is 1.47,
+     which is what the light value below is chosen to match. */
+  --text-secondary: #9aa0ab;
   /* The control surface — a fill and an edge for anything the user can operate.
      #325 measured a pill filled from --bg-soft and edged with --line and found
      it had neither: 1.04:1 and 1.14:1 on this canvas, 1.00:1 and 1.60:1 on the
@@ -122,6 +133,15 @@
   --line: #c8cdd6;
   --line-soft: #dde1e8;
   --text: #0d1117;
+  /* NOT the mirror of the dark value, and that is the whole care in it. In
+     light the muted tier is 7.87:1, BRIGHTER than dark's 4.70, so a secondary
+     copied across at 5.78 would sit BELOW the token it is supposed to outrank
+     — the hierarchy would read one way in dark and the other way in light.
+     11.82:1 on --panel, 10.44 on --bg, 10.81 on a node's lower stop. The step
+     down to --muted is 1.50 against dark's 1.47, so the distinction this token
+     exists to make feels the same in both themes rather than merely passing
+     in both. */
+  --text-secondary: #303845;
   --muted: #4a5260;
   --muted-dim: #7c8493;
   --text-dim: #5f6673;
@@ -7131,7 +7151,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 
 .bw-prof-name { font-weight: 600; }
 .bw-prof-meta { color: var(--muted); font-size: 11px; }
-.bw-note { margin: 0; font-size: 11px; color: var(--text-dim); max-width: 72ch; line-height: 1.55; }
+.bw-note { margin: 0; font-size: 11px; color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
 .bw-lead {
   margin: 0;
   font-size: 12px;
@@ -7162,7 +7182,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-row.on  .bw-dot { background: var(--accent); }
 .bw-row-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .bw-row.err .bw-row-label { color: var(--err); }
-.bw-row-detail { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bw-row-detail { font-size: 12px; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .bw-row .btn { white-space: nowrap; }
 
 /* The command, behind a press. `user-select: all` so one click takes the whole
@@ -7457,7 +7477,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* Behind a press. Six names of browsers that are not installed is
    implementation inventory, and it was three lines of it standing at the same
    weight as the profiles that are actually being read. */
-.bw-rest { margin: 0; font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+.bw-rest { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
 .bw-rest-head { align-self: flex-start; }
 .bw-chev { color: var(--text-dim); font-size: 9px; }
 /* NEUTRAL, AND THAT IS THE POINT. This was amber, which made it one of the
@@ -7481,7 +7501,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    rows, so the panel is briefly empty on open. A header over nothing reads as
    broken rather than busy. */
 .bw-loading { display: flex; flex-direction: column; gap: 8px; padding: 18px 0; }
-.bw-loading p { margin: 0; font-size: 12px; color: var(--muted); }
+.bw-loading p { margin: 0; font-size: 12px; color: var(--text-secondary); }
 /* A fixed track with a moving sliver, rather than a moving gradient. Reduced
    motion then needs only `animation: none` — the bar keeps its own colours and
    still reads as a progress track, where restyling it inside the media block
@@ -7653,10 +7673,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   flex: 1 1 30ch;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   max-width: 66ch;
 }
-.bw-settings-note strong { color: var(--muted); font-weight: 600; }
+/* Emphasis inside a --text-secondary paragraph, so it takes the tier above
+   rather than the one the paragraph left behind. */
+.bw-settings-note strong { color: var(--text); font-weight: 600; }
 
 /* The watch as the thing it is: a sweep over the browsers it visits. Not
    decoration — a log answers "what happened" well and "is this alive, and over
@@ -7789,7 +7811,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   background: var(--bg-soft);
 }
 .bw-key dt { font-size: 10px; font-weight: 600; color: var(--muted); }
-.bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-dim); }
+.bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
 
 /* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
    none of it was written where a reader could see — a visualization whose
@@ -7879,7 +7901,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
+.bw-access dd { margin: 0; font-size: 11px; line-height: 1.55; color: var(--text-secondary); }
 
 /* The Episodes view, which is the panel whether or not it has contents. The
    tabpanel role and the id the tabs point at used to ride on the first day
@@ -7890,4 +7912,4 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* An empty list here is the ORDINARY result — most machines go weeks without
    one — so the note says so rather than leaving the reader to wonder whether
    the panel is broken. */
-.bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-dim); }
+.bw-empty-note { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
