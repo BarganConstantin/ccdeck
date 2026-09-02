@@ -305,6 +305,7 @@ export default function BrowserWatchModal({
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
   const [showKey, setKey] = useState(false);
+  const [showProfKey, setProfKey] = useState(false);
   const [restOpen, setRestOpen] = useState(false);
   // Its own clock, so the countdown moves every second rather than jumping
   // whenever the panel happens to refetch.
@@ -689,7 +690,10 @@ export default function BrowserWatchModal({
                   {snap.coverage.checkedMs > 0 && (
                     <p className="bw-since">
                       Last checked {agoLabel(snap.coverage.checkedMs, tick)}
-                      {snap.coverage.checks > 1 && <> · {snap.coverage.checks.toLocaleString("en-US")} checks</>}
+                      {snap.coverage.checks > 0 && (
+                        <> · {snap.coverage.checks.toLocaleString("en-US")}{" "}
+                        {snap.coverage.checks === 1 ? "check" : "checks"}</>
+                      )}
                     </p>
                   )}
                   {gate !== null && (
@@ -709,7 +713,33 @@ export default function BrowserWatchModal({
                 </section>
 
                 <section className="bw-sec">
-                  <h4 className="bw-sec-head">Watched profiles</h4>
+                  <h4 className="bw-sec-head">
+                    Watched profiles
+                    {/* The relay note's caveat lives here rather than in a
+                        `title` on the note itself. A tooltip on a span nothing
+                        can focus is mouse-only, and this qualification is
+                        load-bearing — without it the note overclaims, because
+                        the probe cannot tell an agent channel from an open
+                        claude.ai tab. A span with `tabIndex` is not a control
+                        and `aria-label` on a generic role is invalid, so the
+                        note is plain status text and the caveat is a real
+                        disclosure, in the pattern this panel already uses. */}
+                    <button
+                      className="bw-help"
+                      onClick={() => setProfKey(k => !k)}
+                      aria-expanded={showProfKey}
+                      aria-label="What running, idle and connected to Anthropic mean"
+                    >?</button>
+                  </h4>
+                  {showProfKey && (
+                    <dl className="bw-key">
+                      <dt>Running</dt><dd>the browser has a process on this machine right now</dd>
+                      <dt>Connected</dt><dd>
+                        an open connection to an address Anthropic&apos;s relay uses — which it shares
+                        with claude.ai, so an open tab looks the same as an agent channel
+                      </dd>
+                    </dl>
+                  )}
                   <ul className="bw-profiles">
                     {watching.map(b => (
                       <li key={b.key}>
@@ -725,7 +755,7 @@ export default function BrowserWatchModal({
                              distinguish must not be the loudest thing on its
                              screen. It states what was seen and keeps the
                              qualification on its title. */
-                          <span className="bw-relay" title={b.relay.why}>connected to Anthropic</span>
+                          <span className="bw-relay">connected to Anthropic</span>
                         )}
                       </li>
                     ))}
@@ -878,13 +908,20 @@ export default function BrowserWatchModal({
                   ? (snap.settings.enabled ? "No episodes recorded yet" : "No episodes on disk")
                   : `${snap.coverage.archived} ${snap.coverage.archived === 1 ? "episode" : "episodes"} on disk`}
               </span>
+              {/* `htmlFor` forwards the CLICK to a button, which is why the
+                  whole label operates the switch — but it does not NAME one:
+                  `<label>` names form controls, and a button is not among them.
+                  So the switch was announcing itself as "switch, on" with no
+                  word for what it switches. `aria-labelledby` points at the
+                  same visible text, so the two cannot drift apart. */}
               <label className="bw-switch" htmlFor="bw-enabled">
-                <span className="bw-switch-label">Watch browser activity</span>
+                <span className="bw-switch-label" id="bw-enabled-label">Watch browser activity</span>
                 <button
                   id="bw-enabled"
                   type="button"
                   role="switch"
                   aria-checked={snap.settings.enabled}
+                  aria-labelledby="bw-enabled-label"
                   className="bw-toggle"
                   onClick={() => void save({ enabled: !snap.settings.enabled })}
                   title={snap.settings.enabled

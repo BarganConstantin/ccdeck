@@ -4,6 +4,8 @@
 // could not read said so in a log line and nowhere else, and a machine with no
 // browser open looked exactly like a quiet one.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { watchTrouble, type WatchBrowser } from "../components/BrowserWatchModal";
 
 const browser = (over: Partial<WatchBrowser>): WatchBrowser => ({
@@ -84,5 +86,28 @@ describe("what the panel says when it is not simply watching", () => {
       browsers: [browser({ running: false })],
     });
     expect(t?.kind).toBe("unreadable");
+  });
+});
+
+describe("the switch announces what it switches", () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../components/BrowserWatchModal.tsx", import.meta.url)), "utf8");
+
+  it("names itself from the label beside it, not from a label element", () => {
+    // `<label htmlFor>` forwards a CLICK to a button — which is why the whole
+    // label band operates this switch — but it does not NAME one: `<label>`
+    // names form controls, and a button is not among them. Without this the
+    // switch announced "switch, on" with no word for what it switches, which
+    // on a panel that watches browsing is the worst control to leave unnamed.
+    expect(source).toMatch(/aria-labelledby="bw-enabled-label"/);
+    expect(source).toMatch(/id="bw-enabled-label"/);
+    // Pointing at the VISIBLE text rather than repeating it, so the spoken
+    // name and the printed one cannot drift apart.
+    expect(source).toMatch(/<span className="bw-switch-label" id="bw-enabled-label">Watch browser activity<\/span>/);
+  });
+
+  it("keeps role and state on the control itself", () => {
+    expect(source).toMatch(/role="switch"/);
+    expect(source).toMatch(/aria-checked=\{snap\.settings\.enabled\}/);
   });
 });

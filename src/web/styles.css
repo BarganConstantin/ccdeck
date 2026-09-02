@@ -7150,16 +7150,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-switch:hover .bw-switch-label { color: var(--text); }
 
 .bw-prof-name { font-weight: 600; }
-.bw-prof-meta { color: var(--muted); font-size: 11px; }
 .bw-note { margin: 0; font-size: 11px; color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
-.bw-lead {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-  max-width: 72ch;
-}
-.bw-lead strong { color: var(--text); font-weight: 600; }
 
 
 /* ── Browser watch: the two state rows ────────────────────────────────────
@@ -7201,8 +7192,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   word-break: normal;
   user-select: all;
 }
-.bw-cmd-foot { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.bw-cmd-foot span { font-size: 11px; color: var(--text-dim); max-width: 62ch; line-height: 1.5; }
 
 .bw-why {
   background: none;
@@ -7458,14 +7447,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-chart-day { flex: 1; min-width: 2px; border-radius: 2px; background: var(--line-soft); }
 .bw-chart-day.hit { background: var(--accent); }
 .bw-chart-day.hit.many { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
-.bw-chart-foot {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--text-dim);
-  padding-top: 4px;
-  font-variant-numeric: tabular-nums;
-}
 
 /* Every browser the deck knows how to look at, installed or not — the absent
    ones dimmed rather than dropped, because "not installed" and "installed and
@@ -7487,15 +7468,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    cannot distinguish must not be the loudest thing on its screen. It states
    what was seen; the qualification is on its title, and the help cursor says
    there is one. Amber comes back the day the probe can tell them apart. */
-.bw-relay {
-  font-size: 10px;
-  color: var(--text-dim);
-  white-space: nowrap;
-  cursor: help;
-  border-bottom: 1px dotted var(--ctl-edge);
-  transition: color 140ms ease, border-color 140ms ease;
-}
-.bw-relay:hover { color: var(--text); border-color: var(--accent); }
+/* PLAIN STATUS TEXT. It was amber, which made it one of the strongest accents
+   on the panel for a fact the probe cannot establish; then it was dotted and
+   `cursor: help`, which promised an affordance a keyboard could not reach. It
+   is neither now — the caveat is a real disclosure on the section head, where
+   everyone can get to it. */
+.bw-relay { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
 
 /* The first read copies a History database and classifies tens of thousands of
    rows, so the panel is briefly empty on open. A header over nothing reads as
@@ -7834,7 +7812,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    "the visualization" was empty canvas. It is the size it needs and no
    larger. */
 .bw-work .bw-radar { width: 88px; height: 88px; flex: none; }
-.bw-work .bw-log { flex: 1 1 auto; min-height: 300px; max-height: none; }
+/* BOUNDED AGAIN. `max-height: none` came in when the columns were made to
+   stretch, and it let the feed grow without limit: at 200 rows the status bar
+   — which holds the switch — sat 6000px down the page, so the panel's primary
+   control left the screen on exactly the long session this feed is built for.
+   It still fills its column, and scrolls inside itself past that. */
+.bw-work .bw-log { flex: 1 1 auto; min-height: 300px; max-height: min(52vh, 440px); }
 /* THE PANEL'S OWN WIDTH DECIDES, NOT THE WINDOW'S. Measured: below about
    230px of feed column the log's four columns stop fitting and it overflows by
    as much as 196px. The viewport is the wrong thing to ask, because this is a

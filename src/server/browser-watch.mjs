@@ -112,7 +112,14 @@ export function invalidateBrowserWatchCache() {
   // stand in for a read the cache skipped, and there are no skipped reads left
   // to stand in for.
   _lastRead.clear();
-  _lastCount.clear();
+  // _lastCount is DELIBERATELY NOT cleared. It is not a cache of what was
+  // read — it is the record of what has already been REPORTED, and the log it
+  // feeds survives this reset too. Clearing it made the next read compute its
+  // delta from zero and re-report the whole running total as growth, while the
+  // earlier deltas were still sitting in the feed above it. Measured live
+  // after one toggle of the switch: the feed's deltas summed to 15 against a
+  // cumulative of 6, so the two numbers the panel shows about itself disagreed
+  // and a reader had no way to tell which was lying.
 }
 
 /** The floor between two reads somebody paid for, spelled the way quota.mjs,
@@ -470,7 +477,23 @@ export async function browserWatchSnapshot({
       const n = read.rows.length;
       const added = n - (_lastCount.get(key) ?? 0);
       _lastCount.set(key, n);
-      if (added > 0 || findings.length > 0) {
+      if (added < 0) {
+        // THE COUNT WENT DOWN, which within one deck's run means one thing:
+        // the browsing history was truncated or cleared. Swallowing it broke
+        // the panel's own arithmetic — the deltas in the feed would no longer
+        // telescope to the total in the overview — and it hid the exact event
+        // this watch is built around. Whoever can drive this browser can clear
+        // its history with the same button the user has, and that is the one
+        // action that destroys the evidence.
+        note("warn",
+             `${where} — history shrank by ${(-added).toLocaleString("en-US")}; it was cleared or trimmed`, now,
+             {
+               browser: profile.name,
+               profile: profile.profile,
+               value: `${added.toLocaleString("en-US")} entries`,
+               flagged: 0,
+             });
+      } else if (added > 0 || findings.length > 0) {
         const found = findings.length > 0 ? `, ${findings.length} flagged` : "";
         note(findings.length > 0 ? "find" : "ok",
              `${where} — ${added.toLocaleString("en-US")} new entr${added === 1 ? "y" : "ies"}${found}`, now,
