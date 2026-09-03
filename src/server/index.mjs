@@ -18,7 +18,7 @@ import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-d
 import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
-import { readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
+import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -5138,7 +5138,25 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
-      return guard(readProcesses().then(procs => send(res, 200, { ok: true, procs })), res);
+      // `total` is how many the machine is running, against the candidates
+      // actually sent. The modal says both, so a reader can see this is a
+      // selection rather than a task manager pretending to be complete.
+      return guard(readProcesses().then(r => send(res, 200, { ok: true, ...r })), res);
+    }
+    // A day of minute buckets, which is far too much to ride along on
+    // /api/system's three-second poll for a chart that is usually closed. Its
+    // own route, fetched only while a modal is open — the same arrangement the
+    // process list has for the same reason. One section per request, because
+    // four sections of a day would be four times too much again.
+    if (req.method === "GET"  && url.pathname === "/api/system/history") {
+      const group = url.searchParams.get("group") ?? "";
+      // An allowlist, not a pass-through: the parameter names a section of this
+      // panel and nothing else, so an unknown one is a 400 rather than an empty
+      // chart that looks like a machine with nothing to report.
+      if (!["thermal", "cores", "memory", "load"].includes(group)) {
+        return send(res, 400, { ok: false, error: "unknown_group" });
+      }
+      return send(res, 200, historySnapshot(group));
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);

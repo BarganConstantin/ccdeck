@@ -70,7 +70,7 @@ export const REASONS: Record<string, string> = {
   login_failed: "the code was not accepted",
   no_identity: "signed in, but the CLI still reports nobody logged in",
   add_failed: "signed in, but claude-swap could not record the account",
-  not_a_share: "that does not look like a shared account — it should start with ccdeck1:",
+  not_a_share: "that does not look like a shared account — it should start with ccdeck2:",
   corrupt: "that share is incomplete — copy the whole thing",
   wrong_version: `that share was made by a newer ${PRODUCT}`,
   expired: "that share has expired — make a new one",

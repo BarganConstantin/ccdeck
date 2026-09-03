@@ -21,6 +21,7 @@
 // a sequence.json in a temp directory, so every assertion is about what this
 // module composes rather than about a claude-swap that happens to be installed.
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { brotliDecompressSync } from "node:zlib";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -112,7 +113,8 @@ const writeStore = (accounts: Record<string, { email: string; organizationUuid?:
 
 /** The bundle inside a wrapped share, as an object. */
 const unwrapped = (blob: string) => {
-  const body = JSON.parse(Buffer.from(blob.slice("ccdeck1:".length), "base64").toString("utf8"));
+  const body = JSON.parse(brotliDecompressSync(
+    Buffer.from(blob.slice("ccdeck2:".length), "base64")).toString("utf8"));
   return JSON.parse(body.payload);
 };
 
@@ -277,7 +279,7 @@ describe("shareAccounts", () => {
   it("wraps the bundle in the same envelope a single share has always used", async () => {
     cli.replies.push(exported(envelope([acct("2", "a@x.com")])));
     const out = await shareAccounts([2]);
-    expect(out.blob.startsWith("ccdeck1:")).toBe(true);
+    expect(out.blob.startsWith("ccdeck2:")).toBe(true);
     expect(out.expiresAt).toBeGreaterThan(Date.now());
   });
 });

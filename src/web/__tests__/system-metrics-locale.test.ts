@@ -66,12 +66,31 @@ import { parsePsProcesses, readProcesses, stopSystemMetrics, swapFromSysctl } fr
 afterEach(() => { spawns.length = 0; stopSystemMetrics(); });
 
 describe("the locale the sampler's children run in", () => {
-  it("is forced to C, whatever the deck itself was started with", async () => {
+  it("forces the number format, whatever the deck itself was started with", async () => {
     await readProcesses("linux");
     expect(spawns).toHaveLength(1);
     const env = spawns[0].opts.env as Record<string, string>;
-    expect(env.LC_ALL).toBe("C");
-    expect(env.LANG).toBe("C");
+    expect(env.LC_NUMERIC).toBe("C");
+  });
+
+  it("clears LC_ALL, because a user's own LC_ALL would outrank LC_NUMERIC", async () => {
+    // POSIX ignores an empty LC_ALL, so this is what makes the override hold on
+    // a machine where the reader set LC_ALL=de_DE themselves. Measured: with
+    // LC_ALL left alone, `ps -o pcpu` still printed 0,4.
+    await readProcesses("linux");
+    const env = spawns[0].opts.env as Record<string, string>;
+    expect(env.LC_ALL).toBe("");
+  });
+
+  it("leaves the CHARACTER SET alone, so a non-Latin name survives", async () => {
+    // It used to force the whole locale, and `LC_ALL=C` makes ps escape every
+    // byte it cannot render as ASCII: `Яндекс Музыка` came back as
+    // `M-PM-/M-PM-=M-PM-4M-PM-5...`, ninety-one characters of noise. The panel
+    // truncated it into invisibility; the process list has room for all of it.
+    await readProcesses("linux");
+    const env = spawns[0].opts.env as Record<string, string>;
+    expect(env.LANG, "LANG is inherited, not overridden").toBe(process.env.LANG);
+    expect(env.LC_CTYPE).toBe(process.env.LC_CTYPE);
   });
 
   it("keeps the rest of the environment, because PATH is how ps is found", async () => {

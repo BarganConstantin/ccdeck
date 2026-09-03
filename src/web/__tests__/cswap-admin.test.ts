@@ -5,6 +5,7 @@
 // --yes flag and must be answered by matching it, and a shared account is a
 // live credential that has to stop working on its own.
 import { describe, it, expect, vi, afterAll } from "vitest";
+import { brotliCompressSync } from "node:zlib";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
@@ -218,7 +219,7 @@ describe("share envelope", () => {
 
   it("round-trips the payload", () => {
     const blob = wrapShare("{\"version\":1}", NOW);
-    expect(blob.startsWith("ccdeck1:")).toBe(true);
+    expect(blob.startsWith("ccdeck2:")).toBe(true);
     expect(unwrapShare(blob, NOW + 1000)).toEqual({ ok: true, payload: "{\"version\":1}" });
   });
 
@@ -242,8 +243,55 @@ describe("share envelope", () => {
   });
 
   it("refuses a version it does not know", () => {
+    // Written with the OLD prefix, which is uncompressed — so this case also
+    // walks the ccdeck1 read path that keeps blobs copied before the format
+    // shrank importable.
     const future = "ccdeck1:" + btoa(JSON.stringify({ v: 2, exp: NOW + 1000, payload: "x" }));
     expect(unwrapShare(future, NOW).reason).toBe("wrong_version");
+  });
+
+  it("still reads a blob written before the format shrank", () => {
+    // ccdeck1 is base64 of the envelope JSON with no compression. Somebody has
+    // one in a chat window; it has to keep working until it expires.
+    const old = "ccdeck1:" + btoa(JSON.stringify({ v: 1, exp: NOW + 1000, payload: "{}" }));
+    expect(unwrapShare(old, NOW)).toEqual({ ok: true, payload: "{}" });
+  });
+
+  it("is dramatically shorter than the text it replaces", () => {
+    // The reason for the change, reported from the panel as "the text is very
+    // large". What a bundle mostly holds is not credentials: two OAuth tokens
+    // are 216 characters, and the envelope's key names —
+    // `refreshTokenExpiresAt`, `organizationRateLimitTier` — repeat verbatim
+    // for every account added, which is why the saving GROWS with the count.
+    // Measured on a real three-account store: 6168 characters to 1816.
+    const account = JSON.stringify({
+      number: 1, email: "someone@example.com",
+      uuid: "00000000-0000-0000-0000-000000000000",
+      organizationUuid: "00000000-0000-0000-0000-000000000001",
+      organizationName: "Someone's Organization",
+      credentials: { claudeAiOauth: {
+        accessToken: "x".repeat(108), refreshToken: "y".repeat(108),
+        expiresAt: NOW, refreshTokenExpiresAt: NOW,
+        scopes: ["user:inference", "user:profile"], subscriptionType: "max",
+        organizationRateLimitTier: "default_claude_max_20x",
+      } },
+    });
+    const payload = JSON.stringify({ version: 3, accounts: [account, account, account] });
+    const before = "ccdeck1:" + Buffer.from(
+      JSON.stringify({ v: 1, exp: NOW, payload }), "utf8").toString("base64");
+    const after = wrapShare(payload, NOW);
+    expect(after.length).toBeLessThan(before.length / 2);
+    // And it still round-trips, which is the only thing that would make the
+    // saving worthless.
+    expect(unwrapShare(after, NOW + 1000)).toEqual({ ok: true, payload });
+  });
+
+  it("refuses a blob that names more output than a bundle could hold", () => {
+    // A few hundred bytes of brotli can name gigabytes, and this input arrives
+    // by paste from wherever the user found it. Bounded, so a paste cannot end
+    // the process.
+    const bomb = "ccdeck2:" + brotliCompressSync(Buffer.alloc(8 << 20, 0x61)).toString("base64");
+    expect(unwrapShare(bomb, NOW).reason).toBe("corrupt");
   });
 
   it("tolerates the whitespace a paste picks up", () => {

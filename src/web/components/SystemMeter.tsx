@@ -24,6 +24,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
 import { modalStack, PANEL_LAYER } from "../modal-dismiss";
+import SectionHistoryModal from "./SectionHistoryModal";
+import ProcessListModal from "./ProcessListModal";
 
 /** Matches the server's CPU cadence, so the meter advances one bucket per poll
  *  rather than redrawing the same frame or skipping one. */
@@ -36,6 +38,192 @@ const BUCKETS = 20;
 
 const W = 36;
 const SPARK_H = 8;
+
+/** `cpu` is null on a Windows first reading: a percentage needs two samples and
+ *  there has only been one. Never a zero, which would rank it as idle. */
+export interface Proc { pid: number; cpu: number | null; mem: number; name: string }
+
+/** How many process rows the panel draws. Enough to see what is eating the
+ *  machine, few enough that the panel never becomes a scroll. The server sends
+ *  a wider set than this on purpose — system-metrics.mjs's CANDIDATE_N says
+ *  why, and visibleProcs below is what spends it. */
+const ROWS = 8;
+
+export type SortKey = "cpu" | "mem" | "name";
+
+export interface Sort {
+  key: SortKey;
+  dir: "asc" | "desc";
+  /** The last column that RANKED the list. A name sort orders rows; it does not
+   *  choose them, so it leaves this where it was — see visibleProcs. */
+  rank: "cpu" | "mem";
+}
+
+/** CPU descending, which is what the section meant before it could be asked
+ *  anything else. */
+export const SORT_DEFAULT: Sort = { key: "cpu", dir: "desc", rank: "cpu" };
+
+/**
+ * What a click on a column header does.
+ *
+ * A column you are not on arrives pointing the way that column is read: biggest
+ * first for a quantity, A to Z for a name. The column you are already on flips.
+ * Nothing else moves — in particular `rank` stays put when the name is clicked,
+ * because sorting by name is a request to reorder these rows, not a request for
+ * a different eight.
+ */
+export function nextSort(current: Sort, key: SortKey): Sort {
+  if (current.key === key) return { ...current, dir: current.dir === "asc" ? "desc" : "asc" };
+  return { key, dir: key === "name" ? "asc" : "desc", rank: key === "name" ? current.rank : key };
+}
+
+/**
+ * One ordering, applied the same way whichever column asked for it.
+ *
+ * Two rules the table would be wrong without.
+ *
+ * A null CPU goes last in BOTH directions. It is the Windows first reading,
+ * where a percentage does not exist yet because it takes two samples to make
+ * one, and the cell prints a dash for it. Ranking it as zero would call it idle;
+ * ranking it above everything would call it the busiest thing on the machine.
+ * The reading supports neither.
+ *
+ * Ties fall through to a fixed chain — CPU, then memory, then pid — that does
+ * NOT flip with the direction. `mem` reads 0.2 for half the list, so with no
+ * second key those rows would come back in whatever order the sort happened to
+ * leave them in and the table would visibly reshuffle every four seconds while
+ * nothing at all had changed.
+ */
+export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const primary = (a: Proc, b: Proc): number => {
+    // Case-insensitive and locale-aware. ASCII files every capital ahead of
+    // every lowercase letter, which would put WindowServer and ccusage in
+    // different halves of a list being read as one.
+    if (sort.key === "name") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const av = sort.key === "cpu" ? a.cpu : a.mem;
+    const bv = sort.key === "cpu" ? b.cpu : b.mem;
+    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
+    return sign * (av - bv);
+  };
+  return [...procs].sort((a, b) =>
+    primary(a, b)
+    || (b.cpu ?? -1) - (a.cpu ?? -1)
+    || b.mem - a.mem
+    || a.pid - b.pid);
+}
+
+/**
+ * The rows drawn, which is a different question from the order they are in.
+ *
+ * The section is headed "Busiest processes", so its rows are always the busiest
+ * — by whichever quantity is currently ranking them. Clicking `mem` therefore
+ * changes WHICH processes appear, and that is what the wider payload buys: the
+ * machine's heaviest consumer is in the candidate set by construction, so the
+ * memory ranking is the machine's and not the CPU top eight's.
+ *
+ * Clicking `process` changes nothing about membership. Alphabetical is an
+ * ordering and not a ranking, and the alphabetically-first eight of a candidate
+ * set is a list nobody asked for; so the name sort reorders whichever eight the
+ * last quantity chose.
+ *
+ * Direction does not change membership either. Ascending by CPU is "the eight
+ * busiest, quietest first" — not "the eight quietest", which would be a
+ * different section under a different heading.
+ */
+export function visibleProcs(procs: Proc[], sort: Sort, rows = ROWS): Proc[] {
+  const busiest = sortProcs(procs, { key: sort.rank, dir: "desc", rank: sort.rank });
+  return sortProcs(busiest.slice(0, rows), sort);
+}
+
+/** aria-sort's own vocabulary, which also decides the arrow and the active
+ *  colour — the state is said once, in the place assistive technology reads. */
+export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" | "none" {
+  if (sort.key !== key) return "none";
+  return sort.dir === "asc" ? "ascending" : "descending";
+}
+
+/** How a bar is painted. `calm` is the resting appearance and carries no class
+ *  of its own, which is what keeps the memory rows drawing exactly as before. */
+type Tone = "calm" | "warn" | "hot";
+
+/**
+ * Which band a temperature falls in.
+ *
+ * The numbers are the sensor's own wherever the platform publishes them — Linux
+ * hwmon carries `temp*_max` and `temp*_crit` per sensor — because one scale for
+ * every source would be a threshold this app invented. 75 and 90 are the
+ * fallback for the platforms that publish none.
+ */
+export function thermalTone(celsius: number, warnAt: number, critAt: number): Tone {
+  if (celsius >= critAt) return "hot";
+  if (celsius >= warnAt) return "warn";
+  return "calm";
+}
+
+/**
+ * Throttling, stated as the share of the CPU's speed that has been TAKEN AWAY.
+ *
+ * `pmset -g therm` reports the share still allowed, and the obvious rendering
+ * — "Thermal headroom 100%", a full bar — would put a full bar meaning "all is
+ * well" directly beneath a memory bar where a full bar means "nearly out". Two
+ * opposite conventions in one panel is a panel that has to be read twice. So it
+ * is inverted here: every bar in this section fills with the problem, and an
+ * empty track means nothing is wrong on every row and every platform.
+ *
+ * The note is the sentence somebody actually needs. A speed limit is already
+ * the consequence a temperature has to be interpreted into, so it is worth
+ * saying in words rather than leaving as a number.
+ */
+export function throttleRow(
+  speedLimit: number,
+  /** What the history says has already happened. A desktop reads 0% forever —
+   *  measured: ninety seconds of AES-NI on twelve cores never moved this — and
+   *  a row that only ever says 0% reads as a readout that does not work. It was
+   *  reported that way twice. The current value is still the value; the note is
+   *  where "and it did happen, at 12:21" belongs. */
+  past?: { peak: number; lastMs: number } | null,
+  now = Date.now(),
+): { pct: number; value: string; tone: Tone; note: string } {
+  const held = Math.max(0, Math.min(100, 100 - speedLimit));
+  return {
+    pct: held,
+    // A number, never the word "none", and that was a bug report: a healthy
+    // machine read as though the check had not run. Every other reading in this
+    // panel is a figure on a scale — "20.5 GB of 32.0 GB", "84.49", "63 °C" —
+    // so a word where a number goes is the one token that looks like an absent
+    // value rather than a measured one. A speedometer at rest reads 0; it does
+    // not read "none". And 0% sits on the same scale as the 9% that appears
+    // under load, which is what makes it legible as a reading.
+    value: `${held}%`,
+    // Any throttling at all is worth a colour: it means the machine is slower
+    // than the one you think you are running on. A third of the clock gone is
+    // where that stops being a detail.
+    tone: held === 0 ? "calm" : held >= 30 ? "hot" : "warn",
+    // Short enough to sit on one line in a 280px panel: the longer phrasings
+    // wrapped and orphaned their last word.
+    note: held > 0
+      ? `CPU held to ${speedLimit}% of full speed to cool down`
+      : past
+        ? `at full speed · held to ${100 - past.peak}% ${sinceLabel(past.lastMs, now)}`
+        : "running at full speed, and never held back",
+  };
+}
+
+/**
+ * How long ago something happened, in the fewest words that stay true.
+ *
+ * Coarse on purpose. The buckets are a minute wide, so "42 seconds ago" would
+ * be a precision the reading does not have, and the question this answers is
+ * "recently, or this morning" rather than "exactly when".
+ */
+export function sinceLabel(atMs: number, now = Date.now()): string {
+  const mins = Math.max(0, Math.floor((now - atMs) / 60_000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const h = Math.floor(mins / 60);
+  return h === 1 ? "an hour ago" : `${h} hours ago`;
+}
 
 /** In the `agent-dag.*` namespace like every other key here; brand.ts explains
  *  why the rename stops at the storage layer. */
@@ -63,7 +251,20 @@ function saveOpen(open: boolean): void {
 
 interface Memory { total: number; available: number; usedPct: number }
 interface Swap { total: number; used: number }
-interface Proc { pid: number; cpu: number | null; mem: number; name: string }
+/** `warnAt`/`critAt` come from the chip itself where the platform publishes
+ *  them — Linux hwmon does — because a laptop package sensor and an NVMe drive
+ *  do not share a comfortable range. Elsewhere the server fills in 75/90. */
+interface ThermalReading { label: string; celsius: number; warnAt: number; critAt: number }
+/** Two fields, not one list: degrees and a throttle percentage are different
+ *  readings, and a shape that could hold either under one label is how a
+ *  percentage ends up printed under a °C heading. */
+interface Thermal {
+  celsius: ThermalReading[];
+  throttle: { speedLimit: number } | null;
+  /** Whether the machine has been held back at all since the deck started, and
+   *  when it last was. Null on one that never has. */
+  heldBack?: { peak: number; lastMs: number } | null;
+}
 interface Snapshot {
   ok: boolean;
   cpu: number | null;
@@ -75,6 +276,9 @@ interface Snapshot {
   uptimeSec: number;
   platform: string;
   loadavg: number[] | null;
+  /** Null on a machine that publishes nothing, and then no section is drawn at
+   *  all — not 0°C, not a dash, not an empty bar. */
+  thermal: Thermal | null;
   intervalMs: number;
 }
 
@@ -147,8 +351,8 @@ function useSystem(): Snapshot | null {
 }
 
 /** The process list, fetched only while `on` is true. */
-function useProcesses(on: boolean): Proc[] | null {
-  const [procs, setProcs] = useState<Proc[] | null>(null);
+function useProcesses(on: boolean): { procs: Proc[]; total: number } | null {
+  const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
   useEffect(() => {
     if (!on) return;
     let alive = true;
@@ -158,7 +362,7 @@ function useProcesses(on: boolean): Proc[] | null {
         const res = await fetch("/api/system/processes");
         if (!res.ok) return;
         const data = await res.json();
-        if (alive && data?.ok) setProcs(data.procs ?? []);
+        if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
       } catch { /* leave the previous list up rather than blanking it */ }
     };
     load();
@@ -340,7 +544,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 }) {
   const procs = useProcesses(true);
 
-  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform } = sys;
+  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal } = sys;
   const used = memory ? memory.total - memory.available : 0;
   // Windows has no swap file in the Unix sense; what the same query reports
   // there is commit charge, so it is named for what it is.
@@ -357,7 +561,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       {perCore && perCore.length > 0 && (
         <div className="sd-section" role="group" aria-label="Cores">
-          <div className="sd-h" aria-hidden>Cores</div>
+          <OpensHistory group="cores" title="Core history" action="Show core history" label="Cores">
           {/* One column per core. The aggregate in the topbar cannot tell a
               saturated machine from one hot single-threaded job; this can. */}
           <div className="sd-cores" style={{ "--n": perCore.length } as React.CSSProperties}>
@@ -374,34 +578,36 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
               </span>
             ))}
           </div>
+          </OpensHistory>
         </div>
       )}
 
       <div className="sd-section" role="group" aria-label="Memory">
-        <div className="sd-h" aria-hidden>Memory</div>
+        <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
         {memory && (
           <Row
             label="Physical"
-            used={used}
-            total={memory.total}
+            value={<><b>{bytes(used)}</b> of {bytes(memory.total)}</>}
             pct={memory.usedPct}
+            tone={memory.usedPct >= 90 ? "warn" : "calm"}
             note={`${bytes(memory.available)} available`}
           />
         )}
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            used={swap.used}
-            total={swap.total}
+            value={<><b>{bytes(swap.used)}</b> of {bytes(swap.total)}</>}
             pct={swapPct}
+            tone={swapPct >= 90 ? "warn" : "calm"}
             note={swapPct >= 50 ? "paging to disk" : undefined}
           />
         )}
+        </OpensHistory>
       </div>
 
       {loadavg && (
         <div className="sd-section" role="group" aria-label="Load average">
-          <div className="sd-h" aria-hidden>Load average</div>
+          <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
           <div className="sd-load">
             {loadavg.map((v, i) => (
               <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
@@ -417,62 +623,246 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
               ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
               : `within ${cores} cores`}
           </div>
+          </OpensHistory>
         </div>
       )}
 
-      <div className="sd-section" role="group" aria-label="Busiest processes">
-        <div className="sd-h" aria-hidden>Busiest processes</div>
-        {procs == null ? (
-          <div className="sd-note">reading…</div>
-        ) : procs.length === 0 ? (
-          <div className="sd-note">Could not read the process list on this platform.</div>
-        ) : (
-          <table className="sd-procs">
-            <thead>
-              <tr><th>cpu</th><th>mem</th><th>process</th></tr>
-            </thead>
-            <tbody>
-              {procs.map(p => (
-                <tr key={p.pid}>
-                  {/* Per core on every platform, so a process can exceed 100%:
-                      that is it using more than one core, which is information
-                      rather than an error. Windows used to divide this by the
-                      core count and cap it at 100, which made the same build
-                      read ~cores× smaller there (#493).
-                      Null is the Windows first reading, where a percentage does
-                      not exist yet because it takes two samples to make one —
-                      a dash, never a zero, which would rank it as idle. */}
-                  <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
-                  <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
-                  <td className="sd-proc-name" title={`pid ${p.pid}`}>{p.name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <ThermalSection thermal={thermal} />
+
+      <Processes read={procs} />
     </aside>
   );
 }
 
-function Row({ label, used, total, pct, note }: {
-  label: string; used: number; total: number; pct: number; note?: string;
+/**
+ * Is this machine getting hot, and is it being held back for it.
+ *
+ * The question the four sections above cannot answer. A saturated machine that
+ * is cool is a machine doing work; a saturated machine that is thermally
+ * limited is one where the next agent you launch makes everything slower, and
+ * a load average of 67 reads identically in both cases.
+ *
+ * Headed "Thermal" rather than "Temperature", and that is a decision rather
+ * than a hedge: on macOS the honest reading is not degrees at all — no CPU
+ * sensor is readable without root, and what IS readable is how much of the
+ * CPU's speed the thermal manager is currently allowing. A "Temperature"
+ * heading over that would be a heading that lies on every Apple Silicon
+ * install. "Thermal" holds degrees where the machine has them and the
+ * consequence where it does not, and every row still says what it measured.
+ *
+ * Nothing is drawn when the machine publishes nothing. Not a zero, not a dash,
+ * not an empty bar — the same refusal that keeps `cpu` null until two samples
+ * exist. On a platform with no sensor this section has never existed.
+ */
+/**
+ * A section of this panel that keeps a history, wrapped in the one control that
+ * opens it.
+ *
+ * ONE control per section, never one per row. It was one per row first, and
+ * that was a mistake with a tell: every row of a section opens the SAME dialog
+ * showing EVERY series in it, so the second button did nothing the first had
+ * not. Two controls for one action made a section read as a list of separately
+ * operable things when it is one reading of one machine.
+ *
+ * The heading goes inside the button so the whole block lights as one, and
+ * keeps its `aria-hidden`: the group is already named, and the button carries
+ * its own name, so the word a third time is noise.
+ */
+function OpensHistory({ group, title, action, label, children }: {
+  group: "thermal" | "cores" | "memory" | "load";
+  /** What the dialog calls itself. A name for a thing. */
+  title: string;
+  /** What the BUTTON calls itself, which is not the same string: a control is
+   *  named for what pressing it does. "Core history" announces as a label and
+   *  reads as one; "Show core history" is the action. Spelled out per section
+   *  rather than derived, because deriving it produced "Show cores history". */
+  action: string;
+  label: string;
+  children: React.ReactNode;
 }) {
-  const warn = pct >= 90;
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="sd-open"
+        onClick={() => setOpen(true)}
+        title={action}
+        aria-label={action}
+      >
+        <div className="sd-h" aria-hidden>{label} <i className="sd-row-more">›</i></div>
+        {children}
+      </button>
+      {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function ThermalSection({ thermal }: { thermal: Thermal | null }) {
+  if (!thermal) return null;
+  const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit, thermal.heldBack) : null;
+  return (
+    <div className="sd-section" role="group" aria-label="Thermal">
+      <OpensHistory group="thermal" title="Thermal history" action="Show thermal history" label="Thermal">
+        {thermal.celsius.map(r => (
+          <Row
+            key={r.label}
+            label={r.label}
+            value={<><b>{r.celsius}</b> °C</>}
+            // The track is 0 to 100°C, which is the range silicon lives in, so
+            // the fill is the reading itself rather than a ratio of a number
+            // nobody would recognise.
+            pct={r.celsius}
+            tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
+          />
+        ))}
+        {held && (
+          <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
+        )}
+      </OpensHistory>
+    </div>
+  );
+}
+
+/**
+ * The process table, and the one part of this panel you can operate.
+ *
+ * A table header is where you click to sort in every other table anybody has
+ * used, and this one was three inert cells for four releases (#739). So the
+ * cells are real controls now: a <th scope="col"> carrying aria-sort, with a
+ * <button> inside it that Tab reaches and Enter presses.
+ *
+ * The sort lives here rather than in storage.ts. It resets when the panel
+ * closes, which is what a reader would expect of a table they re-sorted while
+ * looking at something; a preference nobody would remember setting is not worth
+ * a key that outlives the question.
+ */
+function Processes({ read }: { read: { procs: Proc[]; total: number } | null }) {
+  const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
+  const [all, setAll] = useState(false);
+  const procs = read?.procs ?? null;
+
+  return (
+    <div className="sd-section" role="group" aria-label="Busiest processes">
+      {/* The one section that is NOT wrapped in a single control, and it is the
+          markup that decides: its column headers are already buttons, and a
+          button cannot contain a button. So the affordance is its own small
+          control in the heading — which turns out to be the honest shape
+          anyway, since what it opens is more of this list rather than what this
+          list did over time. */}
+      <div className="sd-hrow">
+        <div className="sd-h" aria-hidden>Busiest processes</div>
+        {procs != null && procs.length > 0 && (
+          <button
+            type="button"
+            className="sd-all"
+            onClick={() => setAll(true)}
+            title="Show every process the deck is watching"
+            aria-label="Show every process the deck is watching"
+          >
+            more <i className="sd-row-more" aria-hidden>›</i>
+          </button>
+        )}
+      </div>
+      {all && read && (
+        <ProcessListModal procs={read.procs} total={read.total} onClose={() => setAll(false)} />
+      )}
+      {procs == null ? (
+        <div className="sd-note">reading…</div>
+      ) : procs.length === 0 ? (
+        <div className="sd-note">Could not read the process list on this platform.</div>
+      ) : (
+        <table className="sd-procs">
+          <thead>
+            <tr>
+              <SortHead col="cpu" label="cpu" sort={sort} onSort={setSort} />
+              <SortHead col="mem" label="mem" sort={sort} onSort={setSort} />
+              <SortHead col="name" label="process" sort={sort} onSort={setSort} />
+            </tr>
+          </thead>
+          <tbody>
+            {visibleProcs(procs, sort).map(p => (
+              <tr key={p.pid}>
+                {/* Per core on every platform, so a process can exceed 100%:
+                    that is it using more than one core, which is information
+                    rather than an error. Windows used to divide this by the
+                    core count and cap it at 100, which made the same build
+                    read ~cores× smaller there (#493).
+                    Null is the Windows first reading, where a percentage does
+                    not exist yet because it takes two samples to make one —
+                    a dash, never a zero, which would rank it as idle. */}
+                <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
+                <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
+                <td className="sd-proc-name" title={`pid ${p.pid}`}>{p.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/** One column header: the word, the direction it is pointing, and the press
+ *  that changes it. */
+export function SortHead({ col, label, sort, onSort }: {
+  col: SortKey;
+  label: string;
+  sort: Sort;
+  onSort: (next: Sort) => void;
+}) {
+  const state = ariaSort(sort, col);
+  return (
+    <th scope="col" aria-sort={state}>
+      <button
+        type="button"
+        className="sd-sort"
+        title={`Sort by ${label}`}
+        onClick={() => onSort(nextSort(sort, col))}
+      >
+        {label}
+        {/* aria-sort has already said this to a screen reader, so the glyph is
+            for the eye alone. Its slot is held open on every column, sorted or
+            not, so that re-sorting moves the rows and never the headers. */}
+        <span className="sd-sort-dir" aria-hidden>
+          {state === "none" ? "" : state === "ascending" ? "\u2191" : "\u2193"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/**
+ * A label, a reading, a track and an optional sentence.
+ *
+ * `value` is a node rather than a byte pair because this row draws three
+ * different kinds of reading now — "20.5 GB of 32.0 GB", "58 °C", "none" — and
+ * the memory formatting belongs to the memory section rather than to the
+ * component every section shares. `tone` for the same reason: `pct >= 90` is
+ * the memory rule and it was never the thermal one.
+ */
+function Row({ label, value, pct, tone = "calm", note }: {
+  label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
+}) {
   return (
     <div className="sd-row">
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
-        <span className="sd-row-val">
-          <b>{bytes(used)}</b> of {bytes(total)}
-        </span>
+        <span className="sd-row-val">{value}</span>
       </div>
       <span className="sd-track">
+        {/* A floor of 1%, so a reading that is present but tiny still draws a
+            sliver rather than reading as "no data" — but only ABOVE zero. Zero
+            draws nothing, because on the thermal rows an empty track is the
+            answer: "Throttling — none" beside a bar with a mark in it says two
+            different things, and the section's whole convention is that a bar
+            fills with the problem. Nothing is not a small amount of something.
+            Memory never reaches zero, so it is unaffected either way. */}
         <span
-          className={`sd-fill${warn ? " warn" : ""}`}
-          style={{ transform: `scaleX(${Math.max(1, Math.min(100, pct)) / 100})` }}
+          className={`sd-fill${tone === "calm" ? "" : ` ${tone}`}`}
+          style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
         />
       </span>
       {note && <div className="sd-note">{note}</div>}

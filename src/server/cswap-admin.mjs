@@ -18,6 +18,7 @@
 // goes through one mutex.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
+import { brotliCompressSync, brotliDecompressSync, constants as zlibConstants } from "node:zlib";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -39,7 +40,46 @@ const CODE_VERDICT_MS = 60_000;
 export const SHARE_TTL_MS = 10 * 60_000;
 // How many accounts one bundle may carry. See shareAccounts.
 const MAX_SHARE_ACCOUNTS = 50;
-const SHARE_PREFIX = "ccdeck1:";
+
+/**
+ * The prefix a share is written with, and the one it used to be written with.
+ *
+ * `ccdeck1:` is base64 of the envelope JSON. `ccdeck2:` is base64 of the same
+ * JSON compressed, and the difference is not cosmetic — it was reported from
+ * the panel as "the text is very large", and on a real store it is:
+ *
+ *     1 account    2200 characters  ->  1024
+ *     3 accounts   6168 characters  ->  1816
+ *
+ * Because what a bundle mostly contains is not credentials. An account's two
+ * OAuth tokens are 216 characters between them; the envelope around them is
+ * two thousand, and every one of its key names — `refreshTokenExpiresAt`,
+ * `organizationRateLimitTier`, `claudeCodeTrialDurationDays` — repeats
+ * verbatim for every account added. That is exactly what a compressor is for,
+ * which is why the saving grows with the number of accounts rather than
+ * shrinking.
+ *
+ * Brotli rather than gzip: 10% smaller here, in node:zlib since v11, no
+ * dependency either way.
+ *
+ * BOTH prefixes are read, so a blob copied before this change still imports.
+ * Only `ccdeck2:` is written, which does mean a deck older than this cannot
+ * read a new share — it will say the text does not look like a shared account.
+ * That cost is paid once and it is smallest now: the feature shipped in
+ * 1.48.0 and the format has had no time to spread.
+ */
+const SHARE_PREFIX = "ccdeck2:";
+const SHARE_PREFIX_V1 = "ccdeck1:";
+
+/**
+ * The most an imported blob may decompress to.
+ *
+ * A few hundred bytes of brotli can name gigabytes of output, and this input
+ * arrives by paste from wherever the user found it. 50 accounts at ~1.6 KB of
+ * envelope each is under 100 KB, so 2 MB is twenty times the largest bundle
+ * this deck will ever produce and still nothing to allocate by accident.
+ */
+const SHARE_MAX_BYTES = 2 << 20;
 
 // ── serialization ────────────────────────────────────────────────────────────
 
@@ -724,16 +764,37 @@ async function restoreActive(num) {
  */
 export function wrapShare(payload, now = Date.now(), ttlMs = SHARE_TTL_MS) {
   const body = JSON.stringify({ v: 1, exp: now + ttlMs, payload });
-  return SHARE_PREFIX + Buffer.from(body, "utf8").toString("base64");
+  const packed = brotliCompressSync(Buffer.from(body, "utf8"), {
+    params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
+  });
+  return SHARE_PREFIX + packed.toString("base64");
 }
 
-/** The inverse. Returns `{ok:true, payload}` or `{ok:false, reason}`. */
+/**
+ * The inverse, for either prefix. Returns `{ok:true, payload}` or
+ * `{ok:false, reason}`.
+ *
+ * `v` inside the envelope is unchanged at 1 and deliberately so: it versions
+ * the SHAPE of the envelope, and that shape did not change. The prefix versions
+ * the encoding. Folding the two would have made an old blob unreadable for no
+ * reason, since its contents are exactly what this still expects.
+ */
 export function unwrapShare(blob, now = Date.now()) {
   const text = String(blob ?? "").trim();
-  if (!text.startsWith(SHARE_PREFIX)) return { ok: false, reason: "not_a_share" };
+  const v2 = text.startsWith(SHARE_PREFIX);
+  if (!v2 && !text.startsWith(SHARE_PREFIX_V1)) return { ok: false, reason: "not_a_share" };
   let env;
   try {
-    env = JSON.parse(Buffer.from(text.slice(SHARE_PREFIX.length), "base64").toString("utf8"));
+    // Sliced by the prefix that actually matched. The two are the same length
+    // today and writing it this way is what keeps that from being load-bearing.
+    const bytes = Buffer.from(text.slice((v2 ? SHARE_PREFIX : SHARE_PREFIX_V1).length), "base64");
+    // maxOutputLength is the whole reason a bounded decompress is safe to point
+    // at pasted text; without it a short blob can name an allocation that ends
+    // the process.
+    const body = v2
+      ? brotliDecompressSync(bytes, { maxOutputLength: SHARE_MAX_BYTES })
+      : bytes;
+    env = JSON.parse(body.toString("utf8"));
   } catch {
     return { ok: false, reason: "corrupt" };
   }

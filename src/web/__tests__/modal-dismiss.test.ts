@@ -179,7 +179,13 @@ describe("the modals themselves", () => {
       // question of every file in this list.
       "KeyboardHelp.tsx",
       // #712's release notes, named here for the same reason.
+      // #738's whole-candidate process list, named here for the same reason as
+      // the four above.
+      "ProcessListModal.tsx",
       "ReleaseNotesModal.tsx",
+      // #738's section history, named here for the same reason as the four
+      // above: this is how it joins the loop below.
+      "SectionHistoryModal.tsx",
       "SessionSummary.tsx",
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.

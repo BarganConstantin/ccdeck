@@ -267,6 +267,20 @@ const PRESSES: Press[] = [
   // already used; `.sd-close`'s 0.97 was three percent of a 16px box, which is
   // half a pixel and was never visible.
   [".glyph-btn:active:not(:disabled)", "0.94", "transform"],
+  // The machine panel's process-table column headers, which stopped being inert
+  // cells in #739. 0.97 like every other labelled control: the ink is a
+  // three-letter word, and 0.94 of a 40px cell would read as a jump rather than
+  // as a press.
+  // The process table's column headers, in the panel and in the modal that
+  // lists every candidate — one selector, because it is one control.
+  [":is(.sysdetail, .pl-body) .sd-sort:active", "0.97", "transform"],
+  // The whole THERMAL section, which opens its own history (#738). A block that
+  // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
+  // number.
+  [".sysdetail .sd-open:active", "0.97", "transform"],
+  // "more" beside the process table's heading — a 10px word, so 0.97 like every
+  // other labelled control rather than the 0.94 the round glyphs take.
+  [".sd-all:active", "0.97", "transform"],
   [".topbar .waiting-stat:active", "0.97", "transform"],
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
