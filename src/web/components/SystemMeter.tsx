@@ -764,7 +764,17 @@ function Row({ label, value, pct, tone = "calm", note, onOpen }: {
   const body = (
     <>
       <div className="sd-row-head">
-        <span className="sd-row-label">{label}</span>
+        <span className="sd-row-label">
+          {label}
+          {/* At rest, not on hover. Two of this panel's eight rows open
+              something and six do not, and they were otherwise identical until
+              the pointer arrived — which is the third time this project would
+              have shipped a control that looks inert. `.bw-ep-head` and
+              `.sl-row`, the two precedents for a full-width row that opens, are
+              both visually distinct from their neighbours before you touch
+              them. */}
+          {onOpen && <i className="sd-row-more" aria-hidden>›</i>}
+        </span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
         <span className="sd-row-val">{value}</span>

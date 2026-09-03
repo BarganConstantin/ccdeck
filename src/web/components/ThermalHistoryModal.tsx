@@ -269,7 +269,7 @@ export default function ThermalHistoryModal({ focus, onClose }: {
             <p className="th-empty">Nothing has been measured yet.</p>
           ) : (
             series.map(s => (
-              <Chart key={s.label} series={s} stepMs={hist.stepMs} marked={s.label === focus} />
+              <Chart key={s.label} series={s} stepMs={hist.stepMs} focused={s.label === focus} />
             ))
           )}
         </div>
@@ -279,8 +279,9 @@ export default function ThermalHistoryModal({ focus, onClose }: {
   );
 }
 
-function Chart({ series, stepMs, marked }: { series: Series; stepMs: number; marked: boolean }) {
+function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; focused: boolean }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  const selfRef = useRef<HTMLElement>(null);
   const [w, setW] = useState(560);
   const [hover, setHover] = useState<number | null>(null);
 
@@ -295,6 +296,18 @@ function Chart({ series, stepMs, marked }: { series: Series; stepMs: number; mar
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // What the click is FOR, now that it does not paint a rail. With two series
+  // both on screen it does nothing, which is correct — there is nothing to
+  // scroll to. With four, which is what Linux reports, the series you pressed
+  // is the one you wanted and it may be below the fold.
+  //
+  // `nearest` so a series already in view is not yanked to the top, and no
+  // smooth behaviour: this runs on open, where a scroll animation is a surface
+  // moving before the reader has looked at it.
+  useEffect(() => {
+    if (focused) selfRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focused]);
 
   const { points, unit, warnAt, critAt, label } = series;
   const h = warnAt == null && critAt == null ? H_FLAT : H;
@@ -322,13 +335,13 @@ function Chart({ series, stepMs, marked }: { series: Series; stepMs: number; mar
   };
 
   return (
-    <section className={`th-series${marked ? " marked" : ""}`} aria-label={`${label} history`}>
+    <section ref={selfRef} className="th-series" aria-label={`${label} history`}>
       <div className="th-head">
         <span className="th-label">{label}</span>
         <span className="th-stats">
-          {now != null && <><b>{now}</b><i>{suffix} now</i></>}
+          {now != null && <><b>{now}</b><span>{suffix} now</span></>}
           {peak != null && (
-            <><b className={band(peak, warnAt, critAt)}>{peak}</b><i>{suffix} peak</i></>
+            <><b className={band(peak, warnAt, critAt)}>{peak}</b><span>{suffix} peak</span></>
           )}
         </span>
       </div>

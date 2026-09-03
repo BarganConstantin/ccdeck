@@ -1427,6 +1427,17 @@ button.btn.sm-hear {
 .sysdetail .sd-row-open:active { transform: scale(0.97); }
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .sd-row-label { color: var(--muted); }
+/* The chevron that says a row opens something. --text-dim, which is the only
+   dim tier text may take (#262) — --muted-dim is for lines and fills — so it
+   reads as a hint rather than as a second value, and it brightens with the row
+   on hover so the affordance and the target are one thing. */
+.sd-row-more {
+  font-style: normal;
+  margin-left: 3px;
+  color: var(--text-dim);
+  transition: color 140ms ease;
+}
+.sysdetail .sd-row-open:hover .sd-row-more { color: var(--text); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
 .sd-row-val b { color: var(--text); font-weight: 600; }
 .sd-track {
@@ -8080,12 +8091,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .th-body { padding: 14px 16px 16px; overflow-y: auto; }
 .th-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
 
-.th-series + .th-series { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
-/* The row that was pressed. A rail rather than a fill: the click chose a
-   series, it did not select one for an action, so it is marked the way a
-   bookmark is and not the way a checkbox is. */
-.th-series.marked { border-left: 2px solid var(--accent); padding-left: 10px; margin-left: -12px; }
-
+/* Space, not a line. The gap already groups them, and a rule on top of it is
+   two separators doing one job in a dialog that holds two things. */
+.th-series + .th-series { margin-top: 26px; }
 .th-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .th-label { font-size: 12px; font-weight: 600; }
 .th-stats { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
@@ -8105,9 +8113,14 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .th-floor { stroke: var(--line); stroke-width: 1; }
 /* Dashed, and behind the line, so a threshold reads as a mark on the scale
    rather than as another reading. */
-.th-rule { stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.55; }
-.th-rule.warn { stroke: var(--warn); }
-.th-rule.hot { stroke: var(--err); }
+/* The dash tells them apart as well as the hue does. Measured rendered in the
+   light theme, --warn (#ad4e08) and --err (#b91c1c) at this weight are nearly
+   the same line, and a threshold a reader cannot name is an annotation that
+   costs ink and returns nothing. Long dashes for "uncomfortable", short ones
+   for "the chip will act". */
+.th-rule { stroke-width: 1; opacity: 0.6; }
+.th-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
+.th-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
 .th-rule-tag { font-size: 9px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .th-rule-tag.warn { fill: var(--warn); }
 .th-rule-tag.hot { fill: var(--err); }
