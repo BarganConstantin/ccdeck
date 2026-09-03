@@ -261,12 +261,13 @@ describe("which overlay holds Tab", () => {
 // ── what each of the seven overlays does with it ────────────────────────────
 
 describe("the deck's ten overlays", () => {
-  it("has found all ten, so a new one cannot skip this file", () => {
+  it("has found all eleven, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
-    // release notes, nine until #723 added the share picker. Raising the
-    // number is how a dialog joins the sweep, not how one is excused from
-    // it: every assertion below is asked of the newcomer unchanged.
-    expect(MODALS.length).toBe(10);
+    // release notes, nine until #723 added the share picker, ten until #738
+    // added the thermal history. Raising the number is how a dialog joins the
+    // sweep, not how one is excused from it: every assertion below is asked of
+    // the newcomer unchanged.
+    expect(MODALS.length).toBe(11);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

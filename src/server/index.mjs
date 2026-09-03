@@ -18,7 +18,7 @@ import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-d
 import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
-import { readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
+import { readProcesses, startSystemMetrics, systemSnapshot, thermalHistorySnapshot } from "./system-metrics.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -5139,6 +5139,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
       return guard(readProcesses().then(procs => send(res, 200, { ok: true, procs })), res);
+    }
+    // A day of minute buckets, which is far too much to ride along on
+    // /api/system's three-second poll for a chart that is usually closed. Its
+    // own route, fetched only while the modal is open — the same arrangement
+    // the process list has for the same reason.
+    if (req.method === "GET"  && url.pathname === "/api/system/thermal-history") {
+      return send(res, 200, thermalHistorySnapshot());
     }
     if (req.method === "GET"  && url.pathname === "/api/codex-quota") return guard(handleCodexQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/ccusage")     return guard(handleCcusage(req, res), res);

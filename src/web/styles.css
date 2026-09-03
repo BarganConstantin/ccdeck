@@ -1396,6 +1396,35 @@ button.btn.sm-hear {
 }
 
 .sd-row + .sd-row { margin-top: 9px; }
+/* A thermal row opens its own history (#738). The rules that DRAW the row stay
+   on `.sd-row`, so a row that is a button and a row that is not are the same
+   picture — what changes is only that one of them answers a press. The reset is
+   here because a <button> arrives with a border, a background and centred text
+   of its own, and this row is a stack of two lines that must sit exactly where
+   its non-clickable neighbours sit. */
+.sysdetail .sd-row-open {
+  display: block;
+  width: 100%;
+  /* Vertical only. A horizontal inset would need a negative margin to keep the
+     labels in line with the rows above, and a negative margin under a 100%
+     width is exactly the shape that made two panels scroll sideways (#369). */
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+/* The padding above would push the first row down and out of step with the
+   sections that have none, so the box is pulled back by what it added. */
+.sysdetail .sd-row-open { margin-top: -4px; }
+.sysdetail .sd-row-open:last-child { margin-bottom: -4px; }
+.sysdetail .sd-row + .sd-row-open { margin-top: 5px; }
+.sysdetail .sd-row-open:hover { background: var(--line); }
+.sysdetail .sd-row-open:active { transform: scale(0.97); }
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -1498,6 +1527,7 @@ button.btn.sm-hear {
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
   .sysdetail .sd-sort:active { transform: none; }
+  .sysdetail .sd-row-open:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
@@ -8033,3 +8063,73 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    little high in a 24px box; 1px 6px is the same seat `.ap-refresh` takes and
    changes no pixel of the box, only where the glyph sits inside it. */
 .ap-share-set { padding: 1px 6px; }
+
+/* ── Thermal history (#738) ──────────────────────────────────────────────────
+   A chart of what the machine did with its heat, opened from a row in the
+   machine panel. Every series is stacked on one time axis and each keeps its
+   own unit: degrees and a percentage share nothing but a range, and one axis
+   for both would invite a comparison of shapes that means nothing. */
+.th-modal { width: min(620px, 92vw); }
+.th-since {
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.th-body { padding: 14px 16px 16px; overflow-y: auto; }
+.th-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
+
+.th-series + .th-series { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+/* The row that was pressed. A rail rather than a fill: the click chose a
+   series, it did not select one for an action, so it is marked the way a
+   bookmark is and not the way a checkbox is. */
+.th-series.marked { border-left: 2px solid var(--accent); padding-left: 10px; margin-left: -12px; }
+
+.th-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.th-label { font-size: 12px; font-weight: 600; }
+.th-stats { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
+.th-stats b { font-size: 16px; font-weight: 600; }
+.th-stats b.warn { color: var(--warn); }
+.th-stats b.hot { color: var(--err); }
+/* `<i>` for the unit and the word, which are not emphasis but the caption a
+   figure needs; the sheet un-italicises it because the slant would be the only
+   slanted text in the panel. */
+.th-stats i { font-style: normal; font-size: 10px; color: var(--muted); margin-right: 8px; }
+
+.th-plot { position: relative; }
+.th-chart { display: block; width: 100%; overflow: visible; touch-action: none; }
+.th-area { fill: var(--accent); opacity: 0.14; }
+.th-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.th-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
+.th-floor { stroke: var(--line); stroke-width: 1; }
+/* Dashed, and behind the line, so a threshold reads as a mark on the scale
+   rather than as another reading. */
+.th-rule { stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.55; }
+.th-rule.warn { stroke: var(--warn); }
+.th-rule.hot { stroke: var(--err); }
+.th-rule-tag { font-size: 9px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.th-rule-tag.warn { fill: var(--warn); }
+.th-rule-tag.hot { fill: var(--err); }
+.th-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+
+.th-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  /* Held open so the strip does not collapse when the pointer leaves and the
+     reading is replaced by two clock labels of a different width. */
+  min-height: 13px;
+}
+/* Inherits `.th-axis`'s --muted deliberately. --text-secondary is the tier for
+   sentences a reader reads; this is a clock and a figure they glance at, and
+   text-tiers.test.ts is the rule that says so. */
+.th-at b { color: var(--text); font-weight: 600; }
+.th-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .th-modal { animation: none; }
+}

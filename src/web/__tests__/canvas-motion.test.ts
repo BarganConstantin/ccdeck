@@ -272,6 +272,10 @@ const PRESSES: Press[] = [
   // three-letter word, and 0.94 of a 40px cell would read as a jump rather than
   // as a press.
   [".sysdetail .sd-sort:active", "0.97", "transform"],
+  // A thermal row, which opens its own history (#738). A full-width row that
+  // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
+  // number.
+  [".sysdetail .sd-row-open:active", "0.97", "transform"],
   [".topbar .waiting-stat:active", "0.97", "transform"],
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],

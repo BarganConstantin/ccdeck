@@ -261,7 +261,12 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
-      "bw-ep-head", "bw-radar", "cost-bar", "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
+      "bw-ep-head", "bw-radar", "cost-bar",
+      // The thermal chart, which is an SVG sized by its container and reading
+      // its own width back through a ResizeObserver. It enters the margin check
+      // below by being named here, which is the point of the list.
+      "th-chart",
+      "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
     ]);
 
     const violations: string[] = [];

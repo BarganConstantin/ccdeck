@@ -24,6 +24,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
 import { modalStack, PANEL_LAYER } from "../modal-dismiss";
+import ThermalHistoryModal from "./ThermalHistoryModal";
 
 /** Matches the server's CPU cadence, so the meter advances one bucket per poll
  *  rather than redrawing the same frame or skipping one. */
@@ -618,6 +619,10 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
  * exist. On a platform with no sensor this section has never existed.
  */
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
+  // Which row's chart is open, by label. Null when none is. Held here rather
+  // than in the panel above, because the modal belongs to this section and
+  // closing the panel should take it with it.
+  const [chart, setChart] = useState<string | null>(null);
   if (!thermal) return null;
   const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
   return (
@@ -633,14 +638,28 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
           // nobody would recognise.
           pct={r.celsius}
           tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
+          onOpen={() => setChart(r.label)}
         />
       ))}
       {held && (
-        <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
+        <Row
+          label={THROTTLE_ROW}
+          value={held.value}
+          pct={held.pct}
+          tone={held.tone}
+          note={held.note}
+          onOpen={() => setChart(THROTTLE_ROW)}
+        />
       )}
+      {chart && <ThermalHistoryModal focus={chart} onClose={() => setChart(null)} />}
     </div>
   );
 }
+
+/** The label the throttle row and the history series agree on. The server
+ *  exports the same constant; a second spelling here would show the reader a
+ *  chart with no series in it. */
+const THROTTLE_ROW = "Throttling";
 
 /**
  * The process table, and the one part of this panel you can operate.
@@ -735,11 +754,15 @@ function SortHead({ col, label, sort, onSort }: {
  * component every section shares. `tone` for the same reason: `pct >= 90` is
  * the memory rule and it was never the thermal one.
  */
-function Row({ label, value, pct, tone = "calm", note }: {
+function Row({ label, value, pct, tone = "calm", note, onOpen }: {
   label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
+  /** Given only by the thermal rows, which have a history to open. The memory
+   *  rows look identical and are not controls, which is honest: the server
+   *  keeps no history for them, so there is nothing behind a click. */
+  onOpen?: () => void;
 }) {
-  return (
-    <div className="sd-row">
+  const body = (
+    <>
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
@@ -760,6 +783,22 @@ function Row({ label, value, pct, tone = "calm", note }: {
         />
       </span>
       {note && <div className="sd-note">{note}</div>}
-    </div>
+    </>
   );
+  // A <button> only where there is something behind it. `sd-row` keeps every
+  // rule that draws the row, so the two spellings are the same picture and only
+  // the affordance differs.
+  return onOpen
+    ? (
+      <button
+        type="button"
+        className="sd-row sd-row-open"
+        onClick={onOpen}
+        title={`Show ${label.toLowerCase()} history`}
+        aria-label={`Show ${label} history`}
+      >
+        {body}
+      </button>
+    )
+    : <div className="sd-row">{body}</div>;
 }
