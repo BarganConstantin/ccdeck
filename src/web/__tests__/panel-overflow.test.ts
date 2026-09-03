@@ -265,7 +265,7 @@ describe("a percentage width under a horizontal margin", () => {
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.
-      "th-chart",
+      "hist-chart",
       "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
     ]);
 

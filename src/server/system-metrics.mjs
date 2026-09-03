@@ -46,10 +46,11 @@ let thermalTimer = null;
 let thermalInFlight = false;
 /** Consecutive readings that came back with nothing. See THERMAL_GIVE_UP. */
 let thermalMisses = 0;
-/** Minute buckets, oldest first. See THERMAL_HISTORY. */
-const thermalHistory = [];
-/** When this sampler started, so the modal can say what "since" means. */
-let thermalSince = 0;
+/** Minute buckets, oldest first, for every section that keeps a history.
+ *  See HISTORY_MINUTES. */
+const history = [];
+/** When sampling started, so a modal can say what "since" means. */
+let historySince = 0;
 
 /** Total and idle jiffies across every core, as one pair. */
 function readTicks() {
@@ -673,25 +674,25 @@ const WARN_C = 75;
 const CRIT_C = 90;
 
 /**
- * How much history the thermal readings keep, and why it is bucketed by minute.
+ * How much history the panel keeps, and why it is bucketed by minute.
  *
- * The panel answers "is it hot now"; the history answers "did it get hot while
- * that build was running", which is a different question and the reason the
- * rows open a chart. 1440 minutes is a day, which covers "since the deck
- * started" for every session anybody actually has.
+ * Each section answers "what is it now"; the chart behind it answers "what did
+ * it do while that build was running", which is a different question and the
+ * reason a section opens one at all. 1440 minutes is a day, which covers "since
+ * the deck started" for every session anybody actually has.
  *
- * A bucket holds the MAXIMUM of its minute, not the mean. A mean is the wrong
- * summary for this: a machine that touched 94°C for twenty seconds and sat at
- * 60 for the rest of the minute averages to 66 and reads as calm, and the spike
- * is the entire thing you opened the chart to find. Six samples land in each
- * bucket at the 10s cadence, so the peak is never more than a minute coarse.
+ * A bucket holds the MAXIMUM of its minute, never the mean, and that choice is
+ * the same one for every series here. A machine that touched 94°C for twenty
+ * seconds and sat at 60 for the rest of the minute averages to 66 and reads as
+ * calm; a load average that spiked to 114 between two quiet stretches averages
+ * away entirely. The spike is what somebody opens a chart to find.
  *
  * Kept out of systemSnapshot deliberately. That endpoint is polled every three
  * seconds by a topbar meter that draws none of this; a day of buckets on every
- * one of those responses would be the largest thing the deck sends, for a chart
- * that is usually closed. It has its own route, like the process list.
+ * one of those responses would be the largest thing the deck sends, for charts
+ * that are usually closed. It has its own route, like the process list.
  */
-const THERMAL_HISTORY = 1440;
+const HISTORY_MINUTES = 1440;
 const BUCKET_MS = 60_000;
 
 /** A reading that is not a temperature is not a misparse to be shown anyway.
@@ -930,65 +931,156 @@ export async function readThermal(platform = process.platform) {
 }
 
 /**
- * Fold one reading into the minute it belongs to.
+ * Fold one reading into the minute it belongs to, under a namespaced key.
+ *
+ * Keys are namespaced by section (`thermal:GPU`, `cpu:all`, `mem:swap`) rather
+ * than kept in four rings, because they all share one clock: a bucket is a
+ * minute of this machine, and every series that has something to say about that
+ * minute says it in the same place. The sections sample at different rates —
+ * CPU every three seconds, thermal every ten, memory every thirty — and folding
+ * by maximum makes that difference invisible to the reader, which is what it
+ * should be.
+ */
+function record(key, value, nowMs = Date.now()) {
+  if (!Number.isFinite(value)) return;
+  const minute = Math.floor(nowMs / BUCKET_MS);
+  let last = history[history.length - 1];
+  if (!last || last.m !== minute) {
+    last = { m: minute, v: {} };
+    history.push(last);
+    while (history.length > HISTORY_MINUTES) history.shift();
+  }
+  const prev = last.v[key];
+  last.v[key] = prev == null ? value : Math.max(prev, value);
+}
+
+/**
+ * The thermal reading, whose series are not known until the machine answers.
  *
  * Keyed by the row's own label rather than by position, because the rows are
  * not the same on every platform and a machine can start reporting a sensor it
  * was not reporting before — a GPU driver loads, a laptop is docked. A series
- * that appears late simply has no points before it appeared, which is the
- * truth and draws correctly.
+ * that appears late simply has no points before it appeared, which is the truth
+ * and draws correctly.
  */
 function recordThermal(reading, nowMs = Date.now()) {
   if (!reading) return;
-  const minute = Math.floor(nowMs / BUCKET_MS);
-  let last = thermalHistory[thermalHistory.length - 1];
-  if (!last || last.m !== minute) {
-    last = { m: minute, v: {} };
-    thermalHistory.push(last);
-    while (thermalHistory.length > THERMAL_HISTORY) thermalHistory.shift();
-  }
-  const put = (label, value) => {
-    const prev = last.v[label];
-    last.v[label] = prev == null ? value : Math.max(prev, value);
-  };
-  for (const r of reading.celsius ?? []) put(r.label, r.celsius);
+  for (const r of reading.celsius ?? []) record(`thermal:${r.label}`, r.celsius, nowMs);
   // Stored as the share TAKEN AWAY, the same way the panel draws it, so the
   // chart and the row cannot disagree about which direction is bad.
-  if (reading.throttle) put(THROTTLE_LABEL, Math.max(0, 100 - reading.throttle.speedLimit));
+  if (reading.throttle) {
+    record(`thermal:${THROTTLE_LABEL}`, Math.max(0, 100 - reading.throttle.speedLimit), nowMs);
+  }
 }
 
-/** The one row that is not degrees. Named once so the recorder, the route and
- *  the panel cannot drift apart on the spelling. */
+/** The one thermal row that is not degrees. Named once so the recorder, the
+ *  route and the panel cannot drift apart on the spelling. */
 export const THROTTLE_LABEL = "Throttling";
 
 /**
- * What /api/system/thermal-history answers.
+ * The scale a series is drawn against.
  *
- * One entry per series, each carrying its own unit and its own bands, because
- * a percentage and a temperature share nothing but a range — drawing them
- * against one axis would invite a comparison of shapes that means nothing.
+ * Fixed at 100 wherever the PANEL draws the same number against a 0-100 track,
+ * because two pictures of one reading that disagree about how alarming it is
+ * would be worse than either alone. Load average is the exception and gets a
+ * fitted top: it is genuinely unbounded — measured at 114 on a twelve-core
+ * machine — and the section that shows it draws no track at all, so there is no
+ * competing picture for a fitted scale to contradict. Rounded up to something a
+ * person would choose, and floored at one and a half times the core count so a
+ * quiet machine is not drawn as a dramatic climb.
  */
-export function thermalHistorySnapshot() {
-  const labels = [];
-  for (const b of thermalHistory) for (const k of Object.keys(b.v)) if (!labels.includes(k)) labels.push(k);
-  const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
-  return {
-    ok: true,
-    sinceMs: thermalSince,
-    stepMs: BUCKET_MS,
-    series: labels.map(label => ({
+function loadTop(points, coreCount) {
+  const peak = points.reduce((a, p) => Math.max(a, p.v), 0);
+  const floor = Math.max(4, Math.ceil(coreCount * 1.5));
+  const want = Math.max(floor, peak * 1.15);
+  const step = want <= 20 ? 5 : want <= 100 ? 10 : 50;
+  return Math.ceil(want / step) * step;
+}
+
+/**
+ * What each section's chart is made of.
+ *
+ * One entry per series, each carrying its own unit, its own bands and its own
+ * scale, because a percentage, a temperature and a queue depth share nothing —
+ * drawing them against one axis would invite a reading of one shape against
+ * another that means nothing.
+ */
+function seriesFor(group) {
+  const at = key => history.filter(b => b.v[key] != null)
+    // Timestamps rather than indices: a bucket only exists for a minute that was
+    // sampled, so a gap — the machine asleep, the process paused — stays a gap
+    // rather than becoming a straight line across it.
+    .map(b => ({ t: b.m * BUCKET_MS, v: b.v[key] }));
+  const coreCount = os.cpus().length;
+
+  if (group === "thermal") {
+    const bands = new Map((thermal?.celsius ?? []).map(r => [r.label, r]));
+    const labels = [];
+    for (const b of history) {
+      for (const k of Object.keys(b.v)) {
+        if (!k.startsWith("thermal:")) continue;
+        const label = k.slice("thermal:".length);
+        if (!labels.includes(label)) labels.push(label);
+      }
+    }
+    return labels.map(label => ({
       label,
       unit: label === THROTTLE_LABEL ? "%" : "C",
+      top: 100,
       warnAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.warnAt ?? WARN_C),
       critAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.critAt ?? CRIT_C),
-      // Timestamps rather than indices: a bucket only exists for a minute that
-      // was sampled, so a gap — the machine asleep, the process paused — has to
-      // stay a gap rather than becoming a straight line across it.
-      points: thermalHistory
-        .filter(b => b.v[label] != null)
-        .map(b => ({ t: b.m * BUCKET_MS, v: b.v[label] })),
-    })),
-  };
+      points: at(`thermal:${label}`),
+    }));
+  }
+
+  if (group === "cores") {
+    // Not one line per core: twelve lines in a 620px dialog is a picture nobody
+    // can read. These two answer what the columns cannot answer over time —
+    // "all cores" at 20 with "busiest" at 100 is ONE core pinned, which is a
+    // different machine from twelve at 20.
+    //
+    // No bands, deliberately, and the reason is written at the top of
+    // SystemMeter: a CPU at 90% is the machine doing the work you asked for. An
+    // indicator that alarms during the normal case teaches you to stop reading
+    // it.
+    return [
+      { label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all") },
+      { label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest") },
+    ].filter(s => s.points.length);
+  }
+
+  if (group === "memory") {
+    const swapLabel = process.platform === "win32" ? "Commit" : "Swap";
+    return [
+      { label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: 100, points: at("mem:physical") },
+      { label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: 100, points: at("mem:swap") },
+    ].filter(s => s.points.length);
+  }
+
+  if (group === "load") {
+    // One series, not three. 1m, 5m and 15m are three views of one number —
+    // the longer two are the short one smoothed — so charting the 1m over an
+    // hour says everything the other two would, at the resolution they hide.
+    const points = at("load:1m");
+    if (!points.length) return [];
+    return [{
+      label: "Queued work",
+      unit: "",
+      top: loadTop(points, coreCount),
+      // Where the queue exceeds the cores there are to run it, which is the one
+      // number the section's own note already draws the line at.
+      warnAt: coreCount,
+      critAt: null,
+      points,
+    }];
+  }
+
+  return [];
+}
+
+/** What /api/system/history answers, for one section. */
+export function historySnapshot(group) {
+  return { ok: true, sinceMs: historySince, stepMs: BUCKET_MS, series: seriesFor(group) };
 }
 
 /**
@@ -1029,6 +1121,8 @@ async function sampleMemory() {
     // Same 30s cadence as memory, and for the same reason: it moves in minutes
     // and costs a subprocess on two of the three platforms.
     swap = await readSwap();
+    record("mem:physical", memory.usedPct);
+    if (swap && swap.total > 0) record("mem:swap", Math.round((swap.used / swap.total) * 1000) / 10);
   } catch { /* keep the previous reading rather than blanking the meter */ }
   finally { memInFlight = false; }
 }
@@ -1040,6 +1134,13 @@ function sampleCpu() {
   cores = per;
   cpuHistory.push(pct);
   while (cpuHistory.length > HISTORY) cpuHistory.shift();
+  record("cpu:all", pct);
+  if (per?.length) record("cpu:busiest", Math.max(...per));
+  // Free — os.loadavg() reads a kernel value, no syscall worth the name — so it
+  // rides the CPU tick rather than earning a timer. Windows returns [0,0,0],
+  // which is not a reading and is not recorded as one.
+  const load = os.loadavg();
+  if (process.platform !== "win32" && load.some(n => n > 0)) record("load:1m", Math.round(load[0] * 100) / 100);
 }
 
 /**
@@ -1051,7 +1152,7 @@ export function startSystemMetrics() {
   prevTicks = readTicks();          // baseline, so the first tick has a delta
   prevCoreTicks = readCoreTicks();
   sampleMemory();
-  thermalSince = Date.now();
+  historySince = Date.now();
   sampleThermal();
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
@@ -1068,8 +1169,8 @@ export function stopSystemMetrics() {
   cpuTimer = memTimer = thermalTimer = null;
   thermal = null;
   thermalMisses = 0;
-  thermalHistory.length = 0;
-  thermalSince = 0;
+  history.length = 0;
+  historySince = 0;
   prevTicks = null;
   prevCoreTicks = null;
   cpuHistory.length = 0;

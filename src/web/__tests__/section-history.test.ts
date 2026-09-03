@@ -13,12 +13,12 @@
 // claim about minutes that were never sampled.
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  sampleThermal, stopSystemMetrics, thermalHistorySnapshot, THROTTLE_LABEL,
+  historySnapshot, sampleThermal, stopSystemMetrics, THROTTLE_LABEL,
 } from "../../server/system-metrics.mjs";
 import {
   areaPath, band, clock, linePath, spanLabel, summary, throttleNote, yFor,
   type Point,
-} from "../components/ThermalHistoryModal";
+} from "../components/SectionHistoryModal";
 
 const MIN = 60_000;
 /** Points a minute apart, newest last, as the server emits them. */
@@ -41,7 +41,7 @@ describe("the server's minute buckets", () => {
     await sampleThermal({ read: reading(60) });
     await sampleThermal({ read: reading(94) });
     await sampleThermal({ read: reading(61) });
-    const gpu = thermalHistorySnapshot().series.find(s => s.label === "GPU")!;
+    const gpu = historySnapshot("thermal").series.find(s => s.label === "GPU")!;
     expect(gpu.points.map(p => p.v)).toEqual([94]);
   });
 
@@ -49,7 +49,7 @@ describe("the server's minute buckets", () => {
     // The row says "9%" for a speed limit of 91. If the chart stored the limit
     // instead, the two surfaces would disagree about which direction is bad.
     await sampleThermal({ read: reading(60, 91) });
-    const held = thermalHistorySnapshot().series.find(s => s.label === THROTTLE_LABEL)!;
+    const held = historySnapshot("thermal").series.find(s => s.label === THROTTLE_LABEL)!;
     expect(held.points.map(p => p.v)).toEqual([9]);
   });
 
@@ -58,7 +58,7 @@ describe("the server's minute buckets", () => {
     // hold either under one label is how a throttle percentage ends up printed
     // under a °C heading.
     await sampleThermal({ read: reading(60, 100) });
-    const { series } = thermalHistorySnapshot();
+    const { series } = historySnapshot("thermal");
     expect(series.map(s => [s.label, s.unit, s.warnAt])).toEqual([
       ["GPU", "C", 75],
       [THROTTLE_LABEL, "%", null],
@@ -67,7 +67,7 @@ describe("the server's minute buckets", () => {
 
   it("records nothing at all for a machine that answered nothing", async () => {
     await sampleThermal({ read: async () => null });
-    expect(thermalHistorySnapshot().series).toEqual([]);
+    expect(historySnapshot("thermal").series).toEqual([]);
   });
 
   it("keys on the row's own label, so a sensor that appears late still charts", async () => {
@@ -79,7 +79,7 @@ describe("the server's minute buckets", () => {
                 { label: "CPU", celsius: 44, warnAt: 84, critAt: 100 }],
       throttle: null,
     }) });
-    const labels = thermalHistorySnapshot().series.map(s => s.label);
+    const labels = historySnapshot("thermal").series.map(s => s.label);
     expect(labels).toContain("CPU");
   });
 
@@ -87,9 +87,9 @@ describe("the server's minute buckets", () => {
     // The buckets belong to the run that produced them; a restart must not
     // answer with a chart from before it.
     await sampleThermal({ read: reading(60) });
-    expect(thermalHistorySnapshot().series.length).toBeGreaterThan(0);
+    expect(historySnapshot("thermal").series.length).toBeGreaterThan(0);
     stopSystemMetrics();
-    expect(thermalHistorySnapshot()).toMatchObject({ sinceMs: 0, series: [] });
+    expect(historySnapshot("thermal")).toMatchObject({ sinceMs: 0, series: [] });
   });
 });
 

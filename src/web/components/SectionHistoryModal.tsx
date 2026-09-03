@@ -1,16 +1,15 @@
-// What the machine did with its heat while you were building something.
+// What a section of the machine panel did over time.
 //
-// The panel's THERMAL section answers "is it hot now". This answers the
-// question you actually have after a long run — "did it get hot while that was
-// going, and was I ever held back for it" — and those are different enough that
-// one is a row and the other is a chart.
+// Every section there answers "what is it NOW" — 61°C, 22.2 GB of 32, a load of
+// 84. None of them can answer "what did it do while that build was running",
+// and that is the question you have after a long run rather than during one. So
+// each section opens this, and which section you pressed decides what it plots.
 //
-// ONE MODAL, EVERY SERIES, ONE TIME AXIS, and that is the whole design
-// decision. Heat is *why* throttling happens: the insight is "the GPU climbed
-// to 78°C at 14:20 and the CPU was held to 91% two minutes later", and a modal
-// per row would put the cause and the effect on two screens that cannot be
-// compared. The click still means something — it scrolls the series you pressed
-// into view and marks it.
+// ONE MODAL PER SECTION, EVERY SERIES IN IT, ONE TIME AXIS. The series inside a
+// section are causally linked and a chart per row would put the cause and the
+// effect on two screens that cannot be compared: heat is why throttling
+// happens, and "all cores at 20% with the busiest at 100%" is one pinned core
+// rather than a busy machine. Neither reading means much without the other.
 //
 // TWO CHARTS STACKED, NOT TWO AXES ON ONE. Degrees and a percentage share
 // nothing but a range; drawing them against a single y-axis would invite a
@@ -30,7 +29,13 @@ import { useModalDismiss } from "./use-modal-dismiss";
 export interface Point { t: number; v: number }
 export interface Series {
   label: string;
-  unit: "C" | "%";
+  /** Empty for a quantity that has no unit — a load average is a count of
+   *  queued work, not a percentage of anything. */
+  unit: "C" | "%" | "";
+  /** The top of this series' scale. 100 wherever the panel draws the same
+   *  number against a 0-100 track; fitted for load average, which is unbounded
+   *  and whose section draws no track to contradict. */
+  top: number;
   /** Null on a series with no bands — a throttle percentage has no comfortable
    *  range to be inside, since any of it at all is the machine being slowed. */
   warnAt: number | null;
@@ -62,20 +67,19 @@ const H = 104;
 const H_FLAT = 64;
 
 /**
- * The top of a chart's scale.
+ * Where a value sits, top-down, inside the plot box.
  *
- * Fixed at 100 for both units, and deliberately not fitted to the data. A scale
- * that grew with the reading would redraw the same calm afternoon as a dramatic
- * climb the moment the numbers moved two degrees, and the panel's own row draws
- * this reading against 0-100 — two pictures of one number that disagree about
- * how alarming it is would be worse than either alone.
+ * `top` comes from the server with the series, and it is fixed at 100 wherever
+ * the panel draws the same number against a 0-100 track: a scale that grew with
+ * the reading would redraw a calm afternoon as a dramatic climb the moment the
+ * numbers moved two degrees, and two pictures of one reading that disagree
+ * about how alarming it is are worse than either alone. Load average is the
+ * exception — genuinely unbounded, measured at 114 on twelve cores — and its
+ * section draws no track for a fitted scale to contradict.
  */
-const TOP = 100;
-
-/** Where a value sits, top-down, inside the plot box. */
-export function yFor(v: number, height = H): number {
+export function yFor(v: number, top = 100, height = H): number {
   const inner = height - PAD.t - PAD.b;
-  return PAD.t + inner * (1 - Math.max(0, Math.min(TOP, v)) / TOP);
+  return PAD.t + inner * (1 - Math.max(0, Math.min(top, v)) / top);
 }
 
 /**
@@ -87,7 +91,7 @@ export function yFor(v: number, height = H): number {
  * feature refuses to do. Anything more than two steps apart starts a new
  * subpath instead.
  */
-export function linePath(points: Point[], width: number, stepMs: number, height = H): string {
+export function linePath(points: Point[], width: number, stepMs: number, top = 100, height = H): string {
   if (!points.length) return "";
   const span = points[points.length - 1].t - points[0].t;
   const x = (t: number) => {
@@ -98,7 +102,7 @@ export function linePath(points: Point[], width: number, stepMs: number, height 
   let prev: Point | null = null;
   for (const p of points) {
     const cmd = prev && p.t - prev.t <= stepMs * 2 ? "L" : "M";
-    d += `${cmd}${x(p.t).toFixed(1)} ${yFor(p.v, height).toFixed(1)}`;
+    d += `${cmd}${x(p.t).toFixed(1)} ${yFor(p.v, top, height).toFixed(1)}`;
     prev = p;
   }
   return d;
@@ -115,7 +119,7 @@ export function linePath(points: Point[], width: number, stepMs: number, height 
  * for the other two hours to avoid inventing twelve minutes. Each run is
  * dropped to the floor on its own and the gap stays empty.
  */
-export function areaPath(points: Point[], width: number, stepMs: number, height = H): string {
+export function areaPath(points: Point[], width: number, stepMs: number, top = 100, height = H): string {
   if (points.length < 2) return "";
   const floor = height - PAD.b;
   const span = points[points.length - 1].t - points[0].t;
@@ -126,7 +130,7 @@ export function areaPath(points: Point[], width: number, stepMs: number, height 
   const flush = () => {
     if (run.length >= 2) {
       let d = `M${x(run[0].t).toFixed(1)} ${floor}`;
-      for (const p of run) d += `L${x(p.t).toFixed(1)} ${yFor(p.v, height).toFixed(1)}`;
+      for (const p of run) d += `L${x(p.t).toFixed(1)} ${yFor(p.v, top, height).toFixed(1)}`;
       out += `${d}L${x(run[run.length - 1].t).toFixed(1)} ${floor}Z`;
     }
     run = [];
@@ -199,10 +203,11 @@ export function spanLabel(fromMs: number, toMs: number): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function ThermalHistoryModal({ focus, onClose }: {
-  /** The row that was pressed. Marked, so a click on one of two rows still
-   *  lands somewhere rather than opening an identical dialog twice. */
-  focus?: string;
+export default function SectionHistoryModal({ group, title, onClose }: {
+  /** Which section of the panel was pressed. The server keeps one ring of
+   *  minute buckets for all of them and answers one section per request. */
+  group: "thermal" | "cores" | "memory" | "load";
+  title: string;
   onClose: () => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
@@ -212,7 +217,7 @@ export default function ThermalHistoryModal({ focus, onClose }: {
     let alive = true;
     const load = async () => {
       try {
-        const res = await fetch("/api/system/thermal-history");
+        const res = await fetch(`/api/system/history?group=${group}`);
         if (!res.ok) return;
         const data = await res.json();
         if (alive && data?.ok) setHist(data);
@@ -224,7 +229,7 @@ export default function ThermalHistoryModal({ focus, onClose }: {
     // while the row beside it moved.
     const iv = window.setInterval(load, 20_000);
     return () => { alive = false; window.clearInterval(iv); };
-  }, []);
+  }, [group]);
 
   const series = hist?.series ?? [];
   const newest = useMemo(
@@ -244,32 +249,32 @@ export default function ThermalHistoryModal({ focus, onClose }: {
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
         ref={dialogRef}
-        className="modal th-modal"
+        className="modal hist-modal"
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="th-modal-title"
+        aria-labelledby="hist-modal-title"
       >
         <div className="modal-head">
-          <span className="modal-title" id="th-modal-title">Thermal history</span>
+          <span className="modal-title" id="hist-modal-title">{title}</span>
           {hist && (
-            <span className="th-since">
+            <span className="hist-since">
               since {clock(hist.sinceMs)} · {spanLabel(hist.sinceMs, newest || Date.now())}
             </span>
           )}
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
 
-        <div className="th-body">
+        <div className="hist-body">
           {hist == null ? (
-            <p className="th-empty">Reading…</p>
+            <p className="hist-empty">Reading…</p>
           ) : series.length === 0 ? (
             // Reachable only if the modal outlives its own section, which can
             // happen: a sensor that stops answering retires its row.
-            <p className="th-empty">Nothing has been measured yet.</p>
+            <p className="hist-empty">Nothing has been measured yet.</p>
           ) : (
             series.map(s => (
-              <Chart key={s.label} series={s} stepMs={hist.stepMs} focused={s.label === focus} />
+              <Chart key={s.label} series={s} stepMs={hist.stepMs} />
             ))
           )}
         </div>
@@ -279,9 +284,8 @@ export default function ThermalHistoryModal({ focus, onClose }: {
   );
 }
 
-function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; focused: boolean }) {
+function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const selfRef = useRef<HTMLElement>(null);
   const [w, setW] = useState(560);
   const [hover, setHover] = useState<number | null>(null);
 
@@ -297,23 +301,11 @@ function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; fo
     return () => ro.disconnect();
   }, []);
 
-  // What the click is FOR, now that it does not paint a rail. With two series
-  // both on screen it does nothing, which is correct — there is nothing to
-  // scroll to. With four, which is what Linux reports, the series you pressed
-  // is the one you wanted and it may be below the fold.
-  //
-  // `nearest` so a series already in view is not yanked to the top, and no
-  // smooth behaviour: this runs on open, where a scroll animation is a surface
-  // moving before the reader has looked at it.
-  useEffect(() => {
-    if (focused) selfRef.current?.scrollIntoView({ block: "nearest" });
-  }, [focused]);
-
-  const { points, unit, warnAt, critAt, label } = series;
+  const { points, unit, warnAt, critAt, label, top } = series;
   const h = warnAt == null && critAt == null ? H_FLAT : H;
   const { now, peak } = summary(points);
-  const suffix = unit === "C" ? "°C" : "%";
-  const note = unit === "%" ? throttleNote(points, stepMs) : null;
+  const suffix = unit === "C" ? "°C" : unit;
+  const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
 
   const at = hover != null ? points[hover] : null;
   const span = points.length > 1 ? points[points.length - 1].t - points[0].t : 0;
@@ -335,10 +327,10 @@ function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; fo
   };
 
   return (
-    <section ref={selfRef} className="th-series" aria-label={`${label} history`}>
-      <div className="th-head">
-        <span className="th-label">{label}</span>
-        <span className="th-stats">
+    <section className="hist-series" aria-label={`${label} history`}>
+      <div className="hist-head">
+        <span className="hist-label">{label}</span>
+        <span className="hist-stats">
           {now != null && <><b>{now}</b><span>{suffix} now</span></>}
           {peak != null && (
             <><b className={band(peak, warnAt, critAt)}>{peak}</b><span>{suffix} peak</span></>
@@ -346,9 +338,9 @@ function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; fo
         </span>
       </div>
 
-      <div className="th-plot" ref={boxRef}>
+      <div className="hist-plot" ref={boxRef}>
         <svg
-          className="th-chart"
+          className="hist-chart"
           width="100%"
           height={h}
           viewBox={`0 0 ${w} ${h}`}
@@ -365,39 +357,39 @@ function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; fo
           {/* The bands the hardware itself publishes, drawn where they are, so
               severity is read from position instead of from a hover. */}
           {[["warn", warnAt] as const, ["hot", critAt] as const].map(([kind, v]) =>
-            v == null || v > TOP ? null : (
+            v == null || v > top ? null : (
               <g key={kind}>
-                <line className={`th-rule ${kind}`} x1={PAD.l} x2={w - PAD.r} y1={yFor(v, h)} y2={yFor(v, h)} />
-                <text className={`th-rule-tag ${kind}`} x={2} y={yFor(v, h) + 3}>{v}</text>
+                <line className={`hist-rule ${kind}`} x1={PAD.l} x2={w - PAD.r} y1={yFor(v, top, h)} y2={yFor(v, top, h)} />
+                <text className={`hist-rule-tag ${kind}`} x={2} y={yFor(v, top, h) + 3}>{v}</text>
               </g>
             ),
           )}
-          <line className="th-floor" x1={PAD.l} x2={w - PAD.r} y1={h - PAD.b} y2={h - PAD.b} />
+          <line className="hist-floor" x1={PAD.l} x2={w - PAD.r} y1={h - PAD.b} y2={h - PAD.b} />
 
-          <path className="th-area" d={areaPath(points, w, stepMs, h)} />
-          <path className="th-line" d={linePath(points, w, stepMs, h)} />
+          <path className="hist-area" d={areaPath(points, w, stepMs, top, h)} />
+          <path className="hist-line" d={linePath(points, w, stepMs, top, h)} />
 
           {/* One measured point is a measurement, just not yet a trend — so it
               draws as a dot rather than as nothing or as a fake line. */}
           {points.length === 1 && (
-            <circle className="th-dot" cx={xOf(points[0].t)} cy={yFor(points[0].v, h)} r={3} />
+            <circle className="hist-dot" cx={xOf(points[0].t)} cy={yFor(points[0].v, top, h)} r={3} />
           )}
 
           {at && (
             <g>
-              <line className="th-cross" x1={xOf(at.t)} x2={xOf(at.t)} y1={PAD.t} y2={h - PAD.b} />
-              <circle className="th-dot" cx={xOf(at.t)} cy={yFor(at.v, h)} r={3} />
+              <line className="hist-cross" x1={xOf(at.t)} x2={xOf(at.t)} y1={PAD.t} y2={h - PAD.b} />
+              <circle className="hist-dot" cx={xOf(at.t)} cy={yFor(at.v, top, h)} r={3} />
             </g>
           )}
         </svg>
       </div>
 
-      <div className="th-axis">
+      <div className="hist-axis">
         {/* The reading under the pointer replaces the clock rather than sitting
             beside it: two numbers in one strip, one of which changes as you
             move, is a strip nobody can read. */}
         {at ? (
-          <span className="th-at">{clock(at.t)} — <b>{at.v}</b>{suffix}</span>
+          <span className="hist-at">{clock(at.t)} — <b>{at.v}</b>{suffix}</span>
         ) : (
           <>
             <span>{points.length ? clock(points[0].t) : ""}</span>
@@ -406,7 +398,7 @@ function Chart({ series, stepMs, focused }: { series: Series; stepMs: number; fo
         )}
       </div>
 
-      {note && <div className="th-note">{note}</div>}
+      {note && <div className="hist-note">{note}</div>}
     </section>
   );
 }

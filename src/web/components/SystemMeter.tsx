@@ -24,7 +24,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
 import { modalStack, PANEL_LAYER } from "../modal-dismiss";
-import ThermalHistoryModal from "./ThermalHistoryModal";
+import SectionHistoryModal from "./SectionHistoryModal";
 
 /** Matches the server's CPU cadence, so the meter advances one bucket per poll
  *  rather than redrawing the same frame or skipping one. */
@@ -528,7 +528,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       {perCore && perCore.length > 0 && (
         <div className="sd-section" role="group" aria-label="Cores">
-          <div className="sd-h" aria-hidden>Cores</div>
+          <OpensHistory group="cores" title="Core history" label="Cores">
           {/* One column per core. The aggregate in the topbar cannot tell a
               saturated machine from one hot single-threaded job; this can. */}
           <div className="sd-cores" style={{ "--n": perCore.length } as React.CSSProperties}>
@@ -545,11 +545,12 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
               </span>
             ))}
           </div>
+          </OpensHistory>
         </div>
       )}
 
       <div className="sd-section" role="group" aria-label="Memory">
-        <div className="sd-h" aria-hidden>Memory</div>
+        <OpensHistory group="memory" title="Memory history" label="Memory">
         {memory && (
           <Row
             label="Physical"
@@ -568,11 +569,12 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
             note={swapPct >= 50 ? "paging to disk" : undefined}
           />
         )}
+        </OpensHistory>
       </div>
 
       {loadavg && (
         <div className="sd-section" role="group" aria-label="Load average">
-          <div className="sd-h" aria-hidden>Load average</div>
+          <OpensHistory group="load" title="Load history" label="Load average">
           <div className="sd-load">
             {loadavg.map((v, i) => (
               <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
@@ -588,6 +590,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
               ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
               : `within ${cores} cores`}
           </div>
+          </OpensHistory>
         </div>
       )}
 
@@ -618,31 +621,50 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
  * not an empty bar — the same refusal that keeps `cpu` null until two samples
  * exist. On a platform with no sensor this section has never existed.
  */
+/**
+ * A section of this panel that keeps a history, wrapped in the one control that
+ * opens it.
+ *
+ * ONE control per section, never one per row. It was one per row first, and
+ * that was a mistake with a tell: every row of a section opens the SAME dialog
+ * showing EVERY series in it, so the second button did nothing the first had
+ * not. Two controls for one action made a section read as a list of separately
+ * operable things when it is one reading of one machine.
+ *
+ * The heading goes inside the button so the whole block lights as one, and
+ * keeps its `aria-hidden`: the group is already named, and the button carries
+ * its own name, so the word a third time is noise.
+ */
+function OpensHistory({ group, title, label, children }: {
+  group: "thermal" | "cores" | "memory" | "load";
+  title: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="sd-open"
+        onClick={() => setOpen(true)}
+        title={title}
+        aria-label={title}
+      >
+        <div className="sd-h" aria-hidden>{label} <i className="sd-row-more">›</i></div>
+        {children}
+      </button>
+      {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
-  const [chart, setChart] = useState(false);
   if (!thermal) return null;
   const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
   return (
     <div className="sd-section" role="group" aria-label="Thermal">
-      {/* ONE control for the whole section, not one per row.
-          It was one per row first, and that was a mistake with a tell: both
-          buttons opened the SAME dialog showing BOTH series, so pressing the
-          second one meant nothing the first did not already do. Two controls
-          for one action is two controls too many, and it made the section read
-          as a list of separately operable things when it is one reading of one
-          machine.
-          The heading is inside the button so the whole block lights as one, and
-          keeps its `aria-hidden` like the four sections above it: the group is
-          already named "Thermal" and the button is already named "Show thermal
-          history", so the word a third time is noise. */}
-      <button
-        type="button"
-        className="sd-thermal"
-        onClick={() => setChart(true)}
-        title="Show thermal history"
-        aria-label="Show thermal history"
-      >
-        <div className="sd-h" aria-hidden>Thermal <i className="sd-row-more">›</i></div>
+      <OpensHistory group="thermal" title="Thermal history" label="Thermal">
         {thermal.celsius.map(r => (
           <Row
             key={r.label}
@@ -658,8 +680,7 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
         {held && (
           <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
         )}
-      </button>
-      {chart && <ThermalHistoryModal onClose={() => setChart(false)} />}
+      </OpensHistory>
     </div>
   );
 }

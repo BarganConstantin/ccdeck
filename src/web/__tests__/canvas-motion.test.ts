@@ -275,7 +275,7 @@ const PRESSES: Press[] = [
   // The whole THERMAL section, which opens its own history (#738). A block that
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
-  [".sysdetail .sd-thermal:active", "0.97", "transform"],
+  [".sysdetail .sd-open:active", "0.97", "transform"],
   [".topbar .waiting-stat:active", "0.97", "transform"],
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],

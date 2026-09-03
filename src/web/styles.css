@@ -1286,7 +1286,7 @@ button.btn.sm-hear {
   max-height: calc(100vh - 76px);
   overflow-y: auto;
   /* Named so the one thing inside that has to bleed PAST it can be derived
-     from it rather than from a 14 somebody retypes. See .sd-thermal. */
+     from it rather than from a 14 somebody retypes. See .sd-open. */
   --pad-x: 14px;
   padding: 12px var(--pad-x) 14px;
   background: var(--panel);
@@ -1424,7 +1424,7 @@ button.btn.sm-hear {
    box is flush against leave four notches of the colour behind it. And the
    padding is answered by an equal negative margin on both axes, so the section
    sits exactly where it sat before it became pressable. */
-.sysdetail .sd-thermal {
+.sysdetail .sd-open {
   display: block;
   width: calc(100% + var(--pad-x) * 2);
   padding: 6px var(--pad-x);
@@ -1444,8 +1444,8 @@ button.btn.sm-hear {
    meaning two different things. Six percent of --text is proportional to
    whichever theme is on, which is what `.sa-row` already does for the same
    reason. */
-.sysdetail .sd-thermal:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sysdetail .sd-thermal:active { transform: scale(0.97); }
+.sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sysdetail .sd-open:active { transform: scale(0.97); }
 /* The chevron that says the section opens something. --text-dim, the only dim
    tier text may take (#262), so it reads as a hint rather than as a value, and
    it brightens with the block on hover so the affordance and the target are
@@ -1456,7 +1456,7 @@ button.btn.sm-hear {
   color: var(--text-dim);
   transition: color 140ms ease;
 }
-.sysdetail .sd-thermal:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -1559,7 +1559,7 @@ button.btn.sm-hear {
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
   .sysdetail .sd-sort:active { transform: none; }
-  .sysdetail .sd-thermal:active { transform: none; }
+  .sysdetail .sd-open:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
@@ -8101,37 +8101,37 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    machine panel. Every series is stacked on one time axis and each keeps its
    own unit: degrees and a percentage share nothing but a range, and one axis
    for both would invite a comparison of shapes that means nothing. */
-.th-modal { width: min(620px, 92vw); }
-.th-since {
+.hist-modal { width: min(620px, 92vw); }
+.hist-since {
   margin-left: auto;
   margin-right: 10px;
   font-size: 11px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.th-body { padding: 14px 16px 16px; overflow-y: auto; }
-.th-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
+.hist-body { padding: 14px 16px 16px; overflow-y: auto; }
+.hist-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
 
 /* Space, not a line. The gap already groups them, and a rule on top of it is
    two separators doing one job in a dialog that holds two things. */
-.th-series + .th-series { margin-top: 26px; }
-.th-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
-.th-label { font-size: 12px; font-weight: 600; }
-.th-stats { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
-.th-stats b { font-size: 16px; font-weight: 600; }
-.th-stats b.warn { color: var(--warn); }
-.th-stats b.hot { color: var(--err); }
+.hist-series + .hist-series { margin-top: 26px; }
+.hist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.hist-label { font-size: 12px; font-weight: 600; }
+.hist-stats { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
+.hist-stats b { font-size: 16px; font-weight: 600; }
+.hist-stats b.warn { color: var(--warn); }
+.hist-stats b.hot { color: var(--err); }
 /* `<i>` for the unit and the word, which are not emphasis but the caption a
    figure needs; the sheet un-italicises it because the slant would be the only
    slanted text in the panel. */
-.th-stats i { font-style: normal; font-size: 10px; color: var(--muted); margin-right: 8px; }
+.hist-stats i { font-style: normal; font-size: 10px; color: var(--muted); margin-right: 8px; }
 
-.th-plot { position: relative; }
-.th-chart { display: block; width: 100%; overflow: visible; touch-action: none; }
-.th-area { fill: var(--accent); opacity: 0.14; }
-.th-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-.th-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
-.th-floor { stroke: var(--line); stroke-width: 1; }
+.hist-plot { position: relative; }
+.hist-chart { display: block; width: 100%; overflow: visible; touch-action: none; }
+.hist-area { fill: var(--accent); opacity: 0.14; }
+.hist-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.hist-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
+.hist-floor { stroke: var(--line); stroke-width: 1; }
 /* Dashed, and behind the line, so a threshold reads as a mark on the scale
    rather than as another reading. */
 /* The dash tells them apart as well as the hue does. Measured rendered in the
@@ -8139,15 +8139,15 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    the same line, and a threshold a reader cannot name is an annotation that
    costs ink and returns nothing. Long dashes for "uncomfortable", short ones
    for "the chip will act". */
-.th-rule { stroke-width: 1; opacity: 0.6; }
-.th-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
-.th-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
-.th-rule-tag { font-size: 9px; fill: var(--muted); font-variant-numeric: tabular-nums; }
-.th-rule-tag.warn { fill: var(--warn); }
-.th-rule-tag.hot { fill: var(--err); }
-.th-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.hist-rule { stroke-width: 1; opacity: 0.6; }
+.hist-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
+.hist-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
+.hist-rule-tag { font-size: 9px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.hist-rule-tag.warn { fill: var(--warn); }
+.hist-rule-tag.hot { fill: var(--err); }
+.hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
 
-.th-axis {
+.hist-axis {
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
@@ -8158,12 +8158,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      reading is replaced by two clock labels of a different width. */
   min-height: 13px;
 }
-/* Inherits `.th-axis`'s --muted deliberately. --text-secondary is the tier for
+/* Inherits `.hist-axis`'s --muted deliberately. --text-secondary is the tier for
    sentences a reader reads; this is a clock and a figure they glance at, and
    text-tiers.test.ts is the rule that says so. */
-.th-at b { color: var(--text); font-weight: 600; }
-.th-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+.hist-at b { color: var(--text); font-weight: 600; }
+.hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
-  .th-modal { animation: none; }
+  .hist-modal { animation: none; }
 }

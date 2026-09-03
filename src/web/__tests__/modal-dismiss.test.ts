@@ -180,13 +180,13 @@ describe("the modals themselves", () => {
       "KeyboardHelp.tsx",
       // #712's release notes, named here for the same reason.
       "ReleaseNotesModal.tsx",
+      // #738's section history, named here for the same reason as the four
+      // above: this is how it joins the loop below.
+      "SectionHistoryModal.tsx",
       "SessionSummary.tsx",
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
-      // #738's thermal history, named here for the same reason as the four
-      // above: this is how it joins the loop below.
-      "ThermalHistoryModal.tsx",
       "ToolModal.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
