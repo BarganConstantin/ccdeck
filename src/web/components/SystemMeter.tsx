@@ -175,7 +175,16 @@ export function thermalTone(celsius: number, warnAt: number, critAt: number): To
  * the consequence a temperature has to be interpreted into, so it is worth
  * saying in words rather than leaving as a number.
  */
-export function throttleRow(speedLimit: number): { pct: number; value: string; tone: Tone; note: string } {
+export function throttleRow(
+  speedLimit: number,
+  /** What the history says has already happened. A desktop reads 0% forever —
+   *  measured: ninety seconds of AES-NI on twelve cores never moved this — and
+   *  a row that only ever says 0% reads as a readout that does not work. It was
+   *  reported that way twice. The current value is still the value; the note is
+   *  where "and it did happen, at 12:21" belongs. */
+  past?: { peak: number; lastMs: number } | null,
+  now = Date.now(),
+): { pct: number; value: string; tone: Tone; note: string } {
   const held = Math.max(0, Math.min(100, 100 - speedLimit));
   return {
     pct: held,
@@ -191,12 +200,29 @@ export function throttleRow(speedLimit: number): { pct: number; value: string; t
     // than the one you think you are running on. A third of the clock gone is
     // where that stops being a detail.
     tone: held === 0 ? "calm" : held >= 30 ? "hot" : "warn",
-    note: held === 0
-      ? "running at full speed"
-      // Short enough to sit on one line in a 280px panel: the longer phrasing
-      // wrapped and orphaned its last word.
-      : `CPU held to ${speedLimit}% of full speed to cool down`,
+    // Short enough to sit on one line in a 280px panel: the longer phrasings
+    // wrapped and orphaned their last word.
+    note: held > 0
+      ? `CPU held to ${speedLimit}% of full speed to cool down`
+      : past
+        ? `at full speed · held to ${100 - past.peak}% ${sinceLabel(past.lastMs, now)}`
+        : "running at full speed, and never held back",
   };
+}
+
+/**
+ * How long ago something happened, in the fewest words that stay true.
+ *
+ * Coarse on purpose. The buckets are a minute wide, so "42 seconds ago" would
+ * be a precision the reading does not have, and the question this answers is
+ * "recently, or this morning" rather than "exactly when".
+ */
+export function sinceLabel(atMs: number, now = Date.now()): string {
+  const mins = Math.max(0, Math.floor((now - atMs) / 60_000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const h = Math.floor(mins / 60);
+  return h === 1 ? "an hour ago" : `${h} hours ago`;
 }
 
 /** In the `agent-dag.*` namespace like every other key here; brand.ts explains
@@ -232,7 +258,13 @@ interface ThermalReading { label: string; celsius: number; warnAt: number; critA
 /** Two fields, not one list: degrees and a throttle percentage are different
  *  readings, and a shape that could hold either under one label is how a
  *  percentage ends up printed under a °C heading. */
-interface Thermal { celsius: ThermalReading[]; throttle: { speedLimit: number } | null }
+interface Thermal {
+  celsius: ThermalReading[];
+  throttle: { speedLimit: number } | null;
+  /** Whether the machine has been held back at all since the deck started, and
+   *  when it last was. Null on one that never has. */
+  heldBack?: { peak: number; lastMs: number } | null;
+}
 interface Snapshot {
   ok: boolean;
   cpu: number | null;
@@ -668,7 +700,7 @@ function OpensHistory({ group, title, action, label, children }: {
 
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
   if (!thermal) return null;
-  const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
+  const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit, thermal.heldBack) : null;
   return (
     <div className="sd-section" role="group" aria-label="Thermal">
       <OpensHistory group="thermal" title="Thermal history" action="Show thermal history" label="Thermal">

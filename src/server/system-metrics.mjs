@@ -1116,6 +1116,34 @@ function seriesFor(group) {
   return [];
 }
 
+/**
+ * Whether this machine has been held back AT ALL since the deck started, and
+ * when it last was.
+ *
+ * The row reports the current sample, and on a desktop that current sample is
+ * `0%` essentially always — measured here: ninety seconds of AES-NI on twelve
+ * cores never moved `CPU_Speed_Limit` off 100. Which is the truth, and which
+ * reads as "this readout does not work" the second time somebody looks at it.
+ * It was reported that way twice.
+ *
+ * So the note under the row gets to say the other thing. Nothing new is
+ * sampled for it: the minute buckets already hold the peak of every minute, and
+ * this is a scan of what is already there. A machine that has never been
+ * throttled says so; one that was at lunchtime says when.
+ */
+function heldBackSoFar() {
+  const key = `thermal:${THROTTLE_LABEL}`;
+  let peak = 0;
+  let lastMs = 0;
+  for (const b of history) {
+    const v = b.v[key];
+    if (v == null || v <= 0) continue;
+    if (v > peak) peak = v;
+    lastMs = b.m * BUCKET_MS;
+  }
+  return peak > 0 ? { peak, lastMs } : null;
+}
+
 /** What /api/system/history answers, for one section. */
 export function historySnapshot(group) {
   return { ok: true, sinceMs: historySince, stepMs: BUCKET_MS, series: seriesFor(group) };
@@ -1264,7 +1292,7 @@ export function systemSnapshot() {
     perCore: cores,
     // Null on a machine that publishes nothing, and the panel draws no section
     // at all for it rather than an empty one.
-    thermal,
+    thermal: thermal ? { ...thermal, heldBack: heldBackSoFar() } : null,
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
     loadavg: hasLoad ? load.map(n => Math.round(n * 100) / 100) : null,

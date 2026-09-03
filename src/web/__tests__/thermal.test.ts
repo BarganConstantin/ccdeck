@@ -390,7 +390,46 @@ describe("how a reading is drawn", () => {
     // Reported from the panel: `none` read as though the check had not run.
     // It is the only token in this panel that is a word where a number goes,
     // and 0% sits on the same scale as the 9% that appears under load.
-    expect(throttleRow(100)).toMatchObject({ value: "0%", tone: "calm", note: "running at full speed" });
+    expect(throttleRow(100)).toMatchObject({ value: "0%", tone: "calm" });
+  });
+
+  it("says outright that it has never happened, on a machine where it has not", () => {
+    // The second half of the same report, arriving twice: a row that only ever
+    // says 0% reads as a readout that does not work. Measured on the machine it
+    // was reported from — ninety seconds of AES-NI on twelve cores never moved
+    // CPU_Speed_Limit off 100 — so 0% is the truth there, forever, and the note
+    // is what tells a reader that the check ran and found nothing rather than
+    // that it found nothing to run.
+    expect(throttleRow(100).note).toBe("running at full speed, and never held back");
+  });
+
+  it("says when it last happened, once it has", () => {
+    // The history already holds the peak of every minute; nothing new is
+    // sampled for this. It turns "0%" from a number you distrust into one you
+    // can place.
+    const now = 1_800_000_000_000;
+    expect(throttleRow(100, { peak: 9, lastMs: now - 25 * 60_000 }, now).note)
+      .toBe("at full speed · held to 91% 25 minutes ago");
+  });
+
+  it("still leads with what is happening NOW when something is", () => {
+    // The past never displaces the present: a machine being throttled right now
+    // says so, whatever it did at lunchtime.
+    const now = 1_800_000_000_000;
+    expect(throttleRow(91, { peak: 40, lastMs: now - 60_000 }, now).note)
+      .toBe("CPU held to 91% of full speed to cool down");
+  });
+
+  it("rounds the age to something the buckets can support", () => {
+    // Minute buckets, so "42 seconds ago" would be a precision the reading does
+    // not have. The question is "recently or this morning".
+    const now = 1_800_000_000_000;
+    const at = (agoMin: number) => throttleRow(100, { peak: 5, lastMs: now - agoMin * 60_000 }, now).note;
+    expect(at(0)).toContain("just now");
+    expect(at(1)).toContain("just now");
+    expect(at(59)).toContain("59 minutes ago");
+    expect(at(60)).toContain("an hour ago");
+    expect(at(200)).toContain("3 hours ago");
   });
 
   it("says what is happening and what it costs, when it is happening", () => {
