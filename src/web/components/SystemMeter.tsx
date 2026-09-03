@@ -619,47 +619,50 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
  * exist. On a platform with no sensor this section has never existed.
  */
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
-  // Which row's chart is open, by label. Null when none is. Held here rather
-  // than in the panel above, because the modal belongs to this section and
-  // closing the panel should take it with it.
-  const [chart, setChart] = useState<string | null>(null);
+  const [chart, setChart] = useState(false);
   if (!thermal) return null;
   const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
   return (
     <div className="sd-section" role="group" aria-label="Thermal">
-      <div className="sd-h" aria-hidden>Thermal</div>
-      {thermal.celsius.map(r => (
-        <Row
-          key={r.label}
-          label={r.label}
-          value={<><b>{r.celsius}</b> °C</>}
-          // The track is 0 to 100°C, which is the range silicon lives in, so
-          // the fill is the reading itself rather than a ratio of a number
-          // nobody would recognise.
-          pct={r.celsius}
-          tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
-          onOpen={() => setChart(r.label)}
-        />
-      ))}
-      {held && (
-        <Row
-          label={THROTTLE_ROW}
-          value={held.value}
-          pct={held.pct}
-          tone={held.tone}
-          note={held.note}
-          onOpen={() => setChart(THROTTLE_ROW)}
-        />
-      )}
-      {chart && <ThermalHistoryModal focus={chart} onClose={() => setChart(null)} />}
+      {/* ONE control for the whole section, not one per row.
+          It was one per row first, and that was a mistake with a tell: both
+          buttons opened the SAME dialog showing BOTH series, so pressing the
+          second one meant nothing the first did not already do. Two controls
+          for one action is two controls too many, and it made the section read
+          as a list of separately operable things when it is one reading of one
+          machine.
+          The heading is inside the button so the whole block lights as one, and
+          keeps its `aria-hidden` like the four sections above it: the group is
+          already named "Thermal" and the button is already named "Show thermal
+          history", so the word a third time is noise. */}
+      <button
+        type="button"
+        className="sd-thermal"
+        onClick={() => setChart(true)}
+        title="Show thermal history"
+        aria-label="Show thermal history"
+      >
+        <div className="sd-h" aria-hidden>Thermal <i className="sd-row-more">›</i></div>
+        {thermal.celsius.map(r => (
+          <Row
+            key={r.label}
+            label={r.label}
+            value={<><b>{r.celsius}</b> °C</>}
+            // The track is 0 to 100°C, which is the range silicon lives in, so
+            // the fill is the reading itself rather than a ratio of a number
+            // nobody would recognise.
+            pct={r.celsius}
+            tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
+          />
+        ))}
+        {held && (
+          <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
+        )}
+      </button>
+      {chart && <ThermalHistoryModal onClose={() => setChart(false)} />}
     </div>
   );
 }
-
-/** The label the throttle row and the history series agree on. The server
- *  exports the same constant; a second spelling here would show the reader a
- *  chart with no series in it. */
-const THROTTLE_ROW = "Throttling";
 
 /**
  * The process table, and the one part of this panel you can operate.
@@ -754,27 +757,13 @@ function SortHead({ col, label, sort, onSort }: {
  * component every section shares. `tone` for the same reason: `pct >= 90` is
  * the memory rule and it was never the thermal one.
  */
-function Row({ label, value, pct, tone = "calm", note, onOpen }: {
+function Row({ label, value, pct, tone = "calm", note }: {
   label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
-  /** Given only by the thermal rows, which have a history to open. The memory
-   *  rows look identical and are not controls, which is honest: the server
-   *  keeps no history for them, so there is nothing behind a click. */
-  onOpen?: () => void;
 }) {
-  const body = (
-    <>
+  return (
+    <div className="sd-row">
       <div className="sd-row-head">
-        <span className="sd-row-label">
-          {label}
-          {/* At rest, not on hover. Two of this panel's eight rows open
-              something and six do not, and they were otherwise identical until
-              the pointer arrived — which is the third time this project would
-              have shipped a control that looks inert. `.bw-ep-head` and
-              `.sl-row`, the two precedents for a full-width row that opens, are
-              both visually distinct from their neighbours before you touch
-              them. */}
-          {onOpen && <i className="sd-row-more" aria-hidden>›</i>}
-        </span>
+        <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
         <span className="sd-row-val">{value}</span>
@@ -793,22 +782,6 @@ function Row({ label, value, pct, tone = "calm", note, onOpen }: {
         />
       </span>
       {note && <div className="sd-note">{note}</div>}
-    </>
+    </div>
   );
-  // A <button> only where there is something behind it. `sd-row` keeps every
-  // rule that draws the row, so the two spellings are the same picture and only
-  // the affordance differs.
-  return onOpen
-    ? (
-      <button
-        type="button"
-        className="sd-row sd-row-open"
-        onClick={onOpen}
-        title={`Show ${label.toLowerCase()} history`}
-        aria-label={`Show ${label} history`}
-      >
-        {body}
-      </button>
-    )
-    : <div className="sd-row">{body}</div>;
 }

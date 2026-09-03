@@ -1285,7 +1285,10 @@ button.btn.sm-hear {
   width: 280px;          /* the usage panel's width, so the rail reads as one system */
   max-height: calc(100vh - 76px);
   overflow-y: auto;
-  padding: 12px 14px 14px;
+  /* Named so the one thing inside that has to bleed PAST it can be derived
+     from it rather than from a 14 somebody retypes. See .sd-thermal. */
+  --pad-x: 14px;
+  padding: 12px var(--pad-x) 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1396,21 +1399,37 @@ button.btn.sm-hear {
 }
 
 .sd-row + .sd-row { margin-top: 9px; }
-/* A thermal row opens its own history (#738). The rules that DRAW the row stay
-   on `.sd-row`, so a row that is a button and a row that is not are the same
-   picture — what changes is only that one of them answers a press. The reset is
-   here because a <button> arrives with a border, a background and centred text
-   of its own, and this row is a stack of two lines that must sit exactly where
-   its non-clickable neighbours sit. */
-.sysdetail .sd-row-open {
+/* The THERMAL section is one control (#738): pressing anywhere in it opens the
+   chart of what the machine did with its heat. One button rather than one per
+   row, because both rows opened the same dialog showing both series — a second
+   control that repeated the first.
+
+   FULL BLEED, to the panel's padding box rather than its content box. Reported
+   from the panel: the hover read as a chip floating in the middle of a row with
+   the panel's own colour showing down both sides, because the fill stopped 14px
+   short at each edge. A highlight that does not reach the edges of the thing it
+   highlights is a highlight of something else.
+
+   The width is the section's own plus the panel's two paddings, and the margin
+   gives those paddings back — both read from `--pad-x` on `.sysdetail`, so the
+   bleed cannot drift out of step with the padding it is bleeding into. It is
+   NOT `width: auto`: that was tried first and a <button> ignores it, because a
+   form control shrinks to its content even at `display: block` — the box came
+   out 127px inside a 280px panel. And it is not a bare `100%` under a negative
+   margin either, which is the shape that made two panels scroll sideways
+   (#369); this one is measured to land exactly on the padding box, with
+   `scrollWidth === clientWidth` after it.
+
+   No radius, for the reason a list row has none: rounded corners at an edge the
+   box is flush against leave four notches of the colour behind it. And the
+   padding is answered by an equal negative margin on both axes, so the section
+   sits exactly where it sat before it became pressable. */
+.sysdetail .sd-thermal {
   display: block;
-  width: 100%;
-  /* Vertical only. A horizontal inset would need a negative margin to keep the
-     labels in line with the rows above, and a negative margin under a 100%
-     width is exactly the shape that made two panels scroll sideways (#369). */
-  padding: 4px 0;
+  width: calc(100% + var(--pad-x) * 2);
+  padding: 6px var(--pad-x);
+  margin: -6px calc(var(--pad-x) * -1);
   border: 0;
-  border-radius: 6px;
   background: none;
   font: inherit;
   color: inherit;
@@ -1418,26 +1437,28 @@ button.btn.sm-hear {
   cursor: pointer;
   transition: background 140ms ease, transform 140ms ease;
 }
-/* The padding above would push the first row down and out of step with the
-   sections that have none, so the box is pulled back by what it added. */
-.sysdetail .sd-row-open { margin-top: -4px; }
-.sysdetail .sd-row-open:last-child { margin-bottom: -4px; }
-.sysdetail .sd-row + .sd-row-open { margin-top: 5px; }
-.sysdetail .sd-row-open:hover { background: var(--line); }
-.sysdetail .sd-row-open:active { transform: scale(0.97); }
-.sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.sd-row-label { color: var(--muted); }
-/* The chevron that says a row opens something. --text-dim, which is the only
-   dim tier text may take (#262) — --muted-dim is for lines and fills — so it
-   reads as a hint rather than as a second value, and it brightens with the row
-   on hover so the affordance and the target are one thing. */
+/* A share of the text colour, not `--line`. --line is a boundary token and it
+   is tuned for a hairline: at #1f2229 on a dark panel it is a whisper, at
+   #c8cdd6 on a white one it is a solid grey, and across 278x97px that reads as
+   SELECTED in the light theme and as a tint in the dark one — one hover state
+   meaning two different things. Six percent of --text is proportional to
+   whichever theme is on, which is what `.sa-row` already does for the same
+   reason. */
+.sysdetail .sd-thermal:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sysdetail .sd-thermal:active { transform: scale(0.97); }
+/* The chevron that says the section opens something. --text-dim, the only dim
+   tier text may take (#262), so it reads as a hint rather than as a value, and
+   it brightens with the block on hover so the affordance and the target are
+   one thing. */
 .sd-row-more {
   font-style: normal;
-  margin-left: 3px;
+  font-size: 11px;
   color: var(--text-dim);
   transition: color 140ms ease;
 }
-.sysdetail .sd-row-open:hover .sd-row-more { color: var(--text); }
+.sysdetail .sd-thermal:hover .sd-row-more { color: var(--text); }
+.sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
 .sd-row-val b { color: var(--text); font-weight: 600; }
 .sd-track {
@@ -1538,7 +1559,7 @@ button.btn.sm-hear {
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
   .sysdetail .sd-sort:active { transform: none; }
-  .sysdetail .sd-row-open:active { transform: none; }
+  .sysdetail .sd-thermal:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
