@@ -497,10 +497,14 @@ describe("which deck is allowed to win the election", () => {
     expect(server, "the election takes every registered deck again")
       .toMatch(/if \(d\.watch !== true\) continue;/);
     // Before the liveness check, so a dead deck that also lacks the field costs
-    // no signal.
-    const skip = server.indexOf("if (d.watch !== true) continue;");
-    const kill = server.indexOf("process.kill(d.pid, 0)");
-    expect(skip).toBeGreaterThan(0);
+    // no signal. Scoped to the election: `registeredDeckPorts` walks the same
+    // directory with its own `process.kill`, and an unscoped indexOf finds
+    // whichever comes first in the file rather than the one in this function.
+    const fn = server.slice(server.indexOf("async function isReactingDeck"));
+    const skip = fn.indexOf("if (d.watch !== true) continue;");
+    const kill = fn.indexOf("process.kill(d.pid, 0)");
+    expect(skip, "the skip is not inside isReactingDeck").toBeGreaterThan(0);
+    expect(kill, "the liveness check is not inside isReactingDeck").toBeGreaterThan(0);
     expect(skip).toBeLessThan(kill);
   });
 

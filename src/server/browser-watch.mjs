@@ -188,11 +188,50 @@ export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
  * user's own dev server on 3000 or 44440 is still reported, which is the case
  * that would have hurt.
  */
-export function deckOwnOrigins(portRange = [4317, 4400]) {
+export function deckOwnOrigins(portRange = [4317, 4400], registered = []) {
   const [lo, hi] = portRange;
   const out = [];
   for (let port = lo; port <= hi; port++) out.push(`http://127.0.0.1:${port}`);
+  // AND THE PORTS DECKS ACTUALLY REGISTERED, which the range cannot know about.
+  // The range covers the default and its fallback; an explicit `--port` lands
+  // anywhere. Measured: a deck running from a worktree on `--port 4793` opened
+  // its own tab, and this panel reported it to its owner as a program driving
+  // the browser — which it was, and the program was ccdeck.
+  //
+  // Read rather than guessed. The registry already holds a port per live deck
+  // for the election, so this is a fact the machine has, not a range somebody
+  // has to keep current.
+  //
+  // A deck that registered NOTHING is still reported, and that is right rather
+  // than a gap: from here it is a program driving the browser and nothing
+  // announces otherwise. The reader can dismiss it once and it stays dismissed.
+  for (const port of registered) {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
+    if (port >= lo && port <= hi) continue;
+    out.push(`http://127.0.0.1:${port}`);
+  }
   return out;
+}
+
+/** The port of every live deck that registered one. Same directory and the same
+ *  liveness check the election uses — a record whose process is gone is a
+ *  leftover, not a deck whose tabs should be excused. */
+export async function registeredDeckPorts(deps = {}) {
+  if (deps.registeredDeckPorts) return deps.registeredDeckPorts();
+  const dir = join(claudeConfigDir(), "agent-dag");
+  let files;
+  try { files = await readdir(dir); } catch { return []; }
+  const ports = [];
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const d = JSON.parse(await readFile(join(dir, f), "utf8"));
+      if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
+      try { process.kill(d.pid, 0); } catch { continue; }
+      ports.push(d.port);
+    } catch { /* corrupt, or gone between listing and read */ }
+  }
+  return ports;
 }
 
 
