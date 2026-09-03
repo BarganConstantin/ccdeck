@@ -12,6 +12,8 @@
 // inventing a reading in a gap, because a straight line across a hole is a
 // claim about minutes that were never sampled.
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   historySnapshot, sampleThermal, stopSystemMetrics, THROTTLE_LABEL,
 } from "../../server/system-metrics.mjs";
@@ -239,5 +241,91 @@ describe("the clock and the span", () => {
     // opens this.
     expect(spanLabel(0, 30_000)).toBe("less than a minute");
     expect(spanLabel(1000, 0)).toBe("less than a minute");
+  });
+});
+
+describe("a sensor that stops answering", () => {
+  // Found by inspection before release, not by a report: a reading, then three
+  // empty polls, and /api/system still said 71°C — a number from four minutes
+  // ago printed as though it were now. That is the one thing this whole section
+  // claims it does not do.
+  beforeEach(() => stopSystemMetrics());
+
+  const gpu = (c: number) => async () => ({
+    celsius: [{ label: "GPU", celsius: c, warnAt: 75, critAt: 90 }], throttle: null,
+  });
+  const gone = async () => null;
+
+  it("stops being drawn rather than freezing on its last value", async () => {
+    const { systemSnapshot } = await import("../../server/system-metrics.mjs");
+    await sampleThermal({ read: gpu(71) });
+    expect(systemSnapshot().thermal).not.toBeNull();
+    for (let i = 0; i < 3; i++) await sampleThermal({ read: gone });
+    expect(systemSnapshot().thermal, "a stale reading is still on screen").toBeNull();
+  });
+
+  it("keeps asking a machine that has answered before", async () => {
+    // The cost argument for giving up was only ever about a machine that can
+    // never answer — a Windows desktop with no MSAcpi class paying a PowerShell
+    // child every ten seconds forever. One that answered has a sensor, and a
+    // silence is a gap rather than an absence.
+    let asked = 0;
+    const counted = async () => { asked++; return null; };
+    await sampleThermal({ read: gpu(71) });
+    for (let i = 0; i < 6; i++) await sampleThermal({ read: counted });
+    expect(asked).toBe(6);
+  });
+
+  it("comes back on its own when the sensor does", async () => {
+    const { systemSnapshot } = await import("../../server/system-metrics.mjs");
+    await sampleThermal({ read: gpu(71) });
+    for (let i = 0; i < 4; i++) await sampleThermal({ read: gone });
+    expect(systemSnapshot().thermal).toBeNull();
+    await sampleThermal({ read: gpu(64) });
+    expect(systemSnapshot().thermal?.celsius[0].celsius).toBe(64);
+  });
+
+  it("keeps the history it already has, which is not a live reading", async () => {
+    // The chart is explicitly about the past. Dropping what was measured
+    // because the sensor went away would lose the very thing worth looking at.
+    await sampleThermal({ read: gpu(71) });
+    for (let i = 0; i < 3; i++) await sampleThermal({ read: gone });
+    expect(historySnapshot("thermal").series[0].points[0].v).toBe(71);
+  });
+
+  it("still gives up on a machine that never answered at all", async () => {
+    let asked = 0;
+    const counted = async () => { asked++; return null; };
+    for (let i = 0; i < 6; i++) await sampleThermal({ read: counted });
+    expect(asked).toBe(3);
+  });
+});
+
+describe("the two names a section carries", () => {
+  // A control is named for what pressing it does; a dialog is named for what it
+  // is. They were briefly the same string, and the button announced "Core
+  // history" — a label where an action belongs.
+  const src = readFileSync(fileURLToPath(new URL("../components/SystemMeter.tsx", import.meta.url)), "utf8");
+
+  it("names every button with a verb", () => {
+    const actions = [...src.matchAll(/action="([^"]+)"/g)].map(m => m[1]);
+    expect(actions.length).toBe(4);
+    expect(actions.filter(a => !a.startsWith("Show "))).toEqual([]);
+  });
+
+  it("gives the dialog a name of its own, not the button's", () => {
+    for (const m of src.matchAll(/title="([^"]+)" action="([^"]+)"/g)) {
+      expect(m[1], "the dialog is named like a control").not.toMatch(/^Show /);
+      expect(m[2]).toContain(m[1].toLowerCase());
+    }
+  });
+
+  it("spells the throttle row the same way the server does", () => {
+    // Three places say this word: the server's constant, the row, and the note
+    // under the chart. A drift would show a chart with no series in it.
+    const modal = readFileSync(
+      fileURLToPath(new URL("../components/SectionHistoryModal.tsx", import.meta.url)), "utf8");
+    expect(src).toContain(`label="${THROTTLE_LABEL}"`);
+    expect(modal).toContain(`label === "${THROTTLE_LABEL}"`);
   });
 });

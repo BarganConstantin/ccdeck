@@ -528,7 +528,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       {perCore && perCore.length > 0 && (
         <div className="sd-section" role="group" aria-label="Cores">
-          <OpensHistory group="cores" title="Core history" label="Cores">
+          <OpensHistory group="cores" title="Core history" action="Show core history" label="Cores">
           {/* One column per core. The aggregate in the topbar cannot tell a
               saturated machine from one hot single-threaded job; this can. */}
           <div className="sd-cores" style={{ "--n": perCore.length } as React.CSSProperties}>
@@ -550,7 +550,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
       )}
 
       <div className="sd-section" role="group" aria-label="Memory">
-        <OpensHistory group="memory" title="Memory history" label="Memory">
+        <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
         {memory && (
           <Row
             label="Physical"
@@ -574,7 +574,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       {loadavg && (
         <div className="sd-section" role="group" aria-label="Load average">
-          <OpensHistory group="load" title="Load history" label="Load average">
+          <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
           <div className="sd-load">
             {loadavg.map((v, i) => (
               <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
@@ -635,9 +635,15 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
  * keeps its `aria-hidden`: the group is already named, and the button carries
  * its own name, so the word a third time is noise.
  */
-function OpensHistory({ group, title, label, children }: {
+function OpensHistory({ group, title, action, label, children }: {
   group: "thermal" | "cores" | "memory" | "load";
+  /** What the dialog calls itself. A name for a thing. */
   title: string;
+  /** What the BUTTON calls itself, which is not the same string: a control is
+   *  named for what pressing it does. "Core history" announces as a label and
+   *  reads as one; "Show core history" is the action. Spelled out per section
+   *  rather than derived, because deriving it produced "Show cores history". */
+  action: string;
   label: string;
   children: React.ReactNode;
 }) {
@@ -648,8 +654,8 @@ function OpensHistory({ group, title, label, children }: {
         type="button"
         className="sd-open"
         onClick={() => setOpen(true)}
-        title={title}
-        aria-label={title}
+        title={action}
+        aria-label={action}
       >
         <div className="sd-h" aria-hidden>{label} <i className="sd-row-more">›</i></div>
         {children}
@@ -664,7 +670,7 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
   const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
   return (
     <div className="sd-section" role="group" aria-label="Thermal">
-      <OpensHistory group="thermal" title="Thermal history" label="Thermal">
+      <OpensHistory group="thermal" title="Thermal history" action="Show thermal history" label="Thermal">
         {thermal.celsius.map(r => (
           <Row
             key={r.label}

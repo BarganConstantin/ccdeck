@@ -46,6 +46,8 @@ let thermalTimer = null;
 let thermalInFlight = false;
 /** Consecutive readings that came back with nothing. See THERMAL_GIVE_UP. */
 let thermalMisses = 0;
+/** Whether this machine has EVER answered. See sampleThermal. */
+let thermalEverAnswered = false;
 /** Minute buckets, oldest first, for every section that keeps a history.
  *  See HISTORY_MINUTES. */
 const history = [];
@@ -1093,15 +1095,33 @@ export function historySnapshot(group) {
  * the branch that matters.
  */
 export async function sampleThermal(deps = {}) {
-  if (thermalInFlight || thermalMisses >= THERMAL_GIVE_UP) return;
+  if (thermalInFlight) return;
+  // Giving up is only ever for a machine that has NEVER answered — the Windows
+  // desktop with no MSAcpi class, which would otherwise pay a PowerShell child
+  // every ten seconds for the life of the process. A machine that answered once
+  // has a sensor, and it keeps being asked however long the silence runs.
+  if (!thermalEverAnswered && thermalMisses >= THERMAL_GIVE_UP) return;
   const read = deps.read ?? readThermal;
   thermalInFlight = true;
   try {
     const next = await read();
-    if (next) { thermal = next; thermalMisses = 0; recordThermal(next); }
-    else if (++thermalMisses >= THERMAL_GIVE_UP && thermalTimer) {
-      clearInterval(thermalTimer);
-      thermalTimer = null;
+    if (next) { thermal = next; thermalMisses = 0; thermalEverAnswered = true; recordThermal(next); }
+    else if (++thermalMisses >= THERMAL_GIVE_UP) {
+      // DROP THE LAST READING. It used to be kept, and that is a number from
+      // four minutes ago printed as though it were now — the one thing this
+      // whole section refuses. A GPU driver unloads, a laptop is docked, a
+      // sensor goes away: the honest answer is that the section stops being
+      // drawn, not that it freezes.
+      thermal = null;
+      // But keep ASKING on a machine that has answered before. The cost
+      // argument for giving up was only ever about a machine that can never
+      // answer — a Windows desktop with no MSAcpi class paying a PowerShell
+      // child every ten seconds forever. One that answered has a sensor, and a
+      // silence is a gap rather than an absence.
+      if (!thermalEverAnswered && thermalTimer) {
+        clearInterval(thermalTimer);
+        thermalTimer = null;
+      }
     }
   } catch { thermalMisses++; }
   finally { thermalInFlight = false; }
@@ -1169,6 +1189,7 @@ export function stopSystemMetrics() {
   cpuTimer = memTimer = thermalTimer = null;
   thermal = null;
   thermalMisses = 0;
+  thermalEverAnswered = false;
   history.length = 0;
   historySince = 0;
   prevTicks = null;
