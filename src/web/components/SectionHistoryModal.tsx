@@ -257,7 +257,10 @@ export default function SectionHistoryModal({ group, title, onClose }: {
       >
         <div className="modal-head">
           <span className="modal-title" id="hist-modal-title">{title}</span>
-          {hist && (
+          {/* Guarded on a real timestamp, not merely on having a response. A
+              zero would render as "since 03:00" — the epoch, in the reader's
+              own timezone, printed as an hour this morning. */}
+          {hist && hist.sinceMs > 0 && (
             <span className="hist-since">
               since {clock(hist.sinceMs)} · {spanLabel(hist.sinceMs, newest || Date.now())}
             </span>

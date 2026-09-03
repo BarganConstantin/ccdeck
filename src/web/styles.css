@@ -1427,8 +1427,14 @@ button.btn.sm-hear {
 .sysdetail .sd-open {
   display: block;
   width: calc(100% + var(--pad-x) * 2);
-  padding: 6px var(--pad-x);
-  margin: -6px calc(var(--pad-x) * -1);
+  /* 4px of vertical bleed, not 6. Sections sit 13px apart, so a 6px bleed on
+     each side of that gap left ONE pixel between two large targets: a pointer
+     travelling down the panel would hand off from band to band with no gap at
+     all, which reads as a flicker rather than as four things, and a miss by a
+     pixel opens the wrong chart. 4px keeps 5px of daylight and still gives the
+     fill room to breathe around the text. */
+  padding: 4px var(--pad-x);
+  margin: -4px calc(var(--pad-x) * -1);
   border: 0;
   background: none;
   font: inherit;
