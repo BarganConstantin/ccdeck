@@ -1029,6 +1029,13 @@ function seriesFor(group) {
       label,
       unit: label === THROTTLE_LABEL ? "%" : "C",
       top: 100,
+      // Throttling is the one reading here whose normal value is zero, so it
+      // is the one that does not need a full-height box to be read. Said by the
+      // series rather than inferred from "has no bands", which was the first
+      // rule and was wrong: CPU has no bands DELIBERATELY and uses the whole
+      // scale, so it was getting the short box for a reason that is not true
+      // of it.
+      restsAtZero: label === THROTTLE_LABEL,
       warnAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.warnAt ?? WARN_C),
       critAt: label === THROTTLE_LABEL ? null : (bands.get(label)?.critAt ?? CRIT_C),
       points: at(`thermal:${label}`),
@@ -1046,16 +1053,19 @@ function seriesFor(group) {
     // indicator that alarms during the normal case teaches you to stop reading
     // it.
     return [
-      { label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all") },
-      { label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest") },
+      { label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all"), restsAtZero: false },
+      { label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest"), restsAtZero: false },
     ].filter(s => s.points.length);
   }
 
   if (group === "memory") {
     const swapLabel = process.platform === "win32" ? "Commit" : "Swap";
     return [
-      { label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: 100, points: at("mem:physical") },
-      { label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: 100, points: at("mem:swap") },
+      // One band, not two. A `critAt` of 100 draws a rule along the top of a
+      // chart whose scale ends at 100 — it is the ceiling, drawn again in red,
+      // and it says nothing the edge did not.
+      { label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:physical") },
+      { label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:swap") },
     ].filter(s => s.points.length);
   }
 
@@ -1073,6 +1083,7 @@ function seriesFor(group) {
       // number the section's own note already draws the line at.
       warnAt: coreCount,
       critAt: null,
+      restsAtZero: false,
       points,
     }];
   }

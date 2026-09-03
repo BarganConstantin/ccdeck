@@ -40,6 +40,8 @@ export interface Series {
    *  range to be inside, since any of it at all is the machine being slowed. */
   warnAt: number | null;
   critAt: number | null;
+  /** Whether zero is this reading's normal value. Only throttling is. */
+  restsAtZero: boolean;
   points: Point[];
 }
 export interface History { ok: boolean; sinceMs: number; stepMs: number; series: Series[] }
@@ -52,16 +54,20 @@ const PAD = { l: 30, r: 6, t: 6, b: 2 };
 /**
  * How tall a chart is, and why the two are not the same.
  *
- * A temperature moves through most of its scale and has bands drawn across it,
- * so it needs the room to keep 75 and 90 apart. A throttle percentage spends
- * nearly all of its life flat at zero and has no bands at all: at the same
- * height, four fifths of its box is empty. Shorter is a better use of the
- * reader's screen and costs nothing, because the SCALE is unchanged — both are
- * still drawn against 0 to 100, so neither picture is exaggerated by being
- * given less space.
+ * A reading that moves through its scale needs the room — a temperature has to
+ * keep 75 and 90 apart, a load average has a spike worth seeing. A reading
+ * whose NORMAL VALUE IS ZERO does not: throttling spends nearly all its life
+ * flat on the floor, and at full height four fifths of its box is empty.
  *
- * The two heights never invite a false comparison, because the units already
- * forbid one: degrees and a percentage are two charts, not one with two lines.
+ * `restsAtZero` comes from the server with the series and is the whole of the
+ * rule. It was inferred from "has no bands" first and that was wrong: CPU has
+ * no bands deliberately — the panel refuses to alarm at 90% because 90% is the
+ * machine doing the work you asked for — and it uses the entire scale, so it
+ * was getting the short box for a reason that is not true of it.
+ *
+ * The SCALE is unchanged either way, so nothing is exaggerated by being given
+ * less space, and the two heights invite no false comparison because the units
+ * already forbid one.
  */
 const H = 104;
 const H_FLAT = 64;
@@ -320,8 +326,8 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
     return () => ro.disconnect();
   }, []);
 
-  const { points, unit, warnAt, critAt, label, top } = series;
-  const h = warnAt == null && critAt == null ? H_FLAT : H;
+  const { points, unit, warnAt, critAt, label, top, restsAtZero } = series;
+  const h = restsAtZero ? H_FLAT : H;
   const { now, peak } = summary(points);
   const suffix = unit === "C" ? "°C" : unit;
   const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
@@ -365,10 +371,16 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
           viewBox={`0 0 ${w} ${h}`}
           preserveAspectRatio="none"
           role="img"
+          // The same span the header prints, measured the same way. It used to
+          // count BUCKETS and call them minutes, which disagreed with the
+          // header on screen — "10 minutes" beside "over 12 minutes" — and
+          // would have said "over 12 minutes" of a series with twelve buckets
+          // spread across three hours.
           aria-label={
             now == null
               ? `${label}: nothing measured yet`
-              : `${label}: ${now}${suffix} now, peak ${peak}${suffix}, over ${points.length} minute${points.length === 1 ? "" : "s"}`
+              : `${label}: ${now}${suffix} now, peak ${peak}${suffix}, over ${
+                  spanLabel(points[0].t, points[points.length - 1].t)}`
           }
           onPointerMove={read}
           onPointerLeave={() => setHover(null)}
