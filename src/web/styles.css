@@ -8204,7 +8204,13 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
-  .hist-modal { animation: none; }
+  /* `popIn` scales and lifts the card, which is movement rather than a fade,
+     so both of this feature's dialogs drop it. The backdrop's `fadeIn` stays:
+     a fade is the recommended answer under this preference, not the thing being
+     escaped from. `.pl-modal` was missed here at first and found by rendering
+     with the preference emulated rather than by reading the sheet. */
+  .hist-modal,
+  .pl-modal { animation: none; }
 }
 
 /* ── The whole candidate list (#738) ─────────────────────────────────────────
