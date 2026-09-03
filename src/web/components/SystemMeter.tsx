@@ -141,6 +141,55 @@ export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" |
   return sort.dir === "asc" ? "ascending" : "descending";
 }
 
+/** How a bar is painted. `calm` is the resting appearance and carries no class
+ *  of its own, which is what keeps the memory rows drawing exactly as before. */
+type Tone = "calm" | "warn" | "hot";
+
+/**
+ * Which band a temperature falls in.
+ *
+ * The numbers are the sensor's own wherever the platform publishes them — Linux
+ * hwmon carries `temp*_max` and `temp*_crit` per sensor — because one scale for
+ * every source would be a threshold this app invented. 75 and 90 are the
+ * fallback for the platforms that publish none.
+ */
+export function thermalTone(celsius: number, warnAt: number, critAt: number): Tone {
+  if (celsius >= critAt) return "hot";
+  if (celsius >= warnAt) return "warn";
+  return "calm";
+}
+
+/**
+ * Throttling, stated as the share of the CPU's speed that has been TAKEN AWAY.
+ *
+ * `pmset -g therm` reports the share still allowed, and the obvious rendering
+ * — "Thermal headroom 100%", a full bar — would put a full bar meaning "all is
+ * well" directly beneath a memory bar where a full bar means "nearly out". Two
+ * opposite conventions in one panel is a panel that has to be read twice. So it
+ * is inverted here: every bar in this section fills with the problem, and an
+ * empty track means nothing is wrong on every row and every platform.
+ *
+ * The note is the sentence somebody actually needs. A speed limit is already
+ * the consequence a temperature has to be interpreted into, so it is worth
+ * saying in words rather than leaving as a number.
+ */
+export function throttleRow(speedLimit: number): { pct: number; value: string; tone: Tone; note: string } {
+  const held = Math.max(0, Math.min(100, 100 - speedLimit));
+  return {
+    pct: held,
+    value: held === 0 ? "none" : `${held}%`,
+    // Any throttling at all is worth a colour: it means the machine is slower
+    // than the one you think you are running on. A third of the clock gone is
+    // where that stops being a detail.
+    tone: held === 0 ? "calm" : held >= 30 ? "hot" : "warn",
+    note: held === 0
+      ? "running at full speed"
+      // Short enough to sit on one line in a 280px panel: the longer phrasing
+      // wrapped and orphaned its last word.
+      : `CPU held to ${speedLimit}% of full speed to cool down`,
+  };
+}
+
 /** In the `agent-dag.*` namespace like every other key here; brand.ts explains
  *  why the rename stops at the storage layer. */
 const OPEN_KEY = "agent-dag.systemPanelOpen";
@@ -167,6 +216,14 @@ function saveOpen(open: boolean): void {
 
 interface Memory { total: number; available: number; usedPct: number }
 interface Swap { total: number; used: number }
+/** `warnAt`/`critAt` come from the chip itself where the platform publishes
+ *  them — Linux hwmon does — because a laptop package sensor and an NVMe drive
+ *  do not share a comfortable range. Elsewhere the server fills in 75/90. */
+interface ThermalReading { label: string; celsius: number; warnAt: number; critAt: number }
+/** Two fields, not one list: degrees and a throttle percentage are different
+ *  readings, and a shape that could hold either under one label is how a
+ *  percentage ends up printed under a °C heading. */
+interface Thermal { celsius: ThermalReading[]; throttle: { speedLimit: number } | null }
 interface Snapshot {
   ok: boolean;
   cpu: number | null;
@@ -178,6 +235,9 @@ interface Snapshot {
   uptimeSec: number;
   platform: string;
   loadavg: number[] | null;
+  /** Null on a machine that publishes nothing, and then no section is drawn at
+   *  all — not 0°C, not a dash, not an empty bar. */
+  thermal: Thermal | null;
   intervalMs: number;
 }
 
@@ -443,7 +503,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 }) {
   const procs = useProcesses(true);
 
-  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform } = sys;
+  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal } = sys;
   const used = memory ? memory.total - memory.available : 0;
   // Windows has no swap file in the Unix sense; what the same query reports
   // there is commit charge, so it is named for what it is.
@@ -485,18 +545,18 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
         {memory && (
           <Row
             label="Physical"
-            used={used}
-            total={memory.total}
+            value={<><b>{bytes(used)}</b> of {bytes(memory.total)}</>}
             pct={memory.usedPct}
+            tone={memory.usedPct >= 90 ? "warn" : "calm"}
             note={`${bytes(memory.available)} available`}
           />
         )}
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            used={swap.used}
-            total={swap.total}
+            value={<><b>{bytes(swap.used)}</b> of {bytes(swap.total)}</>}
             pct={swapPct}
+            tone={swapPct >= 90 ? "warn" : "calm"}
             note={swapPct >= 50 ? "paging to disk" : undefined}
           />
         )}
@@ -523,8 +583,55 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
         </div>
       )}
 
+      <ThermalSection thermal={thermal} />
+
       <Processes procs={procs} />
     </aside>
+  );
+}
+
+/**
+ * Is this machine getting hot, and is it being held back for it.
+ *
+ * The question the four sections above cannot answer. A saturated machine that
+ * is cool is a machine doing work; a saturated machine that is thermally
+ * limited is one where the next agent you launch makes everything slower, and
+ * a load average of 67 reads identically in both cases.
+ *
+ * Headed "Thermal" rather than "Temperature", and that is a decision rather
+ * than a hedge: on macOS the honest reading is not degrees at all — no CPU
+ * sensor is readable without root, and what IS readable is how much of the
+ * CPU's speed the thermal manager is currently allowing. A "Temperature"
+ * heading over that would be a heading that lies on every Apple Silicon
+ * install. "Thermal" holds degrees where the machine has them and the
+ * consequence where it does not, and every row still says what it measured.
+ *
+ * Nothing is drawn when the machine publishes nothing. Not a zero, not a dash,
+ * not an empty bar — the same refusal that keeps `cpu` null until two samples
+ * exist. On a platform with no sensor this section has never existed.
+ */
+function ThermalSection({ thermal }: { thermal: Thermal | null }) {
+  if (!thermal) return null;
+  const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit) : null;
+  return (
+    <div className="sd-section" role="group" aria-label="Thermal">
+      <div className="sd-h" aria-hidden>Thermal</div>
+      {thermal.celsius.map(r => (
+        <Row
+          key={r.label}
+          label={r.label}
+          value={<><b>{r.celsius}</b> °C</>}
+          // The track is 0 to 100°C, which is the range silicon lives in, so
+          // the fill is the reading itself rather than a ratio of a number
+          // nobody would recognise.
+          pct={r.celsius}
+          tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
+        />
+      ))}
+      {held && (
+        <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
+      )}
+    </div>
   );
 }
 
@@ -612,24 +719,37 @@ function SortHead({ col, label, sort, onSort }: {
   );
 }
 
-function Row({ label, used, total, pct, note }: {
-  label: string; used: number; total: number; pct: number; note?: string;
+/**
+ * A label, a reading, a track and an optional sentence.
+ *
+ * `value` is a node rather than a byte pair because this row draws three
+ * different kinds of reading now — "20.5 GB of 32.0 GB", "58 °C", "none" — and
+ * the memory formatting belongs to the memory section rather than to the
+ * component every section shares. `tone` for the same reason: `pct >= 90` is
+ * the memory rule and it was never the thermal one.
+ */
+function Row({ label, value, pct, tone = "calm", note }: {
+  label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
 }) {
-  const warn = pct >= 90;
   return (
     <div className="sd-row">
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
-        <span className="sd-row-val">
-          <b>{bytes(used)}</b> of {bytes(total)}
-        </span>
+        <span className="sd-row-val">{value}</span>
       </div>
       <span className="sd-track">
+        {/* A floor of 1%, so a reading that is present but tiny still draws a
+            sliver rather than reading as "no data" — but only ABOVE zero. Zero
+            draws nothing, because on the thermal rows an empty track is the
+            answer: "Throttling — none" beside a bar with a mark in it says two
+            different things, and the section's whole convention is that a bar
+            fills with the problem. Nothing is not a small amount of something.
+            Memory never reaches zero, so it is unaffected either way. */}
         <span
-          className={`sd-fill${warn ? " warn" : ""}`}
-          style={{ transform: `scaleX(${Math.max(1, Math.min(100, pct)) / 100})` }}
+          className={`sd-fill${tone === "calm" ? "" : ` ${tone}`}`}
+          style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
         />
       </span>
       {note && <div className="sd-note">{note}</div>}

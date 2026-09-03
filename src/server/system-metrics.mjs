@@ -18,7 +18,7 @@
 // readout the loudest producer in the application. So this is a plain poll
 // endpoint, exactly like /api/quota and /api/codex-usage already are.
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 
 /** CPU is the metric with spikes, so it is sampled often enough to catch one. */
@@ -41,6 +41,11 @@ let swap = null;
 const cpuHistory = [];
 let memory = null;
 let memInFlight = false;
+let thermal = null;
+let thermalTimer = null;
+let thermalInFlight = false;
+/** Consecutive readings that came back with nothing. See THERMAL_GIVE_UP. */
+let thermalMisses = 0;
 
 /** Total and idle jiffies across every core, as one pair. */
 function readTicks() {
@@ -576,6 +581,352 @@ async function readProcessesNow(platform) {
   return out ? pickCandidates(parsePsProcesses(out)) : [];
 }
 
+// ---------------------------------------------------------------------------
+// Thermal: is this machine getting hot, and is it being held back for it.
+//
+// The section the load average cannot answer. A saturated machine that is cool
+// is a machine doing work; a saturated machine that is thermally limited is one
+// where the next agent you launch makes everything slower, and `67.27 82.98
+// 74.19` reads identically in both cases.
+//
+// THREE PLATFORMS ANSWER THREE DIFFERENT QUESTIONS, and on one of them the
+// honest answer is not a temperature at all. Everything below was measured on
+// the machines available rather than taken from documentation, and the negative
+// results are recorded here because they are the reason the shape is what it
+// is:
+//
+//   Linux    /sys/class/hwmon/hwmon*/temp*_input, millidegrees Celsius, with
+//            the chip in `name` and the sensor in `temp*_label`. A plain file
+//            read, exactly like /proc/meminfo — no subprocess, and the chip
+//            publishes its own `temp*_max` and `temp*_crit`, so the warning
+//            bands are the hardware's rather than ones invented here.
+//            /sys/class/thermal/thermal_zone*/ is the coarser fallback.
+//
+//   macOS    No CPU degrees without root, verified: `powermetrics --samplers
+//            smc` answers "powermetrics must be invoked as the superuser", and
+//            `ioreg -c AppleSMC -r -d 1` publishes no temperature key at all to
+//            an unprivileged process. Asking a dashboard for a password every
+//            ten seconds is not an option, and this deck does not ship a
+//            kernel driver.
+//
+//            But the GPU driver does publish one, and nothing said so: the
+//            accelerator's PerformanceStatistics carries "Temperature(C)"
+//            beside its clock, its activity and its power. Read live on an
+//            Intel Mac with an AMD card — 60, 60, 61 over four seconds, from
+//            `ioreg -r -k PerformanceStatistics` in 51ms. Apple Silicon's
+//            AGXAccelerator publishes the same dictionary WITHOUT that key, so
+//            there the parser finds nothing and no row is drawn, which is the
+//            correct outcome rather than a special case.
+//
+//            And `pmset -g therm` is unprivileged, instant, and present on
+//            both architectures. What it reports is not heat but the
+//            consequence of heat: CPU_Speed_Limit, the share of the CPU's speed
+//            the thermal manager is currently allowing. That is arguably the
+//            more useful of the two readings — a temperature is a number you
+//            have to interpret, a speed limit is the thing you were trying to
+//            interpret it into.
+//
+//            `sysctl machdep.xcpm.cpu_thermal_level` is deliberately unused. It
+//            is live (33, then 42, then 41 over three seconds) but it is
+//            Intel-only and an undocumented scale, and printing it as though it
+//            were degrees would be exactly the lie this module refuses.
+//
+//   Windows  MSAcpi_ThermalZoneTemperature in root/wmi, CurrentTemperature in
+//            TENTHS OF A KELVIN. Published by the firmware and genuinely absent
+//            on a large share of desktop boards — the same lesson
+//            parseGetProcessJson learned about perflib, which is why absent is
+//            ordinary here rather than an error.
+//
+// NEVER INVENT A READING. No sensor means no row, and no rows at all means the
+// section is not rendered: not 0°C, not a dash, not a grey empty bar. Same rule
+// that keeps `cpu` null until two samples exist.
+
+/** How often the thermal reading is refreshed. Heat moves on the scale of
+ *  seconds, and the two platforms that cost a subprocess to ask cost 51ms
+ *  (`ioreg`) and rather less (`pmset`), measured. Linux costs a file read. */
+const THERMAL_INTERVAL_MS = 10_000;
+
+/**
+ * How many consecutive empty readings before this machine is left alone.
+ *
+ * The reason is Windows, where MSAcpi_ThermalZoneTemperature is absent on a
+ * large share of desktops: without this, every one of those machines would pay
+ * a `Get-CimInstance` child every ten seconds, forever, to render a section it
+ * can never render. Three rather than one because a single failure can be a
+ * hiccup — a timeout, a machine mid-wake — and giving up on a hiccup would lose
+ * a reading the machine does have.
+ *
+ * Not persisted. A restart asks again, which is what should happen after the
+ * user installs a driver or changes a firmware setting.
+ */
+const THERMAL_GIVE_UP = 3;
+
+/** Bands used where the hardware publishes none of its own. Linux sensors
+ *  carry `temp*_max` and `temp*_crit` and those win: a laptop package sensor
+ *  and an NVMe drive do not share a comfortable range, and one scale for both
+ *  would be a number this module made up. */
+const WARN_C = 75;
+const CRIT_C = 90;
+
+/** A reading that is not a temperature is not a misparse to be shown anyway.
+ *  Silicon does not run below freezing or above 130°C, and both ends of that
+ *  have been produced by reading the right file with the wrong unit. */
+const plausible = c => Number.isFinite(c) && c > 0 && c < 130;
+
+/**
+ * Millidegrees Celsius out of a hwmon `temp*_input`, or null.
+ *
+ * The kernel writes an integer; the divide is the whole conversion. Exported
+ * and pure for the reason every parser here is: a Linux answer has to be
+ * checkable from a Mac.
+ */
+export function celsiusFromMilli(text) {
+  const n = Number(String(text ?? "").trim());
+  const c = Math.round(n / 1000);
+  return plausible(c) ? c : null;
+}
+
+/**
+ * Which of a machine's sensors the panel names, out of every sensor found.
+ *
+ * A real machine publishes a lot of them: the package, one per core, the NVMe
+ * drive, the wireless card, the chipset. Two rows is what the panel has room
+ * for and two rows is what somebody watching a build wants, so this picks the
+ * CPU and the GPU by the chip that published them and leaves the rest alone.
+ *
+ * Preference inside a chip matters as much as the chip does. coretemp exposes
+ * `Package id 0` beside `Core 0`..`Core N`, and the package is the reading
+ * — a single core's number is noisier and lower than the die it sits on.
+ * k10temp exposes `Tctl` and, on parts that have it, `Tdie`: Tctl is Tdie plus
+ * a vendor offset that exists for fan control, so Tdie is the temperature and
+ * Tctl is the fallback. amdgpu's `edge` is the die edge and `junction` is the
+ * hotspot; edge is what every other tool calls the GPU temperature.
+ *
+ * Where a chip publishes nothing recognisable, the hottest of its sensors is
+ * taken, because the question is "is it getting hot" and the hottest sensor is
+ * the one that answers it.
+ */
+const CPU_CHIPS = ["coretemp", "k10temp", "zenpower", "cpu_thermal", "soc_thermal"];
+const GPU_CHIPS = ["amdgpu", "nouveau", "i915", "xe", "radeon"];
+
+export function pickThermalRows(sensors) {
+  const hottest = rows => rows.reduce((a, b) => (b.celsius > a.celsius ? b : a));
+  const pick = (chips, prefer, label) => {
+    const mine = (sensors ?? []).filter(s => chips.includes(s.chip) && plausible(s.celsius));
+    if (!mine.length) return null;
+    for (const re of prefer) {
+      const hit = mine.find(s => re.test(s.label ?? ""));
+      if (hit) return { ...hit, label };
+    }
+    return { ...hottest(mine), label };
+  };
+  return [
+    pick(CPU_CHIPS, [/^package id/i, /^tdie$/i, /^tctl$/i], "CPU"),
+    pick(GPU_CHIPS, [/^edge$/i, /^junction$/i], "GPU"),
+  ].filter(Boolean);
+}
+
+/**
+ * Every temperature sensor under /sys/class/hwmon, with the chip that owns it
+ * and the bands that chip publishes for it.
+ *
+ * `root` is a parameter so this can be pointed at a tree on disk. There is no
+ * Linux machine here and no container runtime, so the alternative would be a
+ * directory walk nobody has ever run — and a walk is exactly the kind of code
+ * that a fixture of its OUTPUT cannot check, because the walk is the part that
+ * is wrong.
+ */
+export async function readHwmon(root = "/sys/class/hwmon", deps = {}) {
+  const dir = deps.readdir ?? readdir;
+  const file = deps.readFile ?? readFile;
+  const read = async path => { try { return String(await file(path, "utf8")).trim(); } catch { return null; } };
+  let chips;
+  try { chips = await dir(root); } catch { return []; }
+  const out = [];
+  for (const hwmon of chips) {
+    const base = `${root}/${hwmon}`;
+    const chip = (await read(`${base}/name`)) ?? hwmon;
+    let entries;
+    try { entries = await dir(base); } catch { continue; }
+    for (const entry of entries) {
+      const m = /^(temp\d+)_input$/.exec(entry);
+      if (!m) continue;
+      const celsius = celsiusFromMilli(await read(`${base}/${entry}`));
+      if (celsius == null) continue;
+      out.push({
+        chip,
+        label: await read(`${base}/${m[1]}_label`),
+        celsius,
+        // The hardware's own bands where it has them. `max` is where the chip
+        // says it is unhappy and `crit` is where it says it will act.
+        warnAt: celsiusFromMilli(await read(`${base}/${m[1]}_max`)) ?? WARN_C,
+        critAt: celsiusFromMilli(await read(`${base}/${m[1]}_crit`)) ?? CRIT_C,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * The coarser Linux fallback, for a machine whose sensors have no hwmon driver.
+ *
+ * One row, and it is labelled with the zone's own `type` rather than "CPU",
+ * because a thermal zone is not a claim about what was measured. `acpitz` is
+ * the motherboard's idea of ambient on a lot of hardware and calling that the
+ * CPU would be the same lie in a different place.
+ */
+const ZONE_ORDER = ["x86_pkg_temp", "cpu-thermal", "cpu_thermal", "soc_thermal"];
+
+export async function readThermalZones(root = "/sys/class/thermal", deps = {}) {
+  const dir = deps.readdir ?? readdir;
+  const file = deps.readFile ?? readFile;
+  const read = async path => { try { return String(await file(path, "utf8")).trim(); } catch { return null; } };
+  let zones;
+  try { zones = (await dir(root)).filter(n => /^thermal_zone\d+$/.test(n)); } catch { return []; }
+  const found = [];
+  for (const zone of zones) {
+    const celsius = celsiusFromMilli(await read(`${root}/${zone}/temp`));
+    if (celsius == null) continue;
+    found.push({ label: (await read(`${root}/${zone}/type`)) ?? zone, celsius, warnAt: WARN_C, critAt: CRIT_C });
+  }
+  if (!found.length) return [];
+  const known = found.find(z => ZONE_ORDER.includes(z.label));
+  return [known ?? found.reduce((a, b) => (b.celsius > a.celsius ? b : a))];
+}
+
+/**
+ * GPU degrees out of `ioreg -r -k PerformanceStatistics`.
+ *
+ * The macOS reading nothing documented: the accelerator publishes
+ * "Temperature(C)" in the same dictionary as its clock and its power. The
+ * maximum across accelerators, because a machine with two cards is asking
+ * whether it is getting hot, and the hotter card is the answer.
+ */
+export function gpuFromIoreg(text) {
+  let best = null;
+  for (const m of String(text ?? "").matchAll(/"Temperature\(C\)"\s*=\s*(-?\d+)/g)) {
+    const c = Number(m[1]);
+    if (plausible(c) && (best == null || c > best)) best = c;
+  }
+  return best;
+}
+
+/**
+ * The share of the CPU's speed the thermal manager is allowing, out of
+ * `pmset -g therm`, or null when this Mac has never recorded one.
+ *
+ * `CPU_Scheduler_Limit` sits beside it and is deliberately not read: it limits
+ * scheduling rather than clock, so folding the two into one percentage would
+ * produce a number that is neither. If scheduler throttling turns out to matter
+ * it is a second row, not a redefinition of this one.
+ */
+export function throttleFromPmset(text) {
+  const m = /CPU_Speed_Limit\s*=\s*(\d+)/.exec(String(text ?? ""));
+  if (!m) return null;
+  const pct = Number(m[1]);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
+  return { speedLimit: pct };
+}
+
+/**
+ * Windows thermal zones out of MSAcpi_ThermalZoneTemperature.
+ *
+ * CurrentTemperature is in tenths of a Kelvin, which is the single detail this
+ * whole branch turns on: reading it as anything else gives a number that is
+ * plausible-looking and wrong.
+ *
+ * The zone is labelled "Thermal zone" when there is one and by its own name
+ * when there are several, because ACPI does not say which zone is the CPU and
+ * this module does not guess. `TZ00` is not a friendly label; it is an honest
+ * one, and it only appears on a machine that has more than one.
+ */
+export function tempFromMsAcpiJson(json) {
+  let rows;
+  try { rows = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return []; }
+  if (!rows) return [];
+  if (!Array.isArray(rows)) rows = [rows];
+  const found = [];
+  for (const r of rows) {
+    const k = Number(r?.CurrentTemperature);
+    if (!Number.isFinite(k)) continue;
+    const celsius = Math.round(k / 10 - 273.15);
+    if (!plausible(celsius)) continue;
+    const name = String(r?.InstanceName ?? "").split("\\").pop().replace(/_\d+$/, "");
+    found.push({ label: name || "Thermal zone", celsius, warnAt: WARN_C, critAt: CRIT_C });
+  }
+  if (found.length === 1) found[0].label = "Thermal zone";
+  return found.slice(0, 2);
+}
+
+/**
+ * What /api/system carries, or null when this machine says nothing at all.
+ *
+ * Two fields rather than one list, because they are two different readings and
+ * collapsing them would let a throttle percentage be drawn under a °C heading
+ * — the thing the label rule exists to prevent. `swapLabel` earned that rule
+ * once already.
+ */
+export async function readThermal(platform = process.platform) {
+  if (platform === "linux") {
+    const sensors = await readHwmon();
+    const celsius = pickThermalRows(sensors);
+    const rows = celsius.length ? celsius : await readThermalZones();
+    return rows.length ? { celsius: rows, throttle: null } : null;
+  }
+
+  if (platform === "darwin") {
+    // Scoped by key rather than dumped whole: `ioreg -l` is 217KB and just
+    // under two seconds on this machine, `-r -k PerformanceStatistics` is 83KB
+    // and 51ms for the same number.
+    const [gpu, therm] = await Promise.all([
+      run("ioreg", ["-r", "-k", "PerformanceStatistics", "-w", "0"], 3_000),
+      run("pmset", ["-g", "therm"]),
+    ]);
+    const celsius = [];
+    const c = gpu ? gpuFromIoreg(gpu) : null;
+    if (c != null) celsius.push({ label: "GPU", celsius: c, warnAt: WARN_C, critAt: CRIT_C });
+    const throttle = therm ? throttleFromPmset(therm) : null;
+    return celsius.length || throttle ? { celsius, throttle } : null;
+  }
+
+  if (platform === "win32") {
+    const out = await run("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | Select-Object InstanceName,CurrentTemperature | ConvertTo-Json -Compress",
+    ], 6_000);
+    if (!out) return null;
+    const celsius = tempFromMsAcpiJson(out.trim());
+    return celsius.length ? { celsius, throttle: null } : null;
+  }
+
+  return null;
+}
+
+/**
+ * One reading at a time, and a machine that cannot answer is asked three times
+ * rather than for the life of the process.
+ *
+ * `deps.read` is a seam rather than a convenience: the rule this function
+ * exists for only fires on a machine that answers with nothing, and the machine
+ * this was written on answers with something, so there is no other way to run
+ * the branch that matters.
+ */
+export async function sampleThermal(deps = {}) {
+  if (thermalInFlight || thermalMisses >= THERMAL_GIVE_UP) return;
+  const read = deps.read ?? readThermal;
+  thermalInFlight = true;
+  try {
+    const next = await read();
+    if (next) { thermal = next; thermalMisses = 0; }
+    else if (++thermalMisses >= THERMAL_GIVE_UP && thermalTimer) {
+      clearInterval(thermalTimer);
+      thermalTimer = null;
+    }
+  } catch { thermalMisses++; }
+  finally { thermalInFlight = false; }
+}
+
 async function sampleMemory() {
   if (memInFlight) return;
   memInFlight = true;
@@ -612,16 +963,22 @@ export function startSystemMetrics() {
   prevTicks = readTicks();          // baseline, so the first tick has a delta
   prevCoreTicks = readCoreTicks();
   sampleMemory();
+  sampleThermal();
   cpuTimer = setInterval(sampleCpu, CPU_INTERVAL_MS);
   memTimer = setInterval(sampleMemory, MEM_INTERVAL_MS);
+  thermalTimer = setInterval(sampleThermal, THERMAL_INTERVAL_MS);
   cpuTimer.unref?.();
   memTimer.unref?.();
+  thermalTimer.unref?.();
 }
 
 export function stopSystemMetrics() {
   if (cpuTimer) clearInterval(cpuTimer);
   if (memTimer) clearInterval(memTimer);
-  cpuTimer = memTimer = null;
+  if (thermalTimer) clearInterval(thermalTimer);
+  cpuTimer = memTimer = thermalTimer = null;
+  thermal = null;
+  thermalMisses = 0;
   prevTicks = null;
   prevCoreTicks = null;
   cpuHistory.length = 0;
@@ -656,6 +1013,9 @@ export function systemSnapshot() {
     memory,
     swap,
     perCore: cores,
+    // Null on a machine that publishes nothing, and the panel draws no section
+    // at all for it rather than an empty one.
+    thermal,
     uptimeSec: Math.round(os.uptime()),
     platform: process.platform,
     loadavg: hasLoad ? load.map(n => Math.round(n * 100) / 100) : null,

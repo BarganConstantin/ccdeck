@@ -1417,6 +1417,9 @@ button.btn.sm-hear {
   transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms ease;
 }
 .sd-fill.warn { background: var(--warn); }
+/* The third band, which only the thermal rows reach: past the temperature the
+   chip itself calls critical, or a third of the clock already taken away. */
+.sd-fill.hot { background: var(--err); }
 
 .sd-load { display: flex; gap: 14px; }
 .sd-load-item { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
