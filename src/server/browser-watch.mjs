@@ -498,14 +498,24 @@ export async function browserWatchSnapshot({
     // the last real one found instead of erasing it.
     let oldest = null;
     let human = null;
+    // PAGES A PROGRAM OPENED, which is not the same as findings. A finding also
+    // has to clear the quiet gate; this is every navigation Chrome marked as
+    // coming from an API, whether or not anybody was at the keyboard. It is the
+    // figure the overview shows, because a panel about what programs did should
+    // count what programs did — the total row count it showed before was, on a
+    // measured profile, 78% the reader's own browsing.
+    let byProgram = 0;
     for (const row of read.rows) {
       if (oldest === null || row.timeMs < oldest) oldest = row.timeMs;
-      if (!isProgramNavigation(row.transition) && (human === null || row.timeMs > human)) {
-        human = row.timeMs;
-      }
+      if (isProgramNavigation(row.transition)) byProgram += 1;
+      else if (human === null || row.timeMs > human) human = row.timeMs;
     }
-    if (read.cached) ({ findings, oldest, human } = _lastRead.get(key) ?? { findings: [], oldest: null, human: null });
-    else if (!read.degraded) _lastRead.set(key, { findings, oldest, human });
+    if (read.cached) {
+      // Carried across a cached poll like everything else here: a read that
+      // says "unchanged" means "as before", not "nothing".
+      ({ findings, oldest, human, byProgram } =
+        _lastRead.get(key) ?? { findings: [], oldest: null, human: null, byProgram: 0 });
+    } else if (!read.degraded) _lastRead.set(key, { findings, oldest, human, byProgram });
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
     // A poll that found the file unchanged says nothing at all.
@@ -568,6 +578,10 @@ export async function browserWatchSnapshot({
       profile: profile.profile,
       hasClaudeExt: profile.hasClaudeExt,
       visits: read.rows.length,
+      // What a program opened, ungated. The overview reads this; `visits` stays
+      // because the feed's deltas are computed against it and the two numbers
+      // answer different questions.
+      programVisits: byProgram,
       findings: findings.length,
       degraded: read.degraded,
       reason: read.reason ?? null,
