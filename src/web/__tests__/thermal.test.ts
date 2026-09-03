@@ -326,6 +326,12 @@ describe("the live reader, on whichever machine is running this", () => {
   // reading.
   it("answers with a well-formed reading or with nothing", async () => {
     const t = await readThermal();
+    // Printed on purpose, and only when there IS something. A green tick on a
+    // runner that answered null proves the branch did not throw and nothing
+    // else, so the log line is what turns this from a smoke test into a report
+    // of what each platform actually publishes — the question this whole
+    // feature turns on and the one no fixture can answer.
+    if (t) console.log(`[thermal] ${process.platform}: ${JSON.stringify(t)}`);
     if (t === null) return;
     expect(Array.isArray(t.celsius)).toBe(true);
     for (const r of t.celsius) {
