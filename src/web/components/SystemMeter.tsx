@@ -177,7 +177,14 @@ export function throttleRow(speedLimit: number): { pct: number; value: string; t
   const held = Math.max(0, Math.min(100, 100 - speedLimit));
   return {
     pct: held,
-    value: held === 0 ? "none" : `${held}%`,
+    // A number, never the word "none", and that was a bug report: a healthy
+    // machine read as though the check had not run. Every other reading in this
+    // panel is a figure on a scale — "20.5 GB of 32.0 GB", "84.49", "63 °C" —
+    // so a word where a number goes is the one token that looks like an absent
+    // value rather than a measured one. A speedometer at rest reads 0; it does
+    // not read "none". And 0% sits on the same scale as the 9% that appears
+    // under load, which is what makes it legible as a reading.
+    value: `${held}%`,
     // Any throttling at all is worth a colour: it means the machine is slower
     // than the one you think you are running on. A third of the clock gone is
     // where that stops being a detail.

@@ -386,8 +386,11 @@ describe("how a reading is drawn", () => {
     expect(throttleRow(62).pct).toBe(38);
   });
 
-  it("says nothing is wrong in words as well as in an empty track", () => {
-    expect(throttleRow(100)).toMatchObject({ value: "none", tone: "calm", note: "running at full speed" });
+  it("reads zero rather than 'none', so a healthy machine looks measured", () => {
+    // Reported from the panel: `none` read as though the check had not run.
+    // It is the only token in this panel that is a word where a number goes,
+    // and 0% sits on the same scale as the 9% that appears under load.
+    expect(throttleRow(100)).toMatchObject({ value: "0%", tone: "calm", note: "running at full speed" });
   });
 
   it("says what is happening and what it costs, when it is happening", () => {
