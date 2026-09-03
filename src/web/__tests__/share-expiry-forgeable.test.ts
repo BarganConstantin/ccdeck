@@ -19,20 +19,24 @@
 // and re-read this comment rather than to delete it.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
 import { wrapShare, unwrapShare, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 
-const PREFIX = "ccdeck1:";
+const PREFIX = "ccdeck2:";
 
 /** Decode a blob back to the object `wrapShare` encoded. */
 function decode(blob: string): Record<string, unknown> {
-  return JSON.parse(Buffer.from(blob.slice(PREFIX.length), "base64").toString("utf8"));
+  return JSON.parse(brotliDecompressSync(Buffer.from(blob.slice(PREFIX.length), "base64")).toString("utf8"));
 }
 
 /** Re-encode an envelope the way `wrapShare` does — the forger's whole toolkit. */
 function encode(env: unknown): string {
-  return PREFIX + Buffer.from(JSON.stringify(env), "utf8").toString("base64");
+  // Compressed since the blob shrank (see SHARE_PREFIX), which changes nothing
+  // about this file's subject: brotli is not a secret, so the forger's toolkit
+  // grew by one function call.
+  return PREFIX + brotliCompressSync(Buffer.from(JSON.stringify(env), "utf8")).toString("base64");
 }
 
 describe("the share envelope's expiry", () => {

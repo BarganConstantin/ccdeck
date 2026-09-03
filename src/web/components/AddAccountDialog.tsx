@@ -539,7 +539,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                   value={blob}
                   onChange={e => setBlob(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && blob.trim() && !busy) submitBlob(); }}
-                  placeholder="ccdeck1:…"
+                  placeholder="ccdeck2:…"
                   spellCheck={false}
                   autoComplete="off"
                   aria-label="Shared account"

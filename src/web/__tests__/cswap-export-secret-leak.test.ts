@@ -18,6 +18,7 @@
 // These pin that, and pin that the failure is still explained rather than
 // blanked.
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { brotliDecompressSync } from "node:zlib";
 
 // Names the binary outright so cswapBin does not go looking for one — otherwise
 // its `cswap --version` probe is the first thing the recorder below sees, and it
@@ -123,13 +124,14 @@ describe("shareAccount when the export fails after writing", () => {
     nextRun.value = { ok: true, code: 0, killed: false, timedOut: false, stdout: ENVELOPE, stderr: "" };
     const out = await shareAccount(2);
     expect(out.ok).toBe(true);
-    expect(out.blob.startsWith("ccdeck1:")).toBe(true);
+    expect(out.blob.startsWith("ccdeck2:")).toBe(true);
     expect(calls[0]).toEqual({ cmd: "cswap-under-test", args: ["export", "-", "--account", "2"] });
     // What went in came out: one account, named, under the envelope cswap's
     // own version stamp rather than one this repo invented.
     expect(out.shared).toEqual([{ num: "2", email: "one@example.com" }]);
     expect(out.failed).toEqual([]);
-    const body = JSON.parse(Buffer.from(out.blob.slice("ccdeck1:".length), "base64").toString("utf8"));
+    const body = JSON.parse(brotliDecompressSync(
+      Buffer.from(out.blob.slice("ccdeck2:".length), "base64")).toString("utf8"));
     expect(JSON.parse(body.payload)).toMatchObject({ version: 3, accounts: [{ email: "one@example.com" }] });
   });
 });
