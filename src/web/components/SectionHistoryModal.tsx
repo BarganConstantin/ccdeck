@@ -232,10 +232,26 @@ export default function SectionHistoryModal({ group, title, onClose }: {
   }, [group]);
 
   const series = hist?.series ?? [];
-  const newest = useMemo(
-    () => series.reduce((a, s) => Math.max(a, s.points[s.points.length - 1]?.t ?? 0), 0),
-    [series],
-  );
+  /**
+   * What the chart actually covers, which is NOT how long the deck has been
+   * running.
+   *
+   * The header read `since <boot> · <time since boot>`, and the ring keeps a
+   * day: on a deck up for two, it announced "48h" over a chart holding 24. The
+   * span has to come from the oldest point still retained. `sinceMs` is only
+   * the answer before the first bucket exists, and it is the smaller of the two
+   * exactly then.
+   */
+  const [oldest, newest] = useMemo(() => {
+    let lo = Infinity;
+    let hi = 0;
+    for (const s of series) {
+      if (!s.points.length) continue;
+      lo = Math.min(lo, s.points[0].t);
+      hi = Math.max(hi, s.points[s.points.length - 1].t);
+    }
+    return [Number.isFinite(lo) ? Math.max(lo, hist?.sinceMs ?? 0) : (hist?.sinceMs ?? 0), hi];
+  }, [series, hist?.sinceMs]);
 
   // Through a portal, unlike every other modal in this app, and for a reason
   // none of them has: this one is opened from INSIDE the machine panel, which
@@ -260,9 +276,9 @@ export default function SectionHistoryModal({ group, title, onClose }: {
           {/* Guarded on a real timestamp, not merely on having a response. A
               zero would render as "since 03:00" — the epoch, in the reader's
               own timezone, printed as an hour this morning. */}
-          {hist && hist.sinceMs > 0 && (
+          {hist && oldest > 0 && (
             <span className="hist-since">
-              since {clock(hist.sinceMs)} · {spanLabel(hist.sinceMs, newest || Date.now())}
+              since {clock(oldest)} · {spanLabel(oldest, newest || Date.now())}
             </span>
           )}
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>

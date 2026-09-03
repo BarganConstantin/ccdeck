@@ -329,3 +329,28 @@ describe("the two names a section carries", () => {
     expect(modal).toContain(`label === "${THROTTLE_LABEL}"`);
   });
 });
+
+describe("what the header claims the chart covers", () => {
+  // Found by inspection: the header read `since <boot> · <time since boot>`,
+  // and the ring keeps a day. On a deck up for two, it announced "48h" over a
+  // chart holding 24 — an overstatement of exactly the thing the reader opened
+  // the dialog to judge.
+  //
+  // Checked through the pure helper the header calls, because the arithmetic is
+  // the whole of the bug: the span is measured from the OLDEST RETAINED POINT,
+  // never from when sampling began.
+  const HOUR = 60 * MIN;
+
+  it("measures from the oldest point once the ring has wrapped", () => {
+    const bootedAt = 1_800_000_000_000;
+    const oldestKept = bootedAt + 24 * HOUR;      // a day of buckets dropped
+    const now = bootedAt + 48 * HOUR;
+    expect(spanLabel(oldestKept, now)).toBe("24h");
+    expect(spanLabel(bootedAt, now), "what it used to say").toBe("48h");
+  });
+
+  it("still measures from boot before the ring has anything to drop", () => {
+    const bootedAt = 1_800_000_000_000;
+    expect(spanLabel(bootedAt, bootedAt + 12 * MIN)).toBe("12 minutes");
+  });
+});
