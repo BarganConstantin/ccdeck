@@ -5138,7 +5138,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.
     if (req.method === "GET"  && url.pathname === "/api/system/processes") {
-      return guard(readProcesses().then(procs => send(res, 200, { ok: true, procs })), res);
+      // `total` is how many the machine is running, against the candidates
+      // actually sent. The modal says both, so a reader can see this is a
+      // selection rather than a task manager pretending to be complete.
+      return guard(readProcesses().then(r => send(res, 200, { ok: true, ...r })), res);
     }
     // A day of minute buckets, which is far too much to ride along on
     // /api/system's three-second poll for a chart that is usually closed. Its

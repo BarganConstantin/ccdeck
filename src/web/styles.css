@@ -1496,18 +1496,50 @@ button.btn.sm-hear {
 
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 10px; }
 
-.sysdetail .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+:is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* The header is the sort control now (#739), so the appearance moved onto the
    button inside the cell and what is left on the cell is column geometry. 40px
    is the widest label plus the arrow's reserved slot plus the 8px that `.sd-num`
    already pushes the digits in by — which is also the fix for the header and
    its own column having sat on two different right edges since this table
    shipped. */
-.sysdetail .sd-procs th { padding: 0 0 3px; }
-.sysdetail .sd-procs th:first-child,
-.sysdetail .sd-procs th:nth-child(2) { width: 40px; }
+/* The heading row that holds a section's own control beside its title. */
+.sd-hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sd-all {
+  position: relative;
+  padding: 0 0 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 140ms ease, transform 140ms ease;
+}
+/* SC 2.5.8, the same way `.ap-failure-x` answers it: the ink is a 10px word
+   beside a heading and drawing it button-sized would shout over the section it
+   labels, so the TARGET is a pseudo-element centred on the glyph. Measured at
+   32x22 before this — two pixels under the floor on the short side — and it
+   paints nothing, so the box that is drawn is still the box that shows and the
+   heading row keeps its height. */
+.sd-all::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  min-width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -50%;
+}
+.sd-all:hover { color: var(--text); }
+.sd-all:active { transform: scale(0.97); }
 
-.sysdetail .sd-sort {
+:is(.sysdetail, .pl-body) .sd-procs th { padding: 0 0 3px; }
+:is(.sysdetail, .pl-body) .sd-procs th:first-child,
+:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) { width: 40px; }
+
+:is(.sysdetail, .pl-body) .sd-sort {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -1532,25 +1564,25 @@ button.btn.sm-hear {
    the word, and leaving it there put the word 11px — a slot plus a gap — to the
    left of the digits it heads, whether or not this was the sorted column.
    Measured before assuming: 1493.3 against the column's 1504.3. */
-.sysdetail .sd-procs th:first-child .sd-sort,
-.sysdetail .sd-procs th:nth-child(2) .sd-sort {
+:is(.sysdetail, .pl-body) .sd-procs th:first-child .sd-sort,
+:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) .sd-sort {
   flex-direction: row-reverse;
   justify-content: flex-start;
   padding-right: 8px;
 }
-.sysdetail .sd-sort:hover { background: var(--line); color: var(--text); }
-.sysdetail .sd-sort:active { transform: scale(0.97); }
+:is(.sysdetail, .pl-body) .sd-sort:hover { background: var(--line); color: var(--text); }
+:is(.sysdetail, .pl-body) .sd-sort:active { transform: scale(0.97); }
 /* The column doing the sorting reads at full strength and the other two stay
    with the rest of the labels. Keyed on aria-sort rather than on a class of its
    own, so the state cannot be true for the eye and absent for a screen reader. */
-.sysdetail .sd-procs th:not([aria-sort="none"]) .sd-sort { color: var(--text); }
+:is(.sysdetail, .pl-body) .sd-procs th:not([aria-sort="none"]) .sd-sort { color: var(--text); }
 /* A slot the width of the glyph, held open whether or not this column is the
    one sorting, so re-sorting moves the rows and never the headers. */
 .sd-sort-dir { display: inline-block; width: 8px; text-align: center; }
-.sysdetail .sd-procs td { padding: 2px 0; }
+:is(.sysdetail, .pl-body) .sd-procs td { padding: 2px 0; }
 .sd-num { text-align: right; padding-right: 8px !important; font-weight: 600; }
 .sd-dim { color: var(--muted); font-weight: 400; }
-.sysdetail .sd-proc-name {
+:is(.sysdetail, .pl-body) .sd-proc-name {
   padding-left: 2px;
   max-width: 0;
   width: 100%;
@@ -1564,7 +1596,8 @@ button.btn.sm-hear {
   .sysdetail { animation: none; }
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
-  .sysdetail .sd-sort:active { transform: none; }
+  :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
+  .sd-all:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
@@ -8172,4 +8205,41 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 
 @media (prefers-reduced-motion: reduce) {
   .hist-modal { animation: none; }
+}
+
+/* ── The whole candidate list (#738) ─────────────────────────────────────────
+   What the panel's eight rows cannot answer: "is my vitest still running". Same
+   reading and the same ordering rules, every candidate instead of eight, plus
+   the pid and the untruncated name the panel has no width for. */
+.pl-modal { width: min(680px, 92vw); }
+.pl-count {
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pl-body { padding: 10px 16px 4px; overflow-y: auto; font-size: 11px; }
+.pl-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
+/* The header row sticks, because a fifty-row table you scroll is a table whose
+   column you forget. */
+.pl-table thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.pl-pid-h {
+  width: 62px;
+  text-align: right;
+  padding-right: 8px !important;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pl-pid { width: 62px; }
+/* No truncation here, unlike the panel: there is width for the tail of a name,
+   and the tail is what tells one `node` from another. */
+.pl-name { padding-left: 2px; color: var(--muted); }
+.pl-body tbody tr:hover td { color: var(--text); }
+.pl-foot {
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--muted);
 }

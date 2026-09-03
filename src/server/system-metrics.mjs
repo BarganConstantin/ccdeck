@@ -124,13 +124,14 @@ function cpuPercent() {
 }
 
 /**
- * The locale every child of this module is parsed in.
+ * The locale every child of this module runs in — and only the part of it that
+ * had to be forced.
  *
- * Not a preference — a correctness requirement. Every command spawned here has
- * its output read by a regex, and every one of those regexes reads a number
- * with a `.` in it. `ps` and `sysctl` honour LC_NUMERIC, so on a machine set to
- * de_DE, fr_FR, ru_RU or pt_BR — comma is the decimal separator for most of
- * Europe and Latin America — the same commands print:
+ * Not a preference. Every command spawned here has its output read by a regex
+ * and every one of those regexes reads a number with a `.` in it. `ps` and
+ * `sysctl` honour LC_NUMERIC, so on a machine set to de_DE, fr_FR, ru_RU or
+ * pt_BR — comma is the decimal separator for most of Europe and Latin America —
+ * the same commands print:
  *
  *     ps      1   0,2  0,0 /sbin/launchd
  *     sysctl  total = 8192,00M  used = 7189,75M  free = 1002,25M
@@ -138,20 +139,42 @@ function cpuPercent() {
  * and the parsers matched nothing at all. Not partially: `parsePsProcesses`
  * `continue`s on every row, so the process panel was permanently empty, and
  * `swapFromSysctl` returned null, so the macOS swap meter was permanently
- * blank. Silently, with nothing in the log, on a machine where everything else
- * worked.
+ * blank. Silently, on a machine where everything else worked.
  *
- * Forcing the locale rather than teaching the parsers to read a comma is the
- * fix that scales: it makes the OUTPUT invariant, which is what every parser
- * here was written against and what every parser added later will assume. The
- * comma tolerance below is defence in depth for the case where a sandbox strips
- * the environment, not the primary answer.
+ * THIS USED TO FORCE THE WHOLE LOCALE, and forcing the whole locale also forces
+ * the CHARACTER SET. Under `LC_ALL=C`, `ps` escapes every byte it cannot render
+ * as ASCII, so an application named in Cyrillic came back as
+ *
+ *     M-PM-/M-PM-=M-PM-4M-PM-5M-PM-:M-QM^A M-PM^\M-QM^CM-PM-7M-QM^KM-PM-:M-PM-0
+ *
+ * where the name is `Яндекс Музыка`. The panel truncates at 164px so it read as
+ * noise; the process list added in #738 has room for all ninety-one characters
+ * of it, which is how it was found. Every reader with a non-Latin application
+ * on their machine was being shown that.
+ *
+ * So only the numeric is forced now, and the character set is inherited. All
+ * four measured on this machine:
+ *
+ *     LC_ALL=C                        name mangled,  0.7
+ *     LC_ALL="" LC_NUMERIC=C          Яндекс Музыка, 0.7
+ *     LANG=de_DE + our override       Яндекс Музыка, 0.7   ← the comma case
+ *     LC_ALL=de_DE + our empty LC_ALL                0.7   ← a hostile env
+ *
+ * The empty `LC_ALL` is doing real work in the last of those: POSIX ignores an
+ * empty LC_ALL, so clearing it is what stops a user's own LC_ALL from
+ * outranking the LC_NUMERIC below. Setting LC_NUMERIC alone would not survive
+ * it.
+ *
+ * A reader whose own locale is C still sees the escaped form — but so does
+ * their terminal, so that is their machine being consistent rather than this
+ * module choosing for them.
  *
  * Meaningless on Windows, where the branches are PowerShell piped through
  * ConvertTo-Json and already culture-invariant — and harmless there for the
- * same reason.
+ * same reason. The comma tolerance in the parsers stays as defence in depth for
+ * a sandbox that strips the environment, not as the primary answer.
  */
-const C_LOCALE = { LC_ALL: "C", LANG: "C" };
+const C_LOCALE = { LC_ALL: "", LC_NUMERIC: "C" };
 
 /** Run a command and resolve its stdout, or null. Never rejects, never inherits
  *  a shell, never inherits a locale, and is killed rather than allowed to hang
@@ -518,7 +541,7 @@ let prevProcAt = 0;
 
 /** The run producing the next list, and the last one that finished. */
 let procInFlight = null;
-let procLast = null; // { at, procs }
+let procLast = null; // { at, read: { procs, total } }
 
 /**
  * How old a finished reading may be and still answer a caller.
@@ -552,7 +575,7 @@ const PROC_MIN_GAP_MS = 1_500;
  */
 export async function readProcesses(platform = process.platform) {
   const now = Date.now();
-  if (procLast && now - procLast.at < PROC_MIN_GAP_MS) return procLast.procs;
+  if (procLast && now - procLast.at < PROC_MIN_GAP_MS) return procLast.read;
   if (procInFlight) return procInFlight;
   // Only a real reading is remembered. Every failure inside readProcessesNow —
   // a spawn that never started, a non-zero exit, the timeout — resolves to an
@@ -562,9 +585,9 @@ export async function readProcesses(platform = process.platform) {
   // instead. The in-flight share still applies, so a burst arriving during a
   // failing read is one failing child, not a burst of them.
   procInFlight = readProcessesNow(platform)
-    .then(procs => {
-      if (procs.length) procLast = { at: Date.now(), procs };
-      return procs;
+    .then(read => {
+      if (read.procs.length) procLast = { at: Date.now(), read };
+      return read;
     })
     .finally(() => { procInFlight = null; });
   return procInFlight;
@@ -579,13 +602,15 @@ async function readProcessesNow(platform) {
     if (!out) return [];
     const rows = parseGetProcessJson(out.trim(), os.totalmem());
     const now = Date.now();
-    const result = pickCandidates(cpuFromDeltas(rows, prevProcCpu, now - prevProcAt));
+    const ranked = cpuFromDeltas(rows, prevProcCpu, now - prevProcAt);
     prevProcCpu = new Map(rows.filter(r => r.cpuSec != null).map(r => [r.pid, r.cpuSec]));
     prevProcAt = now;
-    return result;
+    return { procs: pickCandidates(ranked), total: ranked.length };
   }
   const out = await run("ps", psArgs(platform), 4_000);
-  return out ? pickCandidates(parsePsProcesses(out)) : [];
+  if (!out) return { procs: [], total: 0 };
+  const all = parsePsProcesses(out);
+  return { procs: pickCandidates(all), total: all.length };
 }
 
 // ---------------------------------------------------------------------------

@@ -299,9 +299,13 @@ describe("the process table", () => {
       readProcesses("linux"), readProcesses("linux"),
     ]);
     expect(spawns.filter(s => s.file === "ps").length).toBe(1);
-    // One reading, handed to everyone who asked for it.
+    // One reading, handed to everyone who asked for it. A reading is the pair
+    // {procs, total} now — the modal behind the section says how many of the
+    // machine's processes the candidates are — so identity is what makes the
+    // share visible, not the array.
     for (const list of lists) expect(list).toBe(lists[0]);
-    expect(lists[0].map((p: { pid: number }) => p.pid)).toEqual([777, 1]);
+    expect(lists[0].procs.map((p: { pid: number }) => p.pid)).toEqual([777, 1]);
+    expect(lists[0].total).toBe(2);
   });
 
   it("answers concurrent readers from one child on Windows, which is one baseline", async () => {
@@ -321,7 +325,7 @@ describe("the process table", () => {
     for (const list of lists) expect(list).toBe(lists[0]);
     // No previous reading yet, so no rate — reported as null rather than as a
     // number invented from the process's whole lifetime.
-    for (const row of lists[0]) expect(row.cpu).toBe(null);
+    for (const row of lists[0].procs) expect(row.cpu).toBe(null);
   });
 
   it("serves a caller arriving just after a reading rather than spawning again", async () => {
@@ -332,7 +336,7 @@ describe("the process table", () => {
     // it is shown the list the first one is already looking at.
     const again = await readProcesses("linux");
     expect(spawns.filter(s => s.file === "ps").length).toBe(1);
-    expect(again.length).toBeGreaterThan(0);
+    expect(again.procs.length).toBeGreaterThan(0);
 
     // Past it, and the panel gets a fresh reading. The gap is 1.5s against
     // SystemMeter's 4s poll, so the panel this exists for never once sees a
@@ -356,7 +360,7 @@ describe("the process table", () => {
     stopSystemMetrics();
     fake.fail = true;
     const empty = await readProcesses("linux");
-    expect(empty).toEqual([]);
+    expect(empty.procs).toEqual([]);
     expect(spawns.filter(s => s.file === "ps").length).toBe(1);
 
     // The next caller tries again immediately rather than being handed the
@@ -364,7 +368,7 @@ describe("the process table", () => {
     fake.fail = false;
     const real = await readProcesses("linux");
     expect(spawns.filter(s => s.file === "ps").length).toBe(2);
-    expect(real.length).toBeGreaterThan(0);
+    expect(real.procs.length).toBeGreaterThan(0);
   });
 
   it("still shares one failing child between callers who overlap it", async () => {
@@ -378,6 +382,6 @@ describe("the process table", () => {
       readProcesses("linux"), readProcesses("linux"), readProcesses("linux"),
     ]);
     expect(spawns.filter(s => s.file === "ps").length).toBe(1);
-    for (const list of lists) expect(list).toEqual([]);
+    for (const list of lists) expect(list.procs).toEqual([]);
   });
 });

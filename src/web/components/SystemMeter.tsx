@@ -25,6 +25,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
 import { modalStack, PANEL_LAYER } from "../modal-dismiss";
 import SectionHistoryModal from "./SectionHistoryModal";
+import ProcessListModal from "./ProcessListModal";
 
 /** Matches the server's CPU cadence, so the meter advances one bucket per poll
  *  rather than redrawing the same frame or skipping one. */
@@ -318,8 +319,8 @@ function useSystem(): Snapshot | null {
 }
 
 /** The process list, fetched only while `on` is true. */
-function useProcesses(on: boolean): Proc[] | null {
-  const [procs, setProcs] = useState<Proc[] | null>(null);
+function useProcesses(on: boolean): { procs: Proc[]; total: number } | null {
+  const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
   useEffect(() => {
     if (!on) return;
     let alive = true;
@@ -329,7 +330,7 @@ function useProcesses(on: boolean): Proc[] | null {
         const res = await fetch("/api/system/processes");
         if (!res.ok) return;
         const data = await res.json();
-        if (alive && data?.ok) setProcs(data.procs ?? []);
+        if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
       } catch { /* leave the previous list up rather than blanking it */ }
     };
     load();
@@ -596,7 +597,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       <ThermalSection thermal={thermal} />
 
-      <Processes procs={procs} />
+      <Processes read={procs} />
     </aside>
   );
 }
@@ -704,12 +705,36 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
  * looking at something; a preference nobody would remember setting is not worth
  * a key that outlives the question.
  */
-function Processes({ procs }: { procs: Proc[] | null }) {
+function Processes({ read }: { read: { procs: Proc[]; total: number } | null }) {
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
+  const [all, setAll] = useState(false);
+  const procs = read?.procs ?? null;
 
   return (
     <div className="sd-section" role="group" aria-label="Busiest processes">
-      <div className="sd-h" aria-hidden>Busiest processes</div>
+      {/* The one section that is NOT wrapped in a single control, and it is the
+          markup that decides: its column headers are already buttons, and a
+          button cannot contain a button. So the affordance is its own small
+          control in the heading — which turns out to be the honest shape
+          anyway, since what it opens is more of this list rather than what this
+          list did over time. */}
+      <div className="sd-hrow">
+        <div className="sd-h" aria-hidden>Busiest processes</div>
+        {procs != null && procs.length > 0 && (
+          <button
+            type="button"
+            className="sd-all"
+            onClick={() => setAll(true)}
+            title="Show every process the deck is watching"
+            aria-label="Show every process the deck is watching"
+          >
+            more <i className="sd-row-more" aria-hidden>›</i>
+          </button>
+        )}
+      </div>
+      {all && read && (
+        <ProcessListModal procs={read.procs} total={read.total} onClose={() => setAll(false)} />
+      )}
       {procs == null ? (
         <div className="sd-note">reading…</div>
       ) : procs.length === 0 ? (
@@ -748,7 +773,7 @@ function Processes({ procs }: { procs: Proc[] | null }) {
 
 /** One column header: the word, the direction it is pointing, and the press
  *  that changes it. */
-function SortHead({ col, label, sort, onSort }: {
+export function SortHead({ col, label, sort, onSort }: {
   col: SortKey;
   label: string;
   sort: Sort;
