@@ -37,6 +37,110 @@ const BUCKETS = 20;
 const W = 36;
 const SPARK_H = 8;
 
+/** `cpu` is null on a Windows first reading: a percentage needs two samples and
+ *  there has only been one. Never a zero, which would rank it as idle. */
+export interface Proc { pid: number; cpu: number | null; mem: number; name: string }
+
+/** How many process rows the panel draws. Enough to see what is eating the
+ *  machine, few enough that the panel never becomes a scroll. The server sends
+ *  a wider set than this on purpose — system-metrics.mjs's CANDIDATE_N says
+ *  why, and visibleProcs below is what spends it. */
+const ROWS = 8;
+
+export type SortKey = "cpu" | "mem" | "name";
+
+export interface Sort {
+  key: SortKey;
+  dir: "asc" | "desc";
+  /** The last column that RANKED the list. A name sort orders rows; it does not
+   *  choose them, so it leaves this where it was — see visibleProcs. */
+  rank: "cpu" | "mem";
+}
+
+/** CPU descending, which is what the section meant before it could be asked
+ *  anything else. */
+export const SORT_DEFAULT: Sort = { key: "cpu", dir: "desc", rank: "cpu" };
+
+/**
+ * What a click on a column header does.
+ *
+ * A column you are not on arrives pointing the way that column is read: biggest
+ * first for a quantity, A to Z for a name. The column you are already on flips.
+ * Nothing else moves — in particular `rank` stays put when the name is clicked,
+ * because sorting by name is a request to reorder these rows, not a request for
+ * a different eight.
+ */
+export function nextSort(current: Sort, key: SortKey): Sort {
+  if (current.key === key) return { ...current, dir: current.dir === "asc" ? "desc" : "asc" };
+  return { key, dir: key === "name" ? "asc" : "desc", rank: key === "name" ? current.rank : key };
+}
+
+/**
+ * One ordering, applied the same way whichever column asked for it.
+ *
+ * Two rules the table would be wrong without.
+ *
+ * A null CPU goes last in BOTH directions. It is the Windows first reading,
+ * where a percentage does not exist yet because it takes two samples to make
+ * one, and the cell prints a dash for it. Ranking it as zero would call it idle;
+ * ranking it above everything would call it the busiest thing on the machine.
+ * The reading supports neither.
+ *
+ * Ties fall through to a fixed chain — CPU, then memory, then pid — that does
+ * NOT flip with the direction. `mem` reads 0.2 for half the list, so with no
+ * second key those rows would come back in whatever order the sort happened to
+ * leave them in and the table would visibly reshuffle every four seconds while
+ * nothing at all had changed.
+ */
+export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const primary = (a: Proc, b: Proc): number => {
+    // Case-insensitive and locale-aware. ASCII files every capital ahead of
+    // every lowercase letter, which would put WindowServer and ccusage in
+    // different halves of a list being read as one.
+    if (sort.key === "name") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const av = sort.key === "cpu" ? a.cpu : a.mem;
+    const bv = sort.key === "cpu" ? b.cpu : b.mem;
+    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
+    return sign * (av - bv);
+  };
+  return [...procs].sort((a, b) =>
+    primary(a, b)
+    || (b.cpu ?? -1) - (a.cpu ?? -1)
+    || b.mem - a.mem
+    || a.pid - b.pid);
+}
+
+/**
+ * The rows drawn, which is a different question from the order they are in.
+ *
+ * The section is headed "Busiest processes", so its rows are always the busiest
+ * — by whichever quantity is currently ranking them. Clicking `mem` therefore
+ * changes WHICH processes appear, and that is what the wider payload buys: the
+ * machine's heaviest consumer is in the candidate set by construction, so the
+ * memory ranking is the machine's and not the CPU top eight's.
+ *
+ * Clicking `process` changes nothing about membership. Alphabetical is an
+ * ordering and not a ranking, and the alphabetically-first eight of a candidate
+ * set is a list nobody asked for; so the name sort reorders whichever eight the
+ * last quantity chose.
+ *
+ * Direction does not change membership either. Ascending by CPU is "the eight
+ * busiest, quietest first" — not "the eight quietest", which would be a
+ * different section under a different heading.
+ */
+export function visibleProcs(procs: Proc[], sort: Sort, rows = ROWS): Proc[] {
+  const busiest = sortProcs(procs, { key: sort.rank, dir: "desc", rank: sort.rank });
+  return sortProcs(busiest.slice(0, rows), sort);
+}
+
+/** aria-sort's own vocabulary, which also decides the arrow and the active
+ *  colour — the state is said once, in the place assistive technology reads. */
+export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" | "none" {
+  if (sort.key !== key) return "none";
+  return sort.dir === "asc" ? "ascending" : "descending";
+}
+
 /** In the `agent-dag.*` namespace like every other key here; brand.ts explains
  *  why the rename stops at the storage layer. */
 const OPEN_KEY = "agent-dag.systemPanelOpen";
@@ -63,7 +167,6 @@ function saveOpen(open: boolean): void {
 
 interface Memory { total: number; available: number; usedPct: number }
 interface Swap { total: number; used: number }
-interface Proc { pid: number; cpu: number | null; mem: number; name: string }
 interface Snapshot {
   ok: boolean;
   cpu: number | null;
@@ -420,38 +523,92 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
         </div>
       )}
 
-      <div className="sd-section" role="group" aria-label="Busiest processes">
-        <div className="sd-h" aria-hidden>Busiest processes</div>
-        {procs == null ? (
-          <div className="sd-note">reading…</div>
-        ) : procs.length === 0 ? (
-          <div className="sd-note">Could not read the process list on this platform.</div>
-        ) : (
-          <table className="sd-procs">
-            <thead>
-              <tr><th>cpu</th><th>mem</th><th>process</th></tr>
-            </thead>
-            <tbody>
-              {procs.map(p => (
-                <tr key={p.pid}>
-                  {/* Per core on every platform, so a process can exceed 100%:
-                      that is it using more than one core, which is information
-                      rather than an error. Windows used to divide this by the
-                      core count and cap it at 100, which made the same build
-                      read ~cores× smaller there (#493).
-                      Null is the Windows first reading, where a percentage does
-                      not exist yet because it takes two samples to make one —
-                      a dash, never a zero, which would rank it as idle. */}
-                  <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
-                  <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
-                  <td className="sd-proc-name" title={`pid ${p.pid}`}>{p.name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Processes procs={procs} />
     </aside>
+  );
+}
+
+/**
+ * The process table, and the one part of this panel you can operate.
+ *
+ * A table header is where you click to sort in every other table anybody has
+ * used, and this one was three inert cells for four releases (#739). So the
+ * cells are real controls now: a <th scope="col"> carrying aria-sort, with a
+ * <button> inside it that Tab reaches and Enter presses.
+ *
+ * The sort lives here rather than in storage.ts. It resets when the panel
+ * closes, which is what a reader would expect of a table they re-sorted while
+ * looking at something; a preference nobody would remember setting is not worth
+ * a key that outlives the question.
+ */
+function Processes({ procs }: { procs: Proc[] | null }) {
+  const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
+
+  return (
+    <div className="sd-section" role="group" aria-label="Busiest processes">
+      <div className="sd-h" aria-hidden>Busiest processes</div>
+      {procs == null ? (
+        <div className="sd-note">reading…</div>
+      ) : procs.length === 0 ? (
+        <div className="sd-note">Could not read the process list on this platform.</div>
+      ) : (
+        <table className="sd-procs">
+          <thead>
+            <tr>
+              <SortHead col="cpu" label="cpu" sort={sort} onSort={setSort} />
+              <SortHead col="mem" label="mem" sort={sort} onSort={setSort} />
+              <SortHead col="name" label="process" sort={sort} onSort={setSort} />
+            </tr>
+          </thead>
+          <tbody>
+            {visibleProcs(procs, sort).map(p => (
+              <tr key={p.pid}>
+                {/* Per core on every platform, so a process can exceed 100%:
+                    that is it using more than one core, which is information
+                    rather than an error. Windows used to divide this by the
+                    core count and cap it at 100, which made the same build
+                    read ~cores× smaller there (#493).
+                    Null is the Windows first reading, where a percentage does
+                    not exist yet because it takes two samples to make one —
+                    a dash, never a zero, which would rank it as idle. */}
+                <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
+                <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
+                <td className="sd-proc-name" title={`pid ${p.pid}`}>{p.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/** One column header: the word, the direction it is pointing, and the press
+ *  that changes it. */
+function SortHead({ col, label, sort, onSort }: {
+  col: SortKey;
+  label: string;
+  sort: Sort;
+  onSort: (next: Sort) => void;
+}) {
+  const state = ariaSort(sort, col);
+  return (
+    <th scope="col" aria-sort={state}>
+      <button
+        type="button"
+        className="sd-sort"
+        title={`Sort by ${label}`}
+        onClick={() => onSort(nextSort(sort, col))}
+      >
+        {label}
+        {/* aria-sort has already said this to a screen reader, so the glyph is
+            for the eye alone. Its slot is held open on every column, sorted or
+            not, so that re-sorting moves the rows and never the headers. */}
+        <span className="sd-sort-dir" aria-hidden>
+          {state === "none" ? "" : state === "ascending" ? "\u2191" : "\u2193"}
+        </span>
+      </button>
+    </th>
   );
 }
 

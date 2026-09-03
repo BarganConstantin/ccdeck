@@ -299,9 +299,48 @@ async function readSwap(platform = process.platform) {
   return null;
 }
 
-/** How many rows the process list keeps. Enough to see what is eating the
- *  machine, few enough that the panel never becomes a scroll. */
-const TOP_N = 8;
+/**
+ * How far down each ranking the payload reaches.
+ *
+ * The panel draws eight rows and decides their order on the client (#739), so
+ * whichever column it ranks by has to be rankable from the rows it was handed.
+ * `ps` returns a CPU-sorted list, and cutting that at eight and then sorting
+ * those eight by memory produced a table that was honest about its rows and
+ * wrong about its question: the machine's heaviest memory consumer need never
+ * have appeared in a CPU top eight at all. Same shape as #492 — a list that is
+ * never empty, never errors, and is not the rows being asked for.
+ *
+ * So what goes over the wire is a candidate SET rather than a ranking.
+ * pickCandidates takes this many by CPU and this many by memory and sends the
+ * union, which makes the true top eight of either column present by
+ * construction. Wide enough that drawing more rows later cannot quietly
+ * re-break that, small enough that the whole thing stays a few kilobytes of
+ * four-field rows, fetched only while the panel is open.
+ */
+const CANDIDATE_N = 40;
+
+/**
+ * The rows worth sending, given that the ordering happens on the client.
+ *
+ * A union of two rankings, deduplicated by object identity rather than by pid:
+ * parseGetProcessJson falls back to pid 0 for a row whose `Id` did not parse,
+ * more than one row can do that, and a pid-keyed set would drop real processes
+ * in order to deduplicate a placeholder.
+ *
+ * An unknown CPU sorts last here, for the same reason the column prints a dash
+ * rather than a zero — a Windows first reading has no percentage yet, and
+ * unknown is not idle and is not busiest either. Such a row still reaches the
+ * payload through the memory half, which is the reading that does exist on that
+ * pass.
+ */
+export function pickCandidates(rows, limit = CANDIDATE_N) {
+  const byCpu = [...rows].sort((a, b) => (b.cpu ?? -1) - (a.cpu ?? -1) || b.mem - a.mem);
+  const byMem = [...rows].sort((a, b) => b.mem - a.mem || (b.cpu ?? -1) - (a.cpu ?? -1));
+  const out = byCpu.slice(0, limit);
+  const seen = new Set(out);
+  for (const r of byMem.slice(0, limit)) if (!seen.has(r)) out.push(r);
+  return out;
+}
 
 /**
  * The `ps` argument list, which is not the same list on both Unixes.
@@ -349,10 +388,17 @@ export function psArgs(platform = process.platform) {
  *
  * There is no row limit in the query because neither `ps` has one and `run`
  * deliberately never inherits a shell, so there is no `| head` to pipe into.
- * The loop below stops at `limit` instead, which costs one parse of a string
- * we have already paid to read.
+ *
+ * And there is none by default here either, which is a change: the loop used to
+ * stop at eight, and stopping at eight is what made the memory ranking a lie
+ * once the panel could ask for one (#739). Selection belongs to pickCandidates,
+ * which cannot rank a column out of rows this function has already thrown away.
+ * The cost is a regex over every line of `ps` — a few hundred on a busy
+ * machine, once every four seconds and only while the panel is open — against a
+ * string that has already been read and allocated. `limit` stays for callers
+ * that do want a truncation, which is now only the tests.
  */
-export function parsePsProcesses(text, limit = TOP_N) {
+export function parsePsProcesses(text, limit = Infinity) {
   const lines = String(text ?? "").trim().split("\n");
   const out = [];
   for (const line of lines.slice(1)) {           // drop the header row
@@ -430,7 +476,7 @@ export function parseGetProcessJson(json, totalMem) {
  * 0-100 convention (see cpuPercent) is a different question with a different
  * answer, and the only way this drifts back is if a core count is in reach.
  */
-export function cpuFromDeltas(rows, prev, elapsedMs, limit = TOP_N) {
+export function cpuFromDeltas(rows, prev, elapsedMs, limit = Infinity) {
   const secs = elapsedMs / 1000;
   const out = rows.map(r => {
     const before = prev instanceof Map ? prev.get(r.pid) : undefined;
@@ -521,13 +567,13 @@ async function readProcessesNow(platform) {
     if (!out) return [];
     const rows = parseGetProcessJson(out.trim(), os.totalmem());
     const now = Date.now();
-    const result = cpuFromDeltas(rows, prevProcCpu, now - prevProcAt);
+    const result = pickCandidates(cpuFromDeltas(rows, prevProcCpu, now - prevProcAt));
     prevProcCpu = new Map(rows.filter(r => r.cpuSec != null).map(r => [r.pid, r.cpuSec]));
     prevProcAt = now;
     return result;
   }
   const out = await run("ps", psArgs(platform), 4_000);
-  return out ? parsePsProcesses(out) : [];
+  return out ? pickCandidates(parsePsProcesses(out)) : [];
 }
 
 async function sampleMemory() {

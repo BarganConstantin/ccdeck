@@ -1427,14 +1427,56 @@ button.btn.sm-hear {
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 10px; }
 
 .sysdetail .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.sysdetail .sd-procs th {
-  text-align: left;
-  font-weight: 500;
+/* The header is the sort control now (#739), so the appearance moved onto the
+   button inside the cell and what is left on the cell is column geometry. 40px
+   is the widest label plus the arrow's reserved slot plus the 8px that `.sd-num`
+   already pushes the digits in by — which is also the fix for the header and
+   its own column having sat on two different right edges since this table
+   shipped. */
+.sysdetail .sd-procs th { padding: 0 0 3px; }
+.sysdetail .sd-procs th:first-child,
+.sysdetail .sd-procs th:nth-child(2) { width: 40px; }
+
+.sysdetail .sd-sort {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  /* SC 2.5.8. The ink is a 10px word and the target is not the ink; the short
+     side is the one that needed arguing, since the columns are 40px wide. */
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
   font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
   color: var(--muted);
-  padding-bottom: 3px;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
 }
-.sysdetail .sd-procs th:first-child, .sd-procs th:nth-child(2) { text-align: right; width: 34px; }
+/* Reversed, so the LABEL is the thing flush against the column's right edge and
+   the arrow's reserved slot sits inboard of it. In DOM order the glyph follows
+   the word, and leaving it there put the word 11px — a slot plus a gap — to the
+   left of the digits it heads, whether or not this was the sorted column.
+   Measured before assuming: 1493.3 against the column's 1504.3. */
+.sysdetail .sd-procs th:first-child .sd-sort,
+.sysdetail .sd-procs th:nth-child(2) .sd-sort {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding-right: 8px;
+}
+.sysdetail .sd-sort:hover { background: var(--line); color: var(--text); }
+.sysdetail .sd-sort:active { transform: scale(0.97); }
+/* The column doing the sorting reads at full strength and the other two stay
+   with the rest of the labels. Keyed on aria-sort rather than on a class of its
+   own, so the state cannot be true for the eye and absent for a screen reader. */
+.sysdetail .sd-procs th:not([aria-sort="none"]) .sd-sort { color: var(--text); }
+/* A slot the width of the glyph, held open whether or not this column is the
+   one sorting, so re-sorting moves the rows and never the headers. */
+.sd-sort-dir { display: inline-block; width: 8px; text-align: center; }
 .sysdetail .sd-procs td { padding: 2px 0; }
 .sd-num { text-align: right; padding-right: 8px !important; font-weight: 600; }
 .sd-dim { color: var(--muted); font-weight: 400; }
@@ -1452,6 +1494,7 @@ button.btn.sm-hear {
   .sysdetail { animation: none; }
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
+  .sysdetail .sd-sort:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the

@@ -267,6 +267,11 @@ const PRESSES: Press[] = [
   // already used; `.sd-close`'s 0.97 was three percent of a 16px box, which is
   // half a pixel and was never visible.
   [".glyph-btn:active:not(:disabled)", "0.94", "transform"],
+  // The machine panel's process-table column headers, which stopped being inert
+  // cells in #739. 0.97 like every other labelled control: the ink is a
+  // three-letter word, and 0.94 of a 40px cell would read as a jump rather than
+  // as a press.
+  [".sysdetail .sd-sort:active", "0.97", "transform"],
   [".topbar .waiting-stat:active", "0.97", "transform"],
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
