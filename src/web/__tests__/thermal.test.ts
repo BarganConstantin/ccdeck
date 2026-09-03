@@ -326,11 +326,24 @@ describe("the live reader, on whichever machine is running this", () => {
   // reading.
   it("answers with a well-formed reading or with nothing", async () => {
     const t = await readThermal();
-    // Printed on purpose, and only when there IS something. A green tick on a
-    // runner that answered null proves the branch did not throw and nothing
-    // else, so the log line is what turns this from a smoke test into a report
-    // of what each platform actually publishes — the question this whole
-    // feature turns on and the one no fixture can answer.
+    // Printed on purpose, and only when there IS something.
+    //
+    // What that turned up is worth writing down, because it is the honest
+    // limit of what this matrix can prove. All three GitHub runners answer
+    // NULL — checked by running the same reporter flags locally, where the
+    // line does print, so the silence in CI is the readings and not the
+    // capture. They are cloud VMs: ubuntu publishes no hwmon CPU or GPU chip,
+    // windows has no MSAcpi_ThermalZoneTemperature (its 750ms in the suite is
+    // PowerShell failing fast), and macos has no accelerator publishing
+    // Temperature(C) and no CPU Power block in `pmset -g therm`.
+    //
+    // So the matrix proves the EMPTY path on three real operating systems —
+    // no throw, no invented reading, no section drawn — which is the failure
+    // that would otherwise reach a user on a platform nobody here can run. It
+    // does not prove the populated path on Linux or Windows, and no machine
+    // available to this repo can. That half rests on the fixtures above, on
+    // the walk being exercised against a real tree, and on this line printing
+    // for the first contributor who runs the suite on hardware with sensors.
     if (t) console.log(`[thermal] ${process.platform}: ${JSON.stringify(t)}`);
     if (t === null) return;
     expect(Array.isArray(t.celsius)).toBe(true);
