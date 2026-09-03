@@ -4,6 +4,13 @@
 import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { createReadStream } from "node:fs";
+// The NAMESPACE, never a named import. `import { createZstdDecompress }` is
+// resolved at link time, and node:zlib has no such export before Node 22.15 —
+// so the named form does not degrade on an older runtime, it throws before a
+// single line of this module runs and takes the whole deck down with it. Caught
+// by the timezone probe, which spawns a child that imports this file.
+import zlib from "node:zlib";
 import { STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -154,7 +161,75 @@ function foldTokenLine(series, raw) {
 // Returns an ascending-by-time array of { ts, inp, out, cacheR, total } where
 // `inp` includes the cached portion (Codex reports input_tokens incl. cache),
 // or null if the file has no usable token_count events.
+/**
+ * Codex compresses cold rollouts, and this is how the deck keeps reading them.
+ *
+ * openai/codex 0.153.0 added a background worker that rewrites any rollout older
+ * than seven days as `rollout-….jsonl.zst`. Its own source says the quiet part
+ * out loud — "Requires every reader of the Codex home to support compressed
+ * shared histories" — and this deck is one of those readers. The flag
+ * (`local_thread_store_compression`) is still `default_enabled: false`, so
+ * nothing on disk has changed yet; the failure it would cause is why this is
+ * here before it does. A reader that matched only `.jsonl` would have skipped
+ * every day past the seventh IN SILENCE, and the 30-day Codex window would have
+ * quietly collapsed to the last seven with figures that still looked right.
+ *
+ * Streamed, not decompressed whole. The plain path reads a chunk at a time
+ * precisely so a megabyte of prompt text is never buffered, and handing that
+ * property back for a one-line `zstdDecompressSync` would trade a silent
+ * undercount for a memory spike.
+ *
+ * `createZstdDecompress` arrived in Node 22.15 and this package declares
+ * `>=18`, so a deck on an older runtime cannot read them at all. It says so
+ * once, on the terminal it was started from, rather than counting zero and
+ * looking healthy.
+ */
+const COMPRESSED = ".jsonl.zst";
+const createZstdDecompress = typeof zlib.createZstdDecompress === "function"
+  ? zlib.createZstdDecompress
+  : null;
+let warnedNoZstd = false;
+
+async function readCompressedTokenSeries(filePath) {
+  if (!createZstdDecompress) {
+    if (!warnedNoZstd) {
+      warnedNoZstd = true;
+      console.error(
+        `${PRODUCT} codex-usage: this Node (${process.version}) cannot read Codex's compressed `
+        + "rollouts; sessions older than about a week are being left out. Node 22.15 or newer reads them.",
+      );
+    }
+    return null;
+  }
+  try {
+    const series = [];
+    const decoder = new StringDecoder("utf8");
+    let pending = "";
+    const stream = createReadStream(filePath).pipe(createZstdDecompress());
+    for await (const chunk of stream) {
+      pending += decoder.write(chunk);
+      let from = 0;
+      let nl;
+      while ((nl = pending.indexOf("\n", from)) >= 0) {
+        foldTokenLine(series, pending.slice(from, nl));
+        from = nl + 1;
+      }
+      if (from > 0) pending = pending.slice(from);
+    }
+    pending += decoder.end();
+    if (pending) foldTokenLine(series, pending);
+    return series.length ? series : null;
+  } catch { return null; }
+}
+
+/** The reader, exported under a test-only name. The compressed path cannot be
+ *  reached through `fetchCodexUsage` without a Codex home full of week-old
+ *  sessions, and the thing worth checking is that both spellings produce the
+ *  same series. */
+export const readTokenSeriesForTest = filePath => readTokenSeries(filePath);
+
 async function readTokenSeries(filePath) {
+  if (filePath.endsWith(COMPRESSED)) return readCompressedTokenSeries(filePath);
   let fd;
   try {
     fd = await open(filePath, "r");
@@ -330,7 +405,10 @@ async function listRolloutFiles(sinceMs) {
   await walkRolloutDays(
     (dir, files) => {
       for (const f of files) {
-        if (!f.endsWith(".jsonl")) continue;
+        // Both spellings. A cold rollout is `rollout-….jsonl.zst` and its name
+        // still carries the timestamp parseRolloutTime reads, so nothing else
+        // in this function has to know.
+        if (!f.endsWith(".jsonl") && !f.endsWith(COMPRESSED)) continue;
         const t = parseRolloutTime(f);
         if (t != null && nowMs - t <= sinceMs) {
           out.push({ path: join(dir, f), startMs: t });
