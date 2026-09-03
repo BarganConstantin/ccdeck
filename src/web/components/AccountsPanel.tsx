@@ -9,6 +9,7 @@
 // display rather than a caveat to hide.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import AddAccountDialog from "./AddAccountDialog";
+import ShareAccountsDialog from "./ShareAccountsDialog";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
@@ -25,6 +26,7 @@ import {
   nextFailure,
 } from "../accounts-reload";
 import { resetCountdown, shortAgoSec } from "../relative-time";
+import { shareExpiry } from "../share-bundle";
 
 interface Lane {
   id: string;
@@ -210,35 +212,6 @@ async function copyText(text: string): Promise<boolean> {
   return ok;
 }
 
-/**
- * How much longer another deck will ACCEPT this share, said as a countdown.
- *
- * Not how long it is safe for, which is a claim this timer cannot make and used
- * to imply. The envelope is base64 of plain `{v, exp, payload}` with no MAC and
- * no key anywhere — anyone holding the text can decode it, rewrite `exp`,
- * re-encode and import it, and if they could not, the payload inside is still
- * the account's OAuth token in the clear and `cswap import` takes it directly.
- * A key would not help: the whole point of a share is that the receiving deck
- * shares no secret with the sending one, so there is nothing to sign with that
- * the recipient could verify.
- *
- * What the expiry does buy is real but smaller, and it is worth naming so it
- * does not get mistaken for the other thing: a copy left behind in clipboard
- * history, a scrollback buffer or a chat window stops working through the
- * import dialog. That is hygiene against forgetting, not defence against
- * anybody. Until the login is rotated, a copy is a copy.
- *
- * `tone` drives the colour, and it says "this is about to stop working" — which
- * is why `gone` is the emphatic one. The warning about what the text IS lives
- * beside the countdown rather than on it.
- */
-export function shareExpiry(expiresAt: number, nowSec: number): { text: string; tone: "ok" | "soon" | "gone" } {
-  const left = Math.round(expiresAt / 1000) - nowSec;
-  if (left <= 0) return { text: "expired", tone: "gone" };
-  if (left < 60) return { text: `expires in ${left}s`, tone: "soon" };
-  return { text: `expires in ${Math.round(left / 60)}m`, tone: "ok" };
-}
-
 interface Props { onClose: () => void }
 
 export default function AccountsPanel({ onClose }: Props) {
@@ -266,6 +239,11 @@ export default function AccountsPanel({ onClose }: Props) {
   // few seconds, so a stray click can never be the second one.
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [share, setShare] = useState<{ num: number; blob: string; expiresAt: number } | null>(null);
+  // The panel-level share, which is a different job from the one on a row:
+  // moving your own set between your own machines rather than sending one
+  // account to somebody else. Its own dialog, so the row keeps its one-click
+  // path and neither has to explain the other.
+  const [shareSetOpen, setShareSetOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   // A move into an occupied slot relocates an account the user never picked.
   // Nothing else on screen says so — both accounts simply appear where they
@@ -615,6 +593,15 @@ export default function AccountsPanel({ onClose }: Props) {
               too, and a reload that took the slot would disable the control
               that had just fired it — which is the defect, one step further
               along. */}
+          {/* A panel-level act and not a row one, so it is up here beside the
+              other two. It is drawn only when there is something to share:
+              a header offering to send accounts from a deck that holds none
+              is a control whose only outcome is an error. */}
+          {(data?.accounts?.length ?? 0) > 0 && (
+            <button type="button" className="glyph-btn ap-share-set" onClick={() => setShareSetOpen(true)}
+              aria-label="Share accounts with another deck"
+              title={`Copy several accounts to another ${PRODUCT} in one paste. The text carries a live login for each one — treat it as those passwords.`}>↗</button>
+          )}
           <button type="button" className="glyph-btn ap-refresh" onClick={() => load(true)}
             {...pressProps("reload", reloading)} aria-label="Reload accounts"
             title="Reload from claude-swap">{reloading ? "…" : "↻"}</button>
@@ -1215,6 +1202,22 @@ export default function AccountsPanel({ onClose }: Props) {
         <AddAccountDialog
           onClose={() => setAddOpen(false)}
           onChanged={() => load(true)}
+        />
+      )}
+
+      {/* Gated on the open flag ALONE, the way the add dialog is. Adding
+          `data?.accounts?.length` to the condition made a poll that came back
+          empty — /api/claude-accounts answers 200 with `no_accounts` when
+          sequence.json cannot be read, which is every moment cswap spends
+          rewriting it — unmount a dialog holding a bundle the user had not
+          copied yet, and then silently reopen it on a fresh picker. The roster
+          being empty is a state for the dialog to show, not a reason to
+          destroy it. */}
+      {shareSetOpen && (
+        <ShareAccountsDialog
+          accounts={(data?.accounts ?? []).map(a => ({ num: a.num, email: a.email, alias: a.alias, org: a.org }))}
+          onClose={() => setShareSetOpen(false)}
+          copyText={copyText}
         />
       )}
     </aside>

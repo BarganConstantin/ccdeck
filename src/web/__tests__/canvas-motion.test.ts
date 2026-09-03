@@ -312,6 +312,10 @@ const PRESSES: Press[] = [
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
+  // "update anyway" on an import result row. A 10px word in a pill, so
+  // 0.97 like every other labelled control rather than the 0.94 the round
+  // glyphs take.
+  [".aa-result-fix:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
@@ -337,6 +341,13 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
   ".cluster-label",
+  // A row in the share picker, which is a <label> and not a second
+  // control: it carries `cursor: pointer` because the whole row is the
+  // checkbox's hit area, and the press it starts is already answered by
+  // the box ticking. The same argument as `.bw-switch` below, and the
+  // same cost if it were ignored — scaling the row would move the address
+  // out from under the pointer to say what the tick has just said.
+  ".sa-row",
   // Browser Watch's "what is this?" — underlined text inside a sentence, not a
   // box. #355's argument for joining the convention was that a 9px word is
   // still a thing being pressed; the argument against it here is that this one

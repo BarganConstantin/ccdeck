@@ -158,6 +158,9 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-rest",
       ".bw-row-detail",
       ".bw-settings-note",
+      // Why one account is missing from a share bundle - claude-swap's own
+      // sentence, read once and acted on, not a figure to glance at.
+      ".sa-why",
     ]);
   });
 

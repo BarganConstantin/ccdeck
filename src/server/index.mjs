@@ -4241,8 +4241,17 @@ async function handleClaudeAccountAdmin(req, res) {
     case "login":        result = await admin.startLogin({ email: parsed.email }); break;
     case "login-code":   result = await admin.submitLoginCode(parsed.code); break;
     case "login-cancel": result = await admin.cancelLogin(); break;
-    case "share":        result = await admin.shareAccount(parsed.account); break;
-    case "import":       result = await admin.importAccount(parsed.blob); break;
+    // `accounts` is a chosen set, `account` the single row's own button. Both
+    // go to shareAccounts, which treats one account as a bundle of one so the
+    // two entry points cannot drift into two envelope shapes.
+    case "share":        result = await admin.shareAccounts(parsed.accounts ?? parsed.account); break;
+    // `only` names one account inside the pasted bundle, and is the only way
+    // `force` is honoured at all - see importAccount for why the pair is
+    // required rather than the flag alone.
+    case "import":       result = await admin.importAccount(parsed.blob, {
+      force: parsed.force === true,
+      only: parsed.only ?? null,
+    }); break;
     case "remove":       result = await admin.removeAccount(parsed.account); break;
     // #721. Re-captures the active slot's credentials in place; see
     // recaptureActive for why this is not a login and cannot become one.

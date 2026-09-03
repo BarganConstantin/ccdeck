@@ -260,13 +260,13 @@ describe("which overlay holds Tab", () => {
 
 // ── what each of the seven overlays does with it ────────────────────────────
 
-describe("the deck's nine overlays", () => {
-  it("has found all nine, so a new one cannot skip this file", () => {
+describe("the deck's ten overlays", () => {
+  it("has found all ten, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
-    // release notes. Raising the number is how a dialog joins the sweep, not
-    // how one is excused from it: every assertion below is asked of the
-    // newcomer unchanged.
-    expect(MODALS.length).toBe(9);
+    // release notes, nine until #723 added the share picker. Raising the
+    // number is how a dialog joins the sweep, not how one is excused from
+    // it: every assertion below is asked of the newcomer unchanged.
+    expect(MODALS.length).toBe(10);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -302,7 +302,10 @@ describe("the deck's nine overlays", () => {
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
     expect(named.sort()).toEqual([
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
-      "SessionSummary.tsx", "UsageHistoryModal.tsx",
+      // The share picker names its own first stop because the control that
+      // matters is the one that makes the bundle, and the dialog's first
+      // tabbable is a checkbox in a list that opens fully ticked.
+      "SessionSummary.tsx", "ShareAccountsDialog.tsx", "UsageHistoryModal.tsx",
     ]);
     expect(hook).toMatch(/\(focusRef\?\.current \?\? tabbablesIn\(dialogRef\.current\)\[0\]\)\?\.focus\(\)/);
   });

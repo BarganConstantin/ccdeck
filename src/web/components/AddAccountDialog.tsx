@@ -30,6 +30,7 @@ import { explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { type ImportResult, importSummary, outcomeWord } from "../share-bundle";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -89,7 +90,17 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const [blob, setBlob] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imported, setImported] = useState<{ added: boolean; num: string | null; email: string | null } | null>(null);
+  // What the import did, account by account. A share of one is a bundle of one,
+  // so there is one shape here and not a singular case beside a plural one.
+  const [imported, setImported] = useState<ImportResult[] | null>(null);
+  // Which row has an "update anyway" in flight, and what refused one.
+  const [forcing, setForcing] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ key: string; text: string } | null>(null);
+  // The pasted bundle, held only while its result list is on screen: "update
+  // anyway" sends the same text back, narrowed by the server to the one account
+  // named. A ref and not state because it is the credential itself — nothing
+  // re-renders from it and nothing may draw it.
+  const bundleRef = useRef("");
   const startedRef = useRef(false);
   // The same fact as `busy`, readable without waiting for a render. Continue
   // and Import stay enabled while their own request is out (#620), so a second
@@ -228,10 +239,64 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     busyRef.current = false;
     setBusy(false);
     if (!out?.ok) { setError(explainFailure(out, "the import failed")); return; }
+    // The field is cleared so the text is not left sitting on screen, but the
+    // bundle is kept out of sight until this result list is dismissed — see
+    // bundleRef, and the "update anyway" that needs it.
+    bundleRef.current = blob;
     setBlob("");
-    setImported({ added: out.added === true, num: out.num ?? null, email: out.email ?? null });
+    setRowError(null);
+    setImported((out.results ?? []) as ImportResult[]);
     onChanged();
   }, [blob, onChanged]);
+
+  /**
+   * Overwrite one account that was already here, because the user said so.
+   *
+   * The default import never does this: claude-swap leaves a healthy account
+   * alone and heals only a slot it has itself quarantined as dead. That covers
+   * the case a person would ask for, and misses one — a token that died on a
+   * deck which never tried to use it, so no strike was ever recorded and the
+   * import reads it as healthy and skips it. This is the way out of that, and
+   * it names the account it rewrites, one at a time, rather than being a flag
+   * over the whole paste.
+   */
+  const forceOne = useCallback(async (row: ImportResult) => {
+    const key = `${row.email}|${row.org ?? ""}`;
+    // The same guard the two submits above take, from the same helper: this
+    // button is never disabled either, so a second press reaches the handler.
+    if (!selfPressAccepted(busyRef.current)) return;
+    // The bundle is gone once the result list is dismissed, and there is
+    // nothing to narrow without it.
+    if (!bundleRef.current) return;
+    busyRef.current = true;
+    // `busy` as well as the ref, so the rest of the dialog knows a request is
+    // out. Without it, pressing "Import another" mid-update put the paste form
+    // back with an Import button that looked idle, was not disabled, and
+    // refused every press in silence because the ref said otherwise.
+    setBusy(true);
+    setForcing(key);
+    setRowError(null);
+    const out = await admin({
+      action: "import",
+      blob: bundleRef.current,
+      force: true,
+      only: { email: row.email, org: row.org ?? "" },
+    }).catch(() => null);
+    busyRef.current = false;
+    setBusy(false);
+    setForcing(null);
+    if (!out?.ok) {
+      setRowError({ key, text: explainFailure(out, "that account could not be updated") });
+      return;
+    }
+    const fresh = ((out.results ?? []) as ImportResult[])[0];
+    // Only into a list that is still on screen. `rows ?? []` turned a dismissed
+    // result — "Import another" sets it to null — into an empty ARRAY, which is
+    // truthy, so the paste form the user had just asked for flipped back to a
+    // success screen reading "Nothing to import."
+    if (fresh) setImported(rows => (rows ? rows.map(r => (`${r.email}|${r.org ?? ""}` === key ? fresh : r)) : rows));
+    onChanged();
+  }, [onChanged]);
 
   const done = login?.state === "done" ? login.account : null;
   // A sign-in that is over without having succeeded: the server's own "failed",
@@ -404,29 +469,67 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                 </div>
               </div>
             )
-          ) : imported ? (
+          ) : imported ? (() => {
+            const arrived = imported.filter(r => r.state === "imported").length;
+            return (
             <div className="aa-done">
               <SuccessMark ref={markRef} />
               {/* Only when something actually arrived: celebrating a no-op is
                   how a celebration stops meaning anything. */}
-              {imported.added && <Confetti anchor={markRef} />}
-              <h4>{imported.added ? `Account ${imported.num} imported` : "Already here"}</h4>
+              {arrived > 0 && <Confetti anchor={markRef} />}
+              {/* The count, not a verdict. "Done" over a paste of five is what
+                  makes somebody run it again and then wonder whether they
+                  doubled something; this is the sentence they need before they
+                  trust the deck and close the tab. */}
+              <h4>{importSummary(imported)}</h4>
+              {imported.length > 0 && (
+                <ul className="aa-results">
+                  {imported.map(r => {
+                    const key = `${r.email}|${r.org ?? ""}`;
+                    return (
+                      <li key={key} className={`aa-result ${r.state}`}>
+                        <span className="aa-result-who">{r.email || (r.num ? `slot ${r.num}` : "an account")}</span>
+                        <span className="aa-result-what">{outcomeWord(r.state)}</span>
+                        {/* The way out of the one case the default import
+                            cannot see: a token that died on a deck which never
+                            used it, so nothing quarantined the slot and the
+                            import reads it as healthy. One account, named, and
+                            never a flag over the whole paste. */}
+                        {r.state === "present" && (
+                          <button type="button" className="aa-result-fix" aria-busy={forcing === key}
+                            title={`Overwrite the stored login for ${r.email} with the one in this share. `
+                                 + "Do this when that account has stopped working here; if it works, leave it."}
+                            onClick={() => forceOne(r)}>
+                            {forcing === key ? "updating…" : "update anyway"}
+                          </button>
+                        )}
+                        {rowError?.key === key && <span className="aa-result-err">{rowError.text}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {/* This used to end "no account already here was touched unless
+                  you asked for it above", which the healed row on the same
+                  screen contradicts: claude-swap replaces a slot it has itself
+                  quarantined without being asked, and that is the point of it.
+                  A reassurance a reader can see is false costs more than it
+                  buys. */}
               <p className="aa-note">
-                {imported.added ? (
-                  <>
-                    {imported.email ? <strong>{imported.email}</strong> : "That account"} is in the rotation now.
-                    Nothing changed on the deck you copied it from.
-                  </>
-                ) : (
-                  "This deck already holds that account, so nothing changed."
-                )}
+                Nothing changed on the deck you copied this from. An account already here
+                is left as it is, unless its stored login was dead or you pressed
+                <strong> update anyway</strong>.
               </p>
               <div className="aa-actions">
                 <button type="button" className="btn primary" onClick={onClose}>Done</button>
-                <button type="button" className="btn" onClick={() => setImported(null)}>Import another</button>
+                <button type="button" className="btn"
+                  onClick={() => { bundleRef.current = ""; setRowError(null); setImported(null); }}>
+                  Import another
+                </button>
               </div>
             </div>
-          ) : (
+            );
+          })() : (
             <div className="aa-step">
               <h4>Paste an account shared from another deck</h4>
               <div className="aa-field">
@@ -451,7 +554,9 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
               </div>
               {error && <p className="aa-err">{error}</p>}
               <p className="aa-note">
-                Use <strong>share</strong> on an account in the other deck. A share carries a live login and expires ten minutes after it is made.
+                Use <strong>share</strong> on one account in the other deck, or <strong>↗</strong> above
+                its list to send several at once. A share carries a live login for every account in it and
+                expires ten minutes after it is made.
               </p>
             </div>
           )}

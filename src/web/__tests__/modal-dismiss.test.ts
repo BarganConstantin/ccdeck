@@ -180,7 +180,11 @@ describe("the modals themselves", () => {
       "KeyboardHelp.tsx",
       // #712's release notes, named here for the same reason.
       "ReleaseNotesModal.tsx",
-      "SessionSummary.tsx", "ToolModal.tsx", "UsageHistoryModal.tsx",
+      "SessionSummary.tsx",
+      // #723's share picker, named here for the same reason as the three
+      // above: this is how it joins the loop below, not how it leaves it.
+      "ShareAccountsDialog.tsx",
+      "ToolModal.tsx", "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
       expect(`${name}: ${src.includes("useModalDismiss(")}`).toBe(`${name}: true`);

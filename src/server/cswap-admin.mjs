@@ -37,6 +37,8 @@ const CODE_VERDICT_MS = 60_000;
 // How long a shared account stays importable. Long enough to walk to the other
 // machine, short enough that a copy left in clipboard history goes stale.
 export const SHARE_TTL_MS = 10 * 60_000;
+// How many accounts one bundle may carry. See shareAccounts.
+const MAX_SHARE_ACCOUNTS = 50;
 const SHARE_PREFIX = "ccdeck1:";
 
 // ── serialization ────────────────────────────────────────────────────────────
@@ -163,10 +165,14 @@ export async function readStore() {
     return {
       slots: Object.keys(accounts),
       emails: Object.fromEntries(Object.entries(accounts).map(([k, v]) => [k, v?.email ?? ""])),
+      // The other half of the identity claude-swap keys an account by. One
+      // address under two organizations is two accounts on purpose, and a
+      // bundle carrying both must not report them as one - see identityKey.
+      orgs: Object.fromEntries(Object.entries(accounts).map(([k, v]) => [k, v?.organizationUuid ?? ""])),
       activeNum: seq?.activeAccountNumber ?? null,
     };
   } catch {
-    return { slots: [], emails: {}, activeNum: null };
+    return { slots: [], emails: {}, orgs: {}, activeNum: null };
   }
 }
 
@@ -738,39 +744,352 @@ export function unwrapShare(blob, now = Date.now()) {
   return { ok: true, payload: env.payload };
 }
 
-export async function shareAccount(num) {
-  const n = Number(num);
-  if (!Number.isInteger(n) || n < 1 || n > 999) return { ok: false, reason: "bad_account" };
-  const r = await run(await cswapBin(), ["export", "-", "--account", String(n)], { timeout: CSWAP_TIMEOUT_MS });
-  if (!r.ok || !r.stdout.trim()) {
-    // The failure sentence is built from stderr ALONE for this one command,
-    // because its stdout is the credential. `failureText` concatenates
-    // `${stderr}\n${stdout}` and `firstUseful` takes the LAST non-empty line —
-    // right for every other cswap command, and here it means any stdout at all
-    // outranks the real error. claude-swap writes its diagnostics to stderr
-    // specifically so stdout stays pure JSON in pipe mode, and it writes the
-    // envelope as its last act; a non-zero exit after a partial write would
-    // therefore put the tail of `json.dumps(envelope, indent=2)` in front of the
-    // user, and one of those lines is the refresh token on its own.
-    //
-    // Nothing is lost by dropping it: the ENOENT branch keys off `r.code`, which
-    // `run` sets, and cmd.exe's "is not recognized" is stderr's.
-    return { ok: false, reason: "export_failed", detail: failureText({ ...r, stdout: "" }, "cswap export") };
-  }
-  return { ok: true, blob: wrapShare(r.stdout), expiresAt: Date.now() + SHARE_TTL_MS };
+/**
+ * claude-swap's own identity for an account, as one comparable string.
+ *
+ * `(email, organizationUuid)`, which is the composite `transfer.py` keys its
+ * duplicate check and its already-here check on. Matching on the address alone
+ * would fold one address's two organizations into a single row, and the whole
+ * reason cswap carries the org is that they are two accounts.
+ *
+ * The address is lower-cased because both sides of every comparison here come
+ * from the same store or the same bundle, so folding case can only join what a
+ * human would call the same account, never split one.
+ */
+export function identityKey(email, org) {
+  return `${String(email ?? "").trim().toLowerCase()} ${String(org ?? "")}`;
 }
 
-export async function importAccount(blob) {
+/**
+ * N single-account envelopes, folded into the one bundle cswap will take back.
+ *
+ * `cswap export --account` names ONE account, so a chosen subset cannot come
+ * out of a single call and the deck has to do the folding. It is deliberately
+ * not a new format: the head envelope is spread whole and only `accounts` and
+ * `activeAccountNumber` are replaced, so `version`, `exportedFrom`,
+ * `swapVersion` and any field a later claude-swap adds arrive on the far side
+ * exactly as that claude-swap wrote them. Nothing here hard-codes its
+ * FORMAT_VERSION, because a constant copied out of another project's source is
+ * a constant that drifts.
+ *
+ * `activeAccountNumber` is re-guarded rather than carried: cswap only records
+ * it when that slot is in the payload, and a subset can drop the slot the head
+ * envelope pointed at. An import that referenced a missing account would be
+ * seeding an active slot that never arrived.
+ *
+ * A duplicate identity is DROPPED rather than passed on. `import_accounts`
+ * refuses a whole envelope over one repeated `(email, org)` pair, so carrying
+ * it would trade five shared accounts for a bundle that imports none.
+ */
+export function mergeExports(texts) {
+  const envelopes = [];
+  for (const text of texts) {
+    let env;
+    try { env = JSON.parse(text); } catch { return { ok: false, reason: "unreadable_export" }; }
+    if (!env || typeof env !== "object" || !Array.isArray(env.accounts)) {
+      return { ok: false, reason: "unreadable_export" };
+    }
+    envelopes.push(env);
+  }
+  if (!envelopes.length) return { ok: false, reason: "nothing_to_share" };
+
+  const head = envelopes[0];
+  // Every part came out of one binary in one pass, so a disagreement here is
+  // not a version to reconcile - it is a sign the parts are not what we think.
+  if (envelopes.some(e => e.version !== head.version)) return { ok: false, reason: "mixed_versions" };
+
+  const accounts = [];
+  const dropped = [];
+  const seen = new Set();
+  for (const env of envelopes) {
+    for (const a of env.accounts) {
+      const key = identityKey(a?.email, a?.organizationUuid);
+      if (seen.has(key)) { dropped.push({ num: String(a?.number ?? ""), email: a?.email ?? "" }); continue; }
+      seen.add(key);
+      accounts.push(a);
+    }
+  }
+  if (!accounts.length) return { ok: false, reason: "nothing_to_share" };
+
+  const nums = new Set(accounts.map(a => String(a?.number ?? "")));
+  const active = envelopes
+    .map(e => e.activeAccountNumber)
+    .find(n => n != null && nums.has(String(n)));
+  return {
+    ok: true,
+    dropped,
+    envelope: { ...head, activeAccountNumber: active ?? null, accounts },
+  };
+}
+
+/**
+ * One account, or several, packaged for another deck.
+ *
+ * claude-swap's envelope carries each account's OAuth token in the clear - its
+ * own module header says so ("No encryption is built in"). The wrapper adds an
+ * expiry so a copy left behind in clipboard history stops working, and nothing
+ * more: it is not encryption and is not presented as any. A bundle makes that
+ * larger, not different - five accounts is five tokens on the clipboard -
+ * which is why the dialog states the count before the copy rather than after.
+ *
+ * Say the limit of the expiry out loud, because the UI used to imply the
+ * opposite. `exp` is a plain number inside plain base64'd JSON with NO key, MAC
+ * or signature over it, so anyone holding the text can decode it, write a later
+ * `exp`, re-encode, and import it. unwrapShare's check is therefore a check
+ * against staleness, not against an adversary - and it cannot be made into one
+ * here. A MAC needs a secret both decks hold, and two decks that already shared
+ * a secret would not need this function; and even a perfect signature would
+ * only stop THIS import path, since the payload it wraps is the credential
+ * itself and `cswap import` accepts it unwrapped. The honest fix for a share
+ * that got away is to sign the account out and back in. See share-expiry-
+ * forgeable.test.ts, which pins the forgery rather than leaving it implied.
+ *
+ * Only the accounts asked for are exported. Reading the whole store and then
+ * dropping the unwanted rows would be one spawn instead of several, and it
+ * would pull a refresh token this deck was never asked to move into this
+ * process; it would also lose the failure, because a whole-store export skips a
+ * slot with no backup credentials in silence while `--account` on that slot is
+ * a hard error naming it. A count that is quietly short is the one outcome a
+ * share must never have.
+ *
+ * The default export shape is used deliberately, never --full, which would
+ * embed the entire ~/.claude.json including every project and MCP server.
+ */
+export async function shareAccounts(nums) {
+  const asked = Array.isArray(nums) ? nums : [nums];
+  // One spawn per account, so the length of this list is a length of time the
+  // request holds. A store never has fifty accounts; a caller that sends nine
+  // hundred numbers is not a person picking from a panel, and the ceiling
+  // costs nothing to the one who is.
+  if (asked.length > MAX_SHARE_ACCOUNTS) return { ok: false, reason: "too_many" };
+  const wanted = [];
+  for (const raw of asked) {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 999) return { ok: false, reason: "bad_account" };
+    if (!wanted.includes(n)) wanted.push(n);
+  }
+  if (!wanted.length) return { ok: false, reason: "bad_account" };
+
+  // Names for the accounts that fail, read from the store before anything is
+  // spawned - because the failure sentence must never be built from the
+  // export's own output.
+  const store = await readStore();
+  const texts = [];
+  const failed = [];
+  for (const n of wanted) {
+    const r = await run(await cswapBin(), ["export", "-", "--account", String(n)], { timeout: CSWAP_TIMEOUT_MS });
+    if (!r.ok || !r.stdout.trim()) {
+      // The failure sentence is built from stderr ALONE for this one command,
+      // because its stdout is the credential. `failureText` concatenates
+      // `${stderr}\n${stdout}` and `firstUseful` takes the LAST non-empty line -
+      // right for every other cswap command, and here it means any stdout at all
+      // outranks the real error. claude-swap writes its diagnostics to stderr
+      // specifically so stdout stays pure JSON in pipe mode, and it writes the
+      // envelope as its last act; a non-zero exit after a partial write would
+      // therefore put the tail of `json.dumps(envelope, indent=2)` in front of the
+      // user, and one of those lines is the refresh token on its own.
+      //
+      // Nothing is lost by dropping it: the ENOENT branch keys off `r.code`, which
+      // `run` sets, and cmd.exe's "is not recognized" is stderr's.
+      failed.push({
+        num: String(n),
+        email: store.emails?.[String(n)] || "",
+        detail: failureText({ ...r, stdout: "" }, "cswap export"),
+      });
+      continue;
+    }
+    texts.push(r.stdout);
+  }
+
+  // Nothing came out at all. There is no partial bundle to hand over, so this
+  // is the plain failure the single-account share has always reported.
+  if (!texts.length) {
+    return { ok: false, reason: "export_failed", detail: failed[0]?.detail ?? "", failed };
+  }
+
+  const merged = mergeExports(texts);
+  if (!merged.ok) return { ok: false, reason: merged.reason, failed };
+  for (const d of merged.dropped) {
+    failed.push({ ...d, detail: "another slot already holds this address in this organization" });
+  }
+
+  const shared = merged.envelope.accounts.map(a => ({ num: String(a?.number ?? ""), email: a?.email ?? "" }));
+  return {
+    ok: true,
+    blob: wrapShare(JSON.stringify(merged.envelope)),
+    expiresAt: Date.now() + SHARE_TTL_MS,
+    // What the bundle CARRIES, never what was asked for. The copy row counts
+    // this list, so a bundle that came up short says so.
+    shared,
+    failed,
+  };
+}
+
+/**
+ * The one-account case, which is a bundle of one and takes the same path.
+ *
+ * That path PARSES what cswap wrote, where this used to hand its stdout on
+ * opaquely — the cost of `shared` being able to promise that the count on the
+ * copy button is the count in the blob. So an export shape the fold cannot read
+ * now fails the single share too, not just the bundle. Deliberate: one path
+ * means the two cannot drift into two envelope shapes, and a share that
+ * silently carried something this deck could not account for is the failure
+ * the count exists to prevent.
+ */
+export async function shareAccount(num) {
+  return shareAccounts([num]);
+}
+
+/**
+ * The identities a bundle carries, or `[]` when it cannot be read.
+ *
+ * The payload is the credential, so this takes the two fields it needs and
+ * nothing else: no caller ever receives the parsed envelope, and a bundle that
+ * will not parse degrades to an unnamed import rather than to an error, since
+ * cswap is the one entitled to refuse it.
+ */
+export function bundleAccounts(payload) {
+  let env;
+  try { env = JSON.parse(payload); } catch { return []; }
+  if (!env || typeof env !== "object" || !Array.isArray(env.accounts)) return [];
+  const out = [];
+  for (const a of env.accounts) {
+    if (!a || typeof a !== "object") continue;
+    const email = typeof a.email === "string" ? a.email.trim() : "";
+    if (!email) continue;
+    out.push({ email, org: typeof a.organizationUuid === "string" ? a.organizationUuid : "" });
+  }
+  // All of them or none. `wanted` is what the result list counts against, so a
+  // bundle read as three when it holds four reports "1 of 3 imported" about a
+  // paste of four - the missing one arrives and is never named, and a non-empty
+  // list keeps the store-diff fallback from running to catch it. claude-swap
+  // itself refuses an envelope whose entry has no address, so this is a guard
+  // against a shape neither project has today rather than a live case.
+  return out.length === env.accounts.length ? out : [];
+}
+
+/**
+ * The same bundle, cut down to one account.
+ *
+ * What "update anyway" sends. `--force` overwrites every account it matches, so
+ * a forced import of the whole bundle would rewrite credentials the user never
+ * pointed at; narrowing first is what keeps an overwrite a named act. Written
+ * as a filter over the original envelope rather than a fresh one, for the same
+ * reason mergeExports spreads its head: those fields belong to claude-swap.
+ */
+export function narrowBundle(payload, key) {
+  let env;
+  try { env = JSON.parse(payload); } catch { return { ok: false, reason: "corrupt" }; }
+  if (!env || typeof env !== "object" || !Array.isArray(env.accounts)) return { ok: false, reason: "corrupt" };
+  const accounts = env.accounts.filter(a => identityKey(a?.email, a?.organizationUuid) === key);
+  if (!accounts.length) return { ok: false, reason: "not_in_bundle" };
+  const nums = new Set(accounts.map(a => String(a?.number ?? "")));
+  const active = env.activeAccountNumber != null && nums.has(String(env.activeAccountNumber))
+    ? env.activeAccountNumber
+    : null;
+  return { ok: true, payload: JSON.stringify({ ...env, activeAccountNumber: active, accounts }) };
+}
+
+/**
+ * What happened to each account in the bundle, decided by the store.
+ *
+ * The store is the fact. `cswap import` narrates itself per account on stderr,
+ * and parsing that as the primary answer would make a reworded release report
+ * imports that did not happen - the failure mode `newSlot` already refuses for
+ * the same reason. So the slot map before and after the run decides the two
+ * outcomes that matter: an identity holding a slot it did not hold arrived, and
+ * one absent from both never came.
+ *
+ * stderr is then read for one thing only, and one no store diff can show: an
+ * account already present whose credentials were REWRITTEN in place, which
+ * moves no slot. `Replaced` is claude-swap's dead-token auto-heal (its #136),
+ * `Overwrote` is a `--force`. If either line is ever reworded the nuance is
+ * lost and the row reads "already here", which is still true - the degradation
+ * is a less specific report, never a wrong one.
+ *
+ * And it is applied ONLY where the address names exactly one row in the bundle.
+ * cswap's line carries no organization, so with one address held under two of
+ * them a single `Replaced me@x.com` would mark both rows healed and one of
+ * those would be false - which is the thing the paragraph above promises this
+ * never does.
+ */
+export function importOutcomes(before, after, wanted, stderr = "") {
+  const slotsBy = (store) => new Map(
+    (store?.slots ?? []).map(s => [identityKey(store?.emails?.[s], store?.orgs?.[s]), s]),
+  );
+  const had = slotsBy(before);
+  const now = slotsBy(after);
+
+  // How many rows in this bundle share each address. An address held twice is
+  // an address cswap's own narration cannot resolve.
+  const byAddress = new Map();
+  for (const w of wanted) {
+    const a = String(w.email ?? "").trim().toLowerCase();
+    byAddress.set(a, (byAddress.get(a) ?? 0) + 1);
+  }
+  const rewritten = new Map();
+  for (const line of String(stderr ?? "").split(/\r?\n/)) {
+    const m = /^\s*(Replaced|Overwrote)\s+(\S+)/.exec(line);
+    if (!m) continue;
+    const addr = String(m[2]).trim().toLowerCase();
+    if ((byAddress.get(addr) ?? 0) !== 1) continue;
+    rewritten.set(addr, m[1] === "Replaced" ? "healed" : "updated");
+  }
+
+  return wanted.map(w => {
+    const key = identityKey(w.email, w.org);
+    const wasHere = had.has(key);
+    const slot = now.get(key) ?? null;
+    if (!wasHere && slot != null) return { email: w.email, org: w.org, num: slot, state: "imported" };
+    if (wasHere) {
+      return {
+        email: w.email,
+        org: w.org,
+        num: had.get(key),
+        state: rewritten.get(String(w.email ?? "").trim().toLowerCase()) ?? "present",
+      };
+    }
+    return { email: w.email, org: w.org, num: null, state: "failed" };
+  });
+}
+
+/**
+ * A share, or a bundle of them, taken into this deck's store.
+ *
+ * Non-destructive by default and deliberately so: without `--force` claude-swap
+ * adds what is missing, leaves a healthy account exactly as it is, and replaces
+ * only a slot its own usage row has quarantined as refresh-token-dead. That is
+ * already the rule a person would ask for - leave what works, fix what does
+ * not - so the default run never passes the flag.
+ *
+ * `force` is honoured ONLY together with `only`, which names a single account.
+ * A forced import of a whole bundle would rewrite every matching credential on
+ * this machine, and a fresh token replaced by a stale one is not recoverable
+ * from here - the fix is a re-login. Requiring the pair is what makes the
+ * clobber something a person chose while looking at the address.
+ */
+export async function importAccount(blob, { force = false, only = null } = {}) {
   const un = unwrapShare(blob);
   if (!un.ok) return { ok: false, reason: un.reason };
 
+  let payload = un.payload;
+  const narrowing = only != null;
+  if (narrowing) {
+    const cut = narrowBundle(payload, identityKey(only?.email, only?.org));
+    if (!cut.ok) return { ok: false, reason: cut.reason };
+    payload = cut.payload;
+  }
+  const overwrite = force === true && narrowing;
+  const wanted = bundleAccounts(payload);
+
   return withStoreLock(async () => {
     const before = await readStore();
-    const child = runInteractive(await cswapBin(), ["import", "-"], { timeout: CSWAP_TIMEOUT_MS });
-    child.write(un.payload);
+    const args = overwrite ? ["import", "-", "--force"] : ["import", "-"];
+    const child = runInteractive(await cswapBin(), args, { timeout: CSWAP_TIMEOUT_MS });
+    child.write(payload);
     // cswap reads stdin to EOF, so the pipe has to close for it to proceed.
     //
-    // This used to write a raw EOT byte and then call `endStdin(child)` — a
+    // This used to write a raw EOT byte and then call `endStdin(child)` - a
     // helper that was never written. EOT only means end-of-file on a TTY, so
     // the byte did nothing to a pipe, and the call threw ReferenceError before
     // cswap ever saw the payload: the route answered 500 and the dialog fell
@@ -782,15 +1101,32 @@ export async function importAccount(blob) {
     if (!r.ok) return { ok: false, reason: "import_failed", detail: failureText(r, "cswap import") };
 
     const after = await readStore();
-    const slot = newSlot(before, after);
     invalidateClaudeAccountsCache();
-    if (slot != null) runDetached(await cswapBin(), ["list"]);
-    // Who arrived, so the dialog can name them instead of saying "an account".
-    const email = slot != null ? (after.emails[slot] || null) : null;
-    // No new slot is not an error: without --force, cswap skips an account it
-    // already holds. Saying which happened is the difference between "it
-    // worked" and "why is nothing different".
-    return { ok: true, added: slot != null, num: slot, email, output: firstUseful(r.stdout) };
+
+    // An unreadable envelope was still imported, or still refused, by cswap -
+    // only the naming is lost. Fall back to the store's own new slots so the
+    // dialog can say what arrived even then.
+    const results = wanted.length
+      ? importOutcomes(before, after, wanted, r.stderr)
+      : (() => {
+          const had = new Set(before.slots ?? []);
+          return (after.slots ?? []).filter(s => !had.has(s))
+            .map(s => ({ email: after.emails?.[s] || "", org: after.orgs?.[s] || "", num: s, state: "imported" }));
+        })();
+
+    const arrived = results.filter(x => x.state === "imported");
+    if (arrived.length) runDetached(await cswapBin(), ["list"]);
+    return {
+      ok: true,
+      results,
+      // Nothing new is not an error: without --force, cswap skips an account it
+      // already holds. Saying which happened is the difference between "it
+      // worked" and "why is nothing different".
+      added: arrived.length > 0,
+      num: arrived.length === 1 ? arrived[0].num : null,
+      email: arrived.length === 1 ? arrived[0].email : null,
+      output: firstUseful(r.stdout),
+    };
   });
 }
 
