@@ -4128,12 +4128,17 @@ async function handleBrowserWatch(req, res) {
   // `refresh=1` drops the mtime cache and copies every profile's History
   // database. That module carries the floor and the inflight slot which bound
   // what a page looping this GET can spend.
-  const { deckOwnOrigins, fetchBrowserWatch } = await import(
+  const { deckOwnOrigins, fetchBrowserWatch, registeredDeckPorts } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
   );
+  // The registered ports as well as the documented range: a deck started with
+  // an explicit `--port` outside 4317-4400 opens its own tab like any other,
+  // and the panel used to report it to its owner as a program driving the
+  // browser. Which it was — and the program was ccdeck.
+  const ports = await registeredDeckPorts();
   return send(res, 200, await fetchBrowserWatch({
     force,
-    deckOrigins: deckOwnOrigins(),
+    deckOrigins: deckOwnOrigins(undefined, ports),
     quietMs: minutes("quiet"),
     gapMs: minutes("gap"),
   }));

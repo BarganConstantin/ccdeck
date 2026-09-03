@@ -35,6 +35,9 @@ interface WatchProfile {
   profile: string;
   hasClaudeExt: boolean;
   visits: number;
+  /** What a PROGRAM opened, ungated — not the same as a finding, which also has
+   *  to clear the quiet gate. */
+  programVisits: number;
   findings: number;
   degraded: boolean;
   reason: string | null;
@@ -169,13 +172,22 @@ export function modeState(
  *  the deck stores it. */
 export function visitTotals(
   browsers: WatchBrowser[],
-  profiles: { browser: string; visits: number }[],
+  profiles: { browser: string; programVisits: number }[],
 ): { key: string; name: string; visits: number; running: boolean | null }[] {
+  // WHAT A PROGRAM OPENED, not every row in the history. This counted all of
+  // them, and on a measured profile 58 of 74 were the reader's own browsing —
+  // so the panel's largest figure was 78% a different subject, and `23` read as
+  // "23 things to look at" when none of them were.
+  //
+  // Ungated on purpose, and so NOT the same as the findings count beside it: a
+  // finding also has to clear the quiet gate. This is "what programs did", the
+  // findings are "what they did while you were away", and the two together are
+  // the shape of the answer.
   return browsers.map(b => ({
     key: b.key,
     name: b.name,
     running: b.running,
-    visits: profiles.filter(p => p.browser === b.key).reduce((n, p) => n + p.visits, 0),
+    visits: profiles.filter(p => p.browser === b.key).reduce((n, p) => n + p.programVisits, 0),
   }));
 }
 
@@ -569,7 +581,7 @@ export default function BrowserWatchModal({
                       what the figures ARE — rows in the browser's own history,
                       newer than this deck's start, not visits a person made and
                       not findings. The second is the only part that moves. */}
-                  <p className="bw-since">History entries since this deck started</p>
+                  <p className="bw-since">Pages a program opened, since this deck started</p>
                   {/* THE DECK'S OWN CLOCK, NOT THE BROWSER'S. This read
                       `lastWrittenMs`, which is the History file's mtime — when
                       the BROWSER last wrote, not when the watch last looked. On

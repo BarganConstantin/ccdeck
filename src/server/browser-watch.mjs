@@ -188,11 +188,50 @@ export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
  * user's own dev server on 3000 or 44440 is still reported, which is the case
  * that would have hurt.
  */
-export function deckOwnOrigins(portRange = [4317, 4400]) {
+export function deckOwnOrigins(portRange = [4317, 4400], registered = []) {
   const [lo, hi] = portRange;
   const out = [];
   for (let port = lo; port <= hi; port++) out.push(`http://127.0.0.1:${port}`);
+  // AND THE PORTS DECKS ACTUALLY REGISTERED, which the range cannot know about.
+  // The range covers the default and its fallback; an explicit `--port` lands
+  // anywhere. Measured: a deck running from a worktree on `--port 4793` opened
+  // its own tab, and this panel reported it to its owner as a program driving
+  // the browser — which it was, and the program was ccdeck.
+  //
+  // Read rather than guessed. The registry already holds a port per live deck
+  // for the election, so this is a fact the machine has, not a range somebody
+  // has to keep current.
+  //
+  // A deck that registered NOTHING is still reported, and that is right rather
+  // than a gap: from here it is a program driving the browser and nothing
+  // announces otherwise. The reader can dismiss it once and it stays dismissed.
+  for (const port of registered) {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
+    if (port >= lo && port <= hi) continue;
+    out.push(`http://127.0.0.1:${port}`);
+  }
   return out;
+}
+
+/** The port of every live deck that registered one. Same directory and the same
+ *  liveness check the election uses — a record whose process is gone is a
+ *  leftover, not a deck whose tabs should be excused. */
+export async function registeredDeckPorts(deps = {}) {
+  if (deps.registeredDeckPorts) return deps.registeredDeckPorts();
+  const dir = join(claudeConfigDir(), "agent-dag");
+  let files;
+  try { files = await readdir(dir); } catch { return []; }
+  const ports = [];
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const d = JSON.parse(await readFile(join(dir, f), "utf8"));
+      if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
+      try { process.kill(d.pid, 0); } catch { continue; }
+      ports.push(d.port);
+    } catch { /* corrupt, or gone between listing and read */ }
+  }
+  return ports;
 }
 
 
@@ -459,14 +498,24 @@ export async function browserWatchSnapshot({
     // the last real one found instead of erasing it.
     let oldest = null;
     let human = null;
+    // PAGES A PROGRAM OPENED, which is not the same as findings. A finding also
+    // has to clear the quiet gate; this is every navigation Chrome marked as
+    // coming from an API, whether or not anybody was at the keyboard. It is the
+    // figure the overview shows, because a panel about what programs did should
+    // count what programs did — the total row count it showed before was, on a
+    // measured profile, 78% the reader's own browsing.
+    let byProgram = 0;
     for (const row of read.rows) {
       if (oldest === null || row.timeMs < oldest) oldest = row.timeMs;
-      if (!isProgramNavigation(row.transition) && (human === null || row.timeMs > human)) {
-        human = row.timeMs;
-      }
+      if (isProgramNavigation(row.transition)) byProgram += 1;
+      else if (human === null || row.timeMs > human) human = row.timeMs;
     }
-    if (read.cached) ({ findings, oldest, human } = _lastRead.get(key) ?? { findings: [], oldest: null, human: null });
-    else if (!read.degraded) _lastRead.set(key, { findings, oldest, human });
+    if (read.cached) {
+      // Carried across a cached poll like everything else here: a read that
+      // says "unchanged" means "as before", not "nothing".
+      ({ findings, oldest, human, byProgram } =
+        _lastRead.get(key) ?? { findings: [], oldest: null, human: null, byProgram: 0 });
+    } else if (!read.degraded) _lastRead.set(key, { findings, oldest, human, byProgram });
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
     // A poll that found the file unchanged says nothing at all.
@@ -529,6 +578,10 @@ export async function browserWatchSnapshot({
       profile: profile.profile,
       hasClaudeExt: profile.hasClaudeExt,
       visits: read.rows.length,
+      // What a program opened, ungated. The overview reads this; `visits` stays
+      // because the feed's deltas are computed against it and the two numbers
+      // answer different questions.
+      programVisits: byProgram,
       findings: findings.length,
       degraded: read.degraded,
       reason: read.reason ?? null,
@@ -593,9 +646,19 @@ export async function browserWatchSnapshot({
     const reaction = store.settings.reaction;
     if (fresh.length && performable(reaction, platform)) {
       for (const episode of fresh) {
+        // A THROW IS NOT NOTHING. `catch(() => [])` turned a reaction that
+        // blew up into a reaction that had never been asked for, and the feed
+        // then said nothing at all about a finding the panel had promised to
+        // act on. The message goes in the line, because the one thing a reader
+        // needs when a reaction fails is which failure it was.
         const acted = await (deps.react ?? react)(reaction, episode, { platform, deps })
-          .catch(() => []);
-        for (const line of acted) note("find", `${episode.host} — ${line}`, now);
+          .catch(err => [`reaction failed — ${err?.message ?? "unknown error"}`]);
+        // `could not` lines are the deck unable to do what it said it would,
+        // which is what `warn` is for; the rest is the reaction working.
+        for (const line of acted) {
+          note(/^(could not|reaction failed)/.test(line) ? "warn" : "find",
+               `${episode.host} — ${line}`, now);
+        }
       }
     }
   }
