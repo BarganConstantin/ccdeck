@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "1.48.0": [
+    {
+      "title": "👁 Browser Watch — see what a program opened while you were away",
+      "body": "There is a new eye in the top bar. It watches the browsers on this machine and tells you when a program — an extension, an agent, a command — opened pages while nobody was touching the browser.\n\nUsually that is your own agent doing what you asked, and the panel says so rather than crying intrusion. What it gives you is the evidence: which pages, in which browser, at what time, with every address written out in full.\n\nIt is off until you switch it on, and nothing leaves this machine. It reads a copy of the browser's own history and only pages newer than the moment the deck started — never anything from before, never cookies, never saved passwords. Open ⚙ inside the panel and \"What Browser Watch can access\" says exactly what it reads, keeps and sends.\n\nWhen it finds something the eye turns amber with a count. You can dismiss a finding once you have looked at it and it stays gone, while the log file on disk keeps the record. On a Mac it can also close the tab it found, or quit the browser."
+    },
+    {
+      "title": "🔑 Move all your accounts to another machine in one paste",
+      "body": "Sharing accounts between two decks used to be one account at a time, and step four of six is where people stop — leaving the second deck half set up with nothing saying so.\n\nPick the accounts you want, copy one blob, paste it into the other deck. The import adds what is missing, leaves what already works alone, heals an account whose token has died, and tells you which of those happened to each one.\n\nThe blob carries real credentials, so it expires ten minutes after you make it and the deck refuses an expired one before it unwraps anything."
+    }
+  ],
   "1.47.0": [
     {
       "title": "🔌 The top bar goes quiet when everything is fine",
