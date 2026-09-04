@@ -220,6 +220,10 @@ vi.mock("node:child_process", () => ({
 // on has to be this file's, never the machine's.
 const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-ccusage-user-"));
 const BIN_DIR = join(FAKE_HOME, "bin");
+/** One load, both reports — every range carries it now (see SECTIONS in
+ *  ccusage.mjs). It sits ahead of `--by-agent`, which the deck appends last. */
+const SECTIONS = ["--sections", "daily,session"];
+
 const ON_PATH = join(BIN_DIR, "ccusage");
 const prevEnv = {
   HOME: process.env.HOME,
@@ -306,7 +310,7 @@ describe("a ccusage the user installed themselves", () => {
     const res = await fetchCcusageDaily({ since: "20260501" });
 
     expect(res.ok).toBe(true);
-    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260501", "--by-agent"] }]);
+    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260501", ...SECTIONS, "--by-agent"] }]);
   });
 
   it("is used instead of downloading a second copy of the same tool", async () => {
@@ -337,7 +341,7 @@ describe("a ccusage the user installed themselves", () => {
 
     expect(res.ok).toBe(true);
     expect(res.reason).toBeUndefined();
-    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260503", "--by-agent"] }]);
+    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260503", ...SECTIONS, "--by-agent"] }]);
   });
 
   it("still refuses under that flag when there is genuinely no ccusage anywhere", async () => {
@@ -367,7 +371,7 @@ describe("a ccusage the user installed themselves", () => {
 
     expect(res.ok).toBe(true);
     // Not one npm, not one npx: the broken halves are never even reached.
-    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260505", "--by-agent"] }]);
+    expect(calls).toEqual([{ file: ON_PATH, args: ["daily", "--json", "--since", "20260505", ...SECTIONS, "--by-agent"] }]);
   });
 
   it("does not displace a managed install that is already there", async () => {
@@ -408,7 +412,7 @@ describe("AGENTS_DECK_CCUSAGE", () => {
 
     await fetchCcusageDaily({ since: "20260508" });
 
-    expect(calls).toEqual([{ file: mine, args: ["daily", "--json", "--since", "20260508", "--by-agent"] }]);
+    expect(calls).toEqual([{ file: mine, args: ["daily", "--json", "--since", "20260508", ...SECTIONS, "--by-agent"] }]);
   });
 
   it("fails as itself when it names a file that is not there", async () => {
@@ -538,8 +542,8 @@ describe("what the deck says when the user's own copy is the one that failed", (
     // would have shown up as an `npm install` and a third spawn, which is the
     // thing this test is here to say does not happen to somebody else's file.
     expect(calls).toEqual([
-      { file: ON_PATH, args: ["daily", "--json", "--since", "20260511", "--by-agent"] },
-      { file: ON_PATH, args: ["daily", "--json", "--since", "20260511"] },
+      { file: ON_PATH, args: ["daily", "--json", "--since", "20260511", ...SECTIONS, "--by-agent"] },
+      { file: ON_PATH, args: ["daily", "--json", "--since", "20260511", ...SECTIONS] },
     ]);
   });
 

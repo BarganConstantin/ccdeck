@@ -824,6 +824,34 @@ let _byAgentUnsupported = false;
 const blamesByAgent = (text) => /by-agent/i.test(String(text ?? ""));
 
 /**
+ * BOTH REPORTS FROM ONE LOAD.
+ *
+ * `daily` answers "what did this range cost" and `session` answers "which
+ * session spent it". They used to be two commands and therefore two children —
+ * two npx resolutions, two Node starts, and two full walks of every transcript
+ * on the machine for the same set of files.
+ *
+ * `--sections` is ccusage's own answer to that: one load, several report
+ * sections in one JSON object. Measured against this machine's logs, asking for
+ * `daily,session` returns exactly what the two runs returned — `daily` (with
+ * its `agents` split when `--by-agent` rides along), `session`, and one
+ * `totals` — so the deck reads the same fields off one child.
+ *
+ * Not on `session` alone: the panel's totals and its per-model split come from
+ * `daily`, so `daily` is the command and the sessions are the extra section.
+ */
+const SECTIONS = ["--sections", "daily,session"];
+const blamesSections = (text) => /sections/i.test(String(text ?? ""));
+
+/**
+ * A ccusage too old for `--sections`, remembered for the life of the process —
+ * the same narrow memory `_byAgentUnsupported` keeps, for the same reason: the
+ * retry costs one process on a machine that is already failing, and the memory
+ * costs the extra section for as long as the deck runs.
+ */
+let _sectionsUnsupported = false;
+
+/**
  * Run `daily` for a range, asking for the per-agent split, and give up the
  * split rather than the whole answer when this ccusage will not produce one.
  *
@@ -976,17 +1004,40 @@ async function readRange(sinceArg, until, key) {
   try {
     const args = ["daily", "--json", "--since", sinceArg];
     if (until) args.push("--until", until);
-    ran = await runDaily(args);
-    const raw = extractJson(ran.out);
-    // The same range asked a second way. `daily` answers "what did this cost"
-    // and `session` answers "which session spent it", and no flag on the first
-    // produces the second — they are two commands, so this is a second child.
-    //
-    // Deliberately after the first and not beside it: a failure to name the
-    // sessions must not cost the totals, which are what the panel is mostly
-    // for, and two ccusage processes at once on a cold machine is the shape
-    // #476 spent a release removing from the boot path.
-    const sessions = await readSessions(sinceArg, until);
+    let raw;
+    if (_sectionsUnsupported) {
+      ran = await runDaily(args);
+      raw = extractJson(ran.out);
+    } else {
+      try {
+        ran = await runDaily([...args, ...SECTIONS]);
+        raw = extractJson(ran.out);
+      } catch (err) {
+        // A ccusage that could not run at all fails the same way with or
+        // without the flag, so only a complaint naming the flag is worth a
+        // second child — and `reason` set means the run never started, which is
+        // not something a flag can fix.
+        if (err?.reason !== undefined || !blamesSections(err?.message)) throw err;
+        _sectionsUnsupported = true;
+        ran = await runDaily(args);
+        raw = extractJson(ran.out);
+      }
+    }
+    // Already here on any ccusage that knows `--sections`: one load answered
+    // both questions. The second child is the fallback for the older ones, and
+    // it stays deliberately after the first rather than beside it — a failure
+    // to name the sessions must not cost the totals, which are what the panel
+    // is mostly for, and two ccusage processes at once on a cold machine is the
+    // shape #476 spent a release removing from the boot path.
+    // The second child belongs to the OLD ccusage and to nothing else. A build
+    // that took `--sections` answered with the section — empty for a range with
+    // no sessions in it — so a missing `session` key there means this deck
+    // asked for something that build does not report, and asking again as a
+    // separate command would get the same silence for the price of a second
+    // walk of every transcript on the machine.
+    const sessions = Array.isArray(raw.session)
+      ? raw.session
+      : (_sectionsUnsupported ? await readSessions(sinceArg, until) : []);
     // Passed through whole, `agents` array and all. Every day ccusage returns
     // under `--by-agent` is a superset of the day it returns without one, so
     // there is nothing here to reshape: the browser reads the merged totals it

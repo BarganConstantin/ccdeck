@@ -187,7 +187,7 @@ describe("what fetchCcusageDaily actually spawns", () => {
     // spend into Codex's. It is on the end of the same vector and changes
     // nothing this test is about: what matters here is that the vector reaches
     // spawn as a vector.
-    const spec = fallbackSpec(["daily", "--json", "--since", "20260201", "--by-agent"], process.platform);
+    const spec = fallbackSpec(["daily", "--json", "--since", "20260201", "--sections", "daily,session", "--by-agent"], process.platform);
     expect(run!.file).toBe(spec.file);
     expect(run!.args).toEqual(spec.args);
     // The regression, in one line: shell mode is what pasted the argv into a
@@ -212,7 +212,7 @@ describe("what fetchCcusageDaily actually spawns", () => {
     // `node <entry> daily --json --since …` — the healthy path, and the reason
     // the hole was closed on most machines most of the time.
     expect(run!.file).toBe(process.execPath);
-    expect(run!.args.slice(1)).toEqual(["daily", "--json", "--since", "20260202", "--by-agent"]);
+    expect(run!.args.slice(1)).toEqual(["daily", "--json", "--since", "20260202", "--sections", "daily,session", "--by-agent"]);
     expect(run!.opts.shell).toBeUndefined();
   });
 });

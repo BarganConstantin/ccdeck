@@ -102,6 +102,11 @@ const PLAIN_JSON = JSON.stringify({
 
 /** Exactly what a ccusage that has never heard of the flag says, measured:
  *  exit 2, an EMPTY stdout, and the complaint on stderr naming the option. */
+/** What every range now asks for: one load, both reports (`--sections`). The
+ *  flag rides ahead of `--by-agent` because the deck appends the split last,
+ *  which is the position this file's own assertions pin. */
+const SECTIONS = ["--sections", "daily,session"];
+
 const UNKNOWN_FLAG = { stderr: "Unknown option '--by-agent'\nRun 'ccusage --help' for usage.", code: 2 };
 
 // ── the server half, with every spawn faked ─────────────────────────────────
@@ -240,7 +245,7 @@ describe("the argument list the deck sends ccusage", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].file).toBe(process.execPath);
-    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260801", "--by-agent"]);
+    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260801", ...SECTIONS, "--by-agent"]);
   });
 
   it("still sends --until, and sends it with the flag rather than instead of it", async () => {
@@ -248,7 +253,7 @@ describe("the argument list the deck sends ccusage", () => {
     // compose, and the days come back with their `agents` arrays intact.
     await fetchCcusageDaily({ since: "20260810", until: "20260812" });
 
-    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260810", "--until", "20260812", "--by-agent"]);
+    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260810", "--until", "20260812", ...SECTIONS, "--by-agent"]);
   });
 
   it("sends it as one argument, never as text a shell would re-read", async () => {
@@ -320,8 +325,8 @@ describe("an older ccusage, which does not know the flag", () => {
     // Two runs, the second one flagless — and it is the SAME vector otherwise,
     // so nothing else was given up to get the answer.
     expect(calls).toHaveLength(2);
-    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260806", "--by-agent"]);
-    expect(ranWith(1)).toEqual(["daily", "--json", "--since", "20260806"]);
+    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260806", ...SECTIONS, "--by-agent"]);
+    expect(ranWith(1)).toEqual(["daily", "--json", "--since", "20260806", ...SECTIONS]);
   });
 
   it("leaves the reader with no split rather than an empty one", async () => {
@@ -513,6 +518,6 @@ describe("what the deck remembers about a ccusage that refused the flag", () => 
     await fetchCcusageDaily({ since: "20260814" });
 
     expect(calls).toHaveLength(1);
-    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260814"]);
+    expect(ranWith(0)).toEqual(["daily", "--json", "--since", "20260814", ...SECTIONS]);
   });
 });
