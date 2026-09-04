@@ -186,6 +186,18 @@ describe("the join to the canvas", () => {
     expect(panel).toMatch(/title=\{`Sessions with activity \$\{periodNoun\}/);
   });
 
+  it("says why the session list is empty rather than dropping the section", () => {
+    // The two halves of one ccusage load do not date things the same way:
+    // `daily` buckets by local calendar day and `session` filters by UTC day
+    // whatever timezone it is handed. Measured at 01:58 local (UTC+3):
+    // `daily --since 20260905` reported $169.12 and `session --since 20260905`
+    // reported nothing, because no session had touched UTC's 5th yet. So east
+    // of Greenwich there is a stretch after midnight where the money is real
+    // and the list is empty, and a missing section reads as a bug.
+    expect(panel).toContain("{fromRange && rangeSessionRows.length === 0 && rangeSum.tokens > 0 && (");
+    expect(panel).toContain("No session is dated {periodNoun} yet");
+  });
+
   it("cuts the session list at twelve, after sorting by cost", () => {
     // A 280px column against a year of transcripts. The shaper sorts by cost,
     // so the cut keeps the spend worth looking at.

@@ -1147,6 +1147,27 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             </section>
           )}
 
+          {/* THE HOUR AFTER LOCAL MIDNIGHT, said rather than left blank.
+              The two halves of one ccusage load do not date things the same
+              way: `daily` buckets by local calendar day — it takes `-z` — and
+              `session` filters by UTC day whatever timezone it is handed.
+              Measured here at 01:58 local (UTC+3): `daily --since 20260905`
+              reports $169.12 and `session --since 20260905` reports nothing at
+              all, because no session has touched UTC's 5th yet.
+              So on any deck east of Greenwich there is a stretch after midnight
+              where the money is real and the session list is empty. A missing
+              section reads as a bug; this says which of the two questions has
+              no answer yet. */}
+          {fromRange && rangeSessionRows.length === 0 && rangeSum.tokens > 0 && (
+            <section className="up-section">
+              <h3 className="up-section-title">By session</h3>
+              <div className="up-hint">
+                No session is dated {periodNoun} yet — ccusage dates sessions in UTC,
+                and the totals above are your local day.
+              </div>
+            </section>
+          )}
+
           {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
             <section className={`up-section${staleCls}`}>
               {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
