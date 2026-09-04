@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.2.1": [
+    {
+      "title": "💵 Sonnet 5 was being costed fifty per cent high",
+      "body": "Sonnet 5 launched at $2/$10 per million tokens as introductory pricing, with a rise to $3/$15 announced for September 1. The deck implemented that schedule, and on September 1 it started charging the higher rate.\n\nThe increase was cancelled. Anthropic's pricing page now says the $2/$10 rate is simply the price and the rise \"will not occur\" — so every Sonnet 5 session since the 1st has been shown to you at half again what it cost.\n\nIt is corrected, and there is no date logic left in that rate to go stale a second time. Numbers already on your board are recomputed from the log the next time the deck starts; nothing was billed by us, only displayed.\n\nFable 5.1 and Mythos 5.1 are also priced now, including the cache read that is a quarter of Fable 5's — which is most of what a long session pays for."
+    }
+  ],
   "3.2.0": [
     {
       "title": "🌡️ Windows shows a temperature where it can find one",
