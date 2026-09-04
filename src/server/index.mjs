@@ -5,12 +5,11 @@
 // describes. Nothing else in this file talks to anything but 127.0.0.1 clients.
 import { createServer, request as httpRequest } from "node:http";
 import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
-import { createReadStream, existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
 import { extname, join, resolve, sep, dirname as pdirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
-import { createInterface } from "node:readline";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { claudeConfigDir } from "./claude-dir.mjs";
@@ -19,6 +18,7 @@ import { PRODUCT } from "./brand.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
+import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..", "..");
@@ -3360,9 +3360,34 @@ function pushEvent(raw, source, opts = {}) {
  *   two replays.
  */
 export function replayScope(workspace, platform = process.platform) {
-  if (!workspace || typeof workspace !== "string") return () => true;
+  if (!workspace || typeof workspace !== "string") {
+    const all = () => true;
+    // Every caller gets the same answer for the same payload, forever. That is
+    // what lets replayLog read the log from its end — see `orderDependent` on
+    // the scoped predicate below for the half that cannot.
+    all.orderDependent = false;
+    return all;
+  }
   const bySession = new Map();
-  return function admits(payload) {
+  /**
+   * THE ANSWER DEPENDS ON WHAT CAME BEFORE, and #742 is why that is now stated
+   * out loud rather than left as an implementation detail.
+   *
+   * The synthetic enrichment events — ModelObserved, UsageObserved,
+   * SessionNamed, ContextObserved — carry a session_id and no cwd, so the only
+   * thing that can decide them is a cwd-bearing event for the same session,
+   * and that event is EARLIER in the log. Fed the log backwards, this predicate
+   * meets the enrichment first, has nothing in `bySession`, and drops it: the
+   * session lands on the canvas with no model and no tokens.
+   *
+   * So the flag is not advice. replayLog reads it, and reads the file forwards
+   * whenever it is set. Making a scoped replay cheap needs an index of where a
+   * workspace's lines are, which is a different change from this one.
+   */
+  admits.orderDependent = true;
+  return admits;
+
+  function admits(payload) {
     if (!payload || typeof payload !== "object") return false;
     if (payload.hook_event_name === "__clear") return true;
     const sid = typeof payload.session_id === "string" ? payload.session_id : null;
@@ -3408,38 +3433,92 @@ export function replayScope(workspace, platform = process.platform) {
  * declining a session it was told not to capture is the flag doing its job. They
  * are two different things and only the first is ever printed.
  *
- * WHAT THE FILTER COSTS AT BOOT, honestly: nothing is saved on the read. Every
- * line is still streamed off disk and still JSON.parsed, because the cwd being
- * judged is inside the JSON — a 30 MB log is 30 MB of reading and parsing on a
- * scoped deck exactly as on an unscoped one. What it saves is everything after
- * the parse: no redaction pass, no envelope, no ring insert, no character
- * accounting and no eviction pressure for a line this deck should never have
- * held. The ring is bounded by MAX_BUFFER events AND MAX_BUFFER_CHARS, so on a
- * busy machine the out-of-scope traffic was not merely extra — it was evicting
- * the in-scope sessions the user started the deck to watch.
+ * WHAT THE FILTER COSTS AT BOOT, honestly: nothing is saved on the read of any
+ * line this reaches, because the cwd being judged is inside the JSON. What it
+ * saves is everything after the parse: no redaction pass, no envelope, no ring
+ * insert, no character accounting and no eviction pressure for a line this deck
+ * should never have held. The ring is bounded by MAX_BUFFER events AND
+ * MAX_BUFFER_CHARS, so on a busy machine the out-of-scope traffic was not
+ * merely extra — it was evicting the in-scope sessions the user started the
+ * deck to watch.
+ *
+ * READ BACKWARDS, AND ONLY AS FAR AS THE RING (#742). This used to stream the
+ * whole file from the front, and the whole file is where the boot's time went:
+ * 12,079 lines and 31 MB on the machine it was measured on, 690ms of
+ * JSON.parse, growing with every session until rotation cuts it at 50 MB — to
+ * fill a ring that holds two thousand events. Five sixths of that parse was
+ * feeding the eviction loop, on the critical path of a boot, every time.
+ *
+ * So the lines arrive newest-first and the loop stops the moment the ring is
+ * full, which makes the cost a property of MAX_BUFFER rather than of how long
+ * the user has been running the deck. Nothing is lost by it: what a forward
+ * replay left in the ring was always the NEWEST admitted events that fit, and
+ * that is exactly the set this collects. A young log — too few events to fill
+ * the ring — is read to its start, and costs what it always did.
+ *
+ * The order of the pushes is still oldest-first. `seq` is assigned by pushEvent
+ * in the order it is called, and a ring numbered backwards would hand every
+ * resuming client a Last-Event-ID that means the opposite of what it says.
+ *
+ * A SCOPED DECK STILL READS FORWARDS, and that is not an oversight. Its
+ * predicate decides the cwd-less enrichment events — ModelObserved,
+ * UsageObserved, SessionNamed, ContextObserved — from the cwd-bearing event
+ * earlier in the log, so backwards it meets the answer after the question and
+ * drops them: the session arrives on the canvas with no model and no tokens.
+ * `replayScope` says which kind of predicate it handed over rather than this
+ * inferring it from the workspace string, so the two cannot drift apart. Making
+ * that case cheap needs an index of where a workspace's lines are, which is a
+ * different change from this one.
  */
 async function replayLog(filePath, workspace = "") {
   if (!existsSync(filePath)) return 0;
-  let count = 0;
   let skipped = 0;
   let skippedBytes = 0;
   const admits = replayScope(workspace);
-  const rl = createInterface({ input: createReadStream(filePath, { encoding: "utf8" }) });
-  for await (const line of rl) {
-    if (!line) continue;
+  const replay = (evt) =>
+    pushEvent(evt.payload, evt.source ?? "replay", { receivedAt: evt.receivedAt, replay: true });
+  const parse = (line) => {
     try {
-      const evt = JSON.parse(line);
-      if (evt && typeof evt === "object" && evt.payload) {
-        if (!admits(evt.payload)) continue;
-        pushEvent(evt.payload, evt.source ?? "replay", { receivedAt: evt.receivedAt, replay: true });
-        count++;
-      }
+      return JSON.parse(line);
     } catch {
       skipped++;
       skippedBytes += Buffer.byteLength(line, "utf8");
+      return null;
     }
+  };
+  const usable = (evt) => evt && typeof evt === "object" && evt.payload;
+
+  let count = 0;
+  if (admits.orderDependent) {
+    for await (const line of linesFromStart(filePath)) {
+      if (!line) continue;
+      const evt = parse(line);
+      if (!usable(evt) || !admits(evt.payload)) continue;
+      replay(evt);
+      count++;
+    }
+  } else {
+    // Newest first, so this is filled back to front and then walked in reverse
+    // to push. Bounded by MAX_BUFFER, which is what makes the memory here a
+    // property of the ring rather than of the file.
+    const newestFirst = [];
+    for await (const line of linesFromEnd(filePath)) {
+      if (!line) continue;
+      const evt = parse(line);
+      if (!usable(evt) || !admits(evt.payload)) continue;
+      newestFirst.push(evt);
+      // Everything older than this would be evicted by the events already held,
+      // so reading further is work whose only result is throwing it away.
+      if (newestFirst.length >= MAX_BUFFER) break;
+    }
+    for (let i = newestFirst.length - 1; i >= 0; i--) replay(newestFirst[i]);
+    count = newestFirst.length;
   }
   if (skipped > 0) {
+    // "in the part of the log it read", because that is now a part rather than
+    // the whole: a damaged line older than the ring is never reached, and
+    // claiming to have counted every unreadable line in the file would be a
+    // number this no longer has.
     const kb = (skippedBytes / 1024).toFixed(0);
     console.warn(`${PRODUCT}: skipped ${skipped} unreadable line(s) (${kb}KB) while replaying the event log`);
   }

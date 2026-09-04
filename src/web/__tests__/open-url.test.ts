@@ -36,12 +36,35 @@ describe("launchers, per platform", () => {
   });
 
   it("gives Windows the empty title argument `start` needs", () => {
-    const [only] = launchers(URL_, { platform: "win32", env: {} });
-    expect(only.file).toBe("cmd.exe");
-    expect(only.args).toEqual(["/d", "/s", "/c", `start "" "${URL_}"`]);
+    const [first] = launchers(URL_, { platform: "win32", env: {} });
+    expect(first.file).toBe("cmd.exe");
+    // The empty string is the window TITLE. Without it `start "http://…"` opens
+    // a console window named after the URL and no browser at all, which is the
+    // one mistake here that nothing on a Mac would ever reveal.
+    expect(first.args).toEqual(["/d", "/s", "/c", `start "" "${URL_}"`]);
     // Without this Node quotes the line a second time and cmd.exe receives
     // something it cannot parse — the same reason exec.mjs's viaCmd sets it.
-    expect(only.opts).toEqual({ windowsVerbatimArguments: true });
+    expect(first.opts).toEqual({ windowsVerbatimArguments: true });
+  });
+
+  it("keeps a way through when cmd.exe itself cannot be run", () => {
+    // A comspec pointing at something no longer there is the one way the line
+    // above fails on a machine that is otherwise fine, so the bare name the
+    // PATH would have answered comes next.
+    const files = launchers(URL_, { platform: "win32", env: { ComSpec: "D:\\gone\\cmd.exe" } })
+      .map((t: any) => t.file);
+    expect(files).toEqual(["D:\\gone\\cmd.exe", "cmd.exe", "powershell.exe"]);
+    // And not twice when comspec is already the bare name.
+    expect(launchers(URL_, { platform: "win32", env: { ComSpec: "cmd.exe" } }).map((t: any) => t.file))
+      .toEqual(["cmd.exe", "powershell.exe"]);
+  });
+
+  it("hands PowerShell the URL as an argument, never inside a script string", () => {
+    const ps = launchers(URL_, { platform: "win32", env: {} }).find((t: any) => t.file === "powershell.exe");
+    // `-Command "Start-Process $url"` would put the URL into something
+    // PowerShell parses, where `;` and `&` are its own operators. As a separate
+    // argv entry it is a value and nothing else.
+    expect(ps.args).toEqual(["-NoProfile", "-NonInteractive", "-Command", "Start-Process", URL_]);
   });
 
   it("honours comspec, because that is what Node does everywhere else here", () => {

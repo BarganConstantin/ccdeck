@@ -77,7 +77,21 @@ export function launchers(url, { platform = process.platform, env = process.env,
     ];
   }
 
-  if (platform === "win32") return [startCommand(url, env)];
+  if (platform === "win32") {
+    const first = startCommand(url, env);
+    const tries = [first];
+    // comspec is read before this, and a comspec pointing somewhere that is no
+    // longer there is the one way the line above fails on a machine that is
+    // otherwise fine. The bare name is what the PATH would have answered.
+    if (first.file.toLowerCase() !== "cmd.exe") tries.push(startCommand(url, env, "cmd.exe"));
+    // Last resort, and only reached if cmd.exe itself could not be run. Every
+    // supported Windows has one of these two.
+    tries.push({
+      file: "powershell.exe",
+      args: ["-NoProfile", "-NonInteractive", "-Command", "Start-Process", url],
+    });
+    return tries;
+  }
 
   if (inWsl) {
     return [

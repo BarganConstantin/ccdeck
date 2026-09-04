@@ -266,15 +266,50 @@ export function cswapOwner(bin, platform = process.platform, env = process.env, 
 }
 
 let _bin = null;
+
+/**
+ * What the probe that resolved `_bin` printed, and when.
+ *
+ * #742: resolving the binary means running `cswap --version`, and reading the
+ * version means running `cswap --version`. Those were two separate spawns of a
+ * Python CLI a moment apart, and on this Mac each one costs between one and two
+ * and a half seconds — which made a probe of an ALREADY INSTALLED claude-swap
+ * the single largest thing in an ordinary boot.
+ *
+ * The second spawn is what this retires, and only the second: anything asking
+ * later gets a fresh answer, because a version read once at boot is not a
+ * version for the life of a deck that runs for days and may upgrade the tool
+ * underneath itself. Five seconds is long enough to cover cswapBin handing
+ * straight over to cswapVersion and far too short to be a cache.
+ */
+let _probe = null;
+const PROBE_FRESH_MS = 5_000;
+
+/** "claude-swap 0.25.0" → "0.25.0", and "installed" for a copy that answered
+ *  without a number in it. Shared so the memo and the spawn cannot disagree. */
+function versionIn(r) {
+  const m = (r.stdout || r.stderr).trim().match(/(\d+\.\d+\.\d+\S*)/);
+  return m ? m[1] : "installed";
+}
+
 export async function cswapBin() {
   // An explicit path wins over everything and is never cached away — someone
   // debugging a bad resolution needs it to take effect immediately.
   if (process.env.AGENTS_DECK_CSWAP) return process.env.AGENTS_DECK_CSWAP;
   if (_bin) return _bin;
-  if ((await run("cswap", ["--version"], { timeout: 8_000 })).ok) return (_bin = "cswap");
+
+  const take = (spelling, r) => {
+    _probe = { version: versionIn(r), at: Date.now() };
+    return (_bin = spelling);
+  };
+
+  const bare = await run("cswap", ["--version"], { timeout: 8_000 });
+  if (bare.ok) return take("cswap", bare);
 
   for (const c of cswapCandidates()) {
-    if (existsSync(c) && (await run(c, ["--version"], { timeout: 8_000 })).ok) return (_bin = c);
+    if (!existsSync(c)) continue;
+    const r = await run(c, ["--version"], { timeout: 8_000 });
+    if (r.ok) return take(c, r);
   }
   return "cswap";   // not found; leave the bare name so errors read sensibly
 }
@@ -299,15 +334,18 @@ export async function cswapBin() {
  * ensureCswap below, whose return value says nothing about which binary the
  * following twenty account operations will be sent to. See cswap-bin-memo.test.ts.
  */
-export function resetCswapBin() { _bin = null; }
+export function resetCswapBin() { _bin = null; _probe = null; }
 
 /** Installed version string, or null when cswap cannot be found. */
 export async function cswapVersion() {
-  const r = await run(await cswapBin(), ["--version"]);
+  const bin = await cswapBin();
+  // The call above may have just asked this very question — see _probe. Nothing
+  // is remembered past PROBE_FRESH_MS, so this is the second half of one
+  // lookup rather than a cache of the answer.
+  if (_probe && Date.now() - _probe.at < PROBE_FRESH_MS) return _probe.version;
+  const r = await run(bin, ["--version"]);
   if (!r.ok) return null;
-  // "claude-swap 0.25.0" → "0.25.0"
-  const m = (r.stdout || r.stderr).trim().match(/(\d+\.\d+\.\d+\S*)/);
-  return m ? m[1] : "installed";
+  return versionIn(r);
 }
 
 /**
