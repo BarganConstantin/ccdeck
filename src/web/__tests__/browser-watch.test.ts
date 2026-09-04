@@ -198,7 +198,10 @@ describe("how App.tsx wires it up", () => {
 
   it("feeds the badge from its own poll, not from opening the dialog", () => {
     // A badge that appears only once you have already looked is not a badge.
-    expect(app).toMatch(/fetch\("\/api\/browser-watch"\)/);
+    // `live=0` on this one: it wants the number, not a look at the browsers.
+    // The server honours that only while the watch is OFF — with it on, this
+    // poll is what records, which is the whole feature.
+    expect(app).toMatch(/fetch\("\/api\/browser-watch\?live=0"\)/);
     expect(app).toMatch(/setInterval\(pull, 5 \* 60_000\)/);
   });
 

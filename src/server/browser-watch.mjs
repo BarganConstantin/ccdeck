@@ -454,6 +454,24 @@ export async function browserWatchSnapshot({
   now = Date.now(),
   platform = process.platform,
   env = process.env,
+  // WHETHER TO READ THE BROWSERS AT ALL ON THIS CALL.
+  //
+  // The panel's badge polls this route every five minutes from the moment the
+  // page loads, and the read is not free or invisible: it copies each Chromium
+  // profile's whole History database into a temp file, queries it, and deletes
+  // the copy. That happened whether or not the watch was switched on, because
+  // `enabled` gates only what is KEPT and what is REACTED to.
+  //
+  // A switch that says off while the deck goes on copying the user's browsing
+  // history every five minutes is not a switch. So the background poll asks for
+  // `live=0`, and with the watch off that is honoured: the archive answers, and
+  // nothing touches a browser. Two things still read live — a watch that is ON,
+  // because recording in the background is the whole feature, and the panel
+  // itself, because that is the user looking.
+  //
+  // Named for what it does rather than `live`, which is already the local name
+  // for the episodes this poll built.
+  readBrowsers = true,
   deps = {},
 } = {}) {
   // The store answers first and the caller's arguments override it, so the
@@ -473,6 +491,36 @@ export async function browserWatchSnapshot({
   const minutes = m => m * 60_000;
   if (quietMs === undefined) quietMs = minutes(store.settings.quietMinutes);
   if (gapMs === undefined) gapMs = minutes(store.settings.gapMinutes);
+
+  // The archive alone, for a poll that has not asked to look and a watch that
+  // is not recording. Everything below this line reads browsers.
+  if (!readBrowsers && !enabled) {
+    const archived = undismissed(store.episodes, store.dismissed);
+    return {
+      ok: true,
+      settings: store.settings,
+      reactions: available(platform),
+      log: watchLog(),
+      profiles: [],
+      browsers: [],
+      episodes: archived,
+      coverage: {
+        startedMs: STARTED_MS,
+        oldestVisitMs: null,
+        lastHumanMs: null,
+        quietMs: quietMs ?? 15 * 60_000,
+        logPath: logPath(),
+        checkedMs: _checkedMs,
+        checks: _checks,
+        archived: archived.length,
+        now,
+        // Said rather than implied: a reader who wonders why the profile list
+        // is empty gets the reason, in the same word the switch uses.
+        why: "the watch is off, so no browser was read on this poll",
+      },
+      degraded: false,
+    };
+  }
 
   const profiles = (deps.discoverProfiles ?? discoverProfiles)(platform, env, undefined, deps.fs);
   // Fixed for the life of the process, which is also what keeps the mtime cache

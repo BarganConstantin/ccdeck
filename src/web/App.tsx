@@ -1302,7 +1302,13 @@ function Inner() {
   useEffect(() => {
     let alive = true;
     const pull = () => {
-      fetch("/api/browser-watch")
+      // `live=0`: this poll wants the badge's number, not a look at the
+      // browsers. With the watch off the server honours it and reads nothing at
+      // all — the switch used to gate only what was kept, so a deck nobody had
+      // switched on still copied every History database every five minutes.
+      // With the watch ON the server ignores it and records as usual, because
+      // recording in the background is the whole feature.
+      fetch("/api/browser-watch?live=0")
         .then(r => (r.ok ? r.json() : null))
         .then(j => {
           if (!alive || !j?.ok) return;

@@ -121,9 +121,19 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 ## What it touches
 
-It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does.
+It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history when Browser Watch is on; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
 What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
+
+## Browser Watch
+
+The panel behind the eye icon answers one question: **did something drive your browser while you were away?** An agent with browser control opens pages through an API, and Chromium records that — `visits.transition` says `FROM_API` rather than `LINK` or `TYPED`. So a run of those, in a stretch when you were not touching the machine, is a finding worth showing.
+
+To answer it the deck reads the browsers' own history. That means, on each poll: it finds every Chromium profile (Chrome, Brave, Edge, Vivaldi), **copies each profile's `History` database** to a temp file — a live database cannot be opened safely — queries the visits newer than the moment this deck started, and deletes the copy. Nothing leaves the machine, and the copy exists for as long as one query takes.
+
+**The switch decides whether any of that happens in the background.** With Browser Watch off, the deck's five-minute poll reads no browser at all; with it on, the poll reads, keeps what it finds in `~/.claude/agent-dag/browser-watch/state.json`, writes a line per finding to `watch.log` beside it, and performs whatever reaction you chose. Opening the panel always reads live, on either setting — that is you looking, and it is the only way the panel can tell you what is there.
+
+Only visits **after this deck started** are ever considered. Your existing history is not swept, not archived and not shown.
 
 ## Accounts
 
