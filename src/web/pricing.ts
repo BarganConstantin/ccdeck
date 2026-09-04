@@ -28,22 +28,30 @@ export interface ModelRates {
   cacheWrite1h?: number;
 }
 
-// Sonnet 5 launched with introductory pricing that ends 2026-08-31. Computed
-// rather than hardcoded so the number is right on both sides of that date —
-// a pinned intro rate silently under-reports every session from September on.
+// Sonnet 5 is $2 / $10, and this used to be a function of the clock.
 //
-// Stored as a function, not as a value: the table below is built once per page
-// load, and the deck is meant to run in tabs that stay open for days (see
-// restart.ts), so a rate resolved at module evaluation would keep quoting the
-// intro price long after the cutover — the exact pinning this comment warns
-// about. Resolving per call keeps it honest, and lets tests pass an explicit
-// clock instead of depending on the day they run.
-const SONNET_5_INTRO_ENDS = Date.UTC(2026, 8, 1);  // 2026-09-01
-function sonnet5Rates(now: number): ModelRates {
-  return now < SONNET_5_INTRO_ENDS
-    ? { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 }
-    : { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75, cacheWrite1h: 6 };
-}
+// It launched on introductory pricing "through August 31, 2026", with an
+// increase to $3 / $15 scheduled for September 1. So the rate was computed per
+// call rather than pinned, precisely so the deck would not keep quoting the
+// intro price after the cutover.
+//
+// THE INCREASE WAS CANCELLED. Anthropic's pricing page now says so outright:
+// "The $2/$10 per million input/output token pricing for Claude Sonnet 5 …
+// is now the standard price. The previously scheduled increase to $3/$15 per
+// million input/output tokens on September 1, 2026 will not occur."
+//
+// The old code did the right thing with what had been announced, and then the
+// announcement changed — so from 2026-09-01 until this was noticed, every
+// Sonnet 5 session on every deck was costed fifty per cent high. That is the
+// direction that matters: a rate table is a claim about somebody's money, and
+// the failure mode of a scheduled change nobody re-checked is silent.
+//
+// A constant again, and no clock. Should a real increase ever be announced, the
+// function above is in the history and the shape is still supported by
+// `ratesForModel` — but a date that has passed is not a thing to keep guessing
+// at, and the introductory rate is now simply the rate.
+const SONNET_5: ModelRates =
+  { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 };
 
 // THE `(?![-_.]\d{1,7}(?!\d))` ON EVERY CLAUDE ROW (#688). It is one assertion
 // repeated nine times rather than a shared constant, because the row patterns
@@ -84,6 +92,19 @@ function sonnet5Rates(now: number): ModelRates {
 // `rates` is either a fixed table entry or a function of the current time, for
 // the handful of models whose published price changes on a known date.
 const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelRates) }> = [
+  // Fable 5.1 / Mythos 5.1 — $10 / $50, and a cache read of $0.25.
+  //
+  // The base price is Fable 5's and the cache read is not: these two are the
+  // only models Anthropic prices cache hits at 0.025x the input rate instead of
+  // the usual 0.1x, which is a 75% cut and the whole point of the release. An
+  // agentic session is mostly cache reads, so inheriting Fable 5's $1 here
+  // would have overstated a long session by a wide margin.
+  //
+  // Above the Fable 5 row because it is the more specific of the two, and the
+  // table is first-match.
+  { match: /^claude[-_](fable|mythos)[-_]5[-_.]1\b(?![-_.]\d{1,7}(?!\d))/i,
+    rates: { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5, cacheWrite1h: 20 } },
+
   // Fable 5 / Mythos 5 — $10 / $50
   { match: /^claude[-_](fable|mythos)[-_]5\b(?![-_.]\d{1,7}(?!\d))/i,
     rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 } },
@@ -97,7 +118,7 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   // Sonnet 5 — $3 / $15, or $2 / $10 until 2026-08-31 (see above). The version
   // guard earns its keep twice here: an unrecognised Sonnet 5.1 would not just
   // inherit a price it was never quoted, it would inherit an INTRODUCTORY one.
-  { match: /^claude[-_]sonnet[-_]5\b(?![-_.]\d{1,7}(?!\d))/i, rates: sonnet5Rates },
+  { match: /^claude[-_]sonnet[-_]5\b(?![-_.]\d{1,7}(?!\d))/i, rates: SONNET_5 },
 
   // Opus 4.5 - 4.8 — $5 / $25 (the "new" Opus tier introduced with 4.5)
   { match: /^claude[-_]opus[-_]4[-_.](?:5|6|7|8)\b(?![-_.]\d{1,7}(?!\d))/i,

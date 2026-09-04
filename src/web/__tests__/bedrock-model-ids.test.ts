@@ -42,10 +42,11 @@ import { shortModel } from "../model-label";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 
-// Fixed clock. One row (Sonnet 5) is a function of the date, and a suite that
-// read the wall clock would pin a different number in September than in August.
-const NOW = Date.UTC(2026, 7, 18);          // 2026-08-18, inside Sonnet 5's intro
-const AFTER_INTRO = Date.UTC(2026, 8, 5);   // 2026-09-05, after it
+// Fixed dates, kept from when one row really did depend on the clock. Sonnet 5
+// no longer does — its scheduled increase was cancelled — but a fixed clock
+// still costs nothing and keeps this suite reading the same on any day.
+const NOW = Date.UTC(2026, 7, 18);          // 2026-08-18
+const AFTER_INTRO = Date.UTC(2026, 8, 5);   // 2026-09-05
 
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
@@ -61,10 +62,14 @@ const O = (input: number, output: number, cacheRead: number, cacheWrite = 0): Mo
  *  that the table agrees with itself proves nothing. */
 const PINNED: Array<[string, ModelRates]> = [
   // Claude — one per row, plus every alias each row's comment claims.
+  // 5.1 above 5, matching the table's own order: the cache read is $0.25 there
+  // rather than $1, which is the only difference and the point of the release.
+  ["claude-fable-5-1",  A(10, 50, 0.25, 12.5, 20)],
+  ["claude-mythos-5-1", A(10, 50, 0.25, 12.5, 20)],
   ["claude-fable-5",   A(10, 50, 1, 12.5, 20)],
   ["claude-mythos-5",  A(10, 50, 1, 12.5, 20)],
   ["claude-opus-5",    A(5, 25, 0.5, 6.25, 10)],
-  ["claude-sonnet-5",  A(2, 10, 0.2, 2.5, 4)],       // intro rate at NOW
+  ["claude-sonnet-5",  A(2, 10, 0.2, 2.5, 4)],       // one rate, every date
   ["claude-opus-4-5",  A(5, 25, 0.5, 6.25, 10)],
   ["claude-opus-4-6",  A(5, 25, 0.5, 6.25, 10)],
   ["claude-opus-4-7",  A(5, 25, 0.5, 6.25, 10)],
@@ -146,8 +151,13 @@ describe("every rate the table already gave, unchanged", () => {
     }
   });
 
-  it("still switches Sonnet 5 at its cutover", () => {
-    expect(ratesForModel("claude-sonnet-5", AFTER_INTRO)).toEqual(A(3, 15, 0.3, 3.75, 6));
+  it("holds Sonnet 5 at one rate, including past its withdrawn cutover", () => {
+    // This used to assert the step to $3 / $15 on 2026-09-01. Anthropic
+    // cancelled that increase — "will not occur" on the pricing page — so the
+    // introductory rate became the standard one, and the two sides of the date
+    // are now the same number. See sonnet5-price-hold.test.ts for the whole
+    // story; this line stays only so the coverage sweep still names the row.
+    expect(ratesForModel("claude-sonnet-5", AFTER_INTRO)).toEqual(A(2, 10, 0.2, 2.5, 4));
   });
 });
 

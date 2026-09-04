@@ -118,11 +118,15 @@ describe("cache writes are priced at the TTL they were written for", () => {
     }
   });
 
-  it("follows sonnet 5 across its intro-price cutover", () => {
+  it("keeps sonnet 5 at one price across the cutover that was cancelled", () => {
     const u = usage({ cacheCreateTokens: 1_000_000, cacheCreate1hTokens: 1_000_000 });
-    // Intro: $2 input -> $4 for a 1-hour write. After 2026-08-31: $3 -> $6.
+    // This used to assert a step from $4 to $6, because Sonnet 5's $2 input was
+    // announced as introductory with an increase to $3 on 2026-09-01. Anthropic
+    // withdrew that increase — "will not occur" on the pricing page — so $2 is
+    // simply the price and a 1-hour write is $4 on every date.
+    // See sonnet5-price-hold.test.ts.
     expect(costForUsage(u, "claude-sonnet-5", Date.UTC(2026, 7, 1)).cacheWrite).toBeCloseTo(4, 10);
-    expect(costForUsage(u, "claude-sonnet-5", Date.UTC(2026, 8, 2)).cacheWrite).toBeCloseTo(6, 10);
+    expect(costForUsage(u, "claude-sonnet-5", Date.UTC(2026, 8, 2)).cacheWrite).toBeCloseTo(4, 10);
   });
 });
 
