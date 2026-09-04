@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.2.0": [
+    {
+      "title": "🌡️ Windows shows a temperature where it can find one",
+      "body": "On most Windows laptops there is nothing to show, and that is Windows rather than this deck: modern machines declare no ACPI thermal zone, and the sensors that do exist sit behind an interface only an administrator may read. Measured on real hardware, elevated and not.\n\nOne thing does work, and it costs you nothing to have. If LibreHardwareMonitor happens to be running with its web server on, the deck now reads its numbers over localhost — which needs no privileges at all.\n\nIt is only ever a read. Nothing is installed, nothing is asked of you, and a machine without it shows no section, exactly as before."
+    }
+  ],
   "3.1.0": [
     {
       "title": "🚀 The first run stops looking like it hung",
