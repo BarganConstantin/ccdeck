@@ -371,6 +371,25 @@ describe("the process table", () => {
     expect(real.procs.length).toBeGreaterThan(0);
   });
 
+  it("answers an empty list on Windows too, rather than throwing on the shape", async () => {
+    // The two branches of readProcessesNow used to return different SHAPES on
+    // failure: `{procs: [], total: 0}` on POSIX and a bare `[]` on win32. The
+    // caller reads `read.procs.length`, so on Windows a failed read was a
+    // TypeError inside a guarded route — HTTP 500 and a logged stack every four
+    // seconds while the panel was open — and the "an empty list is a failure,
+    // do not cache it" rule above never ran there at all.
+    stopSystemMetrics();
+    fake.fail = true;
+    const empty = await readProcesses("win32");
+    expect(empty.procs).toEqual([]);
+    expect(empty.total).toBe(0);
+
+    // And it is still not remembered: the next caller gets a fresh child.
+    fake.fail = false;
+    const real = await readProcesses("win32");
+    expect(real.procs.length).toBeGreaterThan(0);
+  });
+
   it("still shares one failing child between callers who overlap it", async () => {
     // Not remembering a failure is not the same as abandoning the dedupe: a
     // burst arriving while a read is failing is one failing child, not a burst

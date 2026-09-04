@@ -599,7 +599,14 @@ async function readProcessesNow(platform) {
       "-NoProfile", "-NonInteractive", "-Command",
       "Get-Process | Select-Object Id,ProcessName,CPU,@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress",
     ], 6_000);
-    if (!out) return [];
+    // The same shape the POSIX branch below returns, and not a bare array: the
+    // caller reads `read.procs.length` to decide whether this was a real
+    // reading, so an array meant a TypeError rather than an empty list. Every
+    // Windows failure — a non-zero exit, a spawn that never started, the 6s
+    // deadline this module's own comment says the runtime sits right on —
+    // therefore answered `/api/system/processes` with a 500 and a logged stack,
+    // every four seconds for as long as the machine panel was open.
+    if (!out) return { procs: [], total: 0 };
     const rows = parseGetProcessJson(out.trim(), os.totalmem());
     const now = Date.now();
     const ranked = cpuFromDeltas(rows, prevProcCpu, now - prevProcAt);
