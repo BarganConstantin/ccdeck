@@ -528,6 +528,37 @@ async function nudgeAndReread(previous) {
 //   cliOk  — the CLI ran and we recognized its output (preamble present)
 //   parsed — quota percentages object, or null if the "Current session/week"
 //            lines were absent (CLI cold-start, or genuinely <1% usage)
+/**
+ * The failure this last said out loud, so a standing one is said once.
+ *
+ * #742. A Windows user with no Claude Code installed sent a screenshot of three
+ * identical lines — `ccdeck quota: claude CLI failed: claude exited ENOENT` —
+ * interleaved with the deck's pulse line, and they keep coming for as long as
+ * the deck runs. Every poll ran the loop below three times, and every attempt
+ * printed. A CLI that is not installed is not news three times a minute; it is
+ * a condition, and a condition is worth exactly one line.
+ *
+ * Cleared on the first run that works, so a `claude` installed while the deck
+ * is up can still report its next genuine failure.
+ */
+let _saidFailure = null;
+
+/** Exported for its test, and for the same reason resetCswapBin is: a module
+ *  that remembers something across calls needs a way to be asked twice.
+ *
+ *  Deliberately NOT folded into invalidateQuotaCache, which production calls
+ *  after an account switch — forgetting the notice there would put the same
+ *  sentence back on the terminal every time somebody changed accounts. */
+export function forgetQuotaFailureNotice() { _saidFailure = null; }
+
+/** The rate floor, cleared. `maySelfPoll` keeps a self-poll to one a minute
+ *  even under `force`, which is correct for a user's budget and is a test
+ *  asking the same question three times running into a wall. */
+export function resetQuotaPollFloor() {
+  _lastSelfPollAt = 0;
+  _rateLimitedUntil = 0;
+}
+
 async function _execOnce(bin) {
   const r = await run(bin, ["--print", "/usage"], {
     timeout: 15_000,
@@ -543,12 +574,22 @@ async function _execOnce(bin) {
   // is kept either way, which matters because the CLI writes the quota lines to
   // stdout and can still exit non-zero afterwards.
   const combined = r.stdout + "\n" + r.stderr;
+  // `run` normalises a binary that is not there to this, on every platform —
+  // see exec.mjs. It is the difference between "Claude Code answered badly",
+  // which is worth retrying and worth saying, and "there is no Claude Code on
+  // this machine", which is neither.
+  const missing = r.code === "ENOENT";
   if (!r.ok) {
     const msg = stripAnsi(r.stderr).trim() || `claude exited ${r.code}`;
-    console.error(`${PRODUCT} quota: claude CLI failed:`, msg);
+    if (msg !== _saidFailure) {
+      _saidFailure = msg;
+      console.error(`${PRODUCT} quota: claude CLI failed:`, msg);
+    }
+  } else {
+    _saidFailure = null;
   }
   const cliOk = /subscription/i.test(combined) || /claude code usage/i.test(combined);
-  return { cliOk, parsed: parseUsageText(combined) };
+  return { cliOk, missing, parsed: parseUsageText(combined) };
 }
 
 async function _doFetch(now, force = false, gen = _generation) {
@@ -607,6 +648,11 @@ async function _doFetch(now, force = false, gen = _generation) {
     const r = await _execOnce(bin);
     cliOk = r.cliOk || cliOk;
     if (r.parsed) { parsed = r.parsed; break; }
+    // The retry exists for a CLI that RAN and left the quota lines out of a cold
+    // invocation. A CLI that is not installed will not be installed 1.2 seconds
+    // from now, and asking twice more spends two spawns and 2.4 seconds of the
+    // caller's wait to print the same sentence three times. See _execOnce.
+    if (r.missing) break;
   }
 
   // Got real quota lines — cache normally and remember as last-known-good.

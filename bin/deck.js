@@ -998,6 +998,45 @@ if (openBrowser && !RESPAWN) {
 if (MOTION) {
   let pi = 0;
   let painted = null;
+  // The line is on screen and is the last thing written to this terminal.
+  let ours = false;
+  // We are the one writing right now, so the guard below leaves us alone.
+  let writing = false;
+
+  // The pulse line's tenancy, enforced rather than agreed.
+  //
+  // The convention was that anything with something to say writes a newline
+  // first, so the pulse's `\r` never lands on somebody else's text. bin/deck.js
+  // keeps it everywhere. src/server/quota.mjs does not — it calls console.error
+  // directly — and a Windows user with no Claude Code sent a screenshot of the
+  // result: `listening — Ctrl+C to stop        ccdeck quota: claude CLI failed`
+  // on one row, three times over, the pulse and the complaint interleaved.
+  //
+  // An invariant every writer has to remember is one a writer will forget, and
+  // the writers here are server modules that know nothing about a terminal. So
+  // it is enforced at the stream instead: while our line is the last thing on
+  // screen, anything else that speaks gets a newline first, and the memo is
+  // dropped so the next beat repaints the line under whatever was said.
+  //
+  // Both streams, because console.error goes to stderr and lands on the same
+  // screen. Only when MOTION is on — with no pulse there is no line to defend,
+  // and a piped deck must not have its output rewritten.
+  for (const stream of [process.stdout, process.stderr]) {
+    const real = stream.write.bind(stream);
+    stream.write = (chunk, ...rest) => {
+      if (!writing && ours) {
+        ours = false;
+        // Dropped, not kept: the line is no longer where we left it, so the
+        // next beat has to draw it again even though the frame is unchanged.
+        painted = null;
+        // Unless the speaker already did it. Every late message in this file
+        // opens with one, and two blank lines is its own kind of mess.
+        if (!String(chunk).startsWith("\n")) real("\n");
+      }
+      return real(chunk, ...rest);
+    };
+  }
+
   setInterval(() => {
     // The colour follows the words. A Codex-only deck keeps saying "listening"
     // when it is unregistered — see pulseText — and painting that sentence in
@@ -1013,9 +1052,14 @@ if (MOTION) {
     const frame = `\r  ${dot}${G.pulse}${P.reset}  ${tone}${text}${P.reset}`;
     // Unchanged frames are not written at all. That is what makes "at rest"
     // visible: one paint, and then a still line for as long as nothing happens.
+    // `painted` is dropped by the guard above whenever somebody else writes, so
+    // this can only skip a beat while the line is genuinely still where we left
+    // it.
     if (frame === painted) return;
     painted = frame;
-    write(frame);
+    writing = true;
+    try { write(frame); } finally { writing = false; }
+    ours = true;
   }, 800).unref();
 }
 
