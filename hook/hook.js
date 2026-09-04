@@ -251,16 +251,25 @@ function challengeProof(token, nonce) {
  * of them listening and permanently empty, with its banner still saying it is
  * receiving events.
  *
- * A tokenless file therefore falls back to what shipped before the handshake:
- * pid liveness and nothing else. That is not a weakening of anything — it is
- * the exact risk every release up to 1.33.70 already carried, unchanged — and
- * it costs the hardening nothing, because a file that does carry a token still
- * gets no payload until the port answers correctly. Drop this fallback, and
- * refuse tokenless files again, once no deck older than 1.33.71 is plausibly
- * still running.
+ * THE FALLBACK IS GONE, on the condition this comment set for itself: "drop it
+ * once no deck older than 1.33.71 is plausibly still running". That release is
+ * two majors back — this package is on 3.x — so the window has closed.
+ *
+ * What it did while it stood: a tokenless discovery file was handed the payload
+ * on pid liveness alone, which is a control an adversary switches off by
+ * leaving a key out of a JSON file. It cost that adversary nothing to write
+ * one, since writing into the discovery directory at all is the capability in
+ * question — but a stale file from an old deck, or a port another program has
+ * since taken, is the ordinary case it also covered, and both are better served
+ * by refusing.
+ *
+ * The cost of refusing is stated plainly: a deck older than 1.33.71 running
+ * beside a current one receives nothing, while its banner still says it is
+ * connected. That was the reason to keep the fallback in the first place, and
+ * it is now a machine nobody has.
  */
 function requiresProof(d) {
-  return typeof d.token === "string" && d.token !== "";
+  return true;
 }
 
 // Constant-time compare, purely so a hostile listener cannot walk the expected

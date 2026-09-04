@@ -241,13 +241,20 @@ describe("a stranger on the recorded port", () => {
 });
 
 describe("a discovery file with no token at all", () => {
-  // Written by a deck from before the handshake existed. hook.js is one shared
-  // file installed by whichever deck booted last, and several decks at once is
-  // ordinary use, so this hook meets those files constantly. Refusing them left
-  // every older deck listening and permanently empty — the regression #173 was
-  // filed about — so a tokenless file falls back to the pre-handshake rule: pid
-  // liveness, then post. No worse than every release up to 1.33.70.
-  it("still receives the event, without a challenge", async () => {
+  // WRITTEN BY A DECK FROM BEFORE THE HANDSHAKE, and no longer trusted.
+  //
+  // hook.js is one shared file installed by whichever deck booted last, and
+  // several decks at once is ordinary use, so this hook used to meet tokenless
+  // files constantly — which is why #173 gave them the pre-handshake rule: pid
+  // liveness, then post. That fallback carried its own retirement condition in
+  // as many words: drop it "once no deck older than 1.33.71 is plausibly still
+  // running". This package is on 3.x, two majors past it.
+  //
+  // What it cost while it stood: a control an adversary switches off by leaving
+  // a key out of a JSON file. The ordinary cases it also covered — a stale file
+  // from a deck that is gone, a port another program has taken — are better
+  // served by refusing too.
+  it("gets nothing, because it cannot prove anything", async () => {
     const token = randomBytes(32).toString("hex");
     const deck = await listener(honestDeck(token));
     try {
@@ -257,30 +264,19 @@ describe("a discovery file with no token at all", () => {
     } finally {
       await deck.close();
     }
-
-    const posts = deck.seen.filter(s => s.method === "POST");
-    expect(posts).toHaveLength(2);
-    expect(posts.every(p => p.path === "/api/event")).toBe(true);
-    expect(JSON.parse(posts[0].body)).toMatchObject({
-      hook_event_name: "UserPromptSubmit",
-      prompt: PROMPT,
-      provider: "claude",
-    });
-    // Nothing to ask a deck that cannot answer: the challenge is skipped
-    // entirely rather than sent and ignored.
-    expect(deck.seen.filter(s => s.method === "GET")).toHaveLength(0);
+    // The challenge is attempted and the payload is not sent: this deck answers
+    // it (it is the honest one), but the FILE advertised no token, so the hook
+    // has nothing to check the answer against.
+    expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(0);
   }, 10_000);
 
-  // The fallback is bounded by liveness alone, exactly as it was before the
-  // handshake — a file left behind by a deck that is gone still gets nothing,
-  // and is swept off disk on the way past.
-  it("is told apart from a tokened one by the token alone", () => {
+  it("is asked for proof like every other target", () => {
     expect(hook.requiresProof({ token: randomBytes(32).toString("hex") })).toBe(true);
-    expect(hook.requiresProof({})).toBe(false);
-    expect(hook.requiresProof({ token: "" })).toBe(false);
+    expect(hook.requiresProof({})).toBe(true);
+    expect(hook.requiresProof({ token: "" })).toBe(true);
   });
 
-  it("is refused when its pid is dead", async () => {
+  it("is refused when its pid is dead, before any of that", async () => {
     const token = randomBytes(32).toString("hex");
     const deck = await listener(honestDeck(token));
     try {

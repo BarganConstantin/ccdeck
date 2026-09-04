@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error — a plain .mjs module, no types
-const { launchers, startCommand, isOpenable, isWsl, openUrl, LAUNCH_GRACE_MS } =
+const { launchers, startCommand, isOpenable, normalizeOpenable, isWsl, openUrl, LAUNCH_GRACE_MS } =
   await import("../../server/open-url.mjs");
 
 const URL_ = "http://127.0.0.1:4317";
@@ -243,5 +243,41 @@ describe("the dependency it replaced", () => {
     const deck = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
     expect(deck).not.toMatch(/import\(\s*["']open["']\s*\)/);
     expect(deck).toContain("open-url.mjs");
+  });
+});
+
+describe("what reaches the launcher", () => {
+  // The guard parsed into a local `u`, checked its protocol and threw the parse
+  // away — so `launchers` received the RAW string. `new URL()` accepts
+  // characters it normalizes only in `href`, a `"` among them, and on Windows
+  // `startCommand` builds `start "" "<url>"` with windowsVerbatimArguments,
+  // where a quote is syntax. Not reachable from today's one caller, which
+  // passes a loopback URL the deck built itself — but this function's own doc
+  // says it exists for the day a second caller passes a path.
+  it("hands over the normalized href, not the string it was given", () => {
+    const calls: Array<{ file: string; args: string[] }> = [];
+    openUrl('http://127.0.0.1:4317/" & calc & "', {
+      platform: "win32",
+      spawnFn: (file: string, args: string[]) => {
+        calls.push({ file, args });
+        return { on: () => {}, unref: () => {} } as never;
+      },
+    });
+    expect(calls.length).toBeGreaterThan(0);
+    const sent = calls[0].args.join(" ");
+    expect(sent, "a raw quote reached the command line").not.toContain('" & calc');
+    expect(sent).toContain("%22");
+  });
+
+  it("still refuses everything that is not http(s)", () => {
+    for (const bad of ["file:///etc/passwd", "javascript:alert(1)", "vbscript:x", "data:text/html,x", "", "not a url"]) {
+      expect(isOpenable(bad), bad).toBe(false);
+      expect(normalizeOpenable(bad), bad).toBe(null);
+    }
+  });
+
+  it("normalizes rather than rejecting an ordinary address", () => {
+    expect(normalizeOpenable("http://127.0.0.1:4317")).toBe("http://127.0.0.1:4317/");
+    expect(normalizeOpenable("https://example.test/a?b=1#c")).toBe("https://example.test/a?b=1#c");
   });
 });

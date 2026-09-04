@@ -47,18 +47,18 @@ beforeEach(() => {
 
 describe("a settings.json another writer touched mid-install", () => {
   it("declines rather than overwriting what the other writer put there", async () => {
-    // The other deck's write, landing between this one's read and its write.
-    // Simulated by writing the file from under the install: the read at the top
-    // of installHooks has already happened by the time the promise is awaited,
-    // so the file changes while the work is in flight.
-    const install = installHooks({ provider: "claude" });
-    // A hook the user wrote, restored by the other deck a millisecond ago.
+    // The other deck's write, landing exactly in the window between this one's
+    // read and its write — through the seam installHooks exposes for it. Racing
+    // by wall clock would pass or fail by how fast the machine is, which is the
+    // shape of test that goes green on the developer's laptop and red on a
+    // Windows runner.
     const theirs = {
       hooks: { Stop: [{ hooks: [{ type: "command", command: "afplay /System/Library/Sounds/Glass.aiff" }] }] },
     };
-    await writeFileAtomic(SETTINGS, JSON.stringify(theirs, null, 2) + "\n");
-
-    const r = await install;
+    const r = await installHooks({
+      provider: "claude",
+      beforeWrite: () => writeFileAtomic(SETTINGS, JSON.stringify(theirs, null, 2) + "\n"),
+    });
     // The user's hook survived: this pass wrote nothing over it.
     expect(read().hooks.Stop[0].hooks[0].command).toBe("afplay /System/Library/Sounds/Glass.aiff");
     expect(r.changed).toBe(false);

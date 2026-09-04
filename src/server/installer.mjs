@@ -426,7 +426,7 @@ function dedupeOurEntries(group) {
 }
 
 /** Install hooks for a single provider. Returns {settingsPath, hookPath, events, changed}. */
-export async function installHooks({ provider = "claude" } = {}) {
+export async function installHooks({ provider = "claude", beforeWrite = null } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   // An uninstall-only provider has no event list. Saying so beats the
@@ -520,6 +520,11 @@ export async function installHooks({ provider = "claude" } = {}) {
     // the new bytes and converges — and the entries this function adds are
     // identical on both decks, which is why the loser has nothing of its own to
     // lose.
+    // The seam the suite needs, and the only way to test this deterministically:
+    // the window between the read at the top and the write below is filled with
+    // real fs work, so a test that raced it by wall clock would pass or fail by
+    // how fast the machine is. Production passes nothing.
+    if (beforeWrite) await beforeWrite();
     const { raw: onDisk } = await readSettingsForWrite(cfg.settingsPath).catch(() => ({ raw: before }));
     if (onDisk !== before) {
       return {

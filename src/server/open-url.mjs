@@ -166,11 +166,31 @@ export function startCommand(url, env = process.env, comspec) {
  * it and `start` would run it.
  */
 export function isOpenable(url) {
+  return normalizeOpenable(url) !== null;
+}
+
+/**
+ * The address to actually hand the desktop, or null when it is not one.
+ *
+ * The guard used to parse into a local `u`, check its protocol and throw the
+ * parse away — so what reached `launchers` was the RAW string. `new URL()`
+ * accepts characters it normalizes only in `href`, a `"` among them, and on
+ * Windows `startCommand` builds `start "" "<url>"` with
+ * `windowsVerbatimArguments: true`, where a quote is syntax. Today the only
+ * caller passes a loopback URL this deck built itself, so nothing is reachable;
+ * the function's own doc says it exists "for the day a second caller passes a
+ * path", and as written it would not have stopped that caller.
+ *
+ * Returning the normalized `href` means the string that was checked is the
+ * string that is launched.
+ */
+export function normalizeOpenable(url) {
   try {
     const u = new URL(String(url));
-    return u.protocol === "http:" || u.protocol === "https:";
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.href;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -183,8 +203,9 @@ export function isOpenable(url) {
  * the same recovery an error row would have offered.
  */
 export function openUrl(url, { platform = process.platform, env = process.env, spawnFn = spawn } = {}) {
-  if (!isOpenable(url)) return;
-  const tries = launchers(url, { platform, env });
+  const href = normalizeOpenable(url);
+  if (href === null) return;
+  const tries = launchers(href, { platform, env });
 
   const attempt = (i) => {
     if (i >= tries.length) return;

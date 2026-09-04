@@ -267,7 +267,14 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
   });
 
   it("steps the usage panel's sections from h4 to h3, under that h2", () => {
-    expect([...code(usage).matchAll(/<h3 className="up-section-title">/g)]).toHaveLength(4);
+    // Five in the source, four on screen: "By session" is written twice — once
+    // with the rows, once with the line that says why there are none in the
+    // hour after local midnight, when ccusage's UTC-dated sessions have not
+    // caught up with a locally-dated total. Only one of the two ever renders.
+    const heads = [...code(usage).matchAll(/<h3 className="up-section-title">\s*([A-Za-z ]+)/g)]
+      .map(m => m[1].trim());
+    expect(heads).toHaveLength(5);
+    expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
     expect(code(usage)).not.toMatch(/<h4/);
   });
 
