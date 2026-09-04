@@ -46,6 +46,7 @@ const SONNET_5_INTRO   = A(2, 10, 0.2, 2.5, 4);   // NOW is inside the intro win
 const HAIKU_4_5        = A(1, 5, 0.1, 1.25, 2);
 const HAIKU_3_5        = A(0.8, 4, 0.08, 1, 1.6);
 const FABLE_MYTHOS_5   = A(10, 50, 1, 12.5, 20);
+const FABLE_MYTHOS_5_1 = { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5, cacheWrite1h: 20 };
 
 /** One row per family: what it prices today, and what a plausible next version
  *  of it spells. Adding a family to RATES is one row here — both halves of the
@@ -110,12 +111,26 @@ const FAMILIES: Array<{
     unrecognised: ["claude-haiku-3-6", "claude-haiku-3-7", "claude-haiku-3-5-1"],
   },
   {
+    // 5.1 was in the `unrecognised` list here until Anthropic published its
+    // price, which is exactly the lifecycle this file is about: a minor stays
+    // unpriced until somebody quotes it, and then it gets a row of its own
+    // rather than inheriting the one below. Its cache read is $0.25 against
+    // Fable 5's $1, so inheriting would have been wrong by four times on the
+    // half of an agentic session that is cache reads.
+    family: "Fable 5.1 / Mythos 5.1",
+    priced: [
+      ["claude-fable-5-1", FABLE_MYTHOS_5_1],
+      ["claude-mythos-5-1", FABLE_MYTHOS_5_1],
+    ],
+    unrecognised: ["claude-fable-5-2", "claude-mythos-5-2", "claude-fable-5-11"],
+  },
+  {
     family: "Fable 5 / Mythos 5",
     priced: [
       ["claude-fable-5", FABLE_MYTHOS_5],
       ["claude-mythos-5", FABLE_MYTHOS_5],
     ],
-    unrecognised: ["claude-fable-5-1", "claude-mythos-5-1", "claude-fable-6", "claude-mythos-6"],
+    unrecognised: ["claude-fable-6", "claude-mythos-6"],
   },
   {
     family: "gpt-5 (already guarded before #688 — pinned so it stays that way)",
