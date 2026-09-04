@@ -210,9 +210,25 @@ export function existingBootstrappedMacmon() {
  * ioreg and never reaches this file at all.
  */
 export async function bootstrapMacmon({
-  platform = process.platform, env = process.env, fetchFn = fetch, dir = MACMON_DIR,
+  platform = process.platform, arch = process.arch, env = process.env,
+  fetchFn = fetch, dir = MACMON_DIR, findBin = macmonBin,
 } = {}) {
   if (platform !== "darwin") return { ok: false, reason: "unsupported_platform" };
+  // ARM64 ONLY, checked rather than merely documented. The release publishes
+  // one asset and it is an arm64 Mach-O, so an Intel Mac downloaded 746 KB it
+  // could not execute and failed its own --version check afterwards. That is
+  // the small half. The larger half is the promise: the README says an Intel
+  // Mac never downloads anything, and this reached api.github.com on any Mac
+  // whose sensors happened to stay silent — which an Intel Mac's do whenever
+  // ioreg publishes no Temperature(C).
+  if (arch !== "arm64") return { ok: false, reason: "unsupported_arch" };
+  // A macmon the user already has is the other thing the README promises to
+  // notice, and until now the skip was emergent rather than checked: a working
+  // copy produces a reading, the reading sets thermalEverAnswered, and the
+  // give-up branch never fires. That chain breaks on a macmon which runs but
+  // reports values this deck rejects as implausible — and then a machine with
+  // macmon on PATH downloaded a second one.
+  if (await findBin()) return { ok: false, reason: "already_installed" };
   // Both switches, for the reason uv-bootstrap has both: downloading an
   // executable is a bigger step than installing a package with a tool the user
   // already chose, so somebody may want the managed installs and not this.

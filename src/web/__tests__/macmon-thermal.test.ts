@@ -69,6 +69,11 @@ function failingMacmon(name: string): string {
   return p;
 }
 
+/** "no macmon anywhere on this machine", which is the state every download
+ *  case is about. The real resolver would find the developer's own Homebrew
+ *  copy and refuse, so it is injected rather than left to the default. */
+const none = async () => null;
+
 describe("reading one sample", () => {
   it("takes the two fields macmon's own struct declares", () => {
     // Read off TempMetrics upstream rather than guessed from an example: a
@@ -256,7 +261,7 @@ describe("when the download is not attempted at all", () => {
     // The only build published is arm64 Mach-O. There is nothing to fetch for
     // a Linux or Windows deck and no reason to ask.
     for (const platform of ["linux", "win32", "sunos"]) {
-      expect(await bootstrapMacmon({ platform, env: {}, fetchFn: never as never }))
+      expect(await bootstrapMacmon({ platform, arch: "arm64", env: {}, fetchFn: never as never, findBin: none }))
         .toEqual({ ok: false, reason: "unsupported_platform" });
     }
   });
@@ -265,11 +270,32 @@ describe("when the download is not attempted at all", () => {
     // Downloading an executable is a bigger step than installing a package
     // with a tool the user already chose, so it has its own switch as well as
     // the blanket one — somebody may want the managed installs and not this.
-    expect(await bootstrapMacmon({ platform: "darwin", env: { AGENTS_DECK_NO_INSTALL: "1" }, fetchFn: never as never }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: { AGENTS_DECK_NO_INSTALL: "1" }, fetchFn: never as never, findBin: none }))
       .toEqual({ ok: false, reason: "installs_disabled" });
     resetMacmonFetch();
-    expect(await bootstrapMacmon({ platform: "darwin", env: { AGENTS_DECK_NO_DOWNLOAD: "1" }, fetchFn: never as never }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: { AGENTS_DECK_NO_DOWNLOAD: "1" }, fetchFn: never as never, findBin: none }))
       .toEqual({ ok: false, reason: "download_disabled" });
+  });
+
+  it("refuses an Intel Mac, which is the machine the release has no build for", async () => {
+    // The release publishes one asset and it is an arm64 Mach-O. An Intel Mac
+    // whose ioreg reports no Temperature(C) reaches the give-up branch like any
+    // other silent machine, and used to download 746 KB it could not execute —
+    // on a README promise that it never downloads anything at all.
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "x64", env: {}, fetchFn: never as never, findBin: none }))
+      .toEqual({ ok: false, reason: "unsupported_arch" });
+  });
+
+  it("refuses when the machine already has a macmon of its own", async () => {
+    // The README says the download is skipped on a machine that has macmon,
+    // and until now that skip was emergent: a working copy produces a reading,
+    // the reading sets thermalEverAnswered, and the give-up never fires. It
+    // breaks on a macmon that runs and reports values this deck rejects as
+    // implausible — after which the deck fetched a second copy.
+    expect(await bootstrapMacmon({
+      platform: "darwin", arch: "arm64", env: {}, fetchFn: never as never,
+      findBin: async () => "/opt/homebrew/bin/macmon",
+    })).toEqual({ ok: false, reason: "already_installed" });
   });
 
   it("tries once per process, however often it is asked", async () => {
@@ -277,9 +303,9 @@ describe("when the download is not attempted at all", () => {
     // not re-download every ten seconds for as long as the deck runs.
     let calls = 0;
     const fetchFn = async () => { calls++; return { ok: false } as never; };
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn, findBin: none }))
       .toEqual({ ok: false, reason: "release_lookup_failed" });
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn, findBin: none }))
       .toEqual({ ok: false, reason: "already_tried" });
     expect(calls).toBe(1);
   });
@@ -300,7 +326,7 @@ describe("what the download refuses to install", () => {
     const fetchFn = async (url: string) => (String(url).includes("api.github.com")
       ? release("sha256:" + "b".repeat(64))
       : { ok: true, arrayBuffer: async () => new TextEncoder().encode("not the release").buffer }) as never;
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn, findBin: none }))
       .toEqual({ ok: false, reason: "checksum_mismatch" });
   });
 
@@ -308,7 +334,7 @@ describe("what the download refuses to install", () => {
     const fetchFn = async (url: string) => (String(url).includes("api.github.com")
       ? release("sha256:" + "c".repeat(64))
       : { ok: false }) as never;
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn, findBin: none }))
       .toEqual({ ok: false, reason: "download_failed" });
   });
 
@@ -317,13 +343,13 @@ describe("what the download refuses to install", () => {
       ok: true,
       json: async () => ({ tag_name: "v1", assets: [{ name: "m.tar.gz", browser_download_url: "u" }] }),
     }) as never;
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn, findBin: none }))
       .toEqual({ ok: false, reason: "no_verifiable_asset" });
   });
 
   it("never throws, whatever the network does", async () => {
     const fetchFn = async () => { throw new Error("ENETDOWN"); };
-    const r = await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: fetchFn as never });
+    const r = await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn: fetchFn as never, findBin: none });
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("error");
   });
@@ -383,7 +409,7 @@ describe("the whole download, run for real", () => {
     const tgz = tarballOf(`#!/bin/sh\n[ "$1" = "--version" ] && { echo "macmon 9.9.9"; exit 0; }\necho '{"temp":{"cpu_temp_avg":58.4,"gpu_temp_avg":41.9}}'\n`);
     const dest = mkdtempSync(join(DIR, "installed-"));
 
-    const r = await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: serve(tgz), dir: dest });
+    const r = await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn: serve(tgz), dir: dest, findBin: none });
     expect(r).toMatchObject({ ok: true, version: "v9.9.9" });
     expect(existsSync(join(dest, "macmon"))).toBe(true);
 
@@ -401,7 +427,7 @@ describe("the whole download, run for real", () => {
     // truncated copy nothing ever re-checked.
     const tgz = tarballOf("#!/bin/sh\nexit 1\n");
     const dest = mkdtempSync(join(DIR, "broken-"));
-    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: serve(tgz), dir: dest }))
+    expect(await bootstrapMacmon({ platform: "darwin", arch: "arm64", env: {}, fetchFn: serve(tgz), dir: dest, findBin: none }))
       .toEqual({ ok: false, reason: "does_not_run" });
     expect(existsSync(join(dest, "macmon"))).toBe(false);
   }, 40_000);
@@ -416,7 +442,7 @@ describe("the whole download, run for real", () => {
     const sha = createHash("sha256").update(bytes).digest("hex");
     const dest = mkdtempSync(join(DIR, "none-"));
     expect(await bootstrapMacmon({
-      platform: "darwin", env: {}, dir: dest,
+      platform: "darwin", arch: "arm64", env: {}, dir: dest, findBin: none,
       fetchFn: serve({ path: tgz, sha256: sha }),
     })).toEqual({ ok: false, reason: "not_in_archive" });
   }, 40_000);
