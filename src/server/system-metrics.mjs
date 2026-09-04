@@ -1024,6 +1024,31 @@ export function tempFromMsAcpiJson(json) {
 }
 
 /**
+ * The macOS rows, from whatever the three sources answered.
+ *
+ * Pure, and exported, for the reason sampleThermal's `deps.read` is: the branch
+ * that matters only fires on a machine that answers with nothing, and the
+ * machine this was written on answers with something. There is no other way to
+ * run it.
+ *
+ * The ordering rule is the whole content. ioreg's GPU degrees and pmset's
+ * throttle are what macOS itself gives up, and they win — they cost one cheap
+ * subprocess each and they are the same numbers this deck has always shown.
+ * macmon is consulted only when both were silent, and then its CPU row comes
+ * first, because on the machine that reaches here the CPU is the reading
+ * somebody opened the panel for.
+ */
+export function darwinThermal({ gpuC = null, throttle = null, macmon = {} } = {}) {
+  const celsius = [];
+  if (gpuC != null) celsius.push({ label: "GPU", celsius: gpuC, warnAt: WARN_C, critAt: CRIT_C });
+  else {
+    if (macmon.cpu != null) celsius.push({ label: "CPU", celsius: macmon.cpu, warnAt: WARN_C, critAt: CRIT_C });
+    if (macmon.gpu != null) celsius.push({ label: "GPU", celsius: macmon.gpu, warnAt: WARN_C, critAt: CRIT_C });
+  }
+  return celsius.length || throttle ? { celsius, throttle } : null;
+}
+
+/**
  * What /api/system carries, or null when this machine says nothing at all.
  *
  * Two fields rather than one list, because they are two different readings and
@@ -1047,11 +1072,19 @@ export async function readThermal(platform = process.platform) {
       run("ioreg", ["-r", "-k", "PerformanceStatistics", "-w", "0"], 3_000),
       run("pmset", ["-g", "therm"]),
     ]);
-    const celsius = [];
-    const c = gpu ? gpuFromIoreg(gpu) : null;
-    if (c != null) celsius.push({ label: "GPU", celsius: c, warnAt: WARN_C, critAt: CRIT_C });
+    const gpuC = gpu ? gpuFromIoreg(gpu) : null;
     const throttle = therm ? throttleFromPmset(therm) : null;
-    return celsius.length || throttle ? { celsius, throttle } : null;
+
+    // Nothing from either is every Apple Silicon Mac, and only those: the AGX
+    // driver does not publish the key ioreg reads, and pmset records no speed
+    // limit on M-series. Asking macmon is the only thing left, and it is asked
+    // ONLY here — an Intel Mac answers above and never spawns it. See
+    // macmon.mjs for why a tool the user installed is the whole of the answer.
+    const macmon = gpuC == null && !throttle
+      ? await (await import("./macmon.mjs")).readMacmonTemps()
+      : {};
+
+    return darwinThermal({ gpuC, throttle, macmon });
   }
 
   if (platform === "win32") {

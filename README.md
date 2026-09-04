@@ -68,6 +68,20 @@ What the deck does write, and the short list of what does leave the machine, is 
 - Node.js ≥ 18 — macOS, Linux and Windows
 - Claude Code CLI or OpenAI Codex CLI (or both)
 - Optional: [claude-swap](https://pypi.org/project/claude-swap/) for the Accounts panel; the deck can install it for you
+- Optional, Apple Silicon only: [`macmon`](https://formulae.brew.sh/formula/macmon) for CPU and GPU degrees in the machine panel — `brew install macmon`. The deck never installs this one; see below.
+
+### Temperature, per machine
+
+The machine panel shows a **Thermal** section only where the machine actually answers, and it never invents a reading — no sensor means no row.
+
+| | reads | needs |
+| --- | --- | --- |
+| Linux | `/sys/class/hwmon` | nothing |
+| Windows | the `Thermal Zone Information` performance counter | nothing. A machine with no ACPI thermal zone — many desktop boards, and every virtual machine — has nothing to report, and the counter path is currently English-only |
+| macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
+| macOS, Apple Silicon | `macmon`, if you have it | `brew install macmon` |
+
+Apple Silicon is the one that needs a tool, and it is not an oversight. No command that ships with macOS prints a temperature on an M-series Mac: `powermetrics` needs root, `pmset -g therm` records nothing there, and the sensors are behind a private API that only native code can call. `macmon` is in homebrew-core, runs without `sudo`, and covers M1 through M5. The deck reads it if it is there and says nothing if it is not — installing a compiled binary for two rows in an optional panel is not something to do to somebody who did not ask.
 
 ## How it works
 
