@@ -1333,9 +1333,43 @@ export async function sampleThermal(deps = {}) {
         clearInterval(thermalTimer);
         thermalTimer = null;
       }
+      // The one machine where "nothing" is worth doing something about: an
+      // Apple Silicon Mac has sensors and no way to read them, and the tool
+      // that can is a 746 KB signed binary this deck can fetch. Started HERE
+      // rather than at boot on purpose — the boot was just taught not to wait
+      // for an install (#742) and nothing waits for this one either. One
+      // attempt per process, and only after the give-up, so a machine that
+      // does have a sensor never downloads anything. See macmon.mjs.
+      if (!thermalEverAnswered && process.platform === "darwin") fetchMacmon(deps);
     }
   } catch { thermalMisses++; }
   finally { thermalInFlight = false; }
+}
+
+/**
+ * Fetch macmon, then ask again — floating, on purpose.
+ *
+ * Not awaited by sampleThermal, which is itself not awaited by anything: this
+ * is a download that may take a minute on a slow line, and the panel it serves
+ * is optional. When it lands, the give-up above has already stopped the timer,
+ * so the retry has to be made here rather than waited for.
+ */
+function fetchMacmon(deps = {}) {
+  const boot = deps.bootstrap ?? (async () => (await import("./macmon.mjs")).bootstrapMacmon());
+  Promise.resolve(boot()).then(r => {
+    if (!r?.ok) return;
+    // A sensor exists after all. Clear the give-up and let the timer run again,
+    // which is what turns a downloaded binary into a section on screen without
+    // the user restarting anything.
+    thermalMisses = 0;
+    if (!thermalTimer) {
+      thermalTimer = setInterval(() => { sampleThermal(deps); }, THERMAL_INTERVAL_MS);
+      // Unref'd like the one startSystemMetrics creates: a poll for an optional
+      // panel must not be the reason a process refuses to exit.
+      thermalTimer.unref?.();
+    }
+    sampleThermal(deps);
+  }).catch(() => {});
 }
 
 async function sampleMemory() {

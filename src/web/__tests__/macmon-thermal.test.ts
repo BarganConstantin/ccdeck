@@ -19,20 +19,25 @@
 // — ioreg answers there. So the reader is driven against a real fake binary on
 // disk, and the ordering rule is a pure function.
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // @ts-expect-error — plain .mjs modules, no types
-const { tempsFromMacmonJson, readMacmonTemps, macmonBin, resetMacmonBin, MACMON_ARGS } =
-  await import("../../server/macmon.mjs");
+const {
+  tempsFromMacmonJson, readMacmonTemps, macmonBin, resetMacmonBin, MACMON_ARGS,
+  macmonAsset, bootstrapMacmon, resetMacmonFetch, MACMON_CANDIDATES,
+} = await import("../../server/macmon.mjs");
 // @ts-expect-error — ditto
 const { darwinThermal } = await import("../../server/system-metrics.mjs");
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-macmon-"));
 afterAll(() => { rmTempDir(DIR); });
-beforeEach(() => { resetMacmonBin(); });
+beforeEach(() => { resetMacmonBin(); resetMacmonFetch(); });
 
 /** A macmon that is really on disk and really runs, so the spawn, the argv and
  *  the parse are all exercised rather than described.
@@ -180,4 +185,239 @@ describe("which source wins on macOS", () => {
     expect(darwinThermal({ throttle: { speedLimit: 70 } }))
       .toEqual({ celsius: [], throttle: { speedLimit: 70 } });
   });
+});
+
+// ── fetching it, so the user does not have to ────────────────────────────────
+//
+// `npx ccdeck` should work, and on Apple Silicon "work" includes these rows.
+// Telling somebody to run a brew command first is a step, and a step is a thing
+// most people will not take. So the deck fetches macmon the way it already
+// fetches uv — not through Homebrew, which a machine may not have and which is
+// a very large thing to install on somebody's behalf.
+//
+// Every fact the download rests on was checked against the real release rather
+// than assumed, and the checks are recorded here because they are what makes
+// running a downloaded binary on someone's machine defensible:
+//
+//   * a prebuilt `Mach-O 64-bit executable arm64` in a 746 KB tarball
+//   * `adhoc, linker-signed`, which is what Apple Silicon requires to exec
+//   * no com.apple.quarantine on a programmatic download, so no Gatekeeper
+//   * a sha256 that matched the bytes, taken from the releases API's `digest`
+
+describe("choosing what to download", () => {
+  /** The shape the GitHub releases API really returned for v0.8.2, trimmed. */
+  const REAL = {
+    tag_name: "v0.8.2",
+    assets: [{
+      name: "macmon-v0.8.2.tar.gz",
+      browser_download_url: "https://github.com/vladkens/macmon/releases/download/v0.8.2/macmon-v0.8.2.tar.gz",
+      digest: "sha256:588d5bde79885ba36f693e5150911c10c3ad208a2e418a3f2aa827ac84a2d973",
+      size: 746669,
+    }],
+  };
+
+  it("takes the tarball and its digest", () => {
+    // That hex is the sha256 of the bytes actually downloaded while writing
+    // this, not a value copied off a page.
+    expect(macmonAsset(REAL)).toEqual({
+      version: "v0.8.2",
+      url: REAL.assets[0].browser_download_url,
+      sha256: "588d5bde79885ba36f693e5150911c10c3ad208a2e418a3f2aa827ac84a2d973",
+    });
+  });
+
+  it("refuses an asset with no digest, rather than downloading it anyway", () => {
+    // The release publishes no .sha256 file; the API's `digest` field is the
+    // only checksum there is. Without one there is no way to know what was
+    // downloaded, and an unverified binary is not something to run on
+    // somebody's machine — uv-bootstrap's rule, kept.
+    expect(macmonAsset({ tag_name: "v1", assets: [{ name: "a.tar.gz", browser_download_url: "u" }] })).toBeNull();
+    expect(macmonAsset({ tag_name: "v1", assets: [{ name: "a.tar.gz", browser_download_url: "u", digest: "md5:abc" }] })).toBeNull();
+  });
+
+  it("refuses a release with nothing to take", () => {
+    for (const r of [null, {}, { assets: [] }, { assets: [{ name: "notes.txt", digest: "sha256:" + "a".repeat(64) }] }]) {
+      expect(macmonAsset(r as never)).toBeNull();
+    }
+  });
+
+  it("prefers the copy the deck manages over a brew one", () => {
+    // A machine with both uses the one whose version this code was written
+    // against, rather than whichever brew happens to hold.
+    expect(MACMON_CANDIDATES[0]).toContain(".agents-deck");
+    expect(MACMON_CANDIDATES.slice(1)).toEqual(["/opt/homebrew/bin/macmon", "/usr/local/bin/macmon"]);
+  });
+});
+
+describe("when the download is not attempted at all", () => {
+  const never = () => { throw new Error("must not reach the network"); };
+
+  it("is never attempted off macOS", async () => {
+    // The only build published is arm64 Mach-O. There is nothing to fetch for
+    // a Linux or Windows deck and no reason to ask.
+    for (const platform of ["linux", "win32", "sunos"]) {
+      expect(await bootstrapMacmon({ platform, env: {}, fetchFn: never as never }))
+        .toEqual({ ok: false, reason: "unsupported_platform" });
+    }
+  });
+
+  it("honours both off switches", async () => {
+    // Downloading an executable is a bigger step than installing a package
+    // with a tool the user already chose, so it has its own switch as well as
+    // the blanket one — somebody may want the managed installs and not this.
+    expect(await bootstrapMacmon({ platform: "darwin", env: { AGENTS_DECK_NO_INSTALL: "1" }, fetchFn: never as never }))
+      .toEqual({ ok: false, reason: "installs_disabled" });
+    resetMacmonFetch();
+    expect(await bootstrapMacmon({ platform: "darwin", env: { AGENTS_DECK_NO_DOWNLOAD: "1" }, fetchFn: never as never }))
+      .toEqual({ ok: false, reason: "download_disabled" });
+  });
+
+  it("tries once per process, however often it is asked", async () => {
+    // A machine that is offline, or behind a proxy that refuses GitHub, must
+    // not re-download every ten seconds for as long as the deck runs.
+    let calls = 0;
+    const fetchFn = async () => { calls++; return { ok: false } as never; };
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+      .toEqual({ ok: false, reason: "release_lookup_failed" });
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+      .toEqual({ ok: false, reason: "already_tried" });
+    expect(calls).toBe(1);
+  });
+});
+
+describe("what the download refuses to install", () => {
+  const release = (digest: string) => ({
+    ok: true,
+    json: async () => ({
+      tag_name: "v9.9.9",
+      assets: [{ name: "macmon-v9.9.9.tar.gz", browser_download_url: "https://example.invalid/m.tar.gz", digest }],
+    }),
+  });
+
+  it("bytes that do not match the digest", async () => {
+    // The whole point of checking: what arrived is not what the release says
+    // it published, and the difference could be anything.
+    const fetchFn = async (url: string) => (String(url).includes("api.github.com")
+      ? release("sha256:" + "b".repeat(64))
+      : { ok: true, arrayBuffer: async () => new TextEncoder().encode("not the release").buffer }) as never;
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+      .toEqual({ ok: false, reason: "checksum_mismatch" });
+  });
+
+  it("a download that failed, without pretending it succeeded", async () => {
+    const fetchFn = async (url: string) => (String(url).includes("api.github.com")
+      ? release("sha256:" + "c".repeat(64))
+      : { ok: false }) as never;
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+      .toEqual({ ok: false, reason: "download_failed" });
+  });
+
+  it("a release whose asset it cannot verify", async () => {
+    const fetchFn = async () => ({
+      ok: true,
+      json: async () => ({ tag_name: "v1", assets: [{ name: "m.tar.gz", browser_download_url: "u" }] }),
+    }) as never;
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn }))
+      .toEqual({ ok: false, reason: "no_verifiable_asset" });
+  });
+
+  it("never throws, whatever the network does", async () => {
+    const fetchFn = async () => { throw new Error("ENETDOWN"); };
+    const r = await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: fetchFn as never });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("error");
+  });
+});
+
+describe("the whole download, run for real", () => {
+  // A tarball built here rather than the release's, so the case can run on any
+  // machine in the matrix — the published binary is arm64 Mach-O and this suite
+  // also runs on Intel, Linux and Windows. What is exercised is everything
+  // around the bytes: the digest check, the extract, the copy, the chmod, the
+  // fsync, the `--version` gate and the atomic rename.
+  const WIN_SKIP = process.platform === "win32";
+
+  function tarballOf(script: string): { path: string; sha256: string } {
+    const src = mkdtempSync(join(DIR, "src-"));
+    const bin = join(src, "macmon");
+    writeFileSync(bin, script);
+    chmodSync(bin, 0o755);
+    writeFileSync(join(src, "readme.md"), "# fake\n");
+    const tgz = join(DIR, `pkg-${Math.random().toString(36).slice(2)}.tar.gz`);
+    execFileSync("tar", ["-czf", tgz, "-C", src, "macmon", "readme.md"]);
+    const bytes = readFileSync(tgz);
+    return { path: tgz, sha256: createHash("sha256").update(bytes).digest("hex") };
+  }
+
+  const serve = (tgz: { path: string; sha256: string }) => async (url: string) => (
+    String(url).includes("api.github.com")
+      ? {
+          ok: true,
+          json: async () => ({
+            tag_name: "v9.9.9",
+            assets: [{
+              name: "macmon-v9.9.9.tar.gz",
+              browser_download_url: "https://example.invalid/macmon-v9.9.9.tar.gz",
+              digest: `sha256:${tgz.sha256}`,
+            }],
+          }),
+        }
+      // Sliced to the file's own bytes. A Node Buffer under 8 KB comes out of a
+      // shared pool, so `.buffer` is the whole pool and `Buffer.from` of it is
+      // megabytes of other people's data — which fails the digest check, for the
+      // right reason, on a file that was perfectly fine.
+      : { ok: true, arrayBuffer: async () => {
+          const b = readFileSync(tgz.path);
+          return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+        } }
+  ) as never;
+
+  it("installs a verified binary and reads a temperature through it", async () => {
+    if (WIN_SKIP) {
+      // The published build is arm64 Mach-O and `tar -czf` of a shell script is
+      // not something a Windows deck would ever install. The refusal above —
+      // "never attempted off macOS" — is what covers Windows, and it runs.
+      expect(await bootstrapMacmon({ platform: "win32", env: {} })).toEqual({ ok: false, reason: "unsupported_platform" });
+      return;
+    }
+    const tgz = tarballOf(`#!/bin/sh\n[ "$1" = "--version" ] && { echo "macmon 9.9.9"; exit 0; }\necho '{"temp":{"cpu_temp_avg":58.4,"gpu_temp_avg":41.9}}'\n`);
+    const dest = mkdtempSync(join(DIR, "installed-"));
+
+    const r = await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: serve(tgz), dir: dest });
+    expect(r).toMatchObject({ ok: true, version: "v9.9.9" });
+    expect(existsSync(join(dest, "macmon"))).toBe(true);
+
+    // And the deck can now read through the thing it just installed. That is
+    // the claim the whole file is for: `npx ccdeck` and nothing else.
+    resetMacmonBin();
+    expect(await readMacmonTemps({ candidates: [join(dest, "macmon")], exists: existsSync }))
+      .toEqual({ cpu: 58, gpu: 42 });
+  }, 40_000);
+
+  it("leaves nothing behind when the binary will not run", async () => {
+    if (WIN_SKIP) return;
+    // The last gate. A build that cannot execute here must not be left under
+    // the name every later boot trusts — uv-bootstrap learned that from a
+    // truncated copy nothing ever re-checked.
+    const tgz = tarballOf("#!/bin/sh\nexit 1\n");
+    const dest = mkdtempSync(join(DIR, "broken-"));
+    expect(await bootstrapMacmon({ platform: "darwin", env: {}, fetchFn: serve(tgz), dir: dest }))
+      .toEqual({ ok: false, reason: "does_not_run" });
+    expect(existsSync(join(dest, "macmon"))).toBe(false);
+  }, 40_000);
+
+  it("says so when the archive holds no macmon", async () => {
+    if (WIN_SKIP) return;
+    const src = mkdtempSync(join(DIR, "empty-"));
+    writeFileSync(join(src, "readme.md"), "# nothing here\n");
+    const tgz = join(DIR, `empty-${Math.random().toString(36).slice(2)}.tar.gz`);
+    execFileSync("tar", ["-czf", tgz, "-C", src, "readme.md"]);
+    const bytes = readFileSync(tgz);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const dest = mkdtempSync(join(DIR, "none-"));
+    expect(await bootstrapMacmon({
+      platform: "darwin", env: {}, dir: dest,
+      fetchFn: serve({ path: tgz, sha256: sha }),
+    })).toEqual({ ok: false, reason: "not_in_archive" });
+  }, 40_000);
 });

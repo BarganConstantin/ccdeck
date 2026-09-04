@@ -68,7 +68,7 @@ What the deck does write, and the short list of what does leave the machine, is 
 - Node.js ≥ 18 — macOS, Linux and Windows
 - Claude Code CLI or OpenAI Codex CLI (or both)
 - Optional: [claude-swap](https://pypi.org/project/claude-swap/) for the Accounts panel; the deck can install it for you
-- Optional, Apple Silicon only: [`macmon`](https://formulae.brew.sh/formula/macmon) for CPU and GPU degrees in the machine panel — `brew install macmon`. The deck never installs this one; see below.
+- Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.
 
 ### Temperature, per machine
 
@@ -79,9 +79,13 @@ The machine panel shows a **Thermal** section only where the machine actually an
 | Linux | `/sys/class/hwmon` | nothing |
 | Windows | the `Thermal Zone Information` performance counter | nothing. A machine with no ACPI thermal zone — many desktop boards, and every virtual machine — has nothing to report, and the counter path is currently English-only |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
-| macOS, Apple Silicon | `macmon`, if you have it | `brew install macmon` |
+| macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
-Apple Silicon is the one that needs a tool, and it is not an oversight. No command that ships with macOS prints a temperature on an M-series Mac: `powermetrics` needs root, `pmset -g therm` records nothing there, and the sensors are behind a private API that only native code can call. `macmon` is in homebrew-core, runs without `sudo`, and covers M1 through M5. The deck reads it if it is there and says nothing if it is not — installing a compiled binary for two rows in an optional panel is not something to do to somebody who did not ask.
+Apple Silicon is the one that needs a tool, and it is not an oversight. No command that ships with macOS prints a temperature on an M-series Mac: `powermetrics` needs root, `pmset -g therm` records nothing there, and the sensors sit behind a private API that only native code can call. [`macmon`](https://github.com/vladkens/macmon) reads them without `sudo` and covers M1 through M5.
+
+You do not have to install it. The deck downloads the published binary into `~/.agents-deck/tools/macmon` — the same place it already keeps `uv` — verifies it against the SHA-256 the GitHub release publishes, checks that it runs, and only then uses it. Not through Homebrew, because a machine without Homebrew would need Homebrew installed first, and that is a large thing to do to somebody who asked for a dashboard. It happens in the background, after the deck is already up, and never on the first run's critical path.
+
+It is skipped entirely on a machine that already answers — an Intel Mac never downloads anything — and on one where you have `macmon` yourself, which is found on either Homebrew prefix. `AGENTS_DECK_NO_DOWNLOAD=1` turns it off on its own; `AGENTS_DECK_NO_INSTALL=1` turns it off along with everything else.
 
 ## How it works
 
