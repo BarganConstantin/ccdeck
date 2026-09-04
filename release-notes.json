@@ -31,6 +31,28 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.1.0": [
+    {
+      "title": "🚀 The first run stops looking like it hung",
+      "body": "`npx ccdeck` on a machine that has never run it used to sit on a spinner at \"checking claude-swap\" and say nothing else. Measured on a Windows box: seventeen and a half seconds before it told you where to point a browser. It is now one and a half.\n\nThe deck was waiting for an install nobody asked for during that boot — a Python toolchain being fetched so the accounts panel would work. The port had been open the whole time; there was just nothing on screen to say so.\n\nIt no longer waits. Anything still working past the boot says so on its own line and keeps going in the background, and the deck comes up without it."
+    },
+    {
+      "title": "⚡ Every start is quicker, and stays quicker",
+      "body": "The event log was read from the beginning on every boot to fill a buffer that only keeps the last two thousand events — so four fifths of that reading existed to be thrown away, and it got slower the longer you had been using the deck. It reads from the end now and stops when the buffer is full: 258ms down to 20ms here, on a 34 MB log, and it no longer grows.\n\nThe accounts tool is also asked for its version once instead of twice, which on this machine was the single largest thing in an ordinary boot."
+    },
+    {
+      "title": "📉 Ten fewer packages to install",
+      "body": "Opening your browser used to cost a dependency that brought nine more with it — ten downloads on a cold `npx ccdeck` before the deck's own files were unpacked. It is now done with the commands the operating system already has.\n\nThe package has no runtime dependencies at all."
+    },
+    {
+      "title": "🌡️ Temperature, on the machines that could not show it",
+      "body": "On Windows the deck was asking somewhere it is not allowed to look: that reading lives behind a namespace that needs administrator, so it failed for everybody and the section never appeared. It reads a performance counter now, which needs nothing.\n\nOn Apple Silicon there is no command that ships with macOS which prints a temperature at all — the sensors are behind an interface only native code can reach. The deck fetches a small signed tool for it, verified against the checksum its release publishes, in the background and only on the Macs that need it. You do not have to install anything. `AGENTS_DECK_NO_DOWNLOAD=1` turns that off.\n\nA machine with no sensor still shows no section, which includes every virtual machine. Nothing is drawn that was not measured."
+    },
+    {
+      "title": "😌 The terminal goes quiet when there is nothing happening",
+      "body": "The dot at the bottom blinked every 800ms for as long as the deck ran, which is what a terminal does while it is working — so a deck that had finished in a second looked like one that never finished.\n\nIt now moves only while something actually is: a job still running, or hooks that cannot find the deck. Otherwise it is drawn once and left alone, and it says what the job is rather than just blinking. A step that takes more than three seconds shows how long it has been going, which is the whole of \"is this stuck\".\n\nAnd a machine with no Claude Code installed stops being told about it every few seconds — that one is said once now, on its own line instead of across the status line."
+    }
+  ],
   "3.0.0": [
     {
       "title": "📈 The machine panel now shows what it DID, not just what it is",
