@@ -201,11 +201,28 @@ async function readCompressedTokenSeries(filePath) {
     }
     return null;
   }
+  // THE SOURCE IS HELD, and both halves of that matter.
+  //
+  // `Readable.pipe` attaches its error handling to the DESTINATION. The source
+  // got neither an 'error' listener nor a destroy, so a read that failed — the
+  // file removed between the listing and this call, EACCES, EMFILE — emitted
+  // an unhandled 'error' and took the process down, in a reader whose
+  // uncompressed twin deliberately survives those same errnos. A torn archive
+  // errors on the destination instead, which the catch below swallows while the
+  // source stays open: twenty reads of one corrupt file left twenty handles,
+  // against a sixty-second poll. On Windows a held handle also blocks the
+  // unlink, which is the case the plain path's `finally { await fd?.close() }`
+  // names.
+  let source = null;
   try {
     const series = [];
     const decoder = new StringDecoder("utf8");
     let pending = "";
-    const stream = createReadStream(filePath).pipe(createZstdDecompress());
+    source = createReadStream(filePath);
+    // Never unhandled: the `for await` below is what reports the failure, and
+    // this only stops the event from being fatal on the way there.
+    source.on("error", () => {});
+    const stream = source.pipe(createZstdDecompress());
     for await (const chunk of stream) {
       pending += decoder.write(chunk);
       let from = 0;
@@ -220,6 +237,7 @@ async function readCompressedTokenSeries(filePath) {
     if (pending) foldTokenLine(series, pending);
     return series.length ? series : null;
   } catch { return null; }
+  finally { source?.destroy(); }
 }
 
 /** The reader, exported under a test-only name. The compressed path cannot be
