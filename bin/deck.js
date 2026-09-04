@@ -11,8 +11,8 @@ import { dieOfSignal, dieWithParent } from "../src/server/supervisor.mjs";
 import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
   CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
-  palette, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns, unicodeOK,
-  unregisteredDetail, wordmark,
+  palette, pulseDot, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns,
+  elapsedSuffix, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
 } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
@@ -246,6 +246,20 @@ const cols = () => termColumns(process.stdout);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const fileLink = (path) => link(path, pathToFileURL(path).href, LINKS);
 
+/**
+ * What is still happening after the report ended, in three words or so.
+ *
+ * #742 left one job able to outlive the boot — an install of claude-swap that
+ * the report stopped waiting for — and the terminal said nothing about it once
+ * the rows were done. That is the wrong way round: the row that had finished
+ * was the one blinking, and the thing that really was working sat still. Now
+ * the pulse line carries the label while the job runs and drops it when the job
+ * settles, which is also what decides whether the line moves at all. Declared
+ * here rather than beside `registered` below, because reportStartup sets it and
+ * runs long before that line does.
+ */
+let pulseBusy = null;
+
 // ── the cursor ────────────────────────────────────────────────────────────────
 // Hidden for as long as anything of ours is moving — the reveal, the spinner,
 // the pulse — and put back on every way out of this process: the ordinary exit,
@@ -289,31 +303,72 @@ function row({ mark = " ", tone = P.ok, label = "", detail = "", detailTone = P.
 }
 
 // ── the wordmark ──────────────────────────────────────────────────────────────
+
+/**
+ * Hold anything else that wants to speak until the art is finished.
+ *
+ * #742, found while watching a first run through a pty: the startup jobs run
+ * UNDER the reveal on purpose, and one of them failing writes to console.error
+ * the moment it fails — which put
+ *
+ *     ccdeck ccusage: install failed: npm install ccusage failed: spawn npm ENOENT
+ *
+ * between the second and third rows of the logo. A wordmark with a stack of
+ * someone else's bad news through the middle of it is the first thing a new
+ * user sees, and it reads as a crash rather than as a note.
+ *
+ * The window is the reveal and nothing else — about 180ms — so at worst a
+ * message arrives a fifth of a second later than it would have, on the one
+ * stretch of the boot where there is nowhere for it to go. Restored in a
+ * `finally`, so a throw inside the reveal cannot leave the process mute.
+ */
+function holdConsole() {
+  const held = [];
+  const real = { warn: console.warn, error: console.error, log: console.log };
+  for (const k of Object.keys(real)) console[k] = (...args) => { held.push([k, args]); };
+  return () => {
+    Object.assign(console, real);
+    for (const [k, args] of held) real[k](...args);
+  };
+}
+
 async function printBanner() {
   const { lines } = wordmark({ columns: cols(), version: PKG_VERSION, profile: PROFILE, unicode: UNICODE, pal: P });
-  for (const line of lines) {
-    write(line + "\n");
-    // A reveal, not a wait. The once-per-session work is already running under
-    // it (see startupWork), so the art costs the boot nothing and the deck is
-    // ready about when the last row lands. What used to be here — 560ms of
-    // spinner at "loading…" before a single art line — was dead time in a tool
-    // whose documented entry point is `npx ccdeck`.
-    if (MOTION && line) await sleep(45);
+  const release = holdConsole();
+  try {
+    for (const line of lines) {
+      write(line + "\n");
+      // A reveal, not a wait. The once-per-session work is already running under
+      // it (see startupWork), so the art costs the boot nothing and the deck is
+      // ready about when the last row lands. What used to be here — 560ms of
+      // spinner at "loading…" before a single art line — was dead time in a tool
+      // whose documented entry point is `npx ccdeck`.
+      if (MOTION && line) await sleep(45);
+    }
+  } finally {
+    release();
   }
 }
 
 // ── a step, with a spinner only if it is slow enough to need one ──────────────
 // The interval's first frame is 80ms away, so anything already settled when we
 // get here paints nothing at all and the row below is the only trace of it.
+
 async function step(label, work) {
   if (!MOTION) return work;
   const frames = spinnerFrames(UNICODE);
   // Kept inside the terminal: a label that wraps is a label the \r below can
   // only half erase, and what is left of it stays under the row that follows.
-  const text = fit(label, cols() - 6, G.ellipsis);
+  // Six columns for the indent and the spinner, four more so the elapsed
+  // seconds have somewhere to go without pushing the label off the edge.
+  const text = fit(label, cols() - 10, G.ellipsis);
+  const started = Date.now();
   let i = 0;
+  let widest = 0;
   const iv = setInterval(() => {
-    write(`\r  ${P.accent}${frames[i++ % frames.length]}${P.reset}  ${P.muted}${text}${P.reset}`);
+    const line = `  ${P.accent}${frames[i++ % frames.length]}${P.reset}  ${P.muted}${text}${elapsedSuffix(Date.now() - started)}${P.reset}`;
+    widest = Math.max(widest, visibleWidth(line));
+    write(`\r${line}`);
   }, 80);
   try {
     return await work;
@@ -321,8 +376,10 @@ async function step(label, work) {
     clearInterval(iv);
     // Cleared rather than overwritten: the row that follows is a different
     // length, and relying on it to be the longer of the two is how a spinner
-    // leaves its own tail on screen. Nothing to clear if it never painted.
-    if (i) write("\r" + " ".repeat(text.length + 5) + "\r");
+    // leaves its own tail on screen. Measured rather than computed, because the
+    // line grows when the elapsed seconds appear and again when they reach two
+    // digits. Nothing to clear if it never painted.
+    if (i) write("\r" + " ".repeat(widest) + "\r");
   }
 }
 
@@ -475,7 +532,14 @@ async function reportStartup(jobs) {
         ? `installing in the background ${G.dash} the deck is ready`
         : `still setting up ${G.dash} the deck is ready`,
     }));
-    jobs.cswap.then(late => writeSwapRows(late, { late: true }), () => {});
+    // Handed to the pulse line, which is the only thing still on screen once
+    // the rows are done — and taken back the moment the job settles, whichever
+    // way it settled.
+    pulseBusy = swapWait.installing ? "installing claude-swap" : "setting up claude-swap";
+    jobs.cswap.then(
+      late => { pulseBusy = null; writeSwapRows(late, { late: true }); },
+      () => { pulseBusy = null; },
+    );
   }
 
   const cu = await left.within(jobs.ccusage);
@@ -923,17 +987,35 @@ if (openBrowser && !RESPAWN) {
 // would leave the message behind and pulse into empty space. Sized to the real
 // terminal, because at 40 columns the old fixed 61-character line wrapped, and
 // from then on \r only ever reached its second row.
+//
+// AND IT STOPS MOVING (#742). The dot alternated green and grey every 800ms for
+// as long as the deck ran, and a blinking indicator beside a status line is the
+// vocabulary of "working on it" — so a boot that finished in a second read as
+// one that never finished, which is what people reported. Motion is now spent
+// on the two states where something really is outstanding, and the frame is
+// compared against what is already on screen so a deck at rest paints once and
+// then leaves the terminal alone. See pulseMoves.
 if (MOTION) {
   let pi = 0;
+  let painted = null;
   setInterval(() => {
     // The colour follows the words. A Codex-only deck keeps saying "listening"
     // when it is unregistered — see pulseText — and painting that sentence in
     // the warning tone would restore the alarm the sentence just retired.
     const alarm = !registered && wantClaude;
-    const text = pulseText({ registered, claude: wantClaude, columns: cols(), unicode: UNICODE });
-    const dot = pi++ % 2 === 0 ? (alarm ? P.warn : P.ok) : P.muted;
+    const state = { registered, claude: wantClaude, busy: pulseBusy };
+    const text = pulseText({ ...state, columns: cols(), unicode: UNICODE });
+    // At rest every beat is lit, which is what makes the line still: the frame
+    // is then identical to the one already on screen and the write below is
+    // skipped. See pulseDot.
+    const dot = pulseDot(pi++, state) === "on" ? (alarm ? P.warn : P.ok) : P.muted;
     const tone = alarm ? P.warn : P.muted;
-    write(`\r  ${dot}${G.pulse}${P.reset}  ${tone}${text}${P.reset}`);
+    const frame = `\r  ${dot}${G.pulse}${P.reset}  ${tone}${text}${P.reset}`;
+    // Unchanged frames are not written at all. That is what makes "at rest"
+    // visible: one paint, and then a still line for as long as nothing happens.
+    if (frame === painted) return;
+    painted = frame;
+    write(frame);
   }, 800).unref();
 }
 

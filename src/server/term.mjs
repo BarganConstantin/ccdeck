@@ -217,6 +217,29 @@ export function spinnerFrames(unicode) {
   return unicode ? BRAILLE_FRAMES.slice() : ASCII_FRAMES.slice();
 }
 
+/** When a spinner starts saying how long it has been going.
+ *
+ *  #742: a spinner four seconds in looks exactly like one four hundred
+ *  milliseconds in, and that is the whole of "is this thing stuck". A number
+ *  answers it. Three seconds, because under that the number would be on screen
+ *  for a blink on every ordinary boot and would be noise rather than an answer
+ *  — nobody doubts a step that has not yet lasted as long as it takes to doubt
+ *  one. */
+export const SPINNER_ELAPSED_AFTER_MS = 3_000;
+
+/**
+ * The seconds a spinner shows beside its label, or "" while it is too young to
+ * have anything worth saying.
+ *
+ * Whole seconds, floored, and never a tenth: a number that changes ten times a
+ * second is a second spinner rather than an answer about the first one. Here
+ * rather than in bin/deck.js because that file runs a deck when it is imported,
+ * and this is the one part of `step` worth holding still in a test.
+ */
+export function elapsedSuffix(ms, after = SPINNER_ELAPSED_AFTER_MS) {
+  return ms < after ? "" : `  ${Math.floor(ms / 1000)}s`;
+}
+
 // ── motion ───────────────────────────────────────────────────────────────────
 
 /**
@@ -517,12 +540,14 @@ export function wordmark({
  * use. The one-time report at boot still says what IS lost; see
  * unregisteredDetail.
  */
-export function pulseText({ registered = true, claude = true, columns = 80, unicode = true, indent = 2 } = {}) {
+export function pulseText({
+  registered = true, claude = true, columns = 80, unicode = true, indent = 2, busy = null,
+} = {}) {
   const g = glyphs(unicode);
   const room = Math.max(4, columns - indent - 3 - 1);
   const pick = (options) => options.find((o) => o.length <= room) ?? options[options.length - 1].slice(0, room);
 
-  const ok = pick([`listening ${g.dash} Ctrl+C to stop`, "listening"]);
+  const rest = pick([`listening ${g.dash} Ctrl+C to stop`, "listening"]);
   const bad = pick([
     `listening, but not registered ${g.dash} hooks cannot find this deck`,
     `not registered ${g.dash} hooks cannot find this deck`,
@@ -531,8 +556,59 @@ export function pulseText({ registered = true, claude = true, columns = 80, unic
   // Both branches are still measured, registered or not, because the line is
   // redrawn over itself and the shorter message has to cover the longer one on
   // the beat after a deck loses its registration.
-  const width = Math.min(room, Math.max(ok.length, bad.length));
+  //
+  // The width is deliberately computed from the two FIXED messages only. `busy`
+  // comes and goes on a single boot — an install starts, the line names it, the
+  // install ends and the line goes back to Ctrl+C — so a width that grew to fit
+  // the label would have to shrink again afterwards, and the shorter line would
+  // leave the tail of the longer one on screen. Instead the label is shown only
+  // where it already fits — 60 columns and wider, measured — and below that the
+  // line says the true thing it has always said.
+  const width = Math.min(room, Math.max(rest.length, bad.length));
+  // What is still happening, rather than what is always true. `Ctrl+C to stop`
+  // is the right thing to say to somebody with nothing left to wait for, and
+  // the wrong thing to say to somebody watching an install.
+  const label = typeof busy === "string" && busy.trim() ? busy.trim() : null;
+  const working = label ? `listening ${g.bullet} ${label}` : null;
+  const ok = working && working.length <= width ? working : rest;
   return (registered || !claude ? ok : bad).padEnd(width);
+}
+
+/**
+ * Whether the line has anything left to say by moving.
+ *
+ * #742. The dot alternated green and grey every 800ms for as long as the deck
+ * ran, and a blinking indicator beside a status line is the vocabulary of
+ * "working on it" — so a boot that had finished in a second read as one that
+ * never finished, and people said so. The deck's own web UI already retired
+ * this once: the pill goes quiet at rest (#720). The terminal did not.
+ *
+ * Motion is now spent on the two states where something is genuinely
+ * outstanding — a deck no hook can find, and a background job still running —
+ * and nowhere else. At rest the dot is painted once, in the healthy colour, and
+ * left alone. Movement then means something changed, which is the only thing
+ * movement should ever mean on a line somebody leaves open for hours.
+ */
+export function pulseMoves({ registered = true, claude = true, busy = null } = {}) {
+  if (!registered && claude) return true;
+  return typeof busy === "string" && busy.trim() !== "";
+}
+
+/**
+ * Whether the dot is lit on this beat.
+ *
+ * `"on"` on every beat of a deck at rest, which is what makes the line still:
+ * bin/deck.js paints a beat only when the frame differs from the one already on
+ * screen, so a dot that is always lit is a line written once and then left
+ * alone. Alternating is reserved for the states pulseMoves admits.
+ *
+ * The beat is a parameter rather than counted here so this is a function of its
+ * inputs and nothing else — and so a test can ask what the twentieth beat of an
+ * idle deck looks like without waiting sixteen seconds for it.
+ */
+export function pulseDot(beat, { registered = true, claude = true, busy = null } = {}) {
+  if (!pulseMoves({ registered, claude, busy })) return "on";
+  return beat % 2 === 0 ? "on" : "off";
 }
 
 /**
