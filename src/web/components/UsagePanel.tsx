@@ -37,6 +37,11 @@ interface QuotaData {
   weekSonnetPct?: number;
   weekOpusPct?: number;
   source?: string;
+  /** Why there is nothing to show, when `ok` is false. The server has always
+   *  sent this and the panel used to drop it, so every failure printed the one
+   *  sentence about running /usage — including on machines where that cannot
+   *  help, because they have no subscription window to report. */
+  reason?: string;
   fetchedAt?: number;
 }
 
@@ -284,6 +289,28 @@ interface CodexQuotaData {
 }
 
 /** Why the Codex section is empty, in words that say what to do about it. */
+/**
+ * Why the Claude quota section is empty, in the reader's terms.
+ *
+ * One sentence used to cover every failure — "Run /usage in a claude session,
+ * then click ↻" — and on an API-key, Bedrock or Vertex install that is advice
+ * which cannot work: those are billed per token and have no five-hour window to
+ * report. Worse, that machine did not even get this far. The CLI ran, printed
+ * no quota lines, and the server read that as a genuine "<1%", so the panel drew
+ * two empty bars for a measurement nobody had taken.
+ *
+ * Same shape as codexHint below, which has answered this properly all along.
+ */
+function claudeQuotaHint(reason?: string): string {
+  switch (reason) {
+    case "no_subscription":
+      return "This install signs in with an API key (or Bedrock/Vertex), which is billed per token and has no session window.";
+    case "rate_limited":  return "Anthropic asked the deck to wait — it will retry on its own.";
+    case "waiting":       return "Waiting for the next allowed read — or click ↻.";
+    default:              return "Run /usage in a claude session, then click ↻";
+  }
+}
+
 function codexHint(reason?: string): string {
   switch (reason) {
     case "no_token":         return "Run codex login to authenticate.";
@@ -841,8 +868,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           </div>
         ) : quota?.ok === false ? (
           <div className="up-quota-na">
-            <span>Quota unavailable.</span>
-            <span className="up-quota-hint">Run <code>/usage</code> in a claude session, then click ↻</span>
+            <span>{quota.reason === "no_subscription" ? "No quota to show." : "Quota unavailable."}</span>
+            <span className="up-quota-hint">{claudeQuotaHint(quota.reason)}</span>
           </div>
         ) : (
           <div className="up-quota-na up-quota-loading">Checking…</div>

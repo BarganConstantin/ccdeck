@@ -83,6 +83,40 @@ async function readOAuthToken() {
   }
 }
 
+/**
+ * WHETHER THIS MACHINE HAS A SUBSCRIPTION TO REPORT ON AT ALL.
+ *
+ * Every source here needs a Claude.ai OAuth credential: the claude-swap store
+ * holds one, `claudeAiOauth` in the credentials file is one, and
+ * `claude --print /usage` prints windows only for a session signed in with one.
+ * An API-key, Bedrock or Vertex install has none — and there is no quota to
+ * read, because those are billed per token rather than in five-hour windows.
+ *
+ * That mattered because of what the CLI does on such a machine: it RUNS, prints
+ * no quota lines, and the branch below used to read that as "genuine <1%" and
+ * publish `ok: true` with two zeroes. The panel then drew empty bars, which is
+ * a measurement nobody took. Codex already answers this properly, with
+ * `api_key_mode` as its own reason and its own sentence.
+ *
+ * Cheap and synchronous: environment first, because a machine configured for
+ * Bedrock or Vertex says so there, then the presence of the OAuth block in the
+ * credentials file. `readOAuthToken` above answers a different question — it
+ * also rejects an EXPIRED token, and an expired subscription is still a
+ * subscription.
+ */
+export async function hasSubscriptionCredential(env = process.env) {
+  if (env.CLAUDE_CODE_USE_BEDROCK === "1" || env.CLAUDE_CODE_USE_VERTEX === "1") return false;
+  try {
+    const raw = await readFile(credentialsPath(), "utf8");
+    if (JSON.parse(raw)?.claudeAiOauth?.accessToken) return true;
+  } catch { /* absent or unreadable, decided below */ }
+  // A key in the environment and no OAuth block beside it is the API-key
+  // install. Without either, this deck simply has not been signed in yet, and
+  // "sign in" is the right thing to say — which is the `waiting` branch, not
+  // this one.
+  return !(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
+}
+
 // ISO-8601 → "Jun 19, 1:19pm" (local time, matching the CLI display format).
 //
 // The body moved to reset-label.mjs in #374: codex-quota.mjs had a copy that
@@ -671,12 +705,23 @@ async function _doFetch(now, force = false, gen = _generation) {
     return publish(gen, { ..._lastGood, stale: true }, now - (CACHE_MS - 5_000));
   }
 
-  // Never had good data. CLI ran but lines absent → treat as genuine <1%.
-  // CLI failed entirely → ok:false. Either way short-cache for a quick retry.
-  const result = cliOk
+  // Never had good data. A CLI that RAN and printed no quota lines is two
+  // different machines, and they need two different answers:
+  //
+  //   * a subscription install on a cold invocation — the lines come back on a
+  //     later call, and until then "<1%" is the honest reading of a window that
+  //     has genuinely just reset;
+  //   * an API-key, Bedrock or Vertex install, which has no windows at all.
+  //     Publishing two zeroes there drew empty bars for a measurement nobody
+  //     took, on a machine where no amount of retrying will ever produce one.
+  //
+  // A CLI that failed entirely is `ok: false` as it always was, and the reason
+  // says which of the two the reader is looking at.
+  const subscribed = cliOk ? await hasSubscriptionCredential() : false;
+  const result = cliOk && subscribed
     ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
         week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
-    : { ok: false, fetchedAt: now };
+    : { ok: false, reason: cliOk ? "no_subscription" : "cli_failed", fetchedAt: now };
   return publish(gen, result, now - (CACHE_MS - 5_000));
 }
 
