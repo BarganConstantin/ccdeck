@@ -396,42 +396,69 @@ interface Props {
  * must not spawn them on a clock. The route caches per range anyway.
  */
 function useUsageRange(period: PeriodKey, refreshKey: number) {
-  const [data, setData] = useState<UsageRange | null>(null);
+  // THE ANSWER AND THE QUESTION IT ANSWERS, together.
+  //
+  // A bare `data` here was a defect: `period` moves the instant a chip is
+  // pressed and the response lands seconds later, so between the two the panel
+  // drew today's money under the words "all time" and then silently rewrote the
+  // number. Everything downstream reads `landed.period` — the label, the noun,
+  // both tables — so the figures and the word over them can never disagree,
+  // whatever is in flight. The pressed chip still shows the reader's intent.
+  const [landed, setLanded] = useState<{ period: PeriodKey; data: UsageRange } | null>(null);
   const [loading, setLoading] = useState(false);
-  // A panel left open must not freeze at the figure it opened on. The poll is
-  // deliberately the same 120s the server caches a reading for (CACHE_MS in
-  // ccusage.mjs): asking oftener than the cache turns over buys nothing, and
-  // asking rarer leaves the panel behind its own refresh button. No `refresh=1`
-  // here — that flag forces a fresh child process, which is what the ↻ is for.
+  // A panel left open must not freeze at the figure it opened on, and must not
+  // become a background job either. Five minutes is chosen against the work
+  // rather than against the server's 2-minute cache: every poll longer than
+  // CACHE_MS misses it by definition, so this interval IS the ccusage run rate,
+  // and a run walks every transcript on the machine.
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const t = window.setInterval(() => setTick(n => n + 1), 120_000);
-    return () => window.clearInterval(t);
+    const beat = () => {
+      // Nothing to keep fresh behind a hidden tab. A deck left open for a week
+      // on a second desktop otherwise spends a ccusage run every five minutes
+      // updating numbers no one is looking at.
+      if (document.visibilityState === "visible") setTick(n => n + 1);
+    };
+    const t = window.setInterval(beat, 300_000);
+    // And catch up on the way back: a tab hidden for an hour holds an hour-old
+    // reading, which is the one moment a poll is worth more than its cost.
+    const wake = () => { if (document.visibilityState === "visible") setTick(n => n + 1); };
+    document.addEventListener("visibilitychange", wake);
+    return () => { window.clearInterval(t); document.removeEventListener("visibilitychange", wake); };
   }, []);
 
   // `refresh=1` belongs to the press that asked for it and to nothing after it.
   // Keyed on the value rather than on truthiness: `refreshKey > 0` made every
-  // later fetch — including each 120s poll — spawn a ccusage child for the rest
-  // of the panel's life, which is a background process every two minutes to
-  // re-read data the server had already cached.
+  // later fetch — including each poll — spawn a ccusage child for the rest of
+  // the panel's life, to re-read data the server had already cached.
   const forcedRef = useRef(refreshKey);
   useEffect(() => {
     let alive = true;
     const force = refreshKey !== forcedRef.current;
     forcedRef.current = refreshKey;
-    const since = sinceFor(period);
+    const want = period;
+    const since = sinceFor(want);
     setLoading(true);
     fetch(`/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (alive) setData(d?.ok ? d : null); })
+      .then(d => { if (alive && d?.ok) setLanded({ period: want, data: d }); })
       // A deck that is down, or a ccusage that is not there. The panel says so
-      // by falling back, not by showing an error over numbers it still has.
-      .catch(() => { if (alive) setData(null); })
+      // by falling back to the board, not by showing an error over numbers it
+      // still has — and a failure leaves the last good reading standing rather
+      // than blanking a panel that was correct a moment ago.
+      .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [period, refreshKey, tick]);
 
-  return { data, loading };
+  return {
+    data: landed?.data ?? null,
+    // What the numbers on screen are OF, which is not what the chips say while
+    // a slower range is loading.
+    shown: landed?.period ?? null,
+    loading,
+    stale: landed != null && landed.period !== period,
+  };
 }
 
 export default function UsagePanel({ state, now, providers, onClose }: Props) {
@@ -596,7 +623,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // same markup either way.
   const [period, setPeriod] = useState<PeriodKey>("today");
   const [rangeRefresh, setRangeRefresh] = useState(0);
-  const { data: range, loading: rangeLoading } = useUsageRange(period, rangeRefresh);
+  const { data: range, shown: shownPeriod, loading: rangeLoading, stale: rangeStale } =
+    useUsageRange(period, rangeRefresh);
   const fromRange = range != null;
 
   // The board's own names, by session id. ccusage knows what a session cost and
@@ -650,7 +678,18 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
 
-  const periodNoun = PERIODS.find(p => p.key === period)?.noun ?? "today";
+  // The word over the figures names the range the figures came from, not the
+  // chip the reader just pressed. While a slower range loads, the panel reads
+  // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
+  const periodNoun = PERIODS.find(p => p.key === (shownPeriod ?? period))?.noun ?? "today";
+
+  // WHAT DIMS WHILE A SLOWER RANGE LOADS, and it is the numbers rather than the
+  // chips. The sheet's own rule: --dim-off means "this control cannot be
+  // operated" and --dim-stale means "a newer reading is on its way, this one was
+  // true a moment ago". Dimming the strip said the first about controls that
+  // stay pressable; dimming the figures says the second about the figures, which
+  // is what is actually out of date.
+  const staleCls = rangeStale ? " up-stale" : "";
 
   const hasCost = fromRange ? rangeSum.cost > 0 : totalCost.total > 0;
   const totalTokenSum = fromRange ? rangeSum.tokens : totalTokens.sum;
@@ -939,9 +978,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           conditional now: the headline and the bar appear when there is money
           to report, and the breakdown appears whenever there is anything to
           break down. */}
-      {totalTokenSum > 0 ? (
-        <>
-          {/* WHICH SPAN, when there is a source that has spans at all.
+      {/* WHICH SPAN, when there is a source that has spans at all.
               The board has exactly one — right now — so the strip appears only
               under ccusage, and the panel is silently the old panel when
               ccusage is absent rather than showing three chips that all mean
@@ -952,20 +989,22 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
               coverage is written against that selector. Reusing it is also the
               honest signal to a reader — these two surfaces read the same
               ccusage data over the same kind of range. */}
-          {fromRange && (
-            <div className={`uh-range up-period${rangeLoading ? " up-period-busy" : ""}`} role="group" aria-label="Period">
-              {PERIODS.map(p => (
-                <button
-                  key={p.key}
-                  type="button"
-                  aria-pressed={period === p.key}
-                  className="uh-range-btn"
-                  onClick={() => setPeriod(p.key)}
-                >{p.label}</button>
-              ))}
-            </div>
-          )}
+      {fromRange && (
+        <div className="uh-range up-period" role="group" aria-label="Period">
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              aria-pressed={period === p.key}
+              className="uh-range-btn"
+              onClick={() => setPeriod(p.key)}
+            >{p.label}</button>
+          ))}
+        </div>
+      )}
 
+      {totalTokenSum > 0 ? (
+        <>
           {/* The headline says whose spend it is (#687).
               It read "total spend", and it is not a total of anything: it walks
               the agents on the canvas, and `pruneDoneSessions` takes finished
@@ -979,7 +1018,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+              <div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
                 <span className="up-total-value">{fmtCost(fromRange ? rangeSum.cost : totalCost.total)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
@@ -997,7 +1036,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             </>
           )}
 
-          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+          <div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
             <span className="up-tok"><span className="up-k">in</span>{fmtTokens(fromRange ? rangeSum.inputTokens : totalTokens.inputTokens)}</span>
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(fromRange ? rangeSum.outputTokens : totalTokens.outputTokens)}</span>
             {(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens)}</span>}
@@ -1030,7 +1069,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           )}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
-            <section className="up-section">
+            <section className={`up-section${staleCls}`}>
               <h3 className="up-section-title">By model</h3>
               <table className="up-table">
                 <thead>
@@ -1077,7 +1116,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           )}
 
           {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
-            <section className="up-section">
+            <section className={`up-section${staleCls}`}>
               {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
                   in a tooltip, because the reader can see the arithmetic fail
                   without it. `--since` picks WHICH sessions appear; it does not
@@ -1173,7 +1212,17 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           )}
         </>
       ) : (
-        <div className="up-empty">No usage data yet.<br />Start a Claude Code or Codex session.</div>
+        <div className="up-empty">
+          {/* A RANGE THAT ANSWERED ZERO IS NOT AN EMPTY MACHINE.
+              A session started at 23:50 and still running at 00:05 has no
+              tokens in ccusage's "today", and the old copy told the reader to
+              start a session while one was burning in front of them. The chips
+              are above this block now, so the way out — month, all — is on
+              screen either way. */}
+          {fromRange
+            ? <>No usage {periodNoun}.<br />Try a longer period.</>
+            : <>No usage data yet.<br />Start a Claude Code or Codex session.</>}
+        </div>
       )}
     </aside>
   );

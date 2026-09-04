@@ -25,14 +25,15 @@ describe("the panel prefers ccusage and falls back to the board", () => {
     // and the selector all read `fromRange`, so a deck without ccusage is the
     // old panel exactly and a deck with it never mixes the two in one figure.
     expect(panel).toContain("const fromRange = range != null;");
-    expect(panel).toContain("setData(d?.ok ? d : null)");
+    expect(panel).toContain("if (alive && d?.ok) setLanded({ period: want, data: d });");
   });
 
   it("keeps a failed or absent ccusage silent rather than loud", () => {
-    // A deck whose ccusage will not run still has a board to draw. The catch
-    // sets null, which is the fallback — not an error banner over numbers the
-    // panel still has.
-    expect(panel).toContain(".catch(() => { if (alive) setData(null); })");
+    // A deck whose ccusage will not run still has a board to draw, and one that
+    // fails on the third poll still has the reading from the second. Neither is
+    // an error banner over numbers the panel still holds.
+    expect(panel).toContain(".catch(() => {})");
+    expect(panel).toContain("data: landed?.data ?? null,");
   });
 
   it("renders both branches of both tables", () => {
@@ -66,7 +67,17 @@ describe("the period selector", () => {
   it("appears only when there is a source with periods in it", () => {
     // The board has exactly one span — now — so three chips over a board-only
     // panel would be three words for the same figure.
-    expect(panel).toMatch(/\{fromRange && \(\s*<div className=\{`uh-range up-period/);
+    expect(panel).toMatch(/\{fromRange && \(\s*<div className="uh-range up-period"/);
+  });
+
+  it("sits outside the token gate, so an empty period cannot strand the reader", () => {
+    // The gate is `totalTokenSum > 0`, and under ccusage that figure is the
+    // RANGE's. A session started at 23:50 and still running at 00:05 makes
+    // "today" empty, which used to remove the whole panel body — including the
+    // only control that could have reached "month". The chips are rendered
+    // before the gate now, and the empty branch says which period is empty.
+    expect(panel.indexOf('className="uh-range up-period"')).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
+    expect(panel).toContain("? <>No usage {periodNoun}.<br />Try a longer period.</>");
   });
 
   it("reuses the history modal's chips rather than growing a second set", () => {
@@ -79,12 +90,33 @@ describe("the period selector", () => {
   });
 
   it("stays pressable while a slower period loads", () => {
-    // ccusage against "all time" takes seconds. The strip dims; it does not
-    // disable, or a reader who hit the wrong chip waits out a range they did
-    // not want before they can correct it.
-    expect(panel).toContain('${rangeLoading ? " up-period-busy" : ""}');
+    // ccusage against "all time" takes seconds. Nothing about the chips changes
+    // while it does — they are the reader's intent, and a reader who hit the
+    // wrong one must be able to correct it immediately.
     expect(panel).not.toMatch(/disabled=\{rangeLoading\}/);
-    expect(css).toContain(".up-period-busy { opacity: var(--dim-off); }");
+    expect(panel).not.toContain("up-period-busy");
+  });
+
+  it("dims the figures, not the control, and with the token that means stale", () => {
+    // The sheet declares both: --dim-off is "this control cannot be operated",
+    // --dim-stale is "a newer reading is on its way and this one was true a
+    // moment ago". The second is the state, and it belongs to the numbers.
+    expect(panel).toContain('const staleCls = rangeStale ? " up-stale" : "";');
+    expect(panel).toContain("<div className={`up-total${staleCls}`}");
+    expect(panel).toContain("<div className={`up-tokens-row${staleCls}`}");
+    expect(panel).toContain("<section className={`up-section${staleCls}`}>");
+    expect(css).toMatch(/\.up-stale \{ opacity: var\(--dim-stale\)/);
+  });
+
+  it("never prints one period's money under another period's word", () => {
+    // `period` moves on the press and the answer lands seconds later. The hook
+    // carries the period each response answers, and every label reads THAT —
+    // so the panel shows "$4.20 today" with `all` pressed and dimmed, never
+    // "$4.20 all time" rewriting itself a moment later.
+    expect(panel).toContain("const [landed, setLanded] = useState<{ period: PeriodKey; data: UsageRange } | null>(null);");
+    expect(panel).toContain("setLanded({ period: want, data: d })");
+    expect(panel).toContain("stale: landed != null && landed.period !== period,");
+    expect(panel).toContain("PERIODS.find(p => p.key === (shownPeriod ?? period))?.noun");
   });
 });
 
@@ -98,14 +130,18 @@ describe("what the panel asks the server for", () => {
     expect(panel).not.toContain('refreshKey > 0 ? "&refresh=1"');
   });
 
-  it("polls at the interval the server caches for, not oftener", () => {
-    // CACHE_MS in ccusage.mjs. Polling inside the cache window buys a reading
-    // that cannot have changed; polling well outside it leaves the panel behind
-    // its own refresh button.
+  it("polls at a rate chosen against the work, and not behind a hidden tab", () => {
+    // Every interval longer than the server's CACHE_MS misses the cache by
+    // definition, so the poll rate IS the ccusage run rate — and a run walks
+    // every transcript on the machine. Five minutes, and only while someone is
+    // looking; a deck open on a second desktop spends nothing.
     const server = read("../../server/ccusage.mjs");
     const cacheMs = Number(/const CACHE_MS = ([\d_]+)/.exec(server)?.[1]?.replace(/_/g, ""));
     expect(cacheMs).toBe(120_000);
-    expect(panel).toContain("window.setInterval(() => setTick(n => n + 1), 120_000)");
+    expect(panel).toContain("window.setInterval(beat, 300_000)");
+    expect(panel).toContain('if (document.visibilityState === "visible") setTick(n => n + 1);');
+    expect(panel).toContain('document.addEventListener("visibilitychange", wake)');
+    expect(panel).toContain('document.removeEventListener("visibilitychange", wake)');
   });
 
   it("makes the header's ↻ mean the range too", () => {

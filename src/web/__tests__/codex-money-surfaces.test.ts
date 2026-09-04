@@ -235,8 +235,12 @@ describe("a model with no rate says so instead of vanishing", () => {
     // Rows are selected on tokens now, in one place each rather than twice in
     // the markup — the old code called the same filter for the length check and
     // for the map.
-    expect(panel).toMatch(/const modelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
-    expect(panel).toMatch(/const sessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
+    // `board…` since the panel gained a second source: these two are the
+    // CANVAS's rows, the ones this rule is about, and the ccusage rows beside
+    // them keep an unpriced model for the same reason (`m.cost <= 0 &&
+    // m.tokens > 0` there — tokens present, dollars unknown).
+    expect(panel).toMatch(/const boardModelRows\s+= byModel\.filter\(m => m\.cost\.total > 0 \|\| \(m\.inputTokens \+ m\.outputTokens\) > 0\)/);
+    expect(panel).toMatch(/const boardSessionRows = bySessions\.filter\(s => s\.cost > 0 \|\| \(s\.inputTokens \+ s\.outputTokens\) > 0\)/);
     expect(panel).toMatch(/\{UNPRICED_LABEL\}/);
   });
 

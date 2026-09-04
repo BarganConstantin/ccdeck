@@ -5078,11 +5078,13 @@ button.tool.clickable:last-child { border-bottom: none; }
   width: fit-content;
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
-   arrive — ccusage reads the logs off disk. The strip dims while it does, which
-   is the same idiom the reload button uses for the same wait, and it dims
-   rather than disabling: the chips stay pressable, so a reader who meant
-   "month" and hit "today" is not locked out of correcting it. */
-.up-period-busy { opacity: var(--dim-off); }
+   arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,
+   not the control: --dim-stale is this sheet's token for "a newer reading is on
+   its way and this one was true a moment ago", which is exactly the state, and
+   --dim-off would have said "cannot be operated" about chips that stay
+   pressable. The heading keeps its weight so the panel does not appear to empty
+   out; the numbers under it recede until they are the ones being asked for. */
+.up-stale { opacity: var(--dim-stale); transition: opacity 140ms ease-out; }
 
 /* THE LIVE FIGURE, under a period total that came from somewhere else.
    Deliberately smaller and quieter than `.up-total`: the headline is the answer
@@ -5098,6 +5100,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-size: 11px;
   color: var(--muted);
 }
+/* The qualifier beside it. One step quieter than the figure, which is the whole
+   hierarchy this line has: the number is the news and the words are the scope. */
+.up-live-label { color: var(--muted); }
 .up-live-value {
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

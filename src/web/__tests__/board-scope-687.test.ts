@@ -394,8 +394,11 @@ describe("every surface that prints one of these figures prints the shared label
     // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
     // on a panel that had stopped rendering it at all.
     expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>`);
-    expect(panel).toContain(`<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>`);
-    expect(panel).toContain(`<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>`);
+    // The class carries the stale dim now (a template literal), and the title
+    // is what this issue is about — asserted as the whole attribute so the
+    // board branch cannot quietly lose its sentence.
+    expect(panel).toContain('<div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
+    expect(panel).toContain('<div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>');
     // The unpriced deck: no headline renders there, so the strip says it itself.
     expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
   });
