@@ -76,8 +76,8 @@ The machine panel shows a **Thermal** section only where the machine actually an
 
 | | reads | needs |
 | --- | --- | --- |
-| Linux | `/sys/class/hwmon` | nothing |
-| Windows | the `Thermal Zone Information` performance counter | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
+| Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*` | nothing |
+| Windows | the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature`, then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
@@ -92,7 +92,7 @@ It is skipped entirely on a machine that already answers, on an Intel Mac — th
 Windows is the platform where this most often shows nothing, and that is not a defect in the deck. Measured on a physical Windows 11 laptop — a Lenovo IdeaPad L340, Intel i5-9300H, English install, checked both as an ordinary user and as an administrator:
 
 - its firmware declares **zero** ACPI thermal zones, so the performance counter above is registered but has no instances
-- `MSAcpi_ThermalZoneTemperature` answers `Not supported` **even to an administrator**
+- `MSAcpi_ThermalZoneTemperature` — which the deck does try, in the same PowerShell child, whenever the counter has no instances — answers `Not supported` **even to an administrator**
 - `Win32_TemperatureProbe` exists but every field reads `32768`, which is WMI's value for "unknown"
 - the sensors are real and actively managed — Intel Dynamic Tuning is running — but it publishes them in `root\WMI EsifDeviceInformation`, which is **Access denied** without administrator
 
@@ -205,6 +205,8 @@ Environment:
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |
 | `CLAUDE_SWAP_BACKUP` | Override the claude-swap store root the Accounts panel reads |
+| `CLAUDE_CONFIG_DIR` | Override `~/.claude` — the hook entry, the event log and everything else the deck writes move with it |
+| `AGENTS_DECK_LHM_PORT` | Port of a running LibreHardwareMonitor web server, when it is not 8085 (Windows temperatures) |
 
 Usage history is read with `ccusage`, and the deck takes the first of these that answers: `AGENTS_DECK_CCUSAGE` if you set it, then the copy it installed for itself under `~/.agents-deck/ccusage`, then a `ccusage` on your PATH, then `npx -y ccusage@latest`. So installing ccusage yourself is enough — the deck will not fetch a second copy, and it works under `AGENTS_DECK_NO_INSTALL=1`, which is the combination that variable is for. When something fails, the modal names which of those four it was.
 

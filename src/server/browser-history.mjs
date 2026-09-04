@@ -46,7 +46,8 @@
 // ── 3. THERE MAY BE NO SQLITE READER AT ALL ─────────────────────────────────
 //
 // `node:sqlite` exists only from Node 22.5, and this package declares
-// `engines: { node: ">=18" }` — CI itself runs Node 20. A top-level
+// `engines: { node: ">=18" }` — CI runs Node 22 on all three OSes and
+// Node 18 on one Linux leg, which is the version the package advertises. A top-level
 // `import "node:sqlite"` is therefore not an option: it throws
 // ERR_UNKNOWN_BUILTIN_MODULE at module load, before any of this file's own error
 // handling exists, and takes the server's import graph with it. It is loaded
@@ -233,7 +234,7 @@ const loadSqlite = async () => {
  * CLI is the fallback rather than the default because every call to it costs a
  * process, and this runs on a poll.
  *
- * The dynamic import is inside a try/catch and covers more than "Node 20 has no
+ * The dynamic import is inside a try/catch and covers more than "Node 18 has no
  * such module". Between 22.5 and 22.12 node:sqlite existed but required
  * `--experimental-sqlite`, which the deck is not started with, and the import
  * fails there too — the same catch, the same fallback, no version arithmetic
