@@ -31,6 +31,24 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.0.0": [
+    {
+      "title": "📈 The machine panel now shows what it DID, not just what it is",
+      "body": "Click any section of the machine panel — Cores, Memory, Load average, Thermal — and it opens a chart of what that reading has done since the deck started.\n\nThe panel could always tell you the machine is busy now. It could not tell you whether it got hot while that three-hour build was running, or how deep the queue went while you were away, and those are the questions you actually have afterwards.\n\nThermal is new as well. Where the machine will give degrees, it gives degrees; on a Mac it also reports whether the CPU is being held back to cool down, which is the consequence a temperature has to be interpreted into anyway. Nothing is drawn that was not measured — a machine with no sensor gets no section at all, rather than a zero."
+    },
+    {
+      "title": "🔍 The whole process list, not just the busiest eight",
+      "body": "\"more\" beside Busiest processes opens the full list the deck is watching — around fifty processes rather than eight — with the pid and the untruncated name.\n\nThis closes a gap. The panel's eight rows are the busiest, so sorting them by name only reorders those eight: \"is my test runner still going\" could not be answered if the test runner was not already on screen. Now it can.\n\nIt is deliberately not a task manager. Nothing here ends a process; Activity Monitor and Task Manager are better at that and it is not a thing this deck should own."
+    },
+    {
+      "title": "🔤 Process names in Cyrillic, Greek or with accents read correctly",
+      "body": "An application named Яндекс Музыка was showing up as M-PM-/M-PM-=M-PM-4M-PM-5… in the process list, and so was every other name the deck could not spell in plain ASCII.\n\nThe deck was forcing a fixed locale on the commands it runs, to guarantee that a decimal point stays a point on a machine set to German or Russian — and that also forced the character set. It forces only the number format now. Your own character set is left alone, which is what makes the name arrive intact."
+    },
+    {
+      "title": "📦 The text you copy to share accounts is a third of its size",
+      "body": "Sharing three accounts used to produce 6168 characters. It is now 1896.\n\nMost of that text was never the credentials — two OAuth tokens are about two hundred characters between them, and the rest was the envelope, whose field names repeated in full for every account added. So the saving grows with the number of accounts rather than shrinking.\n\nA blob you copied before this still imports until it expires. One made now cannot be read by a deck older than this version — that is the one thing in this release that older decks cannot follow."
+    }
+  ],
   "1.48.0": [
     {
       "title": "👁 Browser Watch — see what a program opened while you were away",
