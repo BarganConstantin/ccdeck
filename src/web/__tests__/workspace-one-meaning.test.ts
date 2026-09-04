@@ -23,6 +23,7 @@
 // two answers is the bug.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { rmTempDir } from "./rm-temp-dir";
 import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -519,6 +520,16 @@ describe("the flag as bin/deck.js publishes it", () => {
 
 type Seen = { method: string; path: string; body: string };
 
+/** The token every deck in this file advertises, and the proof it can give.
+ *
+ *  Not optional any more: the hook challenges every target it is about to post
+ *  to, and a listener that cannot answer receives nothing. The proof is the
+ *  same sha256 the deck computes — `${token}:${nonce}` — which is the whole of
+ *  the handshake; hook-handshake.test.ts owns the rest of it. */
+const DECK_TOKEN = "0".repeat(64);
+const proofFor = (nonce: string) =>
+  createHash("sha256").update(`${DECK_TOKEN}:${nonce}`).digest("hex");
+
 /** A listener standing in for a deck, plus a log of everything it was told. */
 async function deckListener() {
   const seen: Seen[] = [];
@@ -528,7 +539,15 @@ async function deckListener() {
     req.on("data", c => { entry.body += c; });
     req.on("error", () => {});
     res.on("error", () => {});
-    req.on("end", () => res.writeHead(200, { "Content-Type": "application/json" }).end("{}"));
+    req.on("end", () => {
+      const url = new URL(entry.path, "http://127.0.0.1");
+      if (url.pathname === "/api/hook-challenge") {
+        const nonce = url.searchParams.get("nonce") ?? "";
+        return res.writeHead(200, { "Content-Type": "application/json" })
+          .end(JSON.stringify({ proof: proofFor(nonce) }));
+      }
+      res.writeHead(200, { "Content-Type": "application/json" }).end("{}");
+    });
   });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
   const { port } = server.address() as AddressInfo;
@@ -544,10 +563,12 @@ async function runHook(decks: Array<Record<string, unknown>>, event: Record<stri
   const home = mkdtempSync(join(SANDBOX, "hook-home-"));
   const dir = join(home, "agent-dag");
   mkdirSync(dir, { recursive: true });
-  // No token in any of these records, so the hook posts without the challenge
-  // round trip — the handshake is pinned in hook-handshake.test.ts and what is
-  // under test here is which decks are posted to at all.
-  decks.forEach((d, i) => writeFileSync(join(dir, `deck-${i}.json`), JSON.stringify(d), "utf8"));
+  // Every record carries the token, because the hook challenges every target
+  // now — a tokenless file used to fall back to pid liveness and that fallback
+  // is retired. The listeners above answer the challenge; what is under test
+  // here is still which decks are posted to at all.
+  decks.forEach((d, i) => writeFileSync(
+    join(dir, `deck-${i}.json`), JSON.stringify({ token: DECK_TOKEN, ...d }), "utf8"));
 
   const child = spawn(process.execPath, [HOOK_COPY, "--provider", "claude"], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
