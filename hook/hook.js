@@ -145,9 +145,19 @@ function capturesSession(cwd, workspace, platform = process.platform) {
   return cwdInWorkspace(cwd, workspace, platform);
 }
 
+// Signal 0 delivers nothing; it asks whether the pid could be signalled.
+//
+// BOTH ERRNOS, and the second one is the Windows spelling. POSIX `kill(2)`
+// answers EPERM for a process this account may not signal. On Windows
+// `uv_kill` calls `OpenProcess`, a denial is ERROR_ACCESS_DENIED, and libuv
+// maps that to EACCES — so a deck started from an elevated terminal, or under
+// another account, read as DEAD to every probe in this repo. What followed was
+// silent: the live deck's discovery file was unlinked on the next hook fire,
+// rewritten five seconds later by keepDiscovery, and its banner went on
+// claiming it was receiving events it had stopped receiving.
 function isAlive(pid) {
   try { process.kill(pid, 0); return true; }
-  catch (e) { return e && e.code === "EPERM"; }
+  catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
 }
 
 /**

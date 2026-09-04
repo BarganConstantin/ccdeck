@@ -86,6 +86,22 @@ function mtimeMs(file, deps) {
  * schedule. `stale` is reported so the panel can say when it last actually
  * looked rather than implying the answer is a live one.
  */
+/**
+ * Is that pid still running?
+ *
+ * A bare `catch { continue; }` used to stand where this is called, which threw
+ * away the one distinction that matters: a process this account may not signal
+ * answers EPERM on POSIX and EACCES on Windows (libuv maps
+ * ERROR_ACCESS_DENIED), and both mean ALIVE. Treating them as gone made an
+ * elevated deck invisible to the writer election below, which is how a machine
+ * ends up with two elected writers — duplicate log lines, duplicate reactions,
+ * and two writers racing the same rename.
+ */
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; }
+  catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
+}
+
 async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
   const stamp = mtimeMs(profile.historyPath, deps);
   if (stamp === null) return { rows: [], degraded: true, reason: "no-history-file", stamp: null };
@@ -227,7 +243,7 @@ export async function registeredDeckPorts(deps = {}) {
     try {
       const d = JSON.parse(await readFile(join(dir, f), "utf8"));
       if (typeof d?.pid !== "number" || typeof d?.port !== "number") continue;
-      try { process.kill(d.pid, 0); } catch { continue; }
+      if (!pidAlive(d.pid)) continue;
       ports.push(d.port);
     } catch { /* corrupt, or gone between listing and read */ }
   }
@@ -341,7 +357,7 @@ async function isReactingDeck(deps = {}) {
       // than by a version comparison this would otherwise have to keep.
       if (d.watch !== true) continue;
       // A record whose process is gone is a leftover, not a rival.
-      try { process.kill(d.pid, 0); } catch { continue; }
+      if (!pidAlive(d.pid)) continue;
       if (!best || d.port < best.port || (d.port === best.port && d.pid < best.pid)) best = d;
     } catch { /* corrupt, or gone between listing and read */ }
   }
