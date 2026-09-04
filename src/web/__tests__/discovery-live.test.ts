@@ -222,8 +222,19 @@ describe("a discovery file read while it is being rewritten", () => {
       }
     };
 
-    const spin = () => { if (!spinning) return; readLikeAReader(); setImmediate(spin); };
-    setImmediate(spin);
+    // THE READER BREATHES ON WINDOWS, and has to. A `setImmediate` loop reads
+    // the file with no gap at all, and on Windows an open handle on the
+    // destination makes `rename` fail EPERM — so the writer's retry ladder can
+    // exhaust against a reader that is never not reading, and the case fails on
+    // the write rather than on what a reader saw. That is the test hammering
+    // harder than anything real: a hook reads a discovery file once per event.
+    // A macrotask still interleaves hundreds of times (the assertion below
+    // demands more than fifty reads) and leaves the rename a moment to land.
+    const again = process.platform === "win32"
+      ? (fn: () => void) => setTimeout(fn, 0)
+      : setImmediate;
+    const spin = () => { if (!spinning) return; readLikeAReader(); again(spin); };
+    again(spin);
     try {
       // Re-registrations back to back, so the reader is interleaved with the
       // write hundreds of times rather than by luck once. Bounded by the clock as
