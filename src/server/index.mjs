@@ -5025,6 +5025,50 @@ function isDeckUiRequest({ origin, host, secFetchSite } = {}) {
 // presents nothing at all no longer changes anything — and what is opened is
 // the honest door, so a script of the user's own authenticates by reading the
 // token instead of impersonating a page.
+/**
+ * May this request read the deck's OWN data — the events, the accounts, the
+ * browsing episodes?
+ *
+ * The mutation gate exists because `curl -XPOST localhost:4317/…/admin` handed
+ * a live OAuth refresh token to a sandboxed subprocess with loopback egress.
+ * The same caller could still `curl localhost:4317/api/events` and read the
+ * whole ring — prompt text, the Bash command lines the agent ran, the paths and
+ * contents it wrote, the contents of every file it read back — plus the account
+ * roster and the browsing episodes. The threat model had been applied to half
+ * the surface.
+ *
+ * Same shape as isAuthorizedMutation, with one difference forced by the
+ * browser: a same-origin GET carries no `Origin` header at all, so the UI
+ * cannot be recognised the way a POST is. `Sec-Fetch-Site: same-origin` is what
+ * a page's own fetch and its EventSource both send, on every browser new enough
+ * to run this bundle, and it is a header no non-browser client sends by
+ * accident. A caller that sends neither it nor the token is not a page.
+ *
+ * WHAT STAYS OPEN, deliberately: /api/health (the hook's readiness probe),
+ * /api/hook-challenge (the handshake itself), the static files, and every
+ * measurement route — the machine panel's numbers are about the machine, not
+ * about what the user is doing on it.
+ */
+function isAuthorizedDataRead(req) {
+  const headers = req?.headers ?? {};
+  if (presentsDeckToken(headers)) return true;
+  const site = typeof headers["sec-fetch-site"] === "string"
+    ? headers["sec-fetch-site"].trim().toLowerCase() : "";
+  if (site !== "same-origin") return false;
+  // And addressed to this machine by a name that can only be this machine, so a
+  // rebound page — which also reports same-origin — does not qualify.
+  return isLoopbackHost(headers.host);
+}
+
+/** The reads that carry the user's own work, rather than the machine's. */
+const GUARDED_READS = new Set([
+  "/events",
+  "/api/events",
+  "/api/claude-accounts",
+  "/api/claude-accounts/login",
+  "/api/browser-watch",
+]);
+
 function isAuthorizedMutation(req) {
   const headers = req?.headers ?? {};
   if (presentsDeckToken(headers)) return true;
@@ -5232,6 +5276,14 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // which is the direction this has to fail in. See isAuthorizedMutation.
     if (req.method !== "GET" && req.method !== "HEAD"
       && !OPEN_MUTATIONS.has(url.pathname) && !isAuthorizedMutation(req)) {
+      return send(res, 401, { error: "unauthenticated" });
+    }
+
+    // And the reads that carry the same secrets. See isAuthorizedDataRead: the
+    // gate above was written for a sandboxed subprocess with loopback egress,
+    // and that caller was reading the ring through a GET the whole time.
+    if ((req.method === "GET" || req.method === "HEAD")
+      && GUARDED_READS.has(url.pathname) && !isAuthorizedDataRead(req)) {
       return send(res, 401, { error: "unauthenticated" });
     }
 
