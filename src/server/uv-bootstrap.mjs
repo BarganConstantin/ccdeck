@@ -46,14 +46,50 @@ const DOWNLOAD_TIMEOUT_MS = 120_000;
  * Rosetta is deliberately not special-cased: an x64 Node on Apple Silicon
  * reports x64 and gets the x64 build, which runs.
  */
-export function assetName(platform = process.platform, arch = process.arch) {
-  const a = { x64: "x86_64", arm64: "aarch64", ia32: "i686" }[arch];
+export function assetName(platform = process.platform, arch = process.arch, libc = detectLibc(platform)) {
+  // `arm` is 32-bit ARM — a Raspberry Pi on the armhf image, which uv publishes
+  // as armv7. Left out, that machine got `unsupported_platform` for a target
+  // that exists.
+  const a = { x64: "x86_64", arm64: "aarch64", ia32: "i686", arm: "armv7" }[arch];
   if (!a) return null;
   // Apple publishes no i686 build, and never will.
   if (platform === "darwin") return a === "i686" ? null : `uv-${a}-apple-darwin.tar.gz`;
   if (platform === "win32")  return `uv-${a}-pc-windows-msvc.zip`;
-  if (platform === "linux")  return `uv-${a}-unknown-linux-gnu.tar.gz`;
+  if (platform === "linux") {
+    // MUSL IS ITS OWN TARGET, and asking for the gnu build on Alpine is not a
+    // degraded install, it is an endless one: the glibc ELF interpreter is
+    // absent, so the downloaded binary cannot start, `bootstrapUv` returns
+    // `does_not_run`, and because ensureCswap runs whenever cswapVersion() is
+    // null the 35 MB archive is fetched, hashed and extracted again on EVERY
+    // launch — with the accounts panel permanently unavailable. `node:alpine`
+    // is a common enough base image for this to be somebody's whole experience
+    // of the deck.
+    if (libc === "musl") return `uv-${a}-unknown-linux-musl.tar.gz`;
+    return `uv-${a}-unknown-linux-gnu.tar.gz`;
+  }
   return null;
+}
+
+/**
+ * "glibc" or "musl" for this process.
+ *
+ * Node's own report names the glibc it is linked against, and a musl build has
+ * no such field — which is the check every native-addon loader uses, and needs
+ * no child process. Anything unexpected reads as glibc, because that is the
+ * overwhelmingly common case and the wrong guess there is the state this code
+ * was already in.
+ */
+export function detectLibc(platform = process.platform, report = () => process.report?.getReport?.()) {
+  // The question only exists on Linux. macOS and Windows have no glibc field
+  // either, so asking there and reading the absence as musl would answer "musl"
+  // for every Mac — which is why the platform comes first.
+  if (platform !== "linux") return "glibc";
+  try {
+    const header = report()?.header;
+    if (!header) return "glibc";
+    if (typeof header.glibcVersionRuntime === "string") return "glibc";
+    return "musl";
+  } catch { return "glibc"; }
 }
 
 /** Path to a uv this function installed earlier, or null. */
