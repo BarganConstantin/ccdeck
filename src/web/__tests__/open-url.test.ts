@@ -35,36 +35,47 @@ describe("launchers, per platform", () => {
     expect(tries[1]).toEqual({ file: "open", args: [URL_] });
   });
 
-  it("gives Windows the empty title argument `start` needs", () => {
+  it("leads with PowerShell on Windows, which is the one with field evidence", () => {
+    // `open@10` — the dependency this replaced — launches a Windows URL through
+    // `powershell -EncodedCommand` running `Start "<url>"`. Read out of its own
+    // source on a real Windows 10 box while checking this change. Every ccdeck
+    // install on Windows has been using that path, and `cmd /c start` has no
+    // such history.
     const [first] = launchers(URL_, { platform: "win32", env: {} });
-    expect(first.file).toBe("cmd.exe");
+    expect(first.file).toBe("powershell.exe");
+    // The URL as its own argv entry rather than inside a script string, where
+    // `;` and `&` are PowerShell's own operators.
+    expect(first.args).toEqual(["-NoProfile", "-NonInteractive", "-Command", "Start-Process", URL_]);
+  });
+
+  it("does not lead with the launcher whose failure is invisible", () => {
+    // Measured on Windows 10 19045 over SSH: `cmd /d /s /c start "" "<url>"`
+    // exits 0 and creates no browser process. A candidate list that led with it
+    // would never reach a second candidate however badly the first had done, so
+    // the fallback would be decoration. Leading with the one whose failure is
+    // visible is the only ordering in which having a fallback means anything.
+    const files = launchers(URL_, { platform: "win32", env: {} }).map((t: any) => t.file);
+    expect(files.indexOf("powershell.exe")).toBeLessThan(files.indexOf("cmd.exe"));
+  });
+
+  it("still gives cmd the empty title argument `start` needs", () => {
+    const viaCmd = launchers(URL_, { platform: "win32", env: {} }).find((t: any) => t.file === "cmd.exe");
     // The empty string is the window TITLE. Without it `start "http://…"` opens
     // a console window named after the URL and no browser at all, which is the
     // one mistake here that nothing on a Mac would ever reveal.
-    expect(first.args).toEqual(["/d", "/s", "/c", `start "" "${URL_}"`]);
+    expect(viaCmd.args).toEqual(["/d", "/s", "/c", `start "" "${URL_}"`]);
     // Without this Node quotes the line a second time and cmd.exe receives
     // something it cannot parse — the same reason exec.mjs's viaCmd sets it.
-    expect(first.opts).toEqual({ windowsVerbatimArguments: true });
+    expect(viaCmd.opts).toEqual({ windowsVerbatimArguments: true });
   });
 
-  it("keeps a way through when cmd.exe itself cannot be run", () => {
-    // A comspec pointing at something no longer there is the one way the line
-    // above fails on a machine that is otherwise fine, so the bare name the
-    // PATH would have answered comes next.
+  it("keeps a way through when comspec points somewhere that is gone", () => {
     const files = launchers(URL_, { platform: "win32", env: { ComSpec: "D:\\gone\\cmd.exe" } })
       .map((t: any) => t.file);
-    expect(files).toEqual(["D:\\gone\\cmd.exe", "cmd.exe", "powershell.exe"]);
+    expect(files).toEqual(["powershell.exe", "D:\\gone\\cmd.exe", "cmd.exe"]);
     // And not twice when comspec is already the bare name.
     expect(launchers(URL_, { platform: "win32", env: { ComSpec: "cmd.exe" } }).map((t: any) => t.file))
-      .toEqual(["cmd.exe", "powershell.exe"]);
-  });
-
-  it("hands PowerShell the URL as an argument, never inside a script string", () => {
-    const ps = launchers(URL_, { platform: "win32", env: {} }).find((t: any) => t.file === "powershell.exe");
-    // `-Command "Start-Process $url"` would put the URL into something
-    // PowerShell parses, where `;` and `&` are its own operators. As a separate
-    // argv entry it is a value and nothing else.
-    expect(ps.args).toEqual(["-NoProfile", "-NonInteractive", "-Command", "Start-Process", URL_]);
+      .toEqual(["powershell.exe", "cmd.exe"]);
   });
 
   it("honours comspec, because that is what Node does everywhere else here", () => {

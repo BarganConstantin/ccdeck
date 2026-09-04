@@ -78,18 +78,36 @@ export function launchers(url, { platform = process.platform, env = process.env,
   }
 
   if (platform === "win32") {
-    const first = startCommand(url, env);
-    const tries = [first];
-    // comspec is read before this, and a comspec pointing somewhere that is no
-    // longer there is the one way the line above fails on a machine that is
-    // otherwise fine. The bare name is what the PATH would have answered.
-    if (first.file.toLowerCase() !== "cmd.exe") tries.push(startCommand(url, env, "cmd.exe"));
-    // Last resort, and only reached if cmd.exe itself could not be run. Every
-    // supported Windows has one of these two.
-    tries.push({
+    // PowerShell FIRST, and this order is the one thing here that was decided by
+    // evidence rather than by taste.
+    //
+    // `open@10` — the dependency this file replaces — launches a Windows URL
+    // through `powershell -EncodedCommand` running `Start "<url>"`. That is what
+    // every ccdeck install on Windows has been using, so it is the path with a
+    // year of field evidence behind it and `cmd /c start` has none.
+    //
+    // And the fallback below cannot rescue a wrong first choice. `start` exits 0
+    // whether or not anything opened — measured on a real Windows 10 box, exit
+    // code 0 with no browser process created — so a candidate list that led with
+    // it would never reach a second candidate, however badly the first had done.
+    // Leading with the one whose failure is visible is the only ordering where
+    // having a fallback means anything.
+    //
+    // The cost is PowerShell's startup, a few hundred milliseconds, and it is
+    // paid by nobody: openUrl does not wait for the launcher and the boot does
+    // not wait for openUrl.
+    const tries = [{
       file: "powershell.exe",
+      // The URL as its own argv entry rather than inside a script string, where
+      // `;` and `&` are PowerShell's own operators.
       args: ["-NoProfile", "-NonInteractive", "-Command", "Start-Process", url],
-    });
+    }];
+    const viaCmd = startCommand(url, env);
+    tries.push(viaCmd);
+    // comspec is read by startCommand, and a comspec pointing somewhere that is
+    // no longer there is the one way that line fails on a machine which is
+    // otherwise fine. The bare name is what the PATH would have answered.
+    if (viaCmd.file.toLowerCase() !== "cmd.exe") tries.push(startCommand(url, env, "cmd.exe"));
     return tries;
   }
 
