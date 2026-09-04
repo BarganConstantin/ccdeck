@@ -623,7 +623,12 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // same markup either way.
   const [period, setPeriod] = useState<PeriodKey>("today");
   const [rangeRefresh, setRangeRefresh] = useState(0);
-  const { data: range, shown: shownPeriod, loading: rangeLoading, stale: rangeStale } =
+  // `loading` is deliberately not read here. What the reader needs to know is
+  // that the figures on screen are the PREVIOUS range's, which is `stale`; a
+  // refresh of the range already shown changes nothing they can act on, and
+  // dimming for it would make the panel flicker every five minutes on its own
+  // poll.
+  const { data: range, shown: shownPeriod, stale: rangeStale } =
     useUsageRange(period, rangeRefresh);
   const fromRange = range != null;
 

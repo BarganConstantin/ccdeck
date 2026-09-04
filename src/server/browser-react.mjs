@@ -20,6 +20,9 @@
 // The session that opened it is still attached and can still read every other
 // tab. Only quitting takes anything back.
 import { run } from "./exec.mjs";
+// The one table of process names, shared with the presence probe so the reaction
+// and the "is it running" answer can never disagree about what to look for.
+import { processName } from "./browser-presence.mjs";
 
 /** Reactions this platform can actually carry out, in the order the panel
  *  should offer them. Never a list the caller has to filter again. */
@@ -107,17 +110,29 @@ export async function notify(title, body, platform = process.platform, deps = {}
     return r?.ok === true;
   }
   if (platform === "win32") {
-    // PowerShell's own toast, through the same argv discipline: the strings go
-    // in as parameters rather than as script text.
+    // THE STRINGS GO THROUGH THE ENVIRONMENT, and the previous spelling could
+    // not have worked at all. PowerShell documents that a string `-Command`
+    // must be the LAST parameter: everything after it is appended to the
+    // command text. So `… -t <title> -b <body>` was not two parameters, it was
+    // more script — pasted after `…Show($x)`, where it failed to parse — and
+    // `param($t,$b)` cannot receive arguments through `-Command` in any case.
+    // The toast therefore never appeared on Windows, for the reaction that is
+    // the default.
+    //
+    // That mistake also put attacker-chosen text into a script. `body` carries
+    // `episode.host`, which is `new URL(row.url).host` out of the browser's own
+    // history — the whole premise of this feature is that somebody else may
+    // have opened that page. `$env:` reads it as data at runtime, which is the
+    // same discipline the argv paths above keep.
     const r = await exec("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
-      "param($t,$b); [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime];"
+      "[void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime];"
       + "$x = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(0);"
-      + "$n = $x.GetElementsByTagName('text'); $n.Item(0).AppendChild($x.CreateTextNode($t)) > $null;"
-      + "$n.Item(1).AppendChild($x.CreateTextNode($b)) > $null;"
+      + "$n = $x.GetElementsByTagName('text');"
+      + "$n.Item(0).AppendChild($x.CreateTextNode($env:CCDECK_TOAST_TITLE)) > $null;"
+      + "$n.Item(1).AppendChild($x.CreateTextNode($env:CCDECK_TOAST_BODY)) > $null;"
       + "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ccdeck').Show($x)",
-      "-t", title, "-b", body,
-    ]).catch(() => null);
+    ], { env: { ...process.env, CCDECK_TOAST_TITLE: title, CCDECK_TOAST_BODY: body } }).catch(() => null);
     return r?.ok === true;
   }
   const r = await exec("notify-send", [title, body]).catch(() => null);
@@ -151,11 +166,18 @@ export async function quitBrowser(browserKey, platform = process.platform, deps 
     ]).catch(() => null);
     return { ok: r?.ok === true, reason: r?.ok ? "quit" : "script_failed" };
   }
+  // NOT THE DISPLAY NAME WITH ITS SPACES REMOVED. `"Google Chrome"` became
+  // `GoogleChrome.exe` and `google-chrome`, and neither is a process on either
+  // platform — so this reaction was offered on Windows and Linux and could
+  // never once have worked. The names live in browser-presence, which is where
+  // the other probe reads them from, so the two cannot drift apart.
+  const proc = processName(browserKey, platform);
+  if (!proc) return { ok: false, reason: "unknown_browser" };
   if (platform === "win32") {
-    const r = await exec("taskkill", ["/IM", `${app.replace(/ /g, "")}.exe`, "/F"]).catch(() => null);
+    const r = await exec("taskkill", ["/IM", `${proc}.exe`, "/F"]).catch(() => null);
     return { ok: r?.ok === true, reason: r?.ok ? "quit" : "taskkill_failed" };
   }
-  const r = await exec("pkill", ["-x", app.toLowerCase().replace(/ /g, "-")]).catch(() => null);
+  const r = await exec("pkill", ["-x", proc]).catch(() => null);
   return { ok: r?.ok === true, reason: r?.ok ? "quit" : "pkill_failed" };
 }
 

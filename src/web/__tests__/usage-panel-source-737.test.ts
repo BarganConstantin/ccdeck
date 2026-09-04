@@ -93,8 +93,11 @@ describe("the period selector", () => {
     // ccusage against "all time" takes seconds. Nothing about the chips changes
     // while it does — they are the reader's intent, and a reader who hit the
     // wrong one must be able to correct it immediately.
-    expect(panel).not.toMatch(/disabled=\{rangeLoading\}/);
     expect(panel).not.toContain("up-period-busy");
+    // And nothing else reads `loading` either: a refresh of the range already
+    // on screen changes nothing the reader can act on, and dimming for it would
+    // make the panel flicker every five minutes on its own poll.
+    expect(panel).not.toContain("rangeLoading");
   });
 
   it("dims the figures, not the control, and with the token that means stale", () => {

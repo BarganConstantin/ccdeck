@@ -30,19 +30,64 @@ import { basename } from "node:path";
 import { browserRoots, hasExtension, profileDirs } from "./browser-profiles.mjs";
 import { run } from "./exec.mjs";
 
-/** The application name each browser's processes carry, for the probes below.
- *  Only the ones whose name is knowable; a root with no entry here is still
- *  reported as installed, just never as running. */
+/**
+ * The name each browser's processes carry — PER PLATFORM, because they do not
+ * agree.
+ *
+ * This used to be one table of macOS bundle display names, sent to all three
+ * probes. `tasklist /FI "IMAGENAME eq Google Chrome.exe"` matches nothing and
+ * exits **0** printing `INFO: No tasks are running…`, so the probe read
+ * `ok: true` and returned a confident `false`; `pgrep -x "Google Chrome"`
+ * matches against `comm`, which on Linux is `chrome`. Every browser on Windows
+ * and Linux therefore reported "not running", `relayLink` was never called, and
+ * the relay half of this panel was dead on two of the three platforms — while
+ * the module's own header forbids exactly that: a state that means "definitely
+ * not connected" when nothing established it.
+ *
+ * Arc is macOS-only and has no entry elsewhere, which is the honest answer: a
+ * root with no name here is reported as installed and never as running.
+ */
 const APP_NAME = {
-  chrome: "Google Chrome",
-  "chrome-beta": "Google Chrome Beta",
-  "chrome-canary": "Google Chrome Canary",
-  chromium: "Chromium",
-  brave: "Brave Browser",
-  edge: "Microsoft Edge",
-  vivaldi: "Vivaldi",
-  arc: "Arc",
+  darwin: {
+    chrome: "Google Chrome",
+    "chrome-beta": "Google Chrome Beta",
+    "chrome-canary": "Google Chrome Canary",
+    chromium: "Chromium",
+    brave: "Brave Browser",
+    edge: "Microsoft Edge",
+    vivaldi: "Vivaldi",
+    arc: "Arc",
+  },
+  // Image names, which is what tasklist's IMAGENAME filter compares against.
+  // The probe appends `.exe`, so these are spelled without it, exactly as the
+  // POSIX ones are.
+  win32: {
+    chrome: "chrome",
+    "chrome-beta": "chrome",
+    "chrome-canary": "chrome",
+    chromium: "chrome",
+    brave: "brave",
+    edge: "msedge",
+    vivaldi: "vivaldi",
+  },
+  // `comm`, which is what `pgrep -x` matches and what the packages install as.
+  linux: {
+    chrome: "chrome",
+    "chrome-beta": "chrome",
+    "chrome-canary": "chrome",
+    chromium: "chromium",
+    brave: "brave",
+    edge: "msedge",
+    vivaldi: "vivaldi-bin",
+  },
 };
+
+/** The process name for a browser on a platform, or null when this platform
+ *  has no name for it — which is a different answer from "not running". */
+export function processName(key, platform = process.platform) {
+  const table = APP_NAME[platform] ?? APP_NAME.linux;
+  return table[key] ?? null;
+}
 
 /** Every address the relay currently resolves to.
  *
@@ -139,7 +184,7 @@ export async function browserSurvey({
   for (const root of roots) {
     const installed = exists(root.root);
     const profiles = installed ? profileDirs(root.root, deps.fs) : [];
-    const app = APP_NAME[root.key] ?? null;
+    const app = processName(root.key, platform);
     const running = installed && app ? await isRunning(app, platform, deps) : false;
     out.push({
       key: root.key,
