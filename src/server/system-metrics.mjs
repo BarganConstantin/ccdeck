@@ -1096,9 +1096,21 @@ export async function readThermal(platform = process.platform) {
     const out = await run("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command", WIN_THERMAL_PS,
     ], 6_000);
-    if (!out) return null;
-    const answer = parseWinThermal(out.trim());
-    return answer.length ? { celsius: answer, throttle: null } : null;
+    const answer = out ? parseWinThermal(out.trim()) : [];
+    if (answer.length) return { celsius: answer, throttle: null };
+
+    // Windows itself had nothing, which on a modern Intel laptop is every time:
+    // the firmware declares no ACPI thermal zone and the sensors sit behind
+    // Intel DTT, which an ordinary process may not read. If something on this
+    // machine has already gone and got them — LibreHardwareMonitor, with its
+    // web server on — they are a plain HTTP read away. Never installed, never
+    // asked for. See hwmonitor.mjs.
+    const { readHwMonitorTemps } = await import("./hwmonitor.mjs");
+    const t = await readHwMonitorTemps();
+    const rows = [];
+    if (t.cpu != null) rows.push({ label: "CPU", celsius: t.cpu, warnAt: WARN_C, critAt: CRIT_C });
+    if (t.gpu != null) rows.push({ label: "GPU", celsius: t.gpu, warnAt: WARN_C, critAt: CRIT_C });
+    return rows.length ? { celsius: rows, throttle: null } : null;
   }
 
   return null;

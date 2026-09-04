@@ -100,6 +100,8 @@ That is a class of machine, not a fault: modern Intel laptops moved thermal mana
 
 Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. Its path is currently English-only; see [#747](https://github.com/BarganConstantin/ccdeck/issues/747).
 
+One thing does work on the machines above, and it costs you nothing to have: if **LibreHardwareMonitor** happens to be running with its web server on, the deck reads its numbers over plain HTTP on localhost, which needs no privileges. That is a read, not a request — the deck does not install it, will not ask you to, and shows no section if it is not there. It is mentioned only so nobody is surprised to see degrees appear on a machine that had none.
+
 ## How it works
 
 Two capture paths feed one SSE stream, which feeds one canvas.
