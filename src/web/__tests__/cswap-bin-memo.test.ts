@@ -46,10 +46,11 @@ vi.mock("node:fs", async (importOriginal) => {
 // @ts-expect-error — .mjs server module, no types
 const mod = await import("../../server/cswap-install.mjs") as {
   cswapBin: () => Promise<string>;
+  cswapVersion: () => Promise<string | null>;
   resetCswapBin: () => void;
   cswapCandidates: (platform?: string, env?: Record<string, string>, home?: string) => string[];
 };
-const { cswapBin, resetCswapBin, cswapCandidates } = mod;
+const { cswapBin, cswapVersion, resetCswapBin, cswapCandidates } = mod;
 
 const prevOverride = process.env.AGENTS_DECK_CSWAP;
 beforeEach(() => {
@@ -171,5 +172,73 @@ describe("AGENTS_DECK_CSWAP outranks all of it", () => {
     delete process.env.AGENTS_DECK_CSWAP;
     world.working.add("cswap");
     expect(await cswapBin()).toBe("cswap");
+  });
+});
+
+/**
+ * The other half of the same spawn (#742).
+ *
+ * Resolving the binary means running `cswap --version`. Reading the version
+ * means running `cswap --version`. Those were two child processes a moment
+ * apart, and `cswap` is a Python CLI that costs between one and two and a half
+ * seconds to start on the machine this was measured on — which made probing an
+ * ALREADY INSTALLED claude-swap the largest single thing in an ordinary boot.
+ *
+ * What is asserted is the pair: the immediate second spawn is gone, and nothing
+ * further out is answered from memory. A deck runs for days and may upgrade the
+ * tool underneath itself; a version read once at boot is not a version for the
+ * life of the process.
+ */
+describe("reading the version does not re-run the probe that just resolved it", () => {
+  it("answers from the resolving probe when it has only just happened", async () => {
+    world.working.add("cswap");
+    expect(await cswapBin()).toBe("cswap");
+    expect(world.probes).toEqual(["cswap"]);
+
+    expect(await cswapVersion()).toBe("0.25.0");
+    expect(world.probes, "the version came out of the probe that resolved the binary")
+      .toEqual(["cswap"]);
+  });
+
+  it("spawns for itself when nothing resolved a binary first", async () => {
+    // cswapVersion is also called on paths where the memo is cold — after an
+    // install, and from claude-accounts on a machine with no store. Those must
+    // still get a real answer.
+    world.working.add("cswap");
+    expect(await cswapVersion()).toBe("0.25.0");
+    // One to resolve, and none after it: the resolution's own output answered.
+    expect(world.probes).toEqual(["cswap"]);
+  });
+
+  it("goes back to the machine once the probe is no longer fresh", async () => {
+    // Five seconds is the window, and it exists to cover cswapBin handing
+    // straight over to cswapVersion. Anything later is a new question.
+    vi.useFakeTimers();
+    try {
+      world.working.add("cswap");
+      expect(await cswapBin()).toBe("cswap");
+      expect(await cswapVersion()).toBe("0.25.0");
+      expect(world.probes).toEqual(["cswap"]);
+
+      vi.advanceTimersByTime(6_000);
+      expect(await cswapVersion()).toBe("0.25.0");
+      expect(world.probes, "a later reader gets a fresh answer").toEqual(["cswap", "cswap"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forgets the probe when the resolution is reset", async () => {
+    // An install has just landed a different copy. Reporting the version the
+    // OLD one printed is exactly the confusion resetCswapBin exists to prevent.
+    world.working.add("cswap");
+    expect(await cswapVersion()).toBe("0.25.0");
+    resetCswapBin();
+    world.working.delete("cswap");
+    expect(await cswapVersion()).toBeNull();
+  });
+
+  it("still answers null for a machine that has no cswap at all", async () => {
+    expect(await cswapVersion()).toBeNull();
   });
 });
