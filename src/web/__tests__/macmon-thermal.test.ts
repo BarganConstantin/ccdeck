@@ -35,11 +35,32 @@ afterAll(() => { rmTempDir(DIR); });
 beforeEach(() => { resetMacmonBin(); });
 
 /** A macmon that is really on disk and really runs, so the spawn, the argv and
- *  the parse are all exercised rather than described. */
-function fakeMacmon(name: string, body: string): string {
-  const p = join(DIR, name);
-  writeFileSync(p, `#!/bin/sh\n${body}\n`);
-  chmodSync(p, 0o755);
+ *  the parse are all exercised rather than described.
+ *
+ *  Written in the runner's own shell rather than in `sh`, because the CI matrix
+ *  includes Windows and a `#!/bin/sh` file there is a text file: it has no
+ *  shebang support and no /bin/sh to honour one. The module under test is
+ *  macOS-only, but a test that quietly passed by not running is worse than one
+ *  that runs everywhere. `run` sends a `.cmd` through cmd.exe already — see
+ *  exec.mjs — so the caller needs to know nothing about this. */
+const WIN = process.platform === "win32";
+
+function fakeMacmon(name: string, lines: string[]): string {
+  const p = join(DIR, WIN ? `${name}.cmd` : name);
+  writeFileSync(p, WIN
+    ? `@echo off\r\n${lines.map(l => `echo ${l}`).join("\r\n")}\r\n`
+    : `#!/bin/sh\n${lines.map(l => `echo '${l}'`).join("\n")}\n`);
+  if (!WIN) chmodSync(p, 0o755);
+  return p;
+}
+
+/** The one fake that fails instead of printing. Its own helper, because "exit
+ *  with a code" is spelled differently on the two shells and threading that
+ *  through the line list above would be cleverer than it is clear. */
+function failingMacmon(name: string): string {
+  const p = join(DIR, WIN ? `${name}.cmd` : name);
+  writeFileSync(p, WIN ? "@echo off\r\nexit /b 3\r\n" : "#!/bin/sh\nexit 3\n");
+  if (!WIN) chmodSync(p, 0o755);
   return p;
 }
 
@@ -80,19 +101,19 @@ describe("asking the binary", () => {
   });
 
   it("runs it and reads what it printed", async () => {
-    const bin = fakeMacmon("macmon-ok", `echo '{"temp":{"cpu_temp_avg":51.8,"gpu_temp_avg":44.1}}'`);
+    const bin = fakeMacmon("macmon-ok", ['{"temp":{"cpu_temp_avg":51.8,"gpu_temp_avg":44.1}}']);
     expect(await readMacmonTemps({ candidates: [bin], exists: (p: string) => p === bin, probe: async (b: string) => b === bin }))
       .toEqual({ cpu: 52, gpu: 44 });
   });
 
   it("finds the JSON even if something spoke first", async () => {
-    const bin = fakeMacmon("macmon-noisy", `echo 'warming up'\necho '{"temp":{"cpu_temp_avg":40}}'`);
+    const bin = fakeMacmon("macmon-noisy", ["warming up", '{"temp":{"cpu_temp_avg":40}}']);
     expect(await readMacmonTemps({ candidates: [bin], exists: (p: string) => p === bin, probe: async (b: string) => b === bin }))
       .toEqual({ cpu: 40 });
   });
 
   it("answers nothing when the binary fails rather than letting it throw", async () => {
-    const bin = fakeMacmon("macmon-bad", "exit 3");
+    const bin = failingMacmon("macmon-bad");
     expect(await readMacmonTemps({ candidates: [bin], exists: (p: string) => p === bin, probe: async (b: string) => b === bin }))
       .toEqual({});
   });
@@ -110,7 +131,7 @@ describe("asking the binary", () => {
   });
 
   it("remembers the one it found, too", async () => {
-    const bin = fakeMacmon("macmon-memo", `echo '{"temp":{"cpu_temp_avg":33}}'`);
+    const bin = fakeMacmon("macmon-memo", ['{"temp":{"cpu_temp_avg":33}}']);
     let probes = 0;
     const deps = {
       candidates: [bin],
