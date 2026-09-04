@@ -94,10 +94,44 @@ const PARKED_PATH = join(homedir(), ".agents-deck", "parked-sound-hooks.json");
 const commandsOf = (entry) =>
   (entry?.hooks ?? []).map(h => (typeof h?.command === "string" ? h.command : ""));
 
+/**
+ * THE TAIL, NOT THE WHOLE PATH — and this is a data-loss fix, not a tidy-up.
+ *
+ * The stored command was written by `shellQuoteArg`, whose POSIX branch
+ * single-quotes the argument and rewrites every `'` as `'\''`. So on a config
+ * dir like `/mnt/Bob's SSD/claude` the command contains `Bob'\''s` and a
+ * `cmd.includes(NOTIFY_PATH)` against the raw path is false — on macOS and
+ * Linux, for a perfectly ordinary directory name.
+ *
+ * What follows is unrecoverable. A mark-less `Stop` entry — the case this
+ * module exists for — is then not recognised as ours, so it is kept; and
+ * `anythingStillNamesOurScripts`, which has no mark to fall back on, also says
+ * no, so the sweep deletes `notify.mjs`. Claude Code throws
+ * `Cannot find module` at the end of every turn afterwards, forever, with the
+ * deck already uninstalled.
+ *
+ * The last two segments are fixed whatever the prefix is — the install
+ * directory is always `<config dir>/agent-dag` — and they contain no character
+ * any quoting rewrites. Case is folded where the filesystem folds it, which is
+ * the other half: `exec.mjs`'s own `sameCommand` lowercases "because Windows
+ * paths are", and this comparison did not.
+ */
+const SCRIPT_TAILS = ["agent-dag/notify.mjs", "agent-dag/notify.js"];
+
+export function namesOurScript(cmd, platform = process.platform) {
+  if (typeof cmd !== "string" || cmd === "") return false;
+  // Backslashes become separators only where they ARE separators. On POSIX a
+  // backslash is an ordinary filename character, and rewriting it there could
+  // invent a match that the filesystem does not have.
+  let hay = platform === "win32" ? cmd.replace(/\\/g, "/") : cmd;
+  if (platform === "win32" || platform === "darwin") hay = hay.toLowerCase();
+  return SCRIPT_TAILS.some(tail => hay.includes(tail));
+}
+
 /** An entry this deck put there: by its mark, or by the script it runs. */
 function isOurs(entry) {
   if (entry?.[MARK] === true) return true;
-  return commandsOf(entry).some(cmd => OUR_SCRIPTS.some(p => cmd.includes(p)));
+  return commandsOf(entry).some(cmd => namesOurScript(cmd));
 }
 
 /** Anywhere in the file — not just `Stop` — that still runs one of our scripts.
@@ -109,7 +143,7 @@ function anythingStillNamesOurScripts(settings) {
   for (const group of Object.values(groups)) {
     if (!Array.isArray(group)) continue;
     for (const entry of group) {
-      if (commandsOf(entry).some(cmd => OUR_SCRIPTS.some(p => cmd.includes(p)))) return true;
+      if (commandsOf(entry).some(cmd => namesOurScript(cmd))) return true;
     }
   }
   return false;
