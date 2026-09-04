@@ -137,10 +137,29 @@ describe("the join to the canvas", () => {
     expect(css).toContain(".up-dot-past { visibility: hidden; }");
   });
 
+  it("says on the heading that a ccusage session row is a lifetime total", () => {
+    // ccusage's `--since` chooses WHICH sessions are listed and does not cut
+    // their figures to the window: session 07ac7b2b spans three days and
+    // reports the same $376.88 for "today" as for "all time", so today's rows
+    // summed to $4,391 under a headline of $839. The reader can see that
+    // arithmetic fail, so the scope goes on the heading and not in a tooltip.
+    expect(panel).toContain(">active {periodNoun}</span>");
+    expect(panel).toMatch(/title=\{`Sessions with activity \$\{periodNoun\}/);
+  });
+
   it("cuts the session list at twelve, after sorting by cost", () => {
     // A 280px column against a year of transcripts. The shaper sorts by cost,
     // so the cut keeps the spend worth looking at.
     expect(panel).toContain("ccSessionRows(range, boardNames).slice(0, 12)");
+  });
+
+  it("tells two sessions of the same project apart", () => {
+    // Parallel agents in one folder, or a deck restarted: both sessions come
+    // back under the same project name, and two identical labels carrying
+    // different money read as a bug in the panel rather than as two sessions.
+    // Only a repeated label pays for the uuid fragment.
+    expect(panel).toContain("`${r.label} ${r.sessionId.slice(0, 4)}`");
+    expect(panel).toContain("for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);");
   });
 });
 

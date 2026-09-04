@@ -633,9 +633,21 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // is a 280px column, and "all time" on a machine that has run coding CLIs for
   // a year is hundreds of sessions. The rows are sorted by cost before the cut,
   // so what survives is the spend worth looking at.
-  const rangeSessionRows = useMemo(
-    () => (fromRange ? ccSessionRows(range, boardNames).slice(0, 12) : []),
-    [range, fromRange, boardNames]);
+  const rangeSessionRows = useMemo(() => {
+    if (!fromRange) return [];
+    const rows = ccSessionRows(range, boardNames).slice(0, 12);
+    // Two sessions in the same folder is the normal case here — parallel
+    // agents, or one deck restarted — and both then arrive under the same
+    // project name. Identical rows carrying different figures read as a bug in
+    // the panel, so a repeated name takes the head of its session id. Only a
+    // repeated one: the common case is a list of distinct projects, and a uuid
+    // fragment on every row would be noise on a 280px column.
+    const seen = new Map<string, number>();
+    for (const r of rows) if (r.label) seen.set(r.label, (seen.get(r.label) ?? 0) + 1);
+    return rows.map(r => (r.label && (seen.get(r.label) ?? 0) > 1
+      ? { ...r, label: `${r.label} ${r.sessionId.slice(0, 4)}` }
+      : r));
+  }, [range, fromRange, boardNames]);
   const rangeSum = useMemo(() => rangeTotals(range), [range]);
 
   const periodNoun = PERIODS.find(p => p.key === period)?.noun ?? "today";
@@ -1066,7 +1078,25 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
 
           {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
             <section className="up-section">
-              <h3 className="up-section-title">By session</h3>
+              {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
+                  in a tooltip, because the reader can see the arithmetic fail
+                  without it. `--since` picks WHICH sessions appear; it does not
+                  cut their figures to the window. Measured on this machine:
+                  session 07ac7b2b spans Sep 2-4 and reports the same $376.88
+                  whether asked for today or for all time, and today's rows then
+                  sum to $4,391 under a day that cost $839.
+                  Both numbers are right and they answer different questions —
+                  "what did today cost" and "what has each session running today
+                  cost in total" — so the heading names the second one. */}
+              <h3 className="up-section-title">
+                By session
+                {fromRange && (
+                  <span
+                    className="up-section-age"
+                    title={`Sessions with activity ${periodNoun}, each showing what that session has cost since it started.\nA session that began earlier brings its whole total with it, so these rows can add up to more than the figure above.`}
+                  >active {periodNoun}</span>
+                )}
+              </h3>
               <div className="up-sessions">
                 {fromRange && rangeSessionRows.map(s => {
                   const live = boardStates.get(s.sessionId);
