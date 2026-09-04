@@ -48,7 +48,7 @@ const STORE_VERSION = 2;
  *  person could open and read. Trimmed oldest-first. */
 const KEEP = 500;
 
-export const storeDir = (home = claudeConfigDir()) => join(home, "agent-dag", "browser-watch");
+const storeDir = (home = claudeConfigDir()) => join(home, "agent-dag", "browser-watch");
 export const storePath = (home = claudeConfigDir()) => join(storeDir(home), "state.json");
 
 /** The plain-text log, which is the one file here a person opens themselves.

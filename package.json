@@ -1,7 +1,7 @@
 {
   "name": "agents-deck",
   "version": "3.2.1",
-  "description": "Live deck of Claude Code and Codex agents — watch tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
+  "description": "Live deck of Claude Code and Codex agents \u2014 watch tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
   "type": "module",
   "bin": {
     "agents-deck": "bin/agent-dag.js",
@@ -19,12 +19,13 @@
   ],
   "scripts": {
     "dev:web": "vite",
-    "build:web": "vite build",
     "dev:server": "node src/server/index.mjs",
     "start": "node bin/agent-dag.js",
     "build": "vite build",
     "test": "vitest run",
-    "prepublishOnly": "vite build"
+    "prepublishOnly": "vite build",
+    "prepack": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "engines": {
     "node": ">=18"
@@ -55,6 +56,8 @@
   },
   "homepage": "https://github.com/BarganConstantin/ccdeck#readme",
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
+    "@types/node": "^22.20.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

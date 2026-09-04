@@ -19,7 +19,7 @@
 // keeps that Escape here: this is rendered last so it paints over a session
 // summary that pops in from a Stop hook while the user is still deciding, and
 // the prompt on top must be the one the key closes.
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CONFIRM_LAYER } from "../modal-dismiss";
 import { clearCopy, readClearPlan, type ClearPlan } from "../clear-confirm";
 import { useModalDismiss } from "./use-modal-dismiss";

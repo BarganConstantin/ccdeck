@@ -399,10 +399,10 @@ export const PREVIEW_DELAY_MS = 160;
 // test cannot see, and the `agent-dag.*` boundary it guards is one this file
 // should be inside rather than invisible to.
 
-export const DONE_LEVEL_KEY = "agent-dag.soundLevel.done";
-export const ASKING_LEVEL_KEY = "agent-dag.soundLevel.needs-input";
-export const DONE_FIGURE_KEY = "agent-dag.soundFigure.done";
-export const ASKING_FIGURE_KEY = "agent-dag.soundFigure.needs-input";
+const DONE_LEVEL_KEY = "agent-dag.soundLevel.done";
+const ASKING_LEVEL_KEY = "agent-dag.soundLevel.needs-input";
+const DONE_FIGURE_KEY = "agent-dag.soundFigure.done";
+const ASKING_FIGURE_KEY = "agent-dag.soundFigure.needs-input";
 
 export const LEVEL_KEYS: Record<Chime, string> = {
   done: DONE_LEVEL_KEY,

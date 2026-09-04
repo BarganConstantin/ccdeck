@@ -1,7 +1,7 @@
 // UsagePanel — floating panel showing aggregated token usage and cost
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {

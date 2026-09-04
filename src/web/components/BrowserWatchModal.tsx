@@ -12,7 +12,7 @@
 // A panel that cries theft on the first card teaches its reader to close it,
 // and then it is worthless on the day it is right. It reports what a program
 // did and shows the evidence; the person reading it decides what it was.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import WatchRadar from "./WatchRadar";
 import type { Palette } from "../palette";
@@ -44,7 +44,7 @@ interface WatchProfile {
   lastWrittenMs: number | null;
 }
 
-export interface WatchSettings {
+interface WatchSettings {
   enabled: boolean;
   reaction: "notify" | "close-tab" | "quit-browser";
   quietMinutes: number;
@@ -52,7 +52,7 @@ export interface WatchSettings {
   windowDays: number;
 }
 
-export interface WatchLine {
+interface WatchLine {
   atMs: number;
   level: "find" | "act" | "ok" | "info" | "warn";
   text: string;
@@ -73,7 +73,7 @@ export interface WatchBrowser {
   relay: { state: "live" | "none-seen" | "unknown"; count: number; why: string };
 }
 
-export interface WatchSnapshot {
+interface WatchSnapshot {
   ok: true;
   settings: WatchSettings;
   reactions: WatchSettings["reaction"][];
@@ -152,7 +152,7 @@ export function watchedBrowsers(browsers: WatchBrowser[] | undefined): WatchBrow
  * flickering while the countdown counts: `counting` holds for fourteen minutes
  * while its own last characters move every second.
  */
-export function modeState(
+function modeState(
   snap: { settings: { enabled: boolean } },
   saving: boolean,
 ): { kind: "saving" | "off" | "on"; word: string; detail: string } {
@@ -442,10 +442,7 @@ export default function BrowserWatchModal({
   }, [snap]);
 
   const watching = watchedBrowsers(snap?.browsers);
-  const live = watching.filter(b => b.running).map(b => b.name);
   const rest = (snap?.browsers ?? []).filter(b => !(b.installed && b.profiles > 0));
-  /** The newest of the per-profile read stamps, so the disc can say how fresh
-   *  the picture under it is rather than leaving the reader to guess. */
   const trouble = snap ? watchTrouble(snap) : null;
   /** Watched profiles, summed — the header's scope line, which is the shortest
    *  true answer to "how much is this looking at". */
@@ -454,10 +451,6 @@ export default function BrowserWatchModal({
    *  decides rather than in the toolbar, where it was a third idea competing
    *  with the mode and its count. */
   const gate = snap ? armsIn(snap.coverage.lastHumanMs, snap.coverage.quietMs, tick) : null;
-  const lastRead = (snap?.profiles ?? []).reduce<number | null>(
-    (best, p) => (p.lastWrittenMs !== null && (best === null || p.lastWrittenMs > best) ? p.lastWrittenMs : best),
-    null,
-  );
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">

@@ -1,0 +1,21 @@
+{
+  // WHAT `npm run typecheck` CHECKS: the code that ships.
+  //
+  // The suite is deliberately outside it. Those files import the server's `.mjs`
+  // modules — which carry no types by design, and are annotated
+  // `@ts-expect-error` at each import — so type-checking them produces ~200
+  // TS7016s that say nothing about whether the app is sound. A check nobody can
+  // read is a check nobody runs.
+  //
+  // The app itself is clean under `strict`, and this is what makes that a fact
+  // rather than an accident: before this file, nothing in the repo ran `tsc` at
+  // all, in CI or out of it.
+  "extends": "./tsconfig.json",
+  // vite.config.ts is out too, and for a duller reason than the suite: its
+  // `test` block is vitest's, vite's own `defineConfig` overload does not know
+  // that key, and the two packages' `Plugin` types are not currently
+  // assignable to each other. It is a build file, it does not ship, and the
+  // build itself is what proves it works.
+  "include": ["src/web"],
+  "exclude": ["src/web/__tests__"]
+}

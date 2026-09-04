@@ -662,7 +662,7 @@ export const MAX_SCAN_CHUNK = 8 * 1024 * 1024;
 // pointing one POST at something arbitrarily large: the read still terminates,
 // the cursor keeps whatever it reached, and the next throttled pass continues
 // from there.
-export const MAX_SCAN_BYTES_PER_PASS = 256 * 1024 * 1024;
+const MAX_SCAN_BYTES_PER_PASS = 256 * 1024 * 1024;
 
 const NEWLINE = 0x0a;
 
@@ -1458,7 +1458,7 @@ const pendingNameReads = new Set();     // sid currently being read
 /** The naming the cursor has folded so far, or null when the scan has nothing.
  *  Exported beside readContextFromTranscript for the same reason: the rule is
  *  worth pinning directly rather than through a live server. */
-export async function readSessionNamingFromTranscript(path) {
+async function readSessionNamingFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
   if (!state.agentName && !state.aiTitle) return null;

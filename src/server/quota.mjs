@@ -35,6 +35,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { PRODUCT } from "./brand.mjs";
+// One ANSI stripper for the whole deck. The private copy that used to live
+// here accepted only the BEL terminator for an OSC sequence, while term.mjs's
+// also accepts ESC \\ — so a hyperlink written the other legal way survived
+// into text this module then parsed for quota lines.
+import { stripAnsi } from "./term.mjs";
 import { resetLabelIso } from "./reset-label.mjs";
 
 const USAGE_URL   = "https://api.anthropic.com/api/oauth/usage";
@@ -82,6 +87,19 @@ async function readOAuthToken() {
     return null;
   }
 }
+
+/**
+ * Whether we may spend a request of the user's budget right now.
+ *
+ * Exported for tests — this is the rule that stopped the deck from starving
+ * claude-swap, and it is worth pinning down.
+ */
+export function maySelfPoll({ now, force, lastSelfPollAt, rateLimitedUntil }) {
+  if (now < rateLimitedUntil) return false;
+  return now - lastSelfPollAt >= (force ? FORCE_POLL_MS : SELF_POLL_MS);
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 /**
  * A cooldown from a `retry-after`, kept inside limits the deck can live with.
@@ -288,25 +306,6 @@ export function quotaFromStore(entry) {
   return out;
 }
 
-/**
- * Whether we may spend a request of the user's budget right now.
- *
- * Exported for tests — this is the rule that stopped the deck from starving
- * claude-swap, and it is worth pinning down.
- */
-export function maySelfPoll({ now, force, lastSelfPollAt, rateLimitedUntil }) {
-  if (now < rateLimitedUntil) return false;
-  return now - lastSelfPollAt >= (force ? FORCE_POLL_MS : SELF_POLL_MS);
-}
-
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-function stripAnsi(s) {
-  return s
-    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, "")
-    .replace(/\x1B\][^\x07]*\x07/g, "")
-    .replace(/\x1B[()][AB012]/g, "");
-}
 
 // Parse "Jun 18, 4:09pm" (local time, no tz) into unix seconds.
 // Claude shows times in the user's local timezone, so parsing as local is correct.

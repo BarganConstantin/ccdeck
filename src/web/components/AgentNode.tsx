@@ -86,7 +86,7 @@ export function costBreakdownTooltip(usage: TokenUsage, modelId: string | undefi
  *  and without the footer a reader has no way to see that the two were added
  *  rather than one of them chosen — which is precisely the mistake this whole
  *  change is about. */
-export function agentCostTooltip(a: UsageBearing): string {
+function agentCostTooltip(a: UsageBearing): string {
   const entries = usageByModelEntries(a);
   if (entries.length <= 1) return costBreakdownTooltip(a.usage, a.model);
   return [

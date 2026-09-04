@@ -5,7 +5,7 @@
 //
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fmtCost } from "../pricing";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { createLatestGuard } from "../latest";

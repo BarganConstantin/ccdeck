@@ -17,7 +17,7 @@
 // ending a process is not an action this deck should own. The header says "55
 // of 531" for the same reason: this is the busiest slice, and a list that let
 // you believe it was the whole machine would be lying about what it can answer.
-import React, { useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import {

@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   celsiusFromMilli, gpuFromIoreg, pickThermalRows, readHwmon, readThermal,
-  readThermalZones, sampleThermal, stopSystemMetrics, tempFromMsAcpiJson, throttleFromPmset,
+  parseWinThermal, readThermalZones, sampleThermal, stopSystemMetrics, throttleFromPmset,
 } from "../../server/system-metrics.mjs";
 import { thermalTone, throttleRow } from "../components/SystemMeter";
 
@@ -282,39 +282,44 @@ Note: No performance warning level has been recorded
   });
 });
 
+/** The MSAcpi rows as the deck's own PowerShell projects them: `{i, v}`, the
+ *  same two keys the performance counter uses, which is why one parser reads
+ *  both and the dedicated MSAcpi parser is gone. `parseWinThermal` is the live
+ *  entry point, and it prefers `perf` — so a case about the ACPI fallback has
+ *  to send `perf` empty, exactly as the script does. */
+const acpi = (rows: unknown) => parseWinThermal({ perf: [], acpi: rows });
+
 describe("the Windows reading, whose unit is the whole branch", () => {
   it("converts tenths of a Kelvin, which nothing else in this file uses", () => {
     // 3032 tenths of a Kelvin is 30.05°C. Reading it as anything else gives a
     // number that looks plausible and is wrong.
-    const json = '[{"InstanceName":"ACPI\\\\ThermalZone\\\\TZ00_0","CurrentTemperature":3032}]';
-    expect(tempFromMsAcpiJson(json)).toEqual([{ label: "Thermal zone", celsius: 30, warnAt: 75, critAt: 90 }]);
+    expect(acpi([{ i: "ACPI\\ThermalZone\\TZ00_0", v: 3032 }]))
+      .toEqual([{ label: "Thermal zone", celsius: 30, warnAt: 75, critAt: 90 }]);
   });
 
   it("names a zone only when there is more than one to tell apart", () => {
     // ACPI does not say which zone is the CPU, and this module does not guess.
     // `TZ01` is not a friendly label; it is an honest one, and it only appears
     // on a machine that has something to disambiguate.
-    const json = JSON.stringify([
-      { InstanceName: "ACPI\\ThermalZone\\TZ00_0", CurrentTemperature: 3132 },
-      { InstanceName: "ACPI\\ThermalZone\\TZ01_0", CurrentTemperature: 3232 },
-    ]);
-    expect(tempFromMsAcpiJson(json).map(r => r.label)).toEqual(["TZ00", "TZ01"]);
+    expect(acpi([
+      { i: "ACPI\\ThermalZone\\TZ00_0", v: 3132 },
+      { i: "ACPI\\ThermalZone\\TZ01_0", v: 3232 },
+    ]).map(r => r.label)).toEqual(["TZ00", "TZ01"]);
   });
 
   it("takes a lone object, which is what ConvertTo-Json gives for one row", () => {
     // The same shape trap parseGetProcessJson documents: PowerShell emits an
     // object rather than a one-element array.
-    expect(tempFromMsAcpiJson({ InstanceName: "ACPI\\ThermalZone\\TZ00_0", CurrentTemperature: 3132 }))
-      .toHaveLength(1);
+    expect(acpi({ i: "ACPI\\ThermalZone\\TZ00_0", v: 3132 })).toHaveLength(1);
   });
 
   it("returns nothing rather than throwing when the class is not there", () => {
     // Genuinely absent on a large share of desktop boards — the same lesson
     // parseGetProcessJson learned about perflib. Absent is ordinary here.
-    expect(tempFromMsAcpiJson("")).toEqual([]);
-    expect(tempFromMsAcpiJson("Get-CimInstance: Invalid namespace")).toEqual([]);
-    expect(tempFromMsAcpiJson(null)).toEqual([]);
-    expect(tempFromMsAcpiJson([{ InstanceName: "x", CurrentTemperature: null }])).toEqual([]);
+    expect(parseWinThermal("")).toEqual([]);
+    expect(parseWinThermal("Get-CimInstance: Invalid namespace")).toEqual([]);
+    expect(parseWinThermal(null)).toEqual([]);
+    expect(acpi([{ i: "x", v: null }])).toEqual([]);
   });
 });
 

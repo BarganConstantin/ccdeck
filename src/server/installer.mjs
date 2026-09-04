@@ -794,4 +794,4 @@ export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
 // repo for the same reasons settings.json is, and "never rename onto a link" is
 // one rule: codex-auth.mjs called a realpath of its own before this existed, and
 // two spellings of a rule are two things that can drift.
-export { readSettingsForWrite, writeFileAtomic, installScript, renameWithRetry, createTemp, resolveWriteTarget };
+export { readSettingsForWrite, writeFileAtomic, renameWithRetry, createTemp, resolveWriteTarget };

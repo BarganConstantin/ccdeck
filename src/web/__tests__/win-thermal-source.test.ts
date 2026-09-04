@@ -27,7 +27,7 @@
 import { describe, it, expect } from "vitest";
 
 // @ts-expect-error — a plain .mjs module, no types
-const { parseWinThermal, tempFromPerfCounterJson, tempFromMsAcpiJson, zoneLabel, WIN_THERMAL_PS } =
+const { parseWinThermal, tempFromPerfCounterJson, zoneLabel, WIN_THERMAL_PS } =
   await import("../../server/system-metrics.mjs");
 
 /** 313.15 K = 40 °C, in the tenths of a Kelvin both sources report. */
@@ -133,11 +133,14 @@ describe("MSAcpi, the second source", () => {
     expect(acpiOnly.map((r: any) => r.celsius)).toEqual([70]);
   });
 
-  it("still parses on its own, for the caller that has only its shape", () => {
-    // tempFromMsAcpiJson keeps its own entry point and its own field names.
-    expect(tempFromMsAcpiJson(JSON.stringify([
-      { InstanceName: "ACPI\\ThermalZone\\TZ00_0", CurrentTemperature: K10(38) },
-    ]))).toEqual([{ label: "Thermal zone", celsius: 38, warnAt: 75, critAt: 90 }]);
+  it("reads the ACPI rows through the one parser, since they carry the same two keys", () => {
+    // There used to be a second parser here, `tempFromMsAcpiJson`, with its own
+    // entry point and the raw WMI field names. The PowerShell projects those
+    // rows to `{i, v}` before they ever reach JavaScript — the same shape the
+    // performance counter uses — so the second parser had no caller, and this
+    // case asserted that a dead entry point still worked.
+    expect(parseWinThermal({ perf: [], acpi: [{ i: "ACPI\\ThermalZone\\TZ00_0", v: K10(38) }] }))
+      .toEqual([{ label: "Thermal zone", celsius: 38, warnAt: 75, critAt: 90 }]);
   });
 });
 

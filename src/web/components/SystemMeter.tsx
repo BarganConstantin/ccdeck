@@ -217,7 +217,7 @@ export function throttleRow(
  * be a precision the reading does not have, and the question this answers is
  * "recently, or this morning" rather than "exactly when".
  */
-export function sinceLabel(atMs: number, now = Date.now()): string {
+function sinceLabel(atMs: number, now = Date.now()): string {
   const mins = Math.max(0, Math.floor((now - atMs) / 60_000));
   if (mins < 2) return "just now";
   if (mins < 60) return `${mins} minutes ago`;

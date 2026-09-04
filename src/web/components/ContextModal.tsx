@@ -11,7 +11,7 @@
 // composition counts are not available at all, because there is no transcript to
 // scan and the rollout watcher skips a session's history when it attaches. That
 // section says so instead of printing five zeroes (#399).
-import React, { useRef } from "react";
+import { useRef } from "react";
 import type { AgentNodeData, Provider } from "../types";
 import { fmtCost, effectiveContextWindow } from "../pricing";
 import { agentCost } from "../usage-models";
@@ -225,9 +225,8 @@ interface DonutProps {
   contextWindow?: number;
   size?: number;
   onClick?: () => void;
-  title?: string;
 }
-export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 26, onClick, title }: DonutProps) {
+export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 26, onClick }: DonutProps) {
   const window = effectiveContextWindow(contextWindow, modelId);
   const pct = Math.min(1, currentContextTokens / window);
   const r = size / 2 - 3;
@@ -241,7 +240,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       type="button"
       className="ctx-donut"
       onClick={onClick}
-      title={title ?? `context: ${currentContextTokens.toLocaleString()} / ${window.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}
+      title={`context: ${currentContextTokens.toLocaleString()} / ${window.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}
       aria-label="Show context breakdown"
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

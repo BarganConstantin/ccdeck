@@ -51,7 +51,15 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 });
 
 // @ts-expect-error — plain JS module, no types
-const { shareAccount } = await import("../../server/cswap-admin.mjs");
+const { shareAccounts } = await import("../../server/cswap-admin.mjs");
+
+/** The single-account share, as the route spells it.
+ *
+ *  There used to be a `shareAccount(n)` wrapper for exactly this, and nothing
+ *  called it: index.mjs sends both shapes to `shareAccounts`, with a comment
+ *  saying so. Keeping the wrapper alive for this file's sake would have been a
+ *  second code path tested and never run. */
+const shareAccount = (n: unknown) => shareAccounts([n] as never);
 
 // One line of a truncated `json.dumps(envelope, indent=2)`: the refresh token,
 // alone, exactly as it would sit in the middle of the document.

@@ -27,7 +27,7 @@
 //
 // Canvas rather than SVG: the sweep is a gradient arc redrawn sixty times a
 // second, and a DOM node per frame is the wrong shape for that.
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { Palette } from "../palette";
 
 /** Whether the ground this is drawn on is a light one, from the palette's own

@@ -7,7 +7,7 @@
 // directly would rate-limit the user's actual account. That has a visible
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AddAccountDialog from "./AddAccountDialog";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";

@@ -24,7 +24,6 @@ type Props = {
   /** What to burst from — usually the success mark, which is an SVG. */
   anchor: React.RefObject<Element | null>;
   /** Milliseconds before the whole thing removes itself. */
-  lifetimeMs?: number;
 };
 
 const COUNT = 18;
@@ -60,7 +59,7 @@ const PARTICLES = Array.from({ length: COUNT }, (_, i) => {
   };
 });
 
-export default function Confetti({ anchor, lifetimeMs = LIFETIME_MS }: Props) {
+export default function Confetti({ anchor }: Props) {
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
 
   // Motion sickness is a real cost and a burst is pure decoration, so a reduced
@@ -74,9 +73,9 @@ export default function Confetti({ anchor, lifetimeMs = LIFETIME_MS }: Props) {
     if (!el) return;
     const r = el.getBoundingClientRect();
     setOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-    const t = window.setTimeout(() => setOrigin(null), lifetimeMs);
+    const t = window.setTimeout(() => setOrigin(null), LIFETIME_MS);
     return () => window.clearTimeout(t);
-  }, [anchor, lifetimeMs, reduced]);
+  }, [anchor, reduced]);
 
   if (reduced || !origin) return null;
 

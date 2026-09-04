@@ -162,15 +162,17 @@ function call(port: number, path: string, method: "GET" | "POST", token?: string
 
 const bytes = (p: string) => (existsSync(p) ? statSync(p).size : 0);
 const logLines = (p: string) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").filter(Boolean).length : 0);
-const canvas = async (port: number) => {
-  // The deck's own data needs the deck's own token from a client that is not a
-  // browser, which every call in this file is.
-  const { raw } = await call(port, "/api/events", "GET", hookToken());
+const canvas = async (deck: { port: number; token: string }) => {
+  // THAT deck's token, not this process's. The guarded-read gate wants the
+  // deck's own credential from a client that is not a browser, and the two
+  // decks here are separate PROCESSES with separate tokens — `hookToken()` in
+  // the test would be a third one, belonging to neither.
+  const { raw } = await call(deck.port, "/api/events", "GET", deck.token);
   const parsed = JSON.parse(raw);
   return (Array.isArray(parsed) ? parsed : parsed.events) as { payload: { hook_event_name?: string } }[];
 };
-const hookEvents = async (port: number) =>
-  (await canvas(port)).filter(e => e.payload?.hook_event_name !== "__clear").length;
+const hookEvents = async (deck: { port: number; token: string }) =>
+  (await canvas(deck)).filter(e => e.payload?.hook_event_name !== "__clear").length;
 
 async function until(ok: () => boolean | Promise<boolean>, what: string, tries = 600) {
   for (let i = 0; i < tries; i++) {
@@ -215,9 +217,9 @@ beforeAll(async () => {
   // and the skip-register audit then fails on top, hiding the cause twice over.
   // A bounded wait that gives up quietly, plus a named assertion below, says
   // what went wrong.
-  await until(async () => (await hookEvents(scoped.port)) >= 5, "the scoped deck to draw the five", 200)
+  await until(async () => (await hookEvents(scoped)) >= 5, "the scoped deck to draw the five", 200)
     .catch(() => {});
-  scopedBefore = await hookEvents(scoped.port);
+  scopedBefore = await hookEvents(scoped);
   linesBefore = logLines(SHARED);
 }, 90_000);
 
@@ -267,7 +269,7 @@ describe("Clear on a deck that does not own the shared log", () => {
   });
 
   it("leaves the other deck's canvas and its ability to replay intact", async () => {
-    expect(await hookEvents(wide.port), "the machine-wide deck's canvas").toBe(5);
+    expect(await hookEvents(wide), "the machine-wide deck's canvas").toBe(5);
     // The half the reporter could not see: what a restart of that deck would
     // rebuild. Every one of the five events is still on disk to be replayed.
     const replayable = readFileSync(SHARED, "utf8").split("\n").filter(Boolean)
@@ -282,7 +284,7 @@ describe("Clear on a deck that does not own the shared log", () => {
     // The first assertion is not ceremony: it is what stops the second one from
     // passing on a board that had nothing on it to begin with. The clear that
     // empties this canvas happened in the first case of this block.
-    expect(await hookEvents(scoped.port), "the scoped deck's own canvas").toBe(0);
+    expect(await hookEvents(scoped), "the scoped deck's own canvas").toBe(0);
   });
 
   it("says whose log it declined to empty, in the answer and in the plan", async () => {
@@ -327,7 +329,7 @@ describe("Clear on the deck that does own it", () => {
     // file does not already say, and appending it was how a deck that writes
     // nothing else still left bytes in a file it did not own.
     expect(bytes(SHARED)).toBe(0);
-    expect(await hookEvents(wide.port), "the owner's canvas").toBe(0);
+    expect(await hookEvents(wide), "the owner's canvas").toBe(0);
   });
 
   it("counts the decks that lose their history with it", async () => {

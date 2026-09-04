@@ -27,12 +27,12 @@
 // is running, so a deck that was closed all weekend still answers Monday's
 // question completely — which is why there is no process to keep alive and no
 // gap to apologise for.
-import { readFileSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
-import { readVisitsSince } from "./browser-history.mjs";
+import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
 import { appendLog, logPath, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
@@ -299,7 +299,7 @@ function note(level, text, atMs = Date.now(), parts = null) {
   if (logLines.length > LOG_MAX) logLines.length = LOG_MAX;
 }
 
-export function watchLog() {
+function watchLog() {
   return logLines.slice();
 }
 
@@ -529,9 +529,11 @@ export async function browserWatchSnapshot({
   // it re-read and re-copied every database on every request while looking
   // perfectly correct, because only the cost was wrong.
   const sinceMs = STARTED_MS;
-  // Chrome counts microseconds from 1601. Built here rather than imported so the
-  // window is one expression the reader can check against the reader's own.
-  const sinceChromeTime = String((BigInt(sinceMs) + 11644473600000n) * 1000n);
+  // Chrome counts microseconds from 1601, and `msToChromeTime` is where that
+  // conversion lives — its own doc names this caller. The inline copy that used
+  // to stand here duplicated both constants and, unlike the helper, had no
+  // guard for a non-finite input: it threw where the helper returns "0".
+  const sinceChromeTime = msToChromeTime(sinceMs);
 
   const exclude = defaultExclusions(deckOrigins);
   const opts = {};

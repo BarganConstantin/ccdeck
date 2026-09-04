@@ -1,4 +1,3 @@
-import React from "react";
 import { fmtCost, type CostBreakdown } from "../pricing";
 
 // The stacked cost bar, once, for the three panels that draw it.

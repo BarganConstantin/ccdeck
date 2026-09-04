@@ -2,7 +2,7 @@
 // hook) and shows a recap: total cost + breakdown bar, duration, model,
 // agent / tool / prompt counts, top tools used. User-dismissed sessions
 // don't re-open on refresh (the dismissed list is in localStorage).
-import React, { useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { costForUsage, fmtCost } from "../pricing";
 import { SESSION_SPEND_LABEL } from "../board-usage";
 import { agentCost, agentModelIds } from "../usage-models";

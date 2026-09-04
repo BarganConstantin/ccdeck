@@ -25,9 +25,11 @@
 # like it did nothing: a file ALREADY IN GIT WITH CRLF is exempt from
 # conversion on both checkin and checkout, `eol` included. Adding this file
 # fixes nothing for such content — `git add --renormalize .` does, once, from a
-# clean tree. There is none here: `git ls-files --eol` reports `i/lf` for all
-# 323 tracked files and `-text` for the screenshot, so this rule takes effect
-# on the next checkout everywhere and rewrites nothing that is committed.
+# clean tree. There is none here: `git ls-files --eol` reports `i/lf` for every
+# tracked file except the two PNGs under assets/, which are `-text`, so this
+# rule takes effect on the next checkout everywhere and rewrites nothing that is
+# committed. Deliberately not a count: the last one drifted by 170 files and
+# said "the screenshot" when there were two.
 * text=auto eol=lf
 
 *.png binary

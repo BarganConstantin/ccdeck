@@ -46,10 +46,13 @@ describe("reading a child's output", () => {
     // multi-byte character split across two of them became two replacement
     // characters: `Яндекс Музыка` rendered as `Ян��екс Музыка`.
     const metrics = read("../../server/system-metrics.mjs");
-    expect(metrics).toContain('child.stdout?.setEncoding("utf8");');
+    expect(metrics).toContain('child.stdout?.setEncoding?.("utf8");');
     const exec = read("../../server/exec.mjs");
-    expect(exec).toContain('cp.stdout?.setEncoding("utf8");');
-    expect(exec).toContain('proc.stdout?.setEncoding("utf8");');
+    // The optional CALL, not just the optional chain: a test double's stream
+    // is an EventEmitter with no setEncoding, and a hard call there turns every
+    // fake-child case in the suite into a TypeError.
+    expect(exec).toContain('cp.stdout?.setEncoding?.("utf8");');
+    expect(exec).toContain('proc.stdout?.setEncoding?.("utf8");');
   });
 
   it("does not open a stderr pipe nobody drains", () => {

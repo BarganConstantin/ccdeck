@@ -710,8 +710,8 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
         // wherever the pipe broke, and a multi-byte character split across two
         // of them becomes two replacement characters in the tail this keeps for
         // the timeout message.
-        cp.stdout?.setEncoding("utf8");
-        cp.stderr?.setEncoding("utf8");
+        cp.stdout?.setEncoding?.("utf8");
+        cp.stderr?.setEncoding?.("utf8");
         cp.stdout?.on("data", (d) => { sawOut = (sawOut + d).slice(-TIMEOUT_TAIL); });
         cp.stderr?.on("data", (d) => { sawErr = (sawErr + d).slice(-TIMEOUT_TAIL); });
         // The deadline states the outcome itself and only then kills, which is
@@ -887,8 +887,8 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // Same reason as `run`'s tails: the login prompt this reader is waiting for
     // arrives mid-chunk, and a UTF-8 sequence cut by a pipe boundary must not
     // become two replacement characters in the line it emits.
-    proc.stdout?.setEncoding("utf8");
-    proc.stderr?.setEncoding("utf8");
+    proc.stdout?.setEncoding?.("utf8");
+    proc.stderr?.setEncoding?.("utf8");
     proc.stdout?.on("data", (d) => { if (stale()) return; const t = String(d); stdout = keep(stdout, t); emitLines(t); });
     proc.stderr?.on("data", (d) => { if (stale()) return; const t = String(d); stderr = keep(stderr, t); emitLines(t); });
     proc.on("close", (code) => {

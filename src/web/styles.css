@@ -2042,13 +2042,6 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    × and the / hint, which share the input's right inset — this has to take
    width of its own or a two-digit total would sit under them. */
 
-/* Zero matches. Sits with the category bar rather than over the middle of the
-   canvas: the board behind it is still the user's, and the point is to name the
-   filter, not to replace what it is filtering. */
-:root[data-theme="light"] .search-empty {
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 6px 18px rgba(15,23,42,0.10);
-}
 
 /* ---------------- connection banner ---------------- */
 .conn-banner {
@@ -5008,8 +5001,6 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-bottom-color: rgba(185,28,28,0.45);
 }
 
-/* search clear button is muted-gray on white — bump it */
-:root[data-theme="light"] .search-clear { color: var(--muted); }
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */
 :root[data-theme="light"] .react-flow__edge-path { stroke: rgba(3,105,161,0.40); }
@@ -7263,8 +7254,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-body > * { flex: none; }
 
 
-.bw-foreign { font-size: 11px; color: var(--warn); }
-.bw-foreign code { display: block; color: var(--muted); font-size: 11px; }
 
 
 /* The dashed centred card that used to live here is gone. It was a second
@@ -7340,8 +7329,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   white-space: nowrap;
 }
 .bw-ep-head:hover .bw-ep-count { color: var(--text); }
-.bw-ep-chev { font-size: 9px; color: var(--muted); width: 10px; text-align: center; }
-.bw-ep-head:hover .bw-ep-chev { color: var(--text); }
 
 .bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 4px; }
 /* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
@@ -7381,7 +7368,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bw-status-dim { color: var(--muted); }
 /* One `auto` in the row, on the first of the two controls: it pushes the pair
    to the far end together, so the state reads from the left edge and the gear
    and the switch sit side by side at the right. Two of them would have split
@@ -7389,10 +7375,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-gear { margin-left: auto; }
 .bw-gear.on { color: var(--accent); }
 
-/* The half of the subtitle that answers "where does this go" — the question a
-   first-time reader of a browsing watcher actually has, and the one the old
-   subtitle did not touch. Dimmer than the sentence it qualifies. */
-.bw-local { color: var(--text-dim); }
 /* The panel's primary control, and the whole label operates it. Padded so the
    band a pointer has to hit is 32px tall rather than the switch's own 17 —
    the size of the target, not of the drawing, is what a hand has to find. */
@@ -7433,22 +7415,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-row-detail { font-size: 12px; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .bw-row .btn { white-space: nowrap; }
 
-/* The command, behind a press. `user-select: all` so one click takes the whole
-   of it, and it wraps at spaces rather than mid-word — `word-break: break-all`
-   once split `killall` as `k illall`, which reads as a corrupted command in
-   the one string this app asks anyone to run as root. */
-.bw-cmd { background: var(--bg-soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-.bw-cmd code {
-  display: block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: normal;
-  user-select: all;
-}
 
 .bw-why {
   background: none;
@@ -7652,22 +7618,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-log-value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bw-log-flag { color: var(--accent); }
 
-/* One column per day of the window, standing on a continuous baseline.
-   
-   The baseline is the whole trick. Four bars floating in space with nothing
-   between them read as four unrelated marks; the same four standing on a line
-   that runs the width of the window read as four days out of thirty. The empty
-   days are not drawn at all — the line already says they are there, and a faint
-   tick per day was invisible at this height anyway. */
-/* A row of day cells rather than a bar chart. At this width thirty columns are
-   thirty pixels each, so a bar carrying its count in HEIGHT is wider than it is
-   tall and reads as a block anyway — the shape was fighting the space. Uniform
-   cells, presence in the fill and the count in the opacity, reads as what it is:
-   a timeline of the window with four days marked on it. */
-.bw-chart { display: flex; gap: 2px; height: 10px; }
-.bw-chart-day { flex: 1; min-width: 2px; border-radius: 2px; background: var(--line-soft); }
-.bw-chart-day.hit { background: var(--accent); }
-.bw-chart-day.hit.many { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* Every browser the deck knows how to look at, installed or not — the absent
    ones dimmed rather than dropped, because "not installed" and "installed and
@@ -7756,16 +7706,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   color: var(--text);
   font-weight: 600;
   animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-/* Tabular, and its own colour: the countdown's last characters move every
-   second, and a proportional face makes the whole line twitch with them. */
-.bw-mode-detail {
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* Fires when the MEANING changes — the mode word is keyed on the kind, so the
    countdown's own ticking does not restart it. Opacity and a hair of travel:
@@ -8003,8 +7943,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .bw-work { grid-template-columns: minmax(0, 1fr); gap: 24px; }
 }
 
-/* The radar and the names it needs, as one column. */
-.bw-scope { display: flex; flex-direction: column; gap: 8px; }
 
 
 /* BROWSER WATCH UNDER REDUCED MOTION, in one place and after every rule it

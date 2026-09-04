@@ -1,4 +1,3 @@
-import React from "react";
 import type { ToolCall } from "../types";
 import { useModalDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal

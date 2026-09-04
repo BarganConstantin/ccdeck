@@ -753,7 +753,8 @@ describe("every value the deck lets somebody type into a cswap argument vector",
     for (const n of ["-1", -1, "-h", 0, 1000, 1.5, NaN]) {
       expect(await setAlias(n, "ok"), String(n)).toEqual({ ok: false, reason: "bad_account" });
       expect(await admin.removeAccount(n), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
-      expect(await admin.shareAccount(n), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
+      // `shareAccounts([n])`: the route's own spelling for one account.
+      expect(await admin.shareAccounts([n]), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
       expect(await admin.moveAccount(n, 2), String(n)).toMatchObject({ ok: false, reason: "bad_account" });
       expect(await admin.moveAccount(1, n), String(n)).toMatchObject({ ok: false, reason: "bad_slot" });
     }

@@ -204,7 +204,7 @@ function run(file, args, timeoutMs = 2_000) {
     // characters. An application called `Яндекс Музыка` in the process list
     // rendered as `Ян��екс Музыка`. setEncoding carries the partial sequence
     // across the boundary, which is the whole reason it exists.
-    child.stdout?.setEncoding("utf8");
+    child.stdout?.setEncoding?.("utf8");
     child.stdout?.on("data", d => { out += d; });
     child.on("error", () => { clearTimeout(timer); resolve(null); });
     child.on("close", code => { clearTimeout(timer); resolve(code === 0 ? out : null); });
@@ -1014,40 +1014,6 @@ export function zoneLabel(raw) {
   return name || "Thermal zone";
 }
 
-/**
- * Windows thermal zones out of MSAcpi_ThermalZoneTemperature.
- *
- * The SECOND source, and only reachable by a deck that happens to be elevated:
- * root\\wmi requires administrator and refuses an ordinary terminal outright.
- * Kept because some boards publish a zone to ACPI and no counter, and because a
- * deck launched from an elevated shell can read it.
- *
- * CurrentTemperature is in tenths of a Kelvin, the same unit as the counter
- * above, and reading it as anything else gives a number that is
- * plausible-looking and wrong.
- *
- * The zone is labelled "Thermal zone" when there is one and by its own name
- * when there are several, because ACPI does not say which zone is the CPU and
- * this module does not guess. `TZ00` is not a friendly label; it is an honest
- * one, and it only appears on a machine that has more than one.
- */
-export function tempFromMsAcpiJson(json) {
-  let rows;
-  try { rows = typeof json === "string" ? JSON.parse(json) : json; }
-  catch { return []; }
-  if (!rows) return [];
-  if (!Array.isArray(rows)) rows = [rows];
-  const found = [];
-  for (const r of rows) {
-    const k = Number(r?.CurrentTemperature);
-    if (!Number.isFinite(k)) continue;
-    const celsius = Math.round(k / 10 - 273.15);
-    if (!plausible(celsius)) continue;
-    found.push({ label: zoneLabel(r?.InstanceName), celsius, warnAt: WARN_C, critAt: CRIT_C });
-  }
-  if (found.length === 1) found[0].label = "Thermal zone";
-  return found.slice(0, 2);
-}
 
 /**
  * The macOS rows, from whatever the three sources answered.

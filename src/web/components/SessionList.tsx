@@ -4,7 +4,7 @@
 // Toggle visibility with the L key (see App.tsx). The topbar's ☰ used to open
 // it too and has been removed; L is the way in, and the ‹ below and L itself
 // are the two ways out.
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { isAlarming } from "../ambient-counts";
 import { fmtCost } from "../pricing";
 import { SESSION_SPEND_LABEL } from "../board-usage";

@@ -218,7 +218,9 @@ describe("npxPrefetch against a fetch that works", () => {
       launch: fakeLaunch("ok"),
       spawnFn: (file: string, args: string[], opts: any) => {
         seen.push(opts);
-        return { stdout: null, stderr: null, on: (ev: string, fn: any) => { if (ev === "exit") setImmediate(() => fn(0, null)); } };
+        // 'close', not 'exit': npx.mjs waits for the pipes to drain before it
+        // reads the tail it kept, and a real child always emits both.
+        return { stdout: null, stderr: null, on: (ev: string, fn: any) => { if (ev === "close") setImmediate(() => fn(0, null)); } };
       },
     });
     expect(seen[0].stdio).toEqual(["ignore", "pipe", "pipe"]);

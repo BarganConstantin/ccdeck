@@ -193,11 +193,6 @@ export function macmonAsset(release) {
   return { version: typeof tag === "string" ? tag : "unknown", url: a.browser_download_url, sha256: m[1] };
 }
 
-/** A macmon this function installed earlier, or null. */
-export function existingBootstrappedMacmon() {
-  const bin = join(MACMON_DIR, "macmon");
-  return existsSync(bin) ? bin : null;
-}
 
 /**
  * Download macmon into ~/.agents-deck/tools/macmon.

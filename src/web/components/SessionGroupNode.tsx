@@ -1,4 +1,3 @@
-import React from "react";
 import type { NodeProps } from "reactflow";
 
 /** Invisible, full-size drag handle for a whole session.

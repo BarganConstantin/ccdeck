@@ -607,7 +607,7 @@ function statusOf(t: ToolCall): Status {
  *  branch is only used when an agent is retiring (exitAt set); otherwise
  *  the bubble stays at full opacity so the trail of recent activity
  *  persists. `agentExitAt` is the agent's exitAt timestamp, or null. */
-function fadeAt(t: ToolCall, now: number, agentExitAt: number | null): number {
+function fadeAt( now: number, agentExitAt: number | null): number {
   if (agentExitAt == null) return 1;
   const since = now - agentExitAt;
   if (since < 0) return 1;
@@ -716,7 +716,7 @@ export function collectBursts(
       const offsetY = idx * BUBBLE_VERT_GAP;
       const worldX = aX + aW + BUBBLE_OFFSET_X;
       const worldY = aY + BUBBLE_TOP_INSET + offsetY;
-      const fade = fadeAt(t, now, agentExitAt);
+      const fade = fadeAt(now, agentExitAt);
       // The delta is from the bubble's anchor point (its visual left-centre)
       // back to the agent's right edge. The bubble starts there during spawn
       // and rides outward to its resting place.
