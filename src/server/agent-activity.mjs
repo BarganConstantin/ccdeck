@@ -441,27 +441,43 @@ export function classify(visits, { quietMs = 15 * 60_000, exclude = [] } = {}) {
 export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
   if (!Array.isArray(findings) || findings.length === 0) return [];
 
-  const byHost = new Map();
+  // GROUPED BY BROWSER AND HOST, not by host alone.
+  //
+  // The comment that used to stand here said "one host's findings all came from
+  // the same profile", and the caller makes that false: browser-watch
+  // concatenates the findings of every profile of every browser before handing
+  // them over. So Chrome and Brave both visiting gitlab.example.com inside one
+  // gap window became ONE episode, tagged with whichever browser was seen
+  // first — and with `reaction: "quit-browser"` that closes the wrong
+  // application, destroying a session the user was using while the one actually
+  // being driven stays open. The panel then reports the browser it quit.
+  //
+  // NUL as the separator because it cannot occur in either half: a host comes
+  // from `new URL(...).host` and a browser key is one of this repo's own
+  // identifiers.
+  const byPair = new Map();
   const browserOf = new Map();
+  const hostOf = new Map();
   for (const finding of findings) {
     const host = typeof finding?.host === "string" && finding.host !== "" ? finding.host : null;
     const url = typeof finding?.url === "string" ? finding.url : null;
     const timeMs = toMs(finding?.timeMs);
     if (host === null || url === null || timeMs === null) continue;
-    const rows = byHost.get(host);
-    if (rows === undefined) byHost.set(host, [{ url, timeMs }]);
+    const browser = typeof finding?.browser === "string" ? finding.browser : null;
+    const key = `${browser ?? ""}\u0000${host}`;
+    const rows = byPair.get(key);
+    if (rows === undefined) byPair.set(key, [{ url, timeMs }]);
     else rows.push({ url, timeMs });
-    // `browser` rides on the HOST, not on each url row: a url row is evidence
+    // `browser` rides on the GROUP, not on each url row: a url row is evidence
     // and its shape is pinned by a test that is right to pin it. A reaction
-    // downstream has to know which application to tell, and one host's findings
-    // all came from the same profile.
-    if (!browserOf.has(host) && typeof finding?.browser === "string") {
-      browserOf.set(host, finding.browser);
-    }
+    // downstream has to know which application to tell.
+    if (!browserOf.has(key) && browser !== null) browserOf.set(key, browser);
+    if (!hostOf.has(key)) hostOf.set(key, host);
   }
 
   const groups = [];
-  for (const [host, rows] of byHost) {
+  for (const [key, rows] of byPair) {
+    const host = hostOf.get(key);
     // A copy was built above, so this sorts nothing the caller can see. Callers
     // hand this the output of `classify`, and a function that reordered its
     // argument as a side effect would be a trap the second caller finds.
@@ -473,7 +489,7 @@ export function toEpisodes(findings, { gapMs = 15 * 60_000 } = {}) {
         open.endMs = row.timeMs;
         continue;
       }
-      open = { host, browser: browserOf.get(host) ?? null, startMs: row.timeMs, endMs: row.timeMs, urls: [row] };
+      open = { host, browser: browserOf.get(key) ?? null, startMs: row.timeMs, endMs: row.timeMs, urls: [row] };
       groups.push(open);
     }
   }

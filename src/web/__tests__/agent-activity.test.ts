@@ -774,3 +774,55 @@ describe("which browser an episode came from", () => {
     expect(toEpisodes(untagged)[0].browser).toBeNull();
   });
 });
+
+describe("two browsers on one host", () => {
+  // browser-watch concatenates the findings of every profile of every browser
+  // before calling toEpisodes, so the old comment here — "one host's findings
+  // all came from the same profile" — was false at the only call site. Chrome
+  // and Brave both visiting one host inside a gap window became ONE episode,
+  // tagged with whichever was seen first; with `reaction: "quit-browser"` that
+  // closes the wrong application, destroying a session the user was using while
+  // the one actually being driven stays open, and the panel reports the browser
+  // it quit.
+  const at = (ms: number, browser: string, path: string) => ({
+    host: "gitlab.example.com", browser, timeMs: ms, url: `https://gitlab.example.com/${path}`,
+  });
+
+  it("keeps them apart, and tags each with its own browser", () => {
+    const t = 1_700_000_000_000;
+    const eps = toEpisodes([at(t, "chrome", "a"), at(t + 1000, "brave", "b"), at(t + 2000, "chrome", "c")]);
+    expect(eps).toHaveLength(2);
+    const byBrowser = Object.fromEntries(eps.map(e => [e.browser, e.count]));
+    expect(byBrowser).toEqual({ chrome: 2, brave: 1 });
+    for (const e of eps) expect(e.host).toBe("gitlab.example.com");
+  });
+
+  it("still groups one browser's run across the gap window", () => {
+    // The grouping itself is unchanged: what moved is the key, not the rule.
+    const t = 1_700_000_000_000;
+    const eps = toEpisodes([at(t, "chrome", "a"), at(t + 60_000, "chrome", "b")], { gapMs: 15 * 60_000 });
+    expect(eps).toHaveLength(1);
+    expect(eps[0].count).toBe(2);
+  });
+
+  it("separates one browser's two runs by the gap, as it always did", () => {
+    const t = 1_700_000_000_000;
+    const eps = toEpisodes([at(t, "chrome", "a"), at(t + 30 * 60_000, "chrome", "b")], { gapMs: 15 * 60_000 });
+    expect(eps).toHaveLength(2);
+  });
+
+  it("keeps a finding with no browser in a group of its own", () => {
+    // A row that never carried one — an older store, a reader that could not
+    // tell — must not be folded into a named browser's episode and then
+    // reacted to as that browser.
+    const t = 1_700_000_000_000;
+    const eps = toEpisodes([
+      { host: "example.test", timeMs: t, url: "https://example.test/a" },
+      { host: "example.test", browser: "brave", timeMs: t + 1000, url: "https://example.test/b" },
+    ]);
+    expect(eps).toHaveLength(2);
+    // `sort()` on a list holding null compares string forms, so the order is
+    // not worth asserting — the SET is.
+    expect(new Set(eps.map(e => e.browser))).toEqual(new Set([null, "brave"]));
+  });
+});
