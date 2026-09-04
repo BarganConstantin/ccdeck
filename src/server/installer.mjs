@@ -353,7 +353,28 @@ async function writeFileAtomic(rawTarget, text) {
     // to stay 600. No-op on Windows, where chmod only toggles the read-only bit.
     const mode = await stat(target).then(s => s.mode, () => null);
     if (mode !== null) await chmod(tmp, mode).catch(() => {});
+    // A READ-ONLY TARGET IS A DEAD END ON WINDOWS, and only there. libuv's
+    // rename is one MoveFileExW(MOVEFILE_REPLACE_EXISTING), which refuses to
+    // replace a destination carrying FILE_ATTRIBUTE_READONLY; POSIX rename(2)
+    // over a 0444 file succeeds, because only the parent directory's write bit
+    // decides. A settings.json picks that attribute up from a OneDrive restore,
+    // a copy off a network share, or read-only media — and EACCES is in the
+    // retry ladder, so the whole ~1.4s was spent before throwing, on every
+    // boot, forever. Every settings writer goes through here, so hooks never
+    // installed and the sound-hook retirement could never repair a stale entry
+    // either.
+    //
+    // chmod on Windows toggles exactly that attribute and nothing else, which
+    // is why this is safe to do unconditionally there: the mode carried above
+    // is re-applied to the new file after the rename, so a file the user marked
+    // read-only stays read-only.
+    if (process.platform === "win32" && mode !== null) {
+      await chmod(target, 0o666).catch(() => {});
+    }
     await renameWithRetry(tmp, target);
+    if (process.platform === "win32" && mode !== null) {
+      await chmod(target, mode).catch(() => {});
+    }
   } catch (err) {
     // Cleanup covers the write and the fsync as well as the rename: a full disk
     // used to leave the half-written temp file sitting beside the target.
