@@ -536,8 +536,19 @@ async function findUpgrader(owner) {
  *
  * Returns a small status the CLI prints verbatim:
  *   { state: "present" | "installed" | "upgrading" | "skipped" | "unavailable", ... }
+ *
+ * `onInstalling` is called at most once, at the moment this stops asking
+ * questions and commits to an install — which is the moment the answer stops
+ * being seconds away and starts being minutes away. #742: the boot used to have
+ * no way to tell those two apart, so it waited out its whole deadline on a
+ * machine whose answer was already decided. Everything before that call is
+ * probes; everything after it is a uv download and an environment build.
+ *
+ * Deliberately a callback and not a state on the return value: what the caller
+ * needs is the news, not the outcome, and the outcome is the thing that takes
+ * three minutes to arrive.
  */
-export async function ensureCswap() {
+export async function ensureCswap({ onInstalling = null } = {}) {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") {
     const version = await cswapVersion();
     return version ? { state: "present", version } : { state: "skipped" };
@@ -564,6 +575,10 @@ export async function ensureCswap() {
     }
     return { state: "present", version: existing };
   }
+
+  // Said before the install starts rather than after it, because after it is
+  // three minutes later and the whole point is not to be waited for.
+  try { onInstalling?.(); } catch { /* a caller's notification is not our problem */ }
 
   const result = await installCswap();
   if (!result.ok) return { state: "unavailable", ...result };

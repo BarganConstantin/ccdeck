@@ -16,6 +16,7 @@ import {
 } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
+import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..");
@@ -357,10 +358,20 @@ function startupWork() {
   // panel useless even when the tool is there — so the account already signed
   // in is registered once. Bounded inside seedFirstAccount: empty store only,
   // once ever, never with NO_INSTALL set.
+  //
+  // `cswapInstalling` is the other half, and it is what keeps a first run from
+  // spending the boot's whole deadline on a question that has already been
+  // answered: ensureCswap resolves it the moment it commits to an install, so
+  // the report can stop waiting then rather than eight seconds later. It never
+  // settles on the machines where there is nothing to install, which is every
+  // machine after the first run.
+  let sayInstalling;
+  const cswapInstalling = new Promise(r => { sayInstalling = r; });
+
   const cswap = (async () => {
     if (!wantClaude) return null;
     const { ensureCswap } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-install.mjs")).href);
-    const cs = await ensureCswap();
+    const cs = await ensureCswap({ onInstalling: () => sayInstalling() });
     const usable = cs.state === "present" || cs.state === "installed" || cs.state === "upgrading";
     if (!usable) return { cs, seed: null };
     const { seedFirstAccount } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
@@ -390,12 +401,17 @@ function startupWork() {
     new Promise(r => setTimeout(() => r(null), 1200)),
   ]);
 
-  return { hooks, cswap, ccusage, update };
+  return { hooks, cswap, cswapInstalling, ccusage, update };
 }
 
 /** The same work, said out loud, in a fixed order — a boot whose rows arrive in
  *  whatever order the network settled is a boot nobody can scan twice. */
 async function reportStartup(jobs) {
+  // What the whole report may spend waiting, shared by every job under it
+  // rather than granted to each — four jobs at eight seconds each is a
+  // thirty-two second boot that no individual deadline would object to.
+  const left = budget(bootDeadlineMs());
+
   write(row({
     mark: G.ok, label: "workspace",
     detail: workspace === "" ? "(all)" : workspace,
@@ -435,52 +451,35 @@ async function reportStartup(jobs) {
     write(row({ label: "Codex sessions", detail: `skipped ${G.dash} no ~/.codex/, or --no-codex` }));
   }
 
-  const swap = await step(`checking claude-swap${G.ellipsis}`, jobs.cswap);
-  const cs = swap?.cs;
-  if (!wantClaude) {
-    // claude-swap is a Python tool that switches Claude Code accounts, and the
-    // deck used to fetch a uv binary to install it on machines with no Claude
-    // Code at all. Saying so is the point of the row: it is the one place a
-    // user can learn that the accounts panel is missing on purpose.
-    write(row({ label: "claude-swap", detail: `skipped ${G.dash} accounts are Claude-only` }));
-  } else if (cs?.state === "present") {
-    write(row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version} (accounts panel enabled)` }));
-  } else if (cs?.state === "installed") {
-    write(row({ mark: G.ok, label: "claude-swap", detail: `installed v${cs.version} via ${cs.via}` }));
-  } else if (cs?.state === "upgrading") {
-    write(row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version}, upgrading to v${cs.latest} in background` }));
-  } else if (cs?.state === "skipped") {
-    write(row({ mark: G.ok, label: "claude-swap", detail: "not installed (AGENTS_DECK_NO_INSTALL=1)" }));
-  } else {
-    const how = cs?.reason === "no_installer"
-      ? `not installed ${G.dash} the accounts panel needs it`
-      : cs?.reason === "not_on_path"
-        ? `installed via ${cs.via} but not on PATH ${G.dash} add ${
-            process.platform === "win32" ? "%USERPROFILE%\\.local\\bin" : "~/.local/bin"
-          }`
-        : `install failed${cs?.via ? ` via ${cs.via}` : ""}`;
-    write(row({ mark: G.fail, tone: P.warn, label: "claude-swap", detail: how }));
-    // A URL is not an answer when someone just wants the panel to work. Print
-    // the command for THIS machine, picked from what is already on it.
-    if (cs?.hint) write(row({ label: "", detail: cs.hint }));
+  // Bounded, because this is the job that made a first boot look hung: on a
+  // machine with neither claude-swap nor a Python toolchain it fetches a uv
+  // binary and then builds an environment with it, and the report used to wait
+  // out both. See src/server/boot-deadline.mjs. Nothing is cancelled — the
+  // install carries on and says how it went when it knows.
+  const swapWait = await step(`checking claude-swap${G.ellipsis}`, Promise.race([
+    left.within(jobs.cswap),
+    // The install announcing itself. Not a timeout — a decision, arriving in
+    // about a second on the boot that would otherwise have paid the full
+    // deadline for news it already had.
+    jobs.cswapInstalling.then(() => ({ done: false, installing: true })),
+  ]));
+  if (swapWait.done) writeSwapRows(swapWait.value);
+  else {
+    write(row({
+      label: "claude-swap",
+      // Both halves earn their place, and both have to survive an 80-column
+      // terminal: what the job is doing, and that waiting for it is not the
+      // user's problem. The row that only said the first is the row this
+      // replaces — a spinner at "checking claude-swap…" says that much.
+      detail: swapWait.installing
+        ? `installing in the background ${G.dash} the deck is ready`
+        : `still setting up ${G.dash} the deck is ready`,
+    }));
+    jobs.cswap.then(late => writeSwapRows(late, { late: true }), () => {});
   }
 
-  if (swap?.seed?.state === "added") {
-    write(row({ mark: G.ok, label: "accounts", detail: "registered the signed-in account (cswap add)" }));
-  } else if (swap?.seed?.state === "failed" || swap?.seed?.state === "nothing-to-add") {
-    write(row({ label: "accounts", detail: `panel empty ${G.dash} sign in to Claude Code, then run cswap add` }));
-  }
-
-  const cu = await jobs.ccusage;
-  if (cu?.state === "present") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}` }));
-  else if (cu?.state === "updating") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}, checking for update` }));
-  // A ccusage the user provided, named rather than versioned — reading a
-  // version out of it means running it, and a status row is not worth a spawn.
-  // Naming the file is the more useful half anyway: it is the answer to "which
-  // ccusage is this deck actually going to run", which is a question a machine
-  // with a managed install AND a PATH copy could not answer before #433.
-  else if (cu?.state === "user") write(row({ mark: G.ok, label: "ccusage", detail: `your own copy ${G.dash} ${cu.bin}` }));
-  else if (cu?.state === "installing") write(row({ mark: G.ok, label: "ccusage", detail: "installing in background" }));
+  const cu = await left.within(jobs.ccusage);
+  writeCcusageRow(cu.done ? cu.value : null);
 
   const upgrade = await jobs.update;
   if (upgrade) {
@@ -505,6 +504,79 @@ async function reportStartup(jobs) {
     // install and nothing to download, only six different characters to type.
     write(row({ label: "", detail: rename.fix }));
   }
+}
+
+/**
+ * The claude-swap rows, wherever in the boot they end up being printed.
+ *
+ * `late` is the one difference, and it is not cosmetic: by the time a late row
+ * arrives the pulse indicator owns the last line and repaints it with `\r`, so
+ * a row written without a newline first would be drawn over on the next beat.
+ * Every other thing that speaks after boot — reportUnregistered,
+ * reportReregistered — opens with the same newline for the same reason.
+ */
+function writeSwapRows(swap, { late = false } = {}) {
+  const cs = swap?.cs;
+  // Collected rather than written one at a time, because a late report opens
+  // with a newline and there is exactly one of those however many rows follow.
+  let out = "";
+  if (!wantClaude) {
+    // claude-swap is a Python tool that switches Claude Code accounts, and the
+    // deck used to fetch a uv binary to install it on machines with no Claude
+    // Code at all. Saying so is the point of the row: it is the one place a
+    // user can learn that the accounts panel is missing on purpose.
+    out += row({ label: "claude-swap", detail: `skipped ${G.dash} accounts are Claude-only` });
+  } else if (cs?.state === "present") {
+    out += row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version} (accounts panel enabled)` });
+  } else if (cs?.state === "installed") {
+    out += row({ mark: G.ok, label: "claude-swap", detail: `installed v${cs.version} via ${cs.via}` });
+  } else if (cs?.state === "upgrading") {
+    out += row({ mark: G.ok, label: "claude-swap", detail: `v${cs.version}, upgrading to v${cs.latest} in background` });
+  } else if (cs?.state === "skipped") {
+    out += row({ mark: G.ok, label: "claude-swap", detail: "not installed (AGENTS_DECK_NO_INSTALL=1)" });
+  } else {
+    const how = cs?.reason === "no_installer"
+      ? `not installed ${G.dash} the accounts panel needs it`
+      : cs?.reason === "not_on_path"
+        ? `installed via ${cs.via} but not on PATH ${G.dash} add ${
+            process.platform === "win32" ? "%USERPROFILE%\\.local\\bin" : "~/.local/bin"
+          }`
+        : `install failed${cs?.via ? ` via ${cs.via}` : ""}`;
+    out += row({ mark: G.fail, tone: P.warn, label: "claude-swap", detail: how });
+    // A URL is not an answer when someone just wants the panel to work. Print
+    // the command for THIS machine, picked from what is already on it.
+    if (cs?.hint) out += row({ label: "", detail: cs.hint });
+  }
+
+  if (swap?.seed?.state === "added") {
+    out += row({ mark: G.ok, label: "accounts", detail: "registered the signed-in account (cswap add)" });
+  } else if (swap?.seed?.state === "failed" || swap?.seed?.state === "nothing-to-add") {
+    out += row({ label: "accounts", detail: `panel empty ${G.dash} sign in to Claude Code, then run cswap add` });
+  }
+
+  write(late ? "\n" + out : out);
+}
+
+/**
+ * The ccusage row.
+ *
+ * `null` covers both of the ways there is nothing to say — the job was not
+ * attempted, and the job had not answered by the time the boot's deadline ran
+ * out. Neither deserves a row: unlike claude-swap there is no install to wait
+ * for here, because primeCcusage starts one and returns without it, so a
+ * ccusage that is slow to answer is slow at resolving a path and will be
+ * resolved again the first time the usage modal is opened.
+ */
+function writeCcusageRow(cu) {
+  if (cu?.state === "present") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}` }));
+  else if (cu?.state === "updating") write(row({ mark: G.ok, label: "ccusage", detail: `v${cu.version}, checking for update` }));
+  // A ccusage the user provided, named rather than versioned — reading a
+  // version out of it means running it, and a status row is not worth a spawn.
+  // Naming the file is the more useful half anyway: it is the answer to "which
+  // ccusage is this deck actually going to run", which is a question a machine
+  // with a managed install AND a PATH copy could not answer before #433.
+  else if (cu?.state === "user") write(row({ mark: G.ok, label: "ccusage", detail: `your own copy ${G.dash} ${cu.bin}` }));
+  else if (cu?.state === "installing") write(row({ mark: G.ok, label: "ccusage", detail: "installing in background" }));
 }
 
 // Asking the supervisor to bring us back. It is the only party that can, and
@@ -533,11 +605,13 @@ let upgradeTimer = null;
 // So an ask that arrives too early is held rather than run: the user asked for
 // something this deck can genuinely give a moment later, and refusing outright
 // would put back the same silence in a politer form. BOOT_RESTART_MS is the
-// outer bound, for the reason UPGRADE_ANSWER_MS above is one — and since #483
-// moved the listen in front of the report, it is a bound that gets used: a boot
-// waiting out a real `uv tool install` is minutes long, and the restart is the
-// right answer to it rather than a casualty of it. Ten seconds in, the ask is
-// run; the respawn skips the report entirely and is up in about a second.
+// outer bound, for the reason UPGRADE_ANSWER_MS above is one. It used to be a
+// bound that got used — before #742 the report waited out a real `uv tool
+// install`, so the window it covers was minutes wide. It is now the boot
+// deadline plus the browser spawn, comfortably inside ten seconds, and this
+// stays as the thing that makes that a fact rather than a belief. Ten seconds
+// in, the ask is run; the respawn skips the report entirely and is up in about
+// a second.
 let booted = false;
 let heldRestart = null;
 let bootTimer = null;
@@ -831,9 +905,14 @@ await discovery.check();
 // Never on a respawn: the tab that asked for the restart is still open and
 // reconnecting on its own. A second one would be the deck talking over itself.
 if (openBrowser && !RESPAWN) {
+  // Not awaited, and not a dependency any more. `open@10` was this package's
+  // only runtime dependency and brought nine more with it, all of them fetched
+  // on a cold `npx ccdeck` before the deck's own tarball is unpacked — and the
+  // await under it held the boot behind a launcher that has nothing to report.
+  // See src/server/open-url.mjs.
   try {
-    const { default: open } = await import("open");
-    await open(url);
+    const { openUrl } = await import(pathToFileURL(join(PKG_ROOT, "src/server/open-url.mjs")).href);
+    openUrl(url);
   } catch {}
 }
 
