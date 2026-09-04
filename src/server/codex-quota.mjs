@@ -8,6 +8,8 @@
 // optional, unknown values pass through verbatim, and a `partial` flag tells
 // the UI when something was dropped instead of silently showing less.
 import { readFile } from "node:fs/promises";
+// One clamp for both quota readers: see the note on cooldownFromHeader.
+import { cooldownFromHeader } from "./quota.mjs";
 import { join } from "node:path";
 import { CODEX_HOME } from "./codex-dir.mjs";
 import { getCodexAuth, forceCodexRefresh, isCredentialHost } from "./codex-auth.mjs";
@@ -335,8 +337,10 @@ async function doFetchCodexQuota() {
   // than the ordinary floor before asking again. `retry-after` is honoured when
   // the backend sends one, because it knows better than the constant does.
   const cooldown = (res) => {
-    const after = parseInt(res?.headers?.get?.("retry-after") ?? "", 10);
-    _rateLimitedUntil = Date.now() + (Number.isFinite(after) ? after * 1000 : COOLDOWN_MS);
+    // Clamped, for the reason quota.mjs states at cooldownFromHeader: a `0`
+    // defeats the cooldown a 429 exists to impose, and a day freezes this
+    // poller for the life of the process.
+    _rateLimitedUntil = Date.now() + cooldownFromHeader(res?.headers?.get?.("retry-after"), COOLDOWN_MS);
   };
 
   let auth, base, res;

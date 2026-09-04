@@ -194,7 +194,12 @@ export function npxPrefetch(spec, {
     timer.unref?.();
 
     child.on("error", err => settle({ ok: false, error: `could not run npx: ${err?.message ?? err}`, hint: null }));
-    child.on("exit", (code, signal) => {
+    // 'close' rather than 'exit': 'exit' fires when the process ends and says
+    // nothing about its pipes, so past one pipe buffer the tail this kept —
+    // deliberately the TAIL, because npm's reason is on its last lines — was
+    // still only the first 8 KiB when npxFailureSummary read it. 'close' is
+    // emitted after both streams have been drained.
+    child.on("close", (code, signal) => {
       if (code === 0) { settle({ ok: true, error: null, hint: null }); return; }
       settle({
         ok: false,

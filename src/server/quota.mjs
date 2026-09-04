@@ -84,6 +84,26 @@ async function readOAuthToken() {
 }
 
 /**
+ * A cooldown from a `retry-after`, kept inside limits the deck can live with.
+ *
+ * Unclamped, the header decided the poller's fate in both directions: `0` (or a
+ * value the server rounds down to it) defeats the cooldown entirely and the
+ * next tick asks again immediately, which is the loop a 429 exists to stop; a
+ * large one — a day is a legal value — freezes the reader for the life of the
+ * process, and nothing here re-reads it. Both are the remote side deciding how
+ * this deck behaves, which a header is not entitled to do.
+ *
+ * The floor is the deck's own minimum backoff and the ceiling is an hour: long
+ * enough to be a real retreat, short enough that a quota panel is not dead for
+ * the rest of the day because one reply said so.
+ */
+export function cooldownFromHeader(raw, fallbackMs, minMs = 30_000, maxMs = 3600_000) {
+  const seconds = parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(seconds)) return fallbackMs;
+  return Math.min(Math.max(seconds * 1000, minMs), maxMs);
+}
+
+/**
  * WHETHER THIS MACHINE HAS A SUBSCRIPTION TO REPORT ON AT ALL.
  *
  * Every source here needs a Claude.ai OAuth credential: the claude-swap store
@@ -190,9 +210,7 @@ async function fetchOAuthUsage() {
     });
 
     if (res.status === 429) {
-      const retryAfter = parseInt(res.headers.get("retry-after") ?? "", 10);
-      const cooldownMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 5 * 60_000;
-      _rateLimitedUntil = Date.now() + cooldownMs;
+      _rateLimitedUntil = Date.now() + cooldownFromHeader(res.headers.get("retry-after"), 5 * 60_000);
       return null;
     }
     if (!res.ok) return null;

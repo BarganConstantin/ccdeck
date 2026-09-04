@@ -182,10 +182,29 @@ const C_LOCALE = { LC_ALL: "", LC_NUMERIC: "C" };
 function run(file, args, timeoutMs = 2_000) {
   return new Promise(resolve => {
     let child;
-    try { child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...C_LOCALE } }); }
+    try {
+      child = spawn(file, args, {
+        windowsHide: true,
+        env: { ...process.env, ...C_LOCALE },
+        // stderr is PIPED AND NEVER READ, which is a deadlock waiting for a
+        // chatty child: a pipe nobody drains fills at 64 KB and the writer
+        // blocks there until this function's own deadline kills it. Nothing
+        // here has ever looked at it — `run` resolves on stdout or null — so
+        // the honest arrangement is not to open it.
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+    }
     catch { return resolve(null); }
     let out = "";
     const timer = setTimeout(() => { try { child.kill(); } catch {} resolve(null); }, timeoutMs);
+    // DECODE THE STREAM, NOT EACH CHUNK. `out += d` on a Buffer calls toString()
+    // per chunk, and a chunk boundary falls wherever the pipe happened to break
+    // — measured on `ps` output as three chunks of 8192/8192/5718 — so a
+    // multi-byte character split across two of them became two replacement
+    // characters. An application called `Яндекс Музыка` in the process list
+    // rendered as `Ян��екс Музыка`. setEncoding carries the partial sequence
+    // across the boundary, which is the whole reason it exists.
+    child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", d => { out += d; });
     child.on("error", () => { clearTimeout(timer); resolve(null); });
     child.on("close", code => { clearTimeout(timer); resolve(code === 0 ? out : null); });

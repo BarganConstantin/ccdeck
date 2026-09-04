@@ -418,13 +418,23 @@ function ToolRateSpark({ tools, now }: { tools: ToolCall[]; now: number }) {
       total += 1;
     }
   }
+  // Two different numbers, and conflating them made the tooltip contradict
+  // itself. `max` is the DRAWING scale, floored at one so an empty spark is a
+  // row of baselines rather than a division by zero. The peak is a
+  // MEASUREMENT, and on a card whose last tool call was over a minute ago there
+  // is no peak — the spark read "0 tool calls in last 60s · peak 0.4/s", which
+  // is the floor talking.
   const max = Math.max(1, ...counts);
+  const observedPeak = Math.max(0, ...counts);
   const W = 132;
   const H = 14;
   const barW = W / BUCKETS;
-  const peakRate = max / (BUCKET_MS / 1000);
+  const peakRate = observedPeak / (BUCKET_MS / 1000);
+  const title = total === 0
+    ? "no tool calls in the last 60s"
+    : `${total} tool calls in last 60s · peak ${peakRate.toFixed(1)}/s`;
   return (
-    <div className="tool-spark-row" title={`${total} tool calls in last 60s · peak ${peakRate.toFixed(1)}/s`}>
+    <div className="tool-spark-row" title={title}>
       <svg className="tool-spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
         {counts.map((c, i) => {
           const h = c === 0 ? 1.5 : Math.max(1.5, (c / max) * H);

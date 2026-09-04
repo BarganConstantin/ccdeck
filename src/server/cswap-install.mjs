@@ -597,8 +597,13 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     // Installed — the only question left is whether it's stale. One PyPI
     // request a day, and the upgrade itself never blocks startup.
     if (!updateCheckDue()) return { state: "present", version: existing };
-    touchMarker();
+    // The marker is stamped AFTER the request, not before it. Stamped first, a
+    // boot with no network yet — a laptop opened on a train, the ten seconds
+    // before Wi-Fi associates — burned the whole shared 24-hour window on a
+    // check that never reached PyPI, and the next real chance was the day
+    // after. self-update.mjs states this rule for itself in as many words.
     const latest = await latestOnPypi();
+    touchMarker();
     if (latest && existing !== "installed" && isOlder(existing, latest)) {
       // Who owns it, not what is installed on the machine: an upgrade aimed at
       // a tool that never installed this package is refused where runDetached

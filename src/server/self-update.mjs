@@ -1205,7 +1205,12 @@ export function startUpgrade({ pkgRoot, name = "agents-deck" }) {
       // installedVersion() disagree with the running one, and the ordinary
       // drift path takes it from there — including its wait for an idle moment.
       _upgrade = { state: "done", command, error: null, at: Date.now() };
-    } else if (!timedOut) {
+    } else if (!timedOut && _upgrade?.state !== "failed") {
+      // Not over a failure the 'error' handler already explained. A missing npm
+      // emits 'error' with ENOENT and THEN 'close' with a null code, and this
+      // branch used to replace "spawn npm ENOENT" with "npm exited -2" — the
+      // one message that says what is wrong, overwritten by the one that does
+      // not.
       _upgrade = { state: "failed", command, error: lastMeaningfulLine(err) || `npm exited ${code}`, at: Date.now() };
     }
   });

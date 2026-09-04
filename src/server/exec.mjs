@@ -706,6 +706,12 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
         // the shell command it replaced had to end in `< /dev/null`. Closing
         // the pipe is that redirection without a shell to parse it.
         try { cp.stdin?.on("error", () => {}); cp.stdin?.end(); } catch { /* no stdin to close */ }
+        // Decoded as a stream rather than per chunk: a chunk boundary falls
+        // wherever the pipe broke, and a multi-byte character split across two
+        // of them becomes two replacement characters in the tail this keeps for
+        // the timeout message.
+        cp.stdout?.setEncoding("utf8");
+        cp.stderr?.setEncoding("utf8");
         cp.stdout?.on("data", (d) => { sawOut = (sawOut + d).slice(-TIMEOUT_TAIL); });
         cp.stderr?.on("data", (d) => { sawErr = (sawErr + d).slice(-TIMEOUT_TAIL); });
         // The deadline states the outcome itself and only then kills, which is
@@ -878,6 +884,11 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     // Capped so a runaway child cannot grow the heap without bound; the tail is
     // what carries the error, so the head is what gets dropped.
     const keep = (buf, text) => (buf + text).slice(-maxOutput);
+    // Same reason as `run`'s tails: the login prompt this reader is waiting for
+    // arrives mid-chunk, and a UTF-8 sequence cut by a pipe boundary must not
+    // become two replacement characters in the line it emits.
+    proc.stdout?.setEncoding("utf8");
+    proc.stderr?.setEncoding("utf8");
     proc.stdout?.on("data", (d) => { if (stale()) return; const t = String(d); stdout = keep(stdout, t); emitLines(t); });
     proc.stderr?.on("data", (d) => { if (stale()) return; const t = String(d); stderr = keep(stderr, t); emitLines(t); });
     proc.on("close", (code) => {
