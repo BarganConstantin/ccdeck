@@ -814,6 +814,15 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
       return tryNext(err) ? attempt(i + 1) : finish(-1, err);
     }
     child = proc;
+    // EPIPE ON STDIN IS NOT A CRASH. `write` below is wrapped in a try/catch,
+    // and that catch can never fire for the case that matters: a broken pipe
+    // arrives asynchronously, as an 'error' event on the Writable, and an
+    // unhandled 'error' on a stream is an uncaught exception with no
+    // process-level net anywhere in this deck. `cswap import -` reading a
+    // prefix of a bad bundle and exiting before it drains is exactly that
+    // shape, so a rejected paste in the import dialog took the dashboard down
+    // with it. `run` has carried this same line since it was written.
+    proc.stdin?.on("error", () => {});
     // A spelling that fails to spawn emits 'error' AND THEN 'close' — with code
     // -2 after an ENOENT. Once the error handler has moved on to the next
     // candidate, that trailing 'close' is news about a child nobody is waiting
