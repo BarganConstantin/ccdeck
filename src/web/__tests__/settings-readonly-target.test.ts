@@ -61,9 +61,13 @@ describe("writing over a file the filesystem calls read-only", () => {
     // between two writes that are supposed to be one atomic replacement.
     const start = src.indexOf("const mode = await stat(target)");
     const win = src.slice(start, src.indexOf("} catch (err) {", start));
-    expect(win).toContain('if (process.platform === "win32" && mode !== null) {');
-    expect(win).toContain("await chmod(target, 0o666).catch(() => {});");
-    expect(win).toContain("await chmod(target, mode).catch(() => {});");
+    // And only when the target CARRIES the attribute: two extra syscalls
+    // between the temp write and the rename widened a window Windows already
+    // loses under a concurrent reader — discovery-live.test.ts went red on the
+    // runner with an EPERM the retry ladder used to win.
+    expect(win).toContain('const readOnly = process.platform === "win32" && mode !== null && (mode & 0o200) === 0;');
+    expect(win).toContain("if (readOnly) await chmod(target, 0o666).catch(() => {});");
+    expect(win).toContain("if (readOnly) await chmod(target, mode).catch(() => {});");
     // And the restore is after the rename, not before it.
     expect(win.indexOf("renameWithRetry(tmp, target)")).toBeLessThan(win.lastIndexOf("chmod(target, mode)"));
   });

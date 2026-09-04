@@ -368,13 +368,16 @@ async function writeFileAtomic(rawTarget, text) {
     // is why this is safe to do unconditionally there: the mode carried above
     // is re-applied to the new file after the rename, so a file the user marked
     // read-only stays read-only.
-    if (process.platform === "win32" && mode !== null) {
-      await chmod(target, 0o666).catch(() => {});
-    }
+    // ONLY WHEN THE TARGET IS ACTUALLY READ-ONLY. Two extra syscalls on the
+    // path between the temp write and the rename are not free on Windows:
+    // discovery-live.test.ts hammers writeDiscovery while a reader holds the
+    // destination open, and the wider window turned a rename the retry ladder
+    // used to win into an EPERM it gave up on. The attribute is what this
+    // clears, so a file that does not carry it has nothing to clear.
+    const readOnly = process.platform === "win32" && mode !== null && (mode & 0o200) === 0;
+    if (readOnly) await chmod(target, 0o666).catch(() => {});
     await renameWithRetry(tmp, target);
-    if (process.platform === "win32" && mode !== null) {
-      await chmod(target, mode).catch(() => {});
-    }
+    if (readOnly) await chmod(target, mode).catch(() => {});
   } catch (err) {
     // Cleanup covers the write and the fsync as well as the rename: a full disk
     // used to leave the half-written temp file sitting beside the target.
