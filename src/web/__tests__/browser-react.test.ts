@@ -149,15 +149,74 @@ describe("how the watch arms it", () => {
     // that is the difference between a watch and a nuisance. And a reaction
     // that closed a tab and then lost the record of why would leave the user
     // with a vanished page and nothing to read about it.
-    const write = watch.indexOf("appendLog");
+    //
+    // ANCHORED ON THE CALL, not on the name. `watch.indexOf("appendLog")` used
+    // to land on the IMPORT at the top of the file, and an import always
+    // precedes a use — so the assertion could not fail, and its message was
+    // unprovable by the offsets it compared.
+    const write = watch.indexOf("deps.appendLog ?? appendLog");
     const reactAt = watch.indexOf("deps.react ?? react");
+    expect(write, "the log write is gone from browser-watch.mjs").toBeGreaterThan(0);
     expect(reactAt, "the reaction runs before the record is written").toBeGreaterThan(write);
     expect(watch).toMatch(/for \(const episode of fresh\)/);
   });
 
-  it("never lets a reaction fail the read", () => {
-    expect(watch).toMatch(/\.catch\(\(\) => \[\]\)/);
-  });
+  it("says in the feed that a reaction blew up, rather than swallowing it", async () => {
+    // THE INVARIANT REVERSED, and the old assertion still passed. It grepped
+    // for `.catch(() => [])`, which the code deliberately replaced with
+    // `.catch(err => [\`reaction failed — …\`])` under a comment in capitals
+    // saying why: a reaction that threw used to read as a reaction that had
+    // never been asked for, and the panel then said a finding was handled when
+    // nothing had been.
+    //
+    // It passed for two accidental reasons — one unrelated `catch(() => [])`
+    // survives in a different function, and the assertion did not strip
+    // comments, so the prose explaining the removal satisfied the regex. Driven
+    // through the injectable `deps.react` now, which is what the module offers
+    // for exactly this.
+    const { browserWatchSnapshot, invalidateBrowserWatchCache } =
+      // @ts-expect-error — .mjs server module, no types
+      await import("../../server/browser-watch.mjs");
+    invalidateBrowserWatchCache();
+    // `transition` is Chrome's bitmask, not a word: 0x08000000 is FROM_API,
+    // which is what an automated navigation carries and the whole premise of
+    // the feature. A string here produces no finding and the case would then
+    // pass by having nothing to react to.
+    const FROM_API = 0x08000000;
+    const rows = [
+      { url: "https://gitlab.example.com/a", timeMs: Date.now() - 5_000, transition: FROM_API },
+      { url: "https://gitlab.example.com/b", timeMs: Date.now() - 4_000, transition: FROM_API },
+    ];
+    const snap = await browserWatchSnapshot({
+      quietMs: 0,
+      deps: {
+        readStore: async () => ({
+          settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 0, gapMinutes: 15 },
+          episodes: [], dismissed: [], migrated: false,
+        }),
+        updateStore: async () => {},
+        writeStore: async () => {},
+        appendLog: async () => {},
+        isReactingDeck: async () => true,
+        // Rejects rather than throwing synchronously: the module's guard is
+        // `.catch(...)` on the returned promise, which is what a real reaction
+        // does when osascript is missing or a browser refuses.
+        react: () => Promise.reject(new Error("osascript is not available")),
+        discoverProfiles: () => [{
+          browser: "brave", name: "Brave", profile: "Default",
+          dir: "/p", historyPath: "/p/History", securePrefsPath: "/p/Secure Preferences", hasClaudeExt: true,
+        }],
+        statSync: () => ({ mtimeMs: Date.now() }),
+        readVisitsSince: async () => ({ rows, watermark: "0", degraded: false, reason: null }),
+        readFileSync: () => { throw new Error("ENOENT"); },
+      },
+    });
+    // `level`, which is what `note` records — `warn` for a line that says the
+    // deck could not do what it promised.
+    const said = (snap.log ?? []).map((l: { level: string; text: string }) => `${l.level} ${l.text}`);
+    expect(said.some((l: string) => /reaction failed/.test(l)), said.join(" | ")).toBe(true);
+    expect(said.some((l: string) => l.startsWith("warn")), said.join(" | ")).toBe(true);
+  }, 20_000);
 
   it("tells the panel what this platform can do, rather than letting it guess", () => {
     expect(watch).toMatch(/reactions: available\(platform\)/);

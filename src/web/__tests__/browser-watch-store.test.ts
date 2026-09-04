@@ -244,13 +244,27 @@ describe("the log file, which is what gets inspected later", () => {
   it("stamps in local time, because the reader's afternoon is not UTC's", async () => {
     // The ISO stamp this replaced was off by the offset for everyone outside
     // London, and "what was happening at four yesterday" is the question.
-    await withHome(async home => {
-      await appendLog([run], home);
-      const head = readFileSync(logPath(home), "utf8").split("\n")[0];
-      const local = new Date(run.startMs);
-      expect(head).toContain(String(local.getHours()).padStart(2, "0") + ":"
-        + String(local.getMinutes()).padStart(2, "0"));
-    });
+    //
+    // IN A TIMEZONE THAT IS NOT UTC, and computed from a fixed instant rather
+    // than re-derived with the same expression the code uses. Two ways this
+    // case used to prove nothing: it echoed `getHours()/getMinutes()` back at
+    // itself, and nothing sets TZ anywhere in the config or the workflows — so
+    // CI runs UTC, where the retired `toISOString()` spelling produces the same
+    // HH:MM and the regression is undetectable on every leg that matters.
+    const prevTz = process.env.TZ;
+    process.env.TZ = "Asia/Tokyo";           // UTC+9, no DST
+    try {
+      // 2026-06-17T12:34:56Z is 21:34 in Tokyo and 12:34 in UTC.
+      const at = Date.parse("2026-06-17T12:34:56.000Z");
+      await withHome(async home => {
+        await appendLog([{ ...run, startMs: at }], home);
+        const head = readFileSync(logPath(home), "utf8").split("\n")[0];
+        expect(head, "the stamp is not local time").toContain("21:34");
+        expect(head, "the stamp is still UTC").not.toContain("12:34");
+      });
+    } finally {
+      if (prevTz === undefined) delete process.env.TZ; else process.env.TZ = prevTz;
+    }
   });
 
   it("appends rather than rewrites — a log a program edits is not a log", async () => {

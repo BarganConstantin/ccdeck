@@ -362,12 +362,23 @@ describe("what a Codex-only boot does on the user's behalf", () => {
     ["the ccusage install", "src/server/ccusage.mjs"],
   ] as const) {
     it(`does not reach ${what} without wantClaude`, () => {
+      // SCOPED TO THIS JOB'S OWN GUARD. `body.indexOf("wantClaude")` finds the
+      // FIRST mention in startupWork — the hooks guard near the top — so for the
+      // cswap and ccusage rows the assertion held whatever those jobs did:
+      // delete their own `if (!wantClaude) return null;` and the earlier guard
+      // still sat before the needle, green. Two of the three cases proved
+      // nothing about the job they name.
       const body = startupWorkBody();
       const at = body.indexOf(needle);
       expect(at, `${needle} is no longer created in startupWork`).toBeGreaterThan(-1);
-      const guard = body.indexOf("wantClaude");
-      expect(guard, "startupWork asks nothing about Claude Code being here").toBeGreaterThan(-1);
-      expect(guard, `${what} is started before anything checks for Claude Code`).toBeLessThan(at);
+      // Everything from the start of the binding that contains the needle. The
+      // three jobs are written differently — a ternary for the hooks, an async
+      // IIFE for the two installs — so the anchor is the `const <name> =` that
+      // begins the statement rather than a shape only one of them has.
+      const jobStart = body.lastIndexOf("\n  const ", at);
+      expect(jobStart, `${what} is not inside a binding of its own any more`).toBeGreaterThan(-1);
+      const job = body.slice(jobStart, at);
+      expect(job, `${what} is started before anything checks for Claude Code`).toMatch(/wantClaude/);
     });
   }
 
