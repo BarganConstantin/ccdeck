@@ -663,11 +663,37 @@ async function readProcessesNow(platform) {
 //            Intel-only and an undocumented scale, and printing it as though it
 //            were degrees would be exactly the lie this module refuses.
 //
-//   Windows  MSAcpi_ThermalZoneTemperature in root/wmi, CurrentTemperature in
-//            TENTHS OF A KELVIN. Published by the firmware and genuinely absent
-//            on a large share of desktop boards — the same lesson
-//            parseGetProcessJson learned about perflib, which is why absent is
-//            ordinary here rather than an error.
+//   Windows  The performance counter `\Thermal Zone Information(*)\High
+//            Precision Temperature`, in TENTHS OF A KELVIN, read through
+//            Get-Counter.
+//
+//            It is read through a counter rather than through WMI for one
+//            reason, and it is the reason this section never worked on Windows
+//            for anybody: MSAcpi_ThermalZoneTemperature lives in root\wmi and
+//            that namespace REQUIRES ADMINISTRATOR. A deck started from an
+//            ordinary terminal — which is every deck, since v1 must never need
+//            admin rights — got Access Denied, three times, and then gave up
+//            for the life of the process. The section was not missing because
+//            the hardware was silent; it was missing because we were asking
+//            somewhere we were not allowed to look.
+//
+//            MSAcpi is still asked, second, because a deck that IS elevated can
+//            read it and because the two do not always agree — some boards
+//            publish a zone to ACPI and no counter.
+//
+//            Genuinely absent on a large share of machines either way: a
+//            desktop board with no zone, and every virtual machine, which has
+//            no thermal hardware to report. Measured on a QEMU/SeaBIOS guest:
+//            the counter set is registered and answers "The specified instance
+//            is not present", and MSAcpi answers "Not supported" even to an
+//            administrator. Absent is ordinary here rather than an error.
+//
+//            THE COUNTER PATH IS LOCALISED. `Thermal Zone Information` is the
+//            English name and a German or French Windows publishes its own, so
+//            this reaches the counter on an English install and falls through
+//            to MSAcpi elsewhere. Translating it means resolving a numeric
+//            index through the registry, which is a change with no way to be
+//            tested from here — see #747.
 //
 // NEVER INVENT A READING. No sensor means no row, and no rows at all means the
 // section is not rendered: not 0°C, not a dash, not a grey empty bar. Same rule
@@ -882,11 +908,96 @@ export function throttleFromPmset(text) {
   return { speedLimit: pct };
 }
 
+
+/**
+ * Windows thermal zones out of the `Thermal Zone Information` counter set.
+ *
+ * `High Precision Temperature` is in TENTHS OF A KELVIN, which is the single
+ * detail this branch turns on — the same unit MSAcpi uses below, and reading it
+ * as anything else gives a number that is plausible-looking and wrong.
+ *
+ * This is the source that works WITHOUT ADMINISTRATOR, which is the whole point
+ * of it: root\wmi needs elevation and a deck never has it. See the note at the
+ * top of this section.
+ *
+ * Shape is `[{ i: instanceName, v: cookedValue }]` — the projection the
+ * PowerShell one-liner makes, so this parser never has to know what a
+ * CounterSample looks like.
+ */
+export const WIN_THERMAL_PS = [
+  "$r = [ordered]@{}",
+  // Get-Counter, not Get-CimInstance: this is the half that works unelevated.
+  "try { $r.perf = @((Get-Counter -Counter '\\Thermal Zone Information(*)\\High Precision Temperature' -EA Stop).CounterSamples | ForEach-Object { @{ i = $_.InstanceName; v = $_.CookedValue } }) } catch {}",
+  "if (-not $r.perf) { try { $r.acpi = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -EA Stop | ForEach-Object { @{ i = $_.InstanceName; v = $_.CurrentTemperature } }) } catch {} }",
+  // Depth matters: the default of 2 turns the inner hashtables into the string
+  // "System.Collections.Hashtable" and this parser would see nothing at all.
+  "$r | ConvertTo-Json -Compress -Depth 4",
+].join("; ");
+
+/**
+ * Whichever of the two Windows sources answered, as thermal rows.
+ *
+ * The shape is `{ perf: [...] }` or `{ acpi: [...] }` or `{}` — the PowerShell
+ * above only ever fills one, and fills neither on the machines where there is
+ * nothing to fill it with. Both lists carry the same two fields and the same
+ * unit, so the only thing that differs is which key they arrived under.
+ */
+export function parseWinThermal(json) {
+  let r;
+  try { r = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return []; }
+  if (!r || typeof r !== "object") return [];
+  const perf = tempFromPerfCounterJson(r.perf ?? []);
+  if (perf.length) return perf;
+  return tempFromPerfCounterJson(
+    // MSAcpi's projection uses the same two keys, so the one parser reads both.
+    Array.isArray(r.acpi) ? r.acpi : (r.acpi ? [r.acpi] : []),
+  );
+}
+
+export function tempFromPerfCounterJson(json) {
+  let rows;
+  try { rows = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return []; }
+  if (!rows) return [];
+  if (!Array.isArray(rows)) rows = [rows];
+  const found = [];
+  for (const r of rows) {
+    const tenths = Number(r?.v);
+    if (!Number.isFinite(tenths)) continue;
+    const celsius = Math.round(tenths / 10 - 273.15);
+    if (!plausible(celsius)) continue;
+    found.push({ label: zoneLabel(r?.i), celsius, warnAt: WARN_C, critAt: CRIT_C });
+  }
+  if (found.length === 1) found[0].label = "Thermal zone";
+  return found.slice(0, 2);
+}
+
+/**
+ * A thermal zone's name, out of whatever spelling the source used.
+ *
+ * The counter names its instances `\_tz.tz00` and WMI names the same zone
+ * `ACPI\ThermalZone\TZ00_0`, so the tail after the last separator is the only
+ * part the two agree on. Upper-cased because the counter lower-cases it and a
+ * panel that showed `tz00` beside a `TZ01` from the other source would be
+ * showing one machine as two.
+ */
+export function zoneLabel(raw) {
+  const tail = String(raw ?? "").split(/[\\.]/).pop() ?? "";
+  const name = tail.replace(/_\d+$/, "").toUpperCase();
+  return name || "Thermal zone";
+}
+
 /**
  * Windows thermal zones out of MSAcpi_ThermalZoneTemperature.
  *
- * CurrentTemperature is in tenths of a Kelvin, which is the single detail this
- * whole branch turns on: reading it as anything else gives a number that is
+ * The SECOND source, and only reachable by a deck that happens to be elevated:
+ * root\\wmi requires administrator and refuses an ordinary terminal outright.
+ * Kept because some boards publish a zone to ACPI and no counter, and because a
+ * deck launched from an elevated shell can read it.
+ *
+ * CurrentTemperature is in tenths of a Kelvin, the same unit as the counter
+ * above, and reading it as anything else gives a number that is
  * plausible-looking and wrong.
  *
  * The zone is labelled "Thermal zone" when there is one and by its own name
@@ -906,8 +1017,7 @@ export function tempFromMsAcpiJson(json) {
     if (!Number.isFinite(k)) continue;
     const celsius = Math.round(k / 10 - 273.15);
     if (!plausible(celsius)) continue;
-    const name = String(r?.InstanceName ?? "").split("\\").pop().replace(/_\d+$/, "");
-    found.push({ label: name || "Thermal zone", celsius, warnAt: WARN_C, critAt: CRIT_C });
+    found.push({ label: zoneLabel(r?.InstanceName), celsius, warnAt: WARN_C, critAt: CRIT_C });
   }
   if (found.length === 1) found[0].label = "Thermal zone";
   return found.slice(0, 2);
@@ -945,13 +1055,17 @@ export async function readThermal(platform = process.platform) {
   }
 
   if (platform === "win32") {
+    // One child for both sources rather than two, because the cost here is the
+    // PowerShell start and not the queries: the counter is tried first because
+    // it needs no administrator, and MSAcpi only when the counter said nothing.
+    // Both are wrapped in their own try — "no thermal zone on this machine" is
+    // the ordinary answer and arrives as a throw from either.
     const out = await run("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | Select-Object InstanceName,CurrentTemperature | ConvertTo-Json -Compress",
+      "-NoProfile", "-NonInteractive", "-Command", WIN_THERMAL_PS,
     ], 6_000);
     if (!out) return null;
-    const celsius = tempFromMsAcpiJson(out.trim());
-    return celsius.length ? { celsius, throttle: null } : null;
+    const answer = parseWinThermal(out.trim());
+    return answer.length ? { celsius: answer, throttle: null } : null;
   }
 
   return null;
