@@ -28,6 +28,30 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
+// WINDOWS SEARCHES THE WORKING DIRECTORY FIRST, and this turns that off.
+//
+// libuv's PATH search calls `NeedCurrentDirectoryForExePathW("")`, which is
+// true unless this variable is set — so `spawn("cswap", …)` on Windows tries
+// `.\cswap.exe` before anything on PATH, and the deck's working directory is
+// wherever `npx ccdeck` was run: normally the user's project, often a repo they
+// just cloned. `cswapBin()` probes the bare name before any known install path
+// and memoises whatever answered, so a planted binary would then receive every
+// later `cswap switch` and `cswap export -` — the commands that carry account
+// credentials. The same search reaches py.exe, where.exe, claude.exe and
+// powershell.exe.
+//
+// Set on this process rather than per spawn, because the search is done by the
+// PARENT: one assignment covers every child this deck ever starts, including
+// the ones spawned outside this module. An explicit value in the environment is
+// left alone — someone who set it meant it.
+//
+// POSIX never had this behaviour: execvp does not search `.` unless PATH says
+// so, so this is a no-op there and is skipped rather than written.
+if (process.platform === "win32" && !("NoDefaultCurrentDirectoryInExePath" in process.env)) {
+  process.env.NoDefaultCurrentDirectoryInExePath = "1";
+}
+
+
 // Extensions Windows will execute, most specific first. `.com` is omitted —
 // nothing ships one, and every extra candidate costs a failed spawn.
 const WIN_EXTS = [".exe", ".cmd", ".bat", ""];
