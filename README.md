@@ -77,7 +77,7 @@ The machine panel shows a **Thermal** section only where the machine actually an
 | | reads | needs |
 | --- | --- | --- |
 | Linux | `/sys/class/hwmon` | nothing |
-| Windows | the `Thermal Zone Information` performance counter | nothing. A machine with no ACPI thermal zone — many desktop boards, and every virtual machine — has nothing to report, and the counter path is currently English-only |
+| Windows | the `Thermal Zone Information` performance counter | nothing — where the machine has an ACPI thermal zone. Many do not; see below |
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
@@ -86,6 +86,19 @@ Apple Silicon is the one that needs a tool, and it is not an oversight. No comma
 You do not have to install it. The deck downloads the published binary into `~/.agents-deck/tools/macmon` — the same place it already keeps `uv` — verifies it against the SHA-256 the GitHub release publishes, checks that it runs, and only then uses it. Not through Homebrew, because a machine without Homebrew would need Homebrew installed first, and that is a large thing to do to somebody who asked for a dashboard. It happens in the background, after the deck is already up, and never on the first run's critical path.
 
 It is skipped entirely on a machine that already answers — an Intel Mac never downloads anything — and on one where you have `macmon` yourself, which is found on either Homebrew prefix. `AGENTS_DECK_NO_DOWNLOAD=1` turns it off on its own; `AGENTS_DECK_NO_INSTALL=1` turns it off along with everything else.
+
+#### Windows, and why it is often blank
+
+Windows is the platform where this most often shows nothing, and that is not a defect in the deck. Measured on a physical Windows 11 laptop — a Lenovo IdeaPad L340, Intel i5-9300H, English install, checked both as an ordinary user and as an administrator:
+
+- its firmware declares **zero** ACPI thermal zones, so the performance counter above is registered but has no instances
+- `MSAcpi_ThermalZoneTemperature` answers `Not supported` **even to an administrator**
+- `Win32_TemperatureProbe` exists but every field reads `32768`, which is WMI's value for "unknown"
+- the sensors are real and actively managed — Intel Dynamic Tuning is running — but it publishes them in `root\WMI EsifDeviceInformation`, which is **Access denied** without administrator
+
+That is a class of machine, not a fault: modern Intel laptops moved thermal management into Intel DTT and stopped declaring the ACPI zones that Windows exposes to ordinary programs. There is no standard user-mode Windows API for CPU temperature — which is why HWiNFO, Core Temp and LibreHardwareMonitor all install a kernel driver, and why this deck does not.
+
+Where the counter does have instances — many desktop boards, servers, and older laptops — it is read without any privileges at all. Its path is currently English-only; see [#747](https://github.com/BarganConstantin/ccdeck/issues/747).
 
 ## How it works
 
