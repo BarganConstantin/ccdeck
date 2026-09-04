@@ -77,6 +77,21 @@ const { BOOT_DEADLINE_MS } = await import("../../server/boot-deadline.mjs");
  */
 const READY_CEILING_MS = 20_000;
 
+/**
+ * One of the two rows, whole, whichever glyph set the terminal got.
+ *
+ * The separator is `G.dash`, and term.mjs spells that "—" where the terminal
+ * can draw it and "-" where it cannot — which on the Windows runner is always,
+ * because CP437 has no em dash. Asserting the em dash was this file passing on
+ * two platforms and failing on the third over a hyphen (#742).
+ *
+ * Still the WHOLE sentence rather than the two halves, because that is what
+ * catches the thing worth catching: the row has to survive an 80-column
+ * terminal, and a detail that no longer fits comes back with its tail replaced
+ * by an ellipsis.
+ */
+const ROW = (what: string) => new RegExp(`${what} [-\u2014] the deck is ready`);
+
 mkdirSync(join(PKG, "bin"), { recursive: true });
 mkdirSync(SERVER_DIR, { recursive: true });
 mkdirSync(join(PKG, "dist", "web"), { recursive: true });
@@ -282,7 +297,7 @@ describe("a boot whose claude-swap job goes quiet", () => {
     // its own is what a spinner already said for two minutes. Asserted whole,
     // which is also how the row is kept inside an 80-column terminal: a detail
     // that no longer fits comes back ellipsised and this fails.
-    expect(said).toContain("still setting up — the deck is ready");
+    expect(said).toMatch(ROW("still setting up"));
   });
 
   it("prints the real row when the job finally answers, after the deck is up", () => {
@@ -338,7 +353,7 @@ describe("a boot whose claude-swap job says it is installing", () => {
     // with an end the deck can describe, and the other is a machine that has
     // gone quiet. Reporting both the same way would throw that away.
     const said = boot.out.text.slice(0, boot.out.text.indexOf("server ready"));
-    expect(said).toContain("installing in the background — the deck is ready");
+    expect(said).toMatch(ROW("installing in the background"));
     expect(said).not.toContain("still setting up");
   });
 });
