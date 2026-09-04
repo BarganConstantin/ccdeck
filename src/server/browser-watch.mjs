@@ -34,7 +34,7 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
-import { appendLog, logPath, mergeEpisodes, readStore, undismissed, writeStore } from "./browser-watch-store.mjs";
+import { appendLog, logPath, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST } from "./relay-guard.mjs";
@@ -648,7 +648,21 @@ export async function browserWatchSnapshot({
     if (fresh.length > 0) {
       note("find", `${fresh.length} new episode${fresh.length === 1 ? "" : "s"} · ${kept.length} kept`, now);
     }
-    await (deps.writeStore ?? writeStore)({ settings: store.settings, episodes: kept, dismissed: store.dismissed }, undefined, deps);
+    // THE ARCHIVE IS OURS TO WRITE; THE OTHER TWO FIELDS ARE NOT. This poll
+    // takes about 400ms — a 21 MB History copy plus the sqlite read — and it
+    // used to write back the `dismissed` and `settings` it had read at the
+    // start, so a dismissal or a watch-off toggle made while it ran was
+    // reverted ten seconds later by the next poll. Re-merging inside the update
+    // keeps this function's own answer and takes the other two from disk as
+    // they are at the moment of the write.
+    const merge = cur => ({
+      settings: cur.settings,
+      episodes: mergeEpisodes(cur.episodes, live, now),
+      dismissed: cur.dismissed,
+    });
+    if (deps.updateStore) await deps.updateStore(merge, undefined, deps);
+    else if (deps.writeStore) await deps.writeStore(merge(store), undefined, deps);
+    else await updateStore(merge, undefined, deps);
     await (deps.appendLog ?? appendLog)(fresh, undefined, deps);
 
     // REACT ONLY TO WHAT IS NEW, AND ONLY ONCE. `fresh` is the set that was not

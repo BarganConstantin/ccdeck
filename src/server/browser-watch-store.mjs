@@ -224,6 +224,22 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
  * makes the same argument about settings.json, for the same reason.
  */
 /**
+ * One writer at a time, in this process.
+ *
+ * Three call sites write this file — the poll's snapshot, the settings route
+ * and the dismiss route — and none of them knew about the others. The queue is
+ * the same shape `log-writer.mjs` uses for its appends: a promise chain that
+ * survives a rejection, so one failed write cannot wedge every later one.
+ */
+let _chain = Promise.resolve();
+let _writeSeq = 0;
+function serialized(job) {
+  const started = _chain.then(job, job);
+  _chain = started.then(() => {}, () => {});
+  return started;
+}
+
+/**
  * Write the whole store, atomically.
  *
  * IT WRITES WHAT IT IS HANDED. There is no merge with what is on disk, on
@@ -235,6 +251,11 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
  * test that greps this file's callers for the field.
  */
 export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
+  return serialized(() => writeNow(state, home, deps));
+}
+
+/** The write itself, already inside the queue. */
+async function writeNow(state, home, deps) {
   const mk = deps.mkdir ?? mkdir;
   const write = deps.writeFile ?? writeFile;
   const mv = deps.rename ?? rename;
@@ -245,9 +266,42 @@ export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
     episodes: (state.episodes ?? []).map(archivable),
     dismissed: [...new Set(state.dismissed ?? [])].slice(-DISMISS_KEEP),
   }, null, 2) + "\n";
-  const tmp = `${storePath(home)}.${process.pid}.tmp`;
+  // A NAME NO SECOND WRITE CAN BE USING. The pid distinguishes decks and not
+  // the calls inside one, and there are three writers in this process — the
+  // poll's snapshot, the settings route and the dismiss route — with nothing
+  // between them. Measured with a full 500-episode archive (~2.5 MB, past the
+  // 512 KiB writeFile chunk): eight concurrent runs left state.json unparseable
+  // in six of them and failed one call with ENOENT, renaming a temp file the
+  // other writer had already renamed away. readStore swallows a corrupt file,
+  // so the next poll reported an empty archive and no dismissals at all — total
+  // loss of the one file this feature exists to keep.
+  const tmp = `${storePath(home)}.${process.pid}.${++_writeSeq}.tmp`;
   await write(tmp, body, "utf8");
   await mv(tmp, storePath(home));
+}
+
+/**
+ * Read, change, write — with nothing else writing in between.
+ *
+ * `writeStore` writes what it is handed and merges nothing, which is right for
+ * a whole-state write and wrong for a caller that owns one field. The snapshot
+ * takes about 400ms — a 21 MB History copy plus the sqlite read — and used to
+ * write back the `dismissed` and `settings` it had read at the start, so a
+ * dismissal made while it ran was reverted by the next poll ten seconds later.
+ * The settings route and the dismiss route had the same shape against each
+ * other.
+ *
+ * So a caller that owns one field passes a function instead: it runs inside the
+ * same queue the write does, against the state on disk at that moment, and no
+ * other writer can slip between the read and the write.
+ */
+export async function updateStore(mutate, home = claudeConfigDir(), deps = {}) {
+  return serialized(async () => {
+    const current = await readStore(home, deps);
+    const next = (await mutate(current)) ?? current;
+    await writeNow(next, home, deps);
+    return next;
+  });
 }
 
 /**

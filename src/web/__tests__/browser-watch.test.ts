@@ -339,7 +339,7 @@ describe("one machine, one store, usually more than one deck", () => {
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const body = fn.slice(0, fn.indexOf("\n}"));
     expect(body).not.toMatch(/writeFile|mkdir|open\(|rename/);
-    expect(body).toMatch(/process\.kill\(d\.pid, 0\)/);
+    expect(body).toMatch(/pidAlive\(d\.pid\)/);
   });
 });
 
@@ -502,7 +502,10 @@ describe("which deck is allowed to win the election", () => {
     // whichever comes first in the file rather than the one in this function.
     const fn = server.slice(server.indexOf("async function isReactingDeck"));
     const skip = fn.indexOf("if (d.watch !== true) continue;");
-    const kill = fn.indexOf("process.kill(d.pid, 0)");
+    // `pidAlive`, not a bare `process.kill` any more: the probe accepts EPERM
+    // and the Windows spelling EACCES, because a deck this account cannot
+    // signal is alive and used to lose the election by being unreachable.
+    const kill = fn.indexOf("pidAlive(d.pid)");
     expect(skip, "the skip is not inside isReactingDeck").toBeGreaterThan(0);
     expect(kill, "the liveness check is not inside isReactingDeck").toBeGreaterThan(0);
     expect(skip).toBeLessThan(kill);

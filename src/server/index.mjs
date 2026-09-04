@@ -4137,7 +4137,7 @@ async function handleBrowserWatchSettings(req, res) {
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
 
-  const { readStore, writeStore, normalise } = await import(
+  const { readStore, updateStore, normalise } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
   );
   const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
@@ -4153,7 +4153,11 @@ async function handleBrowserWatchSettings(req, res) {
   // this field ERASES it. Measured — changing the reaction wiped every
   // dismissal, so every episode the reader had reviewed came straight back on
   // the next poll, from a settings change that had nothing to do with them.
-  await writeStore({ settings, episodes: store.episodes, dismissed: store.dismissed });
+  // Only the settings are this route's to change. `updateStore` re-reads inside
+  // the write queue, so a poll that landed between the read above and this line
+  // cannot have its archive thrown away by a settings change — which is what
+  // writing a whole state read seconds earlier used to do.
+  await updateStore(cur => ({ ...cur, settings }));
   // The one line in the log that is somebody acting rather than the deck
   // reading, which is exactly why it is worth its own entry.
   if (settings.enabled !== store.settings.enabled) {
@@ -4189,7 +4193,7 @@ async function handleBrowserWatchDismiss(req, res) {
   const startMs = typeof body?.startMs === "number" && Number.isFinite(body.startMs) ? body.startMs : null;
   if (host === null || startMs === null) return send(res, 400, { ok: false, reason: "bad_request" });
 
-  const { readStore, writeStore, episodeKey } = await import(
+  const { readStore, updateStore, episodeKey } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
   );
   const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
@@ -4198,7 +4202,7 @@ async function handleBrowserWatchDismiss(req, res) {
   const store = await readStore();
   const key = episodeKey(host, startMs);
   const dismissed = [...new Set([...(store.dismissed ?? []), key])];
-  await writeStore({ settings: store.settings, episodes: store.episodes, dismissed });
+  await updateStore(cur => ({ ...cur, dismissed }));
   // The reader acting on their own list, which is exactly the kind of line the
   // `act` level exists for.
   noteWatchSetting(`dismissed ${host}`);
