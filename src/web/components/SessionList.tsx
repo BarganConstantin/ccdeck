@@ -14,7 +14,7 @@ import { SESSION_SPEND_LABEL } from "../board-usage";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { WaitingBlock } from "../types";
-import { shortModel } from "../model-label";
+import { shortModel, modelFamily } from "../model-label";
 import { stateLabel, waitingSentence } from "./AgentNode";
 
 export interface Row {
@@ -192,7 +192,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
               <div className="sl-row-body">
                 <div className="sl-row-head">
                   <span className="sl-label">{r.label}</span>
-                  {r.modelId && <span className="model-chip" title={r.modelId}>{shortModel(r.modelId)}</span>}
+                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={r.modelId}>{shortModel(r.modelId)}</span>}
                 </div>
                 <div className="sl-row-meta">
                   <span title="tool calls"><b>{r.toolCount}</b> tools</span>

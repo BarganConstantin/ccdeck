@@ -13,7 +13,7 @@ import ReactFlow, {
   type ReactFlowState,
 } from "reactflow";
 import AgentNode, { waitingSentence } from "./components/AgentNode";
-import { shortModel } from "./model-label";
+import { shortModel, modelFamily } from "./model-label";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
@@ -4330,6 +4330,10 @@ function Detail({
                 <span className="hero-sep">·</span>
                 <span
                   className="model-chip"
+                  // From the model, never from the title beside it: since #686
+                  // that title lists every model this panel's spend covers, and
+                  // the sheet matched it by substring.
+                  data-family={modelFamily(agent.model)}
                   title={others.length > 0
                     ? `${agent.model}\nspend on this panel also covers:\n${others.join("\n")}`
                     : agent.model}

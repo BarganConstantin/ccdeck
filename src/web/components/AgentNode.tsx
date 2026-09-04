@@ -10,7 +10,7 @@ import { codexApprovalTell } from "../codex-approval";
 // #462 so that a pure matcher and a bare-node suite could reach it without a
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
-import { shortModel } from "../model-label";
+import { shortModel, modelFamily } from "../model-label";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
 // (#374). See token-format.ts for the tier it did not have.
@@ -190,7 +190,12 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
             of the commonest deck. A "codex" stamp is only ever set from a rollout
             this deck actually read. */}
         {data.model
-          ? <span className="model-chip" title={modelChipTitle}>
+          /* TINTED FROM THE MODEL, NOT FROM THE TOOLTIP. The sheet used to
+             match `[title*="opus"]`, and since #686 this tooltip lists every
+             model the card's spend covers — so a session that switched from
+             Sonnet to Opus matched two equal-specificity rules and took the
+             last one, drawing "Opus 5 +1" in Sonnet blue. */
+          ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
               {shortModel(data.model)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
             </span>
           : data.provider === "codex"

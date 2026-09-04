@@ -8,7 +8,7 @@ import { SESSION_SPEND_LABEL } from "../board-usage";
 import { agentCost, agentModelIds } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
-import { shortModel } from "../model-label";
+import { shortModel, modelFamily } from "../model-label";
 // The breakdown bar used to be a third copy of one component, `SsCostBar`,
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
@@ -59,7 +59,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
               {summary.modelChips.length > 0 && (
                 <div className="ss-models">
                   {summary.modelChips.map(m => (
-                    <span className="model-chip" key={m} title={m}>{shortModel(m)}</span>
+                    <span className="model-chip" key={m} data-family={modelFamily(m)} title={m}>{shortModel(m)}</span>
                   ))}
                 </div>
               )}

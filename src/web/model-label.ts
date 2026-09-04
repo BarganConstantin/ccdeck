@@ -149,3 +149,27 @@ export function shortModel(id: string): string {
   }
   return id;
 }
+
+/**
+ * The family a chip is TINTED by — and the reason it is a value of its own.
+ *
+ * The sheet used to match on the chip's tooltip: `.model-chip[title*="opus"]`,
+ * and one rule per family at equal specificity, so source order decided. Since
+ * #686 that tooltip carries every model the card's spend covers
+ * (`${model}\nspend on this card also covers:\n…`), so a session that ran on
+ * Sonnet and then switched to Opus matched two rules and the LAST one won — a
+ * chip reading "Opus 5 +1" painted Sonnet blue, in both themes, on the card, in
+ * the cluster area and in the detail hero. The colour and the word disagreed,
+ * which is exactly the misreading #686 set out to remove.
+ *
+ * Lowercase and bare, so the CSS can match it exactly rather than by substring:
+ * "opus", "sonnet", "haiku", "fable", "mythos", "gpt", or "" for a model no
+ * rule paints.
+ */
+export function modelFamily(id: string): string {
+  const bare = bareModelId(id ?? "");
+  const claude = bare.match(/^claude[-_](opus|sonnet|haiku|fable|mythos)[-_]/i);
+  if (claude) return claude[1].toLowerCase();
+  if (/^gpt[-_]/i.test(bare)) return "gpt";
+  return "";
+}
