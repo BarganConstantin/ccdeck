@@ -386,11 +386,33 @@ describe("every surface that prints one of these figures prints the shared label
   });
 
   it("labels the usage panel's headline and its token strip", () => {
-    expect(panel).toContain(`<span className="up-total-label">{BOARD_SPEND_LABEL}</span>`);
-    expect(panel).toContain(`<div className="up-total" title={BOARD_SCOPE_TITLE}>`);
-    expect(panel).toContain(`<div className="up-tokens-row" title={BOARD_SCOPE_TITLE}>`);
+    // The panel has two sources now — ccusage for a period, the canvas when
+    // ccusage did not answer — and only the second one is a board figure. So
+    // the label and the sentence are on the board BRANCH of each conditional
+    // rather than unconditional: `fromRange ? <period word> : <board word>`.
+    // Asserted as the whole expression, because the half that matters is the
+    // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
+    // on a panel that had stopped rendering it at all.
+    expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>`);
+    expect(panel).toContain(`<div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>`);
+    expect(panel).toContain(`<div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>`);
     // The unpriced deck: no headline renders there, so the strip says it itself.
     expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
+  });
+
+  it("keeps the live board figure, labelled and apart, under a ccusage total", () => {
+    // #687 is not "delete the board number", it is "do not print it under a
+    // word that claims a period". Under a ccusage headline the canvas figure
+    // survives as its own line, with the qualifier and with the sentence that
+    // explains why it falls on its own — the two things it was missing when the
+    // defect was filed.
+    const live = panel.slice(panel.indexOf(`className="up-live"`), panel.indexOf(`</div>`, panel.indexOf(`className="up-live"`)));
+    expect(live, "the live board line is gone from UsagePanel.tsx").toBeTruthy();
+    expect(panel).toContain(`<div className="up-live" title={BOARD_SCOPE_TITLE}>`);
+    expect(live).toContain(`{BOARD_SCOPE_LABEL} now`);
+    // Drawn from the same accumulator every other board figure uses, never from
+    // a sum this panel rolled itself — the rule the sweep below enforces.
+    expect(live).toContain(`{fmtCost(totalCost.total)}`);
   });
 
   it("labels both topbar chips, and gives both of them the sentence", () => {

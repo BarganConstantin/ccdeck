@@ -4,6 +4,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
+import {
+  PERIODS, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
+  rangeTotals, type PeriodKey, type UsageRange,
+} from "../usage-from-ccusage";
 // Tokens are priced at the model that produced them, not at the last model the
 // session was seen on — see usage-models.ts for the two measurements that make
 // the difference 60% under in one direction and 150% over in the other (#686).
@@ -373,6 +377,63 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * The chosen span, read from ccusage through the deck's own route.
+ *
+ * This is the panel's answer to #687 and #737. The figures below it used to sum
+ * the agents on the canvas — honest numbers with an unusual scope, and the
+ * scope was the problem: the canvas evicts finished sessions on a timer, so the
+ * total went DOWN while nothing had happened and nothing had been refunded.
+ * ccusage reads the transcripts and forgets nothing.
+ *
+ * NEVER A HARD DEPENDENCY. ccusage is optional — a machine with no npm, or one
+ * running under AGENTS_DECK_NO_INSTALL=1, has none — so `data` staying null is
+ * an ordinary state and the panel falls back to the board figures it has always
+ * drawn. What this adds can only ever add.
+ *
+ * Refetched on the period AND on a manual refresh, not on a timer: a range is
+ * two ccusage children on the far side, and a panel that is open all afternoon
+ * must not spawn them on a clock. The route caches per range anyway.
+ */
+function useUsageRange(period: PeriodKey, refreshKey: number) {
+  const [data, setData] = useState<UsageRange | null>(null);
+  const [loading, setLoading] = useState(false);
+  // A panel left open must not freeze at the figure it opened on. The poll is
+  // deliberately the same 120s the server caches a reading for (CACHE_MS in
+  // ccusage.mjs): asking oftener than the cache turns over buys nothing, and
+  // asking rarer leaves the panel behind its own refresh button. No `refresh=1`
+  // here — that flag forces a fresh child process, which is what the ↻ is for.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick(n => n + 1), 120_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  // `refresh=1` belongs to the press that asked for it and to nothing after it.
+  // Keyed on the value rather than on truthiness: `refreshKey > 0` made every
+  // later fetch — including each 120s poll — spawn a ccusage child for the rest
+  // of the panel's life, which is a background process every two minutes to
+  // re-read data the server had already cached.
+  const forcedRef = useRef(refreshKey);
+  useEffect(() => {
+    let alive = true;
+    const force = refreshKey !== forcedRef.current;
+    forcedRef.current = refreshKey;
+    const since = sinceFor(period);
+    setLoading(true);
+    fetch(`/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive) setData(d?.ok ? d : null); })
+      // A deck that is down, or a ccusage that is not there. The panel says so
+      // by falling back, not by showing an error over numbers it still has.
+      .catch(() => { if (alive) setData(null); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [period, refreshKey, tick]);
+
+  return { data, loading };
+}
+
 export default function UsagePanel({ state, now, providers, onClose }: Props) {
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
@@ -527,8 +588,60 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
       .slice(0, 12);
   }, [state, state.revision]);
 
-  const hasCost = totalCost.total > 0;
-  const totalTokenSum = totalTokens.sum;
+  // ── which source the figures come from ──────────────────────────────────
+  //
+  // ccusage when it answered, the board when it did not. Everything below this
+  // point reads one pair of lists and one pair of totals, so the two sources
+  // meet here and nowhere else — the tables, the strip and the headline are the
+  // same markup either way.
+  const [period, setPeriod] = useState<PeriodKey>("today");
+  const [rangeRefresh, setRangeRefresh] = useState(0);
+  const { data: range, loading: rangeLoading } = useUsageRange(period, rangeRefresh);
+  const fromRange = range != null;
+
+  // The board's own names, by session id. ccusage knows what a session cost and
+  // the canvas knows what to call it; `period` on a ccusage session row is the
+  // session id, which is the same key the canvas files its agents under.
+  const boardNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const a of state.agents.values()) {
+      // The same label the board's own session rows use — a.label when the
+      // session has been named, the working directory otherwise. Roots only:
+      // a subagent carries its parent's sessionId and would overwrite the
+      // session's name with a tool's.
+      if (a.kind !== "root" || !a.sessionId) continue;
+      const label = a.label || a.cwdBasename;
+      if (label) names.set(a.sessionId, label);
+    }
+    return names;
+  }, [state, state.revision]);
+
+  // What the canvas is doing right now, by the same key. A ccusage row for a
+  // session that finished last week has no state to report and gets no dot;
+  // one that is on the board keeps the dot the session list draws for it.
+  const boardStates = useMemo(() => {
+    const st = new Map<string, AgentState>();
+    for (const a of state.agents.values()) {
+      if (a.kind !== "root" || !a.sessionId) continue;
+      st.set(a.sessionId, a.state);
+    }
+    return st;
+  }, [state, state.revision]);
+
+  const rangeModelRows = useMemo(() => (fromRange ? ccModelRows(range) : []), [range, fromRange]);
+  // Cut at twelve, the same as the board's list and for the same reason: this
+  // is a 280px column, and "all time" on a machine that has run coding CLIs for
+  // a year is hundreds of sessions. The rows are sorted by cost before the cut,
+  // so what survives is the spend worth looking at.
+  const rangeSessionRows = useMemo(
+    () => (fromRange ? ccSessionRows(range, boardNames).slice(0, 12) : []),
+    [range, fromRange, boardNames]);
+  const rangeSum = useMemo(() => rangeTotals(range), [range]);
+
+  const periodNoun = PERIODS.find(p => p.key === period)?.noun ?? "today";
+
+  const hasCost = fromRange ? rangeSum.cost > 0 : totalCost.total > 0;
+  const totalTokenSum = fromRange ? rangeSum.tokens : totalTokens.sum;
   // Rows worth a line, which is not the same question as rows worth a dollar.
   // Both tables used to filter on `cost > 0`, and in a deck holding one priced
   // Claude session and any number of unpriced Codex ones that filter was
@@ -536,9 +649,14 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // was dropped out of them while its tokens stayed in the strip above. The
   // panel's own headline number then matched no visible row — the arithmetic
   // was right and there was nothing on screen to reconcile it against.
-  const modelRows   = byModel.filter(m => m.cost.total > 0 || (m.inputTokens + m.outputTokens) > 0);
-  const sessionRows = bySessions.filter(s => s.cost > 0 || (s.inputTokens + s.outputTokens) > 0);
-  const hasUnpriced = modelRows.some(m => !m.priced);
+  const boardModelRows   = byModel.filter(m => m.cost.total > 0 || (m.inputTokens + m.outputTokens) > 0);
+  const boardSessionRows = bySessions.filter(s => s.cost > 0 || (s.inputTokens + s.outputTokens) > 0);
+  // A model ccusage priced at nothing is one IT does not know, and the note
+  // below means the same thing either way: these tokens are real and their
+  // dollars are not in the total above them.
+  const hasUnpriced = fromRange
+    ? rangeModelRows.some(m => m.cost <= 0 && m.tokens > 0)
+    : boardModelRows.some(m => !m.priced);
 
   const anyLoading = quotaLoading || codexLoading;
   // Per section, not per panel. The two quotas come from different places and
@@ -549,7 +667,11 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   const claudeAge = ageLabel(quota?.fetchedAt, nowSec);
   const codexAge  = ageLabel(codexQuota?.fetchedAt, nowSec);
 
-  const refreshAll = () => { refreshQuota(); refreshCodex(); };
+  // The header's ↻ means "everything on this panel", and the range is now part
+  // of everything. `refresh=1` on that path is what forces a new ccusage child
+  // rather than the 2-minute cached reading — a manual press is the one moment
+  // paying for a fresh run is right.
+  const refreshAll = () => { refreshQuota(); refreshCodex(); setRangeRefresh(n => n + 1); };
 
   // One string, used as both the ↻'s tooltip and its accessible name (#381).
   // The button's whole content is a single glyph, so `title` was the only name
@@ -807,6 +929,31 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           break down. */}
       {totalTokenSum > 0 ? (
         <>
+          {/* WHICH SPAN, when there is a source that has spans at all.
+              The board has exactly one — right now — so the strip appears only
+              under ccusage, and the panel is silently the old panel when
+              ccusage is absent rather than showing three chips that all mean
+              the same thing.
+              `.uh-range` rather than a new set of chips: it is the same control
+              the history modal's presets use, it already carries #583's
+              luminance inversion for the selected chip, and toggle-state
+              coverage is written against that selector. Reusing it is also the
+              honest signal to a reader — these two surfaces read the same
+              ccusage data over the same kind of range. */}
+          {fromRange && (
+            <div className={`uh-range up-period${rangeLoading ? " up-period-busy" : ""}`} role="group" aria-label="Period">
+              {PERIODS.map(p => (
+                <button
+                  key={p.key}
+                  type="button"
+                  aria-pressed={period === p.key}
+                  className="uh-range-btn"
+                  onClick={() => setPeriod(p.key)}
+                >{p.label}</button>
+              ))}
+            </div>
+          )}
+
           {/* The headline says whose spend it is (#687).
               It read "total spend", and it is not a total of anything: it walks
               the agents on the canvas, and `pruneDoneSessions` takes finished
@@ -820,19 +967,29 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
               "what has today cost me" from the logs on disk. */}
           {hasCost && (
             <>
-              <div className="up-total" title={BOARD_SCOPE_TITLE}>
-                <span className="up-total-value">{fmtCost(totalCost.total)}</span>
-                <span className="up-total-label">{BOARD_SPEND_LABEL}</span>
+              <div className="up-total" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+                <span className="up-total-value">{fmtCost(fromRange ? rangeSum.cost : totalCost.total)}</span>
+                <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
-              <CostBar cost={totalCost} />
+              {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
+                  The bar splits a total across input / output / cache, and
+                  ccusage publishes one cost per model rather than that split —
+                  so the only way to draw it here would be to derive the shares
+                  from this deck's own rate table and hang them under a number
+                  that came from somewhere else. That is the shape of wrongness
+                  #687 is about: a picture that looks authoritative and is a
+                  different measurement from the figure above it.
+                  Little is lost. The strip below says the same thing in tokens,
+                  from the same source, with nothing derived at all. */}
+              {!fromRange && <CostBar cost={totalCost} />}
             </>
           )}
 
-          <div className="up-tokens-row" title={BOARD_SCOPE_TITLE}>
-            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(totalTokens.inputTokens)}</span>
-            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(totalTokens.outputTokens)}</span>
-            {totalTokens.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(totalTokens.cacheReadTokens)}</span>}
-            {totalTokens.cacheCreateTokens > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(totalTokens.cacheCreateTokens)}</span>}
+          <div className="up-tokens-row" title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
+            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(fromRange ? rangeSum.inputTokens : totalTokens.inputTokens)}</span>
+            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(fromRange ? rangeSum.outputTokens : totalTokens.outputTokens)}</span>
+            {(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens)}</span>}
+            {(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens) > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens)}</span>}
             {/* On a deck where nothing is priced there is no headline above this
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is
@@ -841,7 +998,26 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             {!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}
           </div>
 
-          {modelRows.length > 0 && (
+          {/* THE LIVE NUMBER, KEPT AND KEPT SEPARATE.
+              Everything above this line is ccusage's — a period, off the logs
+              on disk, which do not forget. This one is the canvas's: what the
+              sessions currently drawn have spent. They are different
+              measurements and the panel used to have only the second one under
+              a word that implied the first (#687), so the fix is not to delete
+              it but to label it and stand it apart. It carries the same tooltip
+              it always did, which is where "this falls on its own" is said.
+              Only when there is something to say: a board with no priced
+              session would otherwise print "$0.00 on this board" beneath a
+              month's real spend, which reads as a contradiction rather than as
+              a second scope. */}
+          {fromRange && totalCost.total > 0 && (
+            <div className="up-live" title={BOARD_SCOPE_TITLE}>
+              <span className="up-live-value">{fmtCost(totalCost.total)}</span>
+              <span className="up-live-label">{BOARD_SCOPE_LABEL} now</span>
+            </div>
+          )}
+
+          {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
             <section className="up-section">
               <h3 className="up-section-title">By model</h3>
               <table className="up-table">
@@ -853,31 +1029,78 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {modelRows.map(m => (
-                    <tr key={m.model}>
-                      {/* `__unknown__` is the map's key for an agent that has
-                          not reported a model yet, and it is not a word. The
-                          row still belongs here — its tokens are in the strip
-                          above — but under a name a person can read. */}
-                      <td className="up-model-name" title={m.model === UNKNOWN_MODEL ? "no model reported yet" : m.model}>
-                        {m.model === UNKNOWN_MODEL ? "unknown" : shortModel(m.model)}
-                      </td>
-                      <td className="up-num">{fmtTokens(m.inputTokens + m.outputTokens)}</td>
-                      {m.priced
-                        ? <td className="up-num up-cost-val">{fmtCost(m.cost.total)}</td>
-                        : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
-                    </tr>
-                  ))}
+                  {fromRange
+                    ? rangeModelRows.map(m => (
+                      <tr key={m.model}>
+                        <td className="up-model-name" title={m.model}>{shortModel(m.model)}</td>
+                        {/* Every token, not input plus output. The board's row
+                            counts the two it can price per agent; ccusage sends
+                            all four, and on an agentic session the cache is the
+                            larger part by two orders of magnitude — 9.56B
+                            against 320k on the machine this was written on. */}
+                        <td className="up-num">{fmtTokens(m.tokens)}</td>
+                        {m.cost > 0
+                          ? <td className="up-num up-cost-val">{fmtCost(m.cost)}</td>
+                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
+                      </tr>
+                    ))
+                    : boardModelRows.map(m => (
+                      <tr key={m.model}>
+                        {/* `__unknown__` is the map's key for an agent that has
+                            not reported a model yet, and it is not a word. The
+                            row still belongs here — its tokens are in the strip
+                            above — but under a name a person can read. */}
+                        <td className="up-model-name" title={m.model === UNKNOWN_MODEL ? "no model reported yet" : m.model}>
+                          {m.model === UNKNOWN_MODEL ? "unknown" : shortModel(m.model)}
+                        </td>
+                        <td className="up-num">{fmtTokens(m.inputTokens + m.outputTokens)}</td>
+                        {m.priced
+                          ? <td className="up-num up-cost-val">{fmtCost(m.cost.total)}</td>
+                          : <td className="up-num up-unpriced">{UNPRICED_LABEL}</td>}
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </section>
           )}
 
-          {sessionRows.length > 0 && (
+          {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
             <section className="up-section">
               <h3 className="up-section-title">By session</h3>
               <div className="up-sessions">
-                {sessionRows.map(s => (
+                {fromRange && rangeSessionRows.map(s => {
+                  const live = boardStates.get(s.sessionId);
+                  return (
+                    <div className="up-session-row" key={s.sessionId}>
+                      {/* A dot only for a session the canvas is drawing. The
+                          rest of this list is history — ccusage remembers every
+                          session that ever ran — and a "done" tick on a session
+                          from three weeks ago would be reporting a state this
+                          deck never observed. The placeholder keeps the label
+                          column aligned between the two kinds of row. */}
+                      {live
+                        ? <>
+                            <span className={`sl-dot state-${live}`} aria-hidden />
+                            <span className="vis-hidden">{stateLabel(live)}</span>
+                          </>
+                        : <span className="sl-dot up-dot-past" aria-hidden />}
+                      {/* ccusage names a session by its uuid, which is not a
+                          name. The board's label is used when the board has one
+                          — that join is the point of this table — and the first
+                          segment of the uuid otherwise, under a title carrying
+                          the whole of it. */}
+                      <span
+                        className={`up-session-label${s.label ? "" : " up-session-id"}`}
+                        title={s.label ? `${s.label}\n${s.sessionId}` : s.sessionId}
+                      >{s.label ?? s.sessionId.slice(0, 8)}</span>
+                      <span className="up-session-tokens">{fmtTokens(s.tokens)}</span>
+                      {s.cost > 0
+                        ? <span className="up-session-cost" title={s.models.join(", ") || undefined}>{fmtCost(s.cost)}</span>
+                        : <span className="up-session-cost up-unpriced">{UNPRICED_LABEL}</span>}
+                    </div>
+                  );
+                })}
+                {!fromRange && boardSessionRows.map(s => (
                   <div className="up-session-row" key={s.sessionId}>
                     {/* Same dot and the same hidden word as the session list
                         (#373) — this row is a <div>, so its state is read as

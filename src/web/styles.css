@@ -5067,6 +5067,58 @@ button.tool.clickable:last-child { border-bottom: none; }
    24px box every other header close stands in. */
 .up-close { color: var(--muted); }
 
+/* The period strip, on the chips the history modal already owns.
+   Only the placement is new: `.uh-range` is an inline-flex pill and this panel
+   lays it out on its own line, at the same 14px inset every block below it
+   uses, with the padding that would sit above the headline taken up here so the
+   money keeps its position on the page. */
+.up-period {
+  display: flex;
+  margin: 12px var(--panel-inset) 0;
+  width: fit-content;
+}
+/* A pressed chip answers instantly and the answer takes a second or two to
+   arrive — ccusage reads the logs off disk. The strip dims while it does, which
+   is the same idiom the reload button uses for the same wait, and it dims
+   rather than disabling: the chips stay pressable, so a reader who meant
+   "month" and hit "today" is not locked out of correcting it. */
+.up-period-busy { opacity: var(--dim-off); }
+
+/* THE LIVE FIGURE, under a period total that came from somewhere else.
+   Deliberately smaller and quieter than `.up-total`: the headline is the answer
+   to "what has this cost me", and this is the answer to "what is running right
+   now", which is the lesser question of the two on a panel about spend. Both
+   are drawn in the same monospace with tabular figures so the two numbers can
+   be read against each other without either moving. */
+.up-live {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 var(--panel-inset) 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.up-live-value {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+}
+
+/* A session ccusage remembers and the canvas is not drawing. The dot keeps its
+   box so every label in the list starts at the same x — a ragged left edge
+   between "running now" and "ran last Tuesday" would read as two lists — and
+   draws nothing, because this deck never observed that session's end and a ✓
+   here would be a state it is inventing. */
+.up-dot-past { visibility: hidden; }
+
+/* ccusage's own name for a session is a uuid. When the board cannot supply a
+   better one the first segment is shown, and it is marked as the machine
+   string it is rather than dressed up as a project name. */
+.up-session-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+}
+
 .up-total {
   display: flex;
   align-items: baseline;
