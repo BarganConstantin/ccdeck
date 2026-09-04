@@ -487,7 +487,15 @@ async function reportStartup(jobs) {
     // The file it names is one only the user can repair, and every Claude Code
     // session on this machine is reading it too.
     write(row({ mark: G.fail, tone: P.err, label: "Claude hooks", detail: "not installed" }));
-    console.error(`\n  ${PRODUCT}: ${hooks.err.message}\n`);
+    // THE WAY OUT, printed where the wall is. The installer's message is good —
+    // the path, the reason, "fix the file or move it aside" — and it is a file
+    // the user may not be able to edit: root-owned, on read-only media, or
+    // simply not theirs. This deck knows the remedy and used to keep it in a
+    // comment: --no-claude runs everything else, which on a Codex-only machine
+    // is the whole deck, over a settings.json belonging to a CLI they do not
+    // use.
+    console.error(`\n  ${PRODUCT}: ${hooks.err.message}`);
+    console.error(`  Or start with --no-claude to run without Claude hooks.\n`);
     process.exit(1);
   } else {
     write(row({ mark: G.ok, label: "Claude hooks", detail: fileLink(hooks.v.hookPath) }));

@@ -382,6 +382,22 @@ describe("what a Codex-only boot does on the user's behalf", () => {
     expect(deckSrc).toContain("accounts are Claude-only");
   });
 
+  it("names the escape hatch on the one boot failure that is fatal", () => {
+    // An unparseable or unwritable settings.json is refused by the installer —
+    // correctly; it belongs to Claude Code and every session on the machine is
+    // reading it — and reportStartup turns that refusal into exit(1), taking
+    // the canvas and Codex capture down with it. The remedy lived in a comment
+    // at the flag's own definition: --no-claude runs everything else, which on
+    // a Codex-only machine is the whole deck. It is printed beside the failure
+    // now, because a user with a root-owned settings.json cannot act on
+    // "fix the file" and has nothing else to go on.
+    expect(deckSrc).toContain("Or start with --no-claude to run without Claude hooks.");
+    const fatal = deckSrc.indexOf('label: "Claude hooks", detail: "not installed"');
+    expect(fatal, "the fatal hook row is gone from deck.js").toBeGreaterThan(-1);
+    const exit = deckSrc.indexOf("process.exit(1)", fatal);
+    expect(deckSrc.slice(fatal, exit)).toContain("--no-claude");
+  });
+
   it("never prints 'sign in to Claude Code' on a deck that skipped claude-swap", () => {
     // That line is reached only through swap?.seed, and the whole cswap job
     // resolves to null when wantClaude is false — so there is no seed to report.

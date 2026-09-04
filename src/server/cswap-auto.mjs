@@ -229,7 +229,13 @@ const MODEL_LIST_OK = /^(?!-)[A-Za-z0-9 ,._-]{1,120}$/;
 
 /** Validate against SETTINGS, then hand to `cswap config set`. */
 export async function setCswapConfig(key, value) {
-  const spec = SETTINGS[key];
+  // `Object.hasOwn`, not a bare read. `SETTINGS["constructor"]` is truthy and
+  // its `.type` is undefined, so a prototype member passed the allowlist and
+  // fell through to the free-text branch — reaching `cswap config set
+  // constructor <value>` and skipping the type-specific range check on the way.
+  // Nothing reachable that way was dangerous; an allowlist that does not hold
+  // is.
+  const spec = Object.hasOwn(SETTINGS, key) ? SETTINGS[key] : null;
   if (!spec) return { ok: false, reason: "unknown_setting" };
 
   let str;
