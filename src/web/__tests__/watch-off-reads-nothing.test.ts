@@ -10,9 +10,24 @@
 // Two callers still read live, and both are the user's own doing: a watch that
 // is ON, because recording in the background is the feature; and the panel
 // itself, because that is somebody looking.
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Sandboxed BEFORE the server module is imported: it resolves its config
+// directories at import time, and the developer's own watch setting — this one
+// is on — would otherwise decide what the case below sees.
+const DIR = mkdtempSync(join(tmpdir(), "ccdeck-watch-off-"));
+process.env.HOME = DIR;
+process.env.USERPROFILE = DIR;
+process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
+process.env.CODEX_HOME = join(DIR, "codex");
+process.env.XDG_CONFIG_HOME = join(DIR, "config");
+if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new Error("sandbox escaped");
+afterAll(() => rmTempDir(DIR));
 
 // @ts-expect-error — .mjs server module, no types
 const { browserWatchSnapshot, invalidateBrowserWatchCache } = await import("../../server/browser-watch.mjs");
@@ -99,8 +114,29 @@ describe("who asks for what", () => {
     expect(modal).toContain('fetch(`/api/browser-watch${refresh ? "?refresh=1" : ""}`)');
   });
 
-  it("a forced read overrides it, because that is the ↻ being pressed", () => {
-    const server = read("../../server/index.mjs");
-    expect(server).toContain('const readBrowsers = force || url.searchParams.get("live") !== "0";');
-  });
+  it("reads the flag in the handler that answers this route", async () => {
+    // NOT A GREP FOR THE LINE. The first version of this case asserted the
+    // source contained `const readBrowsers = …`, and the line had been inserted
+    // into handleQuota — a different handler that also parses `refresh` — so
+    // the suite was green while every request to /api/browser-watch answered
+    // `500 {"error":"internal error"}` with a ReferenceError behind it. A
+    // source assertion cannot tell one handler from another; a request can.
+    const { startServer } = await import("../../server/index.mjs") as never;
+    const server = await startServer({ port: 0, persist: false, open: false, claude: false, codex: false });
+    const { port } = server.address() as { port: number };
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/api/browser-watch?live=0`, {
+        headers: { "sec-fetch-site": "same-origin" },
+      });
+      expect(r.status, "the route answered an error").toBe(200);
+      const body = await r.json() as { ok: boolean; settings: { enabled: boolean }; coverage?: { why?: string } };
+      expect(body.ok).toBe(true);
+      // On a sandboxed home the watch is off, so `live=0` must be honoured and
+      // the reason said out loud.
+      expect(body.settings.enabled).toBe(false);
+      expect(body.coverage?.why).toMatch(/watch is off/);
+    } finally {
+      await new Promise(r => server.close(r));
+    }
+  }, 30_000);
 });

@@ -4073,12 +4073,6 @@ async function handleQuota(req, res) {
   );
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
-  // `live=0` is the badge's five-minute poll saying "the archive is enough".
-  // With the watch OFF that is honoured and no browser is read at all — see
-  // browserWatchSnapshot: the switch used to gate only what was KEPT, so a deck
-  // nobody had switched on still copied every History database every five
-  // minutes. A forced read overrides it, because that is the user pressing ↻.
-  const readBrowsers = force || url.searchParams.get("live") !== "0";
   const quota = await fetchClaudeQuota({ force });
   send(res, 200, quota);
 }
@@ -4219,6 +4213,12 @@ async function handleBrowserWatchDismiss(req, res) {
 async function handleBrowserWatch(req, res) {
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
+  // `live=0` is the badge's five-minute poll saying "the archive is enough".
+  // With the watch OFF that is honoured and no browser is read at all — see
+  // browserWatchSnapshot: the switch used to gate only what was KEPT, so a deck
+  // nobody had switched on still copied every History database every five
+  // minutes. A forced read overrides it, because that is the user pressing ↻.
+  const readBrowsers = force || url.searchParams.get("live") !== "0";
 
   // Numbers from a query string are refused rather than coerced: NaN would
   // silently widen the quiet gate to "everything counts", which is the failure
