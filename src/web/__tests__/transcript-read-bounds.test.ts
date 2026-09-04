@@ -153,7 +153,7 @@ type Envelope = { seq: number; payload: { session_id?: string; hook_event_name?:
 
 function since(seq: number): Promise<Envelope[]> {
   return new Promise((res, rej) => {
-    get({ host: "127.0.0.1", port, path: `/api/events?since=${seq}` }, r => {
+    get({ host: "127.0.0.1", port, path: `/api/events?since=${seq}`, headers: { "x-ccdeck-token": server_.hookToken() } }, r => {
       let out = "";
       r.setEncoding("utf8");
       r.on("data", c => { out += c; });

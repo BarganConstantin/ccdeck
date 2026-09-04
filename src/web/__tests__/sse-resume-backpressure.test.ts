@@ -48,7 +48,7 @@ const DRAIN_MS = 1_500;
 process.env.AGENTS_DECK_REPLAY_DRAIN_MS = String(DRAIN_MS);
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, MAX_CLIENT_BUFFER_BYTES } = await import("../../server/index.mjs");
+const { startServer, MAX_CLIENT_BUFFER_BYTES, hookToken } = await import("../../server/index.mjs");
 
 let server: Server;
 let port = 0;
@@ -236,7 +236,7 @@ describe("SSE resume backpressure", () => {
   it("still delivers the whole replay and the sentinel to a client that reads", async () => {
     const subscribedBefore = (await health()).clients;
     const res = await new Promise<IncomingMessage>((resolve, reject) => {
-      get({ host: "127.0.0.1", port, path: "/events", agent: false, headers: { "Last-Event-ID": "0" } }, resolve)
+      get({ host: "127.0.0.1", port, path: "/events", agent: false, headers: { "Last-Event-ID": "0", "x-ccdeck-token": hookToken() } }, resolve)
         .on("error", reject);
     });
     streams.push(res);

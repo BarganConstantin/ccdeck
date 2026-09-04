@@ -387,6 +387,9 @@ describe("event ring byte budget", () => {
       });
       sock.write(
         `GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n` +
+        // The guarded-read gate wants the deck's own token from a client that
+        // is not a browser, and a raw socket is the least browser-shaped of all.
+        `x-ccdeck-token: ${hookToken()}\r\n` +
         `Accept: text/event-stream\r\nLast-Event-ID: ${firstSeq}\r\n\r\n`,
       );
       await waitUntil(() => firstId > 0, "the first replayed frame");
@@ -431,7 +434,7 @@ describe("event ring byte budget", () => {
 
       const res = await new Promise<IncomingMessage>((resolve, reject) => {
         get(
-          { host: "127.0.0.1", port, path: "/events", agent: false, headers: { "Last-Event-ID": String(firstSeq) } },
+          { host: "127.0.0.1", port, path: "/events", agent: false, headers: { "Last-Event-ID": String(firstSeq), "x-ccdeck-token": hookToken() } },
           resolve,
         ).on("error", reject);
       });

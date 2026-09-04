@@ -28,7 +28,7 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken } = await import("../../server/index.mjs");
 
 let server: Server;
 let port = 0;
@@ -133,7 +133,7 @@ async function waitForClients(n: number): Promise<void> {
  *  wire, so "registered" has to be read back from the server, not assumed. */
 async function subscribe(): Promise<IncomingMessage> {
   const res = await new Promise<IncomingMessage>((resolve, reject) => {
-    get({ host: "127.0.0.1", port, path: "/events" }, resolve).on("error", reject);
+    get({ host: "127.0.0.1", port, path: "/events", headers: { "x-ccdeck-token": hookToken() } }, resolve).on("error", reject);
   });
   res.setEncoding("utf8");
   res.on("data", () => {});

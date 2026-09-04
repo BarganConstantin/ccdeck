@@ -35,7 +35,7 @@ process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, writesLogFor } = await import("../../server/index.mjs");
+const { startServer, writesLogFor, hookToken } = await import("../../server/index.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — .mjs server module, no types
@@ -127,7 +127,7 @@ describe("a deck told another one owns the log", () => {
 
     // Both are still on the canvas: the fan-out is the point, only the second
     // copy on disk is dropped.
-    const res = await fetch(`http://127.0.0.1:${PORT}/api/events?since=0`);
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/events?since=0`, { headers: { "x-ccdeck-token": hookToken() } });
     const seen = (await res.json()) as { payload: { tool_use_id?: string } }[];
     expect(seen.map(e => e.payload.tool_use_id)).toEqual(["tool-1", "tool-2"]);
   });

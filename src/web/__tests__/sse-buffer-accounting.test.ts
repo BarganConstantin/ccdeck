@@ -81,7 +81,7 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer, queuedBytes, MAX_CLIENT_BUFFER_BYTES } = await import("../../server/index.mjs");
+const { startServer, queuedBytes, MAX_CLIENT_BUFFER_BYTES, hookToken } = await import("../../server/index.mjs");
 
 // The ceiling `handleEventIngest` enforces, in characters of request body, and
 // the largest frame that can turn into — which is the thing MAX_CLIENT_BUFFER
@@ -181,7 +181,7 @@ interface Reader {
  */
 async function healthySubscriber(): Promise<Reader> {
   const res = await new Promise<IncomingMessage>((resolve, reject) => {
-    get({ host: "127.0.0.1", port, path: "/events", agent: false }, resolve).on("error", reject);
+    get({ host: "127.0.0.1", port, path: "/events", agent: false, headers: { "x-ccdeck-token": hookToken() } }, resolve).on("error", reject);
   });
   streams.push(res);
   const markers = new Set<string>();
@@ -223,7 +223,7 @@ function stalledSubscriber(): Socket {
   const sock = connect(port, "127.0.0.1");
   sockets.push(sock);
   sock.on("error", () => {});
-  sock.write(`GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAccept: text/event-stream\r\n\r\n`);
+  sock.write(`GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nx-ccdeck-token: ${hookToken()}\r\nAccept: text/event-stream\r\n\r\n`);
   sock.pause();
   return sock;
 }

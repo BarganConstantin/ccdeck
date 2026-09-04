@@ -98,7 +98,7 @@ function post(path: string, body: unknown): Promise<number> {
 
 function events(): Promise<{ payload: { hook_event_name?: string; session_id?: string } }[]> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port, path: "/api/events", method: "GET" }, res => {
+    const req = request({ host: "127.0.0.1", port, path: "/api/events", method: "GET", headers: { "x-ccdeck-token": token } }, res => {
       let raw = "";
       res.setEncoding("utf8").on("data", c => { raw += c; });
       res.on("end", () => { try { resolve(JSON.parse(raw).events ?? JSON.parse(raw)); } catch (e) { reject(e); } });

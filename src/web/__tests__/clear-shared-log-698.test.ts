@@ -163,7 +163,9 @@ function call(port: number, path: string, method: "GET" | "POST", token?: string
 const bytes = (p: string) => (existsSync(p) ? statSync(p).size : 0);
 const logLines = (p: string) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").filter(Boolean).length : 0);
 const canvas = async (port: number) => {
-  const { raw } = await call(port, "/api/events", "GET");
+  // The deck's own data needs the deck's own token from a client that is not a
+  // browser, which every call in this file is.
+  const { raw } = await call(port, "/api/events", "GET", hookToken());
   const parsed = JSON.parse(raw);
   return (Array.isArray(parsed) ? parsed : parsed.events) as { payload: { hook_event_name?: string } }[];
 };

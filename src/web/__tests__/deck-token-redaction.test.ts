@@ -67,7 +67,7 @@ beforeAll(async () => {
   port = (server.address() as AddressInfo).port;
 
   await new Promise<void>((done, fail) => {
-    sseReq = request({ host: "127.0.0.1", port, path: "/events", method: "GET" }, res => {
+    sseReq = request({ host: "127.0.0.1", port, path: "/events", method: "GET", headers: { "x-ccdeck-token": TOKEN } }, res => {
       res.setEncoding("utf8");
       res.on("data", c => { sseText += c; });
       done();
@@ -111,7 +111,8 @@ function post(path: string, body: string): Promise<{ status: number; text: strin
 
 function get(path: string): Promise<string> {
   return new Promise((done, fail) => {
-    const req = request({ host: "127.0.0.1", port, path, method: "GET" }, res => {
+    // Non-browser client: the deck's own data needs the deck's own token.
+    const req = request({ host: "127.0.0.1", port, path, method: "GET", headers: { "x-ccdeck-token": TOKEN } }, res => {
       let out = "";
       res.setEncoding("utf8");
       res.on("data", c => { out += c; });

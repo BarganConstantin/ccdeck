@@ -69,7 +69,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { startServer, writeJsonArray } = await import("../../server/index.mjs");
+const { startServer, writeJsonArray, hookToken } = await import("../../server/index.mjs");
 
 /** V8's longest string on a 64-bit build: `2^29 - 24`. Not a platform number —
  *  Linux, macOS and Windows all refuse at the same character. */
@@ -166,7 +166,9 @@ type Reply = { status: number; text: string; headers: Record<string, string | st
 
 function call(method: "GET" | "POST", path: string, body?: string): Promise<Reply> {
   return new Promise((done, fail) => {
-    const req = request({ host: "127.0.0.1", port, path, method }, res => {
+    // Every call in this file is a non-browser client, and the deck's own data
+    // needs the deck's own token from one of those.
+    const req = request({ host: "127.0.0.1", port, path, method, headers: { "x-ccdeck-token": hookToken() } }, res => {
       let out = "";
       res.setEncoding("utf8");
       res.on("data", c => { out += c; });

@@ -28,7 +28,7 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken } = await import("../../server/index.mjs");
 
 // Matches MAX_TRACKED_SESSIONS in src/server/index.mjs.
 const CAP = 256;
@@ -89,7 +89,7 @@ type Envelope = { seq: number; payload: { session_id?: string; model?: string; h
 
 function since(seq: number): Promise<Envelope[]> {
   return new Promise((resolve, reject) => {
-    get({ host: "127.0.0.1", port, path: `/api/events?since=${seq}` }, res => {
+    get({ host: "127.0.0.1", port, path: `/api/events?since=${seq}`, headers: { "x-ccdeck-token": hookToken() } }, res => {
       let out = "";
       res.setEncoding("utf8");
       res.on("data", c => { out += c; });

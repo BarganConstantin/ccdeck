@@ -29,7 +29,7 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 
 // @ts-expect-error — .mjs server module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken } = await import("../../server/index.mjs");
 
 let server: Server;
 let port = 0;
@@ -94,7 +94,10 @@ function stalledSubscriber(): Socket {
   const sock = connect(port, "127.0.0.1");
   sockets.push(sock);
   sock.on("error", () => {});
-  sock.write(`GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAccept: text/event-stream\r\n\r\n`);
+  // The token goes in by hand here: this subscriber is a raw socket precisely
+  // so it can stop reading, and the guarded-read gate wants the same credential
+  // from it that every other non-browser client presents.
+  sock.write(`GET /events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAccept: text/event-stream\r\nx-ccdeck-token: ${hookToken()}\r\n\r\n`);
   sock.pause();
   return sock;
 }
@@ -102,7 +105,7 @@ function stalledSubscriber(): Socket {
 /** A subscriber that behaves: it reads everything the server sends. */
 async function healthySubscriber(): Promise<{ res: IncomingMessage; bytes: () => number }> {
   const res = await new Promise<IncomingMessage>((resolve, reject) => {
-    get({ host: "127.0.0.1", port, path: "/events" }, resolve).on("error", reject);
+    get({ host: "127.0.0.1", port, path: "/events", headers: { "x-ccdeck-token": hookToken() } }, resolve).on("error", reject);
   });
   streams.push(res);
   let bytes = 0;

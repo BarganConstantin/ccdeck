@@ -78,7 +78,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken } = await import("../../server/index.mjs");
 
 /** Deep enough that `JSON.stringify` refuses on every runner this suite meets,
  *  and the same depth api-events-streaming.test.ts pins the sibling defect at.
@@ -119,7 +119,8 @@ type Reply = { status: number; text: string };
 
 function call(method: "GET" | "POST", path: string, body?: string): Promise<Reply> {
   return new Promise((done, fail) => {
-    const req = request({ host: "127.0.0.1", port, path, method, agent: false }, res => {
+    // Non-browser client: the deck's own data needs the deck's own token.
+    const req = request({ host: "127.0.0.1", port, path, method, agent: false, headers: { "x-ccdeck-token": hookToken() } }, res => {
       let out = "";
       res.setEncoding("utf8");
       res.on("data", c => { out += c; });
@@ -199,7 +200,7 @@ function openSse(lastEventId?: number) {
   };
   const headers: Record<string, string> = { Accept: "text/event-stream" };
   if (lastEventId !== undefined) headers["Last-Event-ID"] = String(lastEventId);
-  const req = request({ host: "127.0.0.1", port, path: "/events", method: "GET", agent: false, headers });
+  const req = request({ host: "127.0.0.1", port, path: "/events", method: "GET", agent: false, headers: { ...headers, "x-ccdeck-token": hookToken() } });
   return new Promise<typeof client>((done, fail) => {
     req.on("response", res => {
       res.setEncoding("utf8");
