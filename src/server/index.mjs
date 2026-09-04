@@ -3470,7 +3470,13 @@ export function replayScope(workspace, platform = process.platform) {
  * that case cheap needs an index of where a workspace's lines are, which is a
  * different change from this one.
  */
-async function replayLog(filePath, workspace = "") {
+/* Exported for the suite, with both ceilings as parameters. The byte budget is
+ * 128 MiB, so a test that wanted to reach it honestly would have to write 128
+ * MiB — which is why the count bound was the only one anything pinned, and why
+ * the byte bound was the one that broke. Production passes neither argument. */
+export async function replayLog(filePath, workspace = "", {
+  maxEvents = MAX_BUFFER, maxChars = MAX_BUFFER_CHARS,
+} = {}) {
   if (!existsSync(filePath)) return 0;
   let skipped = 0;
   let skippedBytes = 0;
@@ -3499,17 +3505,32 @@ async function replayLog(filePath, workspace = "") {
     }
   } else {
     // Newest first, so this is filled back to front and then walked in reverse
-    // to push. Bounded by MAX_BUFFER, which is what makes the memory here a
-    // property of the ring rather than of the file.
+    // to push. Bounded by BOTH of the ring's limits, which is what makes the
+    // memory here a property of the ring rather than of the file.
+    //
+    // The count alone was not enough, and the comment that used to say it was
+    // predates #625. Eviction is the only thing that applies MAX_BUFFER_CHARS,
+    // and eviction happens inside pushEvent — which does not run until this
+    // array is already full. Measured on a 187 MB log of 40 events of 4.9M
+    // characters each, every one of them under the ingest cap: RSS went from
+    // 215 MB to a peak of 505 MB, and the ring that survived held 27 events and
+    // 126 MiB. About 290 MB staged for a ring capped at 128.
+    //
+    // Rotation at 50 MB normally keeps logs well under this, but rotation is
+    // best-effort and its failure is only logged, and this file's own header
+    // records logs reaching gigabytes.
     const newestFirst = [];
+    let stagedChars = 0;
     for await (const line of linesFromEnd(filePath)) {
       if (!line) continue;
       const evt = parse(line);
       if (!usable(evt) || !admits(evt.payload)) continue;
       newestFirst.push(evt);
+      stagedChars += ENVELOPE_CHARS + payloadChars(evt.payload);
       // Everything older than this would be evicted by the events already held,
       // so reading further is work whose only result is throwing it away.
-      if (newestFirst.length >= MAX_BUFFER) break;
+      // Either limit reaching its ceiling means exactly that.
+      if (newestFirst.length >= maxEvents || stagedChars >= maxChars) break;
     }
     for (let i = newestFirst.length - 1; i >= 0; i--) replay(newestFirst[i]);
     count = newestFirst.length;
