@@ -502,7 +502,33 @@ export async function installHooks({ provider = "claude" } = {}) {
   // compare against the exact bytes we read and, when they match, do nothing.
   const next = JSON.stringify(current, null, 2) + "\n";
   const changed = next !== before;
-  if (changed) await writeFileAtomic(cfg.settingsPath, next);
+  if (changed) {
+    // COMPARE AGAINST THE FILE, NOT AGAINST THE SNAPSHOT, at the last moment.
+    //
+    // Everything above was computed from bytes read at the top of this
+    // function, and two decks booting together — the ordinary case on a machine
+    // where one was already running — interleave inside that window. The one
+    // that loses is unrecoverable rather than merely stale: deck A restores the
+    // user's own sound hooks from the parked file and deletes the park, and
+    // deck B then writes a settings object computed before that restore, with
+    // an empty park behind it. The user's hook is gone from settings.json and
+    // from the only other copy of it.
+    //
+    // So the file is re-read immediately before the write and, if another
+    // writer has touched it, this pass declines. Declining is safe by
+    // construction: every boot reinstalls, so the next one recomputes against
+    // the new bytes and converges — and the entries this function adds are
+    // identical on both decks, which is why the loser has nothing of its own to
+    // lose.
+    const { raw: onDisk } = await readSettingsForWrite(cfg.settingsPath).catch(() => ({ raw: before }));
+    if (onDisk !== before) {
+      return {
+        settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider,
+        changed: false, raced: true, retire: { ...retire, pending: false },
+      };
+    }
+    await writeFileAtomic(cfg.settingsPath, next);
+  }
   // After the write, never before it: the notify script an older deck installed
   // is what a live session's cached command still names until the new entry is
   // on disk, and deleting it early turns a stale sound into a missing module.
