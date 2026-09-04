@@ -937,6 +937,38 @@ export async function fetchCcusageDaily({ since, until, force = false } = {}) {
  * waited its turn. With an empty queue that is the same instant the caller
  * asked, which is what this always did.
  */
+/**
+ * The same range, grouped by session rather than by day.
+ *
+ * Returns `[]` for every failure, including a ccusage too old to have the
+ * subcommand. The panel's totals and its per-model split come from `daily`, and
+ * losing the session names must not lose those — an empty list draws one
+ * section short, which is the same thing that happens on a machine with no
+ * ccusage at all and is already a state the panel knows.
+ *
+ * WHAT `period` IS HERE, and it is the whole reason this is worth a second
+ * child: on a session row ccusage puts the SESSION ID in `period` — the same
+ * uuid Claude Code writes into every hook payload, and therefore the same key
+ * the canvas already files its agents under. So these rows join to the board by
+ * id, which is what lets the panel show ccusage's money against the deck's own
+ * project names. Without that join a session row is a uuid and a number.
+ */
+async function readSessions(sinceArg, until) {
+  try {
+    const args = ["session", "--json", "--since", sinceArg];
+    if (until) args.push("--until", until);
+    const ran = await runCcusage(args);
+    const raw = extractJson(ran.out);
+    // `session`, singular — ccusage names the array after the command, not
+    // after its contents, and `sessions` reads as the obvious guess and is
+    // always undefined.
+    return Array.isArray(raw.session) ? raw.session : [];
+  } catch (err) {
+    note("session read failed", err);
+    return [];
+  }
+}
+
 async function readRange(sinceArg, until, key) {
   const now = Date.now();
   let result;
@@ -946,6 +978,15 @@ async function readRange(sinceArg, until, key) {
     if (until) args.push("--until", until);
     ran = await runDaily(args);
     const raw = extractJson(ran.out);
+    // The same range asked a second way. `daily` answers "what did this cost"
+    // and `session` answers "which session spent it", and no flag on the first
+    // produces the second — they are two commands, so this is a second child.
+    //
+    // Deliberately after the first and not beside it: a failure to name the
+    // sessions must not cost the totals, which are what the panel is mostly
+    // for, and two ccusage processes at once on a cold machine is the shape
+    // #476 spent a release removing from the boot path.
+    const sessions = await readSessions(sinceArg, until);
     // Passed through whole, `agents` array and all. Every day ccusage returns
     // under `--by-agent` is a superset of the day it returns without one, so
     // there is nothing here to reshape: the browser reads the merged totals it
@@ -957,6 +998,7 @@ async function readRange(sinceArg, until, key) {
     result = {
       ok: true,
       days,
+      sessions,
       totals: raw.totals ?? null,
       since: sinceArg,
       until: until ?? null,
