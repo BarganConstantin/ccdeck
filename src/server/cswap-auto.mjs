@@ -259,6 +259,17 @@ export async function setCswapConfig(key, value) {
   // nothing. The panel reloads this route immediately afterwards and gets a real
   // read; see invalidateCswapAutoCache.
   invalidateCswapAutoCache();
+  // A NEW INTERVAL HAS TO REACH THE TIMER. `tickInterval()` is read once, at
+  // startLoop, so changing this setting used to update what the panel reports
+  // and nothing else: set 3600 with auto-switch on and the panel read back an
+  // hour while the loop kept firing every sixty seconds for the life of the
+  // process — sixty `cswap auto --once` spawns an hour instead of one, against
+  // the shared per-account request budget this subsystem exists to protect.
+  // Lowering it was equally inert.
+  if (r.ok && key === "autoswitch.intervalSeconds" && _enabled) {
+    stopLoop();
+    await startLoop();
+  }
   return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
 }
 
@@ -297,6 +308,15 @@ function summarise(stdout) {
 /** Evaluate a tick for real. May switch the active account. */
 async function runAutoTick() {
   const r = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+  // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
+  // 8 KB tail of whatever the child managed to print, so `!r.ok && !r.stdout`
+  // is false for a tick that emitted its `{"event":"poll"}` line and then
+  // stalled — and the killed run fell through to `ok: true`. The panel then
+  // showed a healthy `no-switch` every two minutes, forever, while the engine
+  // did nothing at all: exactly the trap exec.mjs's own header names.
+  if (r.timedOut) {
+    return { ok: false, reason: "tick_timeout", detail: `cswap auto --once did not finish within ${TICK_TIMEOUT_MS / 1000}s` };
+  }
   if (!r.ok && !r.stdout) {
     return { ok: false, reason: "tick_failed", detail: (r.stderr || "").trim().slice(0, 300) };
   }
@@ -481,6 +501,18 @@ async function runTick() {
   // the deck should fall silent rather than compete with it.
   if (await externalAutoRunning()) {
     _lastTick = { at: Date.now(), event: "skipped", reason: "external-engine" };
+    return;
+  }
+  // AND RE-CHECK THE SWITCH ITSELF, after that await. `stopLoop` clears the
+  // interval and nothing else, so a tick already running went on to move the
+  // user's live account seconds after the panel had drawn itself as off. The
+  // await above is not short: ticks are at least fifteen seconds apart against
+  // a ten-second floor, so every one pays a real process-table read — on
+  // Windows a PowerShell Get-CimInstance with an eight-second deadline. The
+  // panel then showed `enabled: false` beside a `lastTick` of
+  // `{event: "switch", from, to}` stamped after the user turned it off.
+  if (!_enabled) {
+    _lastTick = { at: Date.now(), event: "skipped", reason: "disabled" };
     return;
   }
   const result = await runAutoTick();

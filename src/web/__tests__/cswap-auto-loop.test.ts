@@ -104,6 +104,63 @@ afterAll(() => {
   rmTempDir(HOME);
 });
 
+describe("a tick that is already running when the user turns it off", () => {
+  it("does not switch an account after the panel has drawn itself as off", async () => {
+    // `stopLoop` clears the interval and nothing else, so a tick past its first
+    // await went on to run `cswap auto --once` — which moves the user's live
+    // Claude account. That await is not short: ticks are at least fifteen
+    // seconds apart against a ten-second floor, so each one pays a real
+    // process-table read, and on Windows that is a PowerShell Get-CimInstance
+    // with an eight-second deadline. The panel showed `enabled: false` beside a
+    // `lastTick` of `{event: "switch"}` stamped after the disable.
+    state.tickHeld = true;              // hold `cswap auto --once` open
+    await mod.setAutoEnabled(true);
+    await rest(30);
+    expect(ticks(), "the first tick did not start").toBeGreaterThan(0);
+
+    // The next tick has to find the switch off. Turn it off while the held one
+    // is still in flight, then let everything drain.
+    await mod.setAutoEnabled(false);
+    state.tickHeld = false;
+    state.releaseTick?.();
+    const before = ticks();
+    await rest(120);
+
+    expect(ticks(), "another `auto --once` ran after the toggle said off").toBe(before);
+    const status = await mod.autoStatus();
+    expect(status.enabled).toBe(false);
+  });
+});
+
+describe("changing the interval", () => {
+  it("restarts the timer instead of only changing what the panel reports", async () => {
+    // `tickInterval()` is read once, at startLoop. Setting 3600 used to return
+    // ok and read back an hour while the loop went on firing at the old rate
+    // for the life of the process — sixty `cswap auto --once` spawns an hour
+    // instead of one, against the shared per-account budget this subsystem
+    // exists to protect.
+    await mod.setAutoEnabled(true);
+    await rest(30);
+    calls.length = 0;
+
+    const r = await mod.setCswapConfig("autoswitch.intervalSeconds", 300);
+    expect(r).toEqual({ ok: true });
+    // The restart is observable as the immediate tick startLoop always fires,
+    // plus the `config get` read that gave it the new interval.
+    await rest(40);
+    expect(calls.some(c => c[1] === "config" && c[2] === "set"), "the setting was never written").toBe(true);
+    expect(calls.some(c => c[1] === "auto" && c[2] === "--once"), "the loop was not restarted").toBe(true);
+  });
+
+  it("leaves the timer alone when auto-switch is off", async () => {
+    await mod.setAutoEnabled(false);
+    calls.length = 0;
+    await mod.setCswapConfig("autoswitch.intervalSeconds", 120);
+    await rest(40);
+    expect(calls.some(c => c[1] === "auto"), "a disabled loop was started by a settings change").toBe(false);
+  });
+});
+
 describe("enabling and disabling across the config read", () => {
   it("leaves no loop running behind a toggle that says off", async () => {
     state.configMs = 60;
