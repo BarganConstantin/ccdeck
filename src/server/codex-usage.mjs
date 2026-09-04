@@ -219,10 +219,15 @@ async function readCompressedTokenSeries(filePath) {
     const decoder = new StringDecoder("utf8");
     let pending = "";
     source = createReadStream(filePath);
-    // Never unhandled: the `for await` below is what reports the failure, and
-    // this only stops the event from being fatal on the way there.
-    source.on("error", () => {});
     const stream = source.pipe(createZstdDecompress());
+    // THE ERROR HAS TO REACH THE LOOP, not merely be caught. A bare
+    // `on("error", () => {})` here stops the process dying and hangs the read
+    // instead: `pipe` does not forward a source failure to the destination, so
+    // the `for await` below waits forever for an 'end' that cannot come — which
+    // is what a missing file did on the first Windows run of this code, at 30
+    // seconds per poll. Destroying the destination WITH the error makes the
+    // iteration reject, which is what the catch is for.
+    source.on("error", err => { stream.destroy(err); });
     for await (const chunk of stream) {
       pending += decoder.write(chunk);
       let from = 0;

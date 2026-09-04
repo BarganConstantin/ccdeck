@@ -48,7 +48,12 @@ describe("writing over a file the filesystem calls read-only", () => {
     chmodSync(target, 0o600);
     await writeFileAtomic(target, '{"a":1}');
     expect(readFileSync(target, "utf8")).toBe('{"a":1}');
-    expect(statSync(target).mode & 0o777).toBe(0o600);
+    // Windows has one bit here, not nine: chmod toggles FILE_ATTRIBUTE_READONLY
+    // and Node reports 0666 or 0444 whatever was asked for. So the assertion is
+    // "still writable" there and the exact mode everywhere else — the same
+    // split the code's own comment makes.
+    if (process.platform === "win32") expect(statSync(target).mode & 0o222).not.toBe(0);
+    else expect(statSync(target).mode & 0o777).toBe(0o600);
   });
 
   it("clears the attribute only on Windows, and puts it back after the rename", () => {

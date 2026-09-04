@@ -63,6 +63,9 @@ import { copyFile, mkdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
+const { COPYFILE_EXCL } = fsConstants;
 import { pathLookup, run } from "./exec.mjs";
 
 /**
@@ -333,9 +336,31 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
 
   let copyPath = null;
   try {
-    await makeDir(copyDir, { recursive: true });
-    copyPath = join(copyDir, `history-${process.pid}-${++copySeq}.sqlite`);
-    await copy(historyPath, copyPath);
+    // MODE 0700, AND A NAME NOBODY ELSE CAN PREDICT.
+    //
+    // `os.tmpdir()` is per-user on macOS (/var/folders/…, 0700) and on Windows,
+    // and on Linux it is the shared, world-writable /tmp. A fixed directory
+    // name and `history-<pid>-<n>.sqlite` inside it meant three things there,
+    // all of them avoidable:
+    //
+    //   * a complete, unencrypted copy of the user's browsing history, mode
+    //     0644, under a predictable path, readable by every other account on
+    //     the machine for the life of the poll;
+    //   * another UID can create the directory first — `mkdir` with `recursive`
+    //     swallows EEXIST and keeps THEIR mode — and then read every copy, or
+    //     plant a symlink at the name and have this overwrite a file the user
+    //     owns, because `copyFile` was called without COPYFILE_EXCL;
+    //   * a second user on the same box then fails EACCES on a directory they
+    //     cannot write, and their deck is degraded for good.
+    //
+    // The mode is set on creation AND after, because the directory may already
+    // exist from an earlier run of this same deck.
+    await makeDir(copyDir, { recursive: true, mode: 0o700 });
+    copyPath = join(copyDir, `history-${process.pid}-${++copySeq}-${randomUUID().slice(0, 8)}.sqlite`);
+    // COPYFILE_EXCL: refuse rather than write through a symlink or over a file
+    // that is already there. A refusal is one degraded poll; the alternative is
+    // clobbering whatever the name pointed at.
+    await copy(historyPath, copyPath, COPYFILE_EXCL);
   } catch (err) {
     // The browser is not installed, the profile moved, the disk is full. All of
     // them are "no rows this poll", none of them is a reason to stop polling.
