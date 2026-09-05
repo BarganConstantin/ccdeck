@@ -310,3 +310,58 @@ describe("a discovery file that does carry a token", () => {
     expect(JSON.stringify(wrong.seen)).not.toContain(PROMPT);
   }, 10_000);
 });
+
+describe("a deck that is simply too busy to answer in time", () => {
+  // A wrong proof, a refused connection and a 404 are verdicts — that port is
+  // not the deck the record describes, and asking twice gets the same answer.
+  // A DEADLINE is not: it is a machine too loaded to reply inside 400ms, and
+  // the deck on the other side is fine. Measured on the Windows box, the repo's
+  // own suite (335 files in parallel) is enough load to produce it, and the
+  // event was then dropped with nothing on screen to say so.
+  it("is challenged a second time, and gets the event", async () => {
+    const token = randomBytes(32).toString("hex");
+    let challenges = 0;
+    const deck = await listener((req, res) => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/api/hook-challenge") {
+        challenges += 1;
+        // The first attempt is answered too late for the hook's 400ms window;
+        // the second is answered at once.
+        const nonce = url.searchParams.get("nonce") ?? "";
+        const proof = challengeProof(token, nonce);
+        if (challenges === 1) {
+          setTimeout(() => { try { res.end(JSON.stringify({ proof })); } catch { /* hung up */ } }, 700);
+          return;
+        }
+        return res.end(JSON.stringify({ proof }));
+      }
+      res.end("{}");
+    });
+    try {
+      await runHook(discoveryFor(deck.port, token));
+    } finally {
+      await deck.close();
+    }
+    expect(challenges, "the slow challenge was not retried").toBe(2);
+    expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(1);
+  }, 15_000);
+
+  it("gives up after the second deadline rather than trying forever", async () => {
+    // The retry is one, not a loop: the hook runs inside Claude Code's turn and
+    // has a hard cap of its own.
+    const token = randomBytes(32).toString("hex");
+    let challenges = 0;
+    const deck = await listener((req, res) => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/api/hook-challenge") { challenges += 1; return; }  // never answers
+      res.end("{}");
+    });
+    try {
+      await runHook(discoveryFor(deck.port, token));
+    } finally {
+      await deck.close();
+    }
+    expect(challenges).toBe(2);
+    expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(0);
+  }, 15_000);
+});

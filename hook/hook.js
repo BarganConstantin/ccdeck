@@ -305,8 +305,28 @@ const POST_TIMEOUT_MS = 1000;
  *
  * A deck that advertised no token cannot be asked and passes: see requiresProof.
  */
-function prove(d, cb) {
+function prove(d, cb, attempt = 0) {
   let settled = false;
+  // A DEADLINE IS NOT AN ANSWER, and the difference is worth one retry.
+  //
+  // A wrong proof, a refused connection and a 404 are all verdicts: that port
+  // is not the deck this record describes, and asking again would get the same
+  // answer. A TIMEOUT is not — it is a machine too busy to reply in 400ms, and
+  // the deck on the other side is fine. Measured on the Windows box: the full
+  // test suite (335 files in parallel) is enough load to make a healthy deck
+  // miss that window, and the event is then dropped with nothing on screen to
+  // say so. A big build or a machine running several agents is the same shape.
+  //
+  // One retry, only on the deadline, and the budget still fits: 400 + 400 for
+  // the challenge and 1000 for the POST, under the 1900ms cap main() sets —
+  // which is itself under the two-second timeout the installed hook entry
+  // carries, so Claude Code never has to kill this process.
+  const retryOnTimeout = () => {
+    if (settled) return;
+    if (attempt >= 1) return finish(false);
+    settled = true;                        // this attempt is over; the next owns `cb`
+    prove(d, cb, attempt + 1);
+  };
   const finish = ok => { if (settled) return; settled = true; cb(ok); };
 
   if (!requiresProof(d)) return finish(true);
@@ -339,8 +359,12 @@ function prove(d, cb) {
       finish(sameProof(proof, want));
     });
   });
-  req.on("error", () => finish(false));
-  req.on("timeout", () => req.destroy());
+  // `destroy()` on a timeout makes 'error' fire with ECONNRESET, so the two
+  // handlers have to agree on which of them is speaking: `timedOut` is what
+  // tells a deadline apart from a refusal.
+  let timedOut = false;
+  req.on("error", () => { if (timedOut) retryOnTimeout(); else finish(false); });
+  req.on("timeout", () => { timedOut = true; req.destroy(); });
   req.end();
 }
 
@@ -411,8 +435,11 @@ function post(d, body, persists, done) {
 }
 
 function main() {
-  // Hard cap so a stuck server can never wedge the host CLI.
-  setTimeout(() => process.exit(0), 1500);
+  // Hard cap so a stuck server can never wedge the host CLI. 1900ms, which is
+  // the challenge's two attempts (400 + 400) plus the POST's 1000 with a little
+  // room — and still under the two-second timeout the installed hook entry
+  // carries, so this process ends itself rather than being killed.
+  setTimeout(() => process.exit(0), 1900);
 
   // The deck reads the Claude quota by running `claude --print /usage`, which is
   // a full Claude Code invocation and therefore fires these hooks. Reporting it
