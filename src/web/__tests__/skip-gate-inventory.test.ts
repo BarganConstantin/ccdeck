@@ -20,17 +20,19 @@
 // The second finding is the one that needed a mechanism rather than an edit.
 // Nineteen of the gated cases are conditioned on `process.platform`, and a
 // platform gate cannot lie: the case runs on exactly the legs the condition
-// names. Six are conditioned on a RUNTIME PROBE — `hardLinksWork` at four
+// names. Seven are conditioned on a RUNTIME PROBE — `hardLinksWork` at four
 // sites, `readOnlyDirBlocksWrites` at one, and the presence of
-// dist/web/index.html at one. Each of those asks the machine a question at
+// dist/web/index.html at two. Each of those asks the machine a question at
 // import time and disappears if the answer changes, on all three legs at once,
-// with a green matrix either side of it. The theme-first-paint one is the
-// sharpest, because what satisfies it is a STEP IN THE WORKFLOW rather than a
+// with a green matrix either side of it. The dist ones are the sharpest,
+// because what satisfies them is a STEP IN THE WORKFLOW rather than a
 // property of the filesystem: delete `npm run build` from publish.yml, rename
 // vite's `build.outDir`, or move index.html, and the only assertion in the
-// suite that reads the artifact that actually ships is gone without a word.
-// Moving that artifact aside and running the file reports `12 passed | 1
-// skipped`, and the file green.
+// suite that reads the artifact that actually ships is gone without a word —
+// along with the whole of tarball-install-smoke.test.ts, which is nine cases
+// and the only place the PACKAGE that ships is exercised at all.
+// Moving that artifact aside and running theme-first-paint reports `12 passed |
+// 1 skipped`, and the file green.
 //
 // So the fix is not another named title. It is a register — skip-gates.mjs —
 // stating every gate site and, as a function of `platform`, when each is
@@ -183,10 +185,10 @@ describe("the register of conditionally-skipped cases", () => {
     // strongest one available — they always run — and CI is what turns that
     // expectation into a failure on the day the machine disagrees.
     const always = gates().filter((g) => g.condition === "!hardLinksWork" || g.condition === "!existsSync(dist)");
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(4);
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(5);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
-    // The sixth probe site is the read-only-directory one, the only probe with
+    // The seventh probe site is the read-only-directory one, the only probe with
     // a legitimate per-platform answer — and the reason it is stated here as a
     // function of platform is that it is not checkable any other way from macOS.
     const readOnly = gates().filter((g) => g.condition === "!readOnlyDirBlocksWrites");

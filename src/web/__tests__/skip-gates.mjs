@@ -15,13 +15,13 @@
 //   the workflow looked up is not skipped anywhere any more, and an assertion
 //   that only knows that one title now protects nothing.
 //
-//   Six gates skip on a *runtime probe* rather than on the platform:
+//   Seven gates skip on a *runtime probe* rather than on the platform:
 //   `hardLinksWork` (four sites), `readOnlyDirBlocksWrites` and
-//   `existsSync(dist/web/index.html)`. A platform gate cannot lie —
+//   `existsSync(dist/web/index.html)` (two sites). A platform gate cannot lie —
 //   process.platform is what it is — but a probe answers a question about the
 //   machine at import time, and if the answer changes the case disappears on
 //   ALL THREE legs at once, with a green matrix either side of it. The
-//   theme-first-paint one is the sharpest: its condition is satisfied by a
+//   dist ones are the sharpest: their condition is satisfied by a
 //   *step in the workflow* (`npm run build`), so deleting that step, renaming
 //   vite's `build.outDir`, or moving index.html retires the only assertion in
 //   the suite that reads the artifact that actually ships — silently.
@@ -102,6 +102,12 @@ export const CONDITIONS = {
     // Satisfied by the `Build web bundle` step in publish.yml, not by anything
     // about the machine. The inventory test pins that step's existence for
     // exactly this reason.
+    //
+    // Two sites now, and the second raises the stakes: theme-first-paint's one
+    // case reads the built page, while tarball-install-smoke's nine PACK that
+    // build and run what comes out. A leg that stops building loses the only
+    // coverage the shipped package has, so this condition answering `true` in
+    // CI is the single most expensive silent skip in the register.
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
   },
@@ -153,6 +159,11 @@ export const GATES = [
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
 
   { file: "theme-first-paint.test.ts", gate: "it.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 1 },
+  // The whole tarball block. It packs what is on disk with `--ignore-scripts`,
+  // so a leg that has not built has nothing honest to pack — and a tarball
+  // without dist/web does not boot at all, which would make this a timeout
+  // rather than a failure with a reason.
+  { file: "tarball-install-smoke.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 9 },
 ];
 
 /**
