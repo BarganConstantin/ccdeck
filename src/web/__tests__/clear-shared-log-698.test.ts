@@ -33,7 +33,8 @@
 // answer the cleared deck gives about itself.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { request } from "node:http";
 import { createServer } from "node:net";
 import type { AddressInfo, Server } from "node:net";
@@ -239,10 +240,14 @@ afterAll(async () => {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  // `maxRetries` rather than a bare call: on Windows a directory whose last
-  // handle was closed a moment ago still answers EBUSY/EPERM for a beat, and a
-  // throw here would fail a file whose every case has already passed.
-  rmSync(SANDBOX, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  // THE SHARED HELPER, not a bare rmSync with retries. Windows failed this
+  // teardown with ENOTEMPTY under a full-suite run: the two decks are gone by
+  // the line above, but a hook process one of the cases spawned can still be
+  // finishing — it sweeps the discovery directory and, since the challenge
+  // gained a retry, lives a little longer than it did. rm-temp-dir.ts already
+  // carries the patience for exactly this, learned three times over, including
+  // the ENOTEMPTY spelling.
+  rmTempDir(SANDBOX);
 });
 
 describe("Clear on a deck that does not own the shared log", () => {
