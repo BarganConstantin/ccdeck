@@ -326,13 +326,35 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     expect(asOldSafari.status, "a browser too old for Sec-Fetch-Site was locked out").toBe(200);
   });
 
-  it("does its first-run writing inside the home it was given, and nowhere else", async () => {
+  it("does its first-run writing inside the home it was given, and nowhere else", () => {
     // The hook is the proof that hook/ shipped AND that the installer found it
     // inside the installed package rather than relative to a repo that is not
-    // there. It is written on boot, so by the time "server ready" was printed
-    // it is either on disk or it never will be.
+    // there.
+    //
+    // READ OFF THE BANNER, not asserted outright, and CI is what taught this
+    // file the difference. The first version waited for the hook to appear and
+    // timed out on all three legs while passing on two developer machines: a
+    // runner has no Claude Code, so `jobs.hooks` resolves null, the deck prints
+    // "skipped — no Claude Code found" and there is nothing to install into.
+    // The machine-independent claim is not "a hook was written"; it is that
+    // WHEREVER the deck says it wrote one, that path is inside the HOME it was
+    // handed and the file is really there.
+    const row = /Claude hooks\s+(.+)/.exec(out.text);
+    expect(row, `the boot said nothing about Claude hooks:\n${out.text}`).toBeTruthy();
+    const detail = row![1].trim();
+    if (/skipped/.test(detail)) {
+      // Nothing to check on this machine, and nothing may have escaped either.
+      expect(existsSync(join(HOME, ".claude", "settings.json")),
+        "the deck wrote settings.json on a machine with no Claude Code").toBe(false);
+      return;
+    }
+    // The path is ellipsised in the banner to fit 80 columns, so the tail is
+    // what can be compared — and the tail is the part that says whose home it
+    // is going into.
+    expect(detail, `the hook row named something else: ${detail}`)
+      .toContain(join(".claude", "agent-dag", "hook.js"));
     const hook = join(HOME, ".claude", "agent-dag", "hook.js");
-    await until(() => existsSync(hook), 20_000, `the hook to be written to ${hook}`);
+    expect(existsSync(hook), `the banner claimed a hook that is not at ${hook}`).toBe(true);
     expect(readFileSync(hook, "utf8").length, "the hook shipped empty").toBeGreaterThan(0);
     // And the settings file that points at it, which is the half a user
     // notices: a hook on disk that nothing calls is a deck with no events.
