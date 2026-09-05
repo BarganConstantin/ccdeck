@@ -3,6 +3,7 @@
 // in the topbar or the U keyboard shortcut.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
+import { countTo } from "../count-up";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
   PERIODS, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
@@ -434,10 +435,12 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
   const [landed, setLanded] = useState<{ period: PeriodKey; data: UsageRange } | null>(null);
   const [loading, setLoading] = useState(false);
   // A panel left open must not freeze at the figure it opened on, and must not
-  // become a background job either. Five minutes is chosen against the work
-  // rather than against the server's 2-minute cache: every poll longer than
-  // CACHE_MS misses it by definition, so this interval IS the ccusage run rate,
-  // and a run walks every transcript on the machine.
+  // become a background job either. Once a minute, which is the rate a reader
+  // watching a total actually notices — and it is a real minute: the server's
+  // cache is set to the same 60s, so every poll is a fresh reading rather than
+  // the same number handed back. That makes this interval the ccusage run rate,
+  // and a run walks every transcript on the machine, which is why it is not
+  // faster.
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const beat = () => {
@@ -446,7 +449,7 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
       // updating numbers no one is looking at.
       if (document.visibilityState === "visible") setTick(n => n + 1);
     };
-    const t = window.setInterval(beat, 300_000);
+    const t = window.setInterval(beat, 60_000);
     // And catch up on the way back: a tab hidden for an hour holds an hour-old
     // reading, which is the one moment a poll is worth more than its cost.
     const wake = () => { if (document.visibilityState === "visible") setTick(n => n + 1); };
@@ -486,6 +489,50 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
     loading,
     stale: landed != null && landed.period !== period,
   };
+}
+
+/**
+ * A figure that counts to its new value instead of teleporting to it.
+ *
+ * `key` is what the number MEANS — the period it belongs to. When that changes,
+ * the value snaps: "today $269" and "all time $12.4k" are different quantities,
+ * and counting between them would be theatre rather than a delta. Within one
+ * period, a five-minute poll can move a total while somebody is looking at it,
+ * and a count says which way and roughly how far.
+ *
+ * See count-up.ts for what deliberately does not animate — the first paint, a
+ * change too small to read, and the tables.
+ */
+function useCountUp(value: number, key: string): number {
+  const [shown, setShown] = useState(value);
+  // What is on screen right now, for a count that starts mid-flight rather than
+  // from where the last one began.
+  const currentRef = useRef(value);
+  const keyRef = useRef(key);
+  const firstRef = useRef(true);
+
+  useEffect(() => {
+    currentRef.current = shown;
+  }, [shown]);
+
+  useEffect(() => {
+    const meaningChanged = keyRef.current !== key;
+    keyRef.current = key;
+    // The first paint and a change of meaning both land immediately.
+    if (firstRef.current || meaningChanged) {
+      firstRef.current = false;
+      currentRef.current = value;
+      setShown(value);
+      return;
+    }
+    const stop = countTo(currentRef.current, value, v => {
+      currentRef.current = v;
+      setShown(v);
+    });
+    return stop;
+  }, [value, key]);
+
+  return shown;
 }
 
 export default function UsagePanel({ state, now, providers, onClose }: Props) {
@@ -725,6 +772,17 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
 
   const hasCost = fromRange ? rangeSum.cost > 0 : totalCost.total > 0;
   const totalTokenSum = fromRange ? rangeSum.tokens : totalTokens.sum;
+
+  // WHAT THE FIGURES ABOVE MEAN, as one string. A count is only honest between
+  // two readings of the same quantity: switching period, or falling back to the
+  // board because ccusage stopped answering, replaces the question rather than
+  // moving the answer, so those snap. See useCountUp.
+  const countKey = fromRange ? `range:${shownPeriod ?? period}` : "board";
+  const shownCost   = useCountUp(fromRange ? rangeSum.cost : totalCost.total, countKey);
+  const shownIn     = useCountUp(fromRange ? rangeSum.inputTokens : totalTokens.inputTokens, countKey);
+  const shownOut    = useCountUp(fromRange ? rangeSum.outputTokens : totalTokens.outputTokens, countKey);
+  const shownCacheR = useCountUp(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens, countKey);
+  const shownCacheC = useCountUp(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens, countKey);
   // Rows worth a line, which is not the same question as rows worth a dollar.
   // Both tables used to filter on `cost > 0`, and in a deck holding one priced
   // Claude session and any number of unpriced Codex ones that filter was
@@ -1051,7 +1109,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           {hasCost && (
             <>
               <div className={`up-total${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
-                <span className="up-total-value">{fmtCost(fromRange ? rangeSum.cost : totalCost.total)}</span>
+                <span className="up-total-value">{fmtCost(shownCost)}</span>
                 <span className="up-total-label">{fromRange ? periodNoun : BOARD_SPEND_LABEL}</span>
               </div>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
@@ -1069,10 +1127,12 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           )}
 
           <div className={`up-tokens-row${staleCls}`} title={fromRange ? undefined : BOARD_SCOPE_TITLE}>
-            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(fromRange ? rangeSum.inputTokens : totalTokens.inputTokens)}</span>
-            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(fromRange ? rangeSum.outputTokens : totalTokens.outputTokens)}</span>
-            {(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens)}</span>}
-            {(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens) > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens)}</span>}
+            <span className="up-tok"><span className="up-k">in</span>{fmtTokens(shownIn)}</span>
+            <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
+            {/* Gated on the TRUE value, not the counted one: a strip that
+                appeared and vanished as a count crossed zero would flicker. */}
+            {(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
+            {(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens) > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
             {/* On a deck where nothing is priced there is no headline above this
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is
