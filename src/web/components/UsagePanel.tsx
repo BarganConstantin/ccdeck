@@ -1081,24 +1081,18 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             {!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}
           </div>
 
-          {/* THE LIVE NUMBER, KEPT AND KEPT SEPARATE.
-              Everything above this line is ccusage's — a period, off the logs
-              on disk, which do not forget. This one is the canvas's: what the
-              sessions currently drawn have spent. They are different
-              measurements and the panel used to have only the second one under
-              a word that implied the first (#687), so the fix is not to delete
-              it but to label it and stand it apart. It carries the same tooltip
-              it always did, which is where "this falls on its own" is said.
-              Only when there is something to say: a board with no priced
-              session would otherwise print "$0.00 on this board" beneath a
-              month's real spend, which reads as a contradiction rather than as
-              a second scope. */}
-          {fromRange && totalCost.total > 0 && (
-            <div className="up-live" title={BOARD_SCOPE_TITLE}>
-              <span className="up-live-value">{fmtCost(totalCost.total)}</span>
-              <span className="up-live-label">{BOARD_SCOPE_LABEL} now</span>
-            </div>
-          )}
+          {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
+              There used to be one here — the canvas's own spend, on its own
+              labelled line — on the reasoning that #687's fix was to keep the
+              number and name its scope rather than delete it. In front of a
+              panel that now answers "today", "this month" and "all time" from
+              the logs, it is a second money figure that answers a question
+              nobody asked at that moment, and it invited the comparison it
+              could never win: $7,385 on the board under $170 for today reads as
+              a contradiction until you have read a tooltip.
+              The board's own figures are still on the topbar, where they carry
+              the same sentence, and the board branch below still prints them
+              when ccusage has not answered at all. */}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
             <section className={`up-section${staleCls}`}>
