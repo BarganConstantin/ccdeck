@@ -4061,6 +4061,16 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   color: var(--warn);
   font-weight: 600;
 }
+/* The guessed tool name, riding the warn-coloured readout it qualifies. Lighter
+   than the duration on purpose: the duration is measured and this is inferred
+   (see BlockedTool in types.ts), so it must not read with the same confidence
+   as the number beside it. Weight and opacity rather than a second colour —
+   a third hue in a row that already carries a state dot, a model chip and a
+   cost is how a sidebar stops being scannable. */
+.session-list .sl-waiting-tool {
+  font-weight: 500;
+  opacity: 0.75;
+}
 
 /* ---------------- detail panel: hero + sections ---------------- */
 

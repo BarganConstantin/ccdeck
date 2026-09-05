@@ -409,6 +409,11 @@ describe("duplicate deliveries of one notification", () => {
       kind: "permission",
       message: "Claude needs your permission",
       since: 20_000,
+      // `running()` leaves a Bash call in flight, and a permission prompt is
+      // named after the newest such call — the guess blocked-tool.test.ts is
+      // about. Pinned in the whole-shape assertion rather than excluded from it,
+      // so that widening `WaitingBlock` again fails here first.
+      tool: { name: "Bash", preview: "" },
     });
   });
 

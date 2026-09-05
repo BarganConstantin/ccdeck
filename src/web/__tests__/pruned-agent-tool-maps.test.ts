@@ -432,7 +432,7 @@ describe("#443 — releasing is scoped to the ids the departing agent still owns
   });
 
   it("keeps the permission prompt attributable to the subagent still working", () => {
-    // The observable cost of getting the line above wrong. `blockedSubagentId`
+    // The observable cost of getting the line above wrong. `blockedCall`
     // walks `toolIndex` for exactly the calls that have not settled, and reads
     // the newest one to decide which subagent a prompt is about (#361). Evicting
     // a live entry there does not just lose a map key — it loses the attribution,

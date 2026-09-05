@@ -15,7 +15,7 @@ import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { WaitingBlock } from "../types";
 import { shortModel, modelFamily } from "../model-label";
-import { stateLabel, waitingSentence } from "./AgentNode";
+import { blockedToolTooltip, stateLabel, waitingSentence } from "./AgentNode";
 
 export interface Row {
   sessionId: string;
@@ -214,8 +214,19 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                     ? (
                       <span
                         className="sl-waiting"
-                        title={`${waitingSentence(r.waiting)}\nBlocked since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`}
-                      >waiting {elapsedShort(r.waiting.since, undefined, now)}</span>
+                        title={[
+                          waitingSentence(r.waiting),
+                          blockedToolTooltip(r.waiting),
+                          `Blocked since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
+                        ].filter(Boolean).join("\n")}
+                      >
+                        waiting {elapsedShort(r.waiting.since, undefined, now)}
+                        {/* The tool NAME only, never the preview: this sits at the
+                            end of a row that already carries a model, a tool count
+                            and a cost, and the preview is a command line. The
+                            tooltip above takes both. */}
+                        {r.waiting.tool && <span className="sl-waiting-tool"> · {r.waiting.tool.name}</span>}
+                      </span>
                     )
                     : (
                       <span className="sl-elapsed" title={`Started ${new Date(r.startedAt).toLocaleString()}`}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>

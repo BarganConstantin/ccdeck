@@ -308,7 +308,16 @@ describe("what the sweep takes with it, and what it leaves", () => {
     state = send(state, T0, { hook_event_name: "Notification", ...PERMISSION });
     const sub = state.agents.get(`${SESSION}::sub-1`)!;
     expect(sub.state).toBe("active");
-    expect(root(state).waiting).toEqual({ kind: "permission", message: PERMISSION.message, since: T0 });
+    // Whole-shape rather than the two fields under test, and it stays that way:
+    // a field arriving on `WaitingBlock` unnoticed is exactly what this catches.
+    // `tool` is the guessed call the prompt is about — `blocked()` puts a Bash
+    // call in flight, so the deck names it (see blocked-tool.test.ts) — and it
+    // is pinned here so that a change to that inference has to come through this
+    // assertion rather than around it.
+    expect(root(state).waiting).toEqual({
+      kind: "permission", message: PERMISSION.message, since: T0,
+      tool: { name: "Bash", preview: "" },
+    });
 
     sweepStaleSessions(state, T0 + 2 * 60 * MIN, STALE_SESSION_MS);
     expect(sub.state).toBe("done");
