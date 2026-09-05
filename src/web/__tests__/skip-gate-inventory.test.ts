@@ -20,9 +20,9 @@
 // The second finding is the one that needed a mechanism rather than an edit.
 // Nineteen of the gated cases are conditioned on `process.platform`, and a
 // platform gate cannot lie: the case runs on exactly the legs the condition
-// names. Seven are conditioned on a RUNTIME PROBE — `hardLinksWork` at four
-// sites, `readOnlyDirBlocksWrites` at one, and the presence of
-// dist/web/index.html at two. Each of those asks the machine a question at
+// names. Eight are conditioned on a RUNTIME PROBE — `hardLinksWork` at four
+// sites, `readOnlyDirBlocksWrites` at one, the presence of dist/web/index.html
+// at two, and the presence of `node:sqlite` at one. Each of those asks the machine a question at
 // import time and disappears if the answer changes, on all three legs at once,
 // with a green matrix either side of it. The dist ones are the sharpest,
 // because what satisfies them is a STEP IN THE WORKFLOW rather than a
@@ -184,11 +184,16 @@ describe("the register of conditionally-skipped cases", () => {
     // everywhere at once, so the register's expectation for them is the
     // strongest one available — they always run — and CI is what turns that
     // expectation into a failure on the day the machine disagrees.
-    const always = gates().filter((g) => g.condition === "!hardLinksWork" || g.condition === "!existsSync(dist)");
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(5);
+    // Derived rather than listed: a gate "always runs" exactly when its
+    // condition holds on no platform, which is what CONDITIONS already says. A
+    // hand-written list of condition names had to be edited every time a probe
+    // was added, and the edit was easy to make without asking whether the new
+    // probe belonged in it — which is how a register grows a hole.
+    const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(6);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
-    // The seventh probe site is the read-only-directory one, the only probe with
+    // The remaining probe site is the read-only-directory one, the only probe with
     // a legitimate per-platform answer — and the reason it is stated here as a
     // function of platform is that it is not checkable any other way from macOS.
     const readOnly = gates().filter((g) => g.condition === "!readOnlyDirBlocksWrites");
