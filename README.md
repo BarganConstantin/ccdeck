@@ -201,6 +201,7 @@ Environment:
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
 | `AGENTS_DECK_NO_FRESHEN=1` | Never nudge claude-swap to collect usage early |
+| `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification when a session blocks and no page is open |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |
