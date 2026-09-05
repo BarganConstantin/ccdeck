@@ -46,8 +46,12 @@
 // ── 3. THERE MAY BE NO SQLITE READER AT ALL ─────────────────────────────────
 //
 // `node:sqlite` exists only from Node 22.5, and this package declares
-// `engines: { node: ">=18" }` — CI runs Node 22 on all three OSes and
-// Node 18 on one Linux leg, which is the version the package advertises. A top-level
+// `engines: { node: ">=18" }` — while CI runs Node 22 on all three OSes and
+// nothing on 18. That gap is registered in node-floor.test.ts rather than
+// described here, because the sentence that used to stand in this spot claimed
+// a matrix entry that has never existed and stood for a release and a half. A
+// comment cannot be wrong about a file it does not read; the register can. A
+// top-level
 // `import "node:sqlite"` is therefore not an option: it throws
 // ERR_UNKNOWN_BUILTIN_MODULE at module load, before any of this file's own error
 // handling exists, and takes the server's import graph with it. It is loaded
