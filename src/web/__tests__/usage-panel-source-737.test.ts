@@ -25,7 +25,7 @@ describe("the panel prefers ccusage and falls back to the board", () => {
     // and the selector all read `fromRange`, so a deck without ccusage is the
     // old panel exactly and a deck with it never mixes the two in one figure.
     expect(panel).toContain("const fromRange = range != null;");
-    expect(panel).toContain("if (alive && d?.ok) setLanded({ period: want, data: d });");
+    expect(panel).toContain("if (alive && d?.ok) { landedAtRef.current = Date.now(); setLanded({ period: want, data: d }); }");
   });
 
   it("keeps a failed or absent ccusage silent rather than loud", () => {
@@ -142,8 +142,14 @@ describe("what the panel asks the server for", () => {
     const server = read("../../server/ccusage.mjs");
     const cacheMs = Number(/const CACHE_MS = ([\d_]+)/.exec(server)?.[1]?.replace(/_/g, ""));
     expect(cacheMs).toBe(60_000);
-    expect(panel).toContain("window.setInterval(beat, 60_000)");
-    expect(panel).toContain('if (document.visibilityState === "visible") setTick(n => n + 1);');
+    expect(panel).toContain("const POLL_MS = 60_000;");
+    expect(panel).toContain("window.setInterval(beat, POLL_MS)");
+    // And returning to the tab is gated on the reading's AGE, not on the tab
+    // merely coming forward: flicking between two tabs three times must not
+    // spend three runs at 7.8 CPU-seconds each.
+    expect(panel).toContain("if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);");
+    expect(panel).toContain('const visible = () => document.visibilityState === "visible";');
+    expect(panel).toContain("const beat = () => { if (visible()) setTick(n => n + 1); };");
     expect(panel).toContain('document.addEventListener("visibilitychange", wake)');
     expect(panel).toContain('document.removeEventListener("visibilitychange", wake)');
   });

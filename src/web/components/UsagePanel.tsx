@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { countTo } from "../count-up";
+import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
   PERIODS, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
@@ -342,6 +343,15 @@ interface CodexUsageData {
 
 const CODEX_POLL_MS = 60_000;
 
+/** How often the panel asks ccusage for a fresh reading, and how stale a
+ *  reading has to be before returning to the tab is worth one.
+ *
+ *  A minute, measured rather than picked: a run costs 7.8 CPU-seconds on a
+ *  machine with 3,615 transcripts — 13% of a core at this cadence, and 78% at
+ *  ten seconds, which is why the number between readings comes from the canvas
+ *  instead (see live-delta.ts) rather than from asking oftener. */
+const POLL_MS = 60_000;
+
 /** @param enabled whether this deck watches Codex — see useQuota above, which
  *   states the same rule for the other side. A Codex poll refreshes an OAuth
  *   token against OpenAI, which is not work to do on a machine with no Codex. */
@@ -442,17 +452,25 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
   // and a run walks every transcript on the machine, which is why it is not
   // faster.
   const [tick, setTick] = useState(0);
+  // When the reading on screen was taken. The catch-up below is gated on its
+  // age rather than on the tab merely coming forward: flicking between two tabs
+  // three times must not spend three ccusage runs.
+  const landedAtRef = useRef(0);
   useEffect(() => {
-    const beat = () => {
-      // Nothing to keep fresh behind a hidden tab. A deck left open for a week
-      // on a second desktop otherwise spends a ccusage run every five minutes
-      // updating numbers no one is looking at.
-      if (document.visibilityState === "visible") setTick(n => n + 1);
+    const visible = () => document.visibilityState === "visible";
+    // Nothing to keep fresh behind a hidden tab. A deck left open for a week on
+    // a second desktop otherwise spends a run a minute updating numbers nobody
+    // is looking at — and on this machine a run is 7.8 CPU-seconds, because
+    // ccusage walks every transcript whatever period it is asked for.
+    const beat = () => { if (visible()) setTick(n => n + 1); };
+    const t = window.setInterval(beat, POLL_MS);
+    // Coming back to the tab: read again only if the figures are actually
+    // stale. A tab hidden for an hour holds an hour-old reading and is worth a
+    // run; a tab hidden for four seconds is not.
+    const wake = () => {
+      if (!visible()) return;
+      if (Date.now() - landedAtRef.current >= POLL_MS) setTick(n => n + 1);
     };
-    const t = window.setInterval(beat, 60_000);
-    // And catch up on the way back: a tab hidden for an hour holds an hour-old
-    // reading, which is the one moment a poll is worth more than its cost.
-    const wake = () => { if (document.visibilityState === "visible") setTick(n => n + 1); };
     document.addEventListener("visibilitychange", wake);
     return () => { window.clearInterval(t); document.removeEventListener("visibilitychange", wake); };
   }, []);
@@ -471,7 +489,7 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
     setLoading(true);
     fetch(`/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (alive && d?.ok) setLanded({ period: want, data: d }); })
+      .then(d => { if (alive && d?.ok) { landedAtRef.current = Date.now(); setLanded({ period: want, data: d }); } })
       // A deck that is down, or a ccusage that is not there. The panel says so
       // by falling back to the board, not by showing an error over numbers it
       // still has — and a failure leaves the last good reading standing rather
@@ -503,12 +521,11 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
  * See count-up.ts for what deliberately does not animate — the first paint, a
  * change too small to read, and the tables.
  */
-function useCountUp(value: number, key: string): number {
+function useCountUp(value: number): number {
   const [shown, setShown] = useState(value);
-  // What is on screen right now, for a count that starts mid-flight rather than
-  // from where the last one began.
+  // What is on screen right now, so a second change starts a count from where
+  // the number IS rather than from where the last one began.
   const currentRef = useRef(value);
-  const keyRef = useRef(key);
   const firstRef = useRef(true);
 
   useEffect(() => {
@@ -516,10 +533,14 @@ function useCountUp(value: number, key: string): number {
   }, [shown]);
 
   useEffect(() => {
-    const meaningChanged = keyRef.current !== key;
-    keyRef.current = key;
-    // The first paint and a change of meaning both land immediately.
-    if (firstRef.current || meaningChanged) {
+    // ONLY THE FIRST PAINT SNAPS. Pressing `month` or `all` counts too — the
+    // figures ride up to twelve thousand or back down to three hundred, which
+    // is the one place in this panel where the size of the difference between
+    // two periods is worth feeling. It was a snap at first, on the reasoning
+    // that two periods are different quantities rather than one that moved;
+    // that reasoning is sound and the motion is still better, because the
+    // reader pressed the button and is watching the number they asked for.
+    if (firstRef.current) {
       firstRef.current = false;
       currentRef.current = value;
       setShown(value);
@@ -530,7 +551,7 @@ function useCountUp(value: number, key: string): number {
       setShown(v);
     });
     return stop;
-  }, [value, key]);
+  }, [value]);
 
   return shown;
 }
@@ -773,16 +794,44 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   const hasCost = fromRange ? rangeSum.cost > 0 : totalCost.total > 0;
   const totalTokenSum = fromRange ? rangeSum.tokens : totalTokens.sum;
 
-  // WHAT THE FIGURES ABOVE MEAN, as one string. A count is only honest between
-  // two readings of the same quantity: switching period, or falling back to the
-  // board because ccusage stopped answering, replaces the question rather than
-  // moving the answer, so those snap. See useCountUp.
-  const countKey = fromRange ? `range:${shownPeriod ?? period}` : "board";
-  const shownCost   = useCountUp(fromRange ? rangeSum.cost : totalCost.total, countKey);
-  const shownIn     = useCountUp(fromRange ? rangeSum.inputTokens : totalTokens.inputTokens, countKey);
-  const shownOut    = useCountUp(fromRange ? rangeSum.outputTokens : totalTokens.outputTokens, countKey);
-  const shownCacheR = useCountUp(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens, countKey);
-  const shownCacheC = useCountUp(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens, countKey);
+  // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
+  //
+  // ccusage is the truth and it costs a process that walks every transcript on
+  // the machine — 7.8 CPU-seconds here — so it is asked once a minute and no
+  // oftener. In between, the deck already knows: every hook event carries its
+  // session's cumulative usage, so the board holds an exact running total for
+  // free. The baseline is taken the moment a reading lands, and everything
+  // gained since is added on top. The figures then move when the work happens
+  // rather than on the minute, at no cost at all.
+  //
+  // The tokens are exact. The DOLLARS on the delta are priced by this deck's
+  // own table rather than by ccusage's — they agree on every model both know,
+  // and where they do not it is a minute of one session's spend, corrected at
+  // the next reading. See live-delta.ts.
+  const baselineRef = useRef<Map<string, SessionUsage> | null>(null);
+  useEffect(() => {
+    baselineRef.current = range ? boardBySession(state.agents.values(), now) : null;
+    // `range` identity moves only when a reading lands, which is exactly when
+    // the baseline should be re-taken.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range]);
+
+  const delta = useMemo(
+    () => (fromRange ? liveDelta(baselineRef.current, boardBySession(state.agents.values(), now)) : NO_DELTA),
+    [state, state.revision, range, fromRange, now],
+  );
+
+  const liveCost    = fromRange ? rangeSum.cost + delta.cost : totalCost.total;
+  const liveIn      = fromRange ? rangeSum.inputTokens + delta.inputTokens : totalTokens.inputTokens;
+  const liveOut     = fromRange ? rangeSum.outputTokens + delta.outputTokens : totalTokens.outputTokens;
+  const liveCacheR  = fromRange ? rangeSum.cacheReadTokens + delta.cacheReadTokens : totalTokens.cacheReadTokens;
+  const liveCacheC  = fromRange ? rangeSum.cacheCreateTokens + delta.cacheCreateTokens : totalTokens.cacheCreateTokens;
+
+  const shownCost   = useCountUp(liveCost);
+  const shownIn     = useCountUp(liveIn);
+  const shownOut    = useCountUp(liveOut);
+  const shownCacheR = useCountUp(liveCacheR);
+  const shownCacheC = useCountUp(liveCacheC);
   // Rows worth a line, which is not the same question as rows worth a dollar.
   // Both tables used to filter on `cost > 0`, and in a deck holding one priced
   // Claude session and any number of unpriced Codex ones that filter was
@@ -1131,8 +1180,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
                 appeared and vanished as a count crossed zero would flicker. */}
-            {(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
-            {(fromRange ? rangeSum.cacheCreateTokens : totalTokens.cacheCreateTokens) > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
+            {liveCacheR > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
+            {liveCacheC > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
             {/* On a deck where nothing is priced there is no headline above this
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is

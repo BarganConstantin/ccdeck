@@ -22,7 +22,8 @@ import { PRODUCT } from "./brand.mjs";
 // 60s, and it is the panel's poll interval rather than a number of its own: the
 // Usage panel asks once a minute and expects a reading that has actually moved,
 // so a longer cache would hand the same figure back and make the interval a
-// lie. The modal is manual-open and unaffected either way.
+// lie. Two tabs polling out of phase still share one run, which is what the
+// cache is for here. The modal is manual-open and unaffected either way.
 const CACHE_MS = 60_000;
 const TIMEOUT_MS = 90_000;
 const INSTALL_TIMEOUT_MS = 120_000; // first-run npm install can be slow
