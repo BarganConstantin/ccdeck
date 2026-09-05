@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.6.0": [
+    {
+      "title": "\u2702\ufe0f The two figures at the end of the top bar are gone",
+      "body": "The bar used to end with a token count and a dollar figure. Both were sums over what is on the canvas at that moment, and the canvas drops finished sessions a couple of minutes after they end \u2014 so both numbers fell on their own, with nothing on screen to explain the fall. They carried the word \"board\" and a three-line tooltip for exactly that reason.\n\nThe usage panel answers the same question without the apology: it reads the logs on disk, it covers sessions this deck never watched, and it does not forget. Press U for the panel, or H for the full history.\n\nWhat is left in the bar is what is true right now \u2014 whether the stream is alive, and what your machine is doing."
+    }
+  ],
   "3.5.0": [
     {
       "title": "⚡ The figures move when the work happens",
