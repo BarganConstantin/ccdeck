@@ -180,6 +180,36 @@ export function seedRaised(blocked: readonly BlockedSession[]): Set<string> {
 }
 
 /**
+ * Should the memo be re-seeded — that is, has the notifier just started
+ * watching?
+ *
+ * A rule rather than an inline comparison because getting it wrong is invisible
+ * and expensive, and because a rule spelled out inside a component is one the
+ * bare-node suite cannot call. It cost this feature its first impression once
+ * already: seeding lived behind the `granted` check, so on the ordinary path —
+ * open the deck, see a session blocked, press the button, allow — the seed had
+ * not run when permission arrived, and the next block was adopted as history
+ * instead of announced. The first notification after a user asked to be
+ * notified was silence, and the one after that worked, by which time they had
+ * decided the feature was broken.
+ *
+ * TWO moments count as starting to watch, and both must:
+ *
+ *   mount — `seededAt` is null, whatever the permission says. A deck opening
+ *   onto four standing prompts must not fire four notifications about lunchtime.
+ *
+ *   the answer changing — the user pressing the button and allowing. That is
+ *   them saying "tell me from here", and what is standing at that moment is on
+ *   the screen they pressed it from. History too. What comes next is news.
+ */
+export function shouldReseed(
+  seededAt: NotifyPermission | null,
+  permission: NotifyPermission,
+): boolean {
+  return seededAt !== permission;
+}
+
+/**
  * Whether the deck should be offering to turn notifications on.
  *
  * "denied" is a dead end and the button must not pretend otherwise: once a user

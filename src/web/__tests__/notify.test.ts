@@ -19,7 +19,7 @@
 // Pure and DOM-free, the way block-announce.test.ts is: these call exactly the
 // functions App.tsx calls, so the rule cannot drift from the rule that ships.
 import { describe, it, expect } from "vitest";
-import { blockKey, canAsk, nextRaised, noticeBody, noticesFor, seedRaised } from "../notify";
+import { blockKey, canAsk, nextRaised, noticeBody, noticesFor, seedRaised, shouldReseed } from "../notify";
 import type { BlockedSession } from "../ambient-counts";
 import type { WaitingBlock } from "../types";
 
@@ -137,6 +137,40 @@ describe("the memo the caller carries", () => {
     const s = session("s1");
     const raised = nextRaised([s], noticesFor([s], new Set(), HIDDEN), new Set());
     expect(nextRaised([s], [], raised)).toEqual(raised);
+  });
+});
+
+describe("when the notifier starts watching", () => {
+  it("seeds on mount, whatever the answer is", () => {
+    // Four prompts already standing when the deck opens must not become four
+    // notifications about lunchtime.
+    expect(shouldReseed(null, "default")).toBe(true);
+    expect(shouldReseed(null, "granted")).toBe(true);
+    expect(shouldReseed(null, "denied")).toBe(true);
+  });
+
+  it("seeds again the moment the user allows", () => {
+    // THE BUG THIS EXISTS FOR. Seeding used to sit behind the `granted` check,
+    // so on the ordinary path — open the deck, see a session blocked, press the
+    // button, allow — the seed had not run when permission arrived, and the
+    // NEXT block was adopted as history rather than announced. The first
+    // notification after a user asked to be notified was silence. They press
+    // the button, get nothing, and conclude it is broken.
+    expect(shouldReseed("default", "granted")).toBe(true);
+  });
+
+  it("does not re-seed while the answer stands", () => {
+    // Re-seeding on every frame would adopt every new block as history and the
+    // deck would never say anything at all — the same silence, permanently.
+    expect(shouldReseed("granted", "granted")).toBe(false);
+    expect(shouldReseed("default", "default")).toBe(false);
+  });
+
+  it("seeds on a refusal too, so a later change of mind is not a burst", () => {
+    // Permission can be revoked and re-granted from the browser's own site
+    // settings, with the page open the whole time.
+    expect(shouldReseed("granted", "denied")).toBe(true);
+    expect(shouldReseed("denied", "granted")).toBe(true);
   });
 });
 

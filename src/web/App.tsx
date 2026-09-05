@@ -44,7 +44,7 @@ import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, runningSessionCount } from "./ambient-counts";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
-import { blockKey, canAsk, nextRaised, noticesFor, seedRaised } from "./notify";
+import { blockKey, canAsk, nextRaised, noticesFor, seedRaised, shouldReseed } from "./notify";
 import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
@@ -2862,19 +2862,46 @@ function Inner() {
     void Notification.requestPermission().then(p => setNotifyPermission(p as NotifyPermission));
   }, []);
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
-  const notifySeededRef = useRef(false);
+  /** The permission the memo below was seeded against, so that a change of
+   *  answer re-seeds exactly once. `null` until the first seed. */
+  const notifySeededAtRef = useRef<NotifyPermission | null>(null);
   const blockedKeys = waitingSessions.map(b => blockKey(b.id, b.waiting)).join("|");
+
+  // WHEN THE NOTIFIER STARTS WATCHING, it adopts the world as it finds it: a
+  // deck opening onto a machine with four prompts already standing must not
+  // fire four notifications about lunchtime, and a tab a session-restoring
+  // browser brought back into the background is hidden, so the visibility gate
+  // does not cover that on its own.
+  //
+  // "Starts watching" is TWO moments, and conflating them cost the feature its
+  // first impression. Seeding used to live inside the raise effect behind the
+  // `permission === "granted"` guard, so on the ordinary path — open the deck,
+  // see a session blocked, press the button, allow — the seed had not happened
+  // yet when permission arrived. The next block to come in was therefore
+  // swallowed as history rather than announced, and the FIRST notification
+  // after a user asked to be notified was silence. They press the button, get
+  // nothing, and conclude the feature is broken; the one after that works, by
+  // which time they are not looking.
+  //
+  // So this seeds on mount whatever the answer is, and again at the moment the
+  // answer changes. Granting is the user saying "tell me from here", and what
+  // is standing at that moment is on their screen — they were looking at it
+  // when they pressed the button, so it is history too. What arrives next is
+  // news, and it is the notification that has to land.
+  useEffect(() => {
+    if (!shouldReseed(notifySeededAtRef.current, notifyPermission)) return;
+    notifySeededAtRef.current = notifyPermission;
+    notifyRaisedRef.current = seedRaised(waitingSessions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifyPermission]);
+
   useEffect(() => {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    // A deck that opens onto a machine already full of prompts must not fire
-    // one notification per prompt from before it was watching. The visibility
-    // gate covers the ordinary open; this covers the tab a session-restoring
-    // browser brought back into the background after a reboot.
-    if (!notifySeededRef.current) {
-      notifySeededRef.current = true;
-      notifyRaisedRef.current = seedRaised(waitingSessions);
-      return;
-    }
+    // Never before the seed above. Effects run in declaration order, so on
+    // mount that one has already adopted the standing blocks — but a render
+    // that reordered them would turn every open deck into a burst, and the
+    // guard is one comparison.
+    if (notifySeededAtRef.current === null) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
     const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible);
     for (const n of notices) {
