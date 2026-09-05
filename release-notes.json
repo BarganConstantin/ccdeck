@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.4.0": [
+    {
+      "title": "🔢 The figures count to their new value, once a minute",
+      "body": "The Usage panel re-reads its numbers every minute now rather than every five, and it is a real minute — the server used to hold a reading for two, so a shorter poll would have handed the same figure back.\n\nAnd they no longer teleport. Replaced in a single frame, $170 → $269 says only \"this is different now\": no direction, no sense of how much, and nothing at all if your eye was a few pixels away. Counted over a fifth of a second, the same change says up, and roughly how far.\n\nWhat deliberately does not count: the first paint, a change of period — \"today\" and \"all time\" are different quantities rather than one that moved — the tables, a change too small to read, and anything at all if you have reduced motion on or the tab is in the background."
+    },
+    {
+      "title": "🧹 The board's own figure is out of the Usage panel",
+      "body": "3.3.0 put the canvas's live spend on its own labelled line, under whichever period you had chosen. In front of a panel that answers today, this month and all time from the logs on disk, that second money figure answers a question nobody asked at that moment — and it invited a comparison it could never win, $7,385 on the board beneath $170 for today.\n\nIt is gone. The board's tokens and cost are still on the topbar, with the sentence that explains why they fall on their own, and the panel still shows them when ccusage cannot answer at all."
+    }
+  ],
   "3.3.0": [
     {
       "title": "📊 The Usage panel answers for a period, not just for the board",
