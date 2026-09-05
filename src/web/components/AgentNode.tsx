@@ -11,6 +11,7 @@ import { codexApprovalTell } from "../codex-approval";
 // React component behind it. See model-label.ts for why the move happened with
 // that fix rather than with #374's wider consolidation.
 import { shortModel, modelFamily } from "../model-label";
+import { guessLine } from "../notify";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
 // (#374). See token-format.ts for the tier it did not have.
@@ -374,15 +375,23 @@ export function blockedToolLabel(waiting: WaitingBlock): string | null {
   return tool.preview ? `${tool.name} · ${tool.preview}` : tool.name;
 }
 
-/** The same guess, worded for a surface with room to hedge.
+/** The same guess, worded for a surface with room to hedge — and worded against
+ *  the sentence it will sit under.
  *
  *  "Likely" is not padding and does not come out. The deck infers this from
  *  where the notification sat in the stream rather than from anything CC said
  *  (types.ts spells out why), so a surface that prints it flat is claiming more
  *  than the deck knows — and the one place a user would catch the deck lying is
- *  the place they are deciding whether to approve a command. */
-export function blockedToolTooltip(waiting: WaitingBlock): string | null {
-  const label = blockedToolLabel(waiting);
+ *  the place they are deciding whether to approve a command.
+ *
+ *  `guessLine` rather than `blockedToolLabel` because the tooltip prints CC's
+ *  sentence directly above this, and that sentence usually already names the
+ *  tool: "…to use Bash" over "Likely on: Bash · rm -rf" repeats a word and
+ *  pushes the command further from the eye. The notification body had this
+ *  fixed first and the tooltip did not, which left the same block reading two
+ *  different ways depending on where you saw it. One rule, both surfaces. */
+export function blockedToolTooltip(waiting: WaitingBlock, said: string): string | null {
+  const label = guessLine(waiting, said);
   return label ? `Likely on: ${label}` : null;
 }
 

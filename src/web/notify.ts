@@ -84,20 +84,38 @@ export function blockKey(sessionId: string, block: WaitingBlock): string {
  * reads while deciding whether to approve a command. The hedge is not optional
  * and it is not padding.
  */
+/**
+ * The guess, worded against the sentence it will sit under — or null when there
+ * is nothing left to add.
+ *
+ * ONE FUNCTION BECAUSE THERE ARE TWO SURFACES. The notification body and the
+ * sidebar tooltip print the same two things in the same order, and the first
+ * version of this de-duplicated the name in the notification and left the
+ * tooltip repeating it. Same block, same information, two different wordings,
+ * depending on where you happened to read it — which is the kind of seam that
+ * makes an interface feel assembled rather than made.
+ *
+ * The de-duplication itself: CC's sentence is usually "Claude needs your
+ * permission to use Bash", under which "Bash · rm -rf node_modules" spends its
+ * first word repeating what was just said and pushes the part that is new —
+ * the command — further from the eye. When the sentence has already named the
+ * tool, the guess is only the command; when it has not, the name is the whole
+ * of what the guess has to offer.
+ *
+ * Word-boundary matched, so `Edit` is not treated as named by "the Editor" —
+ * which would silently drop the one word identifying what is being asked about.
+ */
+export function guessLine(block: WaitingBlock, said: string): string | null {
+  if (!block.tool) return null;
+  const { name, preview } = block.tool;
+  const named = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(said);
+  if (preview) return named ? preview : `${name} · ${preview}`;
+  return named ? null : name;
+}
+
 export function noticeBody(block: WaitingBlock): string {
   const said = block.message || "Needs your permission";
-  if (!block.tool) return said;
-  const { name, preview } = block.tool;
-  // CC's sentence is usually "Claude needs your permission to use Bash", so
-  // printing the name again gives "…to use Bash / Likely on: Bash · rm -rf".
-  // Two words of a four-line notification spent saying the same thing twice,
-  // and the repeat pushes the part that is actually new — the command — further
-  // from the eye. When the sentence has already named the tool, the guess is
-  // only the command; when it has not, the name is the whole of what there is.
-  const named = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(said);
-  const tool = preview
-    ? (named ? preview : `${name} · ${preview}`)
-    : (named ? "" : name);
+  const tool = guessLine(block, said);
   return tool ? `${said}\nLikely on: ${tool}` : said;
 }
 

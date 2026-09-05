@@ -225,7 +225,7 @@ describe("how the guess is worded", () => {
 
   it("is null when there is no guess, so callers render nothing at all", () => {
     expect(blockedToolLabel(withTool())).toBeNull();
-    expect(blockedToolTooltip(withTool())).toBeNull();
+    expect(blockedToolTooltip(withTool(), PERMISSION.message)).toBeNull();
   });
 
   it("hedges wherever it has room to", () => {
@@ -233,7 +233,28 @@ describe("how the guess is worded", () => {
     // infers this from stream position, not from anything CC said, and the one
     // place a user would catch it lying is the place they are deciding whether
     // to approve a command.
-    expect(blockedToolTooltip(withTool({ name: "Bash", preview: "rm -rf node_modules" })))
+    expect(blockedToolTooltip(withTool({ name: "Bash", preview: "rm -rf node_modules" }), "Claude needs your permission"))
       .toBe("Likely on: Bash · rm -rf node_modules");
+  });
+
+  it("does not repeat a tool the sentence above it already named", () => {
+    // The tooltip prints CC's sentence directly above this line, and that
+    // sentence usually names the tool. "…to use Bash" over "Likely on: Bash ·
+    // rm -rf" repeats a word and pushes the command further from the eye.
+    //
+    // This shipped fixed in the notification body and unfixed here, so the same
+    // block read two different ways depending on which surface you saw it on.
+    // Both call `guessLine` now, which is what stops them drifting again.
+    expect(blockedToolTooltip(
+      withTool({ name: "Bash", preview: "rm -rf node_modules" }),
+      "Claude needs your permission to use Bash",
+    )).toBe("Likely on: rm -rf node_modules");
+  });
+
+  it("says nothing at all when the name was all it had and was already said", () => {
+    expect(blockedToolTooltip(
+      withTool({ name: "Bash", preview: "" }),
+      "Claude needs your permission to use Bash",
+    )).toBeNull();
   });
 });

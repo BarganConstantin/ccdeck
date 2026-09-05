@@ -216,7 +216,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                         className="sl-waiting"
                         title={[
                           waitingSentence(r.waiting),
-                          blockedToolTooltip(r.waiting),
+                          blockedToolTooltip(r.waiting, waitingSentence(r.waiting)),
                           `Blocked since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
                         ].filter(Boolean).join("\n")}
                       >
