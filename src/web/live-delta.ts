@@ -80,7 +80,27 @@ export function boardBySession(agents: Iterable<CountableAgent>, now?: number): 
  * backwards — the headline falling on its own is exactly the defect #687 is
  * about, and it would be worse here because it would fall UNDER a total that
  * already counted that session. A session that has left contributes nothing
- * further; one that arrived after the baseline contributes all of itself.
+ * further.
+ *
+ * A SESSION MISSING FROM THE BASELINE CONTRIBUTES NOTHING EITHER, and that is a
+ * correction. This function used to count all of it, on the reading that "a
+ * session the baseline never saw is work ccusage cannot have counted". That is
+ * true of a session that did not exist yet and false of the ordinary case,
+ * which is a session that existed all along and had not reached the CANVAS yet.
+ *
+ * Measured on a deck four seconds old: ccusage answered $450.28 for today and
+ * the panel printed $1,006. The reading lands about 2.5s after boot and the
+ * canvas is still replaying its event log at that moment, so the baseline was
+ * taken over an almost empty board — and every session that then appeared,
+ * each of them already inside ccusage's $450, was added again in full. The
+ * error is unbounded and always upward: the more the deck knows, the more it
+ * over-reports.
+ *
+ * The cost of the correction is that a genuinely NEW session's spend waits for
+ * the next reading, so up to sixty seconds. That is the behaviour the panel had
+ * before the delta existed at all, it is invisible next to a figure that
+ * doubles, and it is the direction to be wrong in: this delta may only ever add
+ * work it has WATCHED happen, never work it has merely learned about.
  */
 export function liveDelta(
   baseline: Map<string, SessionUsage> | null,
@@ -90,12 +110,16 @@ export function liveDelta(
   const out: LiveDelta = { ...NO_DELTA };
   for (const [id, now] of current) {
     const was = baseline.get(id);
+    // Not in the baseline: this session's history is not this delta's to claim.
+    // See the note above — it is almost never new work, and when it is, the
+    // next reading picks it up.
+    if (!was) continue;
     const gained = {
-      cost: now.cost - (was?.cost ?? 0),
-      inputTokens: now.inputTokens - (was?.inputTokens ?? 0),
-      outputTokens: now.outputTokens - (was?.outputTokens ?? 0),
-      cacheReadTokens: now.cacheReadTokens - (was?.cacheReadTokens ?? 0),
-      cacheCreateTokens: now.cacheCreateTokens - (was?.cacheCreateTokens ?? 0),
+      cost: now.cost - was.cost,
+      inputTokens: now.inputTokens - was.inputTokens,
+      outputTokens: now.outputTokens - was.outputTokens,
+      cacheReadTokens: now.cacheReadTokens - was.cacheReadTokens,
+      cacheCreateTokens: now.cacheCreateTokens - was.cacheCreateTokens,
     };
     // A session whose totals went DOWN is not a refund — it is a replay, a
     // restarted deck, or a reading this deck should not try to interpret. It

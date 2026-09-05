@@ -177,10 +177,16 @@ describe("what the panel counts, and what it leaves alone", () => {
   it("adds what the canvas has gained since the reading, so it moves between polls", () => {
     // ccusage costs 7.8 CPU-seconds a run; the deck already knows the rest for
     // free. See live-delta.ts.
+    //
+    // The ARITHMETIC — reading plus delta, and never board plus delta — moved
+    // to `panelFigures` and is checked by calling it, in
+    // usage-panel-source-737.test.ts. What is left here is the wire: the figure
+    // the count is driven from has to be the live one, or the panel would count
+    // smoothly towards a number that stops moving between polls.
     expect(panel).toContain("const delta = useMemo(");
     expect(panel).toContain("liveDelta(baselineRef.current, boardBySession(state.agents.values(), now))");
-    expect(panel).toContain("const liveCost    = fromRange ? rangeSum.cost + delta.cost : totalCost.total;");
-    expect(panel).toContain("const shownCost   = useCountUp(liveCost);");
+    expect(panel).toContain("const figures = panelFigures(range,");
+    expect(panel).toContain("const shownCost   = useCountUp(figures.cost);");
   });
 
   it("re-takes the baseline exactly when a reading lands", () => {
@@ -194,6 +200,6 @@ describe("what the panel counts, and what it leaves alone", () => {
     // A strip that appeared and vanished as a count crossed zero would flicker,
     // so the gate reads the live figure (reading + delta) while the text reads
     // the counted one.
-    expect(panel).toContain('{liveCacheR > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}');
+    expect(panel).toContain('{figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}');
   });
 });
