@@ -76,11 +76,14 @@ describe("the tool a permission prompt is about", () => {
 
     const w = waiting(state);
     expect(w.tool?.name).toBe("Bash");
-    // The preview is the deck's existing one-liner, not the raw input object.
-    // The point of the field is that it fits in a sidebar row and an OS
-    // notification body, and `rm -rf node_modules` is exactly the string that
-    // makes somebody stop and read before answering.
-    expect(w.tool?.preview).toContain("rm -rf node_modules");
+    // The COMMAND, not the input object. This read
+    // `{"command":"rm -rf node_modules"}` until the tooltip was looked at in a
+    // browser: every character that decides the answer was present and every
+    // one of them was behind a brace, in the one place somebody is deciding
+    // whether to approve that command. tool-input.ts is the fix and
+    // tool-input.test.ts covers its shapes; the exact match is here so that
+    // reverting to the JSON preview fails at the surface that shows it.
+    expect(w.tool?.preview).toBe("rm -rf node_modules");
   });
 
   it("still names the tool when the call had no arguments worth previewing", () => {

@@ -1,5 +1,6 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
 import { bareModelId } from "./model-id";
+import { salientInput } from "./tool-input";
 import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, TokenUsage, ToolCall, WaitingBlock } from "./types";
 
 function emptyUsage(): TokenUsage {
@@ -1239,7 +1240,14 @@ function blockedToolOf(call: ToolCall | null, now: number): BlockedTool | undefi
   // about. Clock skew between a replayed log and this tab makes that reachable
   // rather than impossible, and "0s from now" is not evidence of anything.
   if (call.startedAt > now) return undefined;
-  return { name: call.name, preview: call.inputPreview ?? "" };
+  // `inputPreview` is the JSON-shaped one `shortPreview` builds for the modal,
+  // where the reader wants the object. Here the string is read as a sentence —
+  // in a tooltip and in a desktop notification — and
+  // `{"command":"rm -rf node_modules"}` buries the four words that decide the
+  // answer inside punctuation. tool-input.ts returns the line a person reads,
+  // and null for a shape with nothing worth reading, which leaves the tool name
+  // standing on its own rather than beside a fragment of JSON.
+  return { name: call.name, preview: salientInput(call.input) ?? "" };
 }
 
 /** A fresh block, attributed. Only a `permission` block is ever about one agent:
