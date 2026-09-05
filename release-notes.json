@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.6.1": [
+    {
+      "title": "\ud83e\uddee Today's figure was counting some sessions twice",
+      "body": "The panel reads your usage from ccusage once a minute and fills the gap in between from what the deck is watching. The filling-in was wrong: any session that reached the canvas after the reading had landed was added in full, and since the canvas is still loading when the first reading arrives, that was most of them.\n\nMeasured on a deck four seconds old: ccusage said $450 for today and the panel said $1,006. The table underneath it said $450 the whole time, which is the disagreement to trust.\n\nThe deck now adds only work it has actually watched happen. A session that starts while you are looking shows up at the next reading instead of instantly — up to a minute — which is how the panel behaved before the live figure existed at all. Everything already on screen keeps moving as it did."
+    }
+  ],
   "3.6.0": [
     {
       "title": "\u2702\ufe0f The two figures at the end of the top bar are gone",
