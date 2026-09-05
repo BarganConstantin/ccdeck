@@ -1724,6 +1724,50 @@ button.btn.sm-hear {
    control sitting a rounding error under the line the sheet draws for itself.
    `min-height`, not a fourth pixel of padding: 0.06px of growth against 2px, and
    the same lever the version chip above takes for the same miss. */
+/* The permission ask, beside the count that explains why you would want it.
+   Deliberately quieter than the chip it follows: the chip is the alarm and this
+   is an offer, and an offer drawn at alarm weight competes with the thing it is
+   offering to help with. It is also temporary — `canAsk` removes it the moment
+   the question is answered either way — so it must not claim permanent space in
+   the bar's visual hierarchy. */
+.topbar .notify-ask {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: transparent;
+  /* --ctl-edge, not --line: this is a control identified by its boundary, and
+     #332 measured --line at 1.14:1 dark / 1.60:1 light against the 3:1 that
+     WCAG 1.4.11 asks of exactly that. Dashed to read as an offer beside the
+     solid chip, which is the alarm. */
+  border: 1px dashed var(--ctl-edge);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  /* The transform easing is the sibling chip's, to the millisecond and the
+     curve: the press has to GROW BACK rather than snap, and canvas-motion.test.ts
+     checks the control itself carries the transition rather than inheriting one. */
+  transition: border-color 120ms, color 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.topbar .notify-ask:hover {
+  border-color: color-mix(in srgb, var(--warn) 85%, transparent);
+  color: var(--warn);
+}
+/* The sheet's one press convention, at the labelled-control scale its sibling
+   chip uses — 0.97, because three percent of a word is visible where three
+   percent of an icon is sub-pixel. canvas-motion.test.ts sweeps every
+   `cursor: pointer` rule against its list, so a control that skipped this would
+   fail there rather than merely feel dead. */
+.topbar .notify-ask:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .topbar .notify-ask:active { transform: none; }
+}
+
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;
