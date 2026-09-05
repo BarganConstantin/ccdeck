@@ -8,7 +8,8 @@ import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
   PERIODS, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
-  rangeTotals, type PeriodKey, type UsageRange,
+  rangeTotals, nounFor, panelFigures, rangeView, type Landed,
+  type PeriodKey, type UsageRange,
 } from "../usage-from-ccusage";
 // Tokens are priced at the model that produced them, not at the last model the
 // session was seen on — see usage-models.ts for the two measurements that make
@@ -442,7 +443,7 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
   // number. Everything downstream reads `landed.period` — the label, the noun,
   // both tables — so the figures and the word over them can never disagree,
   // whatever is in flight. The pressed chip still shows the reader's intent.
-  const [landed, setLanded] = useState<{ period: PeriodKey; data: UsageRange } | null>(null);
+  const [landed, setLanded] = useState<Landed | null>(null);
   const [loading, setLoading] = useState(false);
   // A panel left open must not freeze at the figure it opened on, and must not
   // become a background job either. Once a minute, which is the rate a reader
@@ -499,14 +500,12 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
     return () => { alive = false; };
   }, [period, refreshKey, tick]);
 
-  return {
-    data: landed?.data ?? null,
-    // What the numbers on screen are OF, which is not what the chips say while
-    // a slower range is loading.
-    shown: landed?.period ?? null,
-    loading,
-    stale: landed != null && landed.period !== period,
-  };
+  // `rangeView` is the decision — what is shown, which period it is OF, and
+  // whether a slower one is still coming — and it lives in the shaping layer so
+  // a test can hand it a landed reading and a pressed chip. `loading` is the
+  // one thing here that is not a function of those two, and the panel does not
+  // read it (see the note at the call site).
+  return { ...rangeView(landed, period), loading };
 }
 
 /**
@@ -781,7 +780,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // The word over the figures names the range the figures came from, not the
   // chip the reader just pressed. While a slower range loads, the panel reads
   // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
-  const periodNoun = PERIODS.find(p => p.key === (shownPeriod ?? period))?.noun ?? "today";
+  const periodNoun = nounFor(shownPeriod, period);
 
   // WHAT DIMS WHILE A SLOWER RANGE LOADS, and it is the numbers rather than the
   // chips. The sheet's own rule: --dim-off means "this control cannot be
@@ -790,9 +789,6 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // stay pressable; dimming the figures says the second about the figures, which
   // is what is actually out of date.
   const staleCls = rangeStale ? " up-stale" : "";
-
-  const hasCost = fromRange ? rangeSum.cost > 0 : totalCost.total > 0;
-  const totalTokenSum = fromRange ? rangeSum.tokens : totalTokens.sum;
 
   // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
   //
@@ -821,17 +817,20 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     [state, state.revision, range, fromRange, now],
   );
 
-  const liveCost    = fromRange ? rangeSum.cost + delta.cost : totalCost.total;
-  const liveIn      = fromRange ? rangeSum.inputTokens + delta.inputTokens : totalTokens.inputTokens;
-  const liveOut     = fromRange ? rangeSum.outputTokens + delta.outputTokens : totalTokens.outputTokens;
-  const liveCacheR  = fromRange ? rangeSum.cacheReadTokens + delta.cacheReadTokens : totalTokens.cacheReadTokens;
-  const liveCacheC  = fromRange ? rangeSum.cacheCreateTokens + delta.cacheCreateTokens : totalTokens.cacheCreateTokens;
+  // Every figure and its source, paired in one place — usage-from-ccusage.ts,
+  // where a test can call it. These used to be five ternaries here and a sixth
+  // and seventh above, and nothing could check that all seven agreed about
+  // which source they were reading; the file that tried matched the panel's
+  // source text.
+  const figures = panelFigures(range, { ...totalTokens, cost: totalCost }, delta);
+  const hasCost = figures.hasCost;
+  const totalTokenSum = figures.tokenSum;
 
-  const shownCost   = useCountUp(liveCost);
-  const shownIn     = useCountUp(liveIn);
-  const shownOut    = useCountUp(liveOut);
-  const shownCacheR = useCountUp(liveCacheR);
-  const shownCacheC = useCountUp(liveCacheC);
+  const shownCost   = useCountUp(figures.cost);
+  const shownIn     = useCountUp(figures.inputTokens);
+  const shownOut    = useCountUp(figures.outputTokens);
+  const shownCacheR = useCountUp(figures.cacheReadTokens);
+  const shownCacheC = useCountUp(figures.cacheCreateTokens);
   // Rows worth a line, which is not the same question as rows worth a dollar.
   // Both tables used to filter on `cost > 0`, and in a deck holding one priced
   // Claude session and any number of unpriced Codex ones that filter was
@@ -1171,7 +1170,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
                   different measurement from the figure above it.
                   Little is lost. The strip below says the same thing in tokens,
                   from the same source, with nothing derived at all. */}
-              {!fromRange && <CostBar cost={totalCost} />}
+              {figures.showCostBar && <CostBar cost={totalCost} />}
             </>
           )}
 
@@ -1180,8 +1179,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             <span className="up-tok"><span className="up-k">out</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
                 appeared and vanished as a count crossed zero would flicker. */}
-            {liveCacheR > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
-            {liveCacheC > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
+            {figures.cacheReadTokens > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}
+            {figures.cacheCreateTokens > 0 && <span className="up-tok"><span className="up-k">cache c</span>{fmtTokens(shownCacheC)}</span>}
             {/* On a deck where nothing is priced there is no headline above this
                 — the money block is gated on cost — so the strip is the only
                 aggregate on screen and the only place left to say what it is

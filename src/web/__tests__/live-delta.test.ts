@@ -65,11 +65,33 @@ describe("the delta against a baseline", () => {
     expect(d.cost).toBeGreaterThan(0);
   });
 
-  it("counts all of a session that started after the reading", () => {
+  it("counts nothing for a session the baseline never saw", () => {
+    // This case used to assert the opposite, on the reading that a session the
+    // baseline never saw is work ccusage cannot have counted. That is true of a
+    // session which did not exist yet and false of the ordinary case, which is
+    // a session that existed all along and had not reached the CANVAS yet.
+    //
+    // Measured on a deck four seconds old: ccusage answered $450.28 for today
+    // and the panel printed $1,006. The reading lands ~2.5s after boot while
+    // the canvas is still replaying, so the baseline was taken over an almost
+    // empty board, and every session that then appeared — each already inside
+    // ccusage's $450 — was added again in full.
     const before = boardBySession([root("s1", 1000, 100)]);
     const after = boardBySession([root("s1", 1000, 100), root("s2", 400, 40)]);
     const d = liveDelta(before, after);
-    expect(d.inputTokens).toBe(400);
+    expect(d.inputTokens).toBe(0);
+    expect(d.sessions).toBe(0);
+  });
+
+  it("does count that session once it grows under the deck's own eyes", () => {
+    // The other half, and why the correction is not simply "ignore arrivals
+    // forever". The next reading re-takes the baseline with the session in it,
+    // and from then on its growth is the deck's to report — which is the whole
+    // point of the delta. Worst case a genuinely new session waits one poll.
+    const landed = boardBySession([root("s1", 1000, 100), root("s2", 400, 40)]);
+    const later = boardBySession([root("s1", 1000, 100), root("s2", 700, 70)]);
+    const d = liveDelta(landed, later);
+    expect(d.inputTokens).toBe(300);
     expect(d.sessions).toBe(1);
   });
 
@@ -91,13 +113,16 @@ describe("the delta against a baseline", () => {
     expect(liveDelta(before, after)).toEqual(NO_DELTA);
   });
 
-  it("adds up across several sessions at once", () => {
+  it("adds up across several sessions at once, and only the ones it was watching", () => {
+    // s3 is an arrival and contributes nothing; s1 and s2 were in the baseline
+    // and contribute their growth. Written as one case rather than two because
+    // the mistake this guards is a sum that reaches for every key in `current`.
     const before = boardBySession([root("s1", 1000, 100), root("s2", 200, 20)]);
     const after = boardBySession([root("s1", 1500, 150), root("s2", 700, 70), root("s3", 50, 5)]);
     const d = liveDelta(before, after);
-    expect(d.inputTokens).toBe(500 + 500 + 50);
-    expect(d.outputTokens).toBe(50 + 50 + 5);
-    expect(d.sessions).toBe(3);
+    expect(d.inputTokens).toBe(500 + 500);
+    expect(d.outputTokens).toBe(50 + 50);
+    expect(d.sessions).toBe(2);
   });
 
   it("is nothing at all before the first reading has landed", () => {

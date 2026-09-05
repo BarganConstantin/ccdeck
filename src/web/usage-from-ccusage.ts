@@ -231,3 +231,128 @@ export function rangeTotals(range: UsageRange | null | undefined): RangeTotals {
     tokens: input + output + cache + create,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The seam between the two sources, as functions rather than as ternaries in
+// the middle of a 1,200-line component.
+//
+// #737 gave the panel two sources — ccusage for a period, the canvas for right
+// now — and every figure on screen has to come from ONE of them. That is not a
+// property a reader can check by looking at the JSX, and it was not a property
+// anything could check at all: `usage-panel-source-737.test.ts` asserted the
+// panel's SOURCE TEXT, twenty-three string matches deep, because the suite has
+// no DOM. A string match cannot tell a correct pairing from a plausible one, and
+// it fails on every harmless rename.
+//
+// So the decisions moved here, where they can be called. What is left in the
+// component is markup reading their answers.
+
+/** One reading, and the period it answers — what the fetch hands back. */
+export interface Landed { period: PeriodKey; data: UsageRange }
+
+/** What the panel is currently showing, as opposed to what was last pressed. */
+export interface RangeView {
+  /** The reading on screen, or null for a deck with no ccusage answer yet. */
+  data: UsageRange | null;
+  /** Which period that reading is OF. Null before the first one lands. */
+  shown: PeriodKey | null;
+  /** A slower period was pressed and has not answered; the figures are the
+   *  previous period's and are dimmed rather than blanked. */
+  stale: boolean;
+}
+
+/**
+ * What to show, given what has landed and what is pressed.
+ *
+ * The subtlety this exists for: `period` moves on the press and the answer
+ * arrives seconds later, so a panel that labelled its figures with the PRESSED
+ * period would print "$4.20 all time" over today's money and rewrite itself a
+ * moment later. It shows "$4.20 today", dimmed, until `all` answers.
+ */
+export function rangeView(landed: Landed | null, pressed: PeriodKey): RangeView {
+  return {
+    data: landed?.data ?? null,
+    shown: landed?.period ?? null,
+    stale: landed != null && landed.period !== pressed,
+  };
+}
+
+/**
+ * The word printed over the figures: the noun of the period they came FROM.
+ *
+ * Falls back to the pressed period before anything has landed, and to "today"
+ * for a key no longer in PERIODS — a stored preference from an older build must
+ * not leave the headline with no noun at all.
+ */
+export function nounFor(shown: PeriodKey | null, pressed: PeriodKey): string {
+  return PERIODS.find(p => p.key === (shown ?? pressed))?.noun ?? "today";
+}
+
+/** Everything the canvas can add to a reading between two of them. Structurally
+ *  `LiveDelta` from live-delta.ts, spelled here so the shaping layer does not
+ *  depend on the graph's types. */
+export interface Delta {
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+}
+
+/** Whatever the canvas currently sums to. `BoardTotals` from board-usage.ts,
+ *  again spelled structurally. */
+export interface Board {
+  cost: { total: number };
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  sum: number;
+}
+
+/** Every headline figure, and where each one came from. */
+export interface PanelFigures {
+  /** True when ccusage answered. Every field below follows it — that is the
+   *  whole contract, and the reason they are computed together. */
+  fromRange: boolean;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  /** Gates the money block: a deck where nothing is priced shows tokens only. */
+  hasCost: boolean;
+  /** Gates the whole body. Under ccusage this is the RANGE's token count, so an
+   *  empty period is empty rather than falling back to the board's figure. */
+  tokenSum: number;
+  /** The stacked input/output/cache bar, which only the board can support:
+   *  ccusage publishes one cost per model and not that split, so drawing it
+   *  under a ccusage headline would derive the shares from THIS deck's rate
+   *  table and hang them beneath a figure measured somewhere else. */
+  showCostBar: boolean;
+}
+
+/**
+ * Pair every figure with its source, once.
+ *
+ * THE DELTA IS ADDED TO THE READING AND NEVER TO THE BOARD. It is the work the
+ * canvas has seen since the reading landed — the gap ccusage's one-minute
+ * cadence leaves — so adding it to a board total, which already counts that
+ * work, would report it twice. Under the board there is no gap to fill: the
+ * board IS the canvas.
+ */
+export function panelFigures(range: UsageRange | null, board: Board, delta: Delta): PanelFigures {
+  const fromRange = range != null;
+  const sum = rangeTotals(range);
+  return {
+    fromRange,
+    cost: fromRange ? sum.cost + delta.cost : board.cost.total,
+    inputTokens: fromRange ? sum.inputTokens + delta.inputTokens : board.inputTokens,
+    outputTokens: fromRange ? sum.outputTokens + delta.outputTokens : board.outputTokens,
+    cacheReadTokens: fromRange ? sum.cacheReadTokens + delta.cacheReadTokens : board.cacheReadTokens,
+    cacheCreateTokens: fromRange ? sum.cacheCreateTokens + delta.cacheCreateTokens : board.cacheCreateTokens,
+    hasCost: fromRange ? sum.cost > 0 : board.cost.total > 0,
+    tokenSum: fromRange ? sum.tokens : board.sum,
+    showCostBar: !fromRange,
+  };
+}
