@@ -124,10 +124,33 @@ export async function notify(title, body, platform = process.platform, deps = {}
     // history — the whole premise of this feature is that somebody else may
     // have opened that page. `$env:` reads it as data at runtime, which is the
     // same discipline the argv paths above keep.
+    // TEMPLATE 5, ToastText02: a bold heading and a body line, and the ONLY
+    // stock template with exactly the two text nodes this fills.
+    //
+    // It was 0 — ToastImageAndText01 — from the day this was written until it
+    // was run on Windows. That template has ONE text node and an image slot, so
+    // `$n.Item(1)` below threw "Specified argument was out of the range of
+    // valid values" every time, the catch turned that into `null`, and `notify`
+    // returned false. Not intermittently and not on some machines: this branch
+    // could never once have raised a toast.
+    //
+    // It took this long to find because everything around it is right. The type
+    // loads, the AppUserModelID is accepted, the reaction is offered on the
+    // platform — `available()` lists "notify" on win32 — and the failure is a
+    // rejected promise on a fire-and-forget path whose whole contract is to
+    // stay quiet. The only surface that ever said anything was a boolean
+    // nobody read.
+    //
+    // Verified on Windows 10 19045 in the logged-on user's own session
+    // (schtasks /IT, session 2): template 0 FAILED, template 5 SHOWN. Over SSH
+    // both fail with "The notification platform is unavailable" — every SSH
+    // process lands in session 0, which has no desktop — so a check that runs
+    // there proves nothing about this line either way, and that is a property
+    // of the transport rather than of the code.
     const r = await exec("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
       "[void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime];"
-      + "$x = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(0);"
+      + "$x = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(5);"
       + "$n = $x.GetElementsByTagName('text');"
       + "$n.Item(0).AppendChild($x.CreateTextNode($env:CCDECK_TOAST_TITLE)) > $null;"
       + "$n.Item(1).AppendChild($x.CreateTextNode($env:CCDECK_TOAST_BODY)) > $null;"

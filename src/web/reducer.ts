@@ -1,6 +1,7 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
 import { bareModelId } from "./model-id";
-import type { AgentNodeData, ContextBreakdown, HookEnvelope, HookPayload, TokenUsage, ToolCall, WaitingBlock } from "./types";
+import { salientInput } from "./tool-input";
+import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, TokenUsage, ToolCall, WaitingBlock } from "./types";
 
 function emptyUsage(): TokenUsage {
   return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 };
@@ -570,7 +571,7 @@ function promptAlreadyRecorded(a: AgentNodeData, at: number, text: string): bool
  *  owner, while the first object stays in the old agent's `tools` array. Deleting
  *  by id alone would let the pruning of a long-finished agent quietly evict a
  *  live call belonging to one that is still running, and `toolIndex` is read for
- *  precisely the calls that have NOT settled: `blockedSubagentId` walks it to
+ *  precisely the calls that have NOT settled: `blockedCall` walks it to
  *  decide which subagent a permission prompt is about, so the next prompt would
  *  lose the agent it belongs to (#361). Requiring the map to still point at THIS
  *  call, and at THIS agent, keeps the release to entries the departing agent
@@ -1195,7 +1196,7 @@ const WAITING_KEEPERS = new Set([
  * traffic clear it. Payload attribution both ways, or the rule contradicts
  * itself.
  */
-function blockedSubagentId(state: GraphState, sessionId: string): string | undefined {
+function blockedCall(state: GraphState, sessionId: string): ToolCall | null {
   let newest: ToolCall | null = null;
   for (const tc of state.toolIndex.values()) {
     // `toolIndex` spans every session on the board, and holds exactly the calls
@@ -1204,9 +1205,49 @@ function blockedSubagentId(state: GraphState, sessionId: string): string | undef
     if (!owner || owner.sessionId !== sessionId) continue;
     if (!newest || tc.startedAt > newest.startedAt) newest = tc;
   }
-  // A call whose payload named nobody is the root's own, and root-level traffic
-  // already clears the block — there is nothing to name.
-  return newest?.explicitSubagentId;
+  return newest;
+}
+
+/**
+ * How stale the newest in-flight call may be and still be printed as the thing
+ * the human is being asked about.
+ *
+ * The attribution above needs no window. CC fires PreToolUse and then asks, so
+ * the blocked call is the newest in flight — and it STAYS in flight for the
+ * whole block, because the PostToolUse that would settle it is what the human's
+ * answer produces. Any window at all is therefore about the OTHER direction:
+ * the newest in-flight call when the prompt lands may be a genuinely
+ * long-running one — a build, a test run, a fetch — that nobody is being asked
+ * about, and on a session with no PreToolUse captured (a deck started
+ * mid-session, a hook that timed out) that is the only candidate there is.
+ *
+ * Thirty seconds is chosen against the gap being measured, not against how long
+ * blocks last: PreToolUse to permission prompt is milliseconds of CC's own
+ * control flow. Anything older is a different call still running, and naming it
+ * would print a confident sentence about the wrong command. Widening this trades
+ * a silence the user can recover from — CC's own sentence, which is what they
+ * had before — for a lie they cannot detect.
+ */
+export const BLOCK_GUESS_WINDOW_MS = 30_000;
+
+/** What the prompt is most likely about, when the stream implies it recently
+ *  enough to print. See `BlockedTool` in types.ts for why this is held to a
+ *  stricter standard than the attribution that reads the same call. */
+function blockedToolOf(call: ToolCall | null, now: number): BlockedTool | undefined {
+  if (!call || !call.name) return undefined;
+  if (now - call.startedAt > BLOCK_GUESS_WINDOW_MS) return undefined;
+  // A call that started after the notification landed cannot be the one it is
+  // about. Clock skew between a replayed log and this tab makes that reachable
+  // rather than impossible, and "0s from now" is not evidence of anything.
+  if (call.startedAt > now) return undefined;
+  // `inputPreview` is the JSON-shaped one `shortPreview` builds for the modal,
+  // where the reader wants the object. Here the string is read as a sentence —
+  // in a tooltip and in a desktop notification — and
+  // `{"command":"rm -rf node_modules"}` buries the four words that decide the
+  // answer inside punctuation. tool-input.ts returns the line a person reads,
+  // and null for a shape with nothing worth reading, which leaves the tool name
+  // standing on its own rather than beside a fragment of JSON.
+  return { name: call.name, preview: salientInput(call.input) ?? "" };
 }
 
 /** A fresh block, attributed. Only a `permission` block is ever about one agent:
@@ -1217,8 +1258,18 @@ function blockedSubagentId(state: GraphState, sessionId: string): string | undef
 function waitingBlock(
   state: GraphState, sessionId: string, kind: WaitingBlock["kind"], message: string, now: number,
 ): WaitingBlock {
-  const subagentId = kind === "permission" ? blockedSubagentId(state, sessionId) : undefined;
-  return subagentId ? { kind, message, since: now, subagentId } : { kind, message, since: now };
+  // An idle block is the session's input box sitting empty. There is no call
+  // under it to name, and the newest one still in flight belongs to whatever
+  // the session was doing before the turn ended — so neither field is read.
+  if (kind !== "permission") return { kind, message, since: now };
+  const call = blockedCall(state, sessionId);
+  const block: WaitingBlock = { kind, message, since: now };
+  // A call whose payload named nobody is the root's own, and root-level traffic
+  // already clears the block — there is nothing to name.
+  if (call?.explicitSubagentId) block.subagentId = call.explicitSubagentId;
+  const tool = blockedToolOf(call, now);
+  if (tool) block.tool = tool;
+  return block;
 }
 
 /**

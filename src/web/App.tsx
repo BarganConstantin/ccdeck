@@ -44,6 +44,8 @@ import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, runningSessionCount } from "./ambient-counts";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
+import { blockKey, canAsk, nextRaised, noticesFor, seedRaised } from "./notify";
+import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
 import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
@@ -2821,6 +2823,96 @@ function Inner() {
     setBlockedSaid(said => nextAnnouncement(said, blockedNow));
   }, [blockedNow]);
 
+  // The fifth surface, and the only one that leaves the page.
+  //
+  // The four above — chip, title, favicon, live region — all answer "which
+  // agent is waiting on me" to somebody who is already looking at the deck.
+  // The block this feature exists for is the one nobody is looking at, and for
+  // that one the deck's reply has been "come and look". A system notification
+  // is the only thing it can say into an empty room.
+  //
+  // Every rule about WHETHER to speak is in notify.ts, where the bare-node
+  // suite can call it; what is here is the DOM the rule is not allowed to own —
+  // the permission read, the `new Notification`, the click that brings the tab
+  // back. Same division as ambient.ts and block-announce.ts, for the same
+  // reason: a rule spelled out inside a component is a rule the tests cannot
+  // call, and what cannot be called gets copied and then drifts.
+  //
+  // THE MEMO IS A REF, NOT STATE. Nothing on screen reads it, and making it
+  // state would re-render the whole canvas every time a notification was
+  // raised — to show exactly what was already showing.
+  //
+  // The dependency is the KEY STRING and not the session list, the same trick
+  // the announcement above uses and for the same measured reason: the list is
+  // rebuilt whenever `revision` moves, which is every event and every sweep, so
+  // a list-shaped dependency would re-run this through every event of every
+  // tool storm. Joined keys move only when the set of blocks does.
+  // Read once into state rather than off `Notification.permission` on the
+  // render path, so that granting it re-renders the bar and takes the button
+  // away. The initialiser has to tolerate the API being absent — this bundle
+  // also runs in the bare-node suite, and `Notification` is not defined there.
+  const [notifyPermission, setNotifyPermission] = useState<NotifyPermission>(
+    () => (typeof Notification === "undefined" ? "denied" : Notification.permission as NotifyPermission),
+  );
+  const askForNotifications = useCallback(() => {
+    if (typeof Notification === "undefined") return;
+    // Fire-and-forget on purpose. The promise resolves when the user answers,
+    // which may be never — a Chrome prompt left sitting behind another window
+    // is the normal case — and nothing here should wait on it.
+    void Notification.requestPermission().then(p => setNotifyPermission(p as NotifyPermission));
+  }, []);
+  const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
+  const notifySeededRef = useRef(false);
+  const blockedKeys = waitingSessions.map(b => blockKey(b.id, b.waiting)).join("|");
+  useEffect(() => {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    // A deck that opens onto a machine already full of prompts must not fire
+    // one notification per prompt from before it was watching. The visibility
+    // gate covers the ordinary open; this covers the tab a session-restoring
+    // browser brought back into the background after a reboot.
+    if (!notifySeededRef.current) {
+      notifySeededRef.current = true;
+      notifyRaisedRef.current = seedRaised(waitingSessions);
+      return;
+    }
+    const pageVisible = typeof document === "undefined" || !document.hidden;
+    const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible);
+    for (const n of notices) {
+      try {
+        // `tag` is the block key, so a second deck on the same machine REPLACES
+        // this notification in the tray rather than stacking a duplicate beside
+        // it — the same fan-out that makes `since` load-bearing in the key.
+        const note = new Notification(n.title, { body: n.body, tag: n.key });
+        note.onclick = () => {
+          // Bring the deck back and land on the session that asked, rather than
+          // on whatever the canvas happened to be showing. A notification that
+          // returns you to a page you then have to search is half a feature.
+          window.focus();
+          // The same handler the topbar's blocked chip clicks through, so the
+          // notification lands the user exactly where the chip would have.
+          focusSession(n.sessionId);
+          note.close();
+        };
+      } catch {
+        // A notification can throw where the API exists but the platform will
+        // not raise one — a Linux desktop with no notification daemon is the
+        // common case. It is not worth a message on screen: the four in-page
+        // surfaces are all still saying it, which is the state the deck was in
+        // before this existed.
+      }
+    }
+    // Looking at the page counts as having been told, so a block that arrives
+    // while the deck is on screen is remembered as seen and does not fire late
+    // when the tab is next hidden. Both branches prune keys whose block is gone,
+    // which is what stops the memo growing for the life of a tab left open for
+    // days — safe only because the key carries `since`, so a block that cleared
+    // and came back is a different key.
+    notifyRaisedRef.current = pageVisible
+      ? seedRaised(waitingSessions)
+      : nextRaised(waitingSessions, notices, notifyRaisedRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockedKeys]);
+
   return (
     <div className="app">
       {/* The deck's regions, and why each one is the element it is (#381).
@@ -3133,6 +3225,27 @@ function Inner() {
               <span className="ap-pulse" aria-hidden />
               <b>{waitingSessions.length}</b> waiting
             </button>
+          )}
+          {/* The ask, and it lives HERE rather than in a settings panel.
+              Every browser requires a user gesture to raise the permission
+              prompt, so this button is not decoration — without it the feature
+              cannot be switched on at all. Putting it beside the blocked count
+              means it appears in the one moment its value is obvious (a session
+              is stuck and you can see it), and `canAsk` takes it away for good
+              once the question has been answered either way: "granted" needs no
+              button, and "denied" cannot be re-asked — requestPermission()
+              resolves denied again without showing anything, so a button that
+              kept offering would silently do nothing. That is the failure
+              browser-react.mjs refuses to ship for its own reactions, and it is
+              not worth shipping here. After a refusal the switch is in the
+              browser's site settings, which the title says in words. */}
+          {waitingSessions.length > 0 && canAsk(notifyPermission, typeof Notification !== "undefined") && (
+            <button
+              type="button"
+              className="notify-ask"
+              onClick={askForNotifications}
+              title="Get a system notification when a session blocks on you, so the deck can reach you with this tab in the background"
+            >notify me</button>
           )}
         </div>
         {selected && (() => {

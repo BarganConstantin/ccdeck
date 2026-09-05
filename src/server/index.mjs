@@ -15,6 +15,8 @@ import { promisify } from "node:util";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
+import { createBlockNotifier, OFF_ENV as NO_NOTIFY_ENV } from "./block-notify.mjs";
+import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
@@ -3114,6 +3116,28 @@ function redactDeckToken(raw) {
   return raw;
 }
 
+/**
+ * The desktop notifier, built once per process.
+ *
+ * `enabled` is read here and not per event, so a switch cannot change under a
+ * running server and let two events in the same second disagree about it. The
+ * OS call is browser-react.mjs's — the same one Browser Watch has shipped on
+ * all three platforms — so this is a second caller, not a second
+ * implementation, and the platform quirks it already handles (argv rather than
+ * interpolation on macOS, the WinRT toast on Windows, a missing notify-send on
+ * Linux) are handled once.
+ *
+ * A failure goes to stderr and no further. The user cannot act on "your desktop
+ * has no notification daemon" mid-session, the deck is not broken by it, and
+ * every in-page surface still says everything it said before.
+ */
+const blockNotifier = createBlockNotifier({
+  notify: osNotify,
+  product: PRODUCT,
+  enabled: process.env[NO_NOTIFY_ENV] !== "1",
+  onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
+});
+
 function pushEvent(raw, source, opts = {}) {
   // First, before anything below can see it: the deck's own credential does not
   // belong in a store that is served without one. Every entry point to the
@@ -3252,6 +3276,17 @@ function pushEvent(raw, source, opts = {}) {
     // it is well defined and skips only the entry removed.
     for (const res of sseClients) writeSse(res, line);
   }
+
+  // The desktop, when there is no page to tell.
+  //
+  // Placed here rather than in a route handler because every path that can
+  // produce a permission prompt comes through pushEvent — the hook POST, a
+  // replay, and the transcript scanners — and `sseClients.size` read at this
+  // exact point is the honest answer to "is anybody being shown this by any
+  // other means". The web notifier owns the case where a page exists, and this
+  // owns the case where none does; the two never both fire, and neither has to
+  // know the other exists. block-notify.mjs holds the gates and the cooldown.
+  blockNotifier.consider(raw, { clients: sseClients.size, replay: !!opts.replay });
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line

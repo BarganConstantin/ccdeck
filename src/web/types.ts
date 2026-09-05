@@ -105,6 +105,31 @@ export interface PromptEntry {
   text: string;
 }
 
+/** The call a permission prompt is most likely asking about.
+ *
+ *  READ THE WORD "LIKELY". `Notification` names no tool, so this is inferred
+ *  from position in the stream by the same rule `subagentId` uses, and it is a
+ *  guess for the same reasons — see that field. The difference is what a wrong
+ *  guess COSTS. `subagentId` decides which later events may clear the block, so
+ *  being wrong there shortens or lengthens an alarm the human can see is still
+ *  standing. This is printed, so being wrong here shows somebody the name of a
+ *  command their agent is not actually asking about, and they answer the prompt
+ *  believing they know what it was.
+ *
+ *  That is why this one carries a window `subagentId` does not need
+ *  (`BLOCK_GUESS_WINDOW_MS` in reducer.ts) and why every surface that renders it
+ *  hedges the wording. When the window rejects the call the field is absent and
+ *  the deck says only what CC said, which is the behaviour before this existed. */
+export interface BlockedTool {
+  /** The tool as CC named it — `Bash`, `Edit`, `WebFetch`. */
+  name: string;
+  /** The one-line preview the deck already keeps for the call, or "" when the
+   *  call had no arguments worth showing. Never the full input: this is read in
+   *  a sidebar row, a tooltip and an OS notification, none of which can hold a
+   *  file's worth of JSON, and two of which are drawn by somebody else. */
+  preview: string;
+}
+
 /** Claude Code is blocked on a human, and which chore that is. `Notification`
  *  emits exactly two kinds and they are different jobs: `permission_prompt` is
  *  a decision you owe a session that is still mid-turn, `idle_prompt` is a turn
@@ -113,8 +138,14 @@ export interface WaitingBlock {
   kind: "permission" | "idle";
   /** CC's own wording, shown verbatim — it is the only human sentence we get.
    *  The payload carries no tool_name and no tool_input, so this and the kind
-   *  are the whole of what the deck honestly knows about the block. */
+   *  are the whole of what the deck honestly knows about the block ITSELF.
+   *  `tool` below adds what the stream around it implies, marked as the guess
+   *  it is; this field stays the only thing quoted without a hedge. */
   message: string;
+  /** Which call the prompt is most likely about, when the stream implies one
+   *  and the window accepts it. Absent on an idle block, which is nobody's tool
+   *  call, and absent whenever the guess is not safe to print. */
+  tool?: BlockedTool;
   /** When the block started, from the envelope's `receivedAt`. Never re-stamped
    *  by a duplicate delivery, or the "waiting 4m" readout on the card resets to
    *  zero every time a second deck's copy of the same notification lands. */

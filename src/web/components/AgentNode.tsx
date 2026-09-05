@@ -359,6 +359,33 @@ export function waitingSentence(waiting: WaitingBlock): string {
   return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
 }
 
+/** The tool the prompt is most likely about, as a few words, or null when the
+ *  deck has no safe guess — see `BlockedTool` in types.ts.
+ *
+ *  NAME AND PREVIEW, IN THAT ORDER, and the preview is allowed to be dropped by
+ *  the caller. "Bash" alone already turns "waiting 4m" into a sentence you can
+ *  act on; "Bash · rm -rf node_modules" is the one that stops you approving it
+ *  by reflex. The row has characters for the first, a tooltip and a
+ *  notification body have room for both, so the split is the caller's to make
+ *  and this returns the long form. */
+export function blockedToolLabel(waiting: WaitingBlock): string | null {
+  const tool = waiting.tool;
+  if (!tool) return null;
+  return tool.preview ? `${tool.name} · ${tool.preview}` : tool.name;
+}
+
+/** The same guess, worded for a surface with room to hedge.
+ *
+ *  "Likely" is not padding and does not come out. The deck infers this from
+ *  where the notification sat in the stream rather than from anything CC said
+ *  (types.ts spells out why), so a surface that prints it flat is claiming more
+ *  than the deck knows — and the one place a user would catch the deck lying is
+ *  the place they are deciding whether to approve a command. */
+export function blockedToolTooltip(waiting: WaitingBlock): string | null {
+  const label = blockedToolLabel(waiting);
+  return label ? `Likely on: ${label}` : null;
+}
+
 /** The visible label, which is CC's sentence for a permission block and a
  *  quieter one for an idle block.
  *
