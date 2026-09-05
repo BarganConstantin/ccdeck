@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.5.0": [
+    {
+      "title": "⚡ The figures move when the work happens",
+      "body": "Reading your usage off the logs is not free — measured here, one reading is 7.8 seconds of CPU, because ccusage walks every transcript on the machine whatever period you asked for. Once a minute is affordable; once every ten seconds would be three quarters of a core, permanently, for numbers that move slowly.\n\nSo the reading stays on a minute and the deck fills the gap with what it already knows. Every hook event carries its session's running total, so the panel adds whatever has been spent since the last reading and counts up to it. The headline now moves when a turn finishes rather than on the clock, and it costs nothing extra.\n\nIt only ever adds. A session leaving the canvas cannot pull the figure down, and the next reading corrects whatever the estimate got wrong — the tokens are exact, and the dollars in between are priced by the deck's own table.\n\nTwo smaller things with it: pressing today, month or all now counts between the two figures instead of swapping them, and coming back to the tab only re-reads if what is on screen is actually stale."
+    }
+  ],
   "3.4.0": [
     {
       "title": "🔢 The figures count to their new value, once a minute",
