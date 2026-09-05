@@ -5059,12 +5059,34 @@ function isDeckUiRequest({ origin, host, secFetchSite } = {}) {
 function isAuthorizedDataRead(req) {
   const headers = req?.headers ?? {};
   if (presentsDeckToken(headers)) return true;
+  // Addressed to this machine by a name that can only be this machine — so a
+  // rebound page, which also reports same-origin, does not qualify.
+  if (!isLoopbackHost(headers.host)) return false;
+
   const site = typeof headers["sec-fetch-site"] === "string"
     ? headers["sec-fetch-site"].trim().toLowerCase() : "";
-  if (site !== "same-origin") return false;
-  // And addressed to this machine by a name that can only be this machine, so a
-  // rebound page — which also reports same-origin — does not qualify.
-  return isLoopbackHost(headers.host);
+  if (site === "same-origin") return true;
+  // ANY FETCH METADATA AT ALL, AND IT SAID SOMETHING ELSE. `cross-site`,
+  // `same-site` and `none` are all a page that is not this one — or a top-level
+  // navigation typed into the address bar, which has no business reading the
+  // ring.
+  if (site !== "") return false;
+
+  // THE BROWSER THAT SENDS NO FETCH METADATA, and this is the whole reason this
+  // branch exists. Sec-Fetch-Site is Safari 16.4 and newer; Safari 16.0-16.3
+  // runs this bundle perfectly well (Vite's default target is Safari 16) and
+  // sends none of it. Without a fallback those users get an empty canvas and a
+  // 401 they cannot act on — an impediment for a browser that is otherwise
+  // fine.
+  //
+  // Referer is what they do send, on a page's own fetches and on its
+  // EventSource, and it must name THIS origin. A cross-site page's Referer
+  // names its own; a rebound page's names the attacker's host, which is not a
+  // loopback identity. It is forgeable by a non-browser client — and so is
+  // Sec-Fetch-Site, which curl sets as easily; neither is the control that
+  // stops a deliberate local caller. That control is the token, and this only
+  // decides which BROWSERS are recognised as the deck's own page.
+  return originMatchesHost(headers.referer, headers.host);
 }
 
 /** The reads that carry the user's own work, rather than the machine's. */

@@ -98,6 +98,40 @@ describe("what the deck's own page can read", () => {
   });
 });
 
+describe("a browser that sends no fetch metadata", () => {
+  // Sec-Fetch-Site is Safari 16.4 and newer. Vite's default target is Safari
+  // 16, so 16.0-16.3 runs this bundle perfectly well and sends none of it —
+  // and without a fallback those users get an empty canvas and a 401 they
+  // cannot act on. Referer is what they do send, on a page's own fetches and on
+  // its EventSource.
+  it("is recognised by a Referer naming this very origin", async () => {
+    expect(await get("/api/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).not.toBe(401);
+    expect(await get("/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port}/` })).not.toBe(401);
+  });
+
+  it("is refused when the Referer names somebody else", async () => {
+    // A cross-site page's Referer names its own origin.
+    expect(await get("/api/events", { host: `127.0.0.1:${port}`, referer: "https://evil.example/" })).toBe(401);
+    // A different loopback port is a different deck, and not this page.
+    expect(await get("/api/events", { host: `127.0.0.1:${port}`, referer: `http://127.0.0.1:${port + 1}/` })).toBe(401);
+  });
+
+  it("is refused when there is no Referer either", async () => {
+    // Which is where curl lands, and where the token is the way in.
+    expect(await get("/api/events", { host: `127.0.0.1:${port}` })).toBe(401);
+  });
+
+  it("does not let a stated cross-site request in through the Referer", async () => {
+    // Fetch metadata that SAYS cross-site is a page that is not this one, and a
+    // Referer beside it changes nothing.
+    expect(await get("/api/events", {
+      host: `127.0.0.1:${port}`,
+      "sec-fetch-site": "cross-site",
+      referer: `http://127.0.0.1:${port}/`,
+    })).toBe(401);
+  });
+});
+
 describe("what stays open, and why", () => {
   it("leaves the hook's readiness probe and its handshake alone", async () => {
     // hook/hook.js is a plain Node http.request with no browser headers, and it
