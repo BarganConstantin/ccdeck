@@ -2,9 +2,9 @@
 
 # ccdeck
 
-**An agent session is a tree. Your terminal shows it as a scroll.**
+**Know which agent is waiting on you, and for how long.**
 
-**ccdeck draws the tree** — Claude Code and OpenAI Codex on one live canvas, with every Claude Code subagent on a node of its own.
+**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because Codex emits no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![agents-deck downloads](https://img.shields.io/npm/dm/agents-deck?color=blue&label=agents-deck%20downloads)](https://www.npmjs.com/package/agents-deck)
@@ -20,7 +20,7 @@ npx ccdeck
 
 *A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
 
-tool calls · cost · quota · who is blocked on you · one canvas · local · no telemetry
+who is blocked on you · tool calls · one canvas · cost · quota · local · no telemetry
 
 [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options)
 
@@ -31,7 +31,11 @@ tool calls · cost · quota · who is blocked on you · one canvas · local · n
 
 ## Why
 
-An agent session is a tree, but a terminal shows it as a scroll. Five subagents working in parallel arrive as one interleaved column of text, and the questions you actually have — *what is running right now, what did that subagent do, which one is stuck, what is this costing* — are the ones the scroll answers worst.
+Four agents running, and the machine has been quiet for twenty minutes. One of them stopped to ask something and you did not see it go by. From the outside every terminal tab looks the same — the one that is working and the one that has been holding a permission prompt since the coffee — so you find it by clicking through them, and the agent that was closest to finished is the one that has been waiting longest.
+
+ccdeck answers that in one place: every session stopped on a human is at the top of the sidebar with the wait beside it, longest first, and the count in the topbar goes straight to the oldest one. The question stops being *which tab* and becomes *this one*.
+
+That is the sharp end of a wider problem. An agent session is a tree, but a terminal shows it as a scroll: five subagents working in parallel arrive as one interleaved column of text, and the questions you actually have — *what is running right now, what did that subagent do, which one is stuck, what is this costing* — are the ones the scroll answers worst.
 
 ccdeck draws the tree instead. It is local and needs no configuration: it registers a hook, listens, and paints.
 
@@ -41,10 +45,10 @@ One canvas. No tabs. No kanban.
 
 | | |
 |---|---|
-| **Blocked on you** | A permission prompt or a finished turn waiting for your next instruction sorts that session to the top of the sidebar with how long it has been stuck, and puts a count in the topbar that jumps to the oldest one. Claude Code only — Codex emits no such signal. |
-| **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
+| **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — Codex emits no such signal. |
 | **Live DAG** | Nodes are agents, edges are spawns and tool calls. In-flight edges animate, settled ones fade. |
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
+| **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
 | **Click to inspect** | Any node opens its prompt, tool calls, token usage and timing. |
 | **Survives restarts** | Events are appended to `~/.claude/agent-dag/events.jsonl` and replayed on open. |
 | **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
@@ -60,6 +64,8 @@ npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
 Opens **http://127.0.0.1:4317** and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live. `Ctrl+C` stops it.
 
 No config file. No account. No telemetry — nothing about your sessions is reported anywhere.
+
+**The deck cannot steer your agent.** The hook it installs is a one-way forwarder: it POSTs the event, exits `0`, and writes nothing to stdout. Those are the two channels Claude Code's hook protocol gives a hook for allowing, denying, deferring or rewriting the tool call it was told about, and this one uses neither — it has no way to answer at all. `src/web/__tests__/hook-read-only.test.ts` pins both halves, over the source and by running the real script.
 
 What the deck does write, and the short list of what does leave the machine, is in [What it touches](#what-it-touches).
 

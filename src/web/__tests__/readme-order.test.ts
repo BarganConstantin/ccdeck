@@ -148,12 +148,20 @@ describe("the order a first-time reader meets the page in", () => {
     expect(line).toBeLessThan(at("## Quick start"));
   });
 
-  it("leads the feature table with the rows no competitor claims", () => {
+  it("leads the feature table with the row no competitor claims", () => {
+    // Blocked-on-you first is unchanged, and is the point. What moved is the row
+    // under it: "Cost and quota, live" held the second slot, which on a table
+    // this short reads as a co-headline, and cost tracking is the most crowded
+    // thing in this category — forty-odd tools do it, and the one this deck
+    // shells out to for the numbers is downloaded several times more often than
+    // the deck itself. The row stays, because people do use it; it is no longer
+    // the second thing the page says the tool is for.
     const table = readme.slice(at("## What you get"), at("## Quick start"));
     const rows = table.split("\n").filter(l => l.startsWith("| **"));
     expect(rows.length).toBeGreaterThan(5);
     expect(rows[0]).toContain("**Blocked on you**");
-    expect(rows[1]).toContain("**Cost and quota, live**");
+    expect(rows[1]).not.toContain("**Cost and quota, live**");
+    expect(rows.some(r => r.includes("**Cost and quota, live**")), "the cost row was deleted rather than demoted").toBe(true);
   });
 });
 
@@ -161,23 +169,50 @@ describe("the first two lines, which are the whole first impression (#461)", () 
   /** Everything above the badges — the h1 and whatever states the case. */
   const hero = readme.slice(0, readme.indexOf("[![npm]"));
 
-  it("states the problem before it names the tool", () => {
+  it("opens on the promise, then on what makes it true", () => {
     // The page used to open on "A live canvas for your AI agents", which is a
-    // category. A category tells a reader which shelf this sits on and leaves
-    // them to work out whether they are standing at it; the problem does the
-    // deciding for them. Both offsets are asserted so a deleted line fails here
+    // category, and then on "An agent session is a tree. Your terminal shows it
+    // as a scroll.", which is the MECHANISM — a good sentence, kept, one floor
+    // down in ## Why where it explains instead of selling.
+    //
+    // What leads now is the only thing on the page no competing tool does: rank
+    // the sessions that are stuck on a human by how long they have been stuck.
+    // The tree is why this deck can answer that; it is not the question anybody
+    // arrived with. Both offsets are asserted so a deleted line fails here
     // rather than passing an inequality against -1.
-    const problem = hero.indexOf("An agent session is a tree. Your terminal shows it as a scroll.");
-    const answer = hero.indexOf("**ccdeck draws the tree**");
-    expect(problem, "the README no longer opens by stating the problem").toBeGreaterThan(-1);
-    expect(answer, "the README no longer answers the problem it opens with").toBeGreaterThan(-1);
-    expect(problem).toBeLessThan(answer);
+    const promise = hero.indexOf("**Know which agent is waiting on you");
+    const how = hero.indexOf("**ccdeck keeps them in one queue**");
+    expect(promise, "the README no longer opens on the promise").toBeGreaterThan(-1);
+    expect(how, "the README no longer says what makes the promise true").toBeGreaterThan(-1);
+    expect(promise).toBeLessThan(how);
   });
 
-  it("keeps the answer above the fold, not below the install command", () => {
+  it("keeps both lines above the fold, not below the install command", () => {
     // Badges and `npx ccdeck` are what a scanner's eye lands on next. The two
-    // lines only do their job while they are still the first thing read.
-    expect(hero).toContain("**ccdeck draws the tree**");
+    // lines only do their job while they are still the first thing read — `hero`
+    // is everything before the badges, so containment is the assertion.
+    expect(hero).toContain("**ccdeck keeps them in one queue**");
+  });
+
+  it("does not sell the queue to a Codex user", () => {
+    // The headline is a Claude Code claim and cannot quietly become a both-CLIs
+    // one: `root.waiting` has a single writer, the reducer's `Notification`
+    // case, and the Codex path emits no Notification at all — codex-approval.ts
+    // is 70 lines on why synthesising one would be worse than staying silent. A
+    // hero that leads on the queue has to say whose it is in the same breath, or
+    // the first two lines of the page are the only untrue thing on it.
+    expect(hero).toContain("Codex emits no such signal");
+  });
+
+  it("keeps the tree, where it explains rather than sells", () => {
+    // The argument that used to be the hero. It is not deletable — it is the
+    // reason the canvas is a canvas — it is just not the promise, so it moved
+    // into ## Why and is pinned there the way the disclosures above are pinned
+    // to ## What it touches: word for word, and exactly once.
+    const tree = "An agent session is a tree, but a terminal shows it as a scroll:";
+    expect(readme.indexOf(tree), "the tree/scroll argument is gone entirely").toBeGreaterThan(at("## Why"));
+    expect(readme.indexOf(tree)).toBeLessThan(at("## What you get"));
+    expect(times(tree)).toBe(1);
   });
 
   it("does not let the scan line promise subagents to a Codex user", () => {
@@ -200,6 +235,21 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     for (const noun of ["cost", "quota", "blocked on you", "no telemetry"]) {
       expect(scan).toContain(noun);
     }
+  });
+});
+
+describe("the one guarantee the page names a test for", () => {
+  it("names a test that exists, so the claim can be checked by the reader too", () => {
+    // "The deck cannot steer your agent" is the sentence that answers the
+    // objection a stranger actually has about letting a dashboard install a hook
+    // that runs on every tool call. A claim like that is worth nothing on the
+    // page's own authority, so the page cites the file that holds it — and a
+    // citation pointing at a file that has been renamed or deleted is worse than
+    // no citation, because it reads as evidence and is not.
+    expect(readme).toContain("**The deck cannot steer your agent.**");
+    const named = "src/web/__tests__/hook-read-only.test.ts";
+    expect(readme).toContain(named);
+    expect(existsSync(join(repo, named)), `README.md cites ${named}, which is not there`).toBe(true);
   });
 });
 
