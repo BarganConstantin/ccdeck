@@ -98,6 +98,16 @@ export const CONDITIONS = {
     holdsOn: (platform) => platform === "win32",
     why: "chmod 0555 does not block writes on Windows (nor for root), so the case cannot fail the write without also failing the read it needs first.",
   },
+  "!hasNodeSqlite": {
+    // Node 22.5+ ships `node:sqlite`, and every leg of the matrix runs 22 — so
+    // like the dist gate this is satisfied by a decision in the workflow rather
+    // than by anything about the machine. It guards the two cases that BUILD a
+    // Chrome-shaped database and read a genuine 1.34e16 `visit_time` back out;
+    // the branch case beside them is deliberately un-gated, because it has
+    // something to say on a runtime without the module too.
+    holdsOn: () => false,
+    why: "publish.yml pins node-version 22 on all three legs, and node:sqlite ships from 22.5.",
+  },
   "!existsSync(dist)": {
     // Satisfied by the `Build web bundle` step in publish.yml, not by anything
     // about the machine. The inventory test pins that step's existence for
@@ -157,6 +167,8 @@ export const GATES = [
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
 
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
+
+  { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 2 },
 
   { file: "theme-first-paint.test.ts", gate: "it.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 1 },
   // The whole tarball block. It packs what is on disk with `--ignore-scripts`,

@@ -641,3 +641,77 @@ describe("the branch most users run, and the reason it was untestable", () => {
     expect(src).toMatch(/createRequire\(import\.meta\.url\)/);
   });
 });
+
+/** Does this runtime have the in-process reader at all? Node 22.5+, which every
+ *  CI leg is, and which the register in skip-gates.mjs records — the two cases
+ *  below BUILD a database with it, so unlike the branch case above they cannot
+ *  say anything useful without it. */
+const hasNodeSqlite = (() => {
+  try { createRequire(import.meta.url)("node:sqlite"); return true; } catch { return false; }
+})();
+
+describe.skipIf(!hasNodeSqlite)("a real database, with a real Chrome timestamp in it", () => {
+  it("reads a real Chrome database whose visit_time is past 2^53", async () => {
+    // The claim this whole file is built around, finally made against a real
+    // SQLite file instead of against the text of a SELECT.
+    //
+    // Every other case here proves the CAST is in the SQL, or that a fake
+    // reader was handed it. None of them can fail if the cast is correct in
+    // spelling and wrong in effect, and none can fail if node:sqlite one day
+    // stops refusing the column — which is the day all that text-matching
+    // becomes a rule nobody needs. A database with a genuine 1.34e16 in it
+    // answers both questions by being read.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-real-chrome-"));
+    try {
+      const historyPath = join(dir, "History");
+      const db = new (createRequire(import.meta.url)("node:sqlite").DatabaseSync)(historyPath);
+      // Chrome's own shape, cut down to the two tables and the four columns the
+      // module's SELECT touches. INTEGER, as Chrome declares them — the schema
+      // is exactly what makes the cast look redundant to a tidier.
+      db.exec("CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT)");
+      db.exec("CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER, transition INTEGER)");
+      db.exec("INSERT INTO urls (id, url) VALUES (1, 'https://news.example/story')");
+      // The value from the module's own error message: microseconds since 1601,
+      // measured off a real profile, and 1.49x the safe integer limit.
+      db.exec("INSERT INTO visits (id, url, visit_time, transition) VALUES (1, 1, 13432716408648765, 805306368)");
+      db.close();
+
+      const got = await readVisitsSince(historyPath, "0", { copyDir: join(dir, "copies") });
+      expect(got.degraded, `the real read degraded: ${got.reason}`).toBeFalsy();
+      expect(got.rows).toHaveLength(1);
+      expect(got.rows[0].url).toBe("https://news.example/story");
+      // Converted, not passed through: the row's time is a millisecond number
+      // the rest of the deck can do arithmetic on.
+      expect(got.rows[0].timeMs).toBe(chromeTimeToMs("13432716408648765"));
+      expect(got.rows[0].transition).toBe(805306368);
+      expect(got.watermark).toBe("13432716408648765");
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+
+  it("would lose every row of that read without the cast, which is why it is there", () => {
+    // The other half, and the reason a tidier must not delete `CAST(… AS TEXT)`
+    // from a column the schema calls INTEGER. Run against the same shape of
+    // database, with the cast removed: node:sqlite does not round, or return
+    // null, or drop the one row — it THROWS, from `.all()`, so a single
+    // unreadable column costs the entire query.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-uncast-chrome-"));
+    try {
+      const historyPath = join(dir, "History");
+      const db = new (createRequire(import.meta.url)("node:sqlite").DatabaseSync)(historyPath);
+      db.exec("CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT)");
+      db.exec("CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER, transition INTEGER)");
+      db.exec("INSERT INTO urls (id, url) VALUES (1, 'https://news.example/story')");
+      db.exec("INSERT INTO visits (id, url, visit_time, transition) VALUES (1, 1, 13432716408648765, 805306368)");
+      const uncast = db.prepare(
+        "SELECT u.url AS url, v.visit_time t, v.transition tr"
+        + " FROM visits v JOIN urls u ON u.id = v.url WHERE v.visit_time > 0 ORDER BY v.visit_time");
+      expect(() => uncast.all(), "node:sqlite stopped refusing the column — the cast may no longer be load-bearing")
+        .toThrow(/too large to be represented as a JavaScript number|ERR_OUT_OF_RANGE/);
+      db.close();
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+});
