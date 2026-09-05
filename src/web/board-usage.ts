@@ -4,6 +4,10 @@
 //
 // #687. The usage panel's headline said "total spend" and the topbar's chip
 // beside it said "cost", and neither was a total of anything anyone had spent.
+// (The topbar chips were later dropped outright, for the reason the labels were
+// added: a figure that needs a qualifier and a three-line tooltip to be honest
+// was not worth the width, with ccusage answering the same question properly
+// one panel over. The scope constants that survive are the panel's.)
 // Both walked `state.agents` — the agents on the canvas right now — and the
 // canvas evicts finished sessions on a two-minute timer with a cap of six
 // (`DONE_SESSION_CAP` / `DONE_SESSION_GRACE_MS` in App.tsx, driving
@@ -71,8 +75,8 @@ export interface BoardTotals {
   outputTokens: number;
   cacheReadTokens: number;
   cacheCreateTokens: number;
-  /** input + output — the one figure the topbar prints, and the gate the usage
-   *  panel opens its money block on. Cache traffic is deliberately outside it:
+  /** input + output — the gate the usage panel opens its money block on, and
+   *  the figure its token strip prints. Cache traffic is deliberately outside it:
    *  it is reported beside these two and is an order of magnitude larger, so
    *  folding it in would make the headline unreadable as "how much work". */
   sum: number;
@@ -91,8 +95,8 @@ export interface BoardTotals {
  * second inside UsagePanel's, spelled with different variable names and summing
  * the same map. They never disagreed, and they were never checked against each
  * other either; `duplicated-helpers.test.ts` is this repo's record of what that
- * costs. Now the two surfaces that print a board figure print the same
- * arithmetic, under labels declared in the same file as the arithmetic.
+ * costs. The topbar's copy has since gone with its chips, and the one caller
+ * left prints this arithmetic under labels declared in the same file as it.
  */
 export function boardTotals(agents: Iterable<Billable>): BoardTotals {
   const cost: CostBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
@@ -130,14 +134,9 @@ export const BOARD_SPEND_LABEL = "spend on this board";
  *  on screen and would otherwise stand with no scope stated anywhere. */
 export const BOARD_SCOPE_LABEL = "on this board";
 
-/** The topbar chips. Terse because the strip is a fixed-width row that four
- *  readouts already share, and one word is enough to stop the figure reading as
- *  a claim about the day. */
-export const BOARD_TOKENS_LABEL = "board tokens";
-export const BOARD_COST_LABEL = "board cost";
-
 /**
- * The tooltip every board-wide figure carries, on both surfaces.
+ * The tooltip every board-wide figure carries. One surface now — the usage
+ * panel — where it was two before the topbar chips were dropped.
  *
  * Three sentences, in the order a reader needs them: what is counted, why it
  * can fall, and where the durable answer lives. The last one is the reason this
@@ -145,8 +144,8 @@ export const BOARD_COST_LABEL = "board cost";
  * total, it is one keystroke away, and it is not this number.
  *
  * No CLI is named in it. The board sums Claude and Codex agents alike, and
- * `codex-copy.test.ts` holds the topbar to that: a provider-blind figure must
- * not carry one product's name.
+ * `codex-copy.test.ts` holds the deck's copy to that: a provider-blind figure
+ * must not carry one product's name.
  */
 export const BOARD_SCOPE_TITLE =
   "Everything on the board right now, and only that.\n"

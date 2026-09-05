@@ -532,10 +532,10 @@ button:focus-visible { outline-offset: 1px; }
      24px  role to role            .topbar, .topbar .readout
 
    Every one of them was already somewhere in this sheet; what was missing was
-   the largest. The bar used to run 14px between the last number and the first
+   the largest. The bar used to run 14px between the last readout and the first
    button and 8px between two buttons — a 1.75x step, under 16px, doing the work
-   of a group boundary while `.stat + .stat::before` drew a literal 1px rule
-   between tokens and cost. So the bar's own spacing said the break between two
+   of a group boundary, while a literal 1px rule marked the far smaller break
+   between two readouts. So the bar's own spacing said the break inside the
    readouts was bigger than the break between watching and acting.
    `justify-content: space-between` stays: the gaps are the floor between
    neighbours, and the free space still goes to the middle. */
@@ -1025,10 +1025,12 @@ button.btn.sm-hear {
 .selected-ribbon .selected-close:active { transform: scale(0.94); }
 /* 14px between readouts, unchanged — it was never the wrong number. What was
    wrong is that it also had to serve as the seam between the readouts and the
-   controls, via a `margin-right: 6px` that made that boundary 14px too. Both
-   distances saying the same thing is what made the strip's own 1px `.stat`
-   rules look like the larger break. The margin is gone; .readout's 24px and
-   .topbar's 24px carry the two boundaries this strip actually has. */
+   controls, via a `margin-right: 6px` that made that boundary 14px too. The
+   margin is gone; .readout's 24px and .topbar's 24px carry the two boundaries
+   this strip actually has.
+   Two members left, the pill and the meter, so the gap is the only thing
+   between them — the 1px dividers this strip used to draw went with the two
+   board readouts they separated. */
 .topbar .status {
   color: var(--muted);
   font-size: 12px;
@@ -1036,24 +1038,6 @@ button.btn.sm-hear {
   align-items: center;
   gap: 14px;
 }
-.topbar .status .stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.topbar .status .stat .lbl { color: var(--muted); }
-.topbar .status .stat + .stat::before {
-  content: "";
-  display: inline-block;
-  width: 1px;
-  height: 12px;
-  background: var(--line);
-  margin-right: 10px;
-  position: relative;
-  top: 1px;
-}
-
 /* ---------------- system meter ----------------
    Machine CPU + memory, in the status strip. Two rows because the two metrics
    have different dynamics: CPU gets a 60s sparkline because it spikes, memory
@@ -1144,33 +1128,6 @@ button.btn.sm-hear {
    without a third rule: hover paints the wash, open draws the ring, and an open
    meter under the pointer has both. */
 .topbar .status .sysmeter[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
-/* Same separator the stats draw between themselves — the meter sits in that run
-   and should not look welded to its neighbour.
-   Drawn on the stat AFTER the meter rather than on the meter itself, which is
-   where it used to be: with the sessions, agents and events counters gone the
-   meter is the first readout in the row, and a divider before it would hang off
-   the status pill with nothing to its left. The pill leads the row and the run
-   opens on its first readout — the same shape the row had when `sessions` was
-   the element with nothing drawn to its left.
-   This pair and `.stat + .stat` are the whole run, and between them they survive
-   any readout leaving the MIDDLE of it: both are keyed on the class of the
-   element that DRAWS, so a `.stat` removed from inside the run just hands its
-   line to whatever closes up behind it. Only an element the selectors name as
-   the LEFT-hand side — the meter — can make one of them unmatchable, which is
-   what happened when the counters went and is why the rule moved then and did
-   not have to move when the MCP legend followed. topbar-divider-run.test.ts
-   walks every row the strip can render and counts the lines. */
-.topbar .status .sysmeter-wrap + .stat::before,
-.topbar .status .sysmeter + .stat::before {
-  content: "";
-  display: inline-block;
-  width: 1px;
-  height: 12px;
-  background: var(--line);
-  margin-right: 10px;
-  position: relative;
-  top: 1px;
-}
 .sysmeter .sm-box {
   position: relative;
   width: 36px;
@@ -1736,11 +1693,6 @@ button.btn.sm-hear {
   background: var(--err);
   box-shadow: 0 0 8px var(--err);
 }
-.topbar .status .count {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
 /* How many sessions are blocked on you (#337) — the only number in this bar
    that is a control rather than a readout, so it is shaped like the status pill
    beside it and behaves like every other button here: the --warn edge .btn.warn
@@ -1754,10 +1706,8 @@ button.btn.sm-hear {
    that propped it up — the events counter whose ticking made the case — is
    itself gone from the row. What still does work is the other half, and it is a
    claim about the strip rather than about ARIA: .status is a run of readouts
-   whose internal boundaries are drawn by `.stat + .stat::before`, so a button
-   dropped into it would either take one of those 1px rules or split the run in
-   two, and the row would be reporting a group boundary where there is only a
-   change of element.
+   about what is happening, so a button dropped into it would report a group
+   boundary where there is only a change of element.
    Grouping the bar is what made the placement worth restating rather than
    deleting: it gave the bar a group for observation, and this chip belongs in
    that group rather than beside the controls. Being a button

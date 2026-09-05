@@ -52,11 +52,9 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
   boardTotals,
-  BOARD_COST_LABEL,
   BOARD_SCOPE_LABEL,
   BOARD_SCOPE_TITLE,
   BOARD_SPEND_LABEL,
-  BOARD_TOKENS_LABEL,
   SESSION_SPEND_LABEL,
   type Billable,
 } from "../board-usage";
@@ -327,8 +325,8 @@ describe("the label lives in the same module as the sum", () => {
     const declared = code(boardUsage);
     expect(declared).toContain("export function boardTotals(");
     for (const name of [
-      "BOARD_SPEND_LABEL", "BOARD_SCOPE_LABEL", "BOARD_TOKENS_LABEL",
-      "BOARD_COST_LABEL", "BOARD_SCOPE_TITLE", "SESSION_SPEND_LABEL",
+      "BOARD_SPEND_LABEL", "BOARD_SCOPE_LABEL",
+      "BOARD_SCOPE_TITLE", "SESSION_SPEND_LABEL",
     ]) {
       expect(declared, `${name} is not declared beside the sum`).toContain(`export const ${name}`);
     }
@@ -337,15 +335,18 @@ describe("the label lives in the same module as the sum", () => {
   it("says board of the board figures and session of the session ones", () => {
     expect(BOARD_SPEND_LABEL).toBe("spend on this board");
     expect(BOARD_SCOPE_LABEL).toBe("on this board");
-    expect(BOARD_TOKENS_LABEL).toBe("board tokens");
-    expect(BOARD_COST_LABEL).toBe("board cost");
     expect(SESSION_SPEND_LABEL).toBe("session spend");
+    // Two more used to be here — the topbar chips' "board tokens" and "board
+    // cost". Both readouts were dropped rather than reworded: a figure needing
+    // a qualifier and a three-line tooltip to be honest is not worth 12px of a
+    // fixed row when ccusage answers the same question properly one panel over.
+    // topbar-strip-shape.test.ts is what keeps them from coming back.
 
     // The rule the strings above are one spelling of: every label naming an
     // aggregate names the scope that aggregate is over, and none of them claims
     // a whole. "total" is the word this issue is about — it is a claim about a
     // period, and no figure on these surfaces covers one.
-    for (const label of [BOARD_SPEND_LABEL, BOARD_SCOPE_LABEL, BOARD_TOKENS_LABEL, BOARD_COST_LABEL]) {
+    for (const label of [BOARD_SPEND_LABEL, BOARD_SCOPE_LABEL]) {
       expect(label, `${label} does not name the board`).toMatch(/\bboard\b/);
       expect(label, `${label} still claims a total`).not.toMatch(/\btotal\b/i);
     }
@@ -422,17 +423,22 @@ describe("every surface that prints one of these figures prints the shared label
     expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");
   });
 
-  it("labels both topbar chips, and gives both of them the sentence", () => {
+  it("has no unlabelled board figure left in the topbar", () => {
+    // This case used to check the opposite: that BOTH topbar chips printed the
+    // constants and BOTH carried the sentence — the tokens figure falls by the
+    // same 40% the dollars do, and the report named only the dollars.
+    //
+    // The chips are gone, so the claim inverts. The strip carries no aggregate
+    // at all now, which satisfies #687 the other way round: there is no figure
+    // there to mislabel. What the case still has to catch is a board number
+    // reappearing in the bar WITHOUT the scope the panel gives its own.
     const strip = app.slice(
       app.indexOf(`<span className="status">`),
       app.indexOf(`<div className="vis-hidden"`),
     );
     expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
-    expect(strip).toContain(`<span className="lbl">{BOARD_TOKENS_LABEL}</span>`);
-    expect(strip).toContain(`<span className="lbl">{BOARD_COST_LABEL}`);
-    // Both chips, not one: the tokens figure falls by the same 40% the dollars
-    // do, and the report named only the dollars.
-    expect((strip.match(/BOARD_SCOPE_TITLE/g) ?? []).length).toBe(2);
+    expect(strip).not.toContain("boardTotals");
+    expect(strip).not.toMatch(/fmtCost\(|fmtTokens\(/);
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {
@@ -456,10 +462,14 @@ describe("no surface computes a board figure of its own", () => {
     }
   });
 
-  it("has both aggregate surfaces reading the shared module", () => {
-    expect(app).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\/board-usage";/);
+  it("has the one aggregate surface left reading the shared module", () => {
+    // Two, until the topbar chips went. The module stays where it is with one
+    // caller: what it exists to guarantee is that the words over a board figure
+    // are declared beside the loop that produces it, and that is worth as much
+    // to one surface as to two — the panel is where the next such label will be
+    // written, and re-inlining the sum there is how #687 was built.
     expect(panel).toMatch(/import \{[^}]*boardTotals[^}]*\} from "\.\.\/board-usage";/);
-    expect(app).toContain("boardTotals(stateRef.current.agents.values())");
     expect(panel).toContain("boardTotals(state.agents.values())");
+    expect(app, "the topbar computes a board figure again").not.toContain("boardTotals");
   });
 });

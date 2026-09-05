@@ -218,13 +218,25 @@ describe("the stat strip is not a live region any more", () => {
     // deleted element would make this file a spec for something that no longer
     // exists.
     //
-    // What has to survive is the half that is general: the strip is quiet
+    // It happened twice more. `totalTokens.sum` took the counter's place here,
+    // and it went the same way when the two board readouts were dropped. What
+    // has to survive all three is the half that is general: the strip is quiet
     // BECAUSE numbers that move constantly are the wrong content for a live
     // region, and that argument only means anything while the strip still holds
-    // such a number. `totalTokens.sum` climbs on every event carrying usage, so
-    // the assertion above stays a decision rather than an accident of an empty
-    // row.
-    expect(appCode).toContain(`<span className="count">{fmtTokens(totalTokens.sum)}</span>`);
+    // such a number.
+    //
+    // The meter is what holds one now, and it is a better subject than either
+    // counter was — it is not gated on anything and it cannot be argued away as
+    // a product call, because a machine meter that stopped moving would be
+    // broken. It polls on its own clock, so a live region around this strip
+    // would talk with no session running at all.
+    const stripSrc = appCode.slice(
+      appCode.indexOf(`<span className="status">`),
+      appCode.indexOf(`<div className="vis-hidden"`),
+    );
+    expect(stripSrc, "the strip lost the readout that moves").toContain("<SystemMeter");
+    const meter = read("../components/SystemMeter.tsx");
+    expect(meter, "SystemMeter stopped printing a figure that moves").toMatch(/toFixed\(/);
   });
 });
 

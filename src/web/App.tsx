@@ -58,7 +58,6 @@ import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { fmtCost, fmtCostRate } from "./pricing";
-import { boardTotals, BOARD_COST_LABEL, BOARD_SCOPE_TITLE, BOARD_TOKENS_LABEL } from "./board-usage";
 // The topbar strip, the burn ticker, the selected-session ribbon and the detail
 // panel all multiply usage by a price, and all four used to multiply a whole
 // session's cumulative tokens by the one model it was last seen on. See
@@ -91,7 +90,6 @@ import {
 } from "./sound";
 import { outageSentence, PAUSE_LABEL, pauseTitle, statusPill } from "./status-pill";
 import { promptTime, shortAgo } from "./relative-time";
-import { fmtTokens } from "./token-format";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
@@ -2822,17 +2820,6 @@ function Inner() {
   useEffect(() => {
     setBlockedSaid(said => nextAnnouncement(said, blockedNow));
   }, [blockedNow]);
-  // The two chips at the end of the topbar strip, and the one place their
-  // arithmetic lives (#687). This used to be an accumulator written out here
-  // and a second copy of it inside UsagePanel's memo; both walked the same map
-  // and neither had anything checking it against the other. What they compute
-  // is a BOARD figure — the agents on the canvas at this instant, which the
-  // 250ms tick's two pruners shrink — so it is named for that, and the labels
-  // the chips print come out of the same module as the sum.
-  const totalTokens = useMemo(
-    () => boardTotals(stateRef.current.agents.values()),
-    [stateRef.current, stateRef.current.revision],
-  );
 
   return (
     <div className="app">
@@ -2880,17 +2867,19 @@ function Inner() {
             marking the seam between "what is happening" and "what I can do to
             it" was `.status { margin-right: 6px }` — 14px against the 8px
             between two buttons. A 1.75x step under 16px does not read as a
-            group boundary, while `.stat + .stat::before` draws a real 1px rule
-            between tokens and cost. So the bar said the break between two
-            numbers was larger than the break between the last number and the
-            first control, which is exactly backwards. The dividers were never
-            the defect; the large boundary having no mark at all was.
+            group boundary, while a real 1px rule was drawn between the two
+            money readouts that used to close the strip. So the bar said the
+            break between two numbers was larger than the break between the
+            last number and the first control, which is exactly backwards. The
+            dividers were never the defect; the large boundary having no mark at
+            all was. Both dividers and both readouts have since gone, and the
+            24px between the groups is what is left doing the work.
             LEFT, not centred. A centred group's x-position is a function of
             both neighbours' widths, so the `live` pill would slide sideways
-            every time the token count or the cost gained a digit — and a status
-            light that has to be noticed cannot be a moving target. Everything
-            ahead of it here (the logo, the wordmark, the version chip) has
-            bounded width, so on the left it is an anchor instead. */}
+            every time something after it gained a digit — and a status light
+            that has to be noticed cannot be a moving target. Everything ahead
+            of it here (the logo, the wordmark, the version chip) has bounded
+            width, so on the left it is an anchor instead. */}
         <div className="readout">
           <div className="brand">
             <span className="logo" />
@@ -3062,39 +3051,24 @@ function Inner() {
                 two CPU samples, so it never occupies the row with a number it
                 has not measured. */}
             <SystemMeter usageOpen={usagePanelOpen} />
-            {/* Both chips say whose tokens and whose dollars these are (#687).
-                They are sums over the agents on the canvas, and the canvas
-                evicts finished work on a timer, so an unqualified "tokens" and
-                an unqualified "cost" were reporting a figure that falls with
-                nothing on screen to account for it. The word is one word
-                because this strip is a fixed row four readouts share; the
-                sentence that explains the fall, and names the surface that does
-                not forget, is on the tooltip both of them now carry. */}
-            {totalTokens.sum > 0 && (
-              <span className="stat" title={`in:${totalTokens.inputTokens.toLocaleString()}  out:${totalTokens.outputTokens.toLocaleString()}  cache-r:${totalTokens.cacheReadTokens.toLocaleString()}  cache-c:${totalTokens.cacheCreateTokens.toLocaleString()}\n\n${BOARD_SCOPE_TITLE}`}>
-                <span className="count">{fmtTokens(totalTokens.sum)}</span><span className="lbl">{BOARD_TOKENS_LABEL}</span>
-              </span>
-            )}
-            {totalTokens.cost.total > 0 && (() => {
-              // Active-agent aggregate burn rate — only counts agents whose
-              // state is "active" so finished sessions don't dilute the
-              // current ticker. Falls back to overall avg if nothing's live.
-              let liveCost = 0, liveSec = 0;
-              for (const a of stateRef.current.agents.values()) {
-                if (a.state !== "active") continue;
-                const c = agentCost(a);
-                liveCost += c.total;
-                liveSec = Math.max(liveSec, ((a.endedAt ?? now) - a.startedAt) / 1000);
-              }
-              const rate = liveSec > 0 ? fmtCostRate(liveCost, liveSec) : null;
-              const tt = `input ${fmtCost(totalTokens.cost.input)} + output ${fmtCost(totalTokens.cost.output)} + cache r ${fmtCost(totalTokens.cost.cacheRead)} + cache w ${fmtCost(totalTokens.cost.cacheWrite)}${rate ? `\nactive burn: ${rate}` : ""}\n\n${BOARD_SCOPE_TITLE}`;
-              return (
-                <span className="stat" title={tt}>
-                  <span className="count">{fmtCost(totalTokens.cost.total)}</span>
-                  <span className="lbl">{BOARD_COST_LABEL}{rate ? ` · ${rate}` : ""}</span>
-                </span>
-              );
-            })()}
+            {/* The strip ends at the meter, and that is the whole strip.
+                It used to carry two more readouts — a board token count and a
+                board dollar figure, both sums over the agents on the canvas
+                right now. Neither survived the question they kept provoking:
+                the canvas evicts finished work on a timer, so both numbers fall
+                on their own with nothing on screen to account for the fall, and
+                #687 had already spent a tooltip and two qualifiers ("board
+                tokens", "board cost") trying to say so in a row that has 12px
+                to say anything in.
+                The usage panel answers the same question properly and without
+                the qualifier: it is backed by ccusage, it reads the logs on
+                disk, it covers sessions this deck never watched, and it does
+                not forget. A qualified approximation beside an authoritative
+                figure one keystroke away is a readout earning its width by
+                being second-best.
+                What is left is the two things the bar is FOR: whether the
+                stream is alive, and what the machine is doing. Both are facts
+                about right now, which is the only tense a topbar can keep. */}
           </span>
           {/* The deck's one alarm, said out loud — and the only live region in
               the topbar (#372).
@@ -3133,10 +3107,10 @@ function Inner() {
               region". .status was one when this was written and #372 took the
               role off it, so that argument has had nothing to point at for a
               while. The half that still does the work is the one about the
-              strip itself — .status is a run of readouts whose boundaries are
-              drawn by `.stat + .stat::before`, and a button dropped into that
-              run would either take one of those 1px rules or break the run in
-              two. Its group is the readout, because what it reports is
+              strip itself — .status is a run of readouts about what is
+              happening, and a button dropped into it would report a group
+              boundary where there is only a change of element. Its group is
+              the readout, because what it reports is
               observation; its element is a button, because the number is the
               only one in the bar the user is meant to act on. Click goes to the
               session that has been stuck longest, which is both the one the

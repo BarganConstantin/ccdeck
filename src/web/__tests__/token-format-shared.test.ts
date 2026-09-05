@@ -97,15 +97,29 @@ describe("the shared token formatter", () => {
   });
 });
 
-describe("the three panels that showed token counts", () => {
+describe("the panels that show abbreviated token counts", () => {
   const app = src("../App.tsx");
   const panel = src("../components/UsagePanel.tsx");
   const modal = src("../components/UsageHistoryModal.tsx");
 
   it("take their counts from the shared formatter", () => {
-    expect(app).toMatch(/import \{ fmtTokens \} from "\.\/token-format";/);
+    // Three surfaces, until the topbar's board-token chip was dropped. App.tsx
+    // is still checked below — it must not grow a formatter of its own — but it
+    // no longer ABBREVIATES anything: the only token figures left in it are the
+    // detail panel's four, and those print exact counts through
+    // `toLocaleString()` because a panel with room for the digits should show
+    // the digits. An import assertion on a file with nothing to format would be
+    // pinning a dependency rather than a behaviour.
     expect(panel).toMatch(/import \{ fmtTokens \} from "\.\.\/token-format";/);
     expect(modal).toMatch(/import \{ fmtTokens \} from "\.\.\/token-format";/);
+    // Conditional rather than a flat ban, because the point is the SOURCE of
+    // the abbreviation and not whether App.tsx ever abbreviates again: a token
+    // count coming back to the topbar is a product decision, and a second
+    // rounding rule for it is the defect this file is about.
+    if (/\bfmtTokens\s*\(/.test(app)) {
+      expect(app, "App.tsx abbreviates without the shared formatter")
+        .toMatch(/import \{[^}]*\bfmtTokens\b[^}]*\} from "\.\/token-format";/);
+    }
   });
 
   it("declare no second token formatter of their own", () => {

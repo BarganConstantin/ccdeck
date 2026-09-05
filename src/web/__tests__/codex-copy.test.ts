@@ -129,37 +129,39 @@ describe("the topbar readouts", () => {
   // the strip, and `sessionsCountTitle` / `eventsCountTitle` went with them —
   // #404 named the two tooltips it fixed, not a rule about tooltips in general.
   // What DOES generalise is the reason those strings were wrong: the strip's
-  // numbers are provider-blind, so nothing in it may name one CLI. Tokens and
-  // cost are the numbers left, they add up both CLIs exactly as the counters
-  // did, and their tooltips are the ones that could drift the same way.
+  // readouts are provider-blind, so nothing in them may name one CLI.
+  //
+  // The two board figures that carried this rule after the counters have since
+  // gone too, leaving the status pill and the machine meter. Both are still
+  // provider-blind and both still carry tooltips, so the rule survives its
+  // third set of subjects — but the SOURCE it is read from has to follow them:
+  // the pill's words are built in status-pill.ts and the meter's in
+  // SystemMeter.tsx, and App.tsx's markup only interpolates them. Reading the
+  // strip's markup alone would have made this block quietly vacuous.
   const strip = appCode.slice(
     appCode.indexOf(`<span className="status">`),
     appCode.indexOf(`<div className="vis-hidden"`),
   );
+  const readouts = strip
+    + codeOf(read("src", "web", "status-pill.ts"))
+    + codeOf(read("src", "web", "components", "SystemMeter.tsx"));
 
-  it("still has a strip with tooltipped numbers in it, so this block is not vacuous", () => {
+  it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
     expect(strip, "the .status strip is gone from App.tsx entirely").toBeTruthy();
-    // Both labels come out of board-usage.ts as of #687 — the chips are sums
-    // over the agents on the canvas, and an unqualified "tokens" / "cost" read
-    // as a claim about the day. The words themselves are pinned in
-    // board-scope-687.test.ts; what this case needs is that the strip still
-    // renders two labelled, tooltipped numbers for the CLI-name rule below to
-    // have something to be about.
-    expect(strip).toContain(`<span className="lbl">{BOARD_TOKENS_LABEL}</span>`);
-    expect(strip).toContain("BOARD_COST_LABEL");
-    expect((strip.match(/title=/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(strip, "the pill left the strip").toContain("title={pill.title}");
+    expect(strip, "the meter left the strip").toContain("<SystemMeter");
+    expect((readouts.match(/title=|title:/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
-  it("labels no provider-blind number as one product's", () => {
+  it("labels no provider-blind readout as one product's", () => {
     // The retired pair, first: neither string comes back anywhere.
     expect(appCode).not.toContain("Distinct CC sessions");
     expect(appCode).not.toContain("Total hook events received");
-    // And nothing that remains in the strip names a CLI at all. `totalTokens`
-    // and the cost aggregate walk every agent on the canvas, Codex ones
-    // included, so any product name in these tooltips is the #404 defect again
-    // on a different number.
+    // And nothing in the strip names a CLI. The pill reports one stream that
+    // carries both CLIs' events and the meter reports the machine, so a product
+    // name in either tooltip is the #404 defect again on a different readout.
     for (const name of ["Claude Code", "Codex", " CC ", "hook events"]) {
-      expect(strip, `the status strip names ${name}`).not.toContain(name);
+      expect(readouts, `the status strip names ${name}`).not.toContain(name);
     }
   });
 });
