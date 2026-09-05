@@ -163,17 +163,37 @@ describe("what the panel counts, and what it leaves alone", () => {
     expect(panel).toMatch(/<span className="up-session-tokens">\{fmtTokens\(s\.tokens\)\}<\/span>/);
   });
 
-  it("snaps when the number changes meaning rather than value", () => {
-    // "today $269" and "all time $12.4k" are different quantities; counting
-    // between them would be theatre. The key carries the period, and the hook
-    // sets the value directly when it moves.
-    expect(panel).toContain('const countKey = fromRange ? `range:${shownPeriod ?? period}` : "board";');
-    expect(panel).toContain("const meaningChanged = keyRef.current !== key;");
-    expect(panel).toContain("if (firstRef.current || meaningChanged) {");
+  it("counts on a period switch too, and snaps only on the first paint", () => {
+    // This started as a snap — two periods are different quantities rather than
+    // one that moved — and the motion is better: the reader pressed the button
+    // and is watching the figure they asked for, so riding up to twelve
+    // thousand or back down to three hundred is the one place the SIZE of the
+    // difference is worth feeling.
+    expect(panel).toContain("if (firstRef.current) {");
+    expect(panel).not.toContain("meaningChanged");
+    expect(panel).not.toContain("countKey");
+  });
+
+  it("adds what the canvas has gained since the reading, so it moves between polls", () => {
+    // ccusage costs 7.8 CPU-seconds a run; the deck already knows the rest for
+    // free. See live-delta.ts.
+    expect(panel).toContain("const delta = useMemo(");
+    expect(panel).toContain("liveDelta(baselineRef.current, boardBySession(state.agents.values(), now))");
+    expect(panel).toContain("const liveCost    = fromRange ? rangeSum.cost + delta.cost : totalCost.total;");
+    expect(panel).toContain("const shownCost   = useCountUp(liveCost);");
+  });
+
+  it("re-takes the baseline exactly when a reading lands", () => {
+    // Any oftener and the delta would forget spend ccusage has not seen yet;
+    // any rarer and it would count the same tokens twice.
+    expect(panel).toContain("baselineRef.current = range ? boardBySession(state.agents.values(), now) : null;");
+    expect(panel).toMatch(/\}, \[range\]\);/);
   });
 
   it("gates the cache figures on the true value, not the counted one", () => {
-    // A strip that appeared and vanished as a count crossed zero would flicker.
-    expect(panel).toContain("{(fromRange ? rangeSum.cacheReadTokens : totalTokens.cacheReadTokens) > 0 && <span className=\"up-tok\"><span className=\"up-k\">cache r</span>{fmtTokens(shownCacheR)}</span>}");
+    // A strip that appeared and vanished as a count crossed zero would flicker,
+    // so the gate reads the live figure (reading + delta) while the text reads
+    // the counted one.
+    expect(panel).toContain('{liveCacheR > 0 && <span className="up-tok"><span className="up-k">cache r</span>{fmtTokens(shownCacheR)}</span>}');
   });
 });
