@@ -256,19 +256,26 @@ describe("the README tagline, which is the npm page", () => {
     // tagline rather than two that had to agree. What is left worth pinning is
     // that it exists and still says what the packages promise.
     //
-    // The line it matches on changed with #461. It used to open "**A live canvas
-    // for your AI agents.**", which names the shelf the tool sits on and leaves
-    // the reader to work out whether they are on it. The tagline now answers the
-    // problem stated one line above it. What did NOT change, and is the reason
-    // this case exists at all, is the second half: the subagent promise is the
-    // one claim on the page a Codex user must not read as theirs, so it is
-    // pinned as prose that names the CLI, beside the sibling case above that
-    // refuses the unqualified version.
-    const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**ccdeck draws the tree**"));
+    // The line it matches on has changed twice. It opened "**A live canvas for
+    // your AI agents.**", which names the shelf the tool sits on and leaves the
+    // reader to work out whether they are on it; #461 made it "**ccdeck draws
+    // the tree**", which answers the problem stated one line above it; and it
+    // now leads on the blocked queue, which is the one thing on the page nothing
+    // else in the category does.
+    //
+    // What has NOT changed across any of them, and is the reason this case
+    // exists at all, is the second half. The tagline makes two claims that hold
+    // for one CLI and not the other — the queue and the subagent nodes — and
+    // both are pinned as prose that names the CLI, beside the sibling case above
+    // that refuses the unqualified version. A Codex user must not read either as
+    // theirs.
+    const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**ccdeck keeps them in one queue**"));
     expect(tagline, "README.md no longer opens with the ccdeck tagline the three npm pages render").toBeTruthy();
     expect(tagline).toContain("Claude Code subagent");
-    // And the category line it replaced does not creep back in beside it.
+    expect(tagline).toContain("Codex emits no such signal");
+    // And neither line it replaced creeps back in beside it.
     expect(readme).not.toContain("**A live canvas for your AI agents.**");
+    expect(readme).not.toContain("**ccdeck draws the tree**");
   });
 });
 
