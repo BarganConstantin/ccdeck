@@ -133,15 +133,16 @@ describe("what the panel asks the server for", () => {
     expect(panel).not.toContain('refreshKey > 0 ? "&refresh=1"');
   });
 
-  it("polls at a rate chosen against the work, and not behind a hidden tab", () => {
-    // Every interval longer than the server's CACHE_MS misses the cache by
-    // definition, so the poll rate IS the ccusage run rate — and a run walks
-    // every transcript on the machine. Five minutes, and only while someone is
-    // looking; a deck open on a second desktop spends nothing.
+  it("polls once a minute, against a cache that is not longer than the poll", () => {
+    // The two numbers have to agree or the interval is a lie: a poll inside the
+    // cache window gets the same figure handed back, so the panel would say it
+    // refreshes every minute while the reading moved every two. They are both
+    // 60s — which makes this the ccusage run rate, and a run walks every
+    // transcript on the machine, which is why it is not faster.
     const server = read("../../server/ccusage.mjs");
     const cacheMs = Number(/const CACHE_MS = ([\d_]+)/.exec(server)?.[1]?.replace(/_/g, ""));
-    expect(cacheMs).toBe(120_000);
-    expect(panel).toContain("window.setInterval(beat, 300_000)");
+    expect(cacheMs).toBe(60_000);
+    expect(panel).toContain("window.setInterval(beat, 60_000)");
     expect(panel).toContain('if (document.visibilityState === "visible") setTick(n => n + 1);');
     expect(panel).toContain('document.addEventListener("visibilitychange", wake)');
     expect(panel).toContain('document.removeEventListener("visibilitychange", wake)');
