@@ -31,6 +31,32 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.3.0": [
+    {
+      "title": "📊 The Usage panel answers for a period, not just for the board",
+      "body": "It used to add up the sessions drawn on the canvas — which is an honest number with a scope nobody reads it as having: finished sessions are evicted a couple of minutes after they end, so the figure fell on its own while nothing had happened and nothing was refunded.\n\nIt now reads ccusage, the same source the H modal uses, and offers today, this month and all time. BY MODEL and BY SESSION come from there too, and each session is named by the project the board knows it as rather than by a uuid.\n\nThe live figure is still there, on its own line and labelled — what the sessions currently on the board have spent — because that is a different question from what the month cost.\n\nOne thing worth knowing about the source: ccusage reports a session's LIFETIME total, so the rows under \"active today\" can add up to more than the day above them. The heading says so."
+    },
+    {
+      "title": "🪟 Windows: a deck started from an elevated terminal was being treated as dead",
+      "body": "The hook decides whether a deck is still running by trying to signal it. On POSIX a process you may not signal answers EPERM; on Windows it answers EACCES, and only EPERM was accepted — so a deck started from an elevated terminal, or under another account, read as gone. Its registration was deleted on every event and rewritten five seconds later, while its banner went on saying it was connected and almost nothing arrived.\n\nThree more Windows-only faults went with it: a read-only settings.json made every hook install fail for good (the atomic write could not replace the file); the machine panel answered 500 every four seconds whenever the process read failed; and a bare command name was looked for in the working directory before PATH, which is where `npx ccdeck` was run."
+    },
+    {
+      "title": "👁 Browser Watch reads nothing while it is switched off",
+      "body": "The switch used to control only what was KEPT. The read happened anyway — every five minutes, on every deck, the panel's badge poll discovered each Chromium profile and copied its whole History database to a temp file to query it. A switch that says off while that continues is not a switch.\n\nWith the watch off, nothing touches a browser now. Opening the panel still reads live, because that is you looking, and a watch that is ON still records in the background — that is the feature. The trade is that the topbar badge no longer counts findings while the watch is off; open the panel to see them.\n\nThe README has a Browser Watch section now: what is read, when, where the copy goes, and that only visits after the deck started are ever considered."
+    },
+    {
+      "title": "🔒 The deck's own data is no longer readable by anything on the machine",
+      "body": "Changing an account needed the deck's credential; reading the event ring did not. Anything running on your machine could `curl` the events — prompt text, the commands an agent ran, the paths and contents it touched — plus the account list and the browsing episodes.\n\nThose reads now answer to the same rule the mutations do: the deck's own page, or its token. Nothing changes for you in the browser. A script of yours that reads those routes needs the token from `~/.claude/agent-dag/<pid>.json`, sent as `x-ccdeck-token`."
+    },
+    {
+      "title": "💳 An API-key, Bedrock or Vertex install is told there is no quota window",
+      "body": "Those installs are billed per token and have no five-hour window. The CLI ran, printed no quota lines, and the deck read that as a genuine \"under 1%\" — drawing two empty bars for a measurement nobody had taken, or telling you to run /usage, which cannot help there.\n\nIt now says what it is, in one line, the way the Codex half already did."
+    },
+    {
+      "title": "🎨 The model chip is coloured by its model again",
+      "body": "A session that switched model — Sonnet, then Opus — drew a chip reading \"Opus 5 +1\" in Sonnet blue, because the colour was picked from the tooltip and the tooltip lists every model the card's spend covers. Add a Fable turn and it went yellow.\n\nAlso fixed on the way past: an account import the CLI rejected could take the whole deck down with it, and a corrupt compressed Codex rollout leaked a file handle on every poll."
+    }
+  ],
   "3.2.1": [
     {
       "title": "💵 Sonnet 5 was being costed fifty per cent high",
