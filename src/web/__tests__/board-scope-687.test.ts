@@ -403,19 +403,23 @@ describe("every surface that prints one of these figures prints the shared label
     expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{BOARD_SCOPE_LABEL}</span>}`);
   });
 
-  it("keeps the live board figure, labelled and apart, under a ccusage total", () => {
-    // #687 is not "delete the board number", it is "do not print it under a
-    // word that claims a period". Under a ccusage headline the canvas figure
-    // survives as its own line, with the qualifier and with the sentence that
-    // explains why it falls on its own — the two things it was missing when the
-    // defect was filed.
-    const live = panel.slice(panel.indexOf(`className="up-live"`), panel.indexOf(`</div>`, panel.indexOf(`className="up-live"`)));
-    expect(live, "the live board line is gone from UsagePanel.tsx").toBeTruthy();
-    expect(panel).toContain(`<div className="up-live" title={BOARD_SCOPE_TITLE}>`);
-    expect(live).toContain(`{BOARD_SCOPE_LABEL} now`);
-    // Drawn from the same accumulator every other board figure uses, never from
-    // a sum this panel rolled itself — the rule the sweep below enforces.
-    expect(live).toContain(`{fmtCost(totalCost.total)}`);
+  it("prints no board figure at all under a ccusage headline", () => {
+    // #687 was "do not print the board's number under a word that claims a
+    // period". The first answer kept the number and gave it its own labelled
+    // line; the second is that under a panel which now answers today, this
+    // month and all time from the logs, a second money figure answers a
+    // question nobody asked at that moment — and it invited the comparison it
+    // could never win, $7,385 on the board beneath $170 for today, which reads
+    // as a contradiction until you have opened a tooltip.
+    //
+    // So the line is gone, and this is what keeps it gone. The board figures
+    // are still on the topbar, with the sentence, and the board BRANCH below
+    // still prints them when ccusage has not answered at all.
+    expect(panel).not.toContain('className="up-live"');
+    expect(panel).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
+    // And the sheet lost its rules with it — a selector nothing emits is the
+    // shape unstyled-class.test.ts and dead-css.test.ts both exist to prevent.
+    expect(read("styles.css"), "the rule outlived its markup").not.toContain(".up-live");
   });
 
   it("labels both topbar chips, and gives both of them the sentence", () => {
