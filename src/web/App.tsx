@@ -2854,12 +2854,45 @@ function Inner() {
   const [notifyPermission, setNotifyPermission] = useState<NotifyPermission>(
     () => (typeof Notification === "undefined" ? "denied" : Notification.permission as NotifyPermission),
   );
+  /** What to say after the browser has been answered, or null when there is
+   *  nothing to say. Pressing a button and watching it vanish is the same
+   *  picture whether it worked or was refused, and the refusal is the one that
+   *  matters: the user believes they switched something on that is off. */
+  const [notifySaid, setNotifySaid] = useState<"on" | "blocked" | null>(null);
+  /** Latched the first time the offer is shown. Without it the button is a
+   *  moving target — it is mounted on `waitingSessions.length > 0`, so a block
+   *  answered in the five seconds it takes to reach for it takes the button out
+   *  from under the cursor. Once offered, it stays until it is answered. */
+  const [notifyOffered, setNotifyOffered] = useState(false);
+  const notifySupported = typeof Notification !== "undefined";
+  const notifyAskable = canAsk(notifyPermission, notifySupported);
+  useEffect(() => {
+    if (notifyAskable && waitingSessions.length > 0) setNotifyOffered(true);
+  }, [notifyAskable, waitingSessions.length]);
+  // The confirmation is a status, not a state: it says what just happened and
+  // then gets out of the bar. Eight seconds for a refusal against four for a
+  // grant, because "blocked" is the one carrying instructions the user has to
+  // read before it goes.
+  useEffect(() => {
+    if (!notifySaid) return;
+    const ms = notifySaid === "blocked" ? 8000 : 4000;
+    const t = setTimeout(() => setNotifySaid(null), ms);
+    return () => clearTimeout(t);
+  }, [notifySaid]);
   const askForNotifications = useCallback(() => {
     if (typeof Notification === "undefined") return;
     // Fire-and-forget on purpose. The promise resolves when the user answers,
     // which may be never — a Chrome prompt left sitting behind another window
     // is the normal case — and nothing here should wait on it.
-    void Notification.requestPermission().then(p => setNotifyPermission(p as NotifyPermission));
+    void Notification.requestPermission().then(p => {
+      const answer = p as NotifyPermission;
+      setNotifyPermission(answer);
+      // "default" means the prompt was dismissed rather than answered — the
+      // browser will ask again next time, so there is nothing to report and
+      // nothing has changed.
+      if (answer === "granted") setNotifySaid("on");
+      else if (answer === "denied") setNotifySaid("blocked");
+    });
   }, []);
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
   /** The permission the memo below was seeded against, so that a change of
@@ -3266,13 +3299,36 @@ function Inner() {
               browser-react.mjs refuses to ship for its own reactions, and it is
               not worth shipping here. After a refusal the switch is in the
               browser's site settings, which the title says in words. */}
-          {waitingSessions.length > 0 && canAsk(notifyPermission, typeof Notification !== "undefined") && (
+          {notifyOffered && notifyAskable && (
             <button
               type="button"
               className="notify-ask"
               onClick={askForNotifications}
               title="Get a system notification when a session blocks on you, so the deck can reach you with this tab in the background"
             >notify me</button>
+          )}
+          {/* What the browser answered, said once and then gone.
+              Pressing a button and watching it disappear looks the same whether
+              it worked or was refused, and only one of those is true — a user
+              who was refused walks away believing they switched something on.
+              So the grant gets a short acknowledgement and the refusal gets a
+              longer one carrying the only thing that can be done about it,
+              which is a switch in the browser's own site settings that no page
+              is allowed to touch. `role="status"` rather than an alert: this is
+              the outcome of something they just did, not an interruption. */}
+          {notifySaid && (
+            <span
+              // Written out rather than composed from the state, so the class
+              // exists in the markup as a literal and unstyled-class.test.ts can
+              // hold it to a rule in the sheet. A template here buys nothing and
+              // costs the one check that catches a class with no styling behind
+              // it — which is exactly how a warn colour goes missing silently.
+              className={notifySaid === "on" ? "notify-said" : "notify-said notify-said-blocked"}
+              role="status"
+              title={notifySaid === "on"
+                ? "The deck will raise a system notification when a session blocks on you and this tab is in the background"
+                : "Notifications are blocked for this page. Only your browser can undo that — its site settings for this address"}
+            >{notifySaid === "on" ? "notifications on" : "notifications blocked"}</span>
           )}
         </div>
         {selected && (() => {

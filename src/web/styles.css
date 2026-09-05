@@ -1768,6 +1768,25 @@ button.btn.sm-hear {
   .topbar .notify-ask:active { transform: none; }
 }
 
+/* The answer, in the slot the button just left. Not a control — there is
+   nothing to press and no boundary drawn, so it stays out of the sweep that
+   holds every bordered control to 3:1. It reads as text because that is what it
+   is: a sentence about what happened, for a few seconds. */
+.topbar .notify-said {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 6px;
+  padding: 3px 2px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+/* Refused is the one carrying an instruction, so it gets the warn colour the
+   rest of the blocked language in this bar already uses. Granted stays quiet:
+   it is good news, and good news that shouts is noise. */
+.topbar .notify-said-blocked { color: var(--warn); }
+
 .topbar .waiting-stat {
   display: inline-flex;
   align-items: center;

@@ -87,8 +87,18 @@ export function blockKey(sessionId: string, block: WaitingBlock): string {
 export function noticeBody(block: WaitingBlock): string {
   const said = block.message || "Needs your permission";
   if (!block.tool) return said;
-  const tool = block.tool.preview ? `${block.tool.name} · ${block.tool.preview}` : block.tool.name;
-  return `${said}\nLikely on: ${tool}`;
+  const { name, preview } = block.tool;
+  // CC's sentence is usually "Claude needs your permission to use Bash", so
+  // printing the name again gives "…to use Bash / Likely on: Bash · rm -rf".
+  // Two words of a four-line notification spent saying the same thing twice,
+  // and the repeat pushes the part that is actually new — the command — further
+  // from the eye. When the sentence has already named the tool, the guess is
+  // only the command; when it has not, the name is the whole of what there is.
+  const named = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(said);
+  const tool = preview
+    ? (named ? preview : `${name} · ${preview}`)
+    : (named ? "" : name);
+  return tool ? `${said}\nLikely on: ${tool}` : said;
 }
 
 /**

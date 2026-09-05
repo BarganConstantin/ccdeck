@@ -115,6 +115,53 @@ describe("the body", () => {
     expect(noticeBody(block())).toBe("Claude needs your permission");
   });
 
+  it("does not name the tool twice", () => {
+    // CC's real sentence names the tool: "Claude needs your permission to use
+    // Bash". Repeating it gives "…to use Bash / Likely on: Bash · rm -rf",
+    // which spends two words of a four-line notification saying the same thing
+    // and pushes the part that is actually new further from the eye.
+    const body = noticeBody({
+      kind: "permission", since: 1_000,
+      message: "Claude needs your permission to use Bash",
+      tool: { name: "Bash", preview: "rm -rf node_modules" },
+    });
+    expect(body).toBe("Claude needs your permission to use Bash\nLikely on: rm -rf node_modules");
+  });
+
+  it("keeps the name when the sentence never said it", () => {
+    // An older log line, a re-wording upstream, or a tool CC names differently.
+    // The name is then the whole of what the guess has to offer.
+    const body = noticeBody({
+      kind: "permission", since: 1_000,
+      message: "Claude needs your permission",
+      tool: { name: "Bash", preview: "rm -rf node_modules" },
+    });
+    expect(body).toBe("Claude needs your permission\nLikely on: Bash · rm -rf node_modules");
+  });
+
+  it("drops the guess line entirely when the name is all it had and was already said", () => {
+    // Name known, no preview, and the sentence already named it: there is
+    // nothing left to add, and "Likely on: Bash" under "…to use Bash" is a line
+    // that says nothing twice.
+    const body = noticeBody({
+      kind: "permission", since: 1_000,
+      message: "Claude needs your permission to use Bash",
+      tool: { name: "Bash", preview: "" },
+    });
+    expect(body).toBe("Claude needs your permission to use Bash");
+  });
+
+  it("is not fooled by a tool name inside a longer word", () => {
+    // "Edit" must not match "Editor", or the notification silently drops the
+    // one word identifying what is being asked about.
+    const body = noticeBody({
+      kind: "permission", since: 1_000,
+      message: "Claude needs your permission to use the Editor",
+      tool: { name: "Edit", preview: "/etc/hosts" },
+    });
+    expect(body).toContain("Likely on: Edit · /etc/hosts");
+  });
+
   it("still says something when CC said nothing", () => {
     // An older log line, or a re-wording upstream. A notification with an empty
     // body is a notification that wasted an interruption.
