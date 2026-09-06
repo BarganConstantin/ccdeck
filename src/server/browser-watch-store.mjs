@@ -17,7 +17,10 @@
 // `~/.claude/agent-dag`: readLiveDecks() reads every `.json` in that directory
 // and would have to keep skipping this one forever. A subdirectory is not a
 // name it can collide with.
-import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+// The rename, with the Windows retry ladder installer.mjs wrote for exactly
+// this call. See the note over `writeNow` (#786).
+import { renameWithRetry } from "./installer.mjs";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 
@@ -258,7 +261,12 @@ export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
 async function writeNow(state, home, deps) {
   const mk = deps.mkdir ?? mkdir;
   const write = deps.writeFile ?? writeFile;
-  const mv = deps.rename ?? rename;
+  // `renameWithRetry`, not `rename` (#786). Same Windows rule as deck-prefs,
+  // and the stakes are higher here: none of the three writers catches the
+  // throw, so a refused rename 500s `GET /api/browser-watch` and the panel goes
+  // blank, while the episode archive — the file that exists BECAUSE an intruder
+  // can clear the browser's own history — is not written at all.
+  const mv = deps.rename ?? renameWithRetry;
   await mk(storeDir(home), { recursive: true });
   const body = JSON.stringify({
     v: STORE_VERSION,

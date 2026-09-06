@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.3": [
+    {
+      "title": "\ud83e\ude9f Windows: two settings files that could refuse to save",
+      "body": "On Windows a file cannot be moved into place while anything else has it open, and Defender and the search indexer open a file the instant it is written. The deck has had a retry for that for a long time, and two files written in the last few days were not using it: the notifications preference, and Browser Watch's episode archive.\n\nWhen it bit, the notifications switch silently did not stick, and Browser Watch answered an error and showed an empty panel. Both now retry the way everything else in the deck already did.\n\nNothing changes on macOS or Linux, where the operating system never refused the move in the first place \u2014 which is why this got past a green test suite on both."
+    }
+  ],
   "3.8.2": [
     {
       "title": "\u2328\ufe0f A closed-behind-your-back dialog no longer kills every keyboard shortcut",

@@ -26,7 +26,10 @@
 // temp file, rename — because the alternative is a truncated JSON document as
 // the only record of what the user chose, and a corrupt file here silently
 // turns the notifications back on.
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+// The rename, with the Windows retry ladder installer.mjs wrote for exactly
+// this call. See the note over the write below (#786).
+import { renameWithRetry } from "./installer.mjs";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 
@@ -87,7 +90,13 @@ export async function writePrefs(patch, home = claudeConfigDir(), deps = {}) {
   const job = async () => {
     const mk = deps.mkdir ?? mkdir;
     const write = deps.writeFile ?? writeFile;
-    const mv = deps.rename ?? rename;
+    // `renameWithRetry`, not `rename` (#786). MoveFileExW refuses while any
+    // handle without FILE_SHARE_DELETE is open on either side, and Defender and
+    // the search indexer open a file the instant it is written — so on Windows
+    // a bare rename fails on a perfectly healthy machine, `POST /api/prefs`
+    // 500s through `guard`, and the notifications switch silently does not
+    // stick. POSIX rename(2) has no such rule, which is why this shipped green.
+    const mv = deps.rename ?? renameWithRetry;
     const next = normalise({ ...(await readPrefs(home, deps)), ...patch });
     await mk(prefsDir(home), { recursive: true });
     const tmp = `${prefsPath(home)}.${process.pid}.tmp`;
