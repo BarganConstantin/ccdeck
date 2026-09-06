@@ -528,8 +528,27 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
     // real fs work, so a test that raced it by wall clock would pass or fail by
     // how fast the machine is. Production passes nothing.
     if (beforeWrite) await beforeWrite();
-    const { raw: onDisk } = await readSettingsForWrite(cfg.settingsPath).catch(() => ({ raw: before }));
-    if (onDisk !== before) {
+    // A READ THE GUARD COULD NOT PERFORM IS NOT PROOF NOTHING CHANGED (#788).
+    // This used to be `.catch(() => ({ raw: before }))`, which substituted the
+    // snapshot and so answered "unchanged" for every failed re-read. ENOENT is
+    // the one case that substitution would be right for, and it does not reach
+    // here at all — readSettingsForWrite returns `{ raw: null }` for it without
+    // throwing. What does reach here is EACCES/EBUSY on a file written
+    // microseconds ago, which is the condition this module's own header names:
+    // "a virus scanner or the search indexer opens files the instant they are
+    // written, so the target is briefly untouchable on a perfectly healthy
+    // machine". Precisely when another deck has just written it.
+    //
+    // So an unreadable re-read declines, like a changed one. Declining is safe
+    // for the reason above: every boot reinstalls and the next pass converges.
+    // Being wrong the other way is not — it is the lost update this guard
+    // exists to prevent, with the user's own sound hook gone from settings.json
+    // and from the park that was its only other copy.
+    let onDisk;
+    let unreadable = false;
+    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
+    catch { unreadable = true; }
+    if (unreadable || onDisk !== before) {
       return {
         settingsPath: cfg.settingsPath, hookPath, events: cfg.events, provider,
         changed: false, raced: true, retire: { ...retire, pending: false },
@@ -572,12 +591,13 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
  * quietly do nothing. Only ENOENT is genuinely empty, and readSettingsForWrite
  * already answers that with `{}`, which falls through to `changed: false`.
  */
-export async function uninstallHooks({ provider = "claude" } = {}) {
+export async function uninstallHooks({ provider = "claude", beforeWrite = null } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   let current;
+  let before;
   try {
-    ({ settings: current } = await readSettingsForWrite(cfg.settingsPath));
+    ({ settings: current, raw: before } = await readSettingsForWrite(cfg.settingsPath));
   } catch (err) {
     if (err?.code !== "SETTINGS_UNREADABLE") throw err;
     // Same shape retireSoundHook answers with, so bin/deck.js reports both
@@ -601,7 +621,43 @@ export async function uninstallHooks({ provider = "claude" } = {}) {
     if (cleaned.length === 0) delete current.hooks[evt];
     else current.hooks[evt] = cleaned;
   }
-  if (changed) await writeFileAtomic(cfg.settingsPath, JSON.stringify(current, null, 2) + "\n");
+  if (changed) {
+    // THE SAME GUARD ITS SIBLING HAS, for the same file (#788). `installHooks`
+    // grew a compare-against-the-file check at the last moment and this
+    // function — which rewrites the same settings.json from a snapshot read
+    // just as long ago — never got one.
+    //
+    // The race is `ccdeck --uninstall` against a deck that is starting.
+    // Uninstall reads settings.json with the user's own hooks still parked. In
+    // the window before its write — resolveWriteTarget, temp create, write,
+    // fsync, stat, rename — the booting deck restores those hooks and deletes
+    // the park. Uninstall then writes its stale object over the restore,
+    // bin/deck.js re-reads the clobbered file, readParked hits ENOENT, and it
+    // reports `restored: 0`. The hooks are gone from both copies and the CLI
+    // exits 0 saying the uninstall succeeded.
+    //
+    // Declining here is not as cheap as declining an install — nothing retries
+    // an uninstall — so it says so in the result rather than answering `ok`
+    // with `changed: false`, which would read as "there was nothing to remove".
+    // The seam the suite needs, and `installHooks` states the argument for it:
+    // the window this guard covers is filled with real fs work, so a test that
+    // raced it by wall clock would pass or fail by how fast the machine is.
+    // Production passes nothing.
+    if (beforeWrite) await beforeWrite();
+    let onDisk;
+    let unreadable = false;
+    try { ({ raw: onDisk } = await readSettingsForWrite(cfg.settingsPath)); }
+    catch { unreadable = true; }
+    if (unreadable || onDisk !== before) {
+      return {
+        ok: false, reason: "raced", changed: false, provider,
+        settingsPath: cfg.settingsPath,
+        why: "another writer changed settings.json while the uninstall was running",
+        message: `${cfg.settingsPath} changed while uninstalling — nothing was removed. Run --uninstall again.`,
+      };
+    }
+    await writeFileAtomic(cfg.settingsPath, JSON.stringify(current, null, 2) + "\n");
+  }
   return { ok: true, changed, provider, settingsPath: cfg.settingsPath };
 }
 

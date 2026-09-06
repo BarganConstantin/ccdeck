@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.4": [
+    {
+      "title": "\ud83e\uddf7 Your own hooks can no longer be eaten by two decks starting together",
+      "body": "If you keep hooks of your own in `settings.json`, the deck parks them while it installs and puts them back afterwards. Two decks starting at the same moment could interleave inside that, and the loser wrote a version of the file computed before the restore \u2014 so your hook was gone from `settings.json` and gone from the park, which was its only other copy.\n\nThere was already a check for this, and it had a hole: if the last-moment re-read of the file failed, it read that as \"nothing changed\" and wrote anyway. A failed read is the one moment that check was most needed, because the usual reason a file cannot be read for a few milliseconds is that something else has just written it.\n\n`ccdeck --uninstall` had no such check at all and could overwrite a deck that was starting, then exit 0 saying it had succeeded. It has one now, and when it declines it says so and tells you to run it again rather than reporting that there was nothing to remove."
+    }
+  ],
   "3.8.3": [
     {
       "title": "\ud83e\ude9f Windows: two settings files that could refuse to save",
