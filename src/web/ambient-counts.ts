@@ -41,7 +41,11 @@ import type { AgentNodeData, WaitingBlock } from "./types";
  * tooltip. It just stops shouting.
  */
 export function isAlarming(waiting: WaitingBlock | null | undefined): boolean {
-  return waiting?.kind === "permission";
+  // Two of the three kinds. `asked` joined `permission` because it is the same
+  // fact — an agent stopped until a human answers — and because on a
+  // `bypassPermissions` machine it is the only one that ever fires. `idle` is
+  // still out: an empty input box is a turn that ended, not a session stuck.
+  return waiting?.kind === "permission" || waiting?.kind === "asked";
 }
 
 /** One row of the topbar's blocked chip: which session, what to call it, and

@@ -43,6 +43,10 @@ const block = (kind: WaitingBlock["kind"], message: string): WaitingBlock =>
 
 const PERMISSION = block("permission", "Claude needs your permission");
 const IDLE = block("idle", "Claude is waiting for your input");
+/** The agent asked a QUESTION and stopped for the answer. Third kind, added
+ *  because on a machine running `bypassPermissions` it is the only one that
+ *  ever fires — see the block near the bottom of this file. */
+const ASKED = block("asked", "ccdeck needs your input: which improvements to prioritize?");
 
 /** A root the way both counters see one. */
 const root = (id: string, waiting: WaitingBlock | null): Partial<AgentNodeData> =>
@@ -231,5 +235,73 @@ describe("the order the sidebar reads in", () => {
     // Strictly increasing, which is what "above" means for a numeric rank.
     expect([at(PERMISSION, "active"), at(IDLE, "active"), at(null, "active"), at(null, "done")])
       .toEqual([0, 1, 2, 3]);
+  });
+});
+
+// ── the third kind, and why it is an alarm ───────────────────────────────────
+//
+// `agent_needs_input` was mapped to `null` by the reducer, so a session that
+// had asked the human a question and stopped for the answer carried no waiting
+// block at all: nothing in the sidebar, nothing in the topbar, no desktop
+// notification, and no "notify me" button to switch one on.
+//
+// The size of that is what makes it an alarm rather than a nicety. Measured on
+// one real events.jsonl: 1683 events, EVERY ONE of them under
+// `permission_mode: "bypassPermissions"` — where Claude Code never asks to run
+// anything — and in that whole history one permission prompt against five of
+// these. So on that machine the entire blocked-session feature, the one the
+// deck exists for, could not fire once.
+describe("an agent that asked a question and stopped", () => {
+  it("is an alarm, like a permission prompt and unlike an idle one", () => {
+    expect(isAlarming(ASKED)).toBe(true);
+    expect(isAlarming(PERMISSION)).toBe(true);
+    expect(isAlarming(IDLE)).toBe(false);
+  });
+
+  it("is counted by the surfaces a permission prompt lights", () => {
+    const agents = [root("a", ASKED), root("b", IDLE), root("c", null)];
+    const waiting = agents.filter(a => isAlarming(a.waiting)).length;
+    expect(waiting).toBe(1);
+    expect(ambientSignal({ waiting, running: 0 }).icon).toBe("waiting");
+  });
+
+  it("is built from the hook event, with the question kept verbatim", () => {
+    // The whole value of this kind: CC puts the actual question in `message`,
+    // which is better than anything the deck could infer. It must survive.
+    const ask = "ccdeck needs your input: which improvements to prioritize?";
+    let st: GraphState = initialState();
+    st = send(st, "s1", { hook_event_name: "SessionStart", cwd: "/w/ccdeck" } as HookPayload);
+    st = send(st, "s1", {
+      hook_event_name: "Notification", cwd: "/w/ccdeck",
+      notification_type: "agent_needs_input", message: ask,
+    } as HookPayload);
+    const w = [...st.agents.values()].find(a => a.kind === "root")?.waiting;
+    expect(w?.kind).toBe("asked");
+    expect(w?.message).toBe(ask);
+    expect(waitingSentence(w!)).toBe(ask);
+  });
+
+  it("is not wiped by a sibling subagent still working", () => {
+    // #361, one kind over. An `asked` block says a specific agent is stopped
+    // until a human answers, so only the root's own traffic can mean the answer
+    // arrived — a subagent carrying on means nothing. Getting this wrong would
+    // clear the alarm milliseconds after raising it, while the question is
+    // still on screen in the terminal.
+    let st: GraphState = initialState();
+    st = send(st, "s1", { hook_event_name: "SessionStart", cwd: "/w/ccdeck" } as HookPayload);
+    st = send(st, "s1", {
+      hook_event_name: "Notification", cwd: "/w/ccdeck",
+      notification_type: "agent_needs_input", message: "which one?",
+    } as HookPayload);
+    st = send(st, "s1", {
+      hook_event_name: "PreToolUse", cwd: "/w/ccdeck",
+      agent_id: "sub-1", tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "ls" },
+    } as HookPayload);
+    const stillBlocked = [...st.agents.values()].find(a => a.kind === "root")?.waiting;
+    expect(stillBlocked?.kind, "a sibling subagent cleared the question").toBe("asked");
+
+    // And the root's own traffic — the human answering — does clear it.
+    st = send(st, "s1", { hook_event_name: "UserPromptSubmit", cwd: "/w/ccdeck" } as HookPayload);
+    expect([...st.agents.values()].find(a => a.kind === "root")?.waiting ?? null).toBeNull();
   });
 });

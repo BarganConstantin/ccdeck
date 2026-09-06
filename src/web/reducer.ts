@@ -1145,6 +1145,16 @@ export function sweepStaleSessions(state: GraphState, now: number, maxMs: number
  *  wording for, so it sets no block rather than a badge that says nothing. */
 function waitingKind(notificationType: unknown): WaitingBlock["kind"] | null {
   if (notificationType === "permission_prompt") return "permission";
+  // The agent asked a question and stopped for the answer, and the message
+  // carries the question itself — "ccdeck needs your input: which improvements
+  // to prioritize: all three, or specific ones?". This used to fall through to
+  // `null`, so the session showed no block at all: no chip, no sidebar row, no
+  // notification. On a machine running `bypassPermissions` — where Claude Code
+  // never asks to run anything — it is the ONLY kind that fires, so the whole
+  // blocked-session feature was dead there. Measured on one real log: 1683
+  // events, all bypassPermissions, five of these and a single permission
+  // prompt in the entire history.
+  if (notificationType === "agent_needs_input") return "asked";
   if (notificationType === "idle_prompt") return "idle";
   return null;
 }
@@ -1296,7 +1306,12 @@ function waitingBlock(
  *    subagents are visibly working is the lie worth avoiding.
  */
 function clearsWaiting(w: WaitingBlock, p: HookPayload, sessionId: string): boolean {
-  if (w.kind !== "permission") return true;
+  // `idle` is the only kind ANY traffic falsifies. The other two are claims
+  // that a specific agent is stopped until a human answers, so they need the
+  // narrow rule below — an `asked` block wiped by a sibling subagent's tool
+  // call is #361 again, and it would be worse here because the message the
+  // block carries is the question itself.
+  if (w.kind === "idle") return true;
   const key = explicitSubagentKey(p);
   // Root-level traffic — every UserPromptSubmit, Stop, SessionStart, SessionEnd
   // and the root's own tool calls, none of which carries an agent_id or a

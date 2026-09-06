@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.7.1": [
+    {
+      "title": "\ud83d\udd14 The notifications now fire on the thing that actually stops your agent",
+      "body": "3.7.0 could tell you a session was waiting \u2014 but only when Claude Code asked permission to run a tool. If you work with permissions bypassed, that never happens, and the whole feature was silent for you. Measured on one real log: 1683 events, every one of them in bypassPermissions, and a single permission prompt in the entire history.\n\nWhat fires constantly on that setup is the other kind: the agent asking you a question and stopping for the answer. The deck was throwing those away \u2014 no amber chip, no row in the sidebar, no notification, and no \"notify me\" button, because the button only appears while something is actually blocked.\n\nNow they count. The card carries the question itself rather than a generic \"Your turn\" \u2014 \"paycore needs your input: merge both branches to main, or just one?\" \u2014 and so does the notification, on the desktop, whether the tab is behind something or not open at all.\n\nAn idle prompt still stays quiet: a turn that ended is not a session that is stuck, and a channel that cries wolf is one you switch off."
+    }
+  ],
   "3.7.0": [
     {
       "title": "\ud83d\udd14 The deck can reach you when you are not looking at it",

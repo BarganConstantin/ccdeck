@@ -19,7 +19,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   blockNotice,
   createBlockNotifier,
-  isPermissionPrompt,
+  isBlockingPrompt,
   QUIET_MS,
   shouldNotify,
 } from "../../server/block-notify.mjs";
@@ -33,6 +33,15 @@ const PROMPT = {
 };
 
 const IDLE = { ...PROMPT, notification_type: "idle_prompt" };
+/** The agent asked a question and stopped for the answer, with the question in
+ *  `message`. On a `bypassPermissions` machine this is the only kind that ever
+ *  arrives — Claude Code never asks to run anything there — so a notifier that
+ *  took only PROMPT above could not fire at all on that setup. */
+const ASKED = {
+  ...PROMPT,
+  notification_type: "agent_needs_input",
+  message: "ccdeck needs your input: which improvements to prioritize?",
+};
 
 /** No page listening, live traffic, nothing said yet — the state in which this
  *  notifier is supposed to speak. Every test below changes one thing. */
@@ -40,19 +49,27 @@ const ALONE = { clients: 0, replay: false, lastAt: undefined, now: 10_000_000 };
 
 describe("which events are a stopped session", () => {
   it("takes a permission prompt", () => {
-    expect(isPermissionPrompt(PROMPT)).toBe(true);
+    expect(isBlockingPrompt(PROMPT)).toBe(true);
+  });
+
+  it("takes an agent that asked a question and stopped", () => {
+    // The gap this gate had. Measured on one real log: 1683 events, every one
+    // of them under `bypassPermissions`, five of these and a single permission
+    // prompt in the whole history — so on that machine the notifier had nothing
+    // to fire on and the feature was dead without ever failing.
+    expect(isBlockingPrompt(ASKED)).toBe(true);
   });
 
   it("leaves an idle prompt alone", () => {
     // #348 measured 16 idle to 5 permission on a real log. An idle prompt is a
     // turn that ended, not a session that cannot continue, and three quarters
     // noise is how this channel gets switched off.
-    expect(isPermissionPrompt(IDLE)).toBe(false);
+    expect(isBlockingPrompt(IDLE)).toBe(false);
   });
 
   it("ignores every other hook event", () => {
-    expect(isPermissionPrompt({ hook_event_name: "PreToolUse", tool_name: "Bash" })).toBe(false);
-    expect(isPermissionPrompt(null)).toBe(false);
+    expect(isBlockingPrompt({ hook_event_name: "PreToolUse", tool_name: "Bash" })).toBe(false);
+    expect(isBlockingPrompt(null)).toBe(false);
   });
 });
 

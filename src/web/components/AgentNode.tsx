@@ -12,6 +12,7 @@ import { codexApprovalTell } from "../codex-approval";
 // that fix rather than with #374's wider consolidation.
 import { shortModel, modelFamily } from "../model-label";
 import { guessLine } from "../notify";
+import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
 // (#374). See token-format.ts for the tier it did not have.
@@ -357,6 +358,10 @@ function StatePill({ state }: { state: AgentNodeData["state"] }) {
  *  reason. */
 export function waitingSentence(waiting: WaitingBlock): string {
   if (waiting.message) return waiting.message;
+  // The fallbacks only ever show for a block whose payload carried no message,
+  // which CC does not currently produce. `asked` shares idle's wording rather
+  // than getting a third string: what distinguishes it is the QUESTION, and a
+  // block that lost its message has no question to show.
   return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
 }
 
@@ -407,7 +412,13 @@ export function blockedToolTooltip(waiting: WaitingBlock, said: string): string 
  *  gives us and still exactly what CC said. A permission block is genuinely
  *  urgent and keeps its sentence untouched. */
 export function waitingLabel(waiting: WaitingBlock): string {
-  return waiting.kind === "permission" ? waitingSentence(waiting) : "Your turn";
+  // The sentence for both alarming kinds, "Your turn" only for idle. An `asked`
+  // block's message IS the question — "paycore needs your input: merge both
+  // branches to main, or just one?" — which is the single most useful string
+  // this card can carry, and "Your turn" would throw it away on the one surface
+  // with room for it. Idle keeps the short label because CC's sentence there is
+  // the contentless "Claude is waiting for your input".
+  return waiting.kind === "idle" ? "Your turn" : waitingSentence(waiting);
 }
 
 /** The session is blocked on a human — and on which of the two chores that is.
@@ -421,14 +432,19 @@ export function waitingLabel(waiting: WaitingBlock): string {
  *  already uses, so the app keeps one idiom for "still asking" and one
  *  reduced-motion answer for it. */
 function WaitingRow({ waiting, now }: { waiting: WaitingBlock; now: number }) {
-  const permission = waiting.kind === "permission";
+  // The pulse and the amber belong to a session that is STOPPED until a human
+  // answers, which is both `permission` and `asked` — the same set `isAlarming`
+  // names, and it has to stay the same set or the card would contradict the
+  // topbar chip beside it. Idle keeps the quiet dot: a finished turn is not an
+  // interruption.
+  const alarming = isAlarming(waiting);
   const said = waitingSentence(waiting);
   return (
     <div
-      className={permission ? "waiting-row permission" : "waiting-row idle"}
+      className={alarming ? "waiting-row permission" : "waiting-row idle"}
       title={`${said}\nBlocked for ${elapsed(waiting.since, undefined, now)} — the answer goes in the terminal, not here.`}
     >
-      {permission
+      {alarming
         ? <span className="ap-pulse" aria-hidden />
         : <span className="waiting-dot" aria-hidden />}
       <span className="waiting-said">{waitingLabel(waiting)}</span>

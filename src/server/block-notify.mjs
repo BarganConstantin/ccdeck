@@ -54,16 +54,31 @@ export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
  */
 export const QUIET_MS = 2 * 60 * 1000;
 
-/** The one event that means a session has stopped and cannot start again
- *  without a human. `idle_prompt` is the other kind CC emits and is deliberately
- *  not here — #348 measured 16 idle to 5 permission, and an idle prompt is a
- *  turn that ended, not a session that is stuck. Three quarters noise is how a
- *  notification channel gets muted, and a muted channel is worse than none
- *  because the deck goes on believing it told somebody. */
-export function isPermissionPrompt(raw) {
+/**
+ * The events that mean a session has stopped and cannot start again without a
+ * human. Two of the three kinds CC emits.
+ *
+ * `permission_prompt` — it wants to run something and is waiting to be allowed.
+ *
+ * `agent_needs_input` — it asked a question and is waiting for the answer, with
+ * the question itself in `message`. This was missing, and its absence was not a
+ * small gap: on a machine running `bypassPermissions` Claude Code never asks to
+ * run anything, so `permission_prompt` essentially never fires and the desktop
+ * notification could not happen at all. Measured on one real log — 1683 events,
+ * every one of them bypassPermissions — a single permission prompt in the whole
+ * history against five of these.
+ *
+ * `idle_prompt` is deliberately still out: #348 measured 16 idle to 5
+ * permission, and an idle prompt is a turn that ended, not a session that is
+ * stuck. Three quarters noise is how a notification channel gets muted, and a
+ * muted channel is worse than none because the deck goes on believing it told
+ * somebody.
+ */
+export function isBlockingPrompt(raw) {
   return !!raw
     && raw.hook_event_name === "Notification"
-    && raw.notification_type === "permission_prompt";
+    && (raw.notification_type === "permission_prompt"
+      || raw.notification_type === "agent_needs_input");
 }
 
 /**
@@ -96,7 +111,7 @@ export function blockNotice(raw, product) {
  * notification — a channel that fires twelve times in a second is one the user
  * turns off within the minute:
  *
- *   - a permission prompt, per `isPermissionPrompt`
+ *   - a blocking prompt, per `isBlockingPrompt`
  *   - NOTHING LISTENING. A page is a better surface than this in every way, so
  *     wherever there is one, this stays out of the way.
  *   - NOT A REPLAY. The server replays events.jsonl into itself at boot to
@@ -106,7 +121,7 @@ export function blockNotice(raw, product) {
  *   - the session has not just been announced, per `QUIET_MS`.
  */
 export function shouldNotify(raw, { clients, replay, lastAt, now }) {
-  if (!isPermissionPrompt(raw)) return false;
+  if (!isBlockingPrompt(raw)) return false;
   if (clients > 0) return false;
   if (replay) return false;
   if (lastAt != null && now - lastAt < QUIET_MS) return false;

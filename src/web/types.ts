@@ -135,7 +135,24 @@ export interface BlockedTool {
  *  a decision you owe a session that is still mid-turn, `idle_prompt` is a turn
  *  that ended about a minute ago and is waiting for your next instruction. */
 export interface WaitingBlock {
-  kind: "permission" | "idle";
+  /**
+   * What kind of stop this is, and only two of the three are an alarm.
+   *
+   * `permission` — Claude Code is asking to run a tool and will not proceed.
+   * `asked`      — the agent asked the human a QUESTION and stopped for the
+   *                answer (`agent_needs_input`). Just as stuck as a permission
+   *                prompt and, on a machine running `bypassPermissions`, the
+   *                only kind that ever fires: measured on one real log, 1683
+   *                events all in bypassPermissions, one permission prompt in
+   *                the whole history against five of these. The deck used to
+   *                drop them on the floor, which made the blocked chip, the
+   *                notification and everything built on them dead code for that
+   *                setup.
+   * `idle`       — the input box has been empty for a minute. A turn that
+   *                ended, not a session that is stuck, and deliberately not an
+   *                alarm since #348.
+   */
+  kind: "permission" | "asked" | "idle";
   /** CC's own wording, shown verbatim — it is the only human sentence we get.
    *  The payload carries no tool_name and no tool_input, so this and the kind
    *  are the whole of what the deck honestly knows about the block ITSELF.
