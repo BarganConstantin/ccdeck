@@ -1784,6 +1784,23 @@ function Inner() {
       // there is nothing to drop, so React bails out and no render happens.
       setSelectedIds(prev => pruneSelection(prev, stateRef.current.agents));
       setPrimarySelectedId(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));
+      // AND THE TWO MODALS THAT NAME AN AGENT, for a reason worse than the
+      // selection's (#781). Both render nothing once their subject is gone —
+      // the context modal returns null on `if (!root)`, and buildSummary
+      // returns null on the same `agents.get(sessionId)` — but `modalOpenRef`
+      // is computed from the ID rather than from what rendered, so it stayed
+      // true with no dialog on screen. From there `shortcutBlocked` refused
+      // every key but `?` and `clearActionFor` answered "ignore" for both the
+      // trash button and C: every shortcut in the deck dead for the life of the
+      // tab, recoverable only by reloading. A session finishing and being
+      // evicted two minutes later is all it took.
+      //
+      // Cleared here rather than fixing the flag to match the render, because a
+      // modal whose subject has been evicted should CLOSE rather than sit there
+      // invisible-but-counted. `summaryFor` is a session id and `contextFor` an
+      // agent id, and both resolve through `agents.get`, so one test serves.
+      setContextFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));
+      setSummaryFor(prev => (prev != null && !stateRef.current.agents.has(prev) ? null : prev));
       if (changed) rerender();
     }, 250);
     return () => clearInterval(id);

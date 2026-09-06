@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.2": [
+    {
+      "title": "\u2328\ufe0f A closed-behind-your-back dialog no longer kills every keyboard shortcut",
+      "body": "Open the context ring on a session's card and leave it open. The session finishes, and a couple of minutes later the canvas evicts it \u2014 or you press Clear. The dialog vanished, and from that moment every shortcut in the deck stopped working: Space, C, R, F, L, H, U, A, J, K, T, M, and the trash button too. Only reloading the page brought them back.\n\nThe deck was still counting the dialog as open, because it remembered which session you had opened it for rather than whether anything was on screen. It now closes the dialog when its session leaves the board, which is what should have happened in the first place. The end-of-session recap had the same problem and is fixed with it."
+    }
+  ],
   "3.8.1": [
     {
       "title": "\ud83d\udd12 Security: update if the deck runs on a Mac",
