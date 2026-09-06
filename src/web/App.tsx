@@ -2864,11 +2864,49 @@ function Inner() {
    *  answered in the five seconds it takes to reach for it takes the button out
    *  from under the cursor. Once offered, it stays until it is answered. */
   const [notifyOffered, setNotifyOffered] = useState(false);
+  /** The deck's own switch, which is a different question from the browser's
+   *  permission. Brave may have said yes and the user may still want quiet —
+   *  and a permission, once granted, is not something any page can hand back,
+   *  so without this the only mute was in the browser's site settings. Held
+   *  server-side (deck-prefs.mjs) rather than in localStorage, because the same
+   *  switch governs the notifier that runs when no page exists at all. */
+  const [notifyOn, setNotifyOn] = useState(true);
+  /** Whether the MACHINE has vetoed this — AGENTS_DECK_NO_NOTIFY=1 at launch.
+   *  Not the same question as "is the switch off", and the menu says a
+   *  different sentence for each: one is the user's own press, the other is
+   *  somebody else's decision the press cannot undo until the next launch. */
+  const [notifyVetoed, setNotifyVetoed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/prefs").then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!alive || !d?.ok) return;
+      setNotifyOn(d.prefs?.notifications !== false);
+      setNotifyVetoed(d.notificationsVetoed === true);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const toggleNotify = useCallback(() => {
+    // Optimistic, and corrected by the answer. The switch is the one control
+    // whose whole point is that it responds now; waiting for a round trip to a
+    // loopback server would still be a flicker, and a failed write leaves the
+    // UI saying what the file says rather than what the press wanted.
+    const want = !notifyOn;
+    setNotifyOn(want);
+    fetch("/api/prefs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notifications: want }),
+    }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!d?.ok) return;
+      setNotifyOn(d.prefs?.notifications !== false);
+      setNotifyVetoed(d.notificationsVetoed === true);
+    }).catch(() => {});
+  }, [notifyOn]);
   const notifySupported = typeof Notification !== "undefined";
   const notifyAskable = canAsk(notifyPermission, notifySupported);
   useEffect(() => {
-    if (notifyAskable && waitingSessions.length > 0) setNotifyOffered(true);
-  }, [notifyAskable, waitingSessions.length]);
+    if (notifyAskable && notifyOn && waitingSessions.length > 0) setNotifyOffered(true);
+  }, [notifyAskable, notifyOn, waitingSessions.length]);
   // The confirmation is a status, not a state: it says what just happened and
   // then gets out of the bar. Eight seconds for a refusal against four for a
   // grant, because "blocked" is the one carrying instructions the user has to
@@ -2936,7 +2974,7 @@ function Inner() {
     // guard is one comparison.
     if (notifySeededAtRef.current === null) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
-    const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible);
+    const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible, notifyOn);
     for (const n of notices) {
       try {
         // `tag` is the block key, so a second deck on the same machine REPLACES
@@ -3299,7 +3337,11 @@ function Inner() {
               browser-react.mjs refuses to ship for its own reactions, and it is
               not worth shipping here. After a refusal the switch is in the
               browser's site settings, which the title says in words. */}
-          {notifyOffered && notifyAskable && (
+          {/* Nothing to offer while the deck's own switch is off: asking the
+              browser for a permission the deck would then decline to use is a
+              prompt that buys the user nothing. The switch is in the sound
+              menu, beside the one for the other way this deck interrupts. */}
+          {notifyOffered && notifyAskable && notifyOn && (
             <button
               type="button"
               className="notify-ask"
@@ -3572,6 +3614,9 @@ function Inner() {
                   onLevel={(chime, level) => changeTone(chime, { level })}
                   onFigure={(chime, figure) => changeTone(chime, { figure })}
                   onPreview={chime => previewTone(chime)}
+                  notifyOn={notifyOn}
+                  onToggleNotify={toggleNotify}
+                  notifyVetoed={notifyVetoed}
                   openerRef={soundButtonRef}
                 />
               )}

@@ -70,6 +70,19 @@ interface Props {
   onFigure: (chime: Chime, id: string) => void;
   /** Play this tone now, at what it is currently set to. */
   onPreview: (chime: Chime) => void;
+  /** The deck's OTHER way of interrupting you, and the reason it is in this
+   *  menu rather than a settings panel of its own: this popover is already
+   *  "how loudly does this deck interrupt me", and notifications were the only
+   *  channel with no off switch anywhere in the app. */
+  notifyOn: boolean;
+  onToggleNotify: () => void;
+  /** True when the deck was launched with AGENTS_DECK_NO_NOTIFY=1. A different
+   *  question from `notifyOn` being false, and the menu says a different
+   *  sentence for each — "off" is the user's own press, "off — set at launch"
+   *  is somebody else's decision that this press cannot undo until the next
+   *  start. The switch stays operable either way: the preference is still the
+   *  user's to record. */
+  notifyVetoed: boolean;
   /** The button that opened this, so the outside-press rule can leave it alone
    *  — its own onClick is what closes the menu on a second press. */
   openerRef: RefObject<HTMLElement | null>;
@@ -77,6 +90,7 @@ interface Props {
 
 export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
+  notifyOn, onToggleNotify, notifyVetoed,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -118,6 +132,33 @@ export default function SoundMenu({
       >
         <span className="sm-switch-label">Sound</span>
         <span className="sm-switch-state">{soundOn ? "on" : "off"}</span>
+      </button>
+
+      {/* The second channel, and the first time it has had an off switch.
+          A notification could be turned ON with one press — the "notify me"
+          button beside the blocked count — and turned off only from the
+          browser's own site settings, or by quitting the deck and re-running it
+          with AGENTS_DECK_NO_NOTIFY=1. Asymmetric in the worst direction: the
+          person who wants quiet is the one being asked to work for it.
+          It governs BOTH notifiers, which is why it is not a browser
+          preference. The page raises one when the tab is behind something; the
+          server raises one when no page exists at all, and a switch in
+          localStorage could not reach that second one at the moment it runs.
+          It stays pressable when the machine has overruled it, because the
+          preference is still the user's to record for the next launch. */}
+      <button
+        type="button"
+        className="btn sm-switch"
+        onClick={onToggleNotify}
+        aria-pressed={notifyOn}
+        title={notifyVetoed
+          ? "Recorded for next time: this deck was started with AGENTS_DECK_NO_NOTIFY=1, which overrules the switch"
+          : "A system notification when a session blocks on you — from this page while it is behind something, and from the deck itself when no page is open"}
+      >
+        <span className="sm-switch-label">Notifications</span>
+        <span className="sm-switch-state">
+          {notifyVetoed ? "off — set at launch" : notifyOn ? "on" : "off"}
+        </span>
       </button>
 
       {CHIME_ORDER.map(chime => {

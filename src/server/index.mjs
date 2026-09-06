@@ -15,7 +15,8 @@ import { promisify } from "node:util";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
-import { createBlockNotifier, OFF_ENV as NO_NOTIFY_ENV } from "./block-notify.mjs";
+import { createBlockNotifier } from "./block-notify.mjs";
+import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
@@ -3131,12 +3132,65 @@ function redactDeckToken(raw) {
  * has no notification daemon" mid-session, the deck is not broken by it, and
  * every in-page surface still says everything it said before.
  */
+/**
+ * The deck's own settings, in memory, refreshed whenever they are written.
+ *
+ * Read once at boot and then kept here rather than read per event: `consider`
+ * is on the ingest path every hook event goes through, and a file read there
+ * would be a syscall per event to answer a question that changes when somebody
+ * presses a switch. The write path below updates this, so the in-memory copy
+ * and the file cannot drift within one process — and a second deck writing the
+ * file is picked up on ITS next write or this one's next boot, which is the
+ * same freshness every other cross-deck setting has.
+ */
+let _prefs = { ...PREF_DEFAULTS };
+readPrefs().then(p => { _prefs = p; }).catch(() => {});
+
 const blockNotifier = createBlockNotifier({
   notify: osNotify,
   product: PRODUCT,
-  enabled: process.env[NO_NOTIFY_ENV] !== "1",
+  // A function, not a boolean: this is a switch a person flips from the sound
+  // menu while the deck is running, and a mute that waited for a restart would
+  // not be a mute. The env var still wins inside `notificationsOn`.
+  enabled: () => notificationsOn(_prefs),
   onError: err => console.error(`${PRODUCT}: could not raise a desktop notification:`, err?.message ?? err),
 });
+
+/**
+ * GET the deck's settings, and what the machine is allowing.
+ *
+ * THREE fields, not two, and the third is the one a first attempt got wrong.
+ * `notificationsAllowed` is the effective answer, after the environment
+ * variable has had its say — but "false" there means either "the user switched
+ * it off" or "the machine forbids it", and the menu has to say a different
+ * sentence for each. Deriving the second from the first made the switch read
+ * "off — set at launch" the moment anybody turned it off on a deck launched
+ * with no variable at all, which is the deck telling the user their own press
+ * was somebody else's doing. `notificationsVetoed` answers only the machine's
+ * half.
+ */
+function prefsPayload() {
+  return {
+    ok: true,
+    prefs: _prefs,
+    notificationsAllowed: notificationsOn(_prefs),
+    notificationsVetoed: notificationsVetoed(),
+  };
+}
+
+function handlePrefsRead(req, res) {
+  return send(res, 200, prefsPayload());
+}
+
+/** POST a patch. Fields nobody sent keep their value — see writePrefs. */
+async function handlePrefsWrite(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+  _prefs = await writePrefs(body);
+  return send(res, 200, prefsPayload());
+}
 
 function pushEvent(raw, source, opts = {}) {
   // First, before anything below can see it: the deck's own credential does not
@@ -5364,6 +5418,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
+    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
+    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
     // On demand only — the process list costs a subprocess on every platform,
     // so it is fetched while the detail panel is open and never on the timer.

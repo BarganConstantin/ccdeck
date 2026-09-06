@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.0": [
+    {
+      "title": "\ud83d\udd15 Notifications now have an off switch",
+      "body": "3.7.0 gave you a \"notify me\" button and no way back. Turning them off meant digging into your browser's site settings \u2014 which no page can do for you \u2014 and that still left the other notifier, the one the deck raises when no page is open at all. Silencing that one meant quitting the deck and starting it again with `AGENTS_DECK_NO_NOTIFY=1` in front. The person who wanted quiet was the one doing the work.\n\nThere is a **Notifications** switch in the sound menu now, beside the one for sound \u2014 that menu is already \"how loudly does this deck interrupt me\". One switch governs both notifiers, it takes effect immediately without a restart, and it is remembered across restarts.\n\nIt is kept by the deck rather than by your browser, because the second notifier runs when no page exists and a setting living in a page could never reach it. `AGENTS_DECK_NO_NOTIFY=1` still wins over the switch \u2014 a machine told at launch to stay off the desktop stays off it \u2014 and when that is the case the menu says so instead of showing an \"on\" that will not happen."
+    }
+  ],
   "3.7.1": [
     {
       "title": "\ud83d\udd14 The notifications now fire on the thing that actually stops your agent",

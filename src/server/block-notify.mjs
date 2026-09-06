@@ -133,11 +133,19 @@ export function shouldNotify(raw, { clients, replay, lastAt, now }) {
  * to the OS.
  *
  * `notify` and `now` are injected so the suite drives this without a desktop
- * and without a clock, and `enabled` is read once at construction rather than
- * per event — a switch that can change under a running process is a switch two
- * events in the same second can disagree about.
+ * and without a clock.
+ *
+ * `enabled` USED TO BE READ ONCE at construction, on the argument that a switch
+ * changing under a running process is one two events in the same second can
+ * disagree about. That was right while the only way to set it was an
+ * environment variable, which cannot change under a running process at all. It
+ * is a user-facing switch now — deck-prefs.mjs, flipped from the sound menu —
+ * and a mute that only takes effect after a restart is not a mute. So it may be
+ * a function, asked per event; two events in the same second disagreeing is the
+ * correct behaviour when somebody pressed the switch between them.
  */
 export function createBlockNotifier({ notify, product, now = Date.now, enabled = true, onError }) {
+  const isEnabled = typeof enabled === "function" ? enabled : () => enabled;
   /** session_id → when it was last announced. Bounded by pruning on read: a
    *  long-lived server sees many sessions and this must not become a second
    *  ring nobody empties. */
@@ -146,7 +154,7 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
   return {
     /** Returns what it did, for the tests and for nothing else. */
     consider(raw, { clients, replay = false }) {
-      if (!enabled) return "off";
+      if (!isEnabled()) return "off";
       const at = now();
       const id = raw?.session_id ?? "";
       if (!shouldNotify(raw, { clients, replay, lastAt: seen.get(id), now: at })) return "skipped";

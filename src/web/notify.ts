@@ -150,7 +150,14 @@ export function noticesFor(
   blocked: readonly BlockedSession[],
   raised: ReadonlySet<string>,
   pageVisible: boolean,
+  on = true,
 ): BlockNotice[] {
+  // The mute, and it is checked before anything else so that a muted deck does
+  // not even compute keys. Defaulted to `true` because every existing caller
+  // and every test written before the switch existed means "not muted", and a
+  // parameter that silenced them all by omission would be the worst possible
+  // default for a notification feature.
+  if (!on) return [];
   if (pageVisible) return [];
   const out: BlockNotice[] = [];
   for (const b of blocked) {
