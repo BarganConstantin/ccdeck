@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.6": [
+    {
+      "title": "\ud83d\uddc2\ufe0f Two decks can no longer both claim the same log",
+      "body": "When several decks share one events log they elect a single writer for it, so nothing is recorded twice. That election compared the path as typed \u2014 so two decks reaching the SAME file by different spellings each thought they were alone, both wrote every event, and each believed the log was theirs to clear.\n\nDifferent spellings are ordinary, not exotic: a shortened Windows home directory, a mapped or substituted drive, a junction, or on macOS `/tmp` against `/private/tmp`. The visible symptoms were duplicated tool calls after a restart, and Clear wiping history belonging to another deck.\n\nThe path is now canonicalised the same way the watched folder already was. It works on a first run too, before the log file exists."
+    }
+  ],
   "3.8.5": [
     {
       "title": "\u26d4 Cancelling a sign-in no longer adds the account anyway",

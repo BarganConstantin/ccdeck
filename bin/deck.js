@@ -164,14 +164,18 @@ const openBrowser = flags.noOpen !== true;
 // config dir rather than assuming ~/.claude — see src/server/claude-dir.mjs.
 const { claudeConfigDir, hasClaudeInstalled } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
-// Resolved here rather than left as typed: the discovery file publishes this
-// path so the hook can tell which decks share one log and elect a single
+// CANONICALISED here rather than left as typed: the discovery file publishes
+// this path so the hook can tell which decks share one log and elect a single
 // writer for it, and two spellings of one file would read as two files.
-// startServer resolves it the same way, from this same process, so the two
-// always name the same file.
+// startServer takes the value from here, so the two always name the same file.
+//
+// `resolve` alone was not enough and #793 is what that cost — see
+// canonicalLogPath, which owns the rule and explains it beside the election it
+// serves.
+const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
 const persist = flags.noPersist
   ? null
-  : resolve(flags.history ?? join(claudeConfigDir(), "agent-dag", "events.jsonl"));
+  : canonicalLogPath(flags.history ?? join(claudeConfigDir(), "agent-dag", "events.jsonl"));
 
 const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);

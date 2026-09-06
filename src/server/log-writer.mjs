@@ -21,7 +21,8 @@
 // reason it re-derives the Claude config dir inline. The two copies are pinned
 // equal by a test, as challengeProof's pair already is.
 import { open } from "node:fs/promises";
-import { win32, posix } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, dirname, join, resolve, win32, posix } from "node:path";
 
 /**
  * Does this platform's filesystem treat two spellings that differ only in case
@@ -33,6 +34,44 @@ import { win32, posix } from "node:path";
  * not, and folding case there would be a bug of its own: /srv/a/events.jsonl and
  * /srv/A/events.jsonl are two real files, each of which needs a writer.
  */
+/**
+ * The one spelling of an events log, so two decks pointed at one file land in
+ * one group (#793).
+ *
+ * `resolve` alone was what shipped, and it settles relative-vs-absolute and
+ * nothing else. The election below then only case-folds — so two spellings of
+ * one file read as two files, which is the exact thing `bin/deck.js`'s comment
+ * over this value says must not happen. On Windows it needs no odd user action:
+ * `claudeConfigDir()` derives from `homedir()`, and a shell whose `USERPROFILE`
+ * is 8.3-shortened yields a different default string than one with the long
+ * form. `subst` and mapped drives and junctions do it too, and on macOS so does
+ * `/tmp` against `/private/tmp`.
+ *
+ * What it cost was not merely a duplicate group. BOTH decks were then elected,
+ * so every hook event was appended twice — the duplicate-tools-after-restart
+ * symptom the election exists to end — and `logSharing()` compares the same
+ * string, so both answered `mine: true` and `POST /api/clear` truncated a file
+ * this deck does not own. That is the #698 history loss the ownership gate was
+ * added to prevent.
+ *
+ * THE DIRECTORY IS CANONICALISED EVEN WHEN THE FILE IS NOT THERE, which is the
+ * half a plain realpath misses. On a first run, or against a `--history` naming
+ * a file the deck will create, `realpath` throws ENOENT — and falling back to
+ * the resolved string would leave the two spellings different for exactly the
+ * run that creates the file. The parent exists (or is about to be created under
+ * one canonical name), so it is canonicalised and the basename rejoined.
+ *
+ * `canonicalWorkspace` in index.mjs is the same rule for the other path this
+ * deck publishes, with three comments naming 8.3 expansion as its reason. This
+ * is that rule reaching the value two lines away from it.
+ */
+export function canonicalLogPath(raw) {
+  if (typeof raw !== "string" || raw.trim() === "") return "";
+  const abs = resolve(raw);
+  try { return realpathSync.native(abs); } catch { /* not created yet */ }
+  try { return join(realpathSync.native(dirname(abs)), basename(abs)); } catch { return abs; }
+}
+
 export const foldsCase = (platform = process.platform) =>
   platform === "win32" || platform === "darwin";
 
