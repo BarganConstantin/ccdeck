@@ -76,12 +76,15 @@ if (flags.uninstall) {
   // the whole path-plus-parser-error twice buries the one line that differs —
   // which of our two installations is still in there.
   const named = new Set();
+  // Its own glyphs for the same reason the bad-port line has them: this block
+  // runs at module top level, well before `G` is declared (#797).
+  const { dash: gDash } = glyphs(unicodeOK());
   /** Report one provider's outcome. `ok` first — see uninstallHooks. */
   const report = (res, label) => {
     if (res.ok === false) {
       refused = true;
       named.add(res.settingsPath);
-      console.error(`${PRODUCT}: ${label} hooks NOT removed — ${res.settingsPath} could not be read as JSON (${res.why}).`);
+      console.error(`${PRODUCT}: ${label} hooks NOT removed ${gDash} ${res.settingsPath} could not be read as JSON (${res.why}).`);
       console.error(`${PRODUCT}: the __agent-dag hook entries are still in that file and keep firing on every ${label} event.`);
       return;
     }
@@ -116,7 +119,7 @@ if (flags.uninstall) {
         : `${PRODUCT}: sound hook left in place — ${sound.message}`);
       named.add(sound.settingsPath);
     } else {
-      console.error(`${PRODUCT}: your own sound hooks were NOT restored — ${sound.message}`);
+      console.error(`${PRODUCT}: your own sound hooks were NOT restored ${gDash} ${sound.message}`);
     }
   }
   if (hasCodexInstalled()) {
@@ -149,7 +152,13 @@ const envPort = process.env.AGENT_DAG_PORT?.trim();
 const rawPort = flags.port ?? (envPort ? envPort : null);
 if (rawPort != null && !isPortValue(rawPort)) {
   const named = flags.port != null ? "--port" : "AGENT_DAG_PORT";
-  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number — expected 0–65535.`);
+  // Its own glyphs, not `G` — that is declared a hundred lines below and this
+  // runs at module top level, so reaching for it here would be a temporal dead
+  // zone and a ReferenceError on the one path that reports a bad port. Both
+  // helpers read the environment and nothing this file has parsed yet, so
+  // asking twice on a path that exits immediately costs nothing (#797).
+  const { dash } = glyphs(unicodeOK());
+  console.error(`${PRODUCT}: ${named} ${rawPort}: not a port number ${dash} expected 0-65535.`);
   process.exit(1);
 }
 const port = rawPort == null ? 4317 : Number(rawPort);
@@ -1167,7 +1176,7 @@ function reportUnregistered({ file, error }) {
   const why = error?.message ? ` ${G.dash} ${error.message}` : "";
   write(
     `\n  ${P.warn}${G.warn}${P.reset}  ${P.bold}not registered${P.reset}${P.muted}${why}${P.reset}\n` +
-    `     ${P.muted}${unregisteredDetail({ file, claude: wantClaude })}${P.reset}\n`,
+    `     ${P.muted}${unregisteredDetail({ file, claude: wantClaude, dash: G.dash })}${P.reset}\n`,
   );
 }
 

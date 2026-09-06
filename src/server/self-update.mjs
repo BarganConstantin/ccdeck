@@ -22,7 +22,7 @@
 // it by name and only where it can actually work: a global install, on a
 // directory we can write, outside a git checkout and outside an npx cache.
 // Everywhere else this stays what it has always been — a printed command.
-import { accessSync, constants as FS, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants as FS, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -894,8 +894,42 @@ export function upgradeMode(blockedReason) {
   return blockedReason === "npx" ? "npx" : null;
 }
 
+/**
+ * Can this user write into `p`?
+ *
+ * ON WINDOWS THE QUESTION HAS TO BE ASKED BY WRITING (#795). libuv's
+ * `fs__access` short-circuits to success for anything carrying
+ * FILE_ATTRIBUTE_DIRECTORY — "Directories cannot be read-only on Windows" — and
+ * never consults the ACL; Node documents this. Both arguments this is called
+ * with are always directories, so `writable` was unconditionally true there,
+ * `upgradeBlockedReason` could never answer `not_writable`, and the banner
+ * offered "Update & restart" on the common nvm-windows layout where the global
+ * prefix is C:\Program Files\nodejs and a non-elevated shell cannot write it.
+ * npm then died with EPERM and the user got a truncated npm log tail in a
+ * 46-character box — where a POSIX user in the same position gets "the install
+ * directory is not writable by this user" and the command to paste. The comment
+ * on upgradeBlockedReason states the intent the platform defeated: "Failing
+ * inside npm with EACCES tells the user less than declining up front does."
+ *
+ * The probe is `createTemp`'s "wx" pattern, synchronously: a name nothing else
+ * can be using, created exclusively and removed at once. POSIX keeps
+ * `accessSync`, where it is correct and cheaper.
+ */
 function dirWritable(p) {
-  try { accessSync(p, FS.W_OK); return true; } catch { return false; }
+  if (process.platform !== "win32") {
+    try { accessSync(p, FS.W_OK); return true; } catch { return false; }
+  }
+  // `wx` fails if the name exists, so a collision reads as "not writable"
+  // rather than clobbering somebody's file — hence pid and a random suffix.
+  const probe = join(p, `.ccdeck-w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);
+  try {
+    writeFileSync(probe, "", { flag: "wx" });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { unlinkSync(probe); } catch { /* never created, or already gone */ }
+  }
 }
 
 /** The same question, answered against the real filesystem and environment. */

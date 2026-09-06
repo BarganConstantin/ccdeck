@@ -225,13 +225,13 @@ export function upgradeAttempt({
  *  banner and the terminal say, so it has to name the version, say what already
  *  happened to it, and leave the user somewhere to go. The copyable command is
  *  already on screen next to it. */
-export function upgradeRefusalText({ reason, waitMs = 0, attempt = 0 } = {}, target = null) {
+export function upgradeRefusalText({ reason, waitMs = 0, attempt = 0, dash = "—" } = {}, target = null) {
   const what = target ? `v${target}` : "this update";
   if (reason === "exhausted") {
-    return `${what} failed to fetch ${attempt} times — not trying again from here; run the command yourself`;
+    return `${what} failed to fetch ${attempt} times ${dash} not trying again from here; run the command yourself`;
   }
   const left = waitMs >= 60_000 ? `${Math.ceil(waitMs / 60_000)}m` : `${Math.max(1, Math.ceil(waitMs / 1000))}s`;
-  return `${what} failed to fetch a moment ago — waiting ${left} before trying again`;
+  return `${what} failed to fetch a moment ago ${dash} waiting ${left} before trying again`;
 }
 
 /**

@@ -628,12 +628,19 @@ export function pulseDot(beat, { registered = true, claude = true, busy = null }
  *
  * @param file the discovery file that could not be written.
  * @param claude whether this deck is watching Claude Code at all.
+ * @param dash the em dash, or the ASCII stand-in on a console that cannot draw
+ *   one (#797). A parameter for the same reason `renameNotice` takes one: this
+ *   module's own header says "every glyph the deck prints — punctuation
+ *   included, since an em dash is as absent from CP437 as a check mark — comes
+ *   from one of them", and this sentence had it hardcoded. On a legacy cmd.exe
+ *   or the Linux virtual console the reader got a box in the middle of the one
+ *   line explaining why no events are arriving.
  */
-export function unregisteredDetail({ file, claude = true }) {
+export function unregisteredDetail({ file, claude = true, dash = "—" }) {
   if (claude) {
     return `Claude Code hooks find this deck through ${file}, so until that file exists no Claude Code events arrive.`;
   }
-  return `Codex capture does not use ${file} — the deck tails the rollout files itself — so events still arrive. Only decks sharing one events log need it, to agree on which of them records.`;
+  return `Codex capture does not use ${file} ${dash} the deck tails the rollout files itself ${dash} so events still arrive. Only decks sharing one events log need it, to agree on which of them records.`;
 }
 
 // ── cursor ───────────────────────────────────────────────────────────────────

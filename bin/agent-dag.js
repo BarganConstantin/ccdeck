@@ -291,7 +291,7 @@ async function prefetchUpgrade(worker) {
   const note = readRestartFailure(pkgName);
   const decision = upgradeAttempt({ note, target, now: Date.now() });
   if (!decision.allow) {
-    const error = upgradeRefusalText(decision, target);
+    const error = upgradeRefusalText({ ...decision, dash: G.dash }, target);
     // Re-stamped even though nothing was attempted: the tab ends its attempt on
     // a failure note it has not seen before, so a refusal that left the note
     // untouched would leave the button reading "fetching…" for the full three
@@ -413,7 +413,7 @@ function launchNpx() {
     if (stopping || served) return; // the user stopped it, or it ran and ended
     const summary = npxFailureSummary(tail);
     const hint = npxFailureHint(tail);
-    console.error(`${PRODUCT}: ${why} — staying on v${VERSION}`);
+    console.error(`${PRODUCT}: ${why} ${G.dash} staying on v${VERSION}`);
     if (summary) console.error(`  ${summary}`);
     if (hint) console.error(`  ${hint}`);
     // Left for the worker about to be launched: it is the only way the browser

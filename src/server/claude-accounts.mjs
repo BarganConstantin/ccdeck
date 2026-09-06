@@ -39,7 +39,23 @@ import { homedir, platform } from "node:os";
 export function backupRoot() {
   if (process.env.CLAUDE_SWAP_BACKUP) return process.env.CLAUDE_SWAP_BACKUP;
   if (platform() === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
+    // `~` IS EXPANDED BEFORE THE ABSOLUTENESS TEST (#796), which is what
+    // claude-swap's own paths.py does: `Path(os.path.expanduser(xdg))` and then
+    // `is_absolute()`, under a docstring saying it exists so that "values like
+    // `~/data` set via systemd unit files or Dockerfiles (which don't get shell
+    // expansion) still work". This function claims to mirror that and did not.
+    //
+    // Unexpanded, `XDG_DATA_HOME=~/data` failed `startsWith("/")` and the deck
+    // read ~/.local/share/claude-swap while cswap read and wrote
+    // ~/data/claude-swap. The Accounts panel then reported `no_accounts` while
+    // `cswap list` showed the roster — and the damaging part is
+    // `seedFirstAccount`, which reads a missing sequence file as zero accounts,
+    // passes its `before > 0` guard, and runs `cswap add` against a populated
+    // store, re-pointing activeAccountNumber with nothing here to restore it.
+    const raw = process.env.XDG_DATA_HOME;
+    const xdg = raw === "~" ? homedir()
+      : raw?.startsWith("~/") ? join(homedir(), raw.slice(2))
+      : raw;
     if (xdg && xdg.startsWith("/")) return join(xdg, "claude-swap");
     return join(homedir(), ".local/share/claude-swap");
   }

@@ -211,7 +211,8 @@ describe("the one-time report that a deck could not register", () => {
   });
 
   it("is asked the question by the launcher rather than answered there", () => {
-    expect(deckCode).toContain("unregisteredDetail({ file, claude: wantClaude })");
+    // The dash travels with it now, so this console can render it (#797).
+    expect(deckCode).toContain("unregisteredDetail({ file, claude: wantClaude, dash: G.dash })");
     expect(deckCode).toContain("claude: wantClaude");
     expect(deckCode).not.toContain("hooks find this deck through");
   });

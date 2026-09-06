@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.9": [
+    {
+      "title": "\ud83d\udda5\ufe0f Four things that only went wrong on somebody else's operating system",
+      "body": "**Ubuntu:** the deck knew where Chromium and Brave keep their profiles when installed as a snap or a flatpak \u2014 which on a default Ubuntu is the only place Chromium is \u2014 but not what those programs are called. So it reported them as not running while they were, and refused to quit them. Both now work.\n\n**Windows:** the deck asked the system whether it could write to the folder an update installs into, and Windows always answers yes for a folder whatever the permissions say. It offered you an update that then died inside npm with a permission error. It now finds out by trying, and declines up front with the command to run yourself \u2014 which is what every other platform already got.\n\n**Linux:** if `XDG_DATA_HOME` was set to something starting with `~`, as it is from a systemd unit or a Dockerfile, the deck and claude-swap looked in two different places for your accounts. The panel said you had none while `cswap list` showed them all.\n\n**Plain terminals:** six messages used a typographic dash the old Windows console and the Linux text console cannot draw, so a box appeared mid-sentence \u2014 including in the line that explains why no events are arriving. They use the plain form on those terminals now, like everything else already did."
+    }
+  ],
   "3.8.8": [
     {
       "title": "\ud83d\udcc9 A false 99% on the memory chart, and three other quiet failures",

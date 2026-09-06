@@ -76,6 +76,15 @@ const APP_NAME = {
     "chrome-beta": "chrome",
     "chrome-canary": "chrome",
     chromium: "chromium",
+    // The two roots `browserRoots` emits and this table used to miss (#794).
+    // The snap path's own comment there says it "is the only Chromium root a
+    // default Ubuntu install has" — so on stock Ubuntu the panel reported
+    // Chromium as not running while it was running, and the quit reaction,
+    // which `available("linux")` does offer, answered `unknown_browser` on
+    // every finding from either of them. darwin covers all 8 of its roots and
+    // win32 all 7 of its own; only this table was short.
+    "chromium-snap": "chromium",
+    "brave-flatpak": "brave",
     brave: "brave",
     edge: "msedge",
     vivaldi: "vivaldi-bin",

@@ -206,10 +206,16 @@ export async function closeTab(browserKey, url, platform = process.platform, dep
 
 /** Quit a browser. The only reaction that takes the session back. */
 export async function quitBrowser(browserKey, platform = process.platform, deps = {}) {
-  const app = appName(browserKey);
-  if (!app) return { ok: false, reason: "unknown_browser" };
   const exec = deps.run ?? run;
   if (platform === "darwin") {
+    // The darwin display-name table is consulted HERE rather than at the top of
+    // the function (#794). It used to gate every platform, so a browser missing
+    // from a macOS-only table — `chromium-snap` and `brave-flatpak`, the two
+    // roots a default Ubuntu install actually has — answered `unknown_browser`
+    // on Linux before the branch that would have known what to do with it was
+    // ever reached.
+    const app = appName(browserKey);
+    if (!app) return { ok: false, reason: "unknown_browser" };
     const r = await exec("osascript", [
       // `--`, as everywhere else that hands osascript an operand. `app` comes
       // from a fixed table so it is safe by construction; the separator costs
