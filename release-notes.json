@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.10.0": [
+    {
+      "title": "\ud83d\udd0c Who else can drive your browser, and where to see it",
+      "body": "**Browser Watch has a Remote control section.** The Claude in Chrome extension holds a connection open to Anthropic's relay, and that connection is registered against your **account**, not against this machine \u2014 so any Claude Code session signed in to the same account, running anywhere, can enumerate and drive this browser, and nothing prompts you on the machine being driven.\n\nThe panel now says whether that is the case here, and what the extension is actually allowed to do in each profile \u2014 enabled or switched off, every site or only the ones it was granted, and which of the powerful APIs it holds. That last part is not what `chrome://extensions` shows you: the per-site list there is enforced by the extension, on itself, while the grant underneath stays exactly as wide as it was.\n\nIf you want it closed, the section hands you the one command that closes it \u2014 as text, to paste in your own terminal. **ccdeck never runs it and never asks for your password**, and it never will: no part of this deck elevates, and a dashboard that could raise a password box on request would be a gift to anything else running on the machine. If the block is already in place, the section offers the command that takes it back out. And if something else in your hosts file already points that name somewhere, it says so and leaves the line alone \u2014 ccdeck only removes the line ccdeck wrote.\n\nAll of this is two file reads and no network call. It was written some releases ago and, until now, was not connected to any screen.\n\n**Also:** the README said `share` produces a `ccdeck1:` blob. It produces `ccdeck2:` \u2014 `ccdeck1:` has been read-only legacy for a while."
+    }
+  ],
   "3.9.0": [
     {
       "title": "\ud83c\udf9b\ufe0f Five switches that were not where the thing they control is",
