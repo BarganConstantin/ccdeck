@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
+import { compareVersions, isVersion, readNotes, RELEASE_NOTES, splitNoteTitle } from "../release-notes";
 
 /** A title that OPENS with an emoji, whatever comes after it — deliberately
  *  looser than splitNoteTitle's own pattern, which additionally demands the one
@@ -201,8 +201,27 @@ describe("shipping the file", () => {
     // of the range check in release-notes.ts. Pinned here as a claim about the
     // FILE rather than about the deck: at most one unreleased entry, so a typo
     // like "2.45.0" for "1.45.0" is caught the moment it is written.
-    const ahead = RELEASE_NOTES.filter(v => v.version > pkg.version).map(v => v.version);
-    expect(ahead.length).toBeLessThanOrEqual(1);
+    //
+    // THROUGH `compareVersions`, NOT `>`. This read `v.version > pkg.version`,
+    // a STRING comparison, and it was correct for every release up to 3.10.0
+    // and wrong for that one: "3.9.0" > "3.10.0" is true, because "9" > "1".
+    // Nineteen shipped releases read as unreleased and the tag's own CI went
+    // red on all three platforms. The module exports the numeric comparison
+    // this file already imports the rest of.
+    const ahead = RELEASE_NOTES.filter(v => compareVersions(v.version, pkg.version) > 0).map(v => v.version);
+    expect(ahead, `ahead of package.json ${pkg.version}`).toHaveLength(0);
+  });
+
+  it("compares versions numerically, which is what the case above turns on", () => {
+    // The bug, stated on its own so the fix above cannot quietly regress into a
+    // string compare that happens to pass while the minor stays one digit.
+    expect(compareVersions("3.10.0", "3.9.0")).toBeGreaterThan(0);
+    expect("3.10.0" > "3.9.0", "the string compare that shipped red").toBe(false);
+    expect(compareVersions("3.9.0", "3.10.0")).toBeLessThan(0);
+    expect(compareVersions("3.10.0", "3.10.0")).toBe(0);
+    // And the same shape one place up, for the day a major goes double digits.
+    expect(compareVersions("10.0.0", "9.9.9")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.10", "1.0.9")).toBeGreaterThan(0);
   });
 
   it("parses as the JSON a person hand-edits, trailing newline and all", () => {
