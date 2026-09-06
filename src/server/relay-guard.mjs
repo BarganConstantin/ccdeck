@@ -12,6 +12,11 @@
 // the one holding the user's logged-in sessions, so the question is worth a
 // panel rather than a footnote.
 //
+// WHERE IT SURFACES. The Browser Watch panel, under "Can this browser be
+// driven": the verdict, the grants each profile actually holds, and the
+// killswitch command as text to copy. `browser-watch.mjs`'s `relayGuard` does
+// the two reads this module refuses to do and calls everything below.
+//
 // WHAT THIS MODULE DOES. Two reads and a string. It says whether the extension
 // is installed and what it was granted (from a profile's "Secure Preferences",
 // which the caller parses), and whether the hosts file already black-holes the

@@ -155,6 +155,14 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-key dd",
       ".bw-loading p",
       ".bw-note",
+      // #799's Remote Control section: the verdict sentence and the notes
+      // qualifying it — "could not be read, so nothing is claimed either way",
+      // and why narrowing the sites in chrome://extensions does not help. Prose
+      // somebody reads once and acts on, in a block whose whole content is
+      // prose. The verdict overrides to --warn on `exposed` only, which is the
+      // same rule .bw-trouble follows: no colour for the ordinary state.
+      ".bw-rc-note",
+      ".bw-rc-verdict",
       ".bw-rest",
       ".bw-row-detail",
       ".bw-settings-note",

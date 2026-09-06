@@ -25,6 +25,7 @@ import UsagePanel from "./components/UsagePanel";
 import SystemMeter from "./components/SystemMeter";
 import AccountsPanel from "./components/AccountsPanel";
 import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFailureId } from "./restart";
+import { copyText } from "./copy-text";
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
@@ -1233,28 +1234,10 @@ function Inner() {
   const copyCommand = useCallback(async () => {
     const cmd = version?.command;
     if (!cmd) return;
-    // navigator.clipboard is undefined outside a secure context and can sit
-    // unresolved while the browser decides on permission, which would leave the
-    // button silently dead. Race it, and fall back to the old selection trick.
-    let ok = false;
-    try {
-      ok = await Promise.race([
-        navigator.clipboard?.writeText(cmd).then(() => true) ?? Promise.resolve(false),
-        new Promise<boolean>(r => window.setTimeout(() => r(false), 500)),
-      ]);
-    } catch { ok = false; }
-    if (!ok) {
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = cmd;
-        ta.setAttribute("readonly", "");
-        ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-        document.body.appendChild(ta);
-        ta.select();
-        ok = document.execCommand("copy");
-        ta.remove();
-      } catch { ok = false; }
-    }
+    // The ladder — secure-context clipboard raced against a timer, then the
+    // selection trick — moved to copy-text.ts when the Browser Watch killswitch
+    // became the second caller showing the user a command to paste.
+    const ok = await copyText(cmd);
     if (!ok) return; // the command stays on screen and selectable
     setCmdCopied(true);
     window.setTimeout(() => setCmdCopied(false), 1600);

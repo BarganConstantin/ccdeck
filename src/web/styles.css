@@ -7929,6 +7929,53 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .bw-key dt { font-size: 10px; font-weight: 600; color: var(--muted); }
 .bw-key dd { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
 
+/* REMOTE CONTROL (#799). The verdict carries the only colour in this block, and
+   only when it is bad news: `protected` and `nothing-exposed` are the ordinary
+   state, and a panel that paints "you are fine" in green on every render is one
+   its reader learns to skip — the same rule `.bw-trouble` follows two hundred
+   lines up. */
+.bw-rc-verdict {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.bw-rc-verdict.exposed { color: var(--warn); }
+.bw-rc-foreign {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.bw-rc-body { display: flex; flex-direction: column; gap: 8px; }
+.bw-rc-note { margin: 0; font-size: 10px; line-height: 1.5; color: var(--text-secondary); }
+/* The command is the thing a person is about to run as root, so it is
+   selectable by hand whatever the copy button does — `user-select: all` is the
+   same affordance `.bw-path` gives every other path on this panel. */
+.bw-rc-cmd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.bw-rc-cmd code {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+  color: var(--text);
+}
+button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
+
 /* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
    none of it was written where a reader could see — a visualization whose
    legend is a source comment is one nobody can read. */
