@@ -428,7 +428,18 @@ export default function BrowserWatchModal({
   // Reading the panel is what marks it read, and it is recorded on the way out
   // rather than on the way in: a dialog opened and dismissed in the same second
   // still counts, but the badge does not clear before the list has rendered.
-  useEffect(() => () => onSeen(Date.now()), [onSeen]);
+  // ON UNMOUNT, WHICH IS WHAT THIS ALWAYS CLAIMED TO BE (#782). The dependency
+  // was `[onSeen]`, and App hands a fresh arrow every render while re-rendering
+  // every 250ms from its own tick — so the cleanup WAS the 250ms loop. The
+  // badge cleared the moment the dialog opened rather than on the way out, any
+  // episode the 10s poll added while reading was stamped seen before it was
+  // ever badged, and localStorage was written four times a second.
+  //
+  // A ref for the callback and an empty dependency list, the pattern
+  // use-modal-dismiss.ts already uses for `onDismissRef`.
+  const onSeenRef = useRef(onSeen);
+  onSeenRef.current = onSeen;
+  useEffect(() => () => onSeenRef.current(Date.now()), []);
 
   const grouped = useMemo(() => {
     const out: { label: string; episodes: WatchEpisode[] }[] = [];

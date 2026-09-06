@@ -1,7 +1,7 @@
 // UsagePanel — floating panel showing aggregated token usage and cost
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
@@ -434,7 +434,15 @@ interface Props {
  * two ccusage children on the far side, and a panel that is open all afternoon
  * must not spawn them on a clock. The route caches per range anyway.
  */
-function useUsageRange(period: PeriodKey, refreshKey: number) {
+function useUsageRange(
+  period: PeriodKey,
+  refreshKey: number,
+  /** The board, right now, as a per-session map — called at the instant a
+   *  reading lands so the two are committed together. Stable by construction
+   *  in the caller (a ref-backed callback), because a changing identity here
+   *  would re-run the fetch on every 250ms tick. */
+  takeBaseline: () => ReadonlyMap<string, SessionUsage>,
+) {
   // THE ANSWER AND THE QUESTION IT ANSWERS, together.
   //
   // A bare `data` here was a defect: `period` moves the instant a chip is
@@ -490,7 +498,15 @@ function useUsageRange(period: PeriodKey, refreshKey: number) {
     setLoading(true);
     fetch(`/api/ccusage?since=${since}${force ? "&refresh=1" : ""}`)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (alive && d?.ok) { landedAtRef.current = Date.now(); setLanded({ period: want, data: d }); } })
+      // The baseline is taken HERE, in the same call that stores the reading
+      // (#784). Taken in a follow-up effect it was one render late, so the memo
+      // that reads it paired a new reading with the old starting point and the
+      // headline overshot by a minute of spend until the next tick.
+      .then(d => {
+        if (!alive || !d?.ok) return;
+        landedAtRef.current = Date.now();
+        setLanded({ period: want, data: d, baseline: takeBaseline() });
+      })
       // A deck that is down, or a ccusage that is not there. The panel says so
       // by falling back to the board, not by showing an error over numbers it
       // still has — and a failure leaves the last good reading standing rather
@@ -722,8 +738,16 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // refresh of the range already shown changes nothing they can act on, and
   // dimming for it would make the panel flicker every five minutes on its own
   // poll.
-  const { data: range, shown: shownPeriod, stale: rangeStale } =
-    useUsageRange(period, rangeRefresh);
+  // What the board sums to right now, behind a stable identity. `state` and
+  // `now` move constantly, so handing the hook a fresh closure would re-run its
+  // fetch on every 250ms tick; the ref is reassigned each render and the
+  // callback that reads it never changes.
+  const boardNowRef = useRef<() => ReadonlyMap<string, SessionUsage>>(() => new Map());
+  boardNowRef.current = () => boardBySession(state.agents.values(), now);
+  const takeBaseline = useCallback(() => boardNowRef.current(), []);
+
+  const { data: range, shown: shownPeriod, stale: rangeStale, baseline } =
+    useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
 
   // The board's own names, by session id. ccusage knows what a session cost and
@@ -804,17 +828,12 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // own table rather than by ccusage's — they agree on every model both know,
   // and where they do not it is a minute of one session's spend, corrected at
   // the next reading. See live-delta.ts.
-  const baselineRef = useRef<Map<string, SessionUsage> | null>(null);
-  useEffect(() => {
-    baselineRef.current = range ? boardBySession(state.agents.values(), now) : null;
-    // `range` identity moves only when a reading lands, which is exactly when
-    // the baseline should be re-taken.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
-
+  // No effect and no ref: `baseline` arrives from the hook inside the same
+  // object as the reading it belongs to, so there is no render on which this
+  // memo can pair one with the other's starting point (#784).
   const delta = useMemo(
-    () => (fromRange ? liveDelta(baselineRef.current, boardBySession(state.agents.values(), now)) : NO_DELTA),
-    [state, state.revision, range, fromRange, now],
+    () => (fromRange ? liveDelta(baseline, boardBySession(state.agents.values(), now)) : NO_DELTA),
+    [state, state.revision, baseline, fromRange, now],
   );
 
   // Every figure and its source, paired in one place — usage-from-ccusage.ts,

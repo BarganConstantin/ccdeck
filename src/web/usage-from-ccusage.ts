@@ -247,8 +247,40 @@ export function rangeTotals(range: UsageRange | null | undefined): RangeTotals {
 // So the decisions moved here, where they can be called. What is left in the
 // component is markup reading their answers.
 
-/** One reading, and the period it answers — what the fetch hands back. */
-export interface Landed { period: PeriodKey; data: UsageRange }
+/** What the board summed to, per session — `SessionUsage` from live-delta.ts,
+ *  spelled structurally so the shaping layer does not depend on the graph's
+ *  types. */
+export interface SessionTotals {
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+}
+
+/**
+ * One reading, the period it answers, and the board as it stood when it landed.
+ *
+ * THE BASELINE TRAVELS WITH THE READING (#784). It used to be written into a
+ * ref by an effect keyed on `[range]` and read by a memo keyed on `[…, range,
+ * …]` — and React runs the memo during render and the effect after commit, so
+ * on the render where a new reading arrived the memo still held the PREVIOUS
+ * baseline. The delta then covered the whole minute the new reading already
+ * contained, and the headline overshot until the next 250ms tick, with
+ * `useCountUp` animating towards the wrong number on the way.
+ *
+ * Committing them together removes the ordering rather than getting it right:
+ * there is no render on which the two can disagree, because they are one
+ * object set by one call.
+ */
+export interface Landed {
+  period: PeriodKey;
+  data: UsageRange;
+  /** Null on a build or a test that does not supply one; `liveDelta` already
+   *  answers NO_DELTA for a null baseline, which is the honest answer for a
+   *  reading whose starting point nobody recorded. */
+  baseline: ReadonlyMap<string, SessionTotals> | null;
+}
 
 /** What the panel is currently showing, as opposed to what was last pressed. */
 export interface RangeView {
@@ -259,6 +291,10 @@ export interface RangeView {
   /** A slower period was pressed and has not answered; the figures are the
    *  previous period's and are dimmed rather than blanked. */
   stale: boolean;
+  /** The board as it stood when `data` landed — what the live delta is measured
+   *  from. Travels with the reading so no render can pair one with the other's
+   *  starting point. */
+  baseline: ReadonlyMap<string, SessionTotals> | null;
 }
 
 /**
@@ -274,6 +310,7 @@ export function rangeView(landed: Landed | null, pressed: PeriodKey): RangeView 
     data: landed?.data ?? null,
     shown: landed?.period ?? null,
     stale: landed != null && landed.period !== pressed,
+    baseline: landed?.baseline ?? null,
   };
 }
 

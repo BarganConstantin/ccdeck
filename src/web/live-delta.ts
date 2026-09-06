@@ -103,8 +103,11 @@ export function boardBySession(agents: Iterable<CountableAgent>, now?: number): 
  * work it has WATCHED happen, never work it has merely learned about.
  */
 export function liveDelta(
-  baseline: Map<string, SessionUsage> | null,
-  current: Map<string, SessionUsage>,
+  // ReadonlyMap: this function only reads it, and the baseline now travels
+  // inside the landed reading (#784) rather than living in a ref this module's
+  // caller owns — a type that permitted writes would invite putting it back.
+  baseline: ReadonlyMap<string, SessionUsage> | null,
+  current: ReadonlyMap<string, SessionUsage>,
 ): LiveDelta {
   if (!baseline) return NO_DELTA;
   const out: LiveDelta = { ...NO_DELTA };

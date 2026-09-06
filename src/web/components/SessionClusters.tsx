@@ -295,7 +295,23 @@ function rootName(d: AgentNodeData): string | undefined {
   return sessionDisplay(d.sessionName, d.sessionTitle).face;
 }
 
-export default function SessionClusters() {
+/**
+ * `onFit` is not decoration (#785).
+ *
+ * Every camera move the DECK makes has to say so, because `isUserViewportGesture`
+ * cannot tell one from a drag: `fitView`'s animation emits `onMove` with no
+ * source event, and the last branch of that predicate falls back to "was there
+ * a pointerdown on the canvas recently" — which there was, since the press that
+ * asked for this fit landed on `<main onPointerDownCapture={markCanvasInput}>`.
+ * So the deck read its own move as the user grabbing the canvas, called
+ * `disableAutoFit()`, and wrote it to localStorage: clicking a session's name
+ * silently turned auto-fit off for good, across reloads, with nothing said.
+ *
+ * App's own `focusSession` stamps `lastFitTimeRef` immediately after its
+ * `fitView` for exactly this reason. This component had no way to reach that
+ * ref, which is the whole of why it was the one fit that did not.
+ */
+export default function SessionClusters({ onFit }: { onFit?: () => void }) {
   const { x, y, zoom } = useViewport();
   const rf = useReactFlow();
   const clusters = useStore(selectClusters, shallowEqualClusters);
@@ -312,6 +328,9 @@ export default function SessionClusters() {
       });
       if (nodes.length === 0) return;
       rf.fitView({ padding: 0.3, duration: 500, nodes });
+      // After the call and inside the try, the same placement App uses: a fit
+      // that threw moved no camera and has nothing to disown.
+      onFit?.();
     } catch {}
   };
 

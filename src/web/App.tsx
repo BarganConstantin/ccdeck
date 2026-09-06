@@ -3927,7 +3927,18 @@ function Inner() {
         onWheelCapture={markCanvasInput}
       >
         {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} />}
-        {presentCats.length > 1 && (
+        {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
+            bar was gated on categories present on the canvas NOW, while the
+            filter is independent state that nothing trims — so hide a category,
+            let the canvas turn over (it evicts finished sessions on a timer),
+            and the bubbles were suppressed with no chip anywhere to press. Not
+            recoverable by Clear either: `hiddenCats` survives it. The only way
+            back was a page reload, which a user has no reason to suspect.
+            The filter is kept rather than trimmed on eviction, because it is a
+            choice the user made and forgetting it silently is the other way to
+            be wrong. What must never happen is keeping the choice and taking
+            away the control. */}
+        {(presentCats.length > 1 || hiddenCats.size > 0) && (
           /* role="group", not role="toolbar". A toolbar is a promise about
              keyboard behaviour — one tab stop for the whole set, arrow keys
              between the members — and this bar implements none of it: every
@@ -4117,7 +4128,10 @@ function Inner() {
           }}
         >
           <Background gap={28} size={1} color={palette["--grid-line"]} />
-          <SessionClusters />
+          {/* The stamp that keeps a click on a session's name from reading as
+              the user grabbing the canvas — see the note on the component
+              (#785). Same line App's own focusSession runs after its fitView. */}
+          <SessionClusters onFit={() => { lastFitTimeRef.current = Date.now(); }} />
           <ToolBursts
             agents={stateRef.current.agents}
             visibleAgentIds={visibleAgentIds}

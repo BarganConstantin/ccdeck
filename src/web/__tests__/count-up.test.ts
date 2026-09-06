@@ -184,16 +184,23 @@ describe("what the panel counts, and what it leaves alone", () => {
     // the count is driven from has to be the live one, or the panel would count
     // smoothly towards a number that stops moving between polls.
     expect(panel).toContain("const delta = useMemo(");
-    expect(panel).toContain("liveDelta(baselineRef.current, boardBySession(state.agents.values(), now))");
+    expect(panel).toContain("liveDelta(baseline, boardBySession(state.agents.values(), now))");
     expect(panel).toContain("const figures = panelFigures(range,");
     expect(panel).toContain("const shownCost   = useCountUp(figures.cost);");
   });
 
-  it("re-takes the baseline exactly when a reading lands", () => {
+  it("takes the baseline in the same call that stores the reading", () => {
     // Any oftener and the delta would forget spend ccusage has not seen yet;
     // any rarer and it would count the same tokens twice.
-    expect(panel).toContain("baselineRef.current = range ? boardBySession(state.agents.values(), now) : null;");
-    expect(panel).toMatch(/\}, \[range\]\);/);
+    //
+    // It used to be an effect keyed on `[range]`, read by a memo keyed on the
+    // same thing — and React runs the memo during render and the effect after
+    // commit, so the memo held the PREVIOUS baseline on the render a reading
+    // arrived and the headline overshot by a minute (#784). Committing both in
+    // one `setLanded` removes the ordering rather than getting it right.
+    expect(panel).toContain("setLanded({ period: want, data: d, baseline: takeBaseline() });");
+    expect(panel, "the baseline is back in an effect of its own")
+      .not.toContain("baselineRef.current =");
   });
 
   it("gates the cache figures on the true value, not the counted one", () => {

@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.7": [
+    {
+      "title": "\ud83e\udde0 Four things in the panel that behaved wrongly",
+      "body": "**Today's figure no longer overshoots.** Once a minute, when a fresh reading landed, the headline briefly counted past the true number and back down \u2014 it was measuring the last minute of spend from a starting point one moment out of date. The reading and its starting point are now recorded together, so there is no moment where they can disagree.\n\n**Browser Watch marks findings read when you close it, not when you open it.** It was clearing the badge immediately, and stamping every new finding as read the moment it arrived \u2014 so anything that turned up while you were reading was never badged at all. It was also writing to storage four times a second the whole time the panel was open.\n\n**A hidden tool category can always be brought back.** Hide one, leave the deck running, and once the canvas had turned over the row of chips disappeared while the filter stayed on \u2014 no bubbles, and nothing to press. Only reloading fixed it. The chips now stay for as long as anything is hidden.\n\n**Clicking a session's name no longer switches auto-fit off.** The deck was reading its own camera move as you grabbing the canvas, and remembered it across restarts, with nothing said."
+    }
+  ],
   "3.8.6": [
     {
       "title": "\ud83d\uddc2\ufe0f Two decks can no longer both claim the same log",
