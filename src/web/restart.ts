@@ -133,6 +133,16 @@ export type RestartGate = {
   kind: string | null | undefined;
   /** The server's own verdict: supervised, and writing an event log. */
   canRestart: boolean;
+  /** Whether the notice is actually ON SCREEN — not merely present (#804).
+   *
+   *  The `auto when idle` switch renders inside the banner and nowhere else, so
+   *  arming this behaviour while the banner is dismissed puts the deck in a
+   *  state that restarts the server, unasked, with no control anywhere in the
+   *  app to stop it. Gating on the same condition the switch renders under
+   *  makes those two things one: the behaviour is armed exactly when its switch
+   *  is in front of the user. Pressing the banner's `×` is then a legible
+   *  "not now", and the version chip brings both back together. */
+  noticeOpen: boolean;
   /** Any agent currently running. */
   busy: boolean;
   /** When the current quiet stretch began, or null if it has not begun. */
@@ -158,7 +168,7 @@ export type RestartStep = {
  */
 export function autoRestartStep(g: RestartGate): RestartStep {
   const threshold = g.thresholdMs ?? IDLE_BEFORE_RESTART_MS;
-  if (!g.enabled || g.kind !== "restart" || !g.canRestart) return { idleSince: null, restart: false };
+  if (!g.enabled || g.kind !== "restart" || !g.canRestart || !g.noticeOpen) return { idleSince: null, restart: false };
   if (g.busy) return { idleSince: null, restart: false };
   if (g.idleSince == null) return { idleSince: g.now, restart: false };
   // Clocks move backwards — a laptop waking, an NTP correction — and a negative

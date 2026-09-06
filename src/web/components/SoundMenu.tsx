@@ -83,6 +83,16 @@ interface Props {
    *  start. The switch stays operable either way: the preference is still the
    *  user's to record. */
   notifyVetoed: boolean;
+  /** What the BROWSER says, which is a third question again (#801). The switch
+   *  read "on" while the in-page notifier was permanently silent, because that
+   *  notifier begins `if (Notification.permission !== "granted") return;` and
+   *  nothing in this menu had ever mentioned a permission. A user turned a
+   *  switch on, saw "on", and got silence from the tab. */
+  notifyPermission: "default" | "granted" | "denied" | "unsupported";
+  /** Raise the browser's permission prompt. Only offered while the permission
+   *  is still askable — a refusal cannot be re-asked by any page, which is why
+   *  the row says where the switch is instead. */
+  onAskNotify: () => void;
   /** The button that opened this, so the outside-press rule can leave it alone
    *  — its own onClick is what closes the menu on a second press. */
   openerRef: RefObject<HTMLElement | null>;
@@ -90,7 +100,7 @@ interface Props {
 
 export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
-  notifyOn, onToggleNotify, notifyVetoed,
+  notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -160,6 +170,33 @@ export default function SoundMenu({
           {notifyVetoed ? "off — set at launch" : notifyOn ? "on" : "off"}
         </span>
       </button>
+
+      {/* THE OTHER HALF OF THE ANSWER (#801). The switch above is the deck's;
+          this line is the browser's, and the two are different questions. With
+          the switch on and the permission unasked, the deck's own notifier —
+          the one that fires when no page is open — works, and the page's does
+          not; saying only "on" was a promise the tab could not keep.
+          The ask lives HERE rather than only on the blocked-count button,
+          because that button appears solely while a session is stuck, so on a
+          machine whose sessions rarely block the feature could not be switched
+          on at all. Nothing is requested until this row is pressed.
+          "denied" gets a sentence and no button: no page may re-raise a refused
+          prompt, and a control that silently does nothing is the failure
+          browser-react.mjs refuses to ship for its own reactions. */}
+      {notifyOn && !notifyVetoed && notifyPermission !== "granted" && (
+        notifyPermission === "default" ? (
+          <button type="button" className="btn sm-notice" onClick={onAskNotify}>
+            <span className="sm-notice-text">This browser has not been asked yet</span>
+            <span className="sm-notice-act">ask now</span>
+          </button>
+        ) : (
+          <p className="sm-note sm-notice-note">
+            {notifyPermission === "denied"
+              ? "This browser is blocking notifications from the deck. Only its own site settings can undo that — no page is allowed to ask again."
+              : "This browser cannot show notifications, so only the deck's own desktop notification will arrive."}
+          </p>
+        )
+      )}
 
       {CHIME_ORDER.map(chime => {
         const tone = prefs[chime];

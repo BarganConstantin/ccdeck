@@ -308,6 +308,14 @@ export default function BrowserWatchModal({
   const dialogRef = useModalDismiss(onClose);
   const [snap, setSnap] = useState<WatchSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* A FAILED WRITE IS NOT A FAILED READ (#803). Both used to land in `error`,
+     which the render captioned "Could not read" and the ten-second poll cleared
+     on its next success — so pressing the switch and having it fail showed a
+     sentence about reading history, and ten seconds later showed nothing at
+     all, with the setting still where it was. A write gets its own slot, its
+     own wording, and no poll may touch it: it stands until the user dismisses
+     it or a later write succeeds. */
+  const [writeError, setWriteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   /* Null until the first snapshot answers. The stored value is the truth and
@@ -316,6 +324,10 @@ export default function BrowserWatchModal({
   const [quiet, setQuiet] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /* Read by `load`, which must not take `saving` as a dependency: it would
+     rebuild the callback on every save and restart both the mount fetch and the
+     ten-second interval that are keyed on it. */
+  const savingRef = useRef(false);
   const [why, setWhy] = useState(false);
   const [access, setAccess] = useState(false);
   const [showKey, setKey] = useState(false);
@@ -358,7 +370,15 @@ export default function BrowserWatchModal({
       // Follow the store, except while a save is in flight — the optimistic
       // value the user just picked must not be overwritten by a snapshot that
       // was already on its way out when they picked it.
-      setQuiet(q => (q === null ? next?.settings?.quietMinutes ?? 15 : q));
+      //
+      // THE IN-FLIGHT CONDITION THE COMMENT ALWAYS CLAIMED (#803). It read
+      // `q === null ? … : q`, which only ever writes on the transition out of
+      // null — so after the first snapshot the local value won forever, while
+      // the paragraph two hundred pixels above rendered
+      // `snap.settings.quietMinutes` straight from the server. Change it from a
+      // second tab, or while the deck is briefly unreachable, and one dialog
+      // stated two different settings with nothing able to correct it.
+      if (!savingRef.current) setQuiet(next?.settings?.quietMinutes ?? 15);
       onWatching(next?.settings?.enabled === true);
       setError(null);
     } catch (e) {
@@ -409,6 +429,7 @@ export default function BrowserWatchModal({
    *  the watch runs on, and a client that kept its own copy would disagree with
    *  it the moment a second tab was open. */
   const save = useCallback(async (patch: Partial<WatchSettings>) => {
+    savingRef.current = true;
     setSaving(true);
     try {
       const r = await fetch("/api/browser-watch", {
@@ -418,9 +439,11 @@ export default function BrowserWatchModal({
       });
       if (!r.ok) throw new Error(`the deck answered ${r.status}`);
       await load(false);
+      setWriteError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setWriteError(e instanceof Error ? e.message : String(e));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [load]);
@@ -917,6 +940,29 @@ export default function BrowserWatchModal({
                     </dd>
                   </dl>
                 )}
+              </div>
+            </div>
+          )}
+
+          {writeError && (
+            /* BESIDE THE CONTROLS, NOT AT THE TOP (#803). Every write in this
+               dialog starts down here — the switch in the footer and the two
+               selects in Settings — and a body that scrolls would have put the
+               report of the failure off screen above the press that caused it.
+               It has a dismiss of its own because nothing else may clear it:
+               the poll that used to is a READ succeeding, which says nothing
+               about whether the setting was stored. */
+            <div className="bw-state bw-write-err" role="alert">
+              <div className="bw-row err">
+                <span className="bw-dot" aria-hidden />
+                <span className="bw-row-label">Could not save that setting</span>
+                <span className="bw-row-detail">{writeError} — the switches below show what is stored, not what you pressed.</span>
+                <button
+                  className="glyph-btn bw-write-err-x"
+                  onClick={() => setWriteError(null)}
+                  aria-label="Dismiss"
+                  title="Dismiss"
+                >×</button>
               </div>
             </div>
           )}

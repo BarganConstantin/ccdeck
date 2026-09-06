@@ -385,33 +385,35 @@ describe("what each of the four toggles announces", () => {
     }
     expect(usagePanel).toMatch(/id="usage-panel"/);
     expect(accountsPanel).toMatch(/id="accounts-panel"/);
-    // `id="session-list"` is not asserted here any more: with no toggle
-    // pointing at it there is no IDREF for this case to be about. It is still
-    // pinned, by landmark-outline.test.ts, as one of the three panels whose
-    // class, id and aria-label are the same shape (#381).
+    // And the session list is back in the enumeration (#800), under the same
+    // rule as the other two rather than as an exception to it.
+    expect(button("Toggle session list"))
+      .toMatch(/aria-controls=\{sessionListOpen \? "session-list" : undefined\}/);
+    expect(sessionList).toMatch(/id="session-list"/);
   });
 
-  it("keeps no control at all for the session list, and no state to announce", () => {
-    // The removal, stated as the thing that must stay true. Both halves: the
-    // button is gone from the markup, and so is the ☰ it was drawn as — a
-    // second control reusing the glyph would fail this rather than sneak in.
-    expect(app).not.toMatch(/aria-label="Toggle session list"/);
-    expect(app).not.toContain("☰");
-    // And the finding that comes with it, written down rather than papered
-    // over: aria-expanded on that button was the only report of this panel's
-    // open state anywhere in the deck, and nothing replaces it. What the panel
-    // still has is a name, as a complementary landmark the rotor lists.
+  it("has a control on screen for the session list, not only a key (#800)", () => {
+    // THE REMOVAL IS REVERSED, and the reason is worth keeping beside the
+    // reason it was removed. Taking the button out left `L` as the only route,
+    // and the only place `L` is written down is the shortcuts sheet — reached
+    // through a small `?` in the canvas control stack, which a mouse-only user
+    // has no reason to open and a first-run user has never seen. The argument
+    // that removed it was about width, and it was about the three TEXT buttons
+    // that went with it; a 24px glyph is not that.
+    expect(app).toMatch(/aria-label="Toggle session list"/);
+    expect(app).toContain("☰");
+    // It reports its state, which is what the removal cost: aria-expanded on
+    // this button was the only announcement of the panel's open state anywhere
+    // in the deck.
+    expect(button("Toggle session list")).toMatch(/aria-expanded=\{sessionListOpen\}/);
+    // The panel keeps its landmark name either way.
     expect(sessionList).toMatch(/<aside className="session-list" id="session-list" aria-label="Sessions">/);
-    // Enumerated rather than asked of `sessionListOpen` alone, so a control
-    // that came back under another state name would fail here too.
-    // `soundMenuOpen` joined the list in #711 and it is the same rule, not an
-    // exception to it: the topbar speaker stopped being a setting-toggle and
-    // became a disclosure for a popover, so it reports what it discloses. The
-    // enumeration is the point — a control that came back under another state
-    // name still fails here.
+    // Still enumerated rather than asked of one state name, so a control that
+    // appeared under some other state would fail here. `soundMenuOpen` joined
+    // in #711 for its own reason — the topbar speaker became a disclosure for a
+    // popover — and `sessionListOpen` rejoins here.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "soundMenuOpen", "usagePanelOpen"]);
-    expect(app).not.toMatch(/aria-controls=\{sessionListOpen/);
+    expect(expandeds).toEqual(["accountsPanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {
@@ -432,9 +434,10 @@ describe("what each of the four toggles announces", () => {
     // the key falls through to clearing the canvas selection. Pinned so the
     // sentence above stays checkable.
     expect(sessionList).not.toMatch(/useModalDismiss|modalStack/);
-    // Which leaves the shortcuts sheet as the only place the feature is
-    // discoverable from, so it is load-bearing now rather than a reminder.
+    // The sheet still lists it, and the button's own title names the key — so
+    // the control teaches the shortcut rather than replacing it (#800).
     expect(app).toMatch(/<kbd>L<\/kbd><span>session list<\/span>/);
+    expect(button("Toggle session list")).toContain("session list (L)");
   });
 
   it("moved the sound button's aria-pressed onto the switch inside the menu it now opens", () => {

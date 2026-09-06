@@ -1472,13 +1472,16 @@ function Inner() {
       enabled: autoRestart,
       kind: notice?.kind,
       canRestart: version?.canRestart === true,
+      // #804: the same condition the switch renders under, so the deck never
+      // restarts itself at a moment when nothing on screen offers to stop it.
+      noticeOpen,
       busy,
       idleSince: idleSinceRef.current,
       now,
     });
     idleSinceRef.current = step.idleSince;
     if (step.restart) askRestart();
-  }, [autoRestart, notice?.kind, version?.canRestart, now, askRestart]);
+  }, [autoRestart, notice?.kind, version?.canRestart, noticeOpen, now, askRestart]);
 
   // Landed — here, or in the bundle that is about to replace this one. The page
   // is code too and nothing else reloads it, so both outcomes hang off the same
@@ -3470,6 +3473,26 @@ function Inner() {
                 pixels and the accessibility tree cannot drift apart. #370 counted
                 five; the session list's button has since been removed from the
                 row and the rule is unchanged for the four that are left. */}
+            {/* AND IT IS BACK (#800). Removing it left `L` as the ONLY way to
+                open the sidebar — and the README leads with what that sidebar
+                shows: "every session stopped on a human is at the top of the
+                sidebar with the wait beside it". On a fresh install the detail
+                rail is closed too, and that rail is where the `L session list`
+                row lives, so the only route was: notice the small ? in the
+                canvas control stack, open the sheet, read `L`. A mouse-only
+                user had none at all.
+                The count above is now five again, and the argument that
+                removed this one — width in the middle of the bar — was about
+                the three TEXT buttons that went with it, not about a 24px
+                glyph. */}
+            <button
+              className="btn icon-btn"
+              onClick={toggleSessionList}
+              title={`${sessionListOpen ? "Hide" : "Show"} session list (L)`}
+              aria-label="Toggle session list"
+              aria-expanded={sessionListOpen}
+              aria-controls={sessionListOpen ? "session-list" : undefined}
+            >☰</button>
             <button
               className="btn icon-btn"
               onClick={() => setUsagePanelOpen(o => !o)}
@@ -3634,6 +3657,8 @@ function Inner() {
                   notifyOn={notifyOn}
                   onToggleNotify={toggleNotify}
                   notifyVetoed={notifyVetoed}
+                  notifyPermission={notifySupported ? notifyPermission : "unsupported"}
+                  onAskNotify={askForNotifications}
                   openerRef={soundButtonRef}
                 />
               )}
@@ -3926,7 +3951,7 @@ function Inner() {
         onPointerUpCapture={markCanvasInput}
         onWheelCapture={markCanvasInput}
       >
-        {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} />}
+        {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} />}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,
@@ -4406,7 +4431,9 @@ function Inner() {
   );
 }
 
-function EmptyHero({ live, everConnected, providers }: { live: boolean; everConnected: boolean; providers: Providers }) {
+function EmptyHero({ live, everConnected, providers, workspace }: {
+  live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
+}) {
   const offline = !live;
   return (
     <div className="empty-hero">
@@ -4425,20 +4452,37 @@ function EmptyHero({ live, everConnected, providers }: { live: boolean; everConn
             page will resume automatically.
           </p>
         </>
-      ) : agentNoneCopy(providers)}
+      ) : agentNoneCopy(providers, workspace)}
     </div>
   );
 }
 
-function agentNoneCopy(providers: Providers) {
+function agentNoneCopy(providers: Providers, workspace: string | null) {
+  // THE SCOPE SENTENCE BELONGS HERE, not only in the detail rail (#802). This
+  // hero said "run it in any folder" whatever the deck was watching, and the
+  // one user for whom the canvas stays empty is exactly the one who started it
+  // with --scope or --workspace and then ran an agent outside that tree. They
+  // were told to do the thing that will not work, and then sent to inspect
+  // ~/.claude/settings.json and $CODEX_HOME for a filter they had set
+  // themselves. scope.ts's own header says it exists because "the one piece of
+  // text that appears when nothing shows up told that user scope could not be
+  // the cause" — and it still did, for anyone who had not opened the rail,
+  // which is closed on a fresh install.
+  const scope = emptyScope(workspace);
   return (
     <>
       <h2>Waiting for Claude Code or Codex</h2>
-      <p>
-        Run <code>claude</code> or <code>codex</code> in any folder. As soon as
-        a session sends an event, a node appears here and grows as subagents
-        fork and tools are called.
-      </p>
+      {scope.kind === "scoped" ? (
+        <p>
+          {scope.lead} <code>{scope.workspace}</code>{scope.tail}
+        </p>
+      ) : (
+        <p>
+          Run <code>claude</code> or <code>codex</code> in any folder. As soon as
+          a session sends an event, a node appears here and grows as subagents
+          fork and tools are called.
+        </p>
+      )}
       {/* This used to be one sentence for both CLIs, and it sent Codex users to
           install `~/.codex/hooks.json` and grant it `/hooks` trust — work the
           deck stopped doing before it ever shipped, on a file it opens only to

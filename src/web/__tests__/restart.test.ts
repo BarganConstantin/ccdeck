@@ -12,6 +12,7 @@ const ok = {
   enabled: true,
   kind: "restart" as string | null | undefined,
   canRestart: true,
+  noticeOpen: true,
   busy: false,
   idleSince: null as number | null,
   now: NOW,
@@ -54,6 +55,23 @@ describe("autoRestartStep", () => {
     expect(autoRestartStep({ ...stale, kind: "upgrade" }).restart).toBe(false);
     expect(autoRestartStep({ ...stale, kind: null }).restart).toBe(false);
     expect(autoRestartStep({ ...stale, kind: undefined }).restart).toBe(false);
+  });
+
+  it("does nothing while the banner holding the switch is dismissed (#804)", () => {
+    // The behaviour and its only control were gated on different things: the
+    // switch renders inside `noticeOpen && notice`, the effect was keyed on
+    // `notice?.kind`. Dismiss the banner with its × and the deck would still
+    // exit, respawn and reload the page thirty seconds after the last agent
+    // went quiet, with nothing on screen having offered to stop it.
+    const stale = { ...ok, idleSince: NOW - 10 * IDLE_BEFORE_RESTART_MS };
+    expect(autoRestartStep({ ...stale, noticeOpen: false }))
+      .toEqual({ idleSince: null, restart: false });
+    // And the clock is reset rather than paused, like every other
+    // disqualification here: bringing the banner back buys a full window, not
+    // whatever was left of the old one.
+    expect(autoRestartStep({ ...ok, noticeOpen: false }).idleSince).toBeNull();
+    // The other direction, so the gate is not simply "never".
+    expect(autoRestartStep(stale).restart).toBe(true);
   });
 
   it("obeys the server when it says a restart is impossible", () => {
