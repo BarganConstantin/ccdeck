@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error — a plain .mjs module, no types
-const { launchers, startCommand, isOpenable, normalizeOpenable, isWsl, openUrl, LAUNCH_GRACE_MS } =
+const { launchers, startCommand, normalizeOpenable, isWsl, openUrl, LAUNCH_GRACE_MS } =
   await import("../../server/open-url.mjs");
 
 const URL_ = "http://127.0.0.1:4317";
@@ -130,10 +130,15 @@ describe("isWsl", () => {
   });
 });
 
-describe("isOpenable", () => {
+describe("normalizeOpenable", () => {
+  // THE ONLY GUARD, AND NOW THE ONLY ONE ASKED (#798). These two cases called
+  // `isOpenable`, a boolean wrapper whose sole caller was this file — so the
+  // suite pinned a function `openUrl` does not run, and the two could have
+  // drifted apart with nothing going red. The wrapper is gone; the claims are
+  // unchanged and are made against what ships.
   it("takes http and https and nothing else", () => {
-    expect(isOpenable("http://127.0.0.1:4317")).toBe(true);
-    expect(isOpenable("https://example.com/x")).toBe(true);
+    expect(normalizeOpenable("http://127.0.0.1:4317")).not.toBeNull();
+    expect(normalizeOpenable("https://example.com/x")).not.toBeNull();
   });
 
   it("refuses everything a launcher would happily run", () => {
@@ -141,7 +146,7 @@ describe("isOpenable", () => {
     // against a hostile input today. It is guarding against the day a second
     // caller passes a path, because `start` would EXECUTE it.
     for (const bad of ["file:///etc/passwd", "/tmp/x.sh", "C:\\x.bat", "javascript:alert(1)", "", null, undefined]) {
-      expect(isOpenable(bad as any)).toBe(false);
+      expect(normalizeOpenable(bad as any), String(bad)).toBeNull();
     }
   });
 });
@@ -271,7 +276,6 @@ describe("what reaches the launcher", () => {
 
   it("still refuses everything that is not http(s)", () => {
     for (const bad of ["file:///etc/passwd", "javascript:alert(1)", "vbscript:x", "data:text/html,x", "", "not a url"]) {
-      expect(isOpenable(bad), bad).toBe(false);
       expect(normalizeOpenable(bad), bad).toBe(null);
     }
   });

@@ -29,7 +29,8 @@
 import { describe, it, expect } from "vitest";
 import { applyEvent, BLOCK_GUESS_WINDOW_MS, initialState } from "../reducer";
 import type { GraphState } from "../reducer";
-import { blockedToolLabel, blockedToolTooltip } from "../components/AgentNode";
+import { blockedToolTooltip } from "../components/AgentNode";
+import { guessLine } from "../notify";
 import type { HookEnvelope, HookPayload, WaitingBlock } from "../types";
 
 const SESSION = "sess-blocked-tool";
@@ -212,19 +213,32 @@ describe("how the guess is worded", () => {
   const withTool = (tool?: { name: string; preview: string }): WaitingBlock =>
     ({ kind: "permission", message: PERMISSION.message, since: T0, ...(tool ? { tool } : {}) });
 
+  // THROUGH `guessLine`, WHICH IS WHAT SHIPS (#798). These three used to call
+  // `blockedToolLabel`, an export in AgentNode.tsx that nothing but this file
+  // reached: both real surfaces — the notification body and the sidebar tooltip
+  // — go through notify.ts's `guessLine`, whose own header says why ("ONE
+  // FUNCTION BECAUSE THERE ARE TWO SURFACES"). A test-only export lets the
+  // pinned wording and the shipped wording drift apart with nothing going red,
+  // so the function is gone and the claims are made against the real one.
+  //
+  // `guessLine` takes the sentence it will sit under and de-duplicates against
+  // it, so a sentence that does NOT name the tool is what asks it for the long
+  // form these cases are about.
+  const UNNAMED = "Claude needs your permission";
+
   it("puts the name first and the preview after it", () => {
-    expect(blockedToolLabel(withTool({ name: "Bash", preview: "rm -rf node_modules" })))
+    expect(guessLine(withTool({ name: "Bash", preview: "rm -rf node_modules" }), UNNAMED))
       .toBe("Bash · rm -rf node_modules");
   });
 
   it("drops the separator when there is no preview", () => {
     // A trailing "Bash · " reads as a truncation and sends the user looking for
     // the rest of a sentence that does not exist.
-    expect(blockedToolLabel(withTool({ name: "Bash", preview: "" }))).toBe("Bash");
+    expect(guessLine(withTool({ name: "Bash", preview: "" }), UNNAMED)).toBe("Bash");
   });
 
   it("is null when there is no guess, so callers render nothing at all", () => {
-    expect(blockedToolLabel(withTool())).toBeNull();
+    expect(guessLine(withTool(), PERMISSION.message)).toBeNull();
     expect(blockedToolTooltip(withTool(), PERMISSION.message)).toBeNull();
   });
 

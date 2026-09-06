@@ -86,6 +86,12 @@ const RETIRED = [
   "chips", "tool-chip", "chips-empty", "chips-more",
   "now-running", "now-dot", "now-label", "now-tool", "now-time",
   "up-quota-header", "ctx-window-num",
+  // #495 removed the `/`-search and left one orphan line inside the
+  // reduced-motion selector list — no base rule, no component emitting it, and
+  // neither hygiene test looking: this one reads a fixed watchlist, and
+  // unstyled-class.test.ts runs markup to CSS rather than CSS to markup. On the
+  // list now, so the stylesheet cannot grow the name back on its own (#798).
+  "search-clear",
 ];
 /** Live neighbours of the retired names, several of them near-homographs. */
 const LIVE = ["tool-burst", "model-chip", "cat-chip", "ctx-window-pct", "up-quota-section"];

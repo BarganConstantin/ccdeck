@@ -15,7 +15,7 @@
 // lines instead of a 46 MB fixture.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
-import { readSessionNaming } from "../../server/index.mjs";
+import { foldSessionNamingLine } from "../../server/index.mjs";
 import { applyEvent, initialState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 
@@ -24,13 +24,34 @@ const TITLE = (t: string, sid = "s1") =>
 const NAME = (n: string, sid = "s1") =>
   JSON.stringify({ type: "agent-name", agentName: n, sessionId: sid });
 
-describe("readSessionNaming", () => {
+/**
+ * A chunk of transcript, folded the way PRODUCTION folds it (#798).
+ *
+ * These cases used to call `readSessionNaming`, a text-in wrapper exported from
+ * index.mjs that nothing but this file reached: the scan folds line-at-a-time
+ * through `foldSessionNamingLine`, inside `foldTranscriptLine`, so the wrapper
+ * pinned a loop the server never runs and the two could have drifted apart with
+ * nothing going red. The wrapper is gone; the loop lives here, where it is
+ * plainly the test's own, and every claim below is unchanged.
+ *
+ * The non-string guard the wrapper carried moves here for the same reason: the
+ * scan only ever hands the fold a line off a `split("\n")`, so refusing a
+ * number was a property of the wrapper rather than of anything that ships.
+ */
+function naming(text: unknown): { aiTitle: string | null; agentName: string | null } {
+  const out = { aiTitle: null as string | null, agentName: null as string | null };
+  if (!text || typeof text !== "string") return out;
+  for (const line of text.split("\n")) foldSessionNamingLine(out, line);
+  return out;
+}
+
+describe("the naming records in a transcript chunk", () => {
   it("reads both records out of a chunk", () => {
     const text = [
       TITLE("Inspect repository to understand current state"),
       NAME("account-management-oauth-flow"),
     ].join("\n");
-    expect(readSessionNaming(text)).toEqual({
+    expect(naming(text)).toEqual({
       aiTitle: "Inspect repository to understand current state",
       agentName: "account-management-oauth-flow",
     });
@@ -46,7 +67,7 @@ describe("readSessionNaming", () => {
       TITLE("Inspect repository to understand current state"),
       NAME("account-management-oauth-flow"),
     ].join("\n");
-    expect(readSessionNaming(text)).toEqual({
+    expect(naming(text)).toEqual({
       aiTitle: "Inspect repository to understand current state",
       agentName: "account-management-oauth-flow",
     });
@@ -60,12 +81,12 @@ describe("readSessionNaming", () => {
       JSON.stringify({ type: "assistant", message: { model: "claude-opus-4-7" } }),
       JSON.stringify({ type: "user", message: { role: "user" } }),
     ].join("\n");
-    expect(readSessionNaming(text)).toEqual({ aiTitle: null, agentName: null });
+    expect(naming(text)).toEqual({ aiTitle: null, agentName: null });
   });
 
   it("answers null for empty, whitespace and non-string input", () => {
     for (const bad of ["", "\n\n", null, undefined, 42, {}]) {
-      expect(readSessionNaming(bad as unknown as string))
+      expect(naming(bad as unknown as string))
         .toEqual({ aiTitle: null, agentName: null });
     }
   });
@@ -76,7 +97,7 @@ describe("readSessionNaming", () => {
   it("ignores a truncated record rather than half-parsing it", () => {
     const whole = NAME("account-management-oauth-flow");
     const text = [TITLE("A real title"), whole.slice(0, whole.length - 12)].join("\n");
-    expect(readSessionNaming(text)).toEqual({ aiTitle: "A real title", agentName: null });
+    expect(naming(text)).toEqual({ aiTitle: "A real title", agentName: null });
   });
 
   // The marker strings appear in ordinary prose too — this very file contains
@@ -86,7 +107,7 @@ describe("readSessionNaming", () => {
       JSON.stringify({ type: "user", message: { content: 'the "agent-name" record' } }),
       JSON.stringify({ type: "assistant", message: { content: 'an "ai-title" line' } }),
     ].join("\n");
-    expect(readSessionNaming(text)).toEqual({ aiTitle: null, agentName: null });
+    expect(naming(text)).toEqual({ aiTitle: null, agentName: null });
   });
 
   it("skips a record whose value is empty or the wrong type", () => {
@@ -95,7 +116,7 @@ describe("readSessionNaming", () => {
       JSON.stringify({ type: "ai-title", aiTitle: null, sessionId: "s1" }),
       JSON.stringify({ type: "ai-title", aiTitle: { a: 1 }, sessionId: "s1" }),
     ].join("\n");
-    expect(readSessionNaming(text)).toEqual({ aiTitle: null, agentName: null });
+    expect(naming(text)).toEqual({ aiTitle: null, agentName: null });
   });
 
   // A Codex rollout carries neither record, which is the reason the card has to
@@ -106,7 +127,7 @@ describe("readSessionNaming", () => {
       type: "turn_context",
       payload: { cwd: "/repo", approval_policy: "never", model: "gpt-5.3-codex" },
     });
-    expect(readSessionNaming(text)).toEqual({ aiTitle: null, agentName: null });
+    expect(naming(text)).toEqual({ aiTitle: null, agentName: null });
   });
 });
 

@@ -365,21 +365,6 @@ export function waitingSentence(waiting: WaitingBlock): string {
   return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
 }
 
-/** The tool the prompt is most likely about, as a few words, or null when the
- *  deck has no safe guess — see `BlockedTool` in types.ts.
- *
- *  NAME AND PREVIEW, IN THAT ORDER, and the preview is allowed to be dropped by
- *  the caller. "Bash" alone already turns "waiting 4m" into a sentence you can
- *  act on; "Bash · rm -rf node_modules" is the one that stops you approving it
- *  by reflex. The row has characters for the first, a tooltip and a
- *  notification body have room for both, so the split is the caller's to make
- *  and this returns the long form. */
-export function blockedToolLabel(waiting: WaitingBlock): string | null {
-  const tool = waiting.tool;
-  if (!tool) return null;
-  return tool.preview ? `${tool.name} · ${tool.preview}` : tool.name;
-}
-
 /** The same guess, worded for a surface with room to hedge — and worded against
  *  the sentence it will sit under.
  *
@@ -389,7 +374,8 @@ export function blockedToolLabel(waiting: WaitingBlock): string | null {
  *  than the deck knows — and the one place a user would catch the deck lying is
  *  the place they are deciding whether to approve a command.
  *
- *  `guessLine` rather than `blockedToolLabel` because the tooltip prints CC's
+ *  `guessLine` — the one wording function, in notify.ts — because the tooltip
+ *  prints CC's
  *  sentence directly above this, and that sentence usually already names the
  *  tool: "…to use Bash" over "Likely on: Bash · rm -rf" repeats a word and
  *  pushes the command further from the eye. The notification body had this

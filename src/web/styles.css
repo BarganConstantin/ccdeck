@@ -7122,7 +7122,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ver-banner .ver-cmd:active, .ver-banner .ver-auto:active,
   .ver-banner .ver-close:active,
   .topbar .brand button.v:active,
-  .search-clear:active,
   .ver-banner .ver-act:active:not(:disabled),
   .detail-reopen:active, .ctx-donut:active,
   .session-list .sl-row:active, button.tool.clickable:active,

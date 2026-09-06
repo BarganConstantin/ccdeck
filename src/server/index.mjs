@@ -788,7 +788,7 @@ const AGENT_NAME_MARK = '"agent-name"';
 /** Fold one line's naming records into `out`. Last value wins. Pure: `out` is
  *  the only thing written, and a line that is not one of the two records — or
  *  is a truncated fragment of one — leaves it untouched. */
-function foldSessionNamingLine(out, line) {
+export function foldSessionNamingLine(out, line) {
   if (!line) return;
   const hasTitle = line.includes(AI_TITLE_MARK);
   const hasName = line.includes(AGENT_NAME_MARK);
@@ -801,22 +801,6 @@ function foldSessionNamingLine(out, line) {
   } else if (obj.type === "agent-name" && typeof obj.agentName === "string" && obj.agentName) {
     out.agentName = obj.agentName;
   }
-}
-
-/**
- * The session naming carried by a chunk of transcript text, newest wins.
- *
- * Pure and text-in, so the suite can pin the parsing against a handful of lines
- * instead of a 46 MB fixture. Returns `{aiTitle: null, agentName: null}` for a
- * chunk holding neither — a young session, or a stretch of the file that is all
- * tool output — and the caller keeps whatever it already knew rather than
- * clearing a name it has already shown.
- */
-export function readSessionNaming(text) {
-  const out = { aiTitle: null, agentName: null };
-  if (!text || typeof text !== "string") return out;
-  for (const line of text.split("\n")) foldSessionNamingLine(out, line);
-  return out;
 }
 
 /** Fold one transcript line into the running state. Every fact the three
@@ -1459,8 +1443,13 @@ const lastNameReadAt = new Map();       // sid -> ms timestamp
 const pendingNameReads = new Set();     // sid currently being read
 
 /** The naming the cursor has folded so far, or null when the scan has nothing.
- *  Exported beside readContextFromTranscript for the same reason: the rule is
- *  worth pinning directly rather than through a live server. */
+ *
+ *  NOT exported, and the comment here used to say it was — "beside
+ *  readContextFromTranscript … the rule is worth pinning directly rather than
+ *  through a live server" — which stated a test contract no test had (#798).
+ *  What is worth pinning is the parsing, and that is `foldSessionNamingLine`,
+ *  which IS exported and which session-name.test.ts drives line at a time the
+ *  way `foldTranscriptLine` does. This wrapper is a scan and two null checks. */
 async function readSessionNamingFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;

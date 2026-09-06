@@ -158,19 +158,14 @@ export function startCommand(url, env = process.env, comspec) {
 }
 
 /**
- * Refuse anything that is not an http(s) URL.
+ * The address to actually hand the desktop, or null when it is not one — and
+ * the ONLY guard, since #798 removed the `isOpenable` boolean that sat in front
+ * of it with no caller but the suite.
  *
- * The one caller passes a localhost address it built itself, so this is not
- * guarding against a hostile input today — it is guarding against the day a
- * second caller passes a path, because every launcher above would happily open
- * it and `start` would run it.
- */
-export function isOpenable(url) {
-  return normalizeOpenable(url) !== null;
-}
-
-/**
- * The address to actually hand the desktop, or null when it is not one.
+ * Refuse anything that is not an http(s) URL: today's one caller passes a
+ * loopback address this deck built itself, so this is not guarding against a
+ * hostile input — it is guarding against the day a second caller passes a path,
+ * because every launcher above would happily open it and `start` would run it.
  *
  * The guard used to parse into a local `u`, check its protocol and throw the
  * parse away — so what reached `launchers` was the RAW string. `new URL()`

@@ -1463,6 +1463,23 @@ export function startSystemMetrics() {
   thermalTimer.unref?.();
 }
 
+/**
+ * Stop the three timers and reset every reading this module holds.
+ *
+ * THE SUITE'S, AND SAID PLAINLY (#798). Production starts the loop once at boot
+ * and never stops it — the process ending is what stops it — so an audit
+ * grepping for callers finds none, and the honest answer is not to delete this
+ * but to name what it is for. It is a RESET as much as a stop: `history`,
+ * `thermal`, the CPU baselines and the miss counters all go back to their
+ * initial values, which is exactly what a case needs between two runs of
+ * `startSystemMetrics` in one process, and what nothing else in this module
+ * offers. Deleting it would leave the suite leaking intervals into the values
+ * the next case reads.
+ *
+ * That is also why it is safe as a test-only export where the four removed in
+ * #798 were not: there is no shipped counterpart for it to drift away from. The
+ * state it clears IS the state every other assertion here reads.
+ */
 export function stopSystemMetrics() {
   if (cpuTimer) clearInterval(cpuTimer);
   if (memTimer) clearInterval(memTimer);

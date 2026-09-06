@@ -147,7 +147,7 @@ The Accounts panel reads the store [claude-swap](https://pypi.org/project/claude
 
 **`+` → Sign in** runs `claude auth login`, shows you the link, takes the code your browser gives back, and hands the result to `cswap add`. The account you were using **stays active** — signing in replaces the live credentials, so the previous one is switched back the moment the new one is recorded. The code goes straight into the CLI's stdin on this machine; it is never stored, logged, or sent anywhere else.
 
-**`share`** on an account produces a `ccdeck1:…` blob to paste into another deck's **`+` → Paste a share**.
+**`share`** on an account produces a `ccdeck2:…` blob to paste into another deck's **`+` → Paste a share**.
 
 **`↗`** in the panel header does the same for a set of them, which is what moving your accounts from home to work actually is. Tick the ones to send — all of them to start — and one blob carries the set. The dialog counts sign-in tokens rather than rows, and an account that cannot be exported is named rather than quietly dropped, so the number on the copy button is always the number in the blob.
 

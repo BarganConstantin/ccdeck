@@ -33,6 +33,15 @@
 import { existsSync as fsExistsSync, readdirSync as fsReaddirSync, statSync as fsStatSync } from "node:fs";
 import { homedir } from "node:os";
 import { posix as posixPath, win32 as winPath } from "node:path";
+// ONE DECLARATION OF THE EXTENSION ID (#798). It was written out here and again
+// in relay-guard.mjs, with the same literal, in two modules that never imported
+// each other — so republishing the extension under a new id and updating one
+// would leave the other detector answering "not installed" forever, with
+// nothing going red anywhere. It comes from relay-guard because that direction
+// is the safe one: relay-guard imports node:path and nothing else, a property
+// its own header states and relay-guard.test.ts pins by reading the source, and
+// importing this module (node:fs) into it would break that.
+import { CLAUDE_EXT_ID } from "./relay-guard.mjs";
 
 /**
  * Claude in Chrome's extension id, which is the same 32 characters in every
@@ -42,8 +51,11 @@ import { posix as posixPath, win32 as winPath } from "node:path";
  * the browser, so Brave, Edge and Vivaldi all hold it under this exact name.
  * That is what makes a directory test sufficient here and what lets one
  * constant serve every row this module returns.
+ *
+ * Re-exported rather than moved, so the callers that read it from here keep
+ * working and the name still documents itself where it is used.
  */
-export const CLAUDE_EXT_ID = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
+export { CLAUDE_EXT_ID };
 
 /**
  * The directories inside a user-data root that are browsing profiles.
