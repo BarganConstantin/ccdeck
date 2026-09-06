@@ -144,10 +144,27 @@ describe("the snapshot carries what relay-guard can say", () => {
   });
 
   it("hands back both commands as text, for the state the machine is in", async () => {
+    // Asserted in the platform-neutral form on purpose. `killswitchCommand`
+    // answers a shell one-liner on POSIX and a PowerShell pair on Windows —
+    // that difference is the operating system's, and a case pinning `sed` is a
+    // case that fails on the platform the deck also ships to. What is true
+    // everywhere: both name the host, both need admin, and the two are not the
+    // same string.
     const snap = await snapshot([withExt("P4")], "127.0.0.1 localhost\n");
-    expect(snap.relay.command.block.command).toContain(RELAY_HOST);
-    expect(snap.relay.command.unblock.command).toContain("sed");
-    expect(snap.relay.command.block.needsAdmin).toBe(true);
+    const { block, unblock } = snap.relay.command;
+    expect(block.command).toContain(RELAY_HOST);
+    expect(unblock.command).toContain(RELAY_HOST.replace(/\./g, "\\."));
+    expect(block.needsAdmin).toBe(true);
+    expect(unblock.needsAdmin).toBe(true);
+    expect(unblock.command, "block and unblock are the same command")
+      .not.toBe(block.command);
+    // And each is written in the shell that platform actually has: `sudo` and
+    // `sed` on POSIX, PowerShell reading `$env:SystemRoot` on Windows — which
+    // it takes from the elevated shell the user opens rather than from this
+    // process's environment. The marker differs because the shells do.
+    const marker = process.platform === "win32" ? "$env:SystemRoot" : "sudo";
+    expect(block.command).toContain(marker);
+    expect(unblock.command).toContain(marker);
   });
 
   it("caches the preferences read on mtime, because that file is megabytes", async () => {
