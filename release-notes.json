@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.9.0": [
+    {
+      "title": "\ud83c\udf9b\ufe0f Five switches that were not where the thing they control is",
+      "body": "**The session list has a button again.** It lost one a while back and only the `L` key was left \u2014 and `L` is written down in one place, a shortcuts sheet behind a small `?` in the corner of the canvas. If you use a mouse there was no way to open the list at all. The `\u2630` is back at the left of the top bar.\n\n**The Notifications switch now tells you whether the browser will actually show one.** It said `on` while this browser had never been asked for permission, which is not the same thing. It now says so on that row and offers the ask right there. Before, the only place to grant it was a button that appears solely while a session is stuck waiting \u2014 so on a machine where that rarely happens you could not switch notifications on at all.\n\n**Started with `--workspace` or `--scope` and seeing nothing?** The empty screen used to tell everyone to \"run `claude` or `codex` in any folder\", which is the one thing that cannot work for you. It now names the folder the deck is actually watching.\n\n**Browser Watch says when a setting did not save.** Flipping the switch and having it fail showed a red line reading \"Could not read\" \u2014 about reading history, not about your press \u2014 and ten seconds later the panel wiped it and looked perfectly healthy with the setting unchanged. A failed save now says so, in its own words, and stays until you dismiss it. The \"nobody browsing for\" menu also follows the stored value again: change it in a second tab and this one never caught up.\n\n**The deck no longer restarts itself when nothing on screen offers to stop it.** Thirty seconds after the last agent went quiet, with a new version on disk, the server would exit, come back and reload the page. The `auto when idle` switch that controls that lives inside the update banner \u2014 so if you had closed the banner with its `\u00d7`, it happened with no visible setting anywhere. Closing the banner now also stands down the restart; clicking the version chip brings back both together."
+    }
+  ],
   "3.8.9": [
     {
       "title": "\ud83d\udda5\ufe0f Four things that only went wrong on somebody else's operating system",
