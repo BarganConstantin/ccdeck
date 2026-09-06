@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.1": [
+    {
+      "title": "\ud83d\udd12 Security: update if the deck runs on a Mac",
+      "body": "A local process able to reach the deck's port \u2014 no token, no browser, no tab \u2014 could get a string of its choosing compiled as AppleScript when the deck raised a desktop notification with no page open. On macOS that is code running as you.\n\nThe strings were already passed as arguments rather than pasted into the script, which is normally the whole defence. It is not enough for `osascript`: its option parser reads any argument starting with a dash as an option, so a name beginning with `-e` was taken as more script instead of as text. Every place the deck hands `osascript` or `notify-send` something from outside now carries an explicit end-of-options marker, so nothing from outside can be read as an instruction again.\n\nNothing to change on your side beyond updating. If you would rather keep the deck off the desktop entirely, the Notifications switch in the sound menu does that, and `AGENTS_DECK_NO_NOTIFY=1` does it at launch \u2014 but the fix is the thing to have."
+    }
+  ],
   "3.8.0": [
     {
       "title": "\ud83d\udd15 Notifications now have an off switch",

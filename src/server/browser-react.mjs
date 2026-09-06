@@ -102,10 +102,26 @@ export async function notify(title, body, platform = process.platform, deps = {}
     // shell tool this descends from built its notification by interpolation and
     // that is the one place it had left the pattern it had banned everywhere
     // else.
+    //
+    // AND `--` BEFORE THE OPERANDS, WHICH IS THE HALF THAT WAS MISSING. Passing
+    // a string as argv is not the same as it being treated as data: osascript's
+    // option parser reads any LEADING-DASH operand as an option, so a title
+    // beginning with `-e` was taken as a second script chunk and COMPILED. The
+    // note above asserted the argv form made an attacker-chosen host name safe;
+    // it did not.
+    //
+    // The reach was the whole of it. `title` is `basename(cwd) — ccdeck` from
+    // block-notify.mjs, `cwd` arrives in the body of `POST /api/event`, and
+    // that route is in OPEN_MUTATIONS — no token, no browser identity, which is
+    // exactly the sandboxed-subprocess-with-loopback-egress case the gate
+    // comments name. Verified on Darwin 25.5 with no payload at all: without
+    // `--`, a leading `-e` operand answers "The run handler is specified more
+    // than once", which is the compiler reporting on the attacker's string;
+    // with `--`, the same string arrives as `item 1 of argv`.
     const r = await exec("osascript", [
       "-e",
       'on run argv\ndisplay notification (item 2 of argv) with title (item 1 of argv)\nend run',
-      title, body,
+      "--", title, body,
     ]).catch(() => null);
     return r?.ok === true;
   }
@@ -158,7 +174,14 @@ export async function notify(title, body, platform = process.platform, deps = {}
     ], { env: { ...process.env, CCDECK_TOAST_TITLE: title, CCDECK_TOAST_BODY: body } }).catch(() => null);
     return r?.ok === true;
   }
-  const r = await exec("notify-send", [title, body]).catch(() => null);
+  // `--` for the same reason as the darwin branch above, and it is worth having
+  // even though the consequence here is smaller: notify-send parses a leading
+  // dash as an option too, so an attacker-chosen title could suppress or
+  // misdirect the notification. There is no script compiler behind it, so this
+  // is a broken notification rather than an execution — fixed anyway, because
+  // the rule is "never let a user string be read as an option" and a rule with
+  // an exception is a rule somebody will apply to the wrong call next time.
+  const r = await exec("notify-send", ["--", title, body]).catch(() => null);
   return r?.ok === true;
 }
 
@@ -172,7 +195,10 @@ export async function closeTab(browserKey, url, platform = process.platform, dep
   // and says so in its own contract, so `osascript -` would read an empty
   // script and report success having done nothing. The URL still travels as
   // argv, which is the part that matters.
-  const r = await exec("osascript", ["-e", closeTabScript(app), url]).catch(() => null);
+  // `--` here too. The url comes from a real http(s) history row so it cannot
+  // begin with a dash today, but that is a property of the caller rather than
+  // of this line, and the next caller will not know it.
+  const r = await exec("osascript", ["-e", closeTabScript(app), "--", url]).catch(() => null);
   if (!r?.ok) return { ok: false, reason: "script_failed" };
   const said = String(r.stdout ?? "").trim();
   return { ok: said === "closed", reason: said || "unknown" };
@@ -185,7 +211,10 @@ export async function quitBrowser(browserKey, platform = process.platform, deps 
   const exec = deps.run ?? run;
   if (platform === "darwin") {
     const r = await exec("osascript", [
-      "-e", 'on run argv\ntell application (item 1 of argv) to quit\nend run', app,
+      // `--`, as everywhere else that hands osascript an operand. `app` comes
+      // from a fixed table so it is safe by construction; the separator costs
+      // nothing and means no reader has to go and check that.
+      "-e", 'on run argv\ntell application (item 1 of argv) to quit\nend run', "--", app,
     ]).catch(() => null);
     return { ok: r?.ok === true, reason: r?.ok ? "quit" : "script_failed" };
   }
