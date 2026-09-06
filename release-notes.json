@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.5": [
+    {
+      "title": "\u26d4 Cancelling a sign-in no longer adds the account anyway",
+      "body": "Press Escape while adding a Claude account and the deck killed the sign-in \u2014 and then, sometimes, registered the account regardless, switched to it, and told you it had worked.\n\nThe deck asks the tools it runs whether they finished cleanly. A program that is well behaved about being cancelled tidies up and exits with a success code, and the deck was reading that as \"it finished\" rather than \"I stopped it\". `claude auth login` is exactly that kind of program.\n\nA cancelled run now reports as cancelled. Everything that was not cancelled is unaffected."
+    }
+  ],
   "3.8.4": [
     {
       "title": "\ud83e\uddf7 Your own hooks can no longer be eaten by two decks starting together",

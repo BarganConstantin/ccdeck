@@ -800,7 +800,21 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     const s = settle; settle = null;
     clearTimeout(timer);
     clearTimeout(graceTimer);
-    s({ ok: code === 0 && !err && !timedOut, code: err?.code ?? code ?? -1, killed, timedOut, stdout, stderr });
+    // `!killed`, and it was missing (#787). A tool that handles SIGTERM by
+    // exiting 0 — the well-behaved kind, which `run`'s own header names — came
+    // back `{ ok: true, killed: true }`, and a caller reading `ok` could not
+    // tell a clean run from one it had just cancelled. `claude auth login` is
+    // exactly that shape: it traps SIGTERM to restore the terminal.
+    //
+    // What that cost: pressing Escape during a sign-in killed the child, and
+    // spawnLogin's handler then saw `r.ok` true and ran `registerSignedIn` — a
+    // `cswap add` for the account the user had just cancelled, racing
+    // cancelLogin's own restore, with the dialog flipping to `done`.
+    //
+    // The memo guard eleven lines below already distrusted a kill for the same
+    // reason (`if (code === 0 && !killed && !timedOut)`), so the two halves of
+    // this function disagreed about what a killed exit means.
+    s({ ok: code === 0 && !err && !timedOut && !killed, code: err?.code ?? code ?? -1, killed, timedOut, stdout, stderr });
   };
 
   // The deadline states the outcome and only then kills — the order `run` uses
