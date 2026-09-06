@@ -1851,21 +1851,57 @@ async function findCodexRolloutPath(sid) {
   return found;
 }
 
-/** Tail-read a Codex rollout JSONL. Returns the last token_count info block
- *  plus the most recent observed model + the session's model_context_window
- *  (set once from task_started). */
-async function readCodexRollout(path) {
+/**
+ * The head and the tail of a Codex rollout, never the middle.
+ *
+ * WHAT THIS FIXES (#792). It called itself a tail-read and read the whole file:
+ * `Buffer.alloc(s.size)` in one go, then `split` and `JSON.parse` over every
+ * line. Measured against this machine's own largest rollout — 44.4 MB — that is
+ * 181ms to read and decode, 95ms of SYNCHRONOUS parsing blocking the event
+ * loop, and 185 MB of resident memory for the buffer, the string and the split
+ * array together. Past about 512 MB `toString` throws outright, the catch
+ * answers null, and the deck reports no Codex usage or model for the rest of
+ * its life.
+ *
+ * It is reached from `/api/event`, which is in OPEN_MUTATIONS — no token, no
+ * browser identity — so any local process can ask for it, and the per-session
+ * throttle is keyed on `sid`, which means distinct sid strings each get their
+ * own budget. That note's own rule is the one this violated: the deck's memory
+ * "cannot be a function of anything but the two constants named here".
+ *
+ * WHY HEAD AND TAIL RATHER THAN A CURSOR. The four fields do not live in one
+ * place. `session_meta` is the FIRST record — cwd, sometimes the model — while
+ * the last `token_count`, the last `task_started` and the newest
+ * `response_item` model are all at the END. A forward cursor would have to keep
+ * the head's answers across polls, which is a second cache to invalidate; two
+ * bounded reads answer the same question with no state at all.
+ *
+ * A file smaller than both windows is read once, so nothing changes for the
+ * ordinary rollout — the median here is well under a megabyte.
+ */
+const CODEX_HEAD_BYTES = 256 * 1024;
+const CODEX_TAIL_BYTES = 2 * 1024 * 1024;
+
+// Exported for the suite, which is the only way to drive the head-and-tail
+// branch: building a rollout larger than both windows is cheap, and reaching
+// this function through /api/event would mean a server, a discovery file and a
+// throttle that all have nothing to do with what is being measured.
+export async function readCodexRollout(path) {
   try {
     const s = await stat(path);
     if (s.size === 0) return null;
-    const fh = await open(path, "r");
     let text;
-    try {
-      const buf = Buffer.alloc(s.size);
-      await fh.read(buf, 0, s.size, 0);
-      text = buf.toString("utf8");
-    } finally {
-      await fh.close();
+    if (s.size <= CODEX_HEAD_BYTES + CODEX_TAIL_BYTES) {
+      text = await readByteRange(path, 0, s.size);
+    } else {
+      // A newline between them so the two windows cannot splice a half line
+      // from the head onto a half line from the tail and hand the parser a
+      // record that never existed. The tail's own first line is partial by
+      // construction and is dropped the same way: `JSON.parse` refuses it and
+      // the loop below skips it.
+      const head = await readByteRange(path, 0, CODEX_HEAD_BYTES);
+      const tail = await readByteRange(path, s.size - CODEX_TAIL_BYTES, s.size);
+      text = `${head}\n${tail}`;
     }
     let lastUsage = null;
     let model = null;

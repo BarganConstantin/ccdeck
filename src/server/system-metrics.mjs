@@ -262,6 +262,32 @@ export function availableFromVmStat(text, total) {
   return total != null && avail > total ? null : avail;
 }
 
+/**
+ * How much memory is really available, or NULL when this machine could not be
+ * asked.
+ *
+ * `os.freemem()` USED TO BE THE FALLBACK ON BOTH REAL PLATFORMS, and it is the
+ * one number this function exists to avoid (#789). The header above says why:
+ * counting only genuinely free pages makes the naive `(total - free) / total`
+ * read 99.5% on an idle 32 GB Mac — "a number that would send the reader
+ * straight to Activity Monitor, which is the one outcome this readout exists to
+ * prevent". So a failed measurement produced exactly the reading the module was
+ * written to suppress.
+ *
+ * And it did not merely flicker. `record` folds into the minute bucket by
+ * MAXIMUM, so one failed poll painted a red 99% peak on the memory chart that
+ * survived every good sample for the next twenty-four hours. The failure is
+ * ordinary: `run` resolves null on a spawn error (EAGAIN/EMFILE under fork
+ * pressure — a deck watching many agents is exactly that), on a non-zero exit,
+ * and on its own 2s deadline. 2,880 chances a day.
+ *
+ * Null instead, and the caller keeps the previous reading and records nothing.
+ * A gap in the chart is honest; a 99% peak is not.
+ *
+ * The last branch still answers `freemem()` because on Windows there is no
+ * better source to have failed — it is the measurement, not a substitute for
+ * one.
+ */
 async function readAvailable(platform = process.platform) {
   const total = os.totalmem();
 
@@ -269,14 +295,13 @@ async function readAvailable(platform = process.platform) {
     try {
       const parsed = availableFromMeminfo(await readFile("/proc/meminfo", "utf8"));
       if (parsed != null) return parsed;
-    } catch { /* fall through to freemem */ }
-    return os.freemem();
+    } catch { /* unreadable /proc — say so rather than guessing */ }
+    return null;
   }
 
   if (platform === "darwin") {
     const out = await run("vm_stat", []);
-    const parsed = out ? availableFromVmStat(out, total) : null;
-    return parsed ?? os.freemem();
+    return (out ? availableFromVmStat(out, total) : null) ?? null;
   }
 
   return os.freemem();
@@ -1382,15 +1407,22 @@ async function sampleMemory() {
   try {
     const total = os.totalmem();
     const available = await readAvailable();
-    memory = {
-      total,
-      available,
-      usedPct: Math.max(0, Math.min(100, Math.round(((total - available) / total) * 1000) / 10)),
-    };
+    // A poll that could not measure leaves the last reading standing and puts
+    // nothing in the history (#789). Recording a guess here is worse than
+    // recording nothing twice over: the meter would go red for 30 seconds, and
+    // the bucket's Math.max would keep that peak on the chart for a day.
+    // Swap below is a separate measurement and is still taken.
+    if (available != null) {
+      memory = {
+        total,
+        available,
+        usedPct: Math.max(0, Math.min(100, Math.round(((total - available) / total) * 1000) / 10)),
+      };
+      record("mem:physical", memory.usedPct);
+    }
     // Same 30s cadence as memory, and for the same reason: it moves in minutes
     // and costs a subprocess on two of the three platforms.
     swap = await readSwap();
-    record("mem:physical", memory.usedPct);
     if (swap && swap.total > 0) record("mem:swap", Math.round((swap.used / swap.total) * 1000) / 10);
   } catch { /* keep the previous reading rather than blanking the meter */ }
   finally { memInFlight = false; }

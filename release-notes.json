@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.8.8": [
+    {
+      "title": "\ud83d\udcc9 A false 99% on the memory chart, and three other quiet failures",
+      "body": "**The machine meter no longer invents a reading.** When the deck could not measure memory \u2014 a subprocess that would not start under load, or one that took too long \u2014 it substituted a number that means something else, and on a Mac that reads as about 99% used. The meter went red for half a minute, and because the chart keeps the highest value in each minute, that false peak stayed on it for a full day. A poll that cannot measure now keeps the last reading and records nothing: a gap in the chart is honest.\n\n**A failed ccusage repair no longer disables the repair.** If the deck found a half-installed copy it removes it and starts again. On Windows that removal can fail for a few seconds because the program it just ran still has the folder open \u2014 and the deck then treated the attempt as spent and never tried again for the rest of the session, leaving the panel permanently unable to read your usage. It now only counts a repair that happened.\n\n**Changing the auto-switch interval takes effect even during startup.** Set it in the first seconds after launch and the timer kept the old value for the life of the process, while the panel showed the new one.\n\n**Codex sessions with very large histories no longer cost hundreds of megabytes to read.** The deck read the whole file to find four values that live at its two ends \u2014 measured at 185 MB of memory and 95ms of frozen interface for one 44 MB session. It now reads only the ends."
+    }
+  ],
   "3.8.7": [
     {
       "title": "\ud83e\udde0 Four things in the panel that behaved wrongly",

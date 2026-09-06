@@ -268,6 +268,8 @@ export async function setCswapConfig(key, value) {
   // Lowering it was equally inert.
   if (r.ok && key === "autoswitch.intervalSeconds" && _enabled) {
     stopLoop();
+    // startLoop records the ask when one is already in flight, so this can no
+    // longer be swallowed by the boot's own start — see the note there (#791).
     await startLoop();
   }
   return r.ok ? { ok: true } : { ok: false, reason: "set_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
@@ -580,18 +582,41 @@ function tick() {
  * has turned it off is the same defect from the other side.
  */
 async function startLoop() {
-  if (_timer || _starting) return;
+  // A start requested while one is already in flight is REMEMBERED, not dropped
+  // (#791). `initCswapAuto()` is fired unawaited at boot, so this sits inside
+  // `await tickInterval()` — a `cswap config` spawn, preceded on Windows by
+  // cswapBin() probing up to four spellings, two of them through cmd.exe, each
+  // with an 8s deadline — while the panel is already serving. A user setting
+  // the interval in that window called stopLoop() (no timer yet: a no-op) and
+  // then startLoop(), which returned here having done nothing; the boot's own
+  // start then resumed with the interval it had read BEFORE the write and
+  // installed the timer at the old value. The panel read back the new number
+  // while the loop kept the old one for the life of the process.
+  if (_starting) { _restartWanted = true; return; }
+  if (_timer) return;
   _starting = true;
   try {
-    const ms = await tickInterval();
-    if (!_enabled) return;   // turned off while we were asking cswap
-    _timer = setInterval(() => { tick().catch(() => {}); }, ms);
-    _timer.unref?.();
+    // Loop rather than a single pass: the config may be written again while
+    // THIS read is in flight, and the answer must be the last one written.
+    for (;;) {
+      _restartWanted = false;
+      const ms = await tickInterval();
+      if (!_enabled) return;   // turned off while we were asking cswap
+      if (_restartWanted) continue;   // the interval changed under this read
+      _timer = setInterval(() => { tick().catch(() => {}); }, ms);
+      _timer.unref?.();
+      break;
+    }
   } finally {
     _starting = false;
   }
   tick().catch(() => {});   // don't make the user wait a full interval for the first one
 }
+
+/** Set when a restart is asked for while `startLoop` is mid-read, so the read
+ *  that is already running takes the new value instead of installing the old
+ *  one. Module-level beside `_starting`, which it exists to answer for. */
+let _restartWanted = false;
 
 function stopLoop() {
   if (_timer) { clearInterval(_timer); _timer = null; }

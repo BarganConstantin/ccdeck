@@ -682,7 +682,19 @@ let _repairedThisRun = false;
 function discardDamagedInstall(runner, err) {
   if (_repairedThisRun || runner.kind !== "node" || installsDisabled()) return false;
   if (!cannotLoadModule(err?.message)) return false;
-  _repairedThisRun = true;
+  // THE FLAG IS SPENT ON A REPAIR THAT HAPPENED, not on one that was attempted
+  // (#790). It used to be set here, before the try — and the rm below fails on
+  // Windows for the reason its own maxRetries comment gives: the `node <entry>`
+  // child that just exited still holds a handle, the unlink marks the file
+  // delete-pending, and rmdir answers ENOTEMPTY past all ten retries. The catch
+  // returned false with NOTHING removed, and every later modal open and every
+  // 60s poll for the life of the deck then short-circuited on this same flag —
+  // including seconds later, once the handle was gone and the rm would have
+  // worked. The user's only way out was deleting ~/.agents-deck/ccusage by
+  // hand, which nothing tells them.
+  //
+  // The budget exists to stop a loop of INSTALLS. Here it was being consumed by
+  // a repair that never happened and never reached an install.
   try {
     // maxRetries because of what has just happened: the deck ran `node <entry>`
     // out of this very directory a moment ago, and on Windows a file any handle
@@ -700,7 +712,13 @@ function discardDamagedInstall(runner, err) {
     // rather than retrying into the same broken entry point.
     return false;
   }
-  return !resolveEntry();
+  const gone = !resolveEntry();
+  // Only now. The directory is really gone, so this deck has spent its one
+  // repair and the budget is doing its job. A failed `rm` returned false above
+  // without touching the flag, so the next poll — seconds later, once the
+  // handle is released — is free to try again.
+  if (gone) _repairedThisRun = true;
+  return gone;
 }
 
 /**
