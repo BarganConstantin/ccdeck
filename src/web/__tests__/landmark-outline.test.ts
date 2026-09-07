@@ -274,8 +274,22 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // with the rows, once with the line that says why there are none in the
     // hour after local midnight, when ccusage's UTC-dated sessions have not
     // caught up with a locally-dated total. Only one of the two ever renders.
-    const heads = [...code(usage).matchAll(/<h3 className="up-section-title">\s*([A-Za-z ]+)/g)]
-      .map(m => m[1].trim());
+    // One of the five holds a <button> now — the session list opens and shuts,
+    // and the ARIA disclosure pattern puts the control inside the heading
+    // rather than instead of it, precisely so this outline keeps all five.
+    // Which is why the heading's WORDS can no longer be read straight off the
+    // opening tag: a JSX attribute holds `onClick={() => …}`, and any pattern
+    // that ends a tag at the first `>` ends it inside that arrow — #655's
+    // defect, in a regex written before there was a tag here to trip on. Braces
+    // come out first, innermost outwards, and only then do the tags, so the
+    // text that remains is the text a reader sees.
+    const stripBraces = (src: string) => {
+      let out = src, prev;
+      do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
+      return out;
+    };
+    const heads = [...code(usage).matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+      .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
     expect(code(usage)).not.toMatch(/<h4/);

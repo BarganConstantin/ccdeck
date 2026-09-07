@@ -616,3 +616,133 @@ describe("the period strip's keyboard and memory", () => {
     expect(sinceFor("today", may)).toBe("20260517");
   });
 });
+
+// ── the one section that shuts ──────────────────────────────────────────────
+//
+// Every other block in this panel is a fixed two or three rows, or a model
+// table bounded by the models that exist. The session list is as long as the
+// reader's week, and it was the reason the panel scrolled at all: measured on
+// this deck, 1078px of content in a 935px column with it open, 754 in 754 with
+// it shut. So it shuts, and it is the only one that does.
+describe("the session section's disclosure", () => {
+  const block = (selector: string) => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, `no rule for ${selector}`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("puts the button inside the heading rather than instead of it", () => {
+    // The ARIA disclosure pattern, and the one spelling that keeps four
+    // headings in the document outline while still giving the reader a real
+    // control — landmark-outline.test.ts counts them and would have lost one.
+    expect(panel).toMatch(/<h3 className="up-section-title">\s*<button/);
+    expect(panel).toContain('className="up-disclose"');
+    expect(panel).toContain("aria-expanded={sessionsOpen}");
+    expect(panel).toContain('aria-controls="up-sessions"');
+    expect(panel).toContain('id="up-sessions"');
+    expect(panel).toContain("hidden={!sessionsOpen}");
+  });
+
+  it("hides the list in CSS as well as in the attribute", () => {
+    // `[hidden]` alone does NOT hide this. The attribute works through a UA
+    // rule — `[hidden] { display: none }` — and ANY author declaration of
+    // `display` outranks the whole UA sheet. `.up-sessions` declares `flex`,
+    // so the measured result was: attribute set, `el.hidden` true, twelve rows
+    // on screen and in the accessibility tree. Silent in both directions.
+    expect(block(".up-sessions")).toMatch(/display:\s*flex/);
+    expect(css).toContain(".up-sessions[hidden] { display: none; }");
+  });
+
+  it("takes the whole heading as the target, and gives the height back", () => {
+    // A 9px chevron is a 9px hit area for a section-sized decision, and
+    // SC 2.5.8 asks 24 of the short side. The heading's ink is 15.9px tall, so
+    // the padding buys the difference and the negative margin returns it to the
+    // layout: the button's border box measures 25.9, its margin box measures
+    // what the words always did, and the section keeps the rhythm of the three
+    // headings above it.
+    const b = block(".up-disclose");
+    expect(b).toMatch(/padding:\s*5px 0/);
+    expect(b).toMatch(/margin:\s*-5px 0/);
+    expect(b).toMatch(/flex:\s*1 1 auto/);
+    // And it has to be invisible as a control: same font, same colour, same
+    // left edge as the three headings that do not open.
+    expect(b).toMatch(/font:\s*inherit/);
+    expect(b).toMatch(/color:\s*inherit/);
+    expect(b).toMatch(/text-align:\s*left/);
+    expect(b).toMatch(/background:\s*transparent/);
+    expect(b).toMatch(/border:\s*none/);
+  });
+
+  it("turns the chevron rather than swapping two glyphs", () => {
+    // `.bw-chev` prints ▾ and ▸ and is at the mercy of whichever font answers
+    // for them on Windows and Linux. A path is the same three strokes on every
+    // OS, and it can rotate instead of being replaced.
+    expect(panel).toContain('<svg className="up-chev"');
+    expect(panel).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
+    expect(block('.up-disclose[aria-expanded="true"] .up-chev')).toMatch(/transform:\s*rotate\(180deg\)/);
+    // Under reduced motion it still turns — it just stops travelling.
+    // `transform: none` there would have frozen it pointing down over an open
+    // section, which is the one thing it must never do.
+    const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(rm).toContain(".up-chev { transition: none; }");
+    expect(rm).not.toMatch(/\.up-chev[^{]*\{[^}]*transform:\s*none/);
+  });
+
+  it("remembers whether it is open, and starts shut", () => {
+    expect(panel).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
+    expect(panel).toContain("useState<boolean>(loadSessionsOpen)");
+    expect(panel).toContain("useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);");
+    // Shut is the default, which is the deliberate half. An absent key, a
+    // blocked store and a junk value all have to land on the same answer, and
+    // `=== "1"` is the spelling that gives it: anything that is not the string
+    // written by `saveSessionsOpen` reads as shut.
+    expect(panel).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
+    expect(panel).toMatch(/function saveSessionsOpen[\s\S]{0,220}catch \{/);
+  });
+
+  it("says how much is behind it, on the title rather than in ink", () => {
+    // Shut, the reader cannot see how many sessions there are, and that is the
+    // one fact the collapse actually takes away. The heading already carries
+    // two things; a third in ink would be the noise this panel is short of.
+    expect(panel).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
+    expect(panel).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
+    expect(panel).toContain('"Hide the per-session breakdown"');
+  });
+});
+
+// ── the scrollbar, which is not there until it is asked for ─────────────────
+describe("the scrollbar at rest", () => {
+  it("fades the thumb and never the track's width", () => {
+    // Asking for `::-webkit-scrollbar` at all opts Chrome out of the overlay
+    // bar macOS draws, so these 10px are real layout — and on Windows and Linux
+    // they are real layout in every browser. A rule that took the width back at
+    // rest would reflow the panel under the pointer as it arrived, on the two
+    // platforms this repo cannot render. Measured: clientWidth 267 in both
+    // states.
+    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover, :focus-within { scrollbar-color"));
+    expect(bar).toMatch(/\*::-webkit-scrollbar \{ width: 10px; height: 10px; \}/);
+    expect(bar).not.toMatch(/:hover[^{]*::-webkit-scrollbar \{/);
+    const thumb = css.slice(css.indexOf("*::-webkit-scrollbar-thumb {"), css.indexOf("}", css.indexOf("*::-webkit-scrollbar-thumb {")));
+    expect(thumb).toMatch(/background-color:\s*transparent/);
+    // The border was `var(--bg)` — a hairline of the CANVAS colour drawn over
+    // whatever surface the scroller has, right on one scroller and wrong on
+    // every panel. Transparent, with the clip doing what the colour was doing.
+    expect(thumb).toMatch(/border:\s*2px solid transparent/);
+    expect(thumb).toMatch(/background-clip:\s*padding-box/);
+    expect(thumb).not.toMatch(/var\(--bg\)/);
+  });
+
+  it("comes back for a pointer and for a keyboard alike", () => {
+    // A bar that only exists under a pointer does not exist for the reader
+    // arrowing through the thing it measures.
+    expect(css).toMatch(/:hover::-webkit-scrollbar-thumb,\s*\n:focus-within::-webkit-scrollbar-thumb \{ background-color: var\(--line\); \}/);
+    // Firefox's half, in its own property, degrading to today's always-visible
+    // bar if it declines a transparent thumb.
+    expect(css).toContain("* { scrollbar-color: transparent transparent; scrollbar-width: thin; }");
+    expect(css).toContain(":hover, :focus-within { scrollbar-color: var(--line) transparent; }");
+    // The thumb's own hover has to stay the loudest of the three, so it is
+    // declared last where source order settles the tie at equal specificity.
+    expect(css.indexOf("*::-webkit-scrollbar-thumb:hover"))
+      .toBeGreaterThan(css.indexOf(":focus-within::-webkit-scrollbar-thumb"));
+  });
+});

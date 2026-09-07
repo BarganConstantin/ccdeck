@@ -76,6 +76,30 @@ function savePeriod(period: PeriodKey): void {
   try { window.localStorage.setItem(PERIOD_KEY, period); } catch { /* private mode */ }
 }
 
+/** Whether the session list is open, and it is shut until asked for.
+ *
+ *  It is the one unbounded block in this panel — every other section is a
+ *  fixed two or three rows, or a model table that cannot exceed the models
+ *  that exist — and it is the reason the panel scrolls at all. Shut, the whole
+ *  panel is one screen: quota, period, money, models. The reader who wants the
+ *  per-session breakdown asks for it and gets it, and their answer is
+ *  remembered, so this costs them one press once rather than one press a day.
+ *
+ *  Defaults SHUT rather than open, which is the deliberate half of this. The
+ *  section is the panel's deepest detail and its least glanceable; the figure
+ *  most readers open this panel for is the one at the top.
+ */
+const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";
+
+function loadSessionsOpen(): boolean {
+  return readStored(SESSIONS_OPEN_KEY) === "1";
+}
+
+function saveSessionsOpen(open: boolean): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(SESSIONS_OPEN_KEY, open ? "1" : "0"); } catch { /* private mode */ }
+}
+
 function ageLabel(ms: number | undefined, nowSec: number): string | null {
   if (!ms) return null;
   const s = nowSec - Math.floor(ms / 1000);
@@ -760,6 +784,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // same markup either way.
   const [period, setPeriod] = useState<PeriodKey>(loadPeriod);
   useEffect(() => { savePeriod(period); }, [period]);
+  const [sessionsOpen, setSessionsOpen] = useState<boolean>(loadSessionsOpen);
+  useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);
   // One tab stop for the strip, not three. `role="toolbar"` is what pays for
   // that — see the markup — and moving the ring needs the buttons themselves.
   const periodRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -1358,7 +1384,9 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
             </section>
           )}
 
-          {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (
+          {(fromRange ? rangeSessionRows.length : boardSessionRows.length) > 0 && (() => {
+            const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;
+            return (
             <section className={`up-section${staleCls}`}>
               {/* WHAT A ccusage SESSION ROW IS, said on the heading rather than
                   in a tooltip, because the reader can see the arithmetic fail
@@ -1370,16 +1398,57 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
                   Both numbers are right and they answer different questions —
                   "what did today cost" and "what has each session running today
                   cost in total" — so the heading names the second one. */}
+              {/* THE ONE SECTION THAT SHUTS, and the chevron is what says so.
+                  Every other block in this panel is a fixed two or three rows;
+                  this one is as long as the reader's week and is the reason the
+                  panel scrolls. Shut, the panel is one screen.
+                  The <button> is inside the <h3> rather than instead of it —
+                  the ARIA disclosure pattern, and the one spelling that keeps
+                  the heading in the document outline while still giving the
+                  reader a real control. landmark-outline.test.ts reads these
+                  four headings as headings and would have lost one to a bare
+                  button. The whole row is the target, 250 x 24, because a
+                  chevron alone is a 9px hit area for a section-sized decision;
+                  the chevron is the affordance, not the control.
+                  The count goes on the title rather than into the row: shut,
+                  the reader cannot see how much is behind it, and that is the
+                  one fact the collapse actually takes away. Saying it in ink
+                  would be a third thing on a line that already carries two. */}
               <h3 className="up-section-title">
-                By session
-                {fromRange && (
-                  <span
-                    className="up-section-age"
-                    title={`Sessions with activity ${periodNoun}, each showing what that session has cost since it started.\nA session that began earlier brings its whole total with it, so these rows can add up to more than the figure above.`}
-                  >active {periodNoun}</span>
-                )}
+                <button
+                  type="button"
+                  className="up-disclose"
+                  aria-expanded={sessionsOpen}
+                  aria-controls="up-sessions"
+                  title={sessionsOpen
+                    ? "Hide the per-session breakdown"
+                    : `Show the per-session breakdown — ${sessionCount} session${sessionCount === 1 ? "" : "s"}`}
+                  onClick={() => setSessionsOpen(o => !o)}
+                >
+                  By session
+                  {fromRange && (
+                    <span
+                      className="up-section-age"
+                      title={`Sessions with activity ${periodNoun}, each showing what that session has cost since it started.\nA session that began earlier brings its whole total with it, so these rows can add up to more than the figure above.`}
+                    >active {periodNoun}</span>
+                  )}
+                  {/* Drawn, not typed. `.bw-chev` swaps two Unicode glyphs and
+                      is at the mercy of whichever font answers for them on
+                      Windows and Linux; a path is the same three strokes
+                      everywhere, and it can turn rather than be replaced. */}
+                  <svg className="up-chev" width="9" height="9" viewBox="0 0 10 10" fill="none"
+                       stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
+                       strokeLinejoin="round" aria-hidden>
+                    <path d="M2.2 3.6 5 6.4 7.8 3.6" />
+                  </svg>
+                </button>
               </h3>
-              <div className="up-sessions">
+              {/* `hidden` rather than an unrendered branch: it takes the rows
+                  out of the accessibility tree and out of the tab order the
+                  same way, and it leaves `aria-controls` pointing at something
+                  that exists in both states, which is the whole contract of a
+                  disclosure. Twelve divs cost nothing to keep. */}
+              <div className="up-sessions" id="up-sessions" hidden={!sessionsOpen}>
                 {fromRange && rangeSessionRows.map(s => {
                   const live = boardStates.get(s.sessionId);
                   return (
@@ -1445,7 +1514,8 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
                 ))}
               </div>
             </section>
-          )}
+            );
+          })()}
 
           {hasUnpriced && (
             <div className="up-hint">

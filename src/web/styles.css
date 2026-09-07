@@ -427,16 +427,41 @@ html, body, #root {
   overscroll-behavior: none;
 }
 
-/* Custom scrollbars — quieter, theme-aware */
+/* Custom scrollbars — quieter, theme-aware, and absent until the pointer is in
+   the box that scrolls.
+   THE TRACK KEEPS ITS WIDTH, ALWAYS, and that is the whole reason this is safe
+   to do. Asking for `::-webkit-scrollbar` at all opts Chrome out of the overlay
+   scrollbar macOS draws, so these 10px are real layout — and on Windows and
+   Linux they are real layout in every browser. A rule that took the width away
+   at rest would reflow the panel under the pointer as it arrived, on the two
+   platforms this repo cannot render. Only the thumb's colour moves, so the
+   content box is the same box in both states and the fade costs no reflow.
+   The border was `var(--bg)`, which is a hairline of the CANVAS colour drawn
+   over whatever surface the scroller actually has — right on the one scroller
+   whose parent is the canvas and wrong on the panels, which are `--panel`. It
+   is transparent now with `background-clip: padding-box` doing what the border
+   colour was doing: the thumb still paints 6px inside a 10px track, and it
+   paints nothing at all when it is meant to be gone.
+   Firefox gets the same behaviour through `scrollbar-color`, and degrades to
+   today's always-visible bar if it declines a transparent thumb. */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border: 2px solid var(--bg);
+  background-color: transparent;
+  border: 2px solid transparent;
+  background-clip: padding-box;
   border-radius: 999px;
+  transition: background-color 160ms ease-out;
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--muted-dim); }
-* { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+/* `:focus-within` beside `:hover` because a scroller can be driven from the
+   keyboard, and a bar that only exists under a pointer does not exist for the
+   reader who is arrowing through the thing it measures. */
+:hover::-webkit-scrollbar-thumb,
+:focus-within::-webkit-scrollbar-thumb { background-color: var(--line); }
+/* Last, so it beats the two above on source order at equal specificity. */
+*::-webkit-scrollbar-thumb:hover { background-color: var(--muted-dim); }
+* { scrollbar-color: transparent transparent; scrollbar-width: thin; }
+:hover, :focus-within { scrollbar-color: var(--line) transparent; }
 
 /* Visible focus ring for keyboard nav */
 :focus-visible {
@@ -5558,6 +5583,64 @@ button.tool.clickable:last-child { border-bottom: none; }
 /* Each quota carries its own age, because they are fetched separately and one
    is usually much older than the other. Set back to normal case and weight —
    it is a read-out sitting in a heading, not part of the heading. */
+/* The heading that opens, and it is the whole heading rather than the glyph.
+   A 9px chevron is a 9px hit area for a decision the size of a section.
+   `font: inherit` and `text-align: left` because a <button> arrives with the
+   platform's font and a centred label, and this one has to be indistinguishable
+   from the three headings beside it: same 11px, same 600, same --muted, same
+   uppercase, same left edge at the panel inset. No box, no fill, no edge.
+   The identification is the word, so control-edges.test.ts exempts it the way
+   it exempts the tool rows and the period segments.
+   THE PADDING IS THE HIT AREA AND THE MARGIN GIVES IT BACK. The heading's ink
+   is 15.9px tall — SC 2.5.8 asks 24 of the short side, and taking it by growing
+   the row would have pushed this section 10px off the rhythm the three headings
+   above it keep. `padding: 5px 0` with `margin: -5px 0` leaves the button's
+   MARGIN box exactly the height of the words, so the h3 measures what it always
+   did while the target measures 25.9. */
+.up-disclose {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: -5px 0;
+  padding: 5px 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The whole heading brightens, chevron included, because the whole heading is
+   the control. --text is where the section titles' --muted has room to go and
+   is what every other hover in this panel steps to. */
+.up-disclose:hover { color: var(--text); }
+.up-disclose:active { transform: scale(0.97); }
+/* The ring on the words rather than on the section: `.up-section` has no
+   padding of its own at the top, so the shared 1px offset would have sat on the
+   hairline above. -2px keeps it inside the line it belongs to. */
+.up-disclose:focus-visible { outline-offset: -2px; }
+/* Turns rather than swaps. Pushed to the right edge by `.up-section-age`'s
+   `margin-left: auto` when there is an age, and by its own when there is not —
+   the board branch prints no age, and a chevron that jumped to the middle of
+   the heading on that path would be the same control in two places.
+   `align-self: center` because the row is baseline-aligned for its text and a
+   drawn glyph has no baseline worth sitting on. */
+.up-chev {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms ease;
+}
+.up-section-age + .up-chev { margin-left: 0; }
+.up-disclose:hover .up-chev { color: var(--text); }
+.up-disclose[aria-expanded="true"] .up-chev { transform: rotate(180deg); }
+
 .up-section-age {
   margin-left: auto;
   font-size: 10px;
@@ -5605,6 +5688,14 @@ button.tool.clickable:last-child { border-bottom: none; }
   flex-direction: column;
   gap: 4px;
 }
+/* `[hidden]` IS NOT ENOUGH ON ITS OWN, and the failure is silent in both
+   directions. The attribute hides an element through a UA rule — `[hidden] {
+   display: none }` — and any author declaration of `display` outranks the whole
+   UA sheet, so the rule above kept this list `flex` with `hidden` set on it.
+   Measured: the attribute was on, `el.hidden` reported true, and twelve rows
+   were on screen and in the accessibility tree. Restated here at (0,2,0), where
+   it wins. */
+.up-sessions[hidden] { display: none; }
 .up-session-row {
   display: flex;
   align-items: center;
@@ -7446,6 +7537,10 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .bw-ep-head:active,
   .bw-toggle:active,
   .sm-toggle:active,
+  /* The usage panel's one section that opens. Its chevron turns as well, and a
+     rotation is the motion this block exists for — `transform: none` reaches
+     both, because both are transforms on elements this list names. */
+  .up-disclose:active,
   .bw-help:active,
   .bw-settings select:active:not(:disabled),
     /* Two that cannot join the list above, for two different reasons.
@@ -7457,6 +7552,10 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      none` never reaches it. */
   .selected-ribbon:active:not(:has(.selected-close:active)) { transform: none; }
   .tool-burst.clickable:active { scale: none; }
+  /* The chevron's rotation is a state, not an entrance: it still turns, it
+     just stops travelling. `transform: none` would have frozen it pointing
+     down over an open section, which is the one thing it must never do. */
+  .up-chev { transition: none; }
 }
 
 
