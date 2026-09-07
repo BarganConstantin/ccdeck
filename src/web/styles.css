@@ -811,15 +811,15 @@ button:focus-visible { outline-offset: 1px; }
    `min-height` and not padding: the head holds a 30px button in one state and
    the word that replaces it in the other, and without a floor the section
    shortens under the very press that granted the permission. */
-.sm-chan { display: flex; flex-direction: column; gap: 6px; }
-.sm-chan-head {
+.sm-channel { display: flex; flex-direction: column; gap: 6px; }
+.sm-channel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   min-height: var(--ctl-h);
 }
-.sm-chan-name {
+.sm-channel-name {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
@@ -830,7 +830,7 @@ button:focus-visible { outline-offset: 1px; }
    not it — a shared class here would be the generic name unstyled-class.test.ts
    was written about, and it would also make every `.sm-hear` query in a test or
    a console return a button that plays nothing. */
-button.btn.sm-chan-act {
+button.btn.sm-channel-action {
   padding: 0 10px;
   font-size: 11px;
 }
@@ -883,14 +883,14 @@ button.btn.sm-hear {
    annotation tier: the sentence under them carries the remedy, and a red word
    beside a heading would be the panel shouting about something the user cannot
    fix from here. */
-.sm-chan-state {
+.sm-channel-state {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11px;
   color: var(--muted);
 }
-.sm-chan-state[data-ok] { color: var(--ok); }
+.sm-channel-state[data-ok] { color: var(--ok); }
 
 .sm-row { display: flex; align-items: center; gap: 10px; }
 .sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }

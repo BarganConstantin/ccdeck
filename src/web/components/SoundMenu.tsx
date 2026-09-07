@@ -217,22 +217,22 @@ export default function SoundMenu({
           the way back from a prompt that was dismissed rather than the main
           road to it. */}
       {showChannel && (
-        <section className="sm-chan" aria-labelledby="sm-chan-name">
-          <div className="sm-chan-head">
+        <section className="sm-channel" aria-labelledby="sm-channel-name">
+          <div className="sm-channel-head">
             {/* Sentence case, and quieter than the two switches. ALL CAPS in
                 this menu belongs to the event groups below — those are what
                 structure it, and a third one here would claim the same rank for
                 what is only a capability report. */}
-            <h3 className="sm-chan-name" id="sm-chan-name">Browser notifications</h3>
+            <h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>
             {channel.ask ? (
-              <button type="button" className="btn sm-chan-act" onClick={onAskNotify}>
+              <button type="button" className="btn sm-channel-action" onClick={onAskNotify}>
                 Enable
               </button>
             ) : (
               /* A word, not a control, and it keeps the button's slot so the
                  press that grants the permission changes one label rather than
                  relaying the section under the pointer that caused it. */
-              <span className="sm-chan-state" data-ok={channel.ok || undefined}>
+              <span className="sm-channel-state" data-ok={channel.ok || undefined}>
                 {channel.ok && (
                   <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -257,7 +257,7 @@ export default function SoundMenu({
            the document is a dangling reference, which is the rule #800 put on
            the four topbar toggles. */
         <span id="sm-preview-note" className="vis-hidden">
-          Preview plays even while Sounds is off.
+          Plays even when Sounds is off, so you can set a tone before turning sounds back on.
         </span>
       )}
 
@@ -293,10 +293,15 @@ export default function SoundMenu({
                    press says so first, in a tooltip and — because a tooltip is
                    not on the accessibility tree — in a description a reader
                    gets too. Only while it can surprise: with the sound on, the
-                   sentence is noise. */
+                   sentence is noise.
+                   The two say different lengths on purpose. A tooltip appears
+                   over the thing it describes and is read in the half-second
+                   before a press, so it states the EXCEPTION and stops. The
+                   description is read in sequence by somebody who cannot see
+                   the switch above, and carries why the exception is useful. */
                 title={soundOn
                   ? "Play this tone now, at what it is set to"
-                  : "Plays even while Sounds is off, so you can set it before turning them back on"}
+                  : "Plays even when Sounds is off"}
                 aria-describedby={soundOn ? undefined : "sm-preview-note"}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>

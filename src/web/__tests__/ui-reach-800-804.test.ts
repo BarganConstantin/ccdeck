@@ -107,18 +107,18 @@ describe("#801 — what the Notifications switch is saying", () => {
     // already has — but NOT its caps heading. All caps in this menu belongs to
     // the two event groups, which are what structure it; a third one here would
     // give a capability report the rank of a section the user configures.
-    const chan = soundMenu.slice(soundMenu.indexOf('aria-labelledby="sm-chan-name"'));
-    expect(chan).toContain('<h3 className="sm-chan-name" id="sm-chan-name">Browser notifications</h3>');
-    expect(chan).toContain('<div className="sm-chan-head">');
-    expect(soundMenu).toContain('<section className="sm-chan" aria-labelledby="sm-chan-name">');
-    const chanName = css.slice(css.indexOf(".sm-chan-name {"));
+    const chan = soundMenu.slice(soundMenu.indexOf('aria-labelledby="sm-channel-name"'));
+    expect(chan).toContain('<h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>');
+    expect(chan).toContain('<div className="sm-channel-head">');
+    expect(soundMenu).toContain('<section className="sm-channel" aria-labelledby="sm-channel-name">');
+    const chanName = css.slice(css.indexOf(".sm-channel-name {"));
     expect(chanName.slice(0, chanName.indexOf("}"))).not.toContain("text-transform");
     const toneName = css.slice(css.lastIndexOf(".sm-tone-name {"));
     expect(toneName.slice(0, toneName.indexOf("}")), "the event groups lost their caps")
       .toContain("text-transform: uppercase");
     // And the head keeps a floor, so granting the permission swaps a 30px
     // button for a word without the section shortening under the press.
-    expect(css).toMatch(/\.sm-chan-head \{[^}]*min-height: var\(--ctl-h\)/);
+    expect(css).toMatch(/\.sm-channel-head \{[^}]*min-height: var\(--ctl-h\)/);
   });
 
   it("puts one rule between the two subjects this menu holds", () => {
@@ -190,7 +190,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Its own class, not `.sm-hear`: same small button in the same slot, but
     // "hear" is what the other one does, and a shared name would make every
     // `.sm-hear` lookup return a button that plays nothing.
-    expect(soundMenu).toContain('<button type="button" className="btn sm-chan-act" onClick={onAskNotify}>');
+    expect(soundMenu).toContain('<button type="button" className="btn sm-channel-action" onClick={onAskNotify}>');
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 
@@ -209,12 +209,12 @@ describe("#801 — what the Notifications switch is saying", () => {
 
   it("styles every class it renders", () => {
     for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "sm-toggle",
-                       "sm-toggle-knob", "sm-setting", "sm-note", "sm-chan-state",
-                       "sm-chan", "sm-chan-head", "sm-chan-name", "sm-chan-act",
+                       "sm-toggle-knob", "sm-setting", "sm-note", "sm-channel-state",
+                       "sm-channel", "sm-channel-head", "sm-channel-name", "sm-channel-action",
                        "sm-tones", "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
-    expect(css).toContain(".sm-chan-state[data-ok]");
+    expect(css).toContain(".sm-channel-state[data-ok]");
   });
 });
 
