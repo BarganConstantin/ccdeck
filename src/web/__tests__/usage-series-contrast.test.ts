@@ -533,11 +533,19 @@ describe("the selected range is a state you can see (#583)", () => {
     const scoped = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
       .filter(m => /\buh-range-btn\b/.test(m[1]) && !/^\s*\.uh-range-btn\[aria-pressed="true"\]/.test(m[1]))
       .map(m => ({ sel: m[1].trim(), body: m[2] }));
-    // There is one, and it is the period strip's.
-    expect(scoped.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]']);
+    // Two, and both are the period strip's: the segment, which resets the
+    // shared fill and takes a neutral label, and the ::after that carries the
+    // accent. Split like that on purpose — cyan appears once in this control
+    // and it is the indicator, never the type.
+    expect(scoped.map(r => r.sel)).toEqual([
+      '.up-period .uh-range-btn[aria-pressed="true"]',
+      '.up-period .uh-range-btn[aria-pressed="true"]::after',
+    ]);
+    // The accent arrives solid, in exactly one of them.
+    const carries = scoped.filter(r => /:\s*var\(--accent\)\s*;/.test(r.body));
+    expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]::after']);
     for (const r of scoped) {
-      // Solid --accent somewhere in it, and no diluted spelling of it anywhere.
-      expect(r.body, `${r.sel} carries no solid --accent`).toMatch(/:\s*var\(--accent\)\s*;/);
+      // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)
         .not.toMatch(/--accent-dim|color-mix[^;]*--accent|rgba?\([^;]*--accent/);
     }

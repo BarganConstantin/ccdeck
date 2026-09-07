@@ -5340,35 +5340,72 @@ button.tool.clickable:last-child { border-bottom: none; }
    The hairline the accent sits on runs the whole width and is the only
    container left — no box, no fill, no capsule. 30px segments, three equal
    columns, and the same --panel-inset every block above and below it uses. */
+/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
+   Centred and intrinsic, it read as a control that had floated in and settled
+   there; at the panel's own inset and full width it reads as the head of the
+   figures under it, which is what it is.
+
+   AND THE STATE CHANGES SHAPE, because full width changes what the old one
+   costs. A solid --accent fill on a 52px chip was a small bright mark; on an
+   80px third of the column it is a slab, and the panel has one loud thing in it
+   already — the money. So the accent moves from the segment's face to a short
+   rule under it: the same colour at the same strength (10.85:1 off this panel,
+   where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
+   the area. The label carries the other half of the state, stepping from
+   --muted to --text — neutral, not accent. Cyan appears once in this control
+   and it is the indicator. This is not the wash coming back in another
+   spelling, and usage-series-contrast.test.ts measures the difference rather
+   than trusting the sentence.
+
+   The baseline runs the whole width at 5% of --text and is the only container
+   there is — no box, no fill, no capsule. */
 .uh-range.up-period {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0;
   width: auto;
-  margin: 12px var(--panel-inset) 10px;
+  /* Tighter above than below on purpose: the strip belongs to the figures it
+     heads, so it sits closer to the line it follows than to the money it
+     introduces. */
+  margin: 8px var(--panel-inset) 16px;
   padding: 0;
   border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
   border-radius: 0;
   background: transparent;
 }
 .up-period .uh-range-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 30px;
   padding: 0 8px;
   border-radius: 0;
-  /* The rule under every segment, so the selected one changes colour rather
-     than appearing — a border that arrives on press would move the label 2px
-     and make the whole strip jump under the pointer. */
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
 }
+/* Hover moves the label and nothing else. `.uh-range-btn:hover` already
+   repaints it in --text, which is the whole gesture here — a box or a tint
+   arriving under the pointer would be the container this design refuses. */
+
+/* The indicator, as a pseudo-element rather than a border, because a border
+   spans the whole segment and this should not: 60% of an 80px tab, centred, is
+   read as belonging to the word above it instead of to the column edge beside
+   it. Absolutely positioned, so it neither takes part in layout nor moves the
+   label when it appears — the labels sit at the same y pressed or not. */
 .up-period .uh-range-btn[aria-pressed="true"] {
   background: transparent;
   color: var(--text);
-  border-bottom-color: var(--accent);
+}
+.up-period .uh-range-btn[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
    arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,
