@@ -774,27 +774,57 @@ button.btn.sm-switch {
 .sm-switch-state { color: var(--muted); font-variant-numeric: tabular-nums; }
 .sm-switch[aria-pressed="true"] .sm-switch-state { color: var(--accent); }
 
+/* The switch and what the browser says about it, as ONE thing.
+   The menu is a 12px column, and the permission row used to sit in it as a
+   third sibling wearing the same border and radius as the two switches above.
+   Three identical boxes, and a reader counted three settings — but the third
+   is a CONDITION of the second, not a peer of it.
+   No gap here, so the two share an edge and read as a stack. That is the whole
+   mechanism: no new colour, no new token, nothing to learn. The menu's own gap
+   still separates this unit from what follows, which is now the only 12px in
+   the group and therefore means something.
+   It replaced a `margin-top: -4px` on the row itself — a negative margin
+   cancelling part of a gap it could not see, which left 8px and read as a
+   smaller sibling rather than as an attachment. */
+.sm-notify { display: flex; flex-direction: column; }
+
 /* What the BROWSER says about notifications, under the deck's own switch
    (#801). A row rather than a line of prose because it is pressable: the
    permission prompt needs a user gesture, so this IS the way to grant it on a
    machine whose sessions rarely block — the other route, the button beside the
    blocked count, only exists while something is stuck.
    Quieter than the switch above it and not accent-filled: it reports a
-   condition and offers a remedy, it is not a setting that stays on. The 6px
-   pulls it under the switch as a continuation rather than a sibling. */
+   condition and offers a remedy, it is not a setting that stays on.
+   The negative margin is one pixel and does one job: the two borders that meet
+   become the single line a stacked control has, rather than the 2px seam two
+   adjacent boxes leave. */
 button.btn.sm-notice {
   justify-content: space-between;
   gap: 12px;
-  margin-top: -4px;
+  margin-top: -1px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
   font-size: 11px;
   color: var(--text-dim);
 }
+/* And the switch meets it. Only while the row is there — see `asking` in
+   SoundMenu.tsx — because a control with two square corners and nothing under
+   them is a box somebody forgot to finish. */
+button.btn.sm-switch-joined {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* Left, and allowed to wrap. The copy fits one line at this width, and a line
+   that needs two on a narrower rail should break rather than ellipsise: this
+   sentence is the reason the row exists. */
 .sm-notice-text { text-align: left; }
 .sm-notice-act { color: var(--accent); white-space: nowrap; }
 /* The dead-end case: refused, and no page may ask again. Prose, because there
    is nothing here to press — a button that silently does nothing is the
-   failure browser-react.mjs refuses to ship for its own reactions. */
-.sm-notice-note { margin-top: -2px; }
+   failure browser-react.mjs refuses to ship for its own reactions.
+   Inside the unit now, so it gets its own breathing room rather than the
+   negative margin it used to need to escape the column's gap. */
+.sm-notice-note { margin-top: 6px; }
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
