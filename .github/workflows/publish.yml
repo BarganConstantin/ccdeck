@@ -216,11 +216,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web bundle
-        run: npm run build
-
+      # No separate build step: `prepack` is `vite build`, so packing produces
+      # the same artifact `npm publish` would. And the tarball is FOUND rather
+      # than captured — `npm pack --silent` does not silence the hook, so its
+      # stdout carries Vite's progress lines as well as the filename, and
+      # `TARBALL=$(npm pack --silent)` wrote all of it into $GITHUB_ENV and
+      # failed with `Invalid format 'transforming...'`. The first run of this
+      # job found that; the deck on Node 18 was never reached.
       - name: Pack
-        run: echo "TARBALL=$(npm pack --silent)" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination "$RUNNER_TEMP"
+          echo "TARBALL=$(ls "$RUNNER_TEMP"/*.tgz)" >> "$GITHUB_ENV"
 
       - name: Setup Node (floor)
         uses: actions/setup-node@v7
@@ -232,7 +239,6 @@ jobs:
         run: |
           set -euo pipefail
           node --version
-          TARBALL="$PWD/$TARBALL"
           WORK="$(mktemp -d)"; HOME_DIR="$(mktemp -d)"
           cd "$WORK"
           echo '{"name":"floor-smoke","version":"1.0.0","private":true}' > package.json
