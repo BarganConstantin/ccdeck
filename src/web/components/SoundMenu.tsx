@@ -57,8 +57,11 @@ const TONE_LABEL: Record<Chime, string> = {
 /** The one line that says what fires the tone, because "Turn finished" alone
  *  does not tell a Codex user which of their turns are covered. */
 const TONE_NOTE: Record<Chime, string> = {
-  done: "Every finished turn, on both CLIs.",
-  "needs-input": "Claude Code only — Codex has no such event.",
+  done: "Plays when Claude or Codex finishes a turn.",
+  // "Codex has no such event" was the true reason and the wrong sentence: why
+  // the other CLI cannot do this is ours to know, and a user reading a settings
+  // menu needs the boundary, not the cause.
+  "needs-input": "Available in Claude Code only.",
 };
 
 interface Props {
@@ -160,7 +163,7 @@ export default function SoundMenu({
           respelled. */}
       <div className="sm-switches">
         <label className="sm-switch">
-          <span className="sm-switch-label" id="sm-sound-label">Sound</span>
+          <span className="sm-switch-label" id="sm-sound-label">Sounds</span>
           <button
             type="button"
             role="switch"
@@ -214,9 +217,13 @@ export default function SoundMenu({
           the way back from a prompt that was dismissed rather than the main
           road to it. */}
       {showChannel && (
-        <section className="sm-tone" aria-labelledby="sm-chan-name">
-          <div className="sm-tone-head">
-            <h3 className="sm-tone-name" id="sm-chan-name">Browser notifications</h3>
+        <section className="sm-chan" aria-labelledby="sm-chan-name">
+          <div className="sm-chan-head">
+            {/* Sentence case, and quieter than the two switches. ALL CAPS in
+                this menu belongs to the event groups below — those are what
+                structure it, and a third one here would claim the same rank for
+                what is only a capability report. */}
+            <h3 className="sm-chan-name" id="sm-chan-name">Browser notifications</h3>
             {channel.ask ? (
               <button type="button" className="btn sm-hear" onClick={onAskNotify}>
                 Enable
@@ -240,6 +247,11 @@ export default function SoundMenu({
         </section>
       )}
 
+      {/* One rule before the event groups. Everything above it is "does this
+          deck interrupt me, and can it"; everything below is "what does each
+          interruption sound like". Two subjects, and the caps headings alone
+          were not enough of a break between them. */}
+      <div className="sm-tones">
       {CHIME_ORDER.map(chime => {
         const tone = prefs[chime];
         const levelId = `sm-level-${chime}`;
@@ -287,7 +299,7 @@ export default function SoundMenu({
             </div>
 
             <div className="sm-row">
-              <label htmlFor={figureId}>Sound</label>
+              <label htmlFor={figureId}>Tone</label>
               {/* A native select for the same reason the range is native: it
                   arrives with the keyboard, the platform's own popup and a
                   reader that already knows how to announce a list of options.
@@ -309,8 +321,12 @@ export default function SoundMenu({
           </section>
         );
       })}
+      </div>
 
-      <p className="sm-foot">M turns the sound on and off from anywhere.</p>
+      {/* The key, drawn as a key. It was a sentence about a letter, which is
+          the one shape a reader does not scan for when they are looking for a
+          shortcut. Same cap the shortcuts sheet uses. */}
+      <p className="sm-foot"><kbd>M</kbd>Mute or unmute sounds, from anywhere.</p>
     </div>
   );
 }

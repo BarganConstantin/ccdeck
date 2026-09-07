@@ -803,20 +803,45 @@ button:focus-visible { outline-offset: 1px; }
    saying so now that the boxes are gone. */
 .sm-setting { display: flex; flex-direction: column; gap: 4px; }
 
-/* One tone: a heading with its preview beside it, two rows of controls, and the
-   line saying which turns it covers. */
-.sm-tone { display: flex; flex-direction: column; gap: 8px; }
-/* `min-height` and not padding: the two tone heads already stand 30px because
-   they hold a button, and the channel head has to match whether it holds one or
-   the word that replaces it — otherwise granting the permission shortens the
-   section under the pointer that granted it and everything below jumps up. */
-.sm-tone-head {
+/* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
+   setting and not an event group. Sentence case and --text-dim, because ALL
+   CAPS in this menu belongs to TURN FINISHED and CLAUDE IS ASKING: those are
+   what structure it, and a third caps heading here would claim their rank for
+   something the user configures in the browser rather than here.
+   `min-height` and not padding: the head holds a 30px button in one state and
+   the word that replaces it in the other, and without a floor the section
+   shortens under the very press that granted the permission. */
+.sm-chan { display: flex; flex-direction: column; gap: 6px; }
+.sm-chan-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   min-height: var(--ctl-h);
 }
+.sm-chan-name {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* The break between the two subjects this menu holds: above, whether the deck
+   interrupts you at all and whether it can; below, what each interruption
+   sounds like. The caps headings alone were not enough — they separate the two
+   event groups from each other, not the whole set of them from what precedes. */
+.sm-tones {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* One tone: a heading with its preview beside it, two rows of controls, and the
+   line saying which turns it covers. */
+.sm-tone { display: flex; flex-direction: column; gap: 8px; }
+.sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* The caption the shortcuts sheet's group headings already are, restated for a
    heading that is not in that grid. */
 .sm-tone-name {
@@ -925,6 +950,20 @@ button.btn.sm-hear {
   border-top: 1px solid var(--line);
   font-size: 11px;
   color: var(--text-dim);
+}
+/* The shortcuts sheet's cap, without the 38px column width that sheet's grid
+   needs — inline in a sentence, a letter box that wide reads as a button. */
+.sm-foot kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 7px;
 }
 
 /* Selected-agent ribbon — context chip that follows you across the canvas

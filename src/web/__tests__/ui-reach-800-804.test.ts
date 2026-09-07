@@ -82,11 +82,11 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(own).not.toContain("channel");
   });
 
-  it("says what the switch covers, which is the only thing separating it from Sound", () => {
+  it("says what the switch covers, which is the only thing separating it from Sounds", () => {
     // Two identically-shaped switches whose difference lives nowhere on screen
     // is the reason this note exists: sound fires on every finished turn, this
     // fires only when something has stopped and needs a person.
-    expect(NOTIFY_NOTE).toBe("Tell me when a session is waiting on me.");
+    expect(NOTIFY_NOTE).toBe("Notify me when a session needs my attention.");
     expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}");
   });
 
@@ -102,14 +102,40 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(app).toContain("askNotifyRef.current = askForNotifications;");
   });
 
-  it("draws the channel as a section, in the shape the menu already had", () => {
-    // `.sm-tone` + `.sm-tone-head` + `.sm-tone-name` is "a named group with one
-    // control beside its name", which is exactly this. A second spelling of it
-    // would be the drift the sheet's comments spend their length preventing.
+  it("draws the channel below the switches and above the rule, at neither rank", () => {
+    // A named group with one control beside its name — the shape TURN FINISHED
+    // already has — but NOT its caps heading. All caps in this menu belongs to
+    // the two event groups, which are what structure it; a third one here would
+    // give a capability report the rank of a section the user configures.
     const chan = soundMenu.slice(soundMenu.indexOf('aria-labelledby="sm-chan-name"'));
-    expect(chan).toContain('<h3 className="sm-tone-name" id="sm-chan-name">Browser notifications</h3>');
-    expect(chan).toContain('<div className="sm-tone-head">');
-    expect(soundMenu).toContain('<section className="sm-tone" aria-labelledby="sm-chan-name">');
+    expect(chan).toContain('<h3 className="sm-chan-name" id="sm-chan-name">Browser notifications</h3>');
+    expect(chan).toContain('<div className="sm-chan-head">');
+    expect(soundMenu).toContain('<section className="sm-chan" aria-labelledby="sm-chan-name">');
+    const chanName = css.slice(css.indexOf(".sm-chan-name {"));
+    expect(chanName.slice(0, chanName.indexOf("}"))).not.toContain("text-transform");
+    const toneName = css.slice(css.lastIndexOf(".sm-tone-name {"));
+    expect(toneName.slice(0, toneName.indexOf("}")), "the event groups lost their caps")
+      .toContain("text-transform: uppercase");
+    // And the head keeps a floor, so granting the permission swaps a 30px
+    // button for a word without the section shortening under the press.
+    expect(css).toMatch(/\.sm-chan-head \{[^}]*min-height: var\(--ctl-h\)/);
+  });
+
+  it("puts one rule between the two subjects this menu holds", () => {
+    // Above it: does this deck interrupt me, and can it. Below it: what each
+    // interruption sounds like. The caps headings separate the event groups
+    // from each other, not the whole set of them from what comes before.
+    expect(soundMenu).toContain('<div className="sm-tones">');
+    expect(css).toMatch(/\.sm-tones \{[^}]*border-top: 1px solid var\(--line\)/);
+  });
+
+  it("stops the word Sound naming two different things", () => {
+    // The switch said "Sound" and the per-tone <select> under it said "Sound"
+    // too — one meaning on/off, the other which of three figures plays. The
+    // switch is plural now and the picker is the thing it picks.
+    expect(soundMenu).toContain('id="sm-sound-label">Sounds<');
+    expect(soundMenu).toContain("<label htmlFor={figureId}>Tone</label>");
+    expect(soundMenu).not.toMatch(/>Sound</);
   });
 
   it("keeps the promise identical either side of the press that grants it", () => {

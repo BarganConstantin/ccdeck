@@ -30,7 +30,7 @@ export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 /** What the switch itself covers. Says WHEN, because that is the only thing
  *  separating it from the Sound switch above it — sound fires on every finished
  *  turn, this fires only when something has stopped and needs a person. */
-export const NOTIFY_NOTE = "Tell me when a session is waiting on me.";
+export const NOTIFY_NOTE = "Notify me when a session needs my attention.";
 
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
  *  somebody else decided it, the press cannot undo it until the next start, and
@@ -59,7 +59,7 @@ export interface Channel {
 }
 
 /** What this channel buys, in both of the states where it can still be had. */
-const AWAY = "Get notified while you're away from this tab.";
+const AWAY = "Get notified when you're away from this tab.";
 
 export function browserChannel(permission: NotifyPermission): Channel {
   switch (permission) {
