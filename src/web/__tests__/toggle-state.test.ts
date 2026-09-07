@@ -41,6 +41,7 @@
 // module, `./gradient-stops`, which declares no suites and so can be shared by
 // the five files that read the same two gradient tokens (#664, #665).
 import { describe, it, expect } from "vitest";
+import { KEY_HELP } from "../key-help";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -411,7 +412,11 @@ describe("what each of the four toggles announces", () => {
     // Still enumerated rather than asked of one state name, so a control that
     // appeared under some other state would fail here. `soundMenuOpen` joined
     // in #711 for its own reason — the topbar speaker became a disclosure for a
-    // popover — and `sessionListOpen` rejoins here.
+    // popover — and `sessionListOpen` rejoins here. `detailOpen` is NOT in this
+    // list and that is a decision rather than an oversight: the canvas-edge tab
+    // that used to reopen the detail panel was removed at the owner's request
+    // after the #800 trade-off was put to them, and `D` in the shortcuts sheet
+    // is the route that replaced it.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
     expect(expandeds).toEqual(["accountsPanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
   });
@@ -435,8 +440,12 @@ describe("what each of the four toggles announces", () => {
     // sentence above stays checkable.
     expect(sessionList).not.toMatch(/useModalDismiss|modalStack/);
     // The sheet still lists it, and the button's own title names the key — so
-    // the control teaches the shortcut rather than replacing it (#800).
-    expect(app).toMatch(/<kbd>L<\/kbd><span>session list<\/span>/);
+    // the control teaches the shortcut rather than replacing it (#800). Read
+    // from the table now rather than from the detail rail's copy of it: that
+    // rail is gone, and asserting against a second rendered list was always
+    // asserting against the duplicate rather than the source.
+    const rows = KEY_HELP.flatMap(g => g.rows);
+    expect(rows.find(r => r.cap === "L")!.action).toMatch(/session list/);
     expect(button("Toggle session list")).toContain("session list (L)");
   });
 

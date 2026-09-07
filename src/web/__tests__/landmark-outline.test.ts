@@ -260,10 +260,13 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usage)).toMatch(/<h2>Usage<\/h2>/);
     expect(code(accounts)).toMatch(/<h2>Accounts<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
-    // The detail panel, in both of its states: the agent's name when one is
-    // selected, and the panel's own word when none is.
+    // The detail panel has one state left. It used to draw a second one — a
+    // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
+    // and that whole empty state is gone: the panel is about an agent, and with
+    // none selected it does not render at all. So the heading it must carry is
+    // the agent's name, and there is no longer a second h2 to check.
     expect(code(app)).toMatch(/<h2 className="hero-title"/);
-    expect(code(app)).toMatch(/<h2>Detail<\/h2>/);
+    expect(code(app)).not.toMatch(/<h2>Detail<\/h2>/);
   });
 
   it("steps the usage panel's sections from h4 to h3, under that h2", () => {

@@ -25,6 +25,7 @@
 //         `role=button, name="Resume · 99+ held"` with the ghost span ignored
 //         for `ariaHiddenElement` — so the fix for #504 costs #510 nothing.
 import { describe, it, expect } from "vitest";
+import { KEY_HELP } from "../key-help";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -399,7 +400,11 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // The key is how this feature is actually used and nothing about it moved:
     // the same handler, the same gate, the same row in the shortcuts sheet.
     expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); togglePause\(\); \}/);
-    expect(app).toMatch(/<kbd>space<\/kbd><span>pause \/ resume<\/span>/);
+    // The row, read from the table the sheet renders. It used to be read from
+    // the detail rail's shorter copy of it; that rail is gone, and the copy was
+    // never the thing this case was about.
+    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")!.action)
+      .toMatch(/pause or resume/);
     expect(CONTROL).toMatch(/onClick=\{togglePause\}/);
   });
 });
@@ -548,7 +553,7 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     expect(pauseTitle({ paused: true, held: 0 })).toContain("(Space)");
     expect(pauseTitle({ paused: true, held: 7 })).toContain("(Space)");
     expect(PAUSE_LABEL.trim()).not.toBe("");
-    expect(app).toMatch(/<kbd>space<\/kbd><span>pause \/ resume<\/span>/);
+    expect(KEY_HELP.flatMap(g => g.rows).some(r => r.cap === "Space")).toBe(true);
   });
 
   it("draws the added sentence in a colour that is measured rather than assumed", () => {

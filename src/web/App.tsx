@@ -2698,6 +2698,15 @@ function Inner() {
       // landmark ("Sessions") that the rotor lists, and its close button is the
       // first control in it.
       if (e.key === "l" || e.key === "L") toggleSessionList();
+      // The detail panel's ONLY route, by the owner's decision after the
+      // trade-off was put to them: the reopen tab that used to sit on the
+      // canvas edge is gone and no topbar control replaced it. What makes that
+      // survivable rather than #800 again is that this key is in the shortcuts
+      // sheet, and the sheet has a visible control of its own in the canvas
+      // stack. The residual cost is real and worth writing down: `detailOpen`
+      // is persisted, so somebody who closes the panel with its × and never
+      // finds this key does not get it back on the next run either.
+      if (e.key === "d" || e.key === "D") setDetailOpen(o => !o);
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);
       // Nothing to disclose on a deck with no Claude Code: the button is not
@@ -4310,7 +4319,15 @@ function Inner() {
         </ReactFlow>
       </main>
 
-      {detailOpen ? (
+      {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
+          "Click an agent to see its tools", and a fifteen-row shortcut list —
+          which is a 360px column of the canvas spent on a sentence and a copy
+          of a reference that already has a complete version behind `?`. The
+          panel is about an agent; with no agent there is nothing for it to be
+          about, and the canvas gets the width back.
+          `:not(:has(.detail))` in the sheet already drops the column, so this
+          needed no layout change of its own. */}
+      {detailOpen && selected ? (
         // Already the right element and still an unnamed one: the rotor listed
         // it as a bare "complementary" beside the session list's "Sessions",
         // which is the entry a reader cannot tell from the next. The name is
@@ -4326,8 +4343,7 @@ function Inner() {
             aria-label="Close detail panel"
             onClick={() => setDetailOpen(false)}
           >×</button>
-          {selected
-            ? <Detail
+          <Detail
                 agent={selected}
                 now={now}
                 onOpenTool={setOpenedToolId}
@@ -4340,17 +4356,8 @@ function Inner() {
                 }}
                 onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
               />
-            : <EmptyDetail count={agentCount} workspace={workspace} />}
         </aside>
-      ) : (
-        <button
-          type="button"
-          className="detail-reopen"
-          title="Show detail panel"
-          aria-label="Show detail panel"
-          onClick={() => setDetailOpen(true)}
-        >‹</button>
-      )}
+      ) : null}
 
       {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolId(null)} />}
       {/* `providers` is what the modal's subtitle falls back to until a ccusage
@@ -4505,58 +4512,6 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
   );
 }
 
-function EmptyDetail({ count, workspace }: { count: number; workspace: string | null }) {
-  const scope = emptyScope(workspace);
-  return (
-    <>
-      {/* The detail panel's own title, at the level the panel sits at (#381).
-          Every persistent region of the deck now heads itself with an h2 under
-          the topbar's h1 — Usage, Accounts, Sessions, and the agent's name when
-          one is selected — and this is the same slot in the empty state. The
-          `Shortcuts` block below stays an h3, because it is a section inside
-          this panel rather than a second panel. */}
-      <h2>Detail</h2>
-      {count === 0 ? (
-        <div className="hint">
-          {scope.lead}
-          {scope.workspace !== null && <> <code>{scope.workspace}</code>{scope.tail}</>}
-        </div>
-      ) : (
-        <div className="empty">Click an agent to see its tools.</div>
-      )}
-      <h3 style={{ marginTop: 4 }}>Shortcuts</h3>
-      <div className="shortcuts">
-        {/* First, because it is the row that makes the other rows findable —
-            and the only one here that stays reachable once this panel is gone.
-            This list draws while nothing is selected and the rail is open,
-            which is the first ten seconds of a deck and none of the rest of it;
-            `?` opens the complete sheet from anywhere, including from a canvas
-            with forty agents on it and one of them selected. The rows below are
-            still the short version on purpose: they are what a new deck needs
-            to move around, not the reference. key-help.test.ts holds every cap
-            here against the sheet, so the two cannot come to disagree. */}
-        <div className="sc"><kbd>?</kbd><span>all shortcuts</span></div>
-        <div className="sc"><kbd>drag</kbd><span>move a node</span></div>
-        {/* Two rows the keyboard needed and the list never had: Tab reaches the
-            cards and Enter is what a click on one does, and Esc is the way back
-            out of any control to where the letters below work again. */}
-        <div className="sc"><kbd>tab</kbd><span>reach the cards</span></div>
-        <div className="sc"><kbd>enter</kbd><span>select the focused card</span></div>
-        <div className="sc"><kbd>space</kbd><span>pause / resume</span></div>
-        <div className="sc"><kbd>J</kbd><span>next agent</span></div>
-        <div className="sc"><kbd>K</kbd><span>previous agent</span></div>
-        <div className="sc"><kbd>R</kbd><span>re-arrange</span></div>
-        <div className="sc"><kbd>F</kbd><span>fit view</span></div>
-        <div className="sc"><kbd>L</kbd><span>session list</span></div>
-        <div className="sc"><kbd>H</kbd><span>usage history</span></div>
-        <div className="sc"><kbd>U</kbd><span>usage panel</span></div>
-        <div className="sc"><kbd>C</kbd><span>clear canvas</span></div>
-        <div className="sc"><kbd>T</kbd><span>toggle theme</span></div>
-        <div className="sc"><kbd>Esc</kbd><span>deselect, release focus</span></div>
-      </div>
-    </>
-  );
-}
 
 function Detail({
   agent,

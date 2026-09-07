@@ -1125,7 +1125,7 @@ button.btn.sm-hear {
 }
 /* 24 x 24 of target around an 18px glyph (#509).
    It measured 18 x 18, under the floor SC 2.5.8 sets and this sheet argues for
-   three separate times — at `.ver-close`, at `.detail-reopen` and at `.ap-more`
+   three separate times — at `.ver-close`, at `.ap-more` and at `.sd-close`
    — and it is the one control here that cannot use the standard's own escape
    hatch. That exception excuses an undersized target when a 24px circle centred
    on it touches no other target; this × sits INSIDE `.selected-ribbon`, and the
@@ -2143,7 +2143,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    What removing the box does NOT get to remove is the target. The glyph's own
    line box is 16px tall and, for ×, 9.34px wide — measured, not estimated —
    which is well under the 24px SC 2.5.8 asks for and which this sheet argues
-   for at `.ver-close`, `.ap-more` and `.detail-reopen`. So the box stays 24px
+   for at `.ver-close` and `.ap-more`. So the box stays 24px
    in both directions, as padding around a glyph that is drawn small: the
    pointer gets the square, the reader gets the character.
 
@@ -2595,42 +2595,16 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   margin-bottom: 0;
 }
 /* When the detail panel is closed, drop its 360px column so the canvas
-   reclaims the space. Keyed off the reopen tab, which only renders when closed. */
-.app:has(.detail-reopen) { grid-template-columns: 1fr; }
-.app:has(.session-list):has(.detail-reopen) { grid-template-columns: 240px 1fr; }
-.app:has(.accounts-panel):has(.detail-reopen) { grid-template-columns: 288px 1fr; }
-/* Floating reopen tab pinned to the right edge. */
-/* 24px wide, not the 22 it was. This sheet sets the SC 2.5.8 floor for itself
-   twice and argues for it both times — `.ver-close` ("24px is the floor SC
-   2.5.8 sets and this was 18") and `.ap-more` ("Now a real 24x24 target") —
-   and this tab predates both. It is not a conformance failure: the spacing
-   exception covers it, since nothing sits within 24px of a tab pinned to the
-   window's edge. It is the sheet disagreeing with itself about its own floor,
-   on the only control that reopens a whole panel. Two pixels, taken from the
-   canvas the tab already floats over. */
-.detail-reopen {
-  position: fixed;
-  top: 64px;
-  right: 0;
-  width: 24px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--ctl-edge);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: -2px 2px 8px rgba(0,0,0,0.2);
-  transition: color 120ms ease, background 120ms ease,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.detail-reopen:hover { color: var(--text); }
-.detail-reopen:active { transform: scale(0.94); }
+   reclaims the space. Keyed off the panel's own absence now. It used to be
+   keyed off `.detail-reopen`, the tab that rendered only while it was closed —
+   which worked, and stopped working the moment that tab came off the canvas.
+   `:not(:has(.detail))` says the thing the layout actually depends on rather
+   than a proxy for it, and it is what makes the panel's absence with nothing
+   selected cost nothing extra. */
+.app:not(:has(.detail)) { grid-template-columns: 1fr; }
+.app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
+.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: 288px 1fr; }
+
 /* The panel's captions, at both of the levels they now sit at (#381): the
    empty state's own title became this panel's h2 when the document gained an
    h1, and the sections under a selected agent stay h3. The child combinator is
@@ -2649,23 +2623,6 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .detail .empty {
   color: var(--muted);
   font-style: italic;
-}
-.detail .hint {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.55;
-  background: var(--bg-soft);
-}
-.detail .hint code {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text);
 }
 .detail .row {
   display: flex;
@@ -7273,7 +7230,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ver-banner .ver-close:active,
   .topbar .brand button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
-  .detail-reopen:active, .ctx-donut:active,
+  .ctx-donut:active,
   .session-list .sl-row:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,
   button.ap-auto-state:active:not(:disabled),

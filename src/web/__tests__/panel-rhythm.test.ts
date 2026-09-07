@@ -15,7 +15,7 @@
 //
 //   .btn            31.4px tall, top y=9.80
 //   .btn.icon-btn   30.0px tall, top y=10.49
-//   .detail-reopen  22 × 44
+//   .detail-reopen  22 × 44   (removed — see the note in section 6)
 //
 // So: a 2px step between the accounts header's controls and every row it heads,
 // a 3px and a 5px step in the session list, and a 1.4px height step repeated at
@@ -428,11 +428,14 @@ describe("the height of a button", () => {
 // ── 6. the floor this sheet sets for itself ─────────────────────────────────
 
 describe("the 24px target floor", () => {
-  it("covers the tab that reopens the detail panel", () => {
-    // 22 × 44. The sheet writes this floor down twice and argues for it both
-    // times — `.ver-close` and `.ap-more` — and this control predates both.
-    expect(px(decl(".detail-reopen", "width"))).toBeGreaterThanOrEqual(24);
-    expect(px(decl(".detail-reopen", "height"))).toBeGreaterThanOrEqual(24);
+  it("no longer needs to cover a tab pinned to the window edge", () => {
+    // `.detail-reopen` was 22 × 44 against the right edge and this floor was
+    // widened to 24 for it. The control is gone: reopening the detail panel is
+    // a topbar toggle now, sized by `.btn.icon-btn` like the four beside it,
+    // which is a floor the whole bar already answers to. What must not come
+    // back is a rule for it, because a rule with no element is a rule nobody
+    // maintains and the layout no longer keys off its presence either.
+    expect(css).not.toContain(".detail-reopen {");
   });
 
   it("covers the three topbar targets that were still under it (#509)", () => {

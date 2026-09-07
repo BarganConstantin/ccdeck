@@ -84,6 +84,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "U", action: "usage panel", binds: ["u", "U"] },
       { cap: "L", action: "session list", binds: ["l", "L"] },
+      { cap: "D", action: "detail panel", binds: ["d", "D"] },
       { cap: "H", action: "usage history", binds: ["h", "H"] },
       // Drawn only where Claude Code is, so the key is guarded the same way —
       // see the handler in App.tsx, which checks `providers.claude` first.

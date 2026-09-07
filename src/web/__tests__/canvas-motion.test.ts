@@ -314,7 +314,6 @@ const PRESSES: Press[] = [
   [".ap-lanes-more:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
-  [".detail-reopen:active", "0.94", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],

@@ -527,7 +527,6 @@ const CONTROLS: Control[] = [
   { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
   { at: ".ver-banner .ver-auto:hover", fillFrom: ".ver-banner .ver-auto", beds: BANNER },
   // canvas, detail panel, modals
-  { at: ".detail-reopen", beds: ["--bg"] },
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
   // a panel header, no border at rest and none grown on hover — so there is no
@@ -898,7 +897,8 @@ describe("the contrast maths, against the two ends everybody knows", () => {
     const dimFill = over([3, 105, 161, 0.22], canvas);
     expect(contrastRatio(dimFill, canvas)).toBeCloseTo(1.37, 2);
     expect(contrastRatio(over([3, 105, 161, 0.22], dimFill), canvas)).toBeCloseTo(1.79, 2);
-    // .detail-reopen: a --panel tab on the canvas, edged with --line.
+    // What a --panel surface is worth against the canvas, which is why a tab
+    // sitting on it could never be found by its fill alone.
     expect(contrastRatio(white, canvas)).toBeCloseTo(1.13, 2);
     // --accent-dim, the hover edge on eleven rules, against what it hovered.
     expect(contrastRatio(over([3, 105, 161, 0.22], white), white)).toBeCloseTo(1.39, 2);

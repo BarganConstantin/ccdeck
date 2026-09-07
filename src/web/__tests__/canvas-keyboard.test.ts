@@ -30,6 +30,7 @@
 // canvas-keys.ts and are checked directly; the parts that need a canvas are
 // pinned by reading the source, the way manage-block.test.ts does.
 import { describe, it, expect } from "vitest";
+import { KEY_HELP } from "../key-help";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -365,12 +366,21 @@ describe("nothing else in the deck invents a focus stop", () => {
 });
 
 describe("the shortcut list tells the truth about the keyboard", () => {
+  // Read from the table rather than from the detail rail that used to render a
+  // second, shorter copy of it. The rail is gone with the panel's empty state;
+  // the guarantee was never about which of the two lists said it, only that the
+  // deck says it somewhere a user can find — and the sheet behind `?` is that
+  // place, with a control of its own in the canvas stack.
+  const ROWS = KEY_HELP.flatMap(g => g.rows);
+  const says = (cap: string) => ROWS.find(r => r.cap === cap)?.action ?? "";
+
   it("names the two keys that reach and open a card", () => {
-    expect(app).toMatch(/<kbd>tab<\/kbd><span>reach the cards<\/span>/);
-    expect(app).toMatch(/<kbd>enter<\/kbd><span>select the focused card<\/span>/);
+    expect(says("Tab")).toMatch(/reach the agent cards/);
+    expect(says("Enter")).toMatch(/select the focused card/);
   });
 
   it("says what Escape now also does", () => {
-    expect(app).toMatch(/<kbd>Esc<\/kbd><span>deselect, release focus<\/span>/);
+    expect(says("Esc")).toMatch(/deselect/);
+    expect(says("Esc")).toMatch(/release focus/);
   });
 });
