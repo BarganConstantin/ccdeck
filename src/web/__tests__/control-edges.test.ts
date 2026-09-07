@@ -510,6 +510,11 @@ const CONTROLS: Control[] = [
   // is identified by nothing but the option text inside it, so the box IS the
   // control. Its bed is --panel, which is the popover's own surface.
   { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
+  // The sound menu's two small buttons, softened off --ctl-edge onto --sm-edge
+  // when they were made secondary. Swept here so the softer edge is MEASURED
+  // against 1.4.11 rather than argued for in a comment.
+  { at: "button.btn.sm-hear", states: ["button.btn:hover"], beds: ["--panel"] },
+  { at: "button.btn.sm-channel-action", states: ["button.btn:hover"], beds: ["--panel"] },
   // The skip link (#381). It is only ever on screen while it holds focus, and
   // it is drawn over the topbar it skips past — so the beds are the bar's two
   // ends, like every other control up here. It gets the sweep rather than an
@@ -688,9 +693,12 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // move because the PARSER changed its mind. Which of the two happened is
     // what the five direct answers under it are for: they are the shapes the
     // list has been widened to cover, asserted on bodies of their own rather
-    // than through a total that a sheet edit also moves. Sixty-two today.
+    // than through a total that a sheet edit also moves. Eighty-one today —
+    // the sound menu's two small buttons took a border-color of their own when
+    // they were made secondary, which is a control gaining an edge rather than
+    // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(80);
+    expect(EDGED_CONTROLS.length).toBeLessThan(85);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

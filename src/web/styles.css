@@ -35,6 +35,17 @@
      belongs to controls; #325 declined to do that and #332 keeps declining. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
+     --ctl-edge is the right weight for a control alone on a wide bar. Six of
+     them inside a 268px popover is a different picture: two selects, two
+     preview buttons and two switches, each outlined at 4.1:1, and the card
+     reads as a form rather than as settings. This still clears 1.4.11's 3:1 —
+     control-edges.test.ts measures it rather than trusting the number here.
+     The fill is a surface a hair ABOVE the panel, where those controls used to
+     sit in a well cut below it: raised needs less outline to be found than
+     sunk does, which is what buys the softer edge. */
+  --sm-edge: color-mix(in srgb, var(--text) 36%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
   --muted: #7e828c;
   --muted-dim: #50535b;
   /* Annotation text. --muted-dim is a decorative tint — 2.35:1 on --panel — and
@@ -148,6 +159,21 @@
   /* Identical to the dark block by construction — see the note there. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
+     --ctl-edge is the right weight for a control alone on a wide bar. Six of
+     them inside a 268px popover is a different picture: two selects, two
+     preview buttons and two switches, each outlined at 4.1:1, and the card
+     reads as a form rather than as settings. This still clears 1.4.11's 3:1 —
+     control-edges.test.ts measures it rather than trusting the number here.
+     The fill is a surface a hair ABOVE the panel, where those controls used to
+     sit in a well cut below it: raised needs less outline to be found than
+     sunk does, which is what buys the softer edge. */
+  /* Higher than the dark theme's 36%, and measured rather than mirrored: on a
+     light ground the fill below carries almost no separation of its own, so the
+     edge is doing the whole job and 36% lands at 2.57:1. Both themes designed,
+     not one inverted. */
+  --sm-edge: color-mix(in srgb, var(--text) 46%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
   --accent: #0369a1;
   --accent-dim: rgba(3,105,161,0.22);
   /* Both were a tenth under AA on the canvas — 4.43:1 and 4.44:1 against
@@ -742,7 +768,11 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: var(--shadow-2);
+  /* Two layers rather than one. The tight, nearly opaque first line is what a
+     surface sitting ON something reads as; the wide soft second is the height
+     it sits at. One 24px blur alone had to be dark enough to do both jobs and
+     ended up reading as a drop shadow on a sticker. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
@@ -750,7 +780,11 @@ button:focus-visible { outline-offset: 1px; }
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
    so now that the boxes are gone. */
-.sm-switches { display: flex; flex-direction: column; gap: 10px; }
+/* ONE CADENCE. The card ran 12 / 12 / 10 / 8 / 10, which is five numbers none
+   of which meant anything against the others. Now: 5px binds a line to the
+   control it belongs to, 9px separates rows inside a group, 14px separates
+   groups. Nothing new is drawn — the spacing is the grouping. */
+.sm-switches { display: flex; flex-direction: column; gap: 12px; }
 
 /* A row that is entirely a target: the <label> wraps the name and the switch,
    so the name is clickable and the accessible name comes from the element the
@@ -765,7 +799,10 @@ button:focus-visible { outline-offset: 1px; }
   gap: 12px;
   min-height: 20px;
 }
-.sm-switch-label { font-weight: 600; }
+/* 500, not 600. These two are the loudest words in the card and they are also
+   the ones a reader finds without looking — the weight was buying nothing and
+   costing the hierarchy under them. */
+.sm-switch-label { font-weight: 500; }
 
 /* The track, borrowed from `.bw-toggle` rather than invented beside it: the
    deck already had one switch and a second spelling of it would be the drift
@@ -801,7 +838,7 @@ button:focus-visible { outline-offset: 1px; }
 /* A setting and the line that says what it covers. 4px, not the group's 10px:
    the note belongs TO the switch above it, and the gap is the only thing left
    saying so now that the boxes are gone. */
-.sm-setting { display: flex; flex-direction: column; gap: 4px; }
+.sm-setting { display: flex; flex-direction: column; gap: 5px; }
 
 /* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
    setting and not an event group. Sentence case and --text-dim, because ALL
@@ -811,7 +848,7 @@ button:focus-visible { outline-offset: 1px; }
    `min-height` and not padding: the head holds a 30px button in one state and
    the word that replaces it in the other, and without a floor the section
    shortens under the very press that granted the permission. */
-.sm-channel { display: flex; flex-direction: column; gap: 6px; }
+.sm-channel { display: flex; flex-direction: column; gap: 5px; }
 .sm-channel-head {
   display: flex;
   align-items: center;
@@ -822,7 +859,7 @@ button:focus-visible { outline-offset: 1px; }
 .sm-channel-name {
   margin: 0;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-dim);
 }
 /* Sized like `.sm-hear` and named for itself. They are the same small button in
@@ -833,7 +870,10 @@ button:focus-visible { outline-offset: 1px; }
 button.btn.sm-channel-action {
   padding: 0 10px;
   font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
 }
+
 
 /* The break between the two subjects this menu holds: above, whether the deck
    interrupts you at all and whether it can; below, what each interruption
@@ -842,24 +882,27 @@ button.btn.sm-channel-action {
 .sm-tones {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 12px;
+  gap: 14px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
 }
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
-.sm-tone { display: flex; flex-direction: column; gap: 8px; }
+.sm-tone { display: flex; flex-direction: column; gap: 9px; }
 .sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* The caption the shortcuts sheet's group headings already are, restated for a
    heading that is not in that grid. */
+/* Uppercase stays — it is what structures the card — but 600 at 0.08em is the
+   setting a terminal uses for a section banner. Lighter and wider reads as a
+   caption instead: the same job, without the shout. */
 .sm-tone-name {
   margin: 0;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
    is a lot for two words on a caption line, so that is trimmed and the gap
@@ -869,10 +912,20 @@ button.btn.sm-channel-action {
    caption looked wrong in the drafting and turned out to be the caption's
    fault; the row is centred, so the two align on their middles and the height
    never reads as oversized. */
+/* MADE SECONDARY. It wore `btn` at full outline weight, which is what a page's
+   one primary action wears — and counting the selects there are four of those
+   in a 268px card. A faint fill plus the quieter edge says pressable at a
+   fraction of the ink.
+   Written at `button.btn.sm-hear` and not scoped under `.sound-menu`, which
+   would be one specificity step higher and would therefore beat
+   `button.btn:hover`'s accent border — leaving a control that got quieter under
+   the pointer. Same weight, declared earlier, so hover still wins. */
 button.btn.sm-hear {
   padding: 0 8px;
   gap: 5px;
   font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
 }
 /* What the browser has already answered, in the slot the button would take.
    A word rather than a control, because there is nothing here to press: a
@@ -890,7 +943,11 @@ button.btn.sm-hear {
   font-size: 11px;
   color: var(--muted);
 }
-.sm-channel-state[data-ok] { color: var(--ok); }
+/* Mixed toward the text rather than taken straight. --ok at full strength is
+   a signal colour meant for a dot on a dark canvas; beside two accent switches
+   it competed with them for the same glance. This still reads unmistakably
+   green and stops being the brightest thing in the card. */
+.sm-channel-state[data-ok] { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 
 .sm-row { display: flex; align-items: center; gap: 10px; }
 .sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }
@@ -917,8 +974,15 @@ button.btn.sm-hear {
   flex: 1;
   min-width: 0;
   margin: 0;
-  height: 20px;
+  height: 18px;
   accent-color: var(--accent);
+}
+/* The number is a READING, not a label, and it was set in --text at the weight
+   of one. Dim and tabular: it stops competing with the two words above it, and
+   it stops shuffling by a pixel as the thumb moves through 8, 9, 10. */
+.sound-menu .sm-read {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* Tabular, so stepping the value does not shuffle the row, and wide enough that
    "100%" does not push the slider narrower than "0%" did. */
@@ -931,14 +995,18 @@ button.btn.sm-hear {
 }
 /* The one control here the platform draws entirely: only the box it sits in is
    ours, and `accent-color` tints the open list where the platform honours it. */
+/* Was `--bg` — DARKER than the panel it sits on, so each of the two read as a
+   hole cut in the card with a bright rim around it. A surface a hair above the
+   panel needs far less rim to be found, and two of them stop being the first
+   thing the eye lands on. */
 .sm-select {
   flex: 1;
   min-width: 0;
   min-height: 24px;
   padding: 0 6px;
-  background: var(--bg);
+  background: var(--sm-fill);
   color: var(--text);
-  border: 1px solid var(--ctl-edge);
+  border: 1px solid var(--sm-edge);
   border-radius: 6px;
   font: inherit;
   font-size: 12px;
@@ -955,7 +1023,7 @@ button.btn.sm-hear {
    says where the toggle went belongs where the user is looking. */
 .sm-foot {
   margin: 0;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
   color: var(--text-dim);
