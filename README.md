@@ -71,7 +71,7 @@ What the deck does write, and the short list of what does leave the machine, is 
 
 ## Requirements
 
-- Node.js ≥ 18 — macOS, Linux and Windows
+- Node.js ≥ 18 — macOS, Linux and Windows. The floor is checked on every run: CI installs the packed release on Node 18 and boots it, so the badge is a measurement rather than a claim
 - Claude Code CLI or OpenAI Codex CLI (or both)
 - Optional: [claude-swap](https://pypi.org/project/claude-swap/) for the Accounts panel; the deck can install it for you
 - Nothing else. On Apple Silicon the deck fetches [`macmon`](https://github.com/vladkens/macmon) itself for the temperature rows; see below.

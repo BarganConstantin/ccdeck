@@ -178,11 +178,111 @@ jobs:
           '
 
   # ── The release ─────────────────────────────────────────────────────────
+  # ── the floor, proved rather than advertised ────────────────────────────────
+  #
+  # package.json says `engines: { node: ">=18" }` and the README carries a badge
+  # for it, and until this job existed nothing checked either. The matrix above
+  # runs Node 22 on all three OSes — deliberately, since that is the floor
+  # `node:sqlite` needs — so the oldest runtime this package CLAIMS to support
+  # was the one runtime never exercised (#773).
+  #
+  # What it tests is the claim and not more than the claim: the PACKED artifact,
+  # installed the way a user installs it, booted, and asked for four endpoints.
+  # Not the vitest suite — that pulls a dev toolchain whose own floor is not this
+  # package's promise, and running it here would prove something nobody said.
+  #
+  # One OS. The matrix already covers the three; what this leg varies is the
+  # runtime, and a Node version behaves the same on all of them for the APIs at
+  # stake — an absent `node:sqlite`, an absent `zstd` — which are absent by
+  # version, never by platform.
+  floor:
+    name: floor (node 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Two Node versions on purpose. The package is BUILT with the toolchain
+      # the project actually uses, then RUN on the floor — which is exactly the
+      # arrangement a user is in, since they install a published tarball rather
+      # than build one.
+      - name: Setup Node (build)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # No separate build step: `prepack` is `vite build`, so packing produces
+      # the same artifact `npm publish` would. And the tarball is FOUND rather
+      # than captured — `npm pack --silent` does not silence the hook, so its
+      # stdout carries Vite's progress lines as well as the filename, and
+      # `TARBALL=$(npm pack --silent)` wrote all of it into $GITHUB_ENV and
+      # failed with `Invalid format 'transforming...'`. The first run of this
+      # job found that; the deck on Node 18 was never reached.
+      - name: Pack
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination "$RUNNER_TEMP"
+          echo "TARBALL=$(ls "$RUNNER_TEMP"/*.tgz)" >> "$GITHUB_ENV"
+
+      - name: Setup Node (floor)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 18
+
+      - name: Install the packed artifact and boot it
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          WORK="$(mktemp -d)"; HOME_DIR="$(mktemp -d)"
+          cd "$WORK"
+          echo '{"name":"floor-smoke","version":"1.0.0","private":true}' > package.json
+          npm install "$TARBALL" --no-audit --no-fund --loglevel=error
+
+          # Nothing installed, no registry asked: this leg is about the runtime,
+          # not the network, and a flaky download must not read as a bad floor.
+          export HOME="$HOME_DIR" USERPROFILE="$HOME_DIR"
+          export CLAUDE_CONFIG_DIR="$HOME_DIR/claude" CODEX_HOME="$HOME_DIR/codex"
+          export AGENTS_DECK_NO_INSTALL=1 AGENTS_DECK_NO_DOWNLOAD=1
+
+          node node_modules/agents-deck/bin/agent-dag.js --port 4351 --no-open > deck.log 2>&1 &
+          DECK=$!
+          trap 'kill "$DECK" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 300); do
+            curl -fsS -o /dev/null -m 2 http://127.0.0.1:4351/ 2>/dev/null && break
+            sleep 0.2
+          done
+
+          fail=0
+          for ep in /api/health /api/system /api/state /api/version; do
+            code="$(curl -s -o /dev/null -m 30 -w '%{http_code}' "http://127.0.0.1:4351$ep")"
+            printf '  %-20s %s\n' "$ep" "$code"
+            [ "$code" = "200" ] || fail=1
+          done
+
+          # A runtime too old for something the deck reaches for does not show up
+          # as a non-200: every such path is written to degrade rather than
+          # throw. So the proof that it degraded is that nothing was thrown.
+          if grep -qiE "is not a function|is not defined|ERR_[A-Z_]+|Cannot find module" deck.log; then
+            echo "--- the deck complained on the floor runtime ---"
+            cat deck.log
+            fail=1
+          fi
+
+          [ "$fail" = "0" ] && echo "floor ok on $(node --version)"
+          exit "$fail"
+
   publish:
     # Every leg. `needs` on a matrix job waits for all of them and requires all
     # of them to have succeeded, so a red Windows leg blocks the release even
     # though fail-fast: false let the other two finish.
-    needs: test
+    needs: [test, floor]
     # The workflow now runs on pushes and pull requests too; this keeps the
     # publish job itself on exactly the two triggers it had before.
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
