@@ -5326,17 +5326,37 @@ button.tool.clickable:last-child { border-bottom: none; }
   gap: 0;
   margin: 12px auto 8px;
   width: fit-content;
-  padding: 3px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  border-color: color-mix(in srgb, var(--text) 9%, transparent);
+  padding: 2px;
+  border-radius: 8px;
+  /* No fill at all. The modal's --bg-soft trough read as a slot cut into this
+     panel, and the 3% that replaced it was doing nothing a hairline was not
+     already doing. What is left is one 8%-of-text edge, which is the least a
+     group of three can be drawn with and still read as one object. */
+  background: transparent;
+  border-color: color-mix(in srgb, var(--text) 8%, transparent);
 }
+/* THE CYAN COMES DOWN BY AREA, NOT BY DILUTION, and that is a measurement
+   rather than a preference. Two treatments were built and read in the browser:
+   this one, and a neutral chip carrying the state in --accent TYPE instead of
+   fill. The second is the prettier of the two and is measurably the weaker
+   control — accent against muted is 2.31:1 and its chip stands 1.22:1 off the
+   panel, where this fill stands at 10.85:1. #583 is the precedent and it is
+   exact: the selected chip used to be an --accent-dim wash at 1.895:1, that
+   issue measured it and replaced it with a solid fill because a wash is not a
+   state. A scoped override here would have slipped past that sweep, which is
+   the only reason it was worth measuring rather than assuming.
+   So the restraint is spent on everything AROUND the state: no container fill,
+   an 8px radius instead of a full capsule, 2px of padding instead of 3, and
+   52px segments instead of 64. 32px tall — 26 for the segment, 2 either side,
+   1 of border. */
 .up-period .uh-range-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 64px;
-  min-height: 28px;
-  padding: 0 12px;
+  min-width: 52px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
    arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,

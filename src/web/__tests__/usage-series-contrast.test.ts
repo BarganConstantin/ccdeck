@@ -512,6 +512,25 @@ describe("the selected range is a state you can see (#583)", () => {
     expect(bodyOf(pressed)).not.toMatch(/--accent-dim/);
   });
 
+  it("lets no surface re-dilute the state the issue removed", () => {
+    // THE HOLE THIS CLOSES. Everything above sweeps `.uh-range-btn` and its
+    // pressed state by name; a rule scoped to one surface — `.up-period .uh-
+    // range-btn[aria-pressed="true"]` — is a different selector and would have
+    // gone past all of it. The usage panel's strip was polished twice and the
+    // second pass built exactly that override to try: a neutral chip carrying
+    // the state in --accent type instead of fill.
+    //
+    // Measured in the browser rather than argued: accent against muted is
+    // 2.31:1 and that chip stands 1.22:1 off the panel, where the solid fill
+    // stands at 10.85:1. Both channels together are weaker than the single
+    // --accent-dim wash #583 removed at 1.895:1. So the strip keeps the shared
+    // state, and any future scoping of it has to come through this case.
+    const scoped = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
+      .filter(m => /\buh-range-btn\b/.test(m[1]) && !/^\s*\.uh-range-btn\[aria-pressed="true"\]/.test(m[1]))
+      .map(m => `${m[1].trim()} { ${m[2].trim()} }`);
+    expect(scoped.filter(r => /background|color/.test(r))).toEqual([]);
+  });
+
   it("is keyed on the attribute, so no chip can look selected while announcing nothing", () => {
     // The icon buttons' idiom, from #370. The `on` class went with it — the
     // pixels and the accessibility tree are one fact now.
