@@ -514,21 +514,39 @@ describe("the selected range is a state you can see (#583)", () => {
 
   it("lets no surface re-dilute the state the issue removed", () => {
     // THE HOLE THIS CLOSES. Everything above sweeps `.uh-range-btn` and its
-    // pressed state by name; a rule scoped to one surface — `.up-period .uh-
-    // range-btn[aria-pressed="true"]` — is a different selector and would have
-    // gone past all of it. The usage panel's strip was polished twice and the
-    // second pass built exactly that override to try: a neutral chip carrying
-    // the state in --accent type instead of fill.
+    // pressed state by name; a rule scoped to one surface is a different
+    // selector and would go past all of it. The usage panel's strip has been
+    // through three layouts and each one reached for a lighter selection.
     //
-    // Measured in the browser rather than argued: accent against muted is
-    // 2.31:1 and that chip stands 1.22:1 off the panel, where the solid fill
-    // stands at 10.85:1. Both channels together are weaker than the single
-    // --accent-dim wash #583 removed at 1.895:1. So the strip keeps the shared
-    // state, and any future scoping of it has to come through this case.
+    // What is refused is the WASH, which is what #583 measured and removed: an
+    // --accent-dim fill standing 1.895:1 off its track. Measured in the browser
+    // when the second layout tried it again in another spelling — a neutral
+    // chip carrying the state in accent TYPE — accent against muted is 2.31:1
+    // and that chip stands 1.22:1 off the panel. Both weaker than the thing
+    // already thrown out.
+    //
+    // What is allowed is a SMALLER indicator at full strength, which is what
+    // the full-width layout ships: the accent left the segment's face for a 2px
+    // rule under it, unmixed and unfaded, at 10.85:1 off this panel. So the
+    // rule here is not "do not scope it" — it is "whatever you scope it to, the
+    // accent has to arrive solid".
     const scoped = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
       .filter(m => /\buh-range-btn\b/.test(m[1]) && !/^\s*\.uh-range-btn\[aria-pressed="true"\]/.test(m[1]))
-      .map(m => `${m[1].trim()} { ${m[2].trim()} }`);
-    expect(scoped.filter(r => /background|color/.test(r))).toEqual([]);
+      .map(m => ({ sel: m[1].trim(), body: m[2] }));
+    // There is one, and it is the period strip's.
+    expect(scoped.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]']);
+    for (const r of scoped) {
+      // Solid --accent somewhere in it, and no diluted spelling of it anywhere.
+      expect(r.body, `${r.sel} carries no solid --accent`).toMatch(/:\s*var\(--accent\)\s*;/);
+      expect(r.body, `${r.sel} paints the state as a wash`)
+        .not.toMatch(/--accent-dim|color-mix[^;]*--accent|rgba?\([^;]*--accent/);
+    }
+    // And the colour it arrives in is worth the state, on the surface it lands
+    // on. 3:1 is 1.4.11's bar for a non-text indicator; #583's wash was 1.895.
+    for (const theme of themes) {
+      const ratio = contrastRatio(parseColor(TOK[theme]["--accent"]), parseColor(TOK[theme]["--panel"]));
+      expect(ratio, `--accent on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it("is keyed on the attribute, so no chip can look selected while announcing nothing", () => {

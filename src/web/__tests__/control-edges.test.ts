@@ -968,6 +968,14 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",
+      // The selected segment of the usage panel's period strip. Its
+      // `border-bottom-color: var(--accent)` is a STATE INDICATOR, not the
+      // control's boundary: every segment already draws a 2px transparent rule
+      // in the same place at rest, so nothing appears or moves on press, and
+      // each segment is identified by the word written in it. What the accent
+      // has to be worth is measured — as a state rather than as an edge — by
+      // usage-series-contrast.test.ts, which holds it to the same bar #583 set.
+      ".up-period .uh-range-btn[aria-pressed=\"true\"]",
       // A label on the canvas, whose rim is a tint of the session hue and
       // whose floors session-hue.test.ts owns as decoration. It reads its own
       // name at 4.5:1, which is the identification. (It read "draggable" here

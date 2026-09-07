@@ -5320,43 +5320,55 @@ button.tool.clickable:last-child { border-bottom: none; }
    source-order tie and kept `inline-flex` — on which `margin: auto` computes to
    zero and the strip stayed against the left edge, which is the whole defect
    this block is about. */
+/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
+   Centred and intrinsic, it read as a control that had floated in and settled
+   there; at the panel's own inset and full width it reads as the head of the
+   figures under it, which is what it is.
+
+   AND THE STATE CHANGES SHAPE, because full width changes what the old one
+   costs. A solid --accent fill on a 52px chip was a small bright mark; on an
+   85px third of the column it is a slab, and the panel has one loud thing in it
+   already — the money. So the accent moves from the segment's face to a 2px
+   rule under it: the same colour at the same strength (10.85:1 off this panel,
+   where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
+   the area. The label carries the other half of the state, stepping from
+   --muted to --text, which is the 2.75:1 type step that issue also recorded.
+   This is not the wash coming back in another spelling, and
+   usage-series-contrast.test.ts measures the difference rather than trusting
+   the sentence.
+
+   The hairline the accent sits on runs the whole width and is the only
+   container left — no box, no fill, no capsule. 30px segments, three equal
+   columns, and the same --panel-inset every block above and below it uses. */
 .uh-range.up-period {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0;
-  margin: 12px auto 8px;
-  width: fit-content;
-  padding: 2px;
-  border-radius: 8px;
-  /* No fill at all. The modal's --bg-soft trough read as a slot cut into this
-     panel, and the 3% that replaced it was doing nothing a hairline was not
-     already doing. What is left is one 8%-of-text edge, which is the least a
-     group of three can be drawn with and still read as one object. */
+  width: auto;
+  margin: 12px var(--panel-inset) 10px;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 0;
   background: transparent;
-  border-color: color-mix(in srgb, var(--text) 8%, transparent);
 }
-/* THE CYAN COMES DOWN BY AREA, NOT BY DILUTION, and that is a measurement
-   rather than a preference. Two treatments were built and read in the browser:
-   this one, and a neutral chip carrying the state in --accent TYPE instead of
-   fill. The second is the prettier of the two and is measurably the weaker
-   control — accent against muted is 2.31:1 and its chip stands 1.22:1 off the
-   panel, where this fill stands at 10.85:1. #583 is the precedent and it is
-   exact: the selected chip used to be an --accent-dim wash at 1.895:1, that
-   issue measured it and replaced it with a solid fill because a wash is not a
-   state. A scoped override here would have slipped past that sweep, which is
-   the only reason it was worth measuring rather than assuming.
-   So the restraint is spent on everything AROUND the state: no container fill,
-   an 8px radius instead of a full capsule, 2px of padding instead of 3, and
-   52px segments instead of 64. 32px tall — 26 for the segment, 2 either side,
-   1 of border. */
 .up-period .uh-range-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 52px;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 7px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 0;
+  /* The rule under every segment, so the selected one changes colour rather
+     than appearing — a border that arrives on press would move the label 2px
+     and make the whole strip jump under the pointer. */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.up-period .uh-range-btn[aria-pressed="true"] {
+  background: transparent;
+  color: var(--text);
+  border-bottom-color: var(--accent);
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
    arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,
