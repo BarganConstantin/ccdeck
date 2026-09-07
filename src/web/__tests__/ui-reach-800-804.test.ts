@@ -56,7 +56,14 @@ describe("#801 — what the Notifications switch is saying", () => {
     // the deck's own desktop notifier works and the page's does not — so "on"
     // alone was a promise the tab could not keep.
     expect(soundMenu).toContain('notifyPermission: "default" | "granted" | "denied" | "unsupported";');
-    expect(soundMenu).toContain("notifyOn && !notifyVetoed && notifyPermission !== \"granted\" && (");
+    // The gate is named now rather than inlined — one `asking`, read by the
+    // row below it and by the switch above, which squares its corners to meet
+    // it. Asserted as the definition plus its two uses rather than as one
+    // literal expression, so the guarantee survives the next tidy-up: what
+    // must hold is that the ask appears only with the switch on, the machine
+    // not overruling it, and the browser not yet answered.
+    expect(soundMenu).toContain('const asking = notifyOn && !notifyVetoed && notifyPermission === "default";');
+    expect(soundMenu).toContain("{asking && (");
     expect(app).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
   });
 
@@ -71,12 +78,21 @@ describe("#801 — what the Notifications switch is saying", () => {
   it("offers no button for a permission no page may re-raise", () => {
     // `denied` gets a sentence. A control that silently does nothing is worse
     // than no control, and `requestPermission()` cannot undo a refusal.
-    expect(soundMenu).toContain('notifyPermission === "default" ? (');
+    // The two branches are separate conditions rather than a ternary now, and
+    // between them they still cover the enum exactly: `asking` is the
+    // `default` case, this is `denied` and `unsupported`, and `granted` draws
+    // nothing. No permission reaches both, and none reaches neither.
+    expect(soundMenu).toContain('notifyPermission === "denied" || notifyPermission === "unsupported"');
     expect(soundMenu).toMatch(/notifyPermission === "denied"\s*\n?\s*\? "This browser is blocking notifications/);
+    // And the refused case is prose. A `<button>` anywhere in that branch
+    // would be the control that silently does nothing.
+    const deniedBranch = soundMenu.slice(soundMenu.indexOf('notifyPermission === "denied" ||'));
+    expect(deniedBranch.slice(0, deniedBranch.indexOf("</div>"))).not.toContain("<button");
   });
 
   it("styles every class it renders", () => {
-    for (const cls of ["sm-notice", "sm-notice-text", "sm-notice-act", "sm-notice-note"]) {
+    for (const cls of ["sm-notify", "sm-switch-joined",
+                       "sm-notice", "sm-notice-text", "sm-notice-act", "sm-notice-note"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
   });
