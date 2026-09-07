@@ -452,11 +452,17 @@ describe("what each of the four toggles announces", () => {
     expect(sound).toMatch(/aria-expanded=\{soundMenuOpen\}/);
     expect(sound).toMatch(/aria-haspopup="dialog"/);
     expect(sound).not.toMatch(/aria-pressed/);
-    // And the state did not evaporate on the way. It is on a real toggle inside
+    // And the state did not evaporate on the way. It is on a real switch inside
     // the menu, which is also what M flips — so the setting still reports
-    // itself, one layer in.
+    // itself, one layer in. `role="switch"` with aria-checked rather than a
+    // button with aria-pressed: what it carries is a setting that stays on, and
+    // a switch is the role whose whole definition is that. It is also what the
+    // deck's other one already is (.bw-toggle in Browser Watch), so a reader
+    // meets one shape rather than two spellings of it.
     const menu = markup("components", "SoundMenu.tsx");
-    expect(menu).toMatch(/className="btn sm-switch"[\s\S]{0,120}aria-pressed=\{soundOn\}/);
+    expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
+    expect(menu).toMatch(/aria-labelledby="sm-sound-label"/);
+    expect(menu).not.toMatch(/aria-pressed/);
     // Non-modal on purpose: nothing behind it is inert and there is no scrim,
     // so claiming aria-modal would be the lie #518 removed from the modals that
     // did have one.

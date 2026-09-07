@@ -2888,6 +2888,7 @@ function Inner() {
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+  const askNotifyRef = useRef<() => void>(() => {});
   const toggleNotify = useCallback(() => {
     // Optimistic, and corrected by the answer. The switch is the one control
     // whose whole point is that it responds now; waiting for a round trip to a
@@ -2895,6 +2896,20 @@ function Inner() {
     // UI saying what the file says rather than what the press wanted.
     const want = !notifyOn;
     setNotifyOn(want);
+    // AND THE PRESS FINISHES THE JOB. Switching this on used to leave a switch
+    // reading "on" above a line saying the browser had never been asked, which
+    // is a control contradicting itself — the user's reasonable reply being
+    // "if it is on, why must I do something else?". `requestPermission()` needs
+    // a user gesture and this IS one, so the prompt goes up on the same press.
+    // Only from off to on, only while the browser can still be asked, and the
+    // switch stays on whatever the answer is: a refusal costs the page's
+    // notifier, not the deck's, and block-notify.mjs needs no permission.
+    // Through a ref because the asker is declared below this and a plain call
+    // would be a use-before-define; a dependency on it would rebuild this
+    // callback for no reason.
+    if (want && typeof Notification !== "undefined" && Notification.permission === "default") {
+      askNotifyRef.current();
+    }
     fetch("/api/prefs", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -2935,6 +2950,7 @@ function Inner() {
       else if (answer === "denied") setNotifySaid("blocked");
     });
   }, []);
+  askNotifyRef.current = askForNotifications;
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
   /** The permission the memo below was seeded against, so that a change of
    *  answer re-seeds exactly once. `null` until the first seed. */

@@ -297,6 +297,10 @@ const PRESSES: Press[] = [
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
   // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
   [".bw-toggle:active", "0.97", "transform"],
+  // The sound menu's two switches, the same track as Browser Watch's and
+  // therefore the same press. 0.97 rather than 0.94: the knob travels 13px
+  // inside a 30px track, and six percent of that reads as the knob slipping.
+  [".sm-toggle:active", "0.97", "transform"],
   // The overview's help disclosure. 0.94 like the other small round controls
   // it is shaped as: a 16px circle is a box, and 0.97 of a box that size is
   // not visible.

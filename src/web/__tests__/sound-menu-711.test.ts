@@ -850,7 +850,10 @@ describe("the click opens the menu, and M still silences the deck", () => {
   it("gives the mouse the switch back, inside the menu, through the same door", () => {
     expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
     expect(menu).toMatch(/onClick=\{onToggleSound\}/);
-    expect(menu).toMatch(/aria-pressed=\{soundOn\}/);
+    // A real switch, not a word in a box. `on` sat in the same right-hand slot
+    // and the same accent the deck gives figures it REPORTS, so the one control
+    // at the top of this menu read as a readout — see toggle-state.test.ts.
+    expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
   });
 
   it("took the volume out of the shortcuts sheet it briefly lived in", () => {

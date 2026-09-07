@@ -747,113 +747,90 @@ button:focus-visible { outline-offset: 1px; }
   text-align: left;
 }
 
-/* The switch. A `button.btn` rather than a shape of its own, so the box, the
-   hover, the press scale and the pointer cursor are the ones every other button
-   in the deck already has — and so canvas-motion.test.ts's press contract is
-   satisfied by the rule that already satisfies it, rather than by a second
-   spelling. What is added here is the layout: a label pushed left and the state
-   word pushed right, full width.
+/* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
+   one group and the tone sections below are two others — the gap is what says
+   so now that the boxes are gone. */
+.sm-switches { display: flex; flex-direction: column; gap: 10px; }
 
-   Written `button.btn.sm-switch` rather than `.sm-switch`, and that is not
-   defensive spelling: `button.btn` is 0-1-1 and declares `justify-content:
-   center` further down the sheet, so a bare class selector here would lose both
-   the specificity contest and the source-order one and every declaration in
-   this block would be dead. type-ladder.test.ts catches exactly that class of
-   silently-inert override.
-   No `width: 100%` either — `.sound-menu` is a flex column, whose default
-   `align-items: stretch` already gives this the full width. Declaring it as a
-   percentage would add the one thing panel-overflow.test.ts sweeps for. */
-button.btn.sm-switch {
-  justify-content: space-between;
-  gap: 12px;
-}
-.sm-switch-label { font-weight: 600; }
-/* The state, in the same two channels the topbar toggles use: a word, and the
-   accent. --muted when off is the same dim every inert control in the sheet
-   takes, so "off" reads as off without a second colour being invented. */
-.sm-switch-state { color: var(--muted); font-variant-numeric: tabular-nums; }
-.sm-switch[aria-pressed="true"] .sm-switch-state { color: var(--accent); }
-
-/* The switch and what the browser says about it, as ONE thing.
-   The menu is a 12px column, and the permission row used to sit in it as a
-   third sibling wearing the same border and radius as the two switches above.
-   Three identical boxes, and a reader counted three settings — but the third
-   is a CONDITION of the second, not a peer of it.
-   No gap here, so the two share an edge and read as a stack. That is the whole
-   mechanism: no new colour, no new token, nothing to learn. The menu's own gap
-   still separates this unit from what follows, which is now the only 12px in
-   the group and therefore means something.
-   It replaced a `margin-top: -4px` on the row itself — a negative margin
-   cancelling part of a gap it could not see, which left 8px and read as a
-   smaller sibling rather than as an attachment. */
-.sm-notify { display: flex; flex-direction: column; }
-
-/* WHERE A NOTIFICATION CAN REACH YOU — two lines, not two settings.
-   Same box as the switch above so the shared edges make one object, but 11px
-   against its 12px and --text-dim against its --text, which is the whole
-   subordination: a reader scanning the menu sees two switches and, under one of
-   them, two smaller lines that answer for it.
-   The 1px negative margin does one job: the two borders that meet become the
-   single line a stacked control has rather than the 2px seam two adjacent boxes
-   leave. 26px rather than --ctl-h's 30px — shorter than a control because these
-   mostly are not one, and still past SC 2.5.8's 24px for the line that is. */
-.sm-reach-row {
+/* A row that is entirely a target: the <label> wraps the name and the switch,
+   so the name is clickable and the accessible name comes from the element the
+   eye reads, rather than from an aria-label nobody can check against the
+   screen. `cursor: default` and not `pointer` — the pointer belongs to the
+   control inside it, which is where the press animation is too, and a row-wide
+   pointer over a 268px popover would claim the whole width answers a click. */
+.sm-switch {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: var(--ctl-h);
-  padding: 0 12px;
-  margin-top: -1px;
+  min-height: 20px;
+}
+.sm-switch-label { font-weight: 600; }
+
+/* The track, borrowed from `.bw-toggle` rather than invented beside it: the
+   deck already had one switch and a second spelling of it would be the drift
+   this sheet's comments spend their length preventing. Same geometry, same
+   knob travel, same accent fill when on. */
+.sm-toggle {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  padding: 0;
+  border-radius: 9px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 0;
-  font-size: 11px;
-  color: var(--text-dim);
+  background: var(--ctl-fill);
+  cursor: pointer;
+  flex: none;
+  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
 }
-/* The pressable one is the same line wearing `btn`, so the box, the border, the
-   hover and the press scale are the ones every other button in the deck already
-   has — and no second height enters the sheet, which panel-rhythm.test.ts holds
-   the whole app to. What is added is only what makes it a LINE rather than a
-   button: the label pushed left, the answer pushed right, and the two smaller,
-   dimmer channels the row beside it uses.
-   `button.btn:hover` repaints the label in --accent from further down the sheet,
-   which is the affordance: the whole line lights, not just the word. */
-button.btn.sm-reach-ask {
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: -1px;
-  border-radius: 0;
-  font-size: 11px;
-  color: var(--text-dim);
+.sm-toggle:hover { border-color: var(--accent); }
+.sm-toggle:active { transform: scale(0.97); }
+.sm-toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.sm-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
 }
-/* The last line of the unit closes the box. Written as its own class rather
-   than :last-of-type because the deck line is last by meaning, not by document
-   order: the refusal note that can follow it is a <p>, and a selector that
-   depended on that would break the day the note became a <div>. */
-.sm-reach-end {
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+.sm-toggle[aria-checked="true"] .sm-toggle-knob { transform: translateX(13px); background: var(--bg); }
+
+/* WHETHER IT CAN REACH YOU. One hairline, and it is the only boundary left in
+   this group — above it is what the user wants, below it is whether the browser
+   will let them have it. Two questions, one rule between them, no boxes.
+   Indented by the mark's own width so the sentence hangs under itself rather
+   than under the switch label, which is what stops it reading as a third row in
+   the stack above. */
+.sm-reach {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-/* And the switch meets them. Only while there is something under it — see
-   `reaches` in SoundMenu.tsx — because a control with two square corners and
-   nothing below is a box somebody forgot to finish. */
-button.btn.sm-switch-joined {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+/* The mark is drawn, not typed: a glyph in the text would be an icon system
+   made of Unicode, and it would also inherit the sentence's wrapping. A 2px
+   rail carries the same three states with nothing to decode — and it is a rail
+   rather than a dot because the sentence runs to two lines and a dot beside a
+   two-line paragraph aligns with neither of them. */
+.sm-reach-line {
+  padding-left: 9px;
+  border-left: 2px solid var(--muted);
 }
-/* Left, and allowed to wrap. The route names fit one line at this width, and a
-   line that needs two on a narrower rail should break rather than ellipsise:
-   naming the route is the reason the line exists. */
-.sm-reach-where { text-align: left; }
-/* The answer column, and the one thing in this unit worth scanning down. Dim by
-   default because "ready", "blocked" and "unavailable" are all reports; --accent
-   is reserved for the one that is a gesture, so colour in this unit means
-   pressable and nothing else. */
-.sm-reach-state { white-space: nowrap; }
-.sm-reach-act { color: var(--accent); }
-/* Inside the unit, so it gets its own breathing room rather than the negative
-   margin it would otherwise need to escape the menu's column gap. */
-.sm-reach-note { margin-top: 6px; }
+/* The state rides a data attribute rather than a third class, so the sweep in
+   unstyled-class.test.ts keeps checking the one class this line has instead of
+   losing the whole family to a `sm-reach-${…}` stub it cannot resolve. */
+.sm-reach-line[data-tone="ok"] { border-left-color: var(--ok); }
+.sm-reach-line[data-tone="todo"] { border-left-color: var(--accent); }
+/* The one control down here, and the only state that has one. Full width, so it
+   is unmissable in a column where everything else is a sentence, and `btn` so
+   the press, the hover and the 30px height are the ones the rest of the app
+   already answers to. */
+button.btn.sm-reach-ask { align-self: stretch; }
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
@@ -7193,6 +7170,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .aa-result-fix:active,
   .bw-ep-head:active,
   .bw-toggle:active,
+  .sm-toggle:active,
   .bw-help:active,
   .bw-settings select:active:not(:disabled),
     /* Two that cannot join the list above, for two different reasons.

@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
+import { notifyReach } from "../notify-reach";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -51,80 +52,113 @@ describe("#800 — the session list", () => {
 });
 
 describe("#801 — what the Notifications switch is saying", () => {
-  it("reads the browser's permission as well as the deck's setting", () => {
-    // Two different questions. With the switch on and the permission unasked,
-    // the deck's own desktop notifier works and the page's does not — so "on"
-    // alone was a promise the tab could not keep.
-    expect(soundMenu).toContain('notifyPermission: "default" | "granted" | "denied" | "unsupported";');
-    // Both gates are named rather than inlined. `reaches` is "the switch is on
-    // and the machine has not overruled it", which is when the routes below
-    // have anything to say; `asking` narrows that to the browser not having
-    // answered yet. Asserted as the definitions plus their uses rather than as
-    // one literal expression, so the guarantee survives the next tidy-up.
-    expect(soundMenu).toContain("const reaches = notifyOn && !notifyVetoed;");
-    expect(soundMenu).toContain('const asking = reaches && notifyPermission === "default";');
-    expect(soundMenu).toContain("{reaches && (asking ? (");
+  // The defect took three passes to name properly, and the last one is the
+  // reason this block is written against a pure function rather than a shape.
+  //
+  //   first  — the switch said "on" while the browser had never been asked, and
+  //            the ask lived behind a button that only appears while a session
+  //            is already stuck.
+  //   then   — the ask became a row under the switch, which read as a third
+  //            setting; then two rows naming the two notifiers, which read as
+  //            two more.
+  //   now    — three different things were sharing one column of controls: what
+  //            the user WANTS, what the browser ALLOWS, and which of the deck's
+  //            two notifiers carries a given alert. Only the first is a
+  //            setting. The second is one sentence. The third is never on
+  //            screen as a control at all — it survives as the clause that
+  //            stops a refusal reading as silence.
+
+  it("keeps the switch answering exactly one question, and answering it alone", () => {
+    expect(soundMenu).toContain('aria-checked={notifyOn}');
     expect(app).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
+    // Nothing about the browser reaches the switch's own label or state — that
+    // is what "on" above "needs permission" was, and a switch cannot contradict
+    // itself if it never mentions the other question.
+    const sw = soundMenu.slice(soundMenu.indexOf('id="sm-notify-label"'));
+    expect(sw.slice(0, sw.indexOf("</label>"))).not.toContain("notifyPermission");
   });
 
-  it("names BOTH notifiers, so a permission cannot be read as the whole story", () => {
-    // The defect the copy still had after #806: one grey line reported a
-    // browser permission and never said which half of the feature it governed.
-    // A reader who saw it had every reason to believe a refusal meant silence —
-    // but the server-side notifier (src/server/block-notify.mjs) needs no
-    // permission and fires in exactly the case the whole feature exists for,
-    // when no page is open at all. Two routes, named, each with its own state.
-    expect(soundMenu).toContain("This tab, when hidden");
-    expect(soundMenu).toContain("The deck, when no tab is open");
-    // And the deck's route is not gated on the permission — only on the switch.
-    const deckRow = soundMenu.slice(soundMenu.indexOf("The deck, when no tab is open"));
-    expect(deckRow.slice(0, deckRow.indexOf("</div>"))).not.toContain("notifyPermission");
+  it("finishes the job on the press, rather than reporting that it did not", () => {
+    // The user's own reply to a switch reading "on" over a missing permission:
+    // if it is on, why must I do something else? `requestPermission()` needs a
+    // user gesture and the press IS one, so the prompt goes up on the same
+    // press — off to on only, and only while the browser can still be asked.
+    expect(app).toContain('if (want && typeof Notification !== "undefined" && Notification.permission === "default") {');
+    expect(app).toContain("askNotifyRef.current();");
+    // Through a ref, because the asker is declared below the toggle and a
+    // dependency on it would rebuild the callback for nothing.
+    expect(app).toContain("askNotifyRef.current = askForNotifications;");
   });
 
-  it("answers the routes in a different vocabulary than the switch above them", () => {
-    // "on/off" is a setting. These two lines are not settings — they are
-    // whether a route can carry anything — so a column reading "on / on / on"
-    // would have said three settings again in a third spelling.
-    expect(soundMenu).toContain('const tabState = notifyPermission === "granted" ? "ready"');
-    expect(soundMenu).toContain(': notifyPermission === "denied" ? "blocked" : "unavailable";');
-    expect(soundMenu).toContain('<span className="sm-reach-state">ready</span>');
+  it("says whether it can reach you in one sentence, in the user's words", () => {
+    for (const p of ["granted", "default", "denied", "unsupported"] as const) {
+      const r = notifyReach(false, p);
+      expect(r.line, p).toMatch(/^[A-Z]/);
+      expect(r.line, p).toMatch(/\.$/);
+      // Not the vocabulary the wiring is written in. "tab hidden", "no tab
+      // open", "permission", "sseClients" are how this repo talks about it.
+      expect(r.line.toLowerCase(), p).not.toMatch(/\bpermission\b|\btab\b|\bhidden\b|\bsse\b/);
+    }
+    expect(notifyReach(false, "granted").line).toContain("you're away");
   });
 
-  it("puts the ask on the route it belongs to, not on a session being stuck", () => {
-    // It used to live only on the blocked-count button, which appears solely
-    // while something is waiting — on a machine whose sessions rarely block,
-    // the feature could not be switched on at all.
-    expect(soundMenu).toContain('<span className="sm-reach-state sm-reach-act">allow</span>');
-    expect(soundMenu).toContain("onClick={onAskNotify}");
+  it("never puts the two notifiers on screen as two things to configure", () => {
+    // They ARE two — the page raises one while the deck is open in the
+    // background, the server raises one when no page exists at all — and they
+    // are exclusive by construction, so both being live is full cover. That is
+    // worth ONE clause, because it changes what a refusal means. It is not
+    // worth a row each: nobody outside this repo asks which mechanism fired.
+    expect(soundMenu).not.toContain("This tab, when hidden");
+    expect(soundMenu).not.toContain("The deck, when no tab is open");
+    for (const p of ["denied", "unsupported"] as const) {
+      expect(notifyReach(false, p).line, p).toContain("once this page is closed");
+    }
+  });
+
+  it("offers a button in the one state where a button can do anything", () => {
+    // A refusal cannot be re-raised by any page, so `denied` and `unsupported`
+    // say where the remedy lives instead of offering a control that would
+    // silently fail — the failure browser-react.mjs refuses to ship for its own
+    // reactions. `granted` has nothing to offer. That leaves exactly one.
+    expect(notifyReach(false, "default").ask).toBe(true);
+    for (const p of ["granted", "denied", "unsupported"] as const) {
+      expect(notifyReach(false, p).ask, p).toBe(false);
+    }
+    expect(soundMenu).toContain("{reach.ask && (");
+    expect(soundMenu).toContain('<button type="button" className="btn sm-reach-ask" onClick={onAskNotify}>');
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 
-  it("offers no button for a permission no page may re-raise", () => {
-    // `denied` and `unsupported` both become a word in the state column and
-    // nothing to press: `requestPermission()` cannot undo a refusal, and a
-    // control that silently does nothing is worse than no control. Between
-    // `asking` and `tabState` the enum is covered exactly — `default` is the
-    // button, the other three are words — so no permission reaches both
-    // branches and none reaches neither.
-    const rows = soundMenu.slice(soundMenu.indexOf("{reaches && (asking ? ("));
-    const word = rows.slice(rows.indexOf(") : ("), rows.indexOf("Route two"));
-    expect(word).toContain("{tabState}");
-    expect(word).not.toContain("<button");
-    // Only the refusal earns prose, because its remedy is somewhere the deck
-    // cannot draw. `unsupported` earns none: the deck's own route still says
-    // "ready" one line below it.
-    expect(soundMenu).toContain('notifyPermission === "denied" && (');
-    expect(soundMenu).toContain("Only your browser&rsquo;s site settings for this address can undo that.");
-    expect(soundMenu, "the unsupported case grew a paragraph again")
-      .not.toContain('notifyPermission === "unsupported"\n');
+  it("lets the launch veto outrank the browser, because it silences both halves", () => {
+    // AGENTS_DECK_NO_NOTIFY=1 is not "the switch is off": it is somebody else's
+    // decision, the press cannot undo it until the next start, and it stops the
+    // server-side notifier too — which is more than any browser setting can do.
+    // So it answers first, whatever the permission says.
+    for (const p of ["granted", "default", "denied", "unsupported"] as const) {
+      const r = notifyReach(true, p);
+      expect(r.ask, p).toBe(false);
+      expect(r.tone, p).toBe("blocked");
+      expect(r.line, p).toContain("saved for the next start");
+    }
+    // And the switch still moves, because the preference is still the user's.
+    expect(soundMenu).toContain("onClick={onToggleNotify}");
+  });
+
+  it("hides the whole answer when there is no question", () => {
+    // Switch off, nothing to say: a sentence about what the browser will allow
+    // is noise beside a channel the user has turned off.
+    expect(soundMenu).toContain("{notifyOn && (");
   });
 
   it("styles every class it renders", () => {
-    for (const cls of ["sm-notify", "sm-switch-joined", "sm-reach-ask", "sm-reach-row",
-                       "sm-reach-end", "sm-reach-where", "sm-reach-state",
-                       "sm-reach-act", "sm-reach-note"]) {
+    for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "sm-toggle",
+                       "sm-toggle-knob", "sm-reach", "sm-reach-line", "sm-reach-ask"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
+    // The tone is a data attribute, not a third class, so the sweep in
+    // unstyled-class.test.ts keeps checking the one class this line has.
+    expect(css).toContain('.sm-reach-line[data-tone="ok"]');
+    expect(css).toContain('.sm-reach-line[data-tone="todo"]');
   });
 });
 
