@@ -45,7 +45,7 @@ import {
   type Chime, type TonePrefs,
 } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { notifyReach, type NotifyPermission } from "../notify-reach";
+import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -103,9 +103,11 @@ export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
-  /* The second question, answered in one sentence. The switch above owns the
-     first one and nothing else does. */
-  const reach = notifyReach(notifyVetoed, notifyPermission);
+  /* The channel, and whether it is worth drawing at all. A veto silences both
+     notifiers, so there is no channel to report on; the switch's own note says
+     what happened instead. */
+  const channel = browserChannel(notifyPermission);
+  const showChannel = notifyOn && !notifyVetoed;
 
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -134,22 +136,28 @@ export default function SoundMenu({
       role="dialog"
       aria-label="Sound settings"
     >
-      {/* THE TWO SWITCHES, AND ONE SENTENCE UNDER THE SECOND ONE.
-          Real switches, not a word. `on` in the right-hand column read as a
-          READOUT — the same slot, the same size and the same accent the deck
-          uses for figures it reports — so the two controls at the top of this
-          menu looked like two of the panel's many status lines, and the thing
-          under them looked like a third. A track and a knob say "this is yours
-          to move" before a word is read, which in a 268px popover opened
-          mid-build is the whole job. It is the shape `.bw-toggle` already
-          brought to Browser Watch, borrowed rather than reinvented, down to
-          role="switch" and the label element that makes the whole row a target.
+      {/* TWO SWITCHES, AND THEN A CHANNEL — WHICH IS NOT A THIRD SWITCH.
+          The defect this menu kept reproducing was one control contradicting
+          itself: "Notifications  on" with a line under it saying the browser
+          had never been asked. Every rewrite that treated it as a copy problem
+          reproduced it, because it is a naming problem. "Notifications" is the
+          feature and "Browser notifications" is one of the two channels it
+          reaches you through — two named things, so "on" and "not allowed yet"
+          stop arguing and start describing different objects.
 
-          No boxes. The border on every row was carrying grouping the layout can
-          carry for nothing, and four bordered rectangles in a 268px column is
-          the picture that made a reader count settings. What is left is one
-          hairline, above the sentence, which is the only real boundary here:
-          above it is what you want, below it is whether you can have it. */}
+          The channel is therefore a SECTION, drawn with the same heading and
+          the same right-hand control that TURN FINISHED and CLAUDE IS ASKING
+          below it already use. Not a new block: the menu had a shape for "a
+          named group with one control beside its name", and a second spelling
+          of it here would be the drift this sheet's comments spend their length
+          preventing.
+
+          Real switches, too. `on` in the right-hand column sat in the slot, the
+          size and the accent this deck gives figures it REPORTS, so the two
+          controls at the top of the menu read as two more status lines. A track
+          and a knob say "yours to move" before a word is read. It is
+          `.bw-toggle`'s shape, borrowed from Browser Watch rather than
+          respelled. */}
       <div className="sm-switches">
         <label className="sm-switch">
           <span className="sm-switch-label" id="sm-sound-label">Sound</span>
@@ -174,41 +182,63 @@ export default function SoundMenu({
             rather than in localStorage — the one that runs when no page exists
             could not read a browser's storage at the moment it runs. And it
             stays operable when the machine has overruled it, because the
-            preference is still the user's to record for the next launch. */}
-        <label className="sm-switch">
-          <span className="sm-switch-label" id="sm-notify-label">Notifications</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={notifyOn}
-            aria-labelledby="sm-notify-label"
-            className="sm-toggle"
-            onClick={onToggleNotify}
-            title="A system notification when a session blocks on you"
-          >
-            <span className="sm-toggle-knob" />
-          </button>
-        </label>
+            preference is still the user's to record for the next launch.
+            The note under it is not decoration: without it, Sound and
+            Notifications are two identically-shaped switches whose difference —
+            sound fires on every finished turn, this fires only when something
+            has stopped and needs a person — is nowhere on screen. */}
+        <div className="sm-setting">
+          <label className="sm-switch">
+            <span className="sm-switch-label" id="sm-notify-label">Notifications</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notifyOn}
+              aria-labelledby="sm-notify-label"
+              className="sm-toggle"
+              onClick={onToggleNotify}
+              title="A system notification when a session blocks on you"
+            >
+              <span className="sm-toggle-knob" />
+            </button>
+          </label>
+          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}</p>
+        </div>
+      </div>
 
-        {/* WHETHER IT CAN REACH YOU, which is a different question from whether
-            you want it, and used to be answered in the same row of controls.
-            One sentence, and a button only in the one state where a button can
-            do anything: a refusal cannot be re-raised by any page, and the two
-            dead ends say where the remedy lives instead of offering a control
-            that would silently fail. Turning the switch on already raises the
-            prompt (App.tsx), so `ask` is the recovery path for a prompt that
-            was dismissed rather than the main road to it. */}
-        {notifyOn && (
-          <div className="sm-reach">
-            <p className="sm-note sm-reach-line" data-tone={reach.tone}>{reach.line}</p>
-            {reach.ask && (
-              <button type="button" className="btn sm-reach-ask" onClick={onAskNotify}>
-                Allow notifications
+      {/* Hidden outright when the switch is off, because telling somebody to
+          allow a channel for a feature they have just turned off is asking them
+          to work for nothing. Hidden under a veto for the same reason: the
+          channel cannot deliver either way, and the note above already says so.
+          Turning the switch on raises the prompt itself (App.tsx), so `ask` is
+          the way back from a prompt that was dismissed rather than the main
+          road to it. */}
+      {showChannel && (
+        <section className="sm-tone" aria-labelledby="sm-chan-name">
+          <div className="sm-tone-head">
+            <h3 className="sm-tone-name" id="sm-chan-name">Browser notifications</h3>
+            {channel.ask ? (
+              <button type="button" className="btn sm-hear" onClick={onAskNotify}>
+                Enable
               </button>
+            ) : (
+              /* A word, not a control, and it keeps the button's slot so the
+                 press that grants the permission changes one label rather than
+                 relaying the section under the pointer that caused it. */
+              <span className="sm-chan-state" data-ok={channel.ok || undefined}>
+                {channel.ok && (
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M1.5 5.2 3.9 7.6 8.5 2.4" />
+                  </svg>
+                )}
+                {channel.status}
+              </span>
             )}
           </div>
-        )}
-      </div>
+          <p className="sm-note">{channel.note}</p>
+        </section>
+      )}
 
       {CHIME_ORDER.map(chime => {
         const tone = prefs[chime];

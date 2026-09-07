@@ -798,44 +798,25 @@ button:focus-visible { outline-offset: 1px; }
 }
 .sm-toggle[aria-checked="true"] .sm-toggle-knob { transform: translateX(13px); background: var(--bg); }
 
-/* WHETHER IT CAN REACH YOU. One hairline, and it is the only boundary left in
-   this group — above it is what the user wants, below it is whether the browser
-   will let them have it. Two questions, one rule between them, no boxes.
-   Indented by the mark's own width so the sentence hangs under itself rather
-   than under the switch label, which is what stops it reading as a third row in
-   the stack above. */
-.sm-reach {
-  margin-top: 2px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* The mark is drawn, not typed: a glyph in the text would be an icon system
-   made of Unicode, and it would also inherit the sentence's wrapping. A 2px
-   rail carries the same three states with nothing to decode — and it is a rail
-   rather than a dot because the sentence runs to two lines and a dot beside a
-   two-line paragraph aligns with neither of them. */
-.sm-reach-line {
-  padding-left: 9px;
-  border-left: 2px solid var(--muted);
-}
-/* The state rides a data attribute rather than a third class, so the sweep in
-   unstyled-class.test.ts keeps checking the one class this line has instead of
-   losing the whole family to a `sm-reach-${…}` stub it cannot resolve. */
-.sm-reach-line[data-tone="ok"] { border-left-color: var(--ok); }
-.sm-reach-line[data-tone="todo"] { border-left-color: var(--accent); }
-/* The one control down here, and the only state that has one. Full width, so it
-   is unmissable in a column where everything else is a sentence, and `btn` so
-   the press, the hover and the 30px height are the ones the rest of the app
-   already answers to. */
-button.btn.sm-reach-ask { align-self: stretch; }
+/* A setting and the line that says what it covers. 4px, not the group's 10px:
+   the note belongs TO the switch above it, and the gap is the only thing left
+   saying so now that the boxes are gone. */
+.sm-setting { display: flex; flex-direction: column; gap: 4px; }
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
 .sm-tone { display: flex; flex-direction: column; gap: 8px; }
-.sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* `min-height` and not padding: the two tone heads already stand 30px because
+   they hold a button, and the channel head has to match whether it holds one or
+   the word that replaces it — otherwise granting the permission shortens the
+   section under the pointer that granted it and everything below jumps up. */
+.sm-tone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--ctl-h);
+}
 /* The caption the shortcuts sheet's group headings already are, restated for a
    heading that is not in that grid. */
 .sm-tone-name {
@@ -859,6 +840,23 @@ button.btn.sm-hear {
   gap: 5px;
   font-size: 11px;
 }
+/* What the browser has already answered, in the slot the button would take.
+   A word rather than a control, because there is nothing here to press: a
+   refusal cannot be re-raised by any page and a granted permission has nothing
+   to grant. The tick is drawn rather than typed — a glyph in the text would be
+   an icon system made of Unicode, which the sheet does not have anywhere else.
+   Only the good state takes a colour. "Blocked" and "Unavailable" stay in the
+   annotation tier: the sentence under them carries the remedy, and a red word
+   beside a heading would be the panel shouting about something the user cannot
+   fix from here. */
+.sm-chan-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sm-chan-state[data-ok] { color: var(--ok); }
 
 .sm-row { display: flex; align-items: center; gap: 10px; }
 .sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }

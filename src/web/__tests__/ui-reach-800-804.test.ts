@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
-import { notifyReach } from "../notify-reach";
+import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -52,37 +52,49 @@ describe("#800 — the session list", () => {
 });
 
 describe("#801 — what the Notifications switch is saying", () => {
-  // The defect took three passes to name properly, and the last one is the
-  // reason this block is written against a pure function rather than a shape.
+  // Four passes, and only the last one names the defect properly.
   //
-  //   first  — the switch said "on" while the browser had never been asked, and
-  //            the ask lived behind a button that only appears while a session
-  //            is already stuck.
+  //   first  — the switch said "on" while the browser had never been asked,
+  //            and the ask lived behind a button that only appears while a
+  //            session is already stuck.
   //   then   — the ask became a row under the switch, which read as a third
   //            setting; then two rows naming the two notifiers, which read as
   //            two more.
-  //   now    — three different things were sharing one column of controls: what
-  //            the user WANTS, what the browser ALLOWS, and which of the deck's
-  //            two notifiers carries a given alert. Only the first is a
-  //            setting. The second is one sentence. The third is never on
-  //            screen as a control at all — it survives as the clause that
-  //            stops a refusal reading as silence.
+  //   then   — real switches and one sentence, which fixed the picture and left
+  //            the contradiction: "Notifications on" directly above "Allow
+  //            notifications" still asks the reader why an on thing needs
+  //            permission.
+  //   now    — it was never a copy problem. "Notifications" is the feature and
+  //            "Browser notifications" is ONE OF THE TWO CHANNELS it reaches
+  //            you through. Two named things cannot contradict each other, and
+  //            the second one is a section like the tone sections below it
+  //            rather than a condition attached to the first.
 
   it("keeps the switch answering exactly one question, and answering it alone", () => {
-    expect(soundMenu).toContain('aria-checked={notifyOn}');
+    expect(soundMenu).toContain("aria-checked={notifyOn}");
     expect(app).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
-    // Nothing about the browser reaches the switch's own label or state — that
-    // is what "on" above "needs permission" was, and a switch cannot contradict
-    // itself if it never mentions the other question.
-    const sw = soundMenu.slice(soundMenu.indexOf('id="sm-notify-label"'));
-    expect(sw.slice(0, sw.indexOf("</label>"))).not.toContain("notifyPermission");
+    // Nothing about the browser reaches the switch or its note. That is what
+    // "on" over "needs permission" was, and a control cannot contradict itself
+    // if it never mentions the other question.
+    const setting = soundMenu.slice(soundMenu.indexOf('<div className="sm-setting">'));
+    const own = setting.slice(0, setting.indexOf("</div>"));
+    expect(own).not.toContain("notifyPermission");
+    expect(own).not.toContain("channel");
+  });
+
+  it("says what the switch covers, which is the only thing separating it from Sound", () => {
+    // Two identically-shaped switches whose difference lives nowhere on screen
+    // is the reason this note exists: sound fires on every finished turn, this
+    // fires only when something has stopped and needs a person.
+    expect(NOTIFY_NOTE).toBe("Tell me when a session is waiting on me.");
+    expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}");
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
-    // The user's own reply to a switch reading "on" over a missing permission:
-    // if it is on, why must I do something else? `requestPermission()` needs a
-    // user gesture and the press IS one, so the prompt goes up on the same
-    // press — off to on only, and only while the browser can still be asked.
+    // `requestPermission()` needs a user gesture and the press IS one, so the
+    // prompt goes up on the same press — off to on only, and only while the
+    // browser can still be asked. The button below is then the way back from a
+    // prompt that was dismissed, not the main road to the permission.
     expect(app).toContain('if (want && typeof Notification !== "undefined" && Notification.permission === "default") {');
     expect(app).toContain("askNotifyRef.current();");
     // Through a ref, because the asker is declared below the toggle and a
@@ -90,28 +102,52 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(app).toContain("askNotifyRef.current = askForNotifications;");
   });
 
-  it("says whether it can reach you in one sentence, in the user's words", () => {
+  it("draws the channel as a section, in the shape the menu already had", () => {
+    // `.sm-tone` + `.sm-tone-head` + `.sm-tone-name` is "a named group with one
+    // control beside its name", which is exactly this. A second spelling of it
+    // would be the drift the sheet's comments spend their length preventing.
+    const chan = soundMenu.slice(soundMenu.indexOf('aria-labelledby="sm-chan-name"'));
+    expect(chan).toContain('<h3 className="sm-tone-name" id="sm-chan-name">Browser notifications</h3>');
+    expect(chan).toContain('<div className="sm-tone-head">');
+    expect(soundMenu).toContain('<section className="sm-tone" aria-labelledby="sm-chan-name">');
+  });
+
+  it("keeps the promise identical either side of the press that grants it", () => {
+    // Granting the permission should change a word on the right and nothing
+    // else. A different sentence would relay the section under the pointer that
+    // caused it, and would also say the feature became something else.
+    expect(browserChannel("granted").note).toBe(browserChannel("default").note);
+    expect(browserChannel("granted").status).toBe("Enabled");
+    expect(browserChannel("default").status).toBeNull();
+    expect(browserChannel("granted").ok).toBe(true);
+  });
+
+  it("speaks the user's words, not the wiring's", () => {
     for (const p of ["granted", "default", "denied", "unsupported"] as const) {
-      const r = notifyReach(false, p);
-      expect(r.line, p).toMatch(/^[A-Z]/);
-      expect(r.line, p).toMatch(/\.$/);
-      // Not the vocabulary the wiring is written in. "tab hidden", "no tab
-      // open", "permission", "sseClients" are how this repo talks about it.
-      expect(r.line.toLowerCase(), p).not.toMatch(/\bpermission\b|\btab\b|\bhidden\b|\bsse\b/);
+      const c = browserChannel(p);
+      expect(c.note, p).toMatch(/^[A-Z]/);
+      expect(c.note, p).toMatch(/\.$/);
+      expect(c.note.toLowerCase(), p).not.toMatch(/\bpermission\b|\bhidden\b|\bsse\b|\bnotifier\b/);
     }
-    expect(notifyReach(false, "granted").line).toContain("you're away");
+    expect(NOTIFY_NOTE.toLowerCase()).not.toMatch(/\bpermission\b|\bhook\b/);
   });
 
   it("never puts the two notifiers on screen as two things to configure", () => {
     // They ARE two — the page raises one while the deck is open in the
     // background, the server raises one when no page exists at all — and they
-    // are exclusive by construction, so both being live is full cover. That is
-    // worth ONE clause, because it changes what a refusal means. It is not
-    // worth a row each: nobody outside this repo asks which mechanism fired.
+    // are exclusive by construction, so both being live is full cover. Worth
+    // ONE clause, in the two states where a browser has taken the first away,
+    // because there it changes what a refusal means. Never a row: nobody
+    // outside this repo asks which mechanism fired.
     expect(soundMenu).not.toContain("This tab, when hidden");
     expect(soundMenu).not.toContain("The deck, when no tab is open");
     for (const p of ["denied", "unsupported"] as const) {
-      expect(notifyReach(false, p).line, p).toContain("once this page is closed");
+      expect(browserChannel(p).note, p).toContain("once this tab is closed");
+    }
+    // And it is NOT said in the two healthy states, where it would be noise
+    // about machinery in place of a promise.
+    for (const p of ["granted", "default"] as const) {
+      expect(browserChannel(p).note, p).not.toContain("closed");
     }
   });
 
@@ -120,45 +156,35 @@ describe("#801 — what the Notifications switch is saying", () => {
     // say where the remedy lives instead of offering a control that would
     // silently fail — the failure browser-react.mjs refuses to ship for its own
     // reactions. `granted` has nothing to offer. That leaves exactly one.
-    expect(notifyReach(false, "default").ask).toBe(true);
+    expect(browserChannel("default").ask).toBe(true);
     for (const p of ["granted", "denied", "unsupported"] as const) {
-      expect(notifyReach(false, p).ask, p).toBe(false);
+      expect(browserChannel(p).ask, p).toBe(false);
     }
-    expect(soundMenu).toContain("{reach.ask && (");
-    expect(soundMenu).toContain('<button type="button" className="btn sm-reach-ask" onClick={onAskNotify}>');
+    expect(soundMenu).toContain("{channel.ask ? (");
+    expect(soundMenu).toContain('<button type="button" className="btn sm-hear" onClick={onAskNotify}>');
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 
-  it("lets the launch veto outrank the browser, because it silences both halves", () => {
-    // AGENTS_DECK_NO_NOTIFY=1 is not "the switch is off": it is somebody else's
-    // decision, the press cannot undo it until the next start, and it stops the
-    // server-side notifier too — which is more than any browser setting can do.
-    // So it answers first, whatever the permission says.
-    for (const p of ["granted", "default", "denied", "unsupported"] as const) {
-      const r = notifyReach(true, p);
-      expect(r.ask, p).toBe(false);
-      expect(r.tone, p).toBe("blocked");
-      expect(r.line, p).toContain("saved for the next start");
-    }
-    // And the switch still moves, because the preference is still the user's.
+  it("hides the channel whenever it cannot deliver, rather than asking for nothing", () => {
+    // Off: telling somebody to allow a channel for a feature they have just
+    // switched off is asking them to work for nothing. Vetoed: the launch flag
+    // silences BOTH notifiers, so the channel is moot either way — and the
+    // note above has already said what happened.
+    expect(soundMenu).toContain("const showChannel = notifyOn && !notifyVetoed;");
+    expect(soundMenu).toContain("{showChannel && (");
+    expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
+    // The switch still moves under a veto, because the preference is still the
+    // user's to record for the next launch.
     expect(soundMenu).toContain("onClick={onToggleNotify}");
-  });
-
-  it("hides the whole answer when there is no question", () => {
-    // Switch off, nothing to say: a sentence about what the browser will allow
-    // is noise beside a channel the user has turned off.
-    expect(soundMenu).toContain("{notifyOn && (");
   });
 
   it("styles every class it renders", () => {
     for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "sm-toggle",
-                       "sm-toggle-knob", "sm-reach", "sm-reach-line", "sm-reach-ask"]) {
+                       "sm-toggle-knob", "sm-setting", "sm-note", "sm-chan-state",
+                       "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
-    // The tone is a data attribute, not a third class, so the sweep in
-    // unstyled-class.test.ts keeps checking the one class this line has.
-    expect(css).toContain('.sm-reach-line[data-tone="ok"]');
-    expect(css).toContain('.sm-reach-line[data-tone="todo"]');
+    expect(css).toContain(".sm-chan-state[data-ok]");
   });
 });
 
