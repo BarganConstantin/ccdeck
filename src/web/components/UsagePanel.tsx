@@ -7,10 +7,11 @@ import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
-  PERIODS, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
+  PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
   rangeTotals, nounFor, panelFigures, rangeView, type Landed,
   type PeriodKey, type UsageRange,
 } from "../usage-from-ccusage";
+import { readStored } from "../storage";
 // Tokens are priced at the model that produced them, not at the last model the
 // session was seen on — see usage-models.ts for the two measurements that make
 // the difference 60% under in one direction and 150% over in the other (#686).
@@ -49,6 +50,32 @@ interface QuotaData {
 }
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched. */
+/** Where the chosen period lives between reloads.
+ *
+ *  It was the one preference in this panel that did not survive one. The deck
+ *  remembers whether the panel is open and which theme it is in, and a reader
+ *  who works in `month` re-selected it on every reload — which is also the
+ *  slowest of the three to answer, so the cost of forgetting was paid twice.
+ *
+ *  Read through storage.ts rather than off `window.localStorage`: this runs
+ *  inside a useState initialiser and the property access itself throws on a
+ *  browser that blocks site data, which would take the panel's first render
+ *  with it. And validated against PERIODS rather than cast, because the stored
+ *  string is whatever was in the store — an older build's key, or a hand edit —
+ *  and an unknown period would ask /api/ccusage for a range it cannot spell.
+ */
+const PERIOD_KEY = "agent-dag.usagePeriod";
+
+function loadPeriod(): PeriodKey {
+  const stored = readStored(PERIOD_KEY);
+  return PERIODS.some(p => p.key === stored) ? (stored as PeriodKey) : "today";
+}
+
+function savePeriod(period: PeriodKey): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(PERIOD_KEY, period); } catch { /* private mode */ }
+}
+
 function ageLabel(ms: number | undefined, nowSec: number): string | null {
   if (!ms) return null;
   const s = nowSec - Math.floor(ms / 1000);
@@ -731,7 +758,11 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // point reads one pair of lists and one pair of totals, so the two sources
   // meet here and nowhere else — the tables, the strip and the headline are the
   // same markup either way.
-  const [period, setPeriod] = useState<PeriodKey>("today");
+  const [period, setPeriod] = useState<PeriodKey>(loadPeriod);
+  useEffect(() => { savePeriod(period); }, [period]);
+  // One tab stop for the strip, not three. `role="toolbar"` is what pays for
+  // that — see the markup — and moving the ring needs the buttons themselves.
+  const periodRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [rangeRefresh, setRangeRefresh] = useState(0);
   // `loading` is deliberately not read here. What the reader needs to know is
   // that the figures on screen are the PREVIOUS range's, which is `stale`; a
@@ -1147,12 +1178,50 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
               honest signal to a reader — these two surfaces read the same
               ccusage data over the same kind of range. */}
       {fromRange && (
-        <div className="uh-range up-period" role="group" aria-label="Period">
-          {PERIODS.map(p => (
+        /* role="toolbar", not role="group", and the difference is a bill this
+            strip now pays. #381 deleted role="tablist" from the history
+            modal's range strip because a tablist promises one tab stop, arrows
+            between the members and a tabpanel each, and that strip could
+            honour none of the three. The third clause is still false here —
+            these words select a range, they do not reveal a region — so
+            tablist stays wrong. But the first two are exactly what a toolbar
+            promises and nothing more, and three of the Usage panel's five tab
+            stops going to one three-way choice is the defect they fix. So:
+            one stop, arrows and Home/End across it, Enter or Space to commit.
+            tablist-contract.test.ts holds any file that says "tab" to the
+            whole model; this one says "toolbar" and carries the whole of that.
+
+            The stop is the SELECTED segment rather than the last-focused one.
+            The strip has three members and no scroll, so there is no long walk
+            to resume, and re-entering on the period actually being shown is
+            the more useful place to land than wherever the ring was left. */
+        <div
+          className="uh-range up-period"
+          role="toolbar"
+          aria-orientation="horizontal"
+          aria-label="Period"
+          onKeyDown={e => {
+            // From where the RING is, not from where the selection is. Arrows
+            // that reckon off `period` walk one step from the selected segment
+            // every time and then stop: press Right three times from `today`
+            // and you get `month`, `month`, `month`. The origin has to be the
+            // segment the key was pressed on, which is what bubbled the event.
+            const from = periodRefs.current.indexOf(e.target as HTMLButtonElement);
+            if (from < 0) return;
+            const to = periodFocusMove(e.key, from);
+            if (to === null) return;
+            e.preventDefault();
+            periodRefs.current[to]?.focus();
+          }}
+        >
+          {PERIODS.map((p, i) => (
             <button
               key={p.key}
               type="button"
+              ref={el => { periodRefs.current[i] = el; }}
+              tabIndex={period === p.key ? 0 : -1}
               aria-pressed={period === p.key}
+              title={p.hint}
               className="uh-range-btn"
               onClick={() => setPeriod(p.key)}
             >{p.label}</button>

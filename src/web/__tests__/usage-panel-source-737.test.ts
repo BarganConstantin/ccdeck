@@ -41,7 +41,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  nounFor, panelFigures, rangeView, PERIODS,
+  nounFor, panelFigures, rangeView, PERIODS, periodFocusMove, sinceFor,
   type Board, type Delta, type Landed, type UsageRange,
 } from "../usage-from-ccusage";
 
@@ -380,15 +380,19 @@ describe("markup, read as source", () => {
     // PERIODS is the single list: `sinceFor` switches on the same keys, so a
     // period the component offered and the shaper did not know would silently
     // request the wrong range.
-    expect(panel).toContain("{PERIODS.map(p => (");
+    expect(panel).toContain("{PERIODS.map((p, i) => (");
     expect(panel).toContain("aria-pressed={period === p.key}");
     expect(panel).toContain("onClick={() => setPeriod(p.key)}");
+    // The hint is the shaper's too, for the same reason: `month` means what
+    // `sinceFor` makes it mean, and a sentence written here could drift from it.
+    expect(panel).toContain("title={p.hint}");
+    expect(panel).not.toMatch(/title="[^"]*month/i);
   });
 
   it("shows the selector only when there is a source with periods in it", () => {
     // The board has exactly one span — now — so three chips over a board-only
     // panel would be three words for the same figure.
-    expect(panel).toMatch(/\{fromRange && \(\s*<div className="uh-range up-period"/);
+    expect(panel).toMatch(/\{fromRange && \([\s\S]{0,1600}?<div\s+className="uh-range up-period"/);
   });
 
   it("puts the selector outside the token gate, so an empty period cannot strand the reader", () => {
@@ -517,5 +521,98 @@ describe("the period strip's indicator", () => {
     const ring = block(".up-period .uh-range-btn:focus-visible");
     expect(ring).toMatch(/outline-offset:\s*-4px/);
     expect(ring).toMatch(/border-radius:\s*4px/);
+  });
+});
+
+// ── the strip as a keyboard control, and as a remembered one ────────────────
+//
+// Three things the panel did not do, added together because they are one
+// complaint: the strip cost more of the reader's keyboard than it was worth,
+// it forgot the answer it had been given, and the middle word did not say what
+// it meant. None of them is visible in a screenshot.
+describe("the period strip's keyboard and memory", () => {
+  it("moves the ring with the arrows and both ends, and nothing else", () => {
+    // Wrapping, because three members with a hard stop at each end reads as
+    // the key having failed rather than as a boundary.
+    expect(periodFocusMove("ArrowRight", 0)).toBe(1);
+    expect(periodFocusMove("ArrowRight", 2)).toBe(0);
+    expect(periodFocusMove("ArrowLeft", 0)).toBe(2);
+    expect(periodFocusMove("ArrowLeft", 2)).toBe(1);
+    // Down and Up alias Right and Left: the strip is one row, and a reader who
+    // reaches for the vertical pair on a horizontal group has not made a
+    // mistake worth a dead key.
+    expect(periodFocusMove("ArrowDown", 1)).toBe(2);
+    expect(periodFocusMove("ArrowUp", 1)).toBe(0);
+    expect(periodFocusMove("Home", 2)).toBe(0);
+    expect(periodFocusMove("End", 0)).toBe(2);
+    for (const key of ["Enter", " ", "Tab", "Escape", "a", "PageDown"]) {
+      expect(periodFocusMove(key, 1), `${key} is swallowed`).toBeNull();
+    }
+    // A caller that has lost the selected period must not be handed an index.
+    expect(periodFocusMove("ArrowRight", 0, 0)).toBeNull();
+  });
+
+  it("pays for the role it announces", () => {
+    // tablist-contract.test.ts's rule, applied to the neighbouring role: a
+    // toolbar promises one tab stop and arrows across the members. Both are
+    // here, or the role is a lie.
+    expect(panel).toContain('role="toolbar"');
+    expect(panel).toContain('aria-orientation="horizontal"');
+    expect(panel).toContain("tabIndex={period === p.key ? 0 : -1}");
+    // From the focused segment, never from the selected one. Reckoning off
+    // `period` walks one step and then stops — Right three times from `today`
+    // gives `month`, `month`, `month` — and it looked correct in the source.
+    expect(panel).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
+    expect(panel).toContain("periodFocusMove(e.key, from)");
+    expect(panel).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
+    // The arrows have to stop being the page's arrows, or the panel scrolls
+    // under the ring the moment it moves.
+    expect(panel).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
+    expect(panel).toContain("periodRefs.current[to]?.focus();");
+    // And it must not have become the thing #381 deleted. Read with the
+    // comments stripped: the block above this markup names that role in order
+    // to say why it is wrong, and a substring match cannot tell the two apart.
+    const code = panel.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toContain('role="tablist"');
+    expect(code).not.toContain('role="tab"');
+  });
+
+  it("moves focus without committing a period", () => {
+    // Arrowing PAST `all` would otherwise start a read of every transcript on
+    // disk on the way to something else. The arrows move the ring; the click
+    // handler is the only place a period is chosen.
+    const handler = panel.slice(panel.indexOf("onKeyDown={e => {"), panel.indexOf("periodRefs.current[to]?.focus();"));
+    expect(handler).not.toContain("setPeriod");
+  });
+
+  it("remembers the period, under a key of the deck's own shape", () => {
+    expect(panel).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
+    expect(panel).toContain("useState<PeriodKey>(loadPeriod)");
+    expect(panel).toContain("useEffect(() => { savePeriod(period); }, [period]);");
+    // Through storage.ts, because the bare property read throws outright on a
+    // browser that blocks site data — and this one runs in a useState
+    // initialiser, so it would take the panel's first render with it.
+    expect(panel).toContain('import { readStored } from "../storage";');
+    expect(panel).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
+    // Validated, not cast. The store holds whatever was last written into it —
+    // an older build's spelling, or a hand edit — and an unknown period would
+    // ask /api/ccusage for a range it cannot spell.
+    expect(panel).toContain("PERIODS.some(p => p.key === stored)");
+    expect(panel).toMatch(/function savePeriod[\s\S]{0,200}catch \{/);
+  });
+
+  it("says what each span actually covers, from the shaper that decides it", () => {
+    // `month` is the one that needed this: three bare words read as a scale,
+    // and a reader who takes the middle of a scale for a rolling 30 days is
+    // wrong by up to 30 days on the 1st with nothing on screen to correct them.
+    const month = PERIODS.find(p => p.key === "month")!;
+    expect(month.hint).toMatch(/calendar month/i);
+    expect(month.hint).toMatch(/not the last 30 days/i);
+    for (const p of PERIODS) expect(p.hint, `${p.key} has no hint`).toMatch(/\S/);
+    // And the sentence has to stay true of `sinceFor`, which is what actually
+    // asks for the range: the month starts on the 1st, locally.
+    const may = new Date(2026, 4, 17, 9, 30);
+    expect(sinceFor("month", may)).toBe("20260501");
+    expect(sinceFor("today", may)).toBe("20260517");
   });
 });
