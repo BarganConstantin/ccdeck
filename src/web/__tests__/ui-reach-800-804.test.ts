@@ -187,7 +187,10 @@ describe("#801 — what the Notifications switch is saying", () => {
       expect(browserChannel(p).ask, p).toBe(false);
     }
     expect(soundMenu).toContain("{channel.ask ? (");
-    expect(soundMenu).toContain('<button type="button" className="btn sm-hear" onClick={onAskNotify}>');
+    // Its own class, not `.sm-hear`: same small button in the same slot, but
+    // "hear" is what the other one does, and a shared name would make every
+    // `.sm-hear` lookup return a button that plays nothing.
+    expect(soundMenu).toContain('<button type="button" className="btn sm-chan-act" onClick={onAskNotify}>');
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 
@@ -207,7 +210,8 @@ describe("#801 — what the Notifications switch is saying", () => {
   it("styles every class it renders", () => {
     for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "sm-toggle",
                        "sm-toggle-knob", "sm-setting", "sm-note", "sm-chan-state",
-                       "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
+                       "sm-chan", "sm-chan-head", "sm-chan-name", "sm-chan-act",
+                       "sm-tones", "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
     expect(css).toContain(".sm-chan-state[data-ok]");

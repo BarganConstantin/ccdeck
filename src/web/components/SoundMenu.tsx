@@ -225,7 +225,7 @@ export default function SoundMenu({
                 what is only a capability report. */}
             <h3 className="sm-chan-name" id="sm-chan-name">Browser notifications</h3>
             {channel.ask ? (
-              <button type="button" className="btn sm-hear" onClick={onAskNotify}>
+              <button type="button" className="btn sm-chan-act" onClick={onAskNotify}>
                 Enable
               </button>
             ) : (
@@ -251,6 +251,16 @@ export default function SoundMenu({
           deck interrupt me, and can it"; everything below is "what does each
           interruption sound like". Two subjects, and the caps headings alone
           were not enough of a break between them. */}
+      {!soundOn && (
+        /* One node for both buttons, and only while both of them carry the
+           description — an aria-describedby pointing at an id that is not in
+           the document is a dangling reference, which is the rule #800 put on
+           the four topbar toggles. */
+        <span id="sm-preview-note" className="vis-hidden">
+          Preview plays even while Sounds is off.
+        </span>
+      )}
+
       <div className="sm-tones">
       {CHIME_ORDER.map(chime => {
         const tone = prefs[chime];
@@ -271,6 +281,23 @@ export default function SoundMenu({
                 className="btn sm-hear"
                 onClick={() => onPreview(chime)}
                 aria-label={`Hear the ${TONE_LABEL[chime].toLowerCase()} tone`}
+                /* Nothing below is dimmed or disabled while Sounds is off, and
+                   that is the decision rather than an oversight: the person
+                   most likely to open this menu is somebody who silenced the
+                   deck because it was too loud, and turning the volume down is
+                   the road they came for. Disabling it closes that road, and
+                   dimming without disabling is worse — a control that looks
+                   dead and works.
+                   What that costs is one surprise: a press that makes a noise
+                   from a deck the user believes is muted reads as a bug. So the
+                   press says so first, in a tooltip and — because a tooltip is
+                   not on the accessibility tree — in a description a reader
+                   gets too. Only while it can surprise: with the sound on, the
+                   sentence is noise. */
+                title={soundOn
+                  ? "Play this tone now, at what it is set to"
+                  : "Plays even while Sounds is off, so you can set it before turning them back on"}
+                aria-describedby={soundOn ? undefined : "sm-preview-note"}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
                   <path d="M3 1.6v8.8l7-4.4z" />
@@ -326,7 +353,7 @@ export default function SoundMenu({
       {/* The key, drawn as a key. It was a sentence about a letter, which is
           the one shape a reader does not scan for when they are looking for a
           shortcut. Same cap the shortcuts sheet uses. */}
-      <p className="sm-foot"><kbd>M</kbd>Mute or unmute sounds, from anywhere.</p>
+      <p className="sm-foot"><kbd>M</kbd>Mute or unmute sounds anywhere.</p>
     </div>
   );
 }

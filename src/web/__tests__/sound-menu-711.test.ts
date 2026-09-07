@@ -856,6 +856,27 @@ describe("the click opens the menu, and M still silences the deck", () => {
     expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
   });
 
+  it("leaves everything below the master switch live, and says why the preview still sounds", () => {
+    // The master switch governs PLAYBACK, not configurability. Dimming or
+    // disabling the two tone groups while Sounds is off closes the one road
+    // this menu exists for: somebody silenced the deck because it was too loud
+    // and came here to turn the volume down before switching it back on.
+    // So nothing here is keyed on `soundOn` except the sentence that explains
+    // the surprise — a press that makes a noise from a deck the user believes
+    // is muted reads as a bug unless the button says so first.
+    expect(menu).not.toMatch(/disabled=\{!soundOn\}|disabled=\{soundOn === false\}/);
+    expect(menu).not.toMatch(/opacity[\s\S]{0,40}soundOn/);
+    expect(menu).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
+    expect(menu).toMatch(/"Plays even while Sounds is off/);
+    // A tooltip is not on the accessibility tree, so a reader gets it too —
+    // and only while the node it names is actually in the document, which is
+    // the dangling-IDREF rule the four topbar toggles already follow.
+    expect(menu).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+    expect(menu).toMatch(/\{!soundOn && \(/);
+    expect(menu).toMatch(/<span id="sm-preview-note" className="vis-hidden">/);
+    expect(css).toMatch(/\.vis-hidden/);
+  });
+
   it("took the volume out of the shortcuts sheet it briefly lived in", () => {
     // The first build of #711 put a slider there. Leaving it would give the
     // deck two homes for one setting, which is worse than either.

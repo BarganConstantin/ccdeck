@@ -825,6 +825,15 @@ button:focus-visible { outline-offset: 1px; }
   font-weight: 600;
   color: var(--text-dim);
 }
+/* Sized like `.sm-hear` and named for itself. They are the same small button in
+   the same slot, but "hear" is what one of them does and a permission prompt is
+   not it — a shared class here would be the generic name unstyled-class.test.ts
+   was written about, and it would also make every `.sm-hear` query in a test or
+   a console return a button that plays nothing. */
+button.btn.sm-chan-act {
+  padding: 0 10px;
+  font-size: 11px;
+}
 
 /* The break between the two subjects this menu holds: above, whether the deck
    interrupts you at all and whether it can; below, what each interruption
