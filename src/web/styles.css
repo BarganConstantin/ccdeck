@@ -35,6 +35,17 @@
      belongs to controls; #325 declined to do that and #332 keeps declining. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
+     --ctl-edge is the right weight for a control alone on a wide bar. Six of
+     them inside a 268px popover is a different picture: two selects, two
+     preview buttons and two switches, each outlined at 4.1:1, and the card
+     reads as a form rather than as settings. This still clears 1.4.11's 3:1 —
+     control-edges.test.ts measures it rather than trusting the number here.
+     The fill is a surface a hair ABOVE the panel, where those controls used to
+     sit in a well cut below it: raised needs less outline to be found than
+     sunk does, which is what buys the softer edge. */
+  --sm-edge: color-mix(in srgb, var(--text) 36%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
   --muted: #7e828c;
   --muted-dim: #50535b;
   /* Annotation text. --muted-dim is a decorative tint — 2.35:1 on --panel — and
@@ -148,6 +159,21 @@
   /* Identical to the dark block by construction — see the note there. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
+     --ctl-edge is the right weight for a control alone on a wide bar. Six of
+     them inside a 268px popover is a different picture: two selects, two
+     preview buttons and two switches, each outlined at 4.1:1, and the card
+     reads as a form rather than as settings. This still clears 1.4.11's 3:1 —
+     control-edges.test.ts measures it rather than trusting the number here.
+     The fill is a surface a hair ABOVE the panel, where those controls used to
+     sit in a well cut below it: raised needs less outline to be found than
+     sunk does, which is what buys the softer edge. */
+  /* Higher than the dark theme's 36%, and measured rather than mirrored: on a
+     light ground the fill below carries almost no separation of its own, so the
+     edge is doing the whole job and 36% lands at 2.57:1. Both themes designed,
+     not one inverted. */
+  --sm-edge: color-mix(in srgb, var(--text) 46%, transparent);
+  --sm-fill: color-mix(in srgb, var(--text) 5%, transparent);
   --accent: #0369a1;
   --accent-dim: rgba(3,105,161,0.22);
   /* Both were a tenth under AA on the canvas — 4.43:1 and 4.44:1 against
@@ -742,103 +768,141 @@ button:focus-visible { outline-offset: 1px; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: var(--shadow-2);
+  /* Two layers rather than one. The tight, nearly opaque first line is what a
+     surface sitting ON something reads as; the wide soft second is the height
+     it sits at. One 24px blur alone had to be dark enough to do both jobs and
+     ended up reading as a drop shadow on a sticker. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
 
-/* The switch. A `button.btn` rather than a shape of its own, so the box, the
-   hover, the press scale and the pointer cursor are the ones every other button
-   in the deck already has — and so canvas-motion.test.ts's press contract is
-   satisfied by the rule that already satisfies it, rather than by a second
-   spelling. What is added here is the layout: a label pushed left and the state
-   word pushed right, full width.
+/* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
+   one group and the tone sections below are two others — the gap is what says
+   so now that the boxes are gone. */
+/* ONE CADENCE. The card ran 12 / 12 / 10 / 8 / 10, which is five numbers none
+   of which meant anything against the others. Now: 5px binds a line to the
+   control it belongs to, 9px separates rows inside a group, 14px separates
+   groups. Nothing new is drawn — the spacing is the grouping. */
+.sm-switches { display: flex; flex-direction: column; gap: 12px; }
 
-   Written `button.btn.sm-switch` rather than `.sm-switch`, and that is not
-   defensive spelling: `button.btn` is 0-1-1 and declares `justify-content:
-   center` further down the sheet, so a bare class selector here would lose both
-   the specificity contest and the source-order one and every declaration in
-   this block would be dead. type-ladder.test.ts catches exactly that class of
-   silently-inert override.
-   No `width: 100%` either — `.sound-menu` is a flex column, whose default
-   `align-items: stretch` already gives this the full width. Declaring it as a
-   percentage would add the one thing panel-overflow.test.ts sweeps for. */
-button.btn.sm-switch {
+/* A row that is entirely a target: the <label> wraps the name and the switch,
+   so the name is clickable and the accessible name comes from the element the
+   eye reads, rather than from an aria-label nobody can check against the
+   screen. `cursor: default` and not `pointer` — the pointer belongs to the
+   control inside it, which is where the press animation is too, and a row-wide
+   pointer over a 268px popover would claim the whole width answers a click. */
+.sm-switch {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 20px;
 }
-.sm-switch-label { font-weight: 600; }
-/* The state, in the same two channels the topbar toggles use: a word, and the
-   accent. --muted when off is the same dim every inert control in the sheet
-   takes, so "off" reads as off without a second colour being invented. */
-.sm-switch-state { color: var(--muted); font-variant-numeric: tabular-nums; }
-.sm-switch[aria-pressed="true"] .sm-switch-state { color: var(--accent); }
+/* 500, not 600. These two are the loudest words in the card and they are also
+   the ones a reader finds without looking — the weight was buying nothing and
+   costing the hierarchy under them. */
+.sm-switch-label { font-weight: 500; }
 
-/* The switch and what the browser says about it, as ONE thing.
-   The menu is a 12px column, and the permission row used to sit in it as a
-   third sibling wearing the same border and radius as the two switches above.
-   Three identical boxes, and a reader counted three settings — but the third
-   is a CONDITION of the second, not a peer of it.
-   No gap here, so the two share an edge and read as a stack. That is the whole
-   mechanism: no new colour, no new token, nothing to learn. The menu's own gap
-   still separates this unit from what follows, which is now the only 12px in
-   the group and therefore means something.
-   It replaced a `margin-top: -4px` on the row itself — a negative margin
-   cancelling part of a gap it could not see, which left 8px and read as a
-   smaller sibling rather than as an attachment. */
-.sm-notify { display: flex; flex-direction: column; }
+/* The track, borrowed from `.bw-toggle` rather than invented beside it: the
+   deck already had one switch and a second spelling of it would be the drift
+   this sheet's comments spend their length preventing. Same geometry, same
+   knob travel, same accent fill when on. */
+.sm-toggle {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid var(--ctl-edge);
+  background: var(--ctl-fill);
+  cursor: pointer;
+  flex: none;
+  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+}
+.sm-toggle:hover { border-color: var(--accent); }
+.sm-toggle:active { transform: scale(0.97); }
+.sm-toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.sm-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+.sm-toggle[aria-checked="true"] .sm-toggle-knob { transform: translateX(13px); background: var(--bg); }
 
-/* What the BROWSER says about notifications, under the deck's own switch
-   (#801). A row rather than a line of prose because it is pressable: the
-   permission prompt needs a user gesture, so this IS the way to grant it on a
-   machine whose sessions rarely block — the other route, the button beside the
-   blocked count, only exists while something is stuck.
-   Quieter than the switch above it and not accent-filled: it reports a
-   condition and offers a remedy, it is not a setting that stays on.
-   The negative margin is one pixel and does one job: the two borders that meet
-   become the single line a stacked control has, rather than the 2px seam two
-   adjacent boxes leave. */
-button.btn.sm-notice {
+/* A setting and the line that says what it covers. 4px, not the group's 10px:
+   the note belongs TO the switch above it, and the gap is the only thing left
+   saying so now that the boxes are gone. */
+.sm-setting { display: flex; flex-direction: column; gap: 5px; }
+
+/* ONE OF THE TWO WAYS NOTIFICATIONS REACH YOU — a capability report, not a
+   setting and not an event group. Sentence case and --text-dim, because ALL
+   CAPS in this menu belongs to TURN FINISHED and CLAUDE IS ASKING: those are
+   what structure it, and a third caps heading here would claim their rank for
+   something the user configures in the browser rather than here.
+   `min-height` and not padding: the head holds a 30px button in one state and
+   the word that replaces it in the other, and without a floor the section
+   shortens under the very press that granted the permission. */
+.sm-channel { display: flex; flex-direction: column; gap: 5px; }
+.sm-channel-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: -1px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  min-height: var(--ctl-h);
+}
+.sm-channel-name {
+  margin: 0;
   font-size: 11px;
+  font-weight: 500;
   color: var(--text-dim);
 }
-/* And the switch meets it. Only while the row is there — see `asking` in
-   SoundMenu.tsx — because a control with two square corners and nothing under
-   them is a box somebody forgot to finish. */
-button.btn.sm-switch-joined {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+/* Sized like `.sm-hear` and named for itself. They are the same small button in
+   the same slot, but "hear" is what one of them does and a permission prompt is
+   not it — a shared class here would be the generic name unstyled-class.test.ts
+   was written about, and it would also make every `.sm-hear` query in a test or
+   a console return a button that plays nothing. */
+button.btn.sm-channel-action {
+  padding: 0 10px;
+  font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
 }
-/* Left, and allowed to wrap. The copy fits one line at this width, and a line
-   that needs two on a narrower rail should break rather than ellipsise: this
-   sentence is the reason the row exists. */
-.sm-notice-text { text-align: left; }
-.sm-notice-act { color: var(--accent); white-space: nowrap; }
-/* The dead-end case: refused, and no page may ask again. Prose, because there
-   is nothing here to press — a button that silently does nothing is the
-   failure browser-react.mjs refuses to ship for its own reactions.
-   Inside the unit now, so it gets its own breathing room rather than the
-   negative margin it used to need to escape the column's gap. */
-.sm-notice-note { margin-top: 6px; }
+
+
+/* The break between the two subjects this menu holds: above, whether the deck
+   interrupts you at all and whether it can; below, what each interruption
+   sounds like. The caps headings alone were not enough — they separate the two
+   event groups from each other, not the whole set of them from what precedes. */
+.sm-tones {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
-.sm-tone { display: flex; flex-direction: column; gap: 8px; }
+.sm-tone { display: flex; flex-direction: column; gap: 9px; }
 .sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* The caption the shortcuts sheet's group headings already are, restated for a
    heading that is not in that grid. */
+/* Uppercase stays — it is what structures the card — but 600 at 0.08em is the
+   setting a terminal uses for a section banner. Lighter and wider reads as a
+   caption instead: the same job, without the shout. */
 .sm-tone-name {
   margin: 0;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
    is a lot for two words on a caption line, so that is trimmed and the gap
@@ -848,11 +912,42 @@ button.btn.sm-switch-joined {
    caption looked wrong in the drafting and turned out to be the caption's
    fault; the row is centred, so the two align on their middles and the height
    never reads as oversized. */
+/* MADE SECONDARY. It wore `btn` at full outline weight, which is what a page's
+   one primary action wears — and counting the selects there are four of those
+   in a 268px card. A faint fill plus the quieter edge says pressable at a
+   fraction of the ink.
+   Written at `button.btn.sm-hear` and not scoped under `.sound-menu`, which
+   would be one specificity step higher and would therefore beat
+   `button.btn:hover`'s accent border — leaving a control that got quieter under
+   the pointer. Same weight, declared earlier, so hover still wins. */
 button.btn.sm-hear {
   padding: 0 8px;
   gap: 5px;
   font-size: 11px;
+  border-color: var(--sm-edge);
+  background: var(--sm-fill);
 }
+/* What the browser has already answered, in the slot the button would take.
+   A word rather than a control, because there is nothing here to press: a
+   refusal cannot be re-raised by any page and a granted permission has nothing
+   to grant. The tick is drawn rather than typed — a glyph in the text would be
+   an icon system made of Unicode, which the sheet does not have anywhere else.
+   Only the good state takes a colour. "Blocked" and "Unavailable" stay in the
+   annotation tier: the sentence under them carries the remedy, and a red word
+   beside a heading would be the panel shouting about something the user cannot
+   fix from here. */
+.sm-channel-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* Mixed toward the text rather than taken straight. --ok at full strength is
+   a signal colour meant for a dot on a dark canvas; beside two accent switches
+   it competed with them for the same glance. This still reads unmistakably
+   green and stops being the brightest thing in the card. */
+.sm-channel-state[data-ok] { color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
 
 .sm-row { display: flex; align-items: center; gap: 10px; }
 .sm-row label { font-size: 12px; color: var(--muted); min-width: 48px; }
@@ -879,8 +974,15 @@ button.btn.sm-hear {
   flex: 1;
   min-width: 0;
   margin: 0;
-  height: 20px;
+  height: 18px;
   accent-color: var(--accent);
+}
+/* The number is a READING, not a label, and it was set in --text at the weight
+   of one. Dim and tabular: it stops competing with the two words above it, and
+   it stops shuffling by a pixel as the thumb moves through 8, 9, 10. */
+.sound-menu .sm-read {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* Tabular, so stepping the value does not shuffle the row, and wide enough that
    "100%" does not push the slider narrower than "0%" did. */
@@ -893,14 +995,18 @@ button.btn.sm-hear {
 }
 /* The one control here the platform draws entirely: only the box it sits in is
    ours, and `accent-color` tints the open list where the platform honours it. */
+/* Was `--bg` — DARKER than the panel it sits on, so each of the two read as a
+   hole cut in the card with a bright rim around it. A surface a hair above the
+   panel needs far less rim to be found, and two of them stop being the first
+   thing the eye lands on. */
 .sm-select {
   flex: 1;
   min-width: 0;
   min-height: 24px;
   padding: 0 6px;
-  background: var(--bg);
+  background: var(--sm-fill);
   color: var(--text);
-  border: 1px solid var(--ctl-edge);
+  border: 1px solid var(--sm-edge);
   border-radius: 6px;
   font: inherit;
   font-size: 12px;
@@ -917,10 +1023,24 @@ button.btn.sm-hear {
    says where the toggle went belongs where the user is looking. */
 .sm-foot {
   margin: 0;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
   color: var(--text-dim);
+}
+/* The shortcuts sheet's cap, without the 38px column width that sheet's grid
+   needs — inline in a sentence, a letter box that wide reads as a button. */
+.sm-foot kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 7px;
 }
 
 /* Selected-agent ribbon — context chip that follows you across the canvas
@@ -1005,7 +1125,7 @@ button.btn.sm-hear {
 }
 /* 24 x 24 of target around an 18px glyph (#509).
    It measured 18 x 18, under the floor SC 2.5.8 sets and this sheet argues for
-   three separate times — at `.ver-close`, at `.detail-reopen` and at `.ap-more`
+   three separate times — at `.ver-close`, at `.ap-more` and at `.sd-close`
    — and it is the one control here that cannot use the standard's own escape
    hatch. That exception excuses an undersized target when a 24px circle centred
    on it touches no other target; this × sits INSIDE `.selected-ribbon`, and the
@@ -2023,7 +2143,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    What removing the box does NOT get to remove is the target. The glyph's own
    line box is 16px tall and, for ×, 9.34px wide — measured, not estimated —
    which is well under the 24px SC 2.5.8 asks for and which this sheet argues
-   for at `.ver-close`, `.ap-more` and `.detail-reopen`. So the box stays 24px
+   for at `.ver-close` and `.ap-more`. So the box stays 24px
    in both directions, as padding around a glyph that is drawn small: the
    pointer gets the square, the reader gets the character.
 
@@ -2475,42 +2595,16 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   margin-bottom: 0;
 }
 /* When the detail panel is closed, drop its 360px column so the canvas
-   reclaims the space. Keyed off the reopen tab, which only renders when closed. */
-.app:has(.detail-reopen) { grid-template-columns: 1fr; }
-.app:has(.session-list):has(.detail-reopen) { grid-template-columns: 240px 1fr; }
-.app:has(.accounts-panel):has(.detail-reopen) { grid-template-columns: 288px 1fr; }
-/* Floating reopen tab pinned to the right edge. */
-/* 24px wide, not the 22 it was. This sheet sets the SC 2.5.8 floor for itself
-   twice and argues for it both times — `.ver-close` ("24px is the floor SC
-   2.5.8 sets and this was 18") and `.ap-more` ("Now a real 24x24 target") —
-   and this tab predates both. It is not a conformance failure: the spacing
-   exception covers it, since nothing sits within 24px of a tab pinned to the
-   window's edge. It is the sheet disagreeing with itself about its own floor,
-   on the only control that reopens a whole panel. Two pixels, taken from the
-   canvas the tab already floats over. */
-.detail-reopen {
-  position: fixed;
-  top: 64px;
-  right: 0;
-  width: 24px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--ctl-edge);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: -2px 2px 8px rgba(0,0,0,0.2);
-  transition: color 120ms ease, background 120ms ease,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.detail-reopen:hover { color: var(--text); }
-.detail-reopen:active { transform: scale(0.94); }
+   reclaims the space. Keyed off the panel's own absence now. It used to be
+   keyed off `.detail-reopen`, the tab that rendered only while it was closed —
+   which worked, and stopped working the moment that tab came off the canvas.
+   `:not(:has(.detail))` says the thing the layout actually depends on rather
+   than a proxy for it, and it is what makes the panel's absence with nothing
+   selected cost nothing extra. */
+.app:not(:has(.detail)) { grid-template-columns: 1fr; }
+.app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
+.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: 288px 1fr; }
+
 /* The panel's captions, at both of the levels they now sit at (#381): the
    empty state's own title became this panel's h2 when the document gained an
    h1, and the sections under a selected agent stay h3. The child combinator is
@@ -2529,23 +2623,6 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .detail .empty {
   color: var(--muted);
   font-style: italic;
-}
-.detail .hint {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.55;
-  background: var(--bg-soft);
-}
-.detail .hint code {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text);
 }
 .detail .row {
   display: flex;
@@ -7153,7 +7230,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ver-banner .ver-close:active,
   .topbar .brand button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
-  .detail-reopen:active, .ctx-donut:active,
+  .ctx-donut:active,
   .session-list .sl-row:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,
   button.ap-auto-state:active:not(:disabled),
@@ -7164,6 +7241,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .aa-result-fix:active,
   .bw-ep-head:active,
   .bw-toggle:active,
+  .sm-toggle:active,
   .bw-help:active,
   .bw-settings select:active:not(:disabled),
     /* Two that cannot join the list above, for two different reasons.

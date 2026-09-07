@@ -510,6 +510,11 @@ const CONTROLS: Control[] = [
   // is identified by nothing but the option text inside it, so the box IS the
   // control. Its bed is --panel, which is the popover's own surface.
   { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
+  // The sound menu's two small buttons, softened off --ctl-edge onto --sm-edge
+  // when they were made secondary. Swept here so the softer edge is MEASURED
+  // against 1.4.11 rather than argued for in a comment.
+  { at: "button.btn.sm-hear", states: ["button.btn:hover"], beds: ["--panel"] },
+  { at: "button.btn.sm-channel-action", states: ["button.btn:hover"], beds: ["--panel"] },
   // The skip link (#381). It is only ever on screen while it holds focus, and
   // it is drawn over the topbar it skips past — so the beds are the bar's two
   // ends, like every other control up here. It gets the sweep rather than an
@@ -522,7 +527,6 @@ const CONTROLS: Control[] = [
   { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
   { at: ".ver-banner .ver-auto:hover", fillFrom: ".ver-banner .ver-auto", beds: BANNER },
   // canvas, detail panel, modals
-  { at: ".detail-reopen", beds: ["--bg"] },
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
   // a panel header, no border at rest and none grown on hover — so there is no
@@ -546,6 +550,7 @@ const CONTROLS: Control[] = [
   // are only told apart by a knob position needs each of them to hold its own
   // boundary, not just the resting one.
   { at: ".bw-toggle", states: [".bw-toggle:hover", '.bw-toggle[aria-checked="true"]'], beds: ["--panel"] },
+  { at: ".sm-toggle", states: [".sm-toggle:hover", '.sm-toggle[aria-checked="true"]'], beds: ["--panel"] },
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
@@ -687,9 +692,12 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // move because the PARSER changed its mind. Which of the two happened is
     // what the five direct answers under it are for: they are the shapes the
     // list has been widened to cover, asserted on bodies of their own rather
-    // than through a total that a sheet edit also moves. Sixty-two today.
+    // than through a total that a sheet edit also moves. Eighty-one today —
+    // the sound menu's two small buttons took a border-color of their own when
+    // they were made secondary, which is a control gaining an edge rather than
+    // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(80);
+    expect(EDGED_CONTROLS.length).toBeLessThan(85);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -889,7 +897,8 @@ describe("the contrast maths, against the two ends everybody knows", () => {
     const dimFill = over([3, 105, 161, 0.22], canvas);
     expect(contrastRatio(dimFill, canvas)).toBeCloseTo(1.37, 2);
     expect(contrastRatio(over([3, 105, 161, 0.22], dimFill), canvas)).toBeCloseTo(1.79, 2);
-    // .detail-reopen: a --panel tab on the canvas, edged with --line.
+    // What a --panel surface is worth against the canvas, which is why a tab
+    // sitting on it could never be found by its fill alone.
     expect(contrastRatio(white, canvas)).toBeCloseTo(1.13, 2);
     // --accent-dim, the hover edge on eleven rules, against what it hovered.
     expect(contrastRatio(over([3, 105, 161, 0.22], white), white)).toBeCloseTo(1.39, 2);

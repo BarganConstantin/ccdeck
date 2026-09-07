@@ -45,6 +45,7 @@ import {
   type Chime, type TonePrefs,
 } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -56,8 +57,11 @@ const TONE_LABEL: Record<Chime, string> = {
 /** The one line that says what fires the tone, because "Turn finished" alone
  *  does not tell a Codex user which of their turns are covered. */
 const TONE_NOTE: Record<Chime, string> = {
-  done: "Every finished turn, on both CLIs.",
-  "needs-input": "Claude Code only — Codex has no such event.",
+  done: "Plays when Claude or Codex finishes a turn.",
+  // "Codex has no such event" was the true reason and the wrong sentence: why
+  // the other CLI cannot do this is ours to know, and a user reading a settings
+  // menu needs the boundary, not the cause.
+  "needs-input": "Available in Claude Code only.",
 };
 
 interface Props {
@@ -88,7 +92,7 @@ interface Props {
    *  notifier begins `if (Notification.permission !== "granted") return;` and
    *  nothing in this menu had ever mentioned a permission. A user turned a
    *  switch on, saw "on", and got silence from the tab. */
-  notifyPermission: "default" | "granted" | "denied" | "unsupported";
+  notifyPermission: NotifyPermission;
   /** Raise the browser's permission prompt. Only offered while the permission
    *  is still askable — a refusal cannot be re-asked by any page, which is why
    *  the row says where the switch is instead. */
@@ -102,11 +106,11 @@ export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
-  /* The one state that has a gesture attached: the switch is on, the machine
-     has not overruled it, and the browser has neither granted nor refused.
-     Named once because two things read it — the button below, and the switch
-     above, which squares its bottom corners to meet it. */
-  const asking = notifyOn && !notifyVetoed && notifyPermission === "default";
+  /* The channel, and whether it is worth drawing at all. A veto silences both
+     notifiers, so there is no channel to report on; the switch's own note says
+     what happened instead. */
+  const channel = browserChannel(notifyPermission);
+  const showChannel = notifyOn && !notifyVetoed;
 
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -135,93 +139,129 @@ export default function SoundMenu({
       role="dialog"
       aria-label="Sound settings"
     >
-      {/* The switch, first, because it is the one control here that can make
-          every other one moot. A real aria-pressed toggle rather than a
-          checkbox: it is the same setting the topbar button used to carry and
-          the same one M flips, and "pressed" is what a setting that stays on
-          means. It never disables anything — least of all itself (#620). */}
-      <button
-        type="button"
-        className="btn sm-switch"
-        onClick={onToggleSound}
-        aria-pressed={soundOn}
-      >
-        <span className="sm-switch-label">Sound</span>
-        <span className="sm-switch-state">{soundOn ? "on" : "off"}</span>
-      </button>
+      {/* TWO SWITCHES, AND THEN A CHANNEL — WHICH IS NOT A THIRD SWITCH.
+          The defect this menu kept reproducing was one control contradicting
+          itself: "Notifications  on" with a line under it saying the browser
+          had never been asked. Every rewrite that treated it as a copy problem
+          reproduced it, because it is a naming problem. "Notifications" is the
+          feature and "Browser notifications" is one of the two channels it
+          reaches you through — two named things, so "on" and "not allowed yet"
+          stop arguing and start describing different objects.
 
-      {/* The second channel, and the first time it has had an off switch.
-          A notification could be turned ON with one press — the "notify me"
-          button beside the blocked count — and turned off only from the
-          browser's own site settings, or by quitting the deck and re-running it
-          with AGENTS_DECK_NO_NOTIFY=1. Asymmetric in the worst direction: the
-          person who wants quiet is the one being asked to work for it.
-          It governs BOTH notifiers, which is why it is not a browser
-          preference. The page raises one when the tab is behind something; the
-          server raises one when no page exists at all, and a switch in
-          localStorage could not reach that second one at the moment it runs.
-          It stays pressable when the machine has overruled it, because the
-          preference is still the user's to record for the next launch. */}
-      {/* THE SWITCH AND WHAT THE BROWSER SAYS ABOUT IT, AS ONE UNIT.
-          They were two siblings in the menu's 12px column, wearing the same
-          border and the same radius as the Sound switch above — three boxes,
-          equally weighted, and a reader counted three settings. The third is
-          not a setting. It is a CONDITION of the second and the one gesture
-          that clears it, and rendering it as a peer said the opposite.
-          The wrapper is the whole fix: two children, no gap, so the shared
-          edge does the saying. No new colour and no new token — the geometry
-          already carries "this belongs to that", and in a 280px rail read
-          while a build runs, geometry is cheaper to parse than a legend. */}
-      <div className="sm-notify">
-        <button
-          type="button"
-          className={`btn sm-switch${asking ? " sm-switch-joined" : ""}`}
-          onClick={onToggleNotify}
-          aria-pressed={notifyOn}
-          title={notifyVetoed
-            ? "Recorded for next time: this deck was started with AGENTS_DECK_NO_NOTIFY=1, which overrules the switch"
-            : "A system notification when a session blocks on you — from this page while it is behind something, and from the deck itself when no page is open"}
-        >
-          <span className="sm-switch-label">Notifications</span>
-          <span className="sm-switch-state">
-            {notifyVetoed ? "off — set at launch" : notifyOn ? "on" : "off"}
-          </span>
-        </button>
+          The channel is therefore a SECTION, drawn with the same heading and
+          the same right-hand control that TURN FINISHED and CLAUDE IS ASKING
+          below it already use. Not a new block: the menu had a shape for "a
+          named group with one control beside its name", and a second spelling
+          of it here would be the drift this sheet's comments spend their length
+          preventing.
 
-        {/* THE OTHER HALF OF THE ANSWER (#801). The switch above is the deck's;
-            this line is the browser's, and the two are different questions. With
-            the switch on and the permission unasked, the deck's own notifier —
-            the one that fires when no page is open — works, and the page's does
-            not; saying only "on" was a promise the tab could not keep.
-            The ask lives HERE rather than only on the blocked-count button,
-            because that button appears solely while a session is stuck, so on a
-            machine whose sessions rarely block the feature could not be switched
-            on at all. Nothing is requested until this row is pressed.
-            "denied" gets a sentence and no button: no page may re-raise a refused
-            prompt, and a control that silently does nothing is the failure
-            browser-react.mjs refuses to ship for its own reactions. */}
-        {asking && (
-          /* "allow" rather than "ask now", and it is the browser's own word:
-             the next thing on screen is Chrome's prompt with an Allow button on
-             it, so the label predicts the screen it opens instead of describing
-             our side of the machinery. And it is a verb where the two rows
-             above hold a state, which is the other half of not reading as a
-             third setting. */
-          <button type="button" className="btn sm-notice" onClick={onAskNotify}>
-            <span className="sm-notice-text">Needs this browser&rsquo;s permission</span>
-            <span className="sm-notice-act">allow</span>
+          Real switches, too. `on` in the right-hand column sat in the slot, the
+          size and the accent this deck gives figures it REPORTS, so the two
+          controls at the top of the menu read as two more status lines. A track
+          and a knob say "yours to move" before a word is read. It is
+          `.bw-toggle`'s shape, borrowed from Browser Watch rather than
+          respelled. */}
+      <div className="sm-switches">
+        <label className="sm-switch">
+          <span className="sm-switch-label" id="sm-sound-label">Sounds</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soundOn}
+            aria-labelledby="sm-sound-label"
+            className="sm-toggle"
+            onClick={onToggleSound}
+            title="A tone when a turn finishes, and when Claude asks for something"
+          >
+            <span className="sm-toggle-knob" />
           </button>
-        )}
+        </label>
 
-        {notifyOn && !notifyVetoed && (notifyPermission === "denied" || notifyPermission === "unsupported") && (
-          <p className="sm-note sm-notice-note">
-            {notifyPermission === "denied"
-              ? "This browser is blocking notifications from the deck. Only its own site settings can undo that — no page is allowed to ask again."
-              : "This browser cannot show notifications, so only the deck's own desktop notification will arrive."}
-          </p>
-        )}
+        {/* The deck's OTHER way of interrupting you, and the reason it is in
+            this menu rather than a settings panel of its own: this popover is
+            already "how loudly does this deck interrupt me", and notifications
+            were the only channel with no off switch anywhere in the app.
+            It governs BOTH notifiers, which is why it is held server-side
+            rather than in localStorage — the one that runs when no page exists
+            could not read a browser's storage at the moment it runs. And it
+            stays operable when the machine has overruled it, because the
+            preference is still the user's to record for the next launch.
+            The note under it is not decoration: without it, Sound and
+            Notifications are two identically-shaped switches whose difference —
+            sound fires on every finished turn, this fires only when something
+            has stopped and needs a person — is nowhere on screen. */}
+        <div className="sm-setting">
+          <label className="sm-switch">
+            <span className="sm-switch-label" id="sm-notify-label">Notifications</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notifyOn}
+              aria-labelledby="sm-notify-label"
+              className="sm-toggle"
+              onClick={onToggleNotify}
+              title="A system notification when a session blocks on you"
+            >
+              <span className="sm-toggle-knob" />
+            </button>
+          </label>
+          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}</p>
+        </div>
       </div>
 
+      {/* Hidden outright when the switch is off, because telling somebody to
+          allow a channel for a feature they have just turned off is asking them
+          to work for nothing. Hidden under a veto for the same reason: the
+          channel cannot deliver either way, and the note above already says so.
+          Turning the switch on raises the prompt itself (App.tsx), so `ask` is
+          the way back from a prompt that was dismissed rather than the main
+          road to it. */}
+      {showChannel && (
+        <section className="sm-channel" aria-labelledby="sm-channel-name">
+          <div className="sm-channel-head">
+            {/* Sentence case, and quieter than the two switches. ALL CAPS in
+                this menu belongs to the event groups below — those are what
+                structure it, and a third one here would claim the same rank for
+                what is only a capability report. */}
+            <h3 className="sm-channel-name" id="sm-channel-name">Browser notifications</h3>
+            {channel.ask ? (
+              <button type="button" className="btn sm-channel-action" onClick={onAskNotify}>
+                Enable
+              </button>
+            ) : (
+              /* A word, not a control, and it keeps the button's slot so the
+                 press that grants the permission changes one label rather than
+                 relaying the section under the pointer that caused it. */
+              <span className="sm-channel-state" data-ok={channel.ok || undefined}>
+                {channel.ok && (
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M1.5 5.2 3.9 7.6 8.5 2.4" />
+                  </svg>
+                )}
+                {channel.status}
+              </span>
+            )}
+          </div>
+          <p className="sm-note">{channel.note}</p>
+        </section>
+      )}
+
+      {/* One rule before the event groups. Everything above it is "does this
+          deck interrupt me, and can it"; everything below is "what does each
+          interruption sound like". Two subjects, and the caps headings alone
+          were not enough of a break between them. */}
+      {!soundOn && (
+        /* One node for both buttons, and only while both of them carry the
+           description — an aria-describedby pointing at an id that is not in
+           the document is a dangling reference, which is the rule #800 put on
+           the four topbar toggles. */
+        <span id="sm-preview-note" className="vis-hidden">
+          Plays even when Sounds is off, so you can set a tone before turning sounds back on.
+        </span>
+      )}
+
+      <div className="sm-tones">
       {CHIME_ORDER.map(chime => {
         const tone = prefs[chime];
         const levelId = `sm-level-${chime}`;
@@ -241,6 +281,28 @@ export default function SoundMenu({
                 className="btn sm-hear"
                 onClick={() => onPreview(chime)}
                 aria-label={`Hear the ${TONE_LABEL[chime].toLowerCase()} tone`}
+                /* Nothing below is dimmed or disabled while Sounds is off, and
+                   that is the decision rather than an oversight: the person
+                   most likely to open this menu is somebody who silenced the
+                   deck because it was too loud, and turning the volume down is
+                   the road they came for. Disabling it closes that road, and
+                   dimming without disabling is worse — a control that looks
+                   dead and works.
+                   What that costs is one surprise: a press that makes a noise
+                   from a deck the user believes is muted reads as a bug. So the
+                   press says so first, in a tooltip and — because a tooltip is
+                   not on the accessibility tree — in a description a reader
+                   gets too. Only while it can surprise: with the sound on, the
+                   sentence is noise.
+                   The two say different lengths on purpose. A tooltip appears
+                   over the thing it describes and is read in the half-second
+                   before a press, so it states the EXCEPTION and stops. The
+                   description is read in sequence by somebody who cannot see
+                   the switch above, and carries why the exception is useful. */
+                title={soundOn
+                  ? "Play this tone now, at what it is set to"
+                  : "Plays even when Sounds is off"}
+                aria-describedby={soundOn ? undefined : "sm-preview-note"}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
                   <path d="M3 1.6v8.8l7-4.4z" />
@@ -269,7 +331,7 @@ export default function SoundMenu({
             </div>
 
             <div className="sm-row">
-              <label htmlFor={figureId}>Sound</label>
+              <label htmlFor={figureId}>Tone</label>
               {/* A native select for the same reason the range is native: it
                   arrives with the keyboard, the platform's own popup and a
                   reader that already knows how to announce a list of options.
@@ -291,8 +353,12 @@ export default function SoundMenu({
           </section>
         );
       })}
+      </div>
 
-      <p className="sm-foot">M turns the sound on and off from anywhere.</p>
+      {/* The key, drawn as a key. It was a sentence about a letter, which is
+          the one shape a reader does not scan for when they are looking for a
+          shortcut. Same cap the shortcuts sheet uses. */}
+      <p className="sm-foot"><kbd>M</kbd>Mute or unmute sounds anywhere.</p>
     </div>
   );
 }

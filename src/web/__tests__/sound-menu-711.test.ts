@@ -850,7 +850,53 @@ describe("the click opens the menu, and M still silences the deck", () => {
   it("gives the mouse the switch back, inside the menu, through the same door", () => {
     expect(app).toMatch(/onToggleSound=\{toggleSound\}/);
     expect(menu).toMatch(/onClick=\{onToggleSound\}/);
-    expect(menu).toMatch(/aria-pressed=\{soundOn\}/);
+    // A real switch, not a word in a box. `on` sat in the same right-hand slot
+    // and the same accent the deck gives figures it REPORTS, so the one control
+    // at the top of this menu read as a readout — see toggle-state.test.ts.
+    expect(menu).toMatch(/role="switch"[\s\S]{0,60}aria-checked=\{soundOn\}/);
+  });
+
+  it("leaves everything below the master switch live, and says why the preview still sounds", () => {
+    // The master switch governs PLAYBACK, not configurability. Dimming or
+    // disabling the two tone groups while Sounds is off closes the one road
+    // this menu exists for: somebody silenced the deck because it was too loud
+    // and came here to turn the volume down before switching it back on.
+    //
+    // WHAT THIS CAN AND CANNOT CHECK. The guarantee is behavioural — the
+    // slider, the select and the preview stay operable, at full opacity, with
+    // no aria-disabled — and there is no DOM in this suite to read any of that
+    // from. So the check is scoped to the region the guarantee is about rather
+    // than banned across the file: inside `.sm-tones`, nothing is keyed on
+    // `soundOn` and nothing is disabled or dimmed. A later, legitimate use of
+    // `soundOn` anywhere else in this component is untouched by this; a use
+    // INSIDE the tone groups is exactly the thing worth stopping to look at.
+    const tones = menu.slice(menu.indexOf('<div className="sm-tones">'));
+    const inside = tones.slice(0, tones.lastIndexOf("</div>"));
+    expect(inside).toContain("TONE_NOTE[chime]");            // the right slice
+    expect(inside, "a control below the master switch was disabled").not.toMatch(/\bdisabled\b/);
+    expect(inside, "a control below the master switch was dimmed").not.toMatch(/\bopacity\b/);
+    // Two uses of `soundOn` in there, and they are the sentence rather than a
+    // state: the tooltip and the description that says the preview will sound.
+    expect([...inside.matchAll(/\bsoundOn\b/g)]).toHaveLength(2);
+    expect(inside).toMatch(/title=\{soundOn\n\s+\? "Play this tone now, at what it is set to"/);
+    expect(inside).toMatch(/: "Plays even when Sounds is off"\}/);
+    expect(inside).toMatch(/aria-describedby=\{soundOn \? undefined : "sm-preview-note"\}/);
+  });
+
+  it("gives the tooltip the exception and the description the reason", () => {
+    // Different lengths on purpose. A tooltip appears over the control and is
+    // read in the half-second before a press, so it states the exception and
+    // stops; the description is read in sequence by somebody who cannot see the
+    // switch above it, and carries why the exception is useful.
+    const tip = menu.match(/: "(Plays even when Sounds is off[^"]*)"\}/)![1];
+    const said = menu.match(/<span id="sm-preview-note" className="vis-hidden">\s*([^<]+)/)![1].trim();
+    expect(tip).toBe("Plays even when Sounds is off");
+    expect(said.length).toBeGreaterThan(tip.length);
+    expect(said).toContain("before turning sounds back on");
+    // And neither exists while the sound is on, where the sentence is noise —
+    // the description's node included, so the IDREF is never dangling.
+    expect(menu).toMatch(/\{!soundOn && \(/);
+    expect(css).toMatch(/\.vis-hidden/);
   });
 
   it("took the volume out of the shortcuts sheet it briefly lived in", () => {

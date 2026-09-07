@@ -73,7 +73,7 @@ describe("every key the deck binds is written down where a user can find it", ()
 
   it("is the complete set, so a new key cannot be added quietly", () => {
     expect([...new Set(BOUND.map(lower))].sort())
-      .toEqual([" ", "?", "a", "c", "escape", "f", "h", "j", "k", "l", "m", "r", "t", "u"]);
+      .toEqual([" ", "?", "a", "c", "d", "escape", "f", "h", "j", "k", "l", "m", "r", "t", "u"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -108,26 +108,28 @@ describe("every key the deck binds is written down where a user can find it", ()
   });
 });
 
-describe("the short list in the detail rail and the sheet agree", () => {
-  /** The rail's rows. `<kbd>` appears nowhere else in App.tsx — the sheet's own
-   *  rows are rendered from the table, in KeyboardHelp.tsx. */
-  const RAIL = [...app.matchAll(/<kbd>([^<]*)<\/kbd>/g)].map(m => m[1]);
+describe("the short list that used to sit in the detail rail", () => {
+  // It is gone, and with it the whole reason this block existed. The rail drew
+  // fifteen `<kbd>` rows in a 360px column while nothing was selected — a copy
+  // of a reference whose complete version is one keypress away — and keeping
+  // two rendered lists honest against one table was the cost of having two.
+  // What replaces it is the sheet, which was always the reference.
 
-  it("reads the rail at all", () => {
-    expect(RAIL.length).toBeGreaterThan(10);
+  it("left no second list behind to drift out of step with the sheet", () => {
+    // `<kbd>` in App.tsx WAS the rail; the sheet renders its rows from the
+    // table, in KeyboardHelp.tsx. A `<kbd>` reappearing here is a second list
+    // being born, which is the thing this file spent three cases policing.
+    expect([...app.matchAll(/<kbd>/g)]).toHaveLength(0);
   });
 
-  it("puts nothing in the rail that the sheet does not carry", () => {
-    // Two rendered lists, one table behind them. The rail is deliberately the
-    // shorter one — it is what a new deck needs to move around, not the
-    // reference — but it may not name a key the reference has never heard of,
-    // which is how the two would drift into contradicting each other.
+  it("keeps every key the rail used to name, in the one list that is left", () => {
+    // The rail's rows, verbatim from the version that carried them. None of
+    // them may have left the deck along with the panel that listed them —
+    // removing a duplicate is not the same as removing the thing duplicated.
+    const RAIL_CAPS = ["?", "drag", "tab", "enter", "space", "J", "K",
+                       "R", "F", "L", "H", "U", "C", "T", "Esc"];
     const caps = new Set(KEY_HELP.flatMap(g => g.rows.map(r => lower(r.cap))));
-    expect(RAIL.filter(c => !caps.has(lower(c)))).toEqual([]);
-  });
-
-  it("opens the rail with the row that makes the rest of it findable", () => {
-    expect(app).toMatch(/<div className="sc"><kbd>\?<\/kbd><span>all shortcuts<\/span><\/div>/);
+    expect(RAIL_CAPS.filter(c => !caps.has(lower(c)))).toEqual([]);
   });
 });
 

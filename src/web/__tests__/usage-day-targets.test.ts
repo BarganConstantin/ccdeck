@@ -122,7 +122,7 @@ const capPx = (value: string | null) => {
 /** The 24px short side SC 2.5.8 asks of a pointer target. The one number in
  *  this file that is not read out of the source, because it is not this app's
  *  number to choose — the sheet argues for it in prose at `.ver-close`,
- *  `.ap-more` and `.detail-reopen`, and panel-rhythm.test.ts pins four other
+ *  `.ap-more` and `.sd-close`, and panel-rhythm.test.ts pins four other
  *  controls to it. */
 const FLOOR = 24;
 
