@@ -788,43 +788,72 @@ button.btn.sm-switch {
    smaller sibling rather than as an attachment. */
 .sm-notify { display: flex; flex-direction: column; }
 
-/* What the BROWSER says about notifications, under the deck's own switch
-   (#801). A row rather than a line of prose because it is pressable: the
-   permission prompt needs a user gesture, so this IS the way to grant it on a
-   machine whose sessions rarely block — the other route, the button beside the
-   blocked count, only exists while something is stuck.
-   Quieter than the switch above it and not accent-filled: it reports a
-   condition and offers a remedy, it is not a setting that stays on.
-   The negative margin is one pixel and does one job: the two borders that meet
-   become the single line a stacked control has, rather than the 2px seam two
-   adjacent boxes leave. */
-button.btn.sm-notice {
+/* WHERE A NOTIFICATION CAN REACH YOU — two lines, not two settings.
+   Same box as the switch above so the shared edges make one object, but 11px
+   against its 12px and --text-dim against its --text, which is the whole
+   subordination: a reader scanning the menu sees two switches and, under one of
+   them, two smaller lines that answer for it.
+   The 1px negative margin does one job: the two borders that meet become the
+   single line a stacked control has rather than the 2px seam two adjacent boxes
+   leave. 26px rather than --ctl-h's 30px — shorter than a control because these
+   mostly are not one, and still past SC 2.5.8's 24px for the line that is. */
+.sm-reach-row {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: var(--ctl-h);
+  padding: 0 12px;
   margin-top: -1px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 0;
   font-size: 11px;
   color: var(--text-dim);
 }
-/* And the switch meets it. Only while the row is there — see `asking` in
-   SoundMenu.tsx — because a control with two square corners and nothing under
-   them is a box somebody forgot to finish. */
+/* The pressable one is the same line wearing `btn`, so the box, the border, the
+   hover and the press scale are the ones every other button in the deck already
+   has — and no second height enters the sheet, which panel-rhythm.test.ts holds
+   the whole app to. What is added is only what makes it a LINE rather than a
+   button: the label pushed left, the answer pushed right, and the two smaller,
+   dimmer channels the row beside it uses.
+   `button.btn:hover` repaints the label in --accent from further down the sheet,
+   which is the affordance: the whole line lights, not just the word. */
+button.btn.sm-reach-ask {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -1px;
+  border-radius: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* The last line of the unit closes the box. Written as its own class rather
+   than :last-of-type because the deck line is last by meaning, not by document
+   order: the refusal note that can follow it is a <p>, and a selector that
+   depended on that would break the day the note became a <div>. */
+.sm-reach-end {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+/* And the switch meets them. Only while there is something under it — see
+   `reaches` in SoundMenu.tsx — because a control with two square corners and
+   nothing below is a box somebody forgot to finish. */
 button.btn.sm-switch-joined {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-/* Left, and allowed to wrap. The copy fits one line at this width, and a line
-   that needs two on a narrower rail should break rather than ellipsise: this
-   sentence is the reason the row exists. */
-.sm-notice-text { text-align: left; }
-.sm-notice-act { color: var(--accent); white-space: nowrap; }
-/* The dead-end case: refused, and no page may ask again. Prose, because there
-   is nothing here to press — a button that silently does nothing is the
-   failure browser-react.mjs refuses to ship for its own reactions.
-   Inside the unit now, so it gets its own breathing room rather than the
-   negative margin it used to need to escape the column's gap. */
-.sm-notice-note { margin-top: 6px; }
+/* Left, and allowed to wrap. The route names fit one line at this width, and a
+   line that needs two on a narrower rail should break rather than ellipsise:
+   naming the route is the reason the line exists. */
+.sm-reach-where { text-align: left; }
+/* The answer column, and the one thing in this unit worth scanning down. Dim by
+   default because "ready", "blocked" and "unavailable" are all reports; --accent
+   is reserved for the one that is a gesture, so colour in this unit means
+   pressable and nothing else. */
+.sm-reach-state { white-space: nowrap; }
+.sm-reach-act { color: var(--accent); }
+/* Inside the unit, so it gets its own breathing room rather than the negative
+   margin it would otherwise need to escape the menu's column gap. */
+.sm-reach-note { margin-top: 6px; }
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */

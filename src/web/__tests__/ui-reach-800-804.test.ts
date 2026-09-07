@@ -56,43 +56,73 @@ describe("#801 — what the Notifications switch is saying", () => {
     // the deck's own desktop notifier works and the page's does not — so "on"
     // alone was a promise the tab could not keep.
     expect(soundMenu).toContain('notifyPermission: "default" | "granted" | "denied" | "unsupported";');
-    // The gate is named now rather than inlined — one `asking`, read by the
-    // row below it and by the switch above, which squares its corners to meet
-    // it. Asserted as the definition plus its two uses rather than as one
-    // literal expression, so the guarantee survives the next tidy-up: what
-    // must hold is that the ask appears only with the switch on, the machine
-    // not overruling it, and the browser not yet answered.
-    expect(soundMenu).toContain('const asking = notifyOn && !notifyVetoed && notifyPermission === "default";');
-    expect(soundMenu).toContain("{asking && (");
+    // Both gates are named rather than inlined. `reaches` is "the switch is on
+    // and the machine has not overruled it", which is when the routes below
+    // have anything to say; `asking` narrows that to the browser not having
+    // answered yet. Asserted as the definitions plus their uses rather than as
+    // one literal expression, so the guarantee survives the next tidy-up.
+    expect(soundMenu).toContain("const reaches = notifyOn && !notifyVetoed;");
+    expect(soundMenu).toContain('const asking = reaches && notifyPermission === "default";');
+    expect(soundMenu).toContain("{reaches && (asking ? (");
     expect(app).toContain('notifyPermission={notifySupported ? notifyPermission : "unsupported"}');
   });
 
-  it("puts the ask on that row, so it does not depend on a session being stuck", () => {
+  it("names BOTH notifiers, so a permission cannot be read as the whole story", () => {
+    // The defect the copy still had after #806: one grey line reported a
+    // browser permission and never said which half of the feature it governed.
+    // A reader who saw it had every reason to believe a refusal meant silence —
+    // but the server-side notifier (src/server/block-notify.mjs) needs no
+    // permission and fires in exactly the case the whole feature exists for,
+    // when no page is open at all. Two routes, named, each with its own state.
+    expect(soundMenu).toContain("This tab, when hidden");
+    expect(soundMenu).toContain("The deck, when no tab is open");
+    // And the deck's route is not gated on the permission — only on the switch.
+    const deckRow = soundMenu.slice(soundMenu.indexOf("The deck, when no tab is open"));
+    expect(deckRow.slice(0, deckRow.indexOf("</div>"))).not.toContain("notifyPermission");
+  });
+
+  it("answers the routes in a different vocabulary than the switch above them", () => {
+    // "on/off" is a setting. These two lines are not settings — they are
+    // whether a route can carry anything — so a column reading "on / on / on"
+    // would have said three settings again in a third spelling.
+    expect(soundMenu).toContain('const tabState = notifyPermission === "granted" ? "ready"');
+    expect(soundMenu).toContain(': notifyPermission === "denied" ? "blocked" : "unavailable";');
+    expect(soundMenu).toContain('<span className="sm-reach-state">ready</span>');
+  });
+
+  it("puts the ask on the route it belongs to, not on a session being stuck", () => {
     // It used to live only on the blocked-count button, which appears solely
     // while something is waiting — on a machine whose sessions rarely block,
     // the feature could not be switched on at all.
-    expect(soundMenu).toContain('<button type="button" className="btn sm-notice" onClick={onAskNotify}>');
+    expect(soundMenu).toContain('<span className="sm-reach-state sm-reach-act">allow</span>');
+    expect(soundMenu).toContain("onClick={onAskNotify}");
     expect(app).toContain("onAskNotify={askForNotifications}");
   });
 
   it("offers no button for a permission no page may re-raise", () => {
-    // `denied` gets a sentence. A control that silently does nothing is worse
-    // than no control, and `requestPermission()` cannot undo a refusal.
-    // The two branches are separate conditions rather than a ternary now, and
-    // between them they still cover the enum exactly: `asking` is the
-    // `default` case, this is `denied` and `unsupported`, and `granted` draws
-    // nothing. No permission reaches both, and none reaches neither.
-    expect(soundMenu).toContain('notifyPermission === "denied" || notifyPermission === "unsupported"');
-    expect(soundMenu).toMatch(/notifyPermission === "denied"\s*\n?\s*\? "This browser is blocking notifications/);
-    // And the refused case is prose. A `<button>` anywhere in that branch
-    // would be the control that silently does nothing.
-    const deniedBranch = soundMenu.slice(soundMenu.indexOf('notifyPermission === "denied" ||'));
-    expect(deniedBranch.slice(0, deniedBranch.indexOf("</div>"))).not.toContain("<button");
+    // `denied` and `unsupported` both become a word in the state column and
+    // nothing to press: `requestPermission()` cannot undo a refusal, and a
+    // control that silently does nothing is worse than no control. Between
+    // `asking` and `tabState` the enum is covered exactly — `default` is the
+    // button, the other three are words — so no permission reaches both
+    // branches and none reaches neither.
+    const rows = soundMenu.slice(soundMenu.indexOf("{reaches && (asking ? ("));
+    const word = rows.slice(rows.indexOf(") : ("), rows.indexOf("Route two"));
+    expect(word).toContain("{tabState}");
+    expect(word).not.toContain("<button");
+    // Only the refusal earns prose, because its remedy is somewhere the deck
+    // cannot draw. `unsupported` earns none: the deck's own route still says
+    // "ready" one line below it.
+    expect(soundMenu).toContain('notifyPermission === "denied" && (');
+    expect(soundMenu).toContain("Only your browser&rsquo;s site settings for this address can undo that.");
+    expect(soundMenu, "the unsupported case grew a paragraph again")
+      .not.toContain('notifyPermission === "unsupported"\n');
   });
 
   it("styles every class it renders", () => {
-    for (const cls of ["sm-notify", "sm-switch-joined",
-                       "sm-notice", "sm-notice-text", "sm-notice-act", "sm-notice-note"]) {
+    for (const cls of ["sm-notify", "sm-switch-joined", "sm-reach-ask", "sm-reach-row",
+                       "sm-reach-end", "sm-reach-where", "sm-reach-state",
+                       "sm-reach-act", "sm-reach-note"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);
     }
   });

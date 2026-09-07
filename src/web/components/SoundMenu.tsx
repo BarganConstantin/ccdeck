@@ -102,11 +102,20 @@ export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
-  /* The one state that has a gesture attached: the switch is on, the machine
-     has not overruled it, and the browser has neither granted nor refused.
-     Named once because two things read it — the button below, and the switch
-     above, which squares its bottom corners to meet it. */
-  const asking = notifyOn && !notifyVetoed && notifyPermission === "default";
+  /* Whether the two lines below have anything to say. The switch on and the
+     machine not overruling it is exactly when "where does this reach me" is a
+     live question; off, it is noise. */
+  const reaches = notifyOn && !notifyVetoed;
+  /* The one state with a gesture attached: reachable, and the browser has
+     neither granted nor refused. Named once because two things read it — the
+     tab line below, which becomes a button, and nothing else. */
+  const asking = reaches && notifyPermission === "default";
+  /* What the tab line says when there is nothing to press. Not "on"/"off":
+     these two lines are not settings, they are whether a route can carry a
+     notification at all, so they answer in a different vocabulary than the
+     switch above them. */
+  const tabState = notifyPermission === "granted" ? "ready"
+    : notifyPermission === "denied" ? "blocked" : "unavailable";
 
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -162,25 +171,37 @@ export default function SoundMenu({
           localStorage could not reach that second one at the moment it runs.
           It stays pressable when the machine has overruled it, because the
           preference is still the user's to record for the next launch. */}
-      {/* THE SWITCH AND WHAT THE BROWSER SAYS ABOUT IT, AS ONE UNIT.
-          They were two siblings in the menu's 12px column, wearing the same
-          border and the same radius as the Sound switch above — three boxes,
-          equally weighted, and a reader counted three settings. The third is
-          not a setting. It is a CONDITION of the second and the one gesture
-          that clears it, and rendering it as a peer said the opposite.
-          The wrapper is the whole fix: two children, no gap, so the shared
-          edge does the saying. No new colour and no new token — the geometry
-          already carries "this belongs to that", and in a 280px rail read
-          while a build runs, geometry is cheaper to parse than a legend. */}
+      {/* THE SWITCH AND THE TWO ROUTES IT GOVERNS, AS ONE UNIT.
+          A switch on its own could not answer the question a reader actually
+          has, which is not "is this on" but "will it reach me when I have
+          walked away". There are two notifiers and they cover different halves:
+          the page raises one while the deck is open and hidden behind
+          something, and the server raises one when no page exists at all
+          (src/web/notify.ts and src/server/block-notify.mjs both open on this).
+          They are exclusive by construction — the server checks sseClients.size
+          — so "both are on" is not a duplicate, it is full cover.
+
+          That used to be said in a tooltip, a code comment and one line of grey
+          prose that reported a deficiency ("Needs this browser's permission")
+          without naming which half it applied to. It is a map now: two lines,
+          each a route and whether it can carry. Nothing is prose, so nothing
+          has to be read — the column of states is scannable at a glance, which
+          is the only reading this menu gets while a build runs.
+
+          Geometry does the grouping: no gap inside the unit, so the shared
+          edges make one object out of three lines, and the menu's own 12px is
+          then the only gap in the group and therefore means something. The two
+          route lines are 11px against the switch's 12px/600 and dim rather than
+          --text, so subordinate is legible without a legend. */}
       <div className="sm-notify">
         <button
           type="button"
-          className={`btn sm-switch${asking ? " sm-switch-joined" : ""}`}
+          className={`btn sm-switch${reaches ? " sm-switch-joined" : ""}`}
           onClick={onToggleNotify}
           aria-pressed={notifyOn}
           title={notifyVetoed
             ? "Recorded for next time: this deck was started with AGENTS_DECK_NO_NOTIFY=1, which overrules the switch"
-            : "A system notification when a session blocks on you — from this page while it is behind something, and from the deck itself when no page is open"}
+            : "A system notification when a session blocks on you"}
         >
           <span className="sm-switch-label">Notifications</span>
           <span className="sm-switch-state">
@@ -188,36 +209,51 @@ export default function SoundMenu({
           </span>
         </button>
 
-        {/* THE OTHER HALF OF THE ANSWER (#801). The switch above is the deck's;
-            this line is the browser's, and the two are different questions. With
-            the switch on and the permission unasked, the deck's own notifier —
-            the one that fires when no page is open — works, and the page's does
-            not; saying only "on" was a promise the tab could not keep.
-            The ask lives HERE rather than only on the blocked-count button,
-            because that button appears solely while a session is stuck, so on a
-            machine whose sessions rarely block the feature could not be switched
-            on at all. Nothing is requested until this row is pressed.
-            "denied" gets a sentence and no button: no page may re-raise a refused
-            prompt, and a control that silently does nothing is the failure
-            browser-react.mjs refuses to ship for its own reactions. */}
-        {asking && (
-          /* "allow" rather than "ask now", and it is the browser's own word:
-             the next thing on screen is Chrome's prompt with an Allow button on
-             it, so the label predicts the screen it opens instead of describing
-             our side of the machinery. And it is a verb where the two rows
-             above hold a state, which is the other half of not reading as a
-             third setting. */
-          <button type="button" className="btn sm-notice" onClick={onAskNotify}>
-            <span className="sm-notice-text">Needs this browser&rsquo;s permission</span>
-            <span className="sm-notice-act">allow</span>
+        {/* Route one: this page. It needs a permission and the permission needs
+            a gesture, so while the browser has not answered, this line IS the
+            gesture — the other route to it, the button beside the blocked
+            count, exists only while a session is stuck, so on a machine whose
+            sessions rarely block the feature could not be switched on at all.
+            "allow" is the browser's own word: the next thing on screen is
+            Chrome's prompt with an Allow button on it, so the label predicts
+            the screen it opens rather than describing our side of the wiring.
+            Refused, it is a word and not a button: no page may re-raise a
+            refused prompt, and a control that silently does nothing is the
+            failure browser-react.mjs refuses to ship for its own reactions. */}
+        {reaches && (asking ? (
+          <button
+            type="button"
+            className="btn sm-reach-ask"
+            onClick={onAskNotify}
+            title="Raises this browser's permission prompt. Nothing is requested until you press it."
+          >
+            <span className="sm-reach-where">This tab, when hidden</span>
+            <span className="sm-reach-state sm-reach-act">allow</span>
           </button>
+        ) : (
+          <div className="sm-reach-row">
+            <span className="sm-reach-where">This tab, when hidden</span>
+            <span className="sm-reach-state">{tabState}</span>
+          </div>
+        ))}
+
+        {/* Route two: the deck itself, with no browser in it at all. It needs
+            no permission and cannot be blocked by one, which is the fact the
+            old copy buried — a reader who saw "Needs this browser's permission"
+            had every reason to think a refusal meant silence. */}
+        {reaches && (
+          <div className="sm-reach-row sm-reach-end">
+            <span className="sm-reach-where">The deck, when no tab is open</span>
+            <span className="sm-reach-state">ready</span>
+          </div>
         )}
 
-        {notifyOn && !notifyVetoed && (notifyPermission === "denied" || notifyPermission === "unsupported") && (
-          <p className="sm-note sm-notice-note">
-            {notifyPermission === "denied"
-              ? "This browser is blocking notifications from the deck. Only its own site settings can undo that — no page is allowed to ask again."
-              : "This browser cannot show notifications, so only the deck's own desktop notification will arrive."}
+        {/* The one dead end worth a sentence, because the remedy is somewhere
+            this deck cannot draw. "unavailable" needs none: the line above
+            already says the deck still reaches you. */}
+        {reaches && notifyPermission === "denied" && (
+          <p className="sm-note sm-reach-note">
+            Only your browser&rsquo;s site settings for this address can undo that.
           </p>
         )}
       </div>
