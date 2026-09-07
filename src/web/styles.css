@@ -5302,110 +5302,138 @@ button.tool.clickable:last-child { border-bottom: none; }
    24px box every other header close stands in. */
 .up-close { color: var(--muted); }
 
-/* The period strip, on the chips the history modal already owns — but laid out
-   as what it actually is here.
-   In the modal `.uh-range` is one control among several in a header row, and
-   sitting at the left inset is right for it. In this panel it governs
-   EVERYTHING below it, and a switcher for a whole column that hugs the column's
-   left edge reads as a stray chip rather than as the control the figures answer
-   to. Centred, intrinsic width, and the three segments made equal so the pill
-   travels a fixed distance instead of resizing under the press.
-   36px tall: 28 for the segment, 3 of container padding either side, 1 of
-   border. The pill's inset is that 3px, equal on all four sides, which is the
-   whole reason the padding is on the container rather than on the buttons.
-   Quieter than the modal's too — a fill and an edge mixed off --text rather
-   than the --bg-soft trough, which on this panel read as a slot cut into it. */
-/* `.uh-range.up-period`, not `.up-period`: the shared rule is declared further
+/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
+   Centred and intrinsic, it read as a control that had floated in and settled
+   there; at the panel's own inset and full width it reads as the head of the
+   figures under it, which is what it is.
+
+   `.uh-range.up-period`, not `.up-period`: the shared rule is declared further
    down this sheet and both are one class, so a bare `.up-period` lost the
    source-order tie and kept `inline-flex` — on which `margin: auto` computes to
-   zero and the strip stayed against the left edge, which is the whole defect
-   this block is about. */
-/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
-   Centred and intrinsic, it read as a control that had floated in and settled
-   there; at the panel's own inset and full width it reads as the head of the
-   figures under it, which is what it is.
+   zero and the strip stayed against the left edge.
 
    AND THE STATE CHANGES SHAPE, because full width changes what the old one
    costs. A solid --accent fill on a 52px chip was a small bright mark; on an
-   85px third of the column it is a slab, and the panel has one loud thing in it
-   already — the money. So the accent moves from the segment's face to a 2px
-   rule under it: the same colour at the same strength (10.85:1 off this panel,
-   where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
-   the area. The label carries the other half of the state, stepping from
-   --muted to --text, which is the 2.75:1 type step that issue also recorded.
-   This is not the wash coming back in another spelling, and
-   usage-series-contrast.test.ts measures the difference rather than trusting
-   the sentence.
-
-   The hairline the accent sits on runs the whole width and is the only
-   container left — no box, no fill, no capsule. 30px segments, three equal
-   columns, and the same --panel-inset every block above and below it uses. */
-/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
-   Centred and intrinsic, it read as a control that had floated in and settled
-   there; at the panel's own inset and full width it reads as the head of the
-   figures under it, which is what it is.
-
-   AND THE STATE CHANGES SHAPE, because full width changes what the old one
-   costs. A solid --accent fill on a 52px chip was a small bright mark; on an
-   80px third of the column it is a slab, and the panel has one loud thing in it
-   already — the money. So the accent moves from the segment's face to a short
+   83.3px third of the column it is a slab, and the panel has one loud thing in
+   it already — the money. So the accent moves from the segment's face to a 2px
    rule under it: the same colour at the same strength (10.85:1 off this panel,
    where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
    the area. The label carries the other half of the state, stepping from
    --muted to --text — neutral, not accent. Cyan appears once in this control
-   and it is the indicator. This is not the wash coming back in another
-   spelling, and usage-series-contrast.test.ts measures the difference rather
-   than trusting the sentence.
+   and it is the indicator, and usage-series-contrast.test.ts measures that
+   rather than trusting the sentence.
 
    The baseline runs the whole width at 5% of --text and is the only container
-   there is — no box, no fill, no capsule. */
+   there is — no box, no fill, no capsule.
+
+   IT SITS NEARER THE MONEY THAN THE LINE IT FOLLOWS, because it heads the one
+   and merely follows the other. Measured on the ink rather than on the boxes,
+   which lie: at 8/16 the gap above the words was 36.75px and the gap under the
+   rule 28.00px — 1.31:1, too shallow to group anything, and the void beneath
+   the hairline was the largest in the panel. At 14/10 it reads 42.75 / 24.00.
+   `.up-total` adds 14px of its own padding under this, which is why 10 here
+   arrives as 24 and why the two numbers cannot be read apart. */
 .uh-range.up-period {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0;
-  width: auto;
-  /* Tighter above than below on purpose: the strip belongs to the figures it
-     heads, so it sits closer to the line it follows than to the money it
-     introduces. */
-  margin: 8px var(--panel-inset) 16px;
+  margin: 14px var(--panel-inset) 10px;
   padding: 0;
   border: none;
   border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
   border-radius: 0;
   background: transparent;
 }
+
+/* THE SEGMENT IS THE HIT AREA; THE COLUMN INSIDE IT IS THE WORD.
+   Grid rather than flex, and the rule below is the whole reason. One
+   `max-content` column is exactly as wide as the label it holds — 30.1px for
+   `today` and `month`, 18.1px for `all` — so the ::after sharing that column
+   inherits the WORD's width instead of a percentage of the segment's. At
+   `width: 60%` all three drew the same 50px mark: 1.66x the word under `today`,
+   2.77x under `all`, where it stood 16px clear on either side and read as
+   underlining the column rather than the label. Nothing here measures the text;
+   the grid does, which is also why it survives a font fallback on Windows and
+   Linux that no hard-coded width would.
+   Two rows: `1fr` takes the height and centres the label in it, `auto` is the
+   2px the mark occupies. The segment stays 83.3 x 30 either way — the column
+   shrinks to the word, the button does not. */
 .up-period .uh-range-btn {
-  position: relative;
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: max-content;
+  grid-template-rows: 1fr auto;
   align-items: center;
   justify-content: center;
   min-height: 30px;
-  padding: 0 8px;
+  padding: 0;
   border-radius: 0;
 }
-/* Hover moves the label and nothing else. `.uh-range-btn:hover` already
-   repaints it in --text, which is the whole gesture here — a box or a tint
-   arriving under the pointer would be the container this design refuses. */
 
-/* The indicator, as a pseudo-element rather than a border, because a border
-   spans the whole segment and this should not: 60% of an 80px tab, centred, is
-   read as belonging to the word above it instead of to the column edge beside
-   it. Absolutely positioned, so it neither takes part in layout nor moves the
-   label when it appears — the labels sit at the same y pressed or not. */
+/* Drawn at rest as well, in nothing. The row has to exist in both states or the
+   label would step 1px as the period changed, and a mark that only exists when
+   pressed cannot fade — it would arrive at full strength while the label it
+   belongs to was still easing. Transparent to accent over the same 120ms the
+   label takes, so the two halves of one state move as one. Colour only: there
+   is no transform here for `prefers-reduced-motion` to switch off that the
+   shared `:active` does not already own.
+   `margin-inline: -3px` bleeds the mark 3px past the word on each side, and
+   `margin-bottom: -1px` drops it onto the hairline instead of stacking 2px of
+   accent on top of 1px of baseline. */
+.up-period .uh-range-btn::after {
+  content: "";
+  margin-inline: -3px;
+  margin-bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 120ms ease-out;
+}
+
+/* Hover is a lift, not an impersonation. The shared `.uh-range-btn:hover`
+   repaints the label in --text, which is the SELECTED colour exactly — so with
+   the pointer still resting on the strip after a click, two of three segments
+   read full --text and a 2px rule was the only surviving difference. Mixed
+   halfway instead, and halfway in both themes on purpose: 1.66:1 up from rest
+   and 1.66:1 down from selected in dark, 1.57 / 1.53 in light. It cannot be
+   mistaken for either end. Type only — a box or a tint arriving under the
+   pointer would be the container this design refuses. */
+.up-period .uh-range-btn:hover {
+  color: color-mix(in srgb, var(--text) 45%, var(--muted));
+}
+
 .up-period .uh-range-btn[aria-pressed="true"] {
   background: transparent;
   color: var(--text);
 }
+/* AND IT HAS TO SURVIVE ITS OWN HOVER. `.uh-range-btn[aria-pressed="true"]:hover`
+   exists further down the sheet to keep a label legible on the accent FILL the
+   modal's chips take, and it paints that label in --bg. Both selectors are
+   (0,3,0), the shared one is declared later, and this strip has no fill — so
+   the selected word was drawn in --bg on --panel at 1.080:1 in dark and 1.132:1
+   in light. It vanished under the pointer that had just chosen it, which is the
+   one moment the pointer is guaranteed to be there. One more class here settles
+   the tie the right way. */
+.up-period .uh-range-btn[aria-pressed="true"]:hover {
+  color: var(--text);
+}
 .up-period .uh-range-btn[aria-pressed="true"]::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -1px;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 2px;
-  border-radius: 1px;
   background: var(--accent);
+}
+
+/* The ring goes inside the segment, for the reason the control exists at all.
+   The shared `button:focus-visible` draws 2px of accent at `outline-offset:
+   1px` — an 87.3 x 34px rectangle around a control whose premise is no box —
+   and `border-radius: 0` above beat the global rule's 4px, so this was the one
+   hard-cornered focus ring in the deck. Worse: its bottom stroke landed on
+   412.27 -> 414.27, the indicator's exact pixels in the indicator's exact
+   colour, so the selected segment, focused, showed no indicator at all. Inset
+   it clears the hairline, cannot be clipped by `.usage-panel`'s own scroll box
+   on a short viewport, and reads as a hint rather than a resurrected chip.
+   `.canvas-wrap` and `.uh-bar-col` inset theirs for the same reason; the 4px
+   radius is the deck's own, taken back from the global rule this had shadowed. */
+.up-period .uh-range-btn:focus-visible {
+  outline-offset: -4px;
+  border-radius: 4px;
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
    arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,

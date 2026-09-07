@@ -439,3 +439,83 @@ describe("markup, read as source", () => {
     }
   });
 });
+
+// ── the mark under the selected period ──────────────────────────────────────
+//
+// The strip is three equal segments of a 250px column and the words in them are
+// not equal: `today` and `month` set 30.11px of monospace, `all` sets 18.06px.
+// A mark sized as a fraction of the SEGMENT is therefore a different thing on
+// each tab — it stood at 1.66x the word under `today` and 2.77x under `all`,
+// where it cleared the label by 16px on either side and read as underlining the
+// column. Nothing in this codebase can measure text, so the fix is structural:
+// one `max-content` grid column holds the label, the ::after shares it, and the
+// browser does the measuring. These assertions pin the structure, because the
+// structure is the whole of the argument.
+describe("the period strip's indicator", () => {
+  const block = (selector: string) => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, `no rule for ${selector}`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("takes its width from the label, never from the segment", () => {
+    const seg = block(".up-period .uh-range-btn");
+    expect(seg).toMatch(/display:\s*grid/);
+    expect(seg).toMatch(/grid-template-columns:\s*max-content/);
+    // A percentage here would be a percentage of the segment again, under any
+    // spelling — that is the defect, not the number 60.
+    const mark = block('.up-period .uh-range-btn[aria-pressed="true"]::after');
+    expect(mark).not.toMatch(/width\s*:/);
+    expect(block(".up-period .uh-range-btn::after")).not.toMatch(/width\s*:\s*\d+%/);
+  });
+
+  it("occupies its row at rest, so no label steps when the period changes", () => {
+    // The row is `auto` and sized by the ::after. If the ::after existed only
+    // while pressed the row would collapse to 0 on the other two segments and
+    // every label would sit 1px lower than the selected one — a shift the
+    // reader sees as the strip twitching under their own click.
+    const seg = block(".up-period .uh-range-btn");
+    expect(seg).toMatch(/grid-template-rows:\s*1fr auto/);
+    const rest = block(".up-period .uh-range-btn::after");
+    expect(rest).toMatch(/content:\s*""/);
+    expect(rest).toMatch(/height:\s*2px/);
+    expect(rest).toMatch(/background:\s*transparent/);
+    // And because the row is always there, the state can fade rather than
+    // teleport — over the same 120ms the label's colour takes.
+    expect(rest).toMatch(/transition:\s*background-color 120ms/);
+  });
+
+  it("does not let hover wear the selected colour", () => {
+    // The shared chip rule repaints any hovered label in --text, which is
+    // exactly what the selected label steps to. With the pointer still resting
+    // on the strip after a click — the commonest frame there is — two of three
+    // segments read identically and a 2px rule was the only difference left.
+    expect(block(".up-period .uh-range-btn:hover"))
+      .toMatch(/color:\s*color-mix\(in srgb, var\(--text\) 45%, var\(--muted\)\)/);
+  });
+
+  it("keeps the selected word legible under the pointer that chose it", () => {
+    // `.uh-range-btn[aria-pressed="true"]:hover` paints the label in --bg,
+    // which is right for the modal's chips — there it sits on an --accent
+    // FILL. This strip has no fill, both selectors are (0,3,0), and the shared
+    // one is declared later, so the selected word was --bg on --panel: 1.080:1
+    // in dark, 1.132:1 in light. Gone, at the exact moment the pointer is
+    // guaranteed to be on it.
+    const held = block('.up-period .uh-range-btn[aria-pressed="true"]:hover');
+    expect(held).toMatch(/color:\s*var\(--text\)/);
+    // And it has to out-specify the shared rule, not merely restate it.
+    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover'))
+      .toBeGreaterThan(-1);
+  });
+
+  it("keeps its focus ring inside the segment and off the indicator", () => {
+    // The shared `button:focus-visible` draws 2px of --accent at offset 1px.
+    // On this control its bottom stroke landed on the indicator's own pixels in
+    // the indicator's own colour, so the selected tab, focused, showed no
+    // indicator at all; and `border-radius: 0` on the segment had shadowed the
+    // global ring's 4px, leaving the one hard-cornered ring in the deck.
+    const ring = block(".up-period .uh-range-btn:focus-visible");
+    expect(ring).toMatch(/outline-offset:\s*-4px/);
+    expect(ring).toMatch(/border-radius:\s*4px/);
+  });
+});
