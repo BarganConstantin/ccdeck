@@ -39,7 +39,7 @@
 // elsewhere in the topbar would otherwise fire against a menu that is still up.
 // The opener is excluded from it — its own onClick already toggles, and letting
 // both run would close the menu and immediately reopen it.
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import {
   CHIME_ORDER, FIGURE_SETS, LEVEL_MAX, LEVEL_MIN, LEVEL_STEP,
   type Chime, type TonePrefs,
@@ -326,6 +326,17 @@ export default function SoundMenu({
                 step={LEVEL_STEP}
                 value={tone.level}
                 onChange={e => onLevel(chime, Number(e.target.value))}
+                /* The filled half, as a number the sheet can read. Chrome 152
+                   has no `::slider-fill`, so a thinner track means painting one
+                   — and painting one means knowing where the value is. This is
+                   NOT a listener: `tone.level` already drives `value` on this
+                   element and React already re-renders on every change, so the
+                   property rides a render that was happening anyway. Nothing
+                   new runs on drag.
+                   The sheet only uses it inside `@supports`; where the custom
+                   track is not taken up, the native widget and `accent-color`
+                   still paint the fill and this attribute is inert. */
+                style={{ "--sm-level": `${((tone.level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)) * 100}%` } as CSSProperties}
               />
               <span className="sm-read">{tone.level}%</span>
             </div>

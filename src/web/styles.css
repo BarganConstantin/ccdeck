@@ -882,7 +882,7 @@ button.btn.sm-channel-action {
 .sm-tones {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
@@ -899,9 +899,12 @@ button.btn.sm-channel-action {
 .sm-tone-name {
   margin: 0;
   font-size: 11px;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: var(--muted);
+  /* A step off --muted, not a new tier. Wider tracking does part of the
+     softening on its own — letters further apart read quieter at the same
+     colour — so the colour only has to move the rest of the way. */
+  color: color-mix(in srgb, var(--muted) 88%, var(--panel));
   font-weight: 500;
 }
 /* Narrower than a full .btn, and exactly as TALL as one. The 12px side padding
@@ -922,10 +925,15 @@ button.btn.sm-channel-action {
    the pointer. Same weight, declared earlier, so hover still wins. */
 button.btn.sm-hear {
   padding: 0 8px;
-  gap: 5px;
+  gap: 4px;
   font-size: 11px;
   border-color: var(--sm-edge);
   background: var(--sm-fill);
+  /* The label a step off --text. The boundary is untouched — that is the
+     affordance, and 1.4.11 holds it to 3:1 either way — so what comes down is
+     the ink inside it, which is the part that was competing with the two switch
+     labels above. Hover still takes the whole thing to --accent. */
+  color: color-mix(in srgb, var(--text) 88%, var(--panel));
 }
 /* What the browser has already answered, in the slot the button would take.
    A word rather than a control, because there is nothing here to press: a
@@ -977,11 +985,75 @@ button.btn.sm-hear {
   height: 18px;
   accent-color: var(--accent);
 }
+
+/* A THINNER TRACK AND A SMALLER THUMB, without giving up anything native.
+   The paragraph above argues against re-implementing a slider and still does:
+   the arrow keys, Home and End, the drag, the announced percentage and the
+   focus ring are the browser's and must stay the browser's. None of them live
+   in the track or the thumb, which is all this repaints — the element is still
+   `input[type=range]`, and the deck's own `:focus-visible` ring sits on the
+   INPUT rather than on the thumb, so it survives `appearance: none` where a
+   UA thumb ring would not.
+   What `appearance: none` does cost is `accent-color`, and with it the filled
+   half — so the fill is painted here from `--sm-level`, which SoundMenu.tsx
+   sets on the same render that sets `value`. Behind `@supports` on the
+   pseudo-element itself: a browser that does not style the track keeps the
+   native widget and `accent-color`, rather than being handed a bare bar with
+   nothing filled. Firefox is answered by its own two pseudo-elements below.
+   3px against Chrome's 4, and an 11px thumb against its 14 — the fill still
+   reads across a 138px row, and the row stops being the loudest thing in a
+   card whose other controls have all just come down. */
+@supports selector(input::-webkit-slider-runnable-track) {
+  .sm-row input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+  .sm-row input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--sm-level, 0%),
+      color-mix(in srgb, var(--text) 14%, transparent) var(--sm-level, 0%) 100%
+    );
+  }
+  .sm-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+}
+@supports selector(input::-moz-range-track) {
+  .sm-row input[type="range"] { appearance: none; background: transparent; }
+  .sm-row input[type="range"]::-moz-range-track {
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+  .sm-row input[type="range"]::-moz-range-progress {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .sm-row input[type="range"]::-moz-range-thumb {
+    width: 11px;
+    height: 11px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+}
 /* The number is a READING, not a label, and it was set in --text at the weight
    of one. Dim and tabular: it stops competing with the two words above it, and
    it stops shuffling by a pixel as the thumb moves through 8, 9, 10. */
 .sound-menu .sm-read {
   color: var(--muted);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 /* Tabular, so stepping the value does not shuffle the row, and wide enough that
@@ -1006,6 +1078,13 @@ button.btn.sm-hear {
   padding: 0 6px;
   background: var(--sm-fill);
   color: var(--text);
+  /* The same edge as the buttons beside it, and NOT the softer one this pass
+     tried to give it. Measured: on --panel in dark, 33% of --text lands at
+     2.76:1, 34% at 2.84 and 35% at 2.92 — every step under the current 36%
+     falls through 1.4.11's 3:1, and control-edges.test.ts sweeps this selector
+     by name and says so. The box is already as quiet as a visible boundary
+     gets on this surface; the softening that was available here was the fill,
+     and that was spent last pass. */
   border: 1px solid var(--sm-edge);
   border-radius: 6px;
   font: inherit;
@@ -1026,7 +1105,9 @@ button.btn.sm-hear {
   padding-top: 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
-  color: var(--text-dim);
+  /* The quietest line in the card, and the only one that is neither a setting
+     nor an answer about one — it is a note about a key. */
+  color: color-mix(in srgb, var(--text-dim) 88%, var(--panel));
 }
 /* The shortcuts sheet's cap, without the 38px column width that sheet's grid
    needs — inline in a sentence, a letter box that wide reads as a button. */
@@ -5221,15 +5302,41 @@ button.tool.clickable:last-child { border-bottom: none; }
    24px box every other header close stands in. */
 .up-close { color: var(--muted); }
 
-/* The period strip, on the chips the history modal already owns.
-   Only the placement is new: `.uh-range` is an inline-flex pill and this panel
-   lays it out on its own line, at the same 14px inset every block below it
-   uses, with the padding that would sit above the headline taken up here so the
-   money keeps its position on the page. */
-.up-period {
+/* The period strip, on the chips the history modal already owns — but laid out
+   as what it actually is here.
+   In the modal `.uh-range` is one control among several in a header row, and
+   sitting at the left inset is right for it. In this panel it governs
+   EVERYTHING below it, and a switcher for a whole column that hugs the column's
+   left edge reads as a stray chip rather than as the control the figures answer
+   to. Centred, intrinsic width, and the three segments made equal so the pill
+   travels a fixed distance instead of resizing under the press.
+   36px tall: 28 for the segment, 3 of container padding either side, 1 of
+   border. The pill's inset is that 3px, equal on all four sides, which is the
+   whole reason the padding is on the container rather than on the buttons.
+   Quieter than the modal's too — a fill and an edge mixed off --text rather
+   than the --bg-soft trough, which on this panel read as a slot cut into it. */
+/* `.uh-range.up-period`, not `.up-period`: the shared rule is declared further
+   down this sheet and both are one class, so a bare `.up-period` lost the
+   source-order tie and kept `inline-flex` — on which `margin: auto` computes to
+   zero and the strip stayed against the left edge, which is the whole defect
+   this block is about. */
+.uh-range.up-period {
   display: flex;
-  margin: 12px var(--panel-inset) 0;
+  justify-content: center;
+  gap: 0;
+  margin: 12px auto 8px;
   width: fit-content;
+  padding: 3px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-color: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.up-period .uh-range-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 28px;
+  padding: 0 12px;
 }
 /* A pressed chip answers instantly and the answer takes a second or two to
    arrive — ccusage reads the logs off disk. What dims meanwhile is the FIGURES,
