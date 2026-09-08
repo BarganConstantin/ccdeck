@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.13.0": [
+    {
+      "title": "📊 Usage history stops jumping out from under you",
+      "body": "Pressing **H** put `running ccusage…` in a box 186px tall. Two to four seconds later the chart, the totals and the legend arrived and the box became 429px — and because the dialog is centred, that growth moved the whole thing **121px upward**, under the cursor that had just pressed something.\n\nThe chart's place is now reserved from the first frame: the 168px the chart is tall plus the 16px it keeps for its day labels, both taken from the chart's own rule so the placeholder and the thing it holds room for cannot drift apart. The jump goes from 243px to 156px. It deliberately stops there — the totals and the legend are content, the legend's height depends on how many models ran, and reserving those would have meant drawing four plausible empty cards for a reading that had not arrived.\n\nWhat is drawn in the reserved space is **the chart's baseline and nothing else**: one line, in the same colour, at the height the columns will land on. Not a skeleton of grey bars — a skeleton stands in for content, an axis is furniture, and furniture is honest before the data exists. The light on it travels rather than fills, because the deck knows a subprocess is running and does not know how far through your transcripts it has got.\n\nThen the days rise out of that line, **oldest first**. The stagger is divided rather than fixed — 200ms of spread whether the range is 7 days or 90 — so the longest range is not also the slowest to appear.\n\nWith reduced motion both loops and both entrances are off. The reserved space is layout, not animation, and stays outside that rule: asking for less movement gets you the same dialog that does not jump."
+    },
+    {
+      "title": "⏳ The period mark says it is being read",
+      "body": "The first read of **today**, **month** or **all** takes two to three seconds — it walks the transcripts on this machine, and the cost is the walk, not the size of the range you asked for. Until now the panel said nothing for the whole of it, so pressing `month` looked like pressing nothing, and the honest response was to press it again.\n\nThe mark under the period now pulses while that read is in flight, and it **pulses rather than fills**: nothing measures how far through the transcripts ccusage has got, so a bar that filled would be inventing a number. Hovering the pending period says which one is being read, and screen readers are told the same thing through a live region rather than being left with a silent button."
+    }
+  ],
   "3.12.0": [
     {
       "title": "🔍 Busiest processes tells you which one",
