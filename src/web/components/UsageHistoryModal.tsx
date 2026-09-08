@@ -5,7 +5,7 @@
 //
 // Inspired by the task-board project's ccusage modal, reimplemented in
 // agent-dag's idiom (plain CSS, no Tailwind/framer-motion).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { fmtCost } from "../pricing";
 import { commandOutput, explainCcusageFailure } from "../admin-failure";
 import { createLatestGuard } from "../latest";
@@ -288,8 +288,28 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
         </header>
 
         {view.phase === "busy" ? (
-          <div className="uh-status" aria-busy="true">
-            {landed ? "running ccusage…" : "running ccusage… (first run downloads the package)"}
+          /* THE AXIS ARRIVES BEFORE THE DAYS, and the reason is a measurement
+             rather than a flourish. This modal stood 186px tall while ccusage
+             ran and 429px the instant it answered — a 243px jump on a centred
+             dialog, so the whole thing lurched 121px upward under the pointer,
+             4.4 seconds after a press. Reserving the chart's own box is most of
+             that back: its height is fixed in the sheet, so this cannot drift
+             away from the thing it is standing in for.
+             What is drawn in the reserved space is the chart's baseline and
+             nothing else — one hairline, at the exact y the columns will land
+             on. Not a skeleton of grey bars: those stand in for CONTENT, and a
+             row of plausible-looking columns for a reading that has not come
+             back is the shape of lie this panel refuses everywhere else. An
+             axis is furniture, and furniture is honest before the data. */
+          <div className="uh-status uh-status-wait" aria-busy="true">
+            <span className="uh-wait-word">
+              {landed ? "running ccusage…" : "running ccusage… (first run downloads the package)"}
+            </span>
+            {/* Indeterminate on purpose. The deck knows a subprocess is
+                running and does not know how far through the logs it is, so
+                the light travels rather than fills — a bar that filled would
+                be claiming a progress nobody measured. */}
+            <span className="uh-wait-axis" aria-hidden />
           </div>
         ) : view.phase === "error" ? (
           // The reason map says what happened; ccusage's own line is evidence,
@@ -404,7 +424,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                 the bars are named as one set rather than as loose controls —
                 and leaves each day to speak for itself below. */}
             <div ref={chartRef} className="uh-chart" role="group" aria-label="Daily cost by model">
-              {days.map(d => {
+              {days.map((d, i) => {
                 const h = maxCost > 0 ? (d.totalCost / maxCost) * 100 : 0;
                 const isSel = d.period === selected;
                 // The bar's only text is `06-14`, a day with no month and no
@@ -424,7 +444,23 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                     aria-pressed={isSel}
                     aria-label={dayLabel}
                     title={`${d.period} · ${fmtCost(d.totalCost)}`}
-                    style={{ flexBasis: `${100 / days.length}%` }}
+                    /* THE DAYS LAND OLDEST FIRST, which is the one stagger this
+                       chart can justify: left to right is not a decorative
+                       sweep here, it is the order they were lived in, and it is
+                       the axis the columns are drawn against.
+                       The step is divided rather than fixed so 90 days take the
+                       same time as 7 — a per-column delay would have made the
+                       longest range the slowest to appear, which is backwards.
+                       Capped at 10ms so a short range still reads as a sequence
+                       rather than as one block. 200ms of span plus the 340ms a
+                       column takes puts the whole arrival at ~540ms, which is
+                       the band this reference reserves for an authored entrance
+                       and lands well inside it after a 2.4-second wait. */
+                    style={{
+                      flexBasis: `${100 / days.length}%`,
+                      "--uh-i": i,
+                      "--uh-step": `${Math.min(10, 200 / Math.max(days.length, 1))}ms`,
+                    } as CSSProperties}
                   >
                     <div className="uh-bar" style={{ height: `${Math.max(h, d.totalCost > 0 ? 2 : 0)}%` }}>
                       {d.modelBreakdowns

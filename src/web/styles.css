@@ -6022,6 +6022,47 @@ button.tool.clickable:last-child { border-bottom: none; }
 .uh-close:hover { color: var(--text); }
 
 .uh-status { padding: 40px 0; text-align: center; color: var(--muted); font-size: 12px; }
+/* The wait, standing in the room the answer will need.
+   184px is `.uh-chart`'s own 168 plus the 16 it reserves for date labels — the
+   two numbers are read off that rule rather than guessed, so this box and the
+   chart it precedes cannot drift apart. It is not the whole 429px the loaded
+   modal stands at; the totals and the legend are content and reserving THEM
+   would mean drawing four plausible empty cards, which is a skeleton standing
+   in for numbers nobody has. This takes the largest single piece and leaves the
+   rest to arrive. */
+.uh-status-wait {
+  display: flex;
+  flex-direction: column;
+  min-height: 184px;
+  padding: 0 0 16px;
+}
+/* `margin: auto` rather than `justify-content: center` on the column: the axis
+   has to sit on the floor and the word has to centre in whatever is left above
+   it, and centring the whole column would have shared the free space with the
+   axis instead of giving it all to the word. */
+.uh-wait-word { margin: auto; }
+/* The chart's baseline, drawn where the chart will draw it: the same
+   --line-soft hairline at the same y, so nothing about the axis moves when the
+   columns land on it.
+   The travelling light is a gradient position, which is a paint on one 1px
+   strip and costs no layout at any width. Indeterminate — see the markup for
+   why a fill would be a claim. */
+.uh-wait-axis {
+  height: 1px;
+  border-radius: 1px;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--accent) 55%, transparent) 50%,
+      transparent 100%) no-repeat,
+    var(--line-soft);
+  background-size: 34% 100%, 100% 100%;
+  animation: uh-wait-sweep 1600ms cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+@keyframes uh-wait-sweep {
+  from { background-position: -40% 0, 0 0; }
+  to   { background-position: 140% 0, 0 0; }
+}
 .uh-status.uh-err { color: var(--err); max-width: 46ch; margin: 0 auto; line-height: 1.5; }
 /* The recovery belongs where the failure is. The header's ↻ is on screen in
    every branch, but nothing there says it is the fix for what the box says. */
@@ -6148,6 +6189,23 @@ button.tool.clickable:last-child { border-bottom: none; }
   display: flex; flex-direction: column;
   border-radius: 2px 2px 0 0; overflow: hidden;
   transition: height 300ms ease;
+  /* THE DAYS RISE FROM THE AXIS THEY ARE MEASURED AGAINST, which is what the
+     wait's hairline was holding the place of. `scaleY` from the bottom rather
+     than a height: it is compositor-only, it squashes the stacked bands with
+     the column so a day's mix is right in every frame of the growth, and it
+     cannot fight the `height` transition above — that one belongs to a range
+     that CHANGES while the chart is up, and this one belongs to a chart that
+     was not there a moment ago.
+     `both` so the first frame is already flat: without it the whole chart
+     paints at full height for one frame and then drops, which is the jump this
+     replaces, arriving 16ms later. */
+  transform-origin: bottom;
+  animation: uh-bar-rise 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
+}
+@keyframes uh-bar-rise {
+  from { transform: scaleY(0); opacity: 0.4; }
+  to   { transform: scaleY(1); opacity: 1; }
 }
 /* A cut between stacked bands, in the modal's own paper (#583).
    The palette above can make every band visible against the panel; what it
@@ -7588,6 +7646,13 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      it are still dimmed and the live region still says what is being read, so
      nothing about the wait is only in the animation. */
   .up-period .uh-range-btn[data-pending]::after { animation: none; }
+  /* The history modal's two. The axis keeps its hairline and stops travelling;
+     the words beside it already say a subprocess is running. The days are
+     simply there, at their full height, with no rise and no stagger — the
+     reserved box means nothing jumps either way, which is the part of this that
+     was never decoration. */
+  .uh-wait-axis { animation: none; }
+  .uh-bar { animation: none; }
 }
 
 
