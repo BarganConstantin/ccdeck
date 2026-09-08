@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.12.0": [
+    {
+      "title": "🔍 Busiest processes tells you which one",
+      "body": "The list could say what was eating the machine and not **which** of nine identical `Google Chrome Helper` rows was the headless Chrome you left running. It now shows the arguments after the name — `--type=renderer` beside one, `serve admin-portal --port 44440` beside a node — and four columns it did not have: **memory in MB and GB** instead of a percentage, **threads**, **how long it has been up**, and **user**. Every column sorts; press its heading.\n\n**Command lines have anything secret-shaped removed before they leave your machine** — the value of any flag whose name says token, password, key or secret, the password in a URL, and the shapes that identify themselves. It is a filter and not a guarantee: a secret that looks like an ordinary word looks like an ordinary word. The reading happens only while this modal is open, so a deck whose process list you never open never reads a command line at all.\n\n**Memory is resident set size** — what `ps` and Windows Task Manager report. On macOS this is *not* the number Activity Monitor shows in its Memory column; that one is the physical footprint, and on the machine this was built on the two disagree by up to fourteen times on the same process. No unprivileged command reports the footprint quickly, so the deck shows the figure that means the same thing on all three platforms and says which one it is.\n\n**There is no Ports column**, and the reason is the same kind of honesty: Mach ports do not exist on Linux, are not what Windows calls a handle, and on macOS the only way to count them takes four seconds — against a list that refreshes every four."
+    },
+    {
+      "title": "🔢 A token count that stays a whole number",
+      "body": "Switching the Usage panel from **month** to **today** counted down smoothly and then, for a fraction of a second, showed something like `in 594.3268260610639` where a token count belongs.\n\nThe count was never wrong; the printing was. The figures animate between two readings, so the formatter is handed a fraction on most of its frames — every size above a thousand was already rounded and the one below it was not."
+    }
+  ],
   "3.11.0": [
     {
       "title": "🗂 The session list waits to be asked for",
