@@ -86,3 +86,24 @@ export function fmtReading(v: number, unit: "C" | "%" | ""): string {
   if (unit === "%") return `${Math.round(v)}%`;
   return v.toFixed(2);
 }
+
+/**
+ * How a THRESHOLD is printed, which is not how a reading is.
+ *
+ * `fmtReading` gives a load average two decimals because the panel does and
+ * because `78` beside a panel reading `78.89` is two numbers a reader has to
+ * reconcile. A threshold is a different kind of value: the load average's is
+ * the machine's core count, and `over 12.00 is uncomfortable` prints a
+ * precision that does not exist — there is no such thing as 12.5 cores.
+ *
+ * So an integer prints as an integer and everything else falls through to the
+ * reading's own format. Every threshold the server publishes today is a whole
+ * number; this is written over the value rather than over that fact, so a
+ * fractional one would still print correctly instead of being rounded away.
+ */
+export function fmtThreshold(v: number, unit: "C" | "%" | ""): string {
+  if (!Number.isInteger(v)) return fmtReading(v, unit);
+  if (unit === "C") return `${v}°`;
+  if (unit === "%") return `${v}%`;
+  return `${v}`;
+}

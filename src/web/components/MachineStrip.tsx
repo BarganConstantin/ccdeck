@@ -30,8 +30,8 @@
 // it has and names the span, rather than letting four minutes wear an hour's
 // label.
 import React, { useEffect, useMemo, useState } from "react";
-import { areaPath, band, linePath, spanLabel, SPARK_PAD, type History, type Series } from "./SectionHistoryModal";
-import { fmtReading, liveReadings, type LiveSource } from "../machine-live";
+import { areaPath, band, linePath, spanLabel, yFor, SPARK_PAD, type History, type Series } from "./SectionHistoryModal";
+import { fmtReading, fmtThreshold, liveReadings, type LiveSource } from "../machine-live";
 
 /** The panel's own order, so the strip reads as the same machine described in
  *  the same sequence rather than as a second opinion about it. */
@@ -193,7 +193,18 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
     // The title carries the label in full, because the label is allowed to
     // truncate: thermal labels come from the chip, and a Linux hwmon box
     // publishes `Package id 0` and `Composite` where this machine says `GPU`.
-    <div className={`pl-cell${tone ? ` ${tone}` : ""}`} title={`${label} · peak ${fmtReading(peak, unit)} over the last ${span}`}>
+    <div
+      className={`pl-cell${tone ? ` ${tone}` : ""}`}
+      title={[
+        `${label} · peak ${fmtReading(peak, unit)} over the last ${span}`,
+        // The dashed line says WHERE the threshold is; this says what it is.
+        // The number is not drawn in the box: the tag the full chart prints
+        // needs a 30px gutter, and taking that out of a 116px sparkline costs
+        // more of the shape than the digits return.
+        warnAt != null ? `over ${fmtThreshold(warnAt, unit)} is uncomfortable` : "",
+        critAt != null ? `over ${fmtThreshold(critAt, unit)} the machine acts` : "",
+      ].filter(Boolean).join(" · ")}
+    >
       <div className="pl-cell-head">
         <span className="pl-cell-label">{label}</span>
         <span className="pl-cell-now">{value == null ? "—" : fmtReading(value, unit)}</span>
@@ -213,6 +224,26 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
             deck has only been watching for a minute. */}
         <line className="pl-spark-floor" x1={0} x2={SPARK_W} y1={SPARK_H - SPARK_PAD.b} y2={SPARK_H - SPARK_PAD.b} />
         <path className="pl-spark-area" d={areaPath(points, SPARK_W, stepMs, top, SPARK_H, SPARK_PAD)} />
+        {/* THE THRESHOLDS THE SERIES ALREADY CARRIES, so a shape can be read
+            against the line it matters to rather than only against itself.
+            Four of the seven readings have one: memory and swap at 90, the load
+            average at the core count, the GPU at 75 and 90. The two cpu series
+            and throttling have none DELIBERATELY — a CPU at 90% is the machine
+            doing the work you asked for, and an indicator that alarms during
+            the normal case teaches you to stop reading it.
+
+            Drawn over the fill and under the line, which is the order the full
+            chart uses: a threshold is a mark on the scale, not another reading.
+            Same class as that chart's, so there is one definition of what a
+            warn line looks like and not two that can drift. */}
+        {warnAt != null && (
+          <line className="pl-rule warn" x1={0} x2={SPARK_W}
+                y1={yFor(warnAt, top, SPARK_H, SPARK_PAD)} y2={yFor(warnAt, top, SPARK_H, SPARK_PAD)} />
+        )}
+        {critAt != null && (
+          <line className="pl-rule hot" x1={0} x2={SPARK_W}
+                y1={yFor(critAt, top, SPARK_H, SPARK_PAD)} y2={yFor(critAt, top, SPARK_H, SPARK_PAD)} />
+        )}
         <path className="pl-spark-line" d={linePath(points, SPARK_W, stepMs, top, SPARK_H, SPARK_PAD)} />
       </svg>
       {/* The one number the shape cannot be read off a 24px box, and the one
@@ -221,6 +252,8 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
           all. */}
       <span className="vis-hidden">
         peak {fmtReading(peak, unit)} over the last {span}
+        {warnAt != null && `, uncomfortable over ${fmtThreshold(warnAt, unit)}`}
+        {critAt != null && `, the machine acts over ${fmtThreshold(critAt, unit)}`}
       </span>
     </div>
   );

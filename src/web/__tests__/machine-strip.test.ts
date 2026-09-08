@@ -20,7 +20,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { fmtReading, liveReadings, THROTTLE_SERIES, type LiveSource } from "../machine-live";
+import { fmtReading, fmtThreshold, liveReadings, THROTTLE_SERIES, type LiveSource } from "../machine-live";
 import { cellLabel, worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
 import { spanLabel, type Series } from "../components/SectionHistoryModal";
 
@@ -620,6 +620,73 @@ describe("two layouts, and the arithmetic that decides between them", () => {
     expect(css).toContain(".pl-modal { width: min(880px, 94vw); }");
     const band = css.slice(css.indexOf("\n.pl-strip {") + 1);
     expect(band.slice(0, band.indexOf("}"))).toContain("border-top: 1px solid var(--line)");
+  });
+});
+
+describe("the thresholds the sparkline draws", () => {
+  it("draws the ones the series carries and invents none", () => {
+    // Four of the seven readings have one, and the server decides which: memory
+    // and swap at 90, the load average at the core count, the GPU at 75 and 90.
+    expect(strip).toContain("warnAt != null && (");
+    expect(strip).toContain("critAt != null && (");
+    expect(strip).toContain('className="pl-rule warn"');
+    expect(strip).toContain('className="pl-rule hot"');
+  });
+
+  it("leaves the readings that deliberately have none alone", () => {
+    // The two cpu series and throttling: a CPU at 90% is the machine doing the
+    // work you asked for, and an indicator that alarms during the normal case
+    // teaches you to stop reading it. The server says so by publishing null,
+    // and the strip has no threshold of its own to fall back on.
+    expect(metrics).toContain('{ key: "cpu:all", label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null');
+    expect(metrics).toContain('warnAt: label === THROTTLE_LABEL ? null');
+    expect(strip).not.toMatch(/warnAt\s*\?\?\s*\d/);
+  });
+
+  it("shares one definition of what a warn line looks like with the full chart", () => {
+    // The dash tells them apart as well as the hue does — measured in the light
+    // theme, --warn and --err at this weight are nearly the same line. Two
+    // definitions of that could drift; one cannot.
+    expect(css).toContain(".hist-rule.warn, .pl-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }");
+    expect(css).toContain(".hist-rule.hot, .pl-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }");
+    // And the dash is pinned to the screen like the line is, or it stretches
+    // with the box: 116px wide in the band, 180 in the column.
+    expect(css).toMatch(/\.hist-rule, \.pl-rule \{[^}]*vector-effect: non-scaling-stroke/);
+  });
+
+  it("draws the mark over the fill and under the reading", () => {
+    // The order the full chart uses: a threshold is a mark on the scale, not
+    // another reading.
+    const area = strip.indexOf('className="pl-spark-area"');
+    const rule = strip.indexOf('className="pl-rule warn"');
+    const line = strip.indexOf('className="pl-spark-line"');
+    expect(area).toBeLessThan(rule);
+    expect(rule).toBeLessThan(line);
+  });
+
+  it("names a threshold as the whole number it is", () => {
+    // The load average's threshold is the core count. `over 12.00 is
+    // uncomfortable` prints a precision that does not exist — there is no such
+    // thing as 12.5 cores — while the READING beside it keeps its two decimals,
+    // because 78 beside a panel saying 78.89 is two numbers to reconcile.
+    expect(fmtThreshold(12, "")).toBe("12");
+    expect(fmtReading(12, "")).toBe("12.00");
+    expect(fmtThreshold(90, "%")).toBe("90%");
+    expect(fmtThreshold(75, "C")).toBe("75°");
+    // Written over the value, not over "every threshold today is whole", so a
+    // fractional one would still print rather than being rounded away.
+    expect(fmtThreshold(12.5, "")).toBe("12.50");
+  });
+
+  it("puts the number in the words, since the box has no room for a tag", () => {
+    // The full chart prints `90` and `75` in a 30px gutter it reserves for
+    // them. Taking that out of a 116px sparkline costs more of the shape than
+    // the digits return, so the dashed line says WHERE and the title says WHAT.
+    expect(strip).toContain("is uncomfortable");
+    expect(strip).toContain("the machine acts");
+    // And a screen reader, which gets no dashes at all, is told both.
+    const sr = strip.slice(strip.indexOf('<span className="vis-hidden">'));
+    expect(sr.slice(0, sr.indexOf("</span>"))).toContain("uncomfortable over");
   });
 });
 
