@@ -13,16 +13,23 @@
 //
 // So there are two contracts here and they are checked separately: the payload
 // contains enough to rank either column truthfully (pickCandidates), and the
-// panel spends it without ever printing an order it cannot support (sortProcs,
-// visibleProcs).
+// client spends it without ever printing an order it cannot support
+// (sortProcs).
+//
+// The eight rows have since left the panel — its section is one control that
+// opens the dialog, and the dialog draws every candidate the server sent — so
+// the half of this that was about WHICH eight appeared went with them. What the
+// payload has to contain did not change: a memory sort still has to be able to
+// name the machine's heaviest process, and pickCandidates is still the only
+// thing standing between the reader and a list that cannot.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parsePsProcesses, pickCandidates } from "../../server/system-metrics.mjs";
 import {
-  ariaSort, nextSort, sortProcs, visibleProcs,
+  ariaSort, nextSort, sortProcs,
   SORT_DEFAULT, type Proc, type Sort,
-} from "../components/MachinePanel";
+} from "../components/ProcessListModal";
 
 const proc = (pid: number, cpu: number | null, mem: number, name = `p${pid}`): Proc =>
   ({ pid, cpu, mem, name });
@@ -105,15 +112,15 @@ describe("what a click on a header does", () => {
     expect(nextSort(once, "cpu").dir).toBe("desc");
   });
 
-  it("keeps the ranking column when the name is clicked", () => {
-    // Sorting by name is a request to reorder these rows, not a request for a
-    // different eight.
-    const byMem = nextSort(SORT_DEFAULT, "mem");
-    expect(nextSort(byMem, "name").rank).toBe("mem");
-  });
-
-  it("takes the ranking over when a quantity is clicked", () => {
-    expect(nextSort(SORT_DEFAULT, "mem").rank).toBe("mem");
+  it("carries nothing but the column and the direction", () => {
+    // A `rank` field used to ride along, naming which quantity had CHOSEN the
+    // eight rows the panel drew, so that a name sort could reorder them without
+    // changing which eight they were. The panel does not draw rows any more —
+    // its section is one control that opens the dialog — and the dialog draws
+    // every candidate it was sent. There is no choice left to remember, and a
+    // field the sort does not read is a field that can disagree with it.
+    expect(Object.keys(nextSort(SORT_DEFAULT, "mem")).sort()).toEqual(["dir", "key"]);
+    expect(Object.keys(SORT_DEFAULT).sort()).toEqual(["dir", "key"]);
   });
 
   it("says the state in aria-sort's own words, once", () => {
@@ -124,8 +131,7 @@ describe("what a click on a header does", () => {
 });
 
 describe("the ordering itself", () => {
-  const sort = (key: Sort["key"], dir: Sort["dir"]): Sort =>
-    ({ key, dir, rank: key === "name" ? "cpu" : key });
+  const sort = (key: Sort["key"], dir: Sort["dir"]): Sort => ({ key, dir });
 
   it("puts an unknown CPU last in both directions", () => {
     const rows = [proc(1, null, 1, "unknown"), proc(2, 5, 1, "low"), proc(3, 90, 1, "high")];
@@ -166,51 +172,10 @@ describe("the ordering itself", () => {
   });
 });
 
-describe("which eight rows are drawn", () => {
-  // Ten candidates: five busy and small, five idle and large.
-  const rows = [
-    ...Array.from({ length: 5 }, (_, i) => proc(i + 1, 90 - i, 0.1, `busy${i}`)),
-    ...Array.from({ length: 5 }, (_, i) => proc(i + 11, 0.1, 20 - i, `fat${i}`)),
-  ];
-
-  it("shows the busiest by CPU at rest", () => {
-    expect(visibleProcs(rows, SORT_DEFAULT, 3).map(r => r.name)).toEqual(["busy0", "busy1", "busy2"]);
-  });
-
-  it("changes WHICH rows appear when memory becomes the ranking", () => {
-    // The whole point of the wider payload. A memory sort that could only
-    // reorder the CPU top three would never name the machine's heaviest
-    // process.
-    const byMem = nextSort(SORT_DEFAULT, "mem");
-    expect(visibleProcs(rows, byMem, 3).map(r => r.name)).toEqual(["fat0", "fat1", "fat2"]);
-  });
-
-  it("keeps the same rows when only the direction flips", () => {
-    // Ascending by CPU is "the busiest, quietest first" — not "the quietest",
-    // which would be a different section under a different heading.
-    const asc = nextSort(SORT_DEFAULT, "cpu");
-    expect(visibleProcs(rows, asc, 3).map(r => r.name)).toEqual(["busy2", "busy1", "busy0"]);
-  });
-
-  it("keeps the same rows when the name becomes the order", () => {
-    const byMem = nextSort(SORT_DEFAULT, "mem");
-    const byName = nextSort(byMem, "name");
-    expect(visibleProcs(rows, byName, 3).map(r => r.name)).toEqual(["fat0", "fat1", "fat2"]);
-    // Same three, alphabetically — which for this fixture is the order they
-    // were already in, so a case where it is not:
-    const named = [proc(1, 9, 1, "zsh"), proc(2, 8, 1, "node"), proc(3, 7, 1, "claude")];
-    expect(visibleProcs(named, byName, 3).map(r => r.name)).toEqual(["claude", "node", "zsh"]);
-  });
-
-  it("draws what there is when the machine has fewer rows than that", () => {
-    expect(visibleProcs([proc(1, 5, 1)], SORT_DEFAULT, 8)).toHaveLength(1);
-  });
-});
-
 describe("the header is a control a keyboard can reach", () => {
   // No DOM in this suite, so the markup is read rather than rendered — the same
   // way control-defects-546.test.ts reads the controls it pins.
-  const src = readFileSync(fileURLToPath(new URL("../components/MachinePanel.tsx", import.meta.url)), "utf8");
+  const src = readFileSync(fileURLToPath(new URL("../components/ProcessListModal.tsx", import.meta.url)), "utf8");
 
   it("puts a real button inside a real column header", () => {
     expect(src).toMatch(/<th scope="col" aria-sort=\{state\}>/);
@@ -227,8 +192,8 @@ describe("the header is a control a keyboard can reach", () => {
     expect(src).toMatch(/className="sd-sort-dir" aria-hidden/);
   });
 
-  it("holds the sort in the panel rather than in storage", () => {
-    // It resets when the panel closes. A preference nobody would remember
+  it("holds the sort in the dialog rather than in storage", () => {
+    // It resets when the dialog closes. A preference nobody would remember
     // setting is not worth a key that outlives the question.
     expect(src).toMatch(/useState<Sort>\(SORT_DEFAULT\)/);
     expect(src, "the sort is being persisted").not.toMatch(/systemPanelSort|sortKey.*localStorage/);

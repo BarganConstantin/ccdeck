@@ -51,6 +51,10 @@
     {
       "title": "🖥 The machine moved out of the topbar and into a button",
       "body": "The small CPU sparkline and memory bar in the topbar are gone. A chip glyph in the icon row beside `$` and the accounts silhouette opens the same **This machine** panel — cores, memory, swap, load, temperature, busiest processes — and the bar stops moving in the corner of your eye.\n\nIt also stops asking. The deck read your machine every three seconds for the life of every tab to feed that meter; it now reads only while the panel is open, and the history behind the readings is kept by the deck itself, so a panel opened an hour from now still has the hour behind it."
+    },
+    {
+      "title": "🔎 The panel's eight process rows became one way in",
+      "body": "The machine panel drew eight processes in a 280px box: three columns, names cut off mid-word, and a `ps` run every four seconds to keep them moving. **Busiest processes** is a single row you press now, and the dialog behind it is what it always was — every candidate the deck sees, its memory in bytes, threads, user, pid, and the command line that tells you which `node` this one is.\n\nWith that dialog closed, the deck reads no process list at all."
     }
   ],
   "3.13.0": [

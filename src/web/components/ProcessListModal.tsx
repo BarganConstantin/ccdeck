@@ -1,31 +1,175 @@
 // The whole candidate list, because the panel's eight rows leave one question
 // unanswerable.
 //
-// #739 made the panel's columns sortable and drew a line: a QUANTITY ranks —
-// clicking `mem` changes which processes appear, because the true heaviest is
-// in the payload by construction — while a NAME only orders the eight rows the
-// last quantity chose. That was the right call for a 280px panel, and it left a
+// #739 made the panel's eight rows sortable and drew a line: a QUANTITY ranks —
+// clicking `mem` changed which processes appeared, because the true heaviest is
+// in the payload by construction — while a NAME only ordered the eight the last
+// quantity had chosen. That was the right call for a 280px panel, and it left a
 // gap: "is my vitest still running" cannot be answered by re-ordering eight
 // rows that vitest is not in.
 //
 // This is that gap and nothing else. Same reading, same ordering rules, every
 // candidate row instead of eight, and the pid and the untruncated name that the
-// panel has no width for.
+// panel had no width for.
+//
+// THE PANEL'S EIGHT ROWS ARE GONE and this is what they became: the section
+// there is one control that opens this. Which is why the process read lives
+// here now — the ordering rules and the poll came with the rows they were
+// about, and a panel with this dialog closed reads no process list at all.
 //
 // DELIBERATELY NOT A TASK MANAGER. No kill, no priority, no tree — macOS has
 // Activity Monitor and Windows has Task Manager, they are better at it, and
 // ending a process is not an action this deck should own. The header says "55
 // of 531" for the same reason: this is the busiest slice, and a list that let
 // you believe it was the whole machine would be lying about what it can answer.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
-import {
-  ariaSort, nextSort, sortProcs, SortHead, SORT_DEFAULT,
-  type Proc, type Sort,
-} from "./MachinePanel";
 import MachineStrip from "./MachineStrip";
 import type { LiveSource } from "../machine-live";
+
+/** `cpu` is null on a Windows first reading: a percentage needs two samples and
+ *  there has only been one. Never a zero, which would rank it as idle. */
+export interface Proc {
+  pid: number;
+  cpu: number | null;
+  mem: number;
+  name: string;
+  /** The four the modal asks for with `detail=1`, and the panel never does.
+   *  Optional because each is a reading that can be absent rather than zero: a
+   *  `ps -M` that lost a race with an exit, a Windows process this session may
+   *  not open, a platform with no user column. Every column that reads one
+   *  prints a dash when it is missing. */
+  rssBytes?: number;
+  threads?: number;
+  uptimeSec?: number;
+  user?: string;
+  /** The argument vector with the executable and any secret-shaped value taken
+   *  off it, capped at 180 characters — see redactCommand in system-metrics. */
+  cmd?: string;
+}
+
+export type SortKey = "cpu" | "mem" | "name" | "rss" | "threads" | "uptime" | "user";
+
+export interface Sort {
+  key: SortKey;
+  dir: "asc" | "desc";
+}
+
+/** CPU descending, which is what "busiest" means until somebody says
+ *  otherwise. */
+export const SORT_DEFAULT: Sort = { key: "cpu", dir: "desc" };
+
+/**
+ * What a click on a column header does.
+ *
+ * A column you are not on arrives pointing the way that column is read: biggest
+ * first for a quantity, A to Z for a name. The column you are already on flips.
+ * Nothing else moves.
+ *
+ * A `rank` field used to ride along here, naming which quantity had CHOSEN the
+ * rows — the panel drew eight of the payload's fifty-odd, so ordering by name
+ * had to leave that choice alone or the eight would change under a sort that
+ * was only asked to reorder them. This dialog draws every candidate it is sent,
+ * so there is no choice left to remember: a sort orders the list, full stop.
+ */
+export function nextSort(current: Sort, key: SortKey): Sort {
+  if (current.key === key) return { ...current, dir: current.dir === "asc" ? "desc" : "asc" };
+  return { key, dir: key === "name" || key === "user" ? "asc" : "desc" };
+}
+
+/**
+ * One ordering, applied the same way whichever column asked for it.
+ *
+ * Two rules the table would be wrong without.
+ *
+ * A null CPU goes last in BOTH directions. It is the Windows first reading,
+ * where a percentage does not exist yet because it takes two samples to make
+ * one, and the cell prints a dash for it. Ranking it as zero would call it idle;
+ * ranking it above everything would call it the busiest thing on the machine.
+ * The reading supports neither.
+ *
+ * Ties fall through to a fixed chain — CPU, then memory, then pid — that does
+ * NOT flip with the direction. `mem` reads 0.2 for half the list, so with no
+ * second key those rows would come back in whatever order the sort happened to
+ * leave them in and the table would visibly reshuffle every four seconds while
+ * nothing at all had changed.
+ */
+export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
+  const sign = sort.dir === "asc" ? 1 : -1;
+  // The three optional quantities join CPU under the null rule rather than
+  // getting one of their own: a row whose thread count did not come back is not
+  // a row with no threads, and a dash sorts to the end whichever way the arrow
+  // points — same as the Windows first reading has always done.
+  const quantity = (p: Proc): number | null | undefined =>
+    sort.key === "cpu" ? p.cpu
+      : sort.key === "mem" ? p.mem
+        : sort.key === "rss" ? p.rssBytes
+          : sort.key === "threads" ? p.threads
+            : p.uptimeSec;
+  const primary = (a: Proc, b: Proc): number => {
+    // Case-insensitive and locale-aware. ASCII files every capital ahead of
+    // every lowercase letter, which would put WindowServer and ccusage in
+    // different halves of a list being read as one.
+    if (sort.key === "name") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    if (sort.key === "user") {
+      const au = a.user ?? "", bu = b.user ?? "";
+      if (!au || !bu) return au === bu ? 0 : (au ? -1 : 1);
+      return sign * au.localeCompare(bu, undefined, { sensitivity: "base" });
+    }
+    const av = quantity(a);
+    const bv = quantity(b);
+    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
+    return sign * (av - bv);
+  };
+  return [...procs].sort((a, b) =>
+    primary(a, b)
+    || (b.cpu ?? -1) - (a.cpu ?? -1)
+    || b.mem - a.mem
+    || a.pid - b.pid);
+}
+
+/** aria-sort's own vocabulary, which also decides the arrow and the active
+ *  colour — the state is said once, in the place assistive technology reads. */
+export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" | "none" {
+  if (sort.key !== key) return "none";
+  return sort.dir === "asc" ? "ascending" : "descending";
+}
+
+/** The process list costs a subprocess on every platform, so it refreshes more
+ *  slowly than the readings beside it. */
+const PROC_POLL_MS = 4_000;
+
+/**
+ * The process list, fetched for as long as this dialog is on screen and not one
+ * tick longer.
+ *
+ * It used to be the panel's, polling from the moment the panel opened so that
+ * eight rows could move in a 280px box, and asking for the four expensive
+ * columns only once the dialog was raised — the `detail` flag #807 added, which
+ * measured 141ms and 7 KB against 251ms and 13 KB. The eight rows are gone, so
+ * the cheap half has no reader at all and the flag has one caller that always
+ * wants the columns. A deck sitting with the panel open now runs `ps` never.
+ */
+function useProcesses(): { procs: Proc[]; total: number } | null {
+  const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const res = await fetch("/api/system/processes?detail=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
+      } catch { /* leave the previous list up rather than blanking it */ }
+    };
+    load();
+    const iv = window.setInterval(load, PROC_POLL_MS);
+    return () => { alive = false; window.clearInterval(iv); };
+  }, []);
+  return procs;
+}
 
 /**
  * Bytes as a machine reader wants them: three significant figures and a unit.
@@ -62,25 +206,23 @@ export function fmtUptime(sec: number | undefined): string {
   return `${Math.floor(sec / 86_400)}d`;
 }
 
-export default function ProcessListModal({ procs, total, sys, onClose }: {
-  procs: Proc[];
-  /** How many the machine is running, against however many were sent. */
-  total: number;
-  /** The panel's own snapshot, for the strip below the list. It is passed down
-   *  rather than polled again here: this dialog covers the panel, and two
-   *  independent three-second polls of the same endpoint would put two readings
-   *  of one machine on screen that disagree by a tick. */
+export default function ProcessListModal({ sys, onClose }: {
+  /** The panel's own snapshot, for the readings beside the list. It is passed
+   *  down rather than polled again here: the panel behind this dialog is
+   *  already holding one, and two independent three-second polls of the same
+   *  endpoint would put two readings of one machine on screen that disagree by
+   *  a tick. The PROCESS read is this dialog's own — see useProcesses. */
   sys: LiveSource;
   onClose: () => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
-  // Its own sort, not the panel's. They are two readings of one list and a
-  // shared one would re-order the panel behind the scrim while you worked here.
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
+  const read = useProcesses();
 
-  // Every candidate, not a slice of them: the whole point is that the row you
-  // are looking for is not in the panel's eight.
-  const rows = sortProcs(procs, sort);
+  // Every candidate the server sent, in the order asked for. Null until the
+  // first read lands, which is a different thing from an empty list and says
+  // so below.
+  const rows = read ? sortProcs(read.procs, sort) : null;
 
   return createPortal(
     // Portalled for the reason SectionHistoryModal is: this opens from inside
@@ -97,9 +239,14 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
       >
         <div className="modal-head">
           <span className="modal-title" id="pl-modal-title">Busiest processes</span>
-          <span className="pl-count">
-            {rows.length} of {total} running
-          </span>
+          {/* Silent until there is something to count. "0 of 0 running" for
+              the first half-second is a claim about a machine nobody has asked
+              yet, and the heading already says what this is. */}
+          {read && (
+            <span className="pl-count">
+              {rows!.length} of {read.total} running
+            </span>
+          )}
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
 
@@ -109,7 +256,13 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
             at the width it was measured on. */}
         <div className="pl-split">
         <div className="pl-body">
-          {rows.length === 0 ? (
+          {rows == null ? (
+            // Not the sentence below it. A read that has not come back yet and
+            // a platform that cannot answer look identical in the data and are
+            // opposite things to tell somebody, and this dialog now opens
+            // before its first read rather than inheriting the panel's.
+            <p className="pl-empty">Reading the process list…</p>
+          ) : rows.length === 0 ? (
             <p className="pl-empty">Could not read the process list on this platform.</p>
           ) : (
             <table className="sd-procs pl-table">
@@ -148,7 +301,7 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(p => (
+                {rows!.map(p => (
                   <tr key={p.pid}>
                     {/* Per core on every platform, so a process can exceed
                         100%: that is it using more than one core. Null is the
@@ -214,7 +367,37 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
   );
 }
 
-/** Kept beside the component that owns the sort, so a reader of either finds
- *  the other. `ariaSort` and `nextSort` are MachinePanel's; nothing here
- *  re-implements them. */
-export { ariaSort, nextSort };
+/** One column header: the word, the direction it is pointing, and the press
+ *  that changes it. */
+export function SortHead({ col, label, note, sort, onSort }: {
+  col: SortKey;
+  label: string;
+  /** What this column means, where the meaning is not the label. It rides on
+   *  the header's own tooltip, under the sort action, because a caveat about a
+   *  column belongs to the column: it is findable from the thing it is about
+   *  rather than from a footnote at the other end of the dialog. */
+  note?: string;
+  sort: Sort;
+  onSort: (next: Sort) => void;
+}) {
+  const state = ariaSort(sort, col);
+  return (
+    <th scope="col" aria-sort={state}>
+      <button
+        type="button"
+        className="sd-sort"
+        title={note ? `Sort by ${label}\n\n${note}` : `Sort by ${label}`}
+        onClick={() => onSort(nextSort(sort, col))}
+      >
+        {label}
+        {/* aria-sort has already said this to a screen reader, so the glyph is
+            for the eye alone. Its slot is held open on every column, sorted or
+            not, so that re-sorting moves the rows and never the headers. */}
+        <span className="sd-sort-dir" aria-hidden>
+          {state === "none" ? "" : state === "ascending" ? "\u2191" : "\u2193"}
+        </span>
+      </button>
+    </th>
+  );
+}
+

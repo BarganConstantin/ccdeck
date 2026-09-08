@@ -331,7 +331,7 @@ describe("what a cell calls its reading", () => {
   });
 });
 
-describe("the process block opens the list it is a preview of", () => {
+describe("the process section is one way in, and draws nothing", () => {
   const meter = readFileSync(at("../components/MachinePanel.tsx"), "utf8");
   // Anchored at a line start, because a substring search finds the rule INSIDE
   // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
@@ -342,60 +342,49 @@ describe("the process block opens the list it is a preview of", () => {
     return i < 0 ? "" : css.slice(i + 1, css.indexOf("}", i));
   };
 
-  it("takes the press anywhere in the block, not only on the word", () => {
-    // Eight rows of processes read as something you can look further into, and
-    // the only thing that said so was a 10px word in the corner.
-    expect(meter).toContain("sd-openable");
-    expect(rule(".sysdetail .sd-section.sd-openable")).toContain("cursor: pointer");
-  });
-
-  it("steps aside for the controls already inside it", () => {
-    // The column headers sort and `more` opens this same dialog. Without the
-    // guard a press on `cpu` would sort AND open the modal over it, and `more`
-    // would fire twice. Verified in the page: sorting does not open, a row
-    // does, the heading does, and `more` opens exactly one.
-    expect(meter).toContain('(e.target as HTMLElement).closest("button")');
-  });
-
-  it("does not claim to be a control the keyboard can reach", () => {
-    // role="button" plus a tabindex was the obvious next step and is wrong
-    // twice: a second tab stop for an action `more` already offers with a real
-    // name, on an element that CONTAINS the sort buttons. The mouse gets a
-    // shortcut; the keyboard and a screen reader keep the button.
+  it("is the same control the four sections above it use", () => {
+    // It was eight rows with sortable headers, and for one release the whole
+    // block took a press so the mouse would not have to find the 10px `more`.
+    // Both are gone: the rows answered the dialog's question worse, and a
+    // clickable block that was not a button needed a guard for the controls
+    // inside it and could not be reached by a keyboard at all. What is left is
+    // `.sd-open`, which is what Cores, Memory, Load average and Thermal already
+    // are — one button, one name, one hover, one press.
     const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
-    const opening = block.slice(block.indexOf("<div"), block.indexOf(">", block.indexOf("onClick")));
-    expect(opening).not.toContain('role="button"');
-    expect(opening).not.toContain("tabIndex");
-    expect(opening).toContain('role="group"');
+    expect(block).toContain('className="sd-open sd-door"');
+    expect(block).toContain('aria-label="Show every process the deck is watching"');
   });
 
-  it("only becomes a target when there is a list to open", () => {
-    expect(meter).toContain("const openable = read != null && procs != null && procs.length > 0");
+  it("says what is behind it, because it has no reading to say it with", () => {
+    // The four above are headings over numbers you came for. This one has
+    // nothing under it, so a dim uppercase heading alone reads as a section
+    // that failed to load rather than as a way through — and it is the whole
+    // replacement for eight rows somebody was reading yesterday.
+    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    expect(block).toContain("Busiest processes");
+    expect(block).toContain("every process, with its command line");
+    expect(block).toContain('<i className="sd-row-more" aria-hidden>›</i>');
+    // The name is in the reading colour, not the heading grey, and the plate is
+    // a fill rather than a border: 1.4.11 measures a control's own edge at 3:1
+    // and `--line` is a hairline at a fifth of that.
+    expect(rule(".sd-door-name")).toContain("color: var(--text)");
+    expect(rule(".sysdetail .sd-door .sd-door-plate")).toContain("border-radius");
+    expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border:");
   });
 
-  it("lights the way the four sections above it already do", () => {
-    // A fifth block that behaved differently would read as a different kind of
-    // thing. Same fill, same 6% of --text, same active scale.
-    const mine = rule(".sysdetail .sd-section.sd-openable:hover");
-    const theirs = rule(".sysdetail .sd-open:hover");
-    expect(mine).toContain("color-mix(in srgb, var(--text) 6%, transparent)");
-    expect(theirs).toContain("color-mix(in srgb, var(--text) 6%, transparent)");
-    expect(rule(".sysdetail .sd-section.sd-openable:active")).toContain("scale(0.97)");
+  it("keeps no press handler on the block itself", () => {
+    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    expect(block, "the section is a target again rather than a button").not.toContain("sd-openable");
+    expect(block).not.toContain('(e.target as HTMLElement).closest("button")');
+    expect(block).not.toContain('role="button"');
+    expect(block).not.toContain("tabIndex");
   });
 
-  it("keeps the gap between sections it bleeds into", () => {
-    // The margin is on the SECTION, not on a button inside it, so a flat -4px
-    // would have eaten the 13px `.sd-section + .sd-section` gap. 9 + 4 is that
-    // 13 — measured in the page at the same 5px of daylight the other sections
-    // leave.
-    expect(rule(".sysdetail .sd-section + .sd-section.sd-openable")).toContain("margin-top: 9px");
-    expect(rule(".sysdetail .sd-section.sd-openable")).toContain("margin-bottom: -4px");
-    expect(rule(".sd-section + .sd-section")).toContain("margin-top: 13px");
-  });
-
-  it("drops the press animation for anyone who asked for less movement", () => {
-    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .sysdetail"));
-    expect(reduced.slice(0, reduced.indexOf("\n}"))).toContain(".sysdetail .sd-section.sd-openable:active { transform: none; }");
+  it("takes its whole appearance from the sheet's existing button", () => {
+    // Nothing was added for it, which is the point of using the same class.
+    expect(rule(".sysdetail .sd-open:hover")).toContain("color-mix(in srgb, var(--text) 6%, transparent)");
+    expect(css, "the block-press rules outlived the block").not.toContain("sd-openable");
+    expect(css, "the `more` button outlived the eight rows it sat over").not.toContain(".sd-all");
   });
 });
 
@@ -509,10 +498,16 @@ describe("the dialog's type", () => {
     // `--port 4319` padded to the width of a zero, inside a run of proportional
     // letters, so the numbers in a command line come out gappy and wider than
     // the words around them. An account name has it for the same reason.
-    const off = rule(":is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user, .sd-proc-name)");
+    //
+    // It used to name a third cell, `.sd-proc-name` — the panel's own eight-row
+    // table, which had the same defect from the same rule. That table is gone
+    // and its cell went with it; the selector still covers both places the
+    // remaining one is drawn, which is what the `:is(.sysdetail, .pl-body)`
+    // prefix is for.
+    const off = rule(":is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user)");
     expect(off).toContain("font-variant-numeric: normal");
-    // Both tables, because it is one defect and one rule produced it.
-    expect(off).toContain(".sd-proc-name");
+    expect(css, "the panel's process cell outlived the panel's process table")
+      .not.toContain(".sd-proc-name");
   });
 
   it("keeps the two claims the footnote carried, on the columns they are about", () => {
@@ -531,9 +526,9 @@ describe("the dialog's type", () => {
     // On the headers, not in a band of their own.
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
-    // And the header is what carries them.
-    const meter = readFileSync(at("../components/MachinePanel.tsx"), "utf8");
-    expect(meter).toContain("note ? `Sort by ${label}");
+    // And the header is what carries them. SortHead moved into this file with
+    // the rest of the process code when the panel stopped drawing rows.
+    expect(modalSrc).toContain("note ? `Sort by ${label}");
   });
 });
 

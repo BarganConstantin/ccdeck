@@ -37,7 +37,7 @@ import {
   redactCommand, commandTail, elapsedSeconds,
   parsePsThreadsBsd, parsePsThreadsProcps, psDetailArgs, CMD_MAX,
 } from "../../server/system-metrics.mjs";
-import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/MachinePanel";
+import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/ProcessListModal";
 import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -107,7 +107,11 @@ describe("what the command column may carry", () => {
     // /api/system/processes answers anything that can reach the loopback port.
     // Redacting on the client would mean the token shipped and was then hidden.
     expect(server).toMatch(/redactCommand\(commandTail\(/);
-    expect(modal).not.toMatch(/redactCommand/);
+    // A CALL, not the word: the client's `Proc` type names the function in a
+    // comment so a reader of the field knows where its value was cleaned, and a
+    // rule that could not tell a reference from an implementation would forbid
+    // saying so.
+    expect(modal).not.toMatch(/redactCommand\(/);
   });
 });
 
@@ -239,17 +243,20 @@ describe("the thread count, per platform, out of the call that also has argv", (
 
 describe("the second child is the modal's, not the panel's", () => {
   it("is gated on a query flag rather than always paid", () => {
-    // Measured: 141ms and 7 KB without it, 251ms and 13 KB with. The panel
-    // draws four columns and needs none of it, so on a deck whose modal is
-    // never opened the argument vector is never read at all.
+    // Measured: 141ms and 7 KB without it, 251ms and 13 KB with.
     expect(route).toMatch(/url\.searchParams\.get\("detail"\) === "1"/);
     expect(server).toMatch(/if \(detail\) await attachDetail\(procs, platform\);/);
-    expect(meter).toMatch(/\/api\/system\/processes\$\{detail \? "\?detail=1" : ""\}/);
   });
 
-  it("re-polls when the flag changes, or the modal opens onto four dashes", () => {
-    expect(meter).toMatch(/\}, \[on, detail\]\);/);
-    expect(meter).toMatch(/useProcesses\(true, allProcs\)/);
+  it("is asked for by the dialog and by nothing else", () => {
+    // The gate is structural now rather than a flag. The panel drew eight rows
+    // and polled the cheap half every four seconds to keep them moving; those
+    // rows are gone — its section is one control that opens this dialog — so
+    // the poll went with them, into the dialog that wants the columns. A deck
+    // sitting with the panel open reads no process list at all, which is
+    // cheaper than the reading #807 made cheaper.
+    expect(modal).toMatch(/fetch\("\/api\/system\/processes\?detail=1"\)/);
+    expect(meter, "the panel is reading the process list again").not.toMatch(/system\/processes/);
   });
 
   it("does not serve a detailed request from a plain cached reading", () => {
@@ -285,14 +292,17 @@ describe("sorting the columns that can be absent", () => {
     expect(order(users, { key: "user", dir: "asc", rank: "cpu" })).toEqual([3, 1, 2]);
   });
 
-  it("ranks memory as memory whichever of its two readings asked", () => {
-    // `rank` decides which candidates the panel draws, and the server sends a
-    // union of a CPU ranking and a memory one. `rss` and `mem` are one quantity
-    // read two ways, so the column that shows bytes stands on the same ranking
-    // the percentage does; a column that merely orders rows leaves it alone.
-    expect(nextSort(SORT_DEFAULT, "rss").rank).toBe("mem");
-    expect(nextSort(SORT_DEFAULT, "threads").rank).toBe("cpu");
-    expect(nextSort({ key: "mem", dir: "desc", rank: "mem" }, "user").rank).toBe("mem");
+  it("orders by the bytes column without needing a ranking to stand on", () => {
+    // `rank` used to travel with the sort, because the panel drew eight of the
+    // payload and `rss` and `mem` are one quantity read two ways: bytes had to
+    // rank as memory or the eight would change under a column that was only
+    // meant to reorder them. The dialog draws every candidate, so the field is
+    // gone and the sort is the column and the direction. What still has to hold
+    // is that the payload can answer a memory sort truthfully — see
+    // pickCandidates in proc-sort.test.ts.
+    expect(nextSort(SORT_DEFAULT, "rss")).toEqual({ key: "rss", dir: "desc" });
+    expect(nextSort(SORT_DEFAULT, "threads")).toEqual({ key: "threads", dir: "desc" });
+    expect(nextSort({ key: "mem", dir: "desc" }, "user")).toEqual({ key: "user", dir: "asc" });
   });
 
   it("opens a name-shaped column A to Z and a quantity biggest first", () => {

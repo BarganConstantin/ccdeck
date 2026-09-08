@@ -28,151 +28,6 @@ import ProcessListModal from "./ProcessListModal";
 /** Matches the server's CPU cadence, so the panel advances one reading per poll
  *  rather than redrawing the same frame or skipping one. */
 const POLL_MS = 3_000;
-/** The process list costs a subprocess on every platform, so it refreshes more
- *  slowly than the readings above it. */
-const PROC_POLL_MS = 4_000;
-
-/** `cpu` is null on a Windows first reading: a percentage needs two samples and
- *  there has only been one. Never a zero, which would rank it as idle. */
-export interface Proc {
-  pid: number;
-  cpu: number | null;
-  mem: number;
-  name: string;
-  /** The four the modal asks for with `detail=1`, and the panel never does.
-   *  Optional because each is a reading that can be absent rather than zero: a
-   *  `ps -M` that lost a race with an exit, a Windows process this session may
-   *  not open, a platform with no user column. Every column that reads one
-   *  prints a dash when it is missing. */
-  rssBytes?: number;
-  threads?: number;
-  uptimeSec?: number;
-  user?: string;
-  /** The argument vector with the executable and any secret-shaped value taken
-   *  off it, capped at 180 characters — see redactCommand in system-metrics. */
-  cmd?: string;
-}
-
-/** How many process rows the panel draws. Enough to see what is eating the
- *  machine, few enough that the panel never becomes a scroll. The server sends
- *  a wider set than this on purpose — system-metrics.mjs's CANDIDATE_N says
- *  why, and visibleProcs below is what spends it. */
-const ROWS = 8;
-
-export type SortKey = "cpu" | "mem" | "name" | "rss" | "threads" | "uptime" | "user";
-
-export interface Sort {
-  key: SortKey;
-  dir: "asc" | "desc";
-  /** The last column that RANKED the list. A name sort orders rows; it does not
-   *  choose them, so it leaves this where it was — see visibleProcs. */
-  rank: "cpu" | "mem";
-}
-
-/** CPU descending, which is what the section meant before it could be asked
- *  anything else. */
-export const SORT_DEFAULT: Sort = { key: "cpu", dir: "desc", rank: "cpu" };
-
-/**
- * What a click on a column header does.
- *
- * A column you are not on arrives pointing the way that column is read: biggest
- * first for a quantity, A to Z for a name. The column you are already on flips.
- * Nothing else moves — in particular `rank` stays put when the name is clicked,
- * because sorting by name is a request to reorder these rows, not a request for
- * a different eight.
- */
-/** Which of the two rankings the server actually sends a column can stand on.
- *  `rss` and `mem` are one quantity read two ways, so memory ranks as memory;
- *  the rest order the rows they were given without choosing them, exactly as
- *  the name always has. */
-const RANKS: Partial<Record<SortKey, "cpu" | "mem">> = { cpu: "cpu", mem: "mem", rss: "mem" };
-
-export function nextSort(current: Sort, key: SortKey): Sort {
-  if (current.key === key) return { ...current, dir: current.dir === "asc" ? "desc" : "asc" };
-  return { key, dir: key === "name" || key === "user" ? "asc" : "desc", rank: RANKS[key] ?? current.rank };
-}
-
-/**
- * One ordering, applied the same way whichever column asked for it.
- *
- * Two rules the table would be wrong without.
- *
- * A null CPU goes last in BOTH directions. It is the Windows first reading,
- * where a percentage does not exist yet because it takes two samples to make
- * one, and the cell prints a dash for it. Ranking it as zero would call it idle;
- * ranking it above everything would call it the busiest thing on the machine.
- * The reading supports neither.
- *
- * Ties fall through to a fixed chain — CPU, then memory, then pid — that does
- * NOT flip with the direction. `mem` reads 0.2 for half the list, so with no
- * second key those rows would come back in whatever order the sort happened to
- * leave them in and the table would visibly reshuffle every four seconds while
- * nothing at all had changed.
- */
-export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
-  const sign = sort.dir === "asc" ? 1 : -1;
-  // The three optional quantities join CPU under the null rule rather than
-  // getting one of their own: a row whose thread count did not come back is not
-  // a row with no threads, and a dash sorts to the end whichever way the arrow
-  // points — same as the Windows first reading has always done.
-  const quantity = (p: Proc): number | null | undefined =>
-    sort.key === "cpu" ? p.cpu
-      : sort.key === "mem" ? p.mem
-        : sort.key === "rss" ? p.rssBytes
-          : sort.key === "threads" ? p.threads
-            : p.uptimeSec;
-  const primary = (a: Proc, b: Proc): number => {
-    // Case-insensitive and locale-aware. ASCII files every capital ahead of
-    // every lowercase letter, which would put WindowServer and ccusage in
-    // different halves of a list being read as one.
-    if (sort.key === "name") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    if (sort.key === "user") {
-      const au = a.user ?? "", bu = b.user ?? "";
-      if (!au || !bu) return au === bu ? 0 : (au ? -1 : 1);
-      return sign * au.localeCompare(bu, undefined, { sensitivity: "base" });
-    }
-    const av = quantity(a);
-    const bv = quantity(b);
-    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
-    return sign * (av - bv);
-  };
-  return [...procs].sort((a, b) =>
-    primary(a, b)
-    || (b.cpu ?? -1) - (a.cpu ?? -1)
-    || b.mem - a.mem
-    || a.pid - b.pid);
-}
-
-/**
- * The rows drawn, which is a different question from the order they are in.
- *
- * The section is headed "Busiest processes", so its rows are always the busiest
- * — by whichever quantity is currently ranking them. Clicking `mem` therefore
- * changes WHICH processes appear, and that is what the wider payload buys: the
- * machine's heaviest consumer is in the candidate set by construction, so the
- * memory ranking is the machine's and not the CPU top eight's.
- *
- * Clicking `process` changes nothing about membership. Alphabetical is an
- * ordering and not a ranking, and the alphabetically-first eight of a candidate
- * set is a list nobody asked for; so the name sort reorders whichever eight the
- * last quantity chose.
- *
- * Direction does not change membership either. Ascending by CPU is "the eight
- * busiest, quietest first" — not "the eight quietest", which would be a
- * different section under a different heading.
- */
-export function visibleProcs(procs: Proc[], sort: Sort, rows = ROWS): Proc[] {
-  const busiest = sortProcs(procs, { key: sort.rank, dir: "desc", rank: sort.rank });
-  return sortProcs(busiest.slice(0, rows), sort);
-}
-
-/** aria-sort's own vocabulary, which also decides the arrow and the active
- *  colour — the state is said once, in the place assistive technology reads. */
-export function ariaSort(sort: Sort, key: SortKey): "ascending" | "descending" | "none" {
-  if (sort.key !== key) return "none";
-  return sort.dir === "asc" ? "ascending" : "descending";
-}
 
 /** How a bar is painted. `calm` is the resting appearance and carries no class
  *  of its own, which is what keeps the memory rows drawing exactly as before. */
@@ -357,31 +212,6 @@ function useSystem(): Snapshot | null {
   return snap;
 }
 
-/** The process list, fetched only while `on` is true — and asked for its four
- *  extra columns only while `detail` is, which is only while the modal that
- *  draws them is open. That gate is why a deck whose modal is never opened
- *  never reads an argument vector at all. */
-function useProcesses(on: boolean, detail = false): { procs: Proc[]; total: number } | null {
-  const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
-  useEffect(() => {
-    if (!on) return;
-    let alive = true;
-    const load = async () => {
-      if (document.visibilityState === "hidden") return;
-      try {
-        const res = await fetch(`/api/system/processes${detail ? "?detail=1" : ""}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
-      } catch { /* leave the previous list up rather than blanking it */ }
-    };
-    load();
-    const iv = window.setInterval(load, PROC_POLL_MS);
-    return () => { alive = false; window.clearInterval(iv); };
-  }, [on, detail]);
-  return on ? procs : null;
-}
-
 /**
  * The panel's frame: its slot in the rail, its landmark name, its title and its
  * one ×.
@@ -440,10 +270,6 @@ export default function MachinePanel({ usageOpen, onClose }: {
   onClose: () => void;
 }) {
   const sys = useSystem();
-  // `all` lives here rather than in Processes, because it is what decides
-  // whether the poll asks for the detail columns at all — see useProcesses.
-  const [allProcs, setAllProcs] = useState(false);
-  const procs = useProcesses(true, allProcs);
 
   // The first snapshot is one localhost round trip away, and until it lands
   // there is nothing measured to draw. The panel appears anyway, at its own
@@ -539,7 +365,7 @@ export default function MachinePanel({ usageOpen, onClose }: {
 
       <ThermalSection thermal={thermal} />
 
-      <Processes read={procs} all={allProcs} setAll={setAllProcs} sys={sys} />
+      <Processes sys={sys} />
     </Shell>
   );
 }
@@ -635,147 +461,61 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
 }
 
 /**
- * The process table, and the one part of this panel you can operate.
+ * The way into the process list, and no longer a list of its own.
  *
- * A table header is where you click to sort in every other table anybody has
- * used, and this one was three inert cells for four releases (#739). So the
- * cells are real controls now: a <th scope="col"> carrying aria-sort, with a
- * <button> inside it that Tab reaches and Enter presses.
+ * It was eight rows with sortable headers, and it was answering the same
+ * question the dialog answers — worse, and at a cost the panel paid whether or
+ * not anybody was reading it. Eight of five hundred processes, three of seven
+ * columns, names truncated at 120px, and `ps` run every four seconds for the
+ * life of an open panel to keep them moving. The dialog beside it has every
+ * candidate, the command line that says WHICH `node` this is, the pid, and the
+ * machine's own readings down its left edge.
  *
- * The sort lives here rather than in storage.ts. It resets when the panel
- * closes, which is what a reader would expect of a table they re-sorted while
- * looking at something; a preference nobody would remember setting is not worth
- * a key that outlives the question.
+ * So the section is one control now. Nothing here polls: the dialog owns the
+ * process read, and a panel with the list closed spawns no `ps` at all.
+ *
+ * It keeps the heading it had. `Busiest processes` is what the dialog is called
+ * and what the reader was already looking for, and the chevron is the same one
+ * the four sections above it use for "there is more of this".
+ *
+ * AND IT LOOKS LIKE A WAY THROUGH, which the four above do not have to. They
+ * are headings over readings: the reading is what you came for and the chevron
+ * is a bonus. This one has nothing under it, so a dim uppercase heading alone
+ * reads as a section whose contents failed to load — and a control nobody
+ * presses is worth no more than the rows it replaced.
+ *
+ * So it wears a plate: the name in the panel's own text colour rather than the
+ * heading's grey, one line of what is behind it, and the chevron at the far
+ * edge. Still `.sd-open`, so the hover, the press and the bleed are the four
+ * sections' own and there is one definition of each.
  */
-function Processes({ read, all, setAll, sys }: {
-  read: { procs: Proc[]; total: number } | null;
-  all: boolean;
-  setAll: (open: boolean) => void;
-  /** Threaded through rather than re-polled inside the dialog — see
-   *  ProcessListModal's `sys` prop for why two polls of one endpoint is the
-   *  wrong shape here. */
+function Processes({ sys }: {
+  /** Threaded through rather than re-polled inside the dialog: this panel is
+   *  already holding a snapshot of the same machine, and two independent
+   *  three-second polls of one endpoint would put two readings on screen that
+   *  disagree by a tick. */
   sys: Snapshot;
 }) {
-  const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
-  const procs = read?.procs ?? null;
-  const openable = read != null && procs != null && procs.length > 0;
-
+  const [open, setOpen] = useState(false);
   return (
-    // THE WHOLE BLOCK OPENS THE LIST, not just the word `more`. Eight rows of
-    // processes read as something you can look further into, and the only thing
-    // that said so was a 10px word in the corner.
-    //
-    // ONE HANDLER ON THE SECTION, and it steps aside for anything that is
-    // already a control: the column headers sort, and `more` opens this same
-    // dialog through its own onClick. Without the `closest("button")` guard a
-    // press on `cpu` would sort the list AND open the modal over it, and `more`
-    // would fire twice.
-    //
-    // NOT a role="button" with a tabindex, which was the obvious next step and
-    // is wrong twice over: it would put a second tab stop on the keyboard for
-    // an action `more` already offers with a real name, and it would make a
-    // focusable container out of an element that CONTAINS the sort buttons.
-    // The mouse gets a shortcut; the keyboard and a screen reader keep the
-    // button, which is the control.
-    <div
-      className={`sd-section${openable ? " sd-openable" : ""}`}
-      role="group"
-      aria-label="Busiest processes"
-      onClick={openable ? e => {
-        if ((e.target as HTMLElement).closest("button")) return;
-        setAll(true);
-      } : undefined}
-    >
-      {/* The one section that is NOT wrapped in a single control, and it is the
-          markup that decides: its column headers are already buttons, and a
-          button cannot contain a button. So the affordance is its own small
-          control in the heading — which turns out to be the honest shape
-          anyway, since what it opens is more of this list rather than what this
-          list did over time. */}
-      <div className="sd-hrow">
-        <div className="sd-h" aria-hidden>Busiest processes</div>
-        {procs != null && procs.length > 0 && (
-          <button
-            type="button"
-            className="sd-all"
-            onClick={() => setAll(true)}
-            title="Show every process the deck is watching"
-            aria-label="Show every process the deck is watching"
-          >
-            more <i className="sd-row-more" aria-hidden>›</i>
-          </button>
-        )}
-      </div>
-      {all && read && (
-        <ProcessListModal procs={read.procs} total={read.total} sys={sys} onClose={() => setAll(false)} />
-      )}
-      {procs == null ? (
-        <div className="sd-note">reading…</div>
-      ) : procs.length === 0 ? (
-        <div className="sd-note">Could not read the process list on this platform.</div>
-      ) : (
-        <table className="sd-procs">
-          <thead>
-            <tr>
-              <SortHead col="cpu" label="cpu" sort={sort} onSort={setSort} />
-              <SortHead col="mem" label="mem" sort={sort} onSort={setSort} />
-              <SortHead col="name" label="process" sort={sort} onSort={setSort} />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleProcs(procs, sort).map(p => (
-              <tr key={p.pid}>
-                {/* Per core on every platform, so a process can exceed 100%:
-                    that is it using more than one core, which is information
-                    rather than an error. Windows used to divide this by the
-                    core count and cap it at 100, which made the same build
-                    read ~cores× smaller there (#493).
-                    Null is the Windows first reading, where a percentage does
-                    not exist yet because it takes two samples to make one —
-                    a dash, never a zero, which would rank it as idle. */}
-                <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
-                <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
-                <td className="sd-proc-name" title={`pid ${p.pid}`}>{p.name}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-/** One column header: the word, the direction it is pointing, and the press
- *  that changes it. */
-export function SortHead({ col, label, note, sort, onSort }: {
-  col: SortKey;
-  label: string;
-  /** What this column means, where the meaning is not the label. It rides on
-   *  the header's own tooltip, under the sort action, because a caveat about a
-   *  column belongs to the column: it is findable from the thing it is about
-   *  rather than from a footnote at the other end of the dialog. */
-  note?: string;
-  sort: Sort;
-  onSort: (next: Sort) => void;
-}) {
-  const state = ariaSort(sort, col);
-  return (
-    <th scope="col" aria-sort={state}>
+    <div className="sd-section">
       <button
         type="button"
-        className="sd-sort"
-        title={note ? `Sort by ${label}\n\n${note}` : `Sort by ${label}`}
-        onClick={() => onSort(nextSort(sort, col))}
+        className="sd-open sd-door"
+        onClick={() => setOpen(true)}
+        title="Show every process the deck is watching"
+        aria-label="Show every process the deck is watching"
       >
-        {label}
-        {/* aria-sort has already said this to a screen reader, so the glyph is
-            for the eye alone. Its slot is held open on every column, sorted or
-            not, so that re-sorting moves the rows and never the headers. */}
-        <span className="sd-sort-dir" aria-hidden>
-          {state === "none" ? "" : state === "ascending" ? "\u2191" : "\u2193"}
+        <span className="sd-door-plate">
+          <span className="sd-door-name">
+            Busiest processes
+            <i className="sd-row-more" aria-hidden>›</i>
+          </span>
+          <span className="sd-door-sub">every process, with its command line</span>
         </span>
       </button>
-    </th>
+      {open && <ProcessListModal sys={sys} onClose={() => setOpen(false)} />}
+    </div>
   );
 }
 

@@ -1493,6 +1493,46 @@ button.btn.sm-hear {
    meaning two different things. Six percent of --text is proportional to
    whichever theme is on, which is what `.sa-row` already does for the same
    reason. */
+/* THE ONE SECTION WITH NOTHING UNDER ITS HEADING, and the only one that has to
+   say "press me" without a reading to say it with. The four above open a chart
+   about numbers already on screen; this opens the process list, and the section
+   that used to hold eight rows of it now holds nothing at all.
+
+   A plate rather than a border, because a boundary is a promise this sheet
+   measures: 1.4.11 wants a control's own edge at 3:1 against what it sits on,
+   and --line is a hairline token at 1.2:1. A fill has no such edge to fail —
+   the control is identified by its label, in --text where the other four
+   headings are grey, and the plate only groups the two lines under one press.
+
+   The 4% resting tint is half the 8% hover, so hovering is a step in the same
+   direction rather than a new colour arriving. Both are shares of --text, which
+   is what .sd-open's own hover already uses, so the plate reads the same in
+   both themes without a second value. */
+.sysdetail .sd-door .sd-door-plate {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  transition: background 140ms ease;
+}
+.sysdetail .sd-door:hover .sd-door-plate { background: color-mix(in srgb, var(--text) 8%, transparent); }
+/* The name, in the reading colour rather than the heading's, with the chevron
+   pushed to the far edge — the width IS the affordance here: a chevron beside
+   the word reads as a footnote, a chevron across the panel reads as a row you
+   go through. */
+.sd-door-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sd-door-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+/* The plate carries the hover, so the section's own fill would be a second one
+   under it — two rectangles lighting at once for one pointer. */
+.sysdetail .sd-door:hover { background: none; }
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .sysdetail .sd-open:active { transform: scale(0.97); }
 /* The chevron that says the section opens something. --text-dim, the only dim
@@ -1507,31 +1547,6 @@ button.btn.sm-hear {
 }
 .sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
 
-/* THE PROCESS BLOCK, which opens the same list its `more` does — the one
-   section that could not be a `.sd-open` because its column headers are buttons
-   and a button cannot contain one. Everything below is `.sd-open`'s own
-   treatment, reused rather than reinvented: the four sections above it already
-   light as a block on hover, and a fifth that behaved differently would read as
-   a different kind of thing.
-
-   The bleed is split instead of `margin: -4px …` because the margin here is on
-   the SECTION, not on a button inside it, and a flat -4px would eat the 13px
-   `.sd-section + .sd-section` gap. 9 + 4 is that 13, so the daylight between
-   sections is unchanged and the fill still reaches 4px past the text. */
-.sysdetail .sd-section.sd-openable {
-  padding: 4px var(--pad-x);
-  margin-inline: calc(var(--pad-x) * -1);
-  margin-bottom: -4px;
-  cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
-}
-.sysdetail .sd-section + .sd-section.sd-openable { margin-top: 9px; }
-.sysdetail .sd-section.sd-openable:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sysdetail .sd-section.sd-openable:active { transform: scale(0.97); }
-/* The word and the chevron brighten with the block, so the affordance and the
-   target are one thing — `.sd-all` is the control, the block is its target. */
-.sysdetail .sd-section.sd-openable:hover .sd-all,
-.sysdetail .sd-section.sd-openable:hover .sd-row-more { color: var(--text); }
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
    and its own press, and the section's handler steps aside for them. */
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
@@ -1580,7 +1595,7 @@ button.btn.sm-hear {
    Stated on the cells rather than by narrowing the table's own rule, so the
    default stays "a cell in this table is a number" and the exceptions name
    themselves. */
-:is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user, .sd-proc-name) {
+:is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user) {
   font-variant-numeric: normal;
 }
 /* The header is the sort control now (#739), so the appearance moved onto the
@@ -1589,37 +1604,6 @@ button.btn.sm-hear {
    already pushes the digits in by — which is also the fix for the header and
    its own column having sat on two different right edges since this table
    shipped. */
-/* The heading row that holds a section's own control beside its title. */
-.sd-hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.sd-all {
-  position: relative;
-  padding: 0 0 6px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 10px;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: color 140ms ease, transform 140ms ease;
-}
-/* SC 2.5.8, the same way `.ap-failure-x` answers it: the ink is a 10px word
-   beside a heading and drawing it button-sized would shout over the section it
-   labels, so the TARGET is a pseudo-element centred on the glyph. Measured at
-   32x22 before this — two pixels under the floor on the short side — and it
-   paints nothing, so the box that is drawn is still the box that shows and the
-   heading row keeps its height. */
-.sd-all::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  min-width: 24px;
-  height: 24px;
-  margin: -12px 0 0 -50%;
-}
-.sd-all:hover { color: var(--text); }
-.sd-all:active { transform: scale(0.97); }
 
 :is(.sysdetail, .pl-body) .sd-procs th { padding: 0 0 3px; }
 :is(.sysdetail, .pl-body) .sd-procs th:first-child,
@@ -1668,24 +1652,13 @@ button.btn.sm-hear {
 :is(.sysdetail, .pl-body) .sd-procs td { padding: 2px 0; }
 .sd-num { text-align: right; padding-right: 8px !important; font-weight: 600; }
 .sd-dim { color: var(--muted); font-weight: 400; }
-:is(.sysdetail, .pl-body) .sd-proc-name {
-  padding-left: 2px;
-  max-width: 0;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .sysdetail { animation: none; }
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
-  .sd-all:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
-  .sysdetail .sd-section.sd-openable:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the

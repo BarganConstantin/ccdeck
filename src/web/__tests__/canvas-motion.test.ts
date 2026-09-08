@@ -275,14 +275,11 @@ const PRESSES: Press[] = [
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
   [".sysdetail .sd-open:active", "0.97", "transform"],
-  // "more" beside the process table's heading — a 10px word, so 0.97 like every
-  // other labelled control rather than the 0.94 the round glyphs take.
-  [".sd-all:active", "0.97", "transform"],
-  // The whole PROCESS block, which opens the same list `more` does. It could
-  // not be a `.sd-open` — its column headers are buttons and a button cannot
-  // contain one — so it is a section that takes the press instead, at the tier
-  // every other block that opens something takes.
-  [".sysdetail .sd-section.sd-openable:active", "0.97", "transform"],
+  // Busiest processes is `.sd-open` too now. It was the one section that could
+  // not be — its column headers are buttons and a button cannot contain one —
+  // and it drew eight rows with a small `more` beside the heading, each of
+  // which had its own entry here. The rows are gone and the section is the
+  // button above, so the two entries went with them.
   [".topbar .waiting-stat:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
