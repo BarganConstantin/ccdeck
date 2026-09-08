@@ -1530,9 +1530,15 @@ button.btn.sm-hear {
   color: var(--text);
 }
 .sd-door-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
-/* The plate carries the hover, so the section's own fill would be a second one
-   under it — two rectangles lighting at once for one pointer. */
-.sysdetail .sd-door:hover { background: none; }
+/* The plate carries the hover, so `.sd-open`'s own fill would be a second one
+   under it — and it is a WIDER one: that fill bleeds to the panel's edges,
+   which is right for a heading over readings and wrong under a plate, because
+   the pointer then lights two rectangles that do not share an edge.
+
+   Both class names, not just `.sd-door`: `.sysdetail .sd-open:hover` is three
+   classes too, and a tie is settled by which rule the sheet reaches last. This
+   one has to win wherever it sits. */
+.sysdetail .sd-open.sd-door:hover { background: none; }
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .sysdetail .sd-open:active { transform: scale(0.97); }
 /* The chevron that says the section opens something. --text-dim, the only dim

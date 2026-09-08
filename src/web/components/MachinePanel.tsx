@@ -503,7 +503,12 @@ function Processes({ sys }: {
         type="button"
         className="sd-open sd-door"
         onClick={() => setOpen(true)}
-        title="Show every process the deck is watching"
+        /* NO `title`. The four sections above carry one because their heading is
+           two words over a chart; this control already prints what it is and
+           what is behind it, and a native tooltip repeating that in other words
+           lands ON the line it is repeating — it covers the sub-line, which is
+           the one thing here a reader has not seen before. The accessible name
+           stays, because a screen reader gets no plate. */
         aria-label="Show every process the deck is watching"
       >
         <span className="sd-door-plate">
