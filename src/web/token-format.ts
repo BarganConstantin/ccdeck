@@ -19,8 +19,26 @@
 // land in padded table cells and a grouping separator that changes with the
 // host's locale would change the column width with it.
 
-/** Token count as a short magnitude — see the note above on the four tiers. */
-export function fmtTokens(n: number): string {
+/**
+ * Token count as a short magnitude — see the note above on the four tiers.
+ *
+ * ROUNDED FIRST, because a token count is a whole number and this is not always
+ * handed one. The Usage panel's headline strip is animated (count-up.ts), and a
+ * tween interpolates: the frames between 389,700 and 112 pass through 594.3268
+ * and 113.99999952241691, and the sub-1000 tier printed those verbatim while
+ * every tier above it was already fixed to one or two decimals by `toFixed`.
+ * So switching from `month` to `today` counted down smoothly and then, for a
+ * fifth of a second, showed a fifteen-digit float where a count belongs.
+ *
+ * The rounding goes before the tiers rather than inside the first one, so 999.6
+ * reads "1.0k" like the 1000 it is rather than falling out of the bottom tier
+ * as "1000". No integer input moves — which is every value this had before.
+ * A non-finite input still renders as it always did: `Math.round` returns NaN
+ * for NaN and ±Infinity for ±Infinity, and both fall through the comparisons to
+ * exactly the strings this function has always produced for them.
+ */
+export function fmtTokens(raw: number): string {
+  const n = Math.round(raw);
   if (n < 1000) return `${n}`;
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
   if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
