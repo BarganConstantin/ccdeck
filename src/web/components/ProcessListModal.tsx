@@ -23,7 +23,7 @@ import { useModalDismiss } from "./use-modal-dismiss";
 import {
   ariaSort, nextSort, sortProcs, SortHead, SORT_DEFAULT,
   type Proc, type Sort,
-} from "./SystemMeter";
+} from "./MachinePanel";
 import MachineStrip from "./MachineStrip";
 import type { LiveSource } from "../machine-live";
 
@@ -215,6 +215,6 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
 }
 
 /** Kept beside the component that owns the sort, so a reader of either finds
- *  the other. `ariaSort` and `nextSort` are SystemMeter's; nothing here
+ *  the other. `ariaSort` and `nextSort` are MachinePanel's; nothing here
  *  re-implements them. */
 export { ariaSort, nextSort };

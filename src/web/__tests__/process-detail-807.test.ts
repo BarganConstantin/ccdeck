@@ -37,13 +37,13 @@ import {
   redactCommand, commandTail, elapsedSeconds,
   parsePsThreadsBsd, parsePsThreadsProcps, psDetailArgs, CMD_MAX,
 } from "../../server/system-metrics.mjs";
-import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/SystemMeter";
+import { sortProcs, nextSort, SORT_DEFAULT, type Proc, type Sort } from "../components/MachinePanel";
 import { fmtBytes, fmtUptime } from "../components/ProcessListModal";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const server = read("../../server/system-metrics.mjs");
 const route = read("../../server/index.mjs");
-const meter = read("../components/SystemMeter.tsx");
+const meter = read("../components/MachinePanel.tsx");
 const modal = read("../components/ProcessListModal.tsx");
 
 describe("what the command column may carry", () => {

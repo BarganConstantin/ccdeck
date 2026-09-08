@@ -1,13 +1,13 @@
-// The machine's own state, in the topbar, so the answer to "is this box coping"
-// does not require another window.
+// The machine's own state, docked beside the canvas, so the answer to "is this
+// box coping" does not require another window.
 //
-// TWO METRICS, TWO FORMS, and that is the whole idea of the resting state. CPU
-// spikes — a build can saturate every core for four seconds and be gone before
-// you look — so its history is the information and it draws as a 60-second
-// sparkline. Memory moves on the scale of minutes, so its history is twenty
-// copies of the same number and only the level matters; it draws as a bar. Form
-// follows the dynamics of the data, which is the same reason the two are
-// sampled at different rates server-side.
+// IT USED TO BE A TOPBAR METER TOO. A 50x24 box in the status strip drew a
+// 60-second CPU sparkline and a memory bar, and clicking it disclosed this
+// panel. The readings were real and the box was small, but it moved on its own
+// every three seconds in the corner of a bar whose job is to say whether the
+// stream is alive — an animation nobody asked for, in the one place the eye
+// keeps returning to. It is a button in the icon run now, and everything the
+// meter said is one click away in here, where there is room to say it properly.
 //
 // NO COLOUR THRESHOLD ON CPU, deliberately, and it is the most load-bearing "no"
 // here. QuotaBar turns amber at 70 and red at 90 because a quota at 90% means
@@ -17,26 +17,20 @@
 // an indicator that alarms during the normal case teaches you to stop reading
 // it. Memory and swap keep a warning, because near-exhaustion there is real.
 //
-// THE PANEL IS WHERE THE ABSOLUTE NUMBERS LIVE. A percentage answers "how full",
-// which is the ambient question; it cannot answer "how much of how much", which
-// is the question you open a panel to ask. Everything below the fold is in bytes
-// and cores, not ratios.
+// ABSOLUTE NUMBERS, NOT RATIOS. A percentage answers "how full", which is the
+// ambient question the meter was answering; it cannot answer "how much of how
+// much", which is the question you open a panel to ask. Everything here is in
+// bytes and cores.
 import React, { useEffect, useRef, useState } from "react";
-import { readStored } from "../storage";
 import SectionHistoryModal from "./SectionHistoryModal";
 import ProcessListModal from "./ProcessListModal";
 
-/** Matches the server's CPU cadence, so the meter advances one bucket per poll
+/** Matches the server's CPU cadence, so the panel advances one reading per poll
  *  rather than redrawing the same frame or skipping one. */
 const POLL_MS = 3_000;
 /** The process list costs a subprocess on every platform, so it refreshes more
- *  slowly than the meter and only while the panel is open. */
+ *  slowly than the readings above it. */
 const PROC_POLL_MS = 4_000;
-/** Server keeps 20 samples; the sparkline is sized to hold exactly that. */
-const BUCKETS = 20;
-
-const W = 36;
-const SPARK_H = 8;
 
 /** `cpu` is null on a Windows first reading: a percentage needs two samples and
  *  there has only been one. Never a zero, which would rank it as idle. */
@@ -262,30 +256,6 @@ function sinceLabel(atMs: number, now = Date.now()): string {
   return h === 1 ? "an hour ago" : `${h} hours ago`;
 }
 
-/** In the `agent-dag.*` namespace like every other key here; brand.ts explains
- *  why the rename stops at the storage layer. */
-const OPEN_KEY = "agent-dag.systemPanelOpen";
-
-/**
- * Whether the panel was open when this tab was last looked at.
- *
- * Read through storage.ts rather than window.localStorage directly: this runs
- * inside a useState initialiser, and the property read throws outright on a
- * browser that blocks site data, which would take the whole topbar with it.
- *
- * Defaults to CLOSED, unlike the usage panel's default. Usage is the panel you
- * keep up; this one answers a question you asked once, and a machine readout
- * that reopens itself on every refresh would be occupying the rail on behalf of
- * a decision nobody made.
- */
-function loadOpen(): boolean {
-  return readStored(OPEN_KEY) === "1";
-}
-function saveOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch {}
-}
-
 interface Memory { total: number; available: number; usedPct: number }
 interface Swap { total: number; used: number }
 /** `warnAt`/`critAt` come from the chip itself where the platform publishes
@@ -412,125 +382,31 @@ function useProcesses(on: boolean, detail = false): { procs: Proc[]; total: numb
   return on ? procs : null;
 }
 
-export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean }) {
-  const sys = useSystem();
-  const [open, setOpen] = useState<boolean>(loadOpen);
-  useEffect(() => { saveOpen(open); }, [open]);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  // THE PANEL ANSWERS NO KEY, and its × no longer claims one.
-  //
-  // It claimed Esc from the day it shipped while nothing listened, so the press
-  // fell through App.tsx's handler to its last case and cleared the canvas
-  // selection: the panel stayed up and the arrangement built one shift-click at
-  // a time was gone. #545 closed that by making the key true. It is closed the
-  // other way now — a control that names a key it does not answer stops naming
-  // it — because Escape over a docked panel is the canvas's press, not the
-  // panel's: this thing covers nothing, and closing your instruments is not
-  // what you meant by it.
-  //
-  // So the two ways out are the two ways in: the × here, and the topbar meter
-  // that disclosed it, which is a toggle. That is the idiom the session list
-  // and the usage and accounts panels already follow.
-
-  // Before the first reading the meter holds its slot and draws its two empty
-  // tracks. Two separate rules are at work and they pull in opposite
-  // directions: never print a number we have not measured, and never reflow a
-  // strip that is already too full. An empty track satisfies both — it asserts
-  // no value, and it stops the surrounding stats from jumping sideways when the
-  // first sample lands a few seconds after paint.
-  if (!sys || sys.cpu == null || !sys.memory) {
-    return (
-      <span className="sysmeter idle" title="Sampling this machine…">
-        <span className="sm-box" aria-hidden>
-          <span className="sm-graphic">
-            <svg className="sm-spark" width={W} height={SPARK_H} viewBox={`0 0 ${W} ${SPARK_H}`} />
-            <span className="sm-ram" />
-          </span>
-        </span>
-      </span>
-    );
-  }
-
-  const { cpu, cpuHistory, cores, memory, loadavg } = sys;
-  const ramWarn = memory.usedPct >= 90;
-
-  // Oldest-left, newest-right, padded so a fresh server draws a short trace at
-  // the right edge instead of stretching two samples across the full width.
-  const bars = cpuHistory.slice(-BUCKETS);
-  const pad = BUCKETS - bars.length;
-  const barW = W / BUCKETS;
-
-  const tip = [
-    `CPU ${cpu.toFixed(0)}% of ${cores} cores`,
-    loadavg ? `load ${loadavg[0]} · ${loadavg[1]} · ${loadavg[2]}  (1m · 5m · 15m)` : null,
-    `Memory ${bytes(memory.total - memory.available)} of ${bytes(memory.total)} used`,
-    "",
-    "Click for detail. This machine, not this session.",
-  ].filter(v => v !== null).join("\n");
-
+/**
+ * The panel's frame: its slot in the rail, its landmark name, its title and its
+ * one ×.
+ *
+ * Written once because there are two things that can be inside it — the
+ * readings, and the sentence that stands in for them until the first snapshot
+ * lands — and a header copied into a second branch is how one × ends up saying
+ * something the other does not.
+ */
+function Shell({ usageOpen, sub, onClose, children }: {
+  usageOpen: boolean;
+  /** The uptime and the core count, which only a measured panel has. */
+  sub?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <span className="sysmeter-wrap">
-      <button
-        type="button"
-        ref={btnRef}
-        className="sysmeter"
-        title={tip}
-        aria-label="Toggle machine detail"
-        aria-expanded={open}
-        aria-controls={open ? "system-panel" : undefined}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className="sm-box" aria-hidden>
-          <span className="sm-graphic">
-            <svg className="sm-spark" width={W} height={SPARK_H} viewBox={`0 0 ${W} ${SPARK_H}`}>
-              {bars.map((v, i) => {
-                const idx = pad + i;
-                const h = Math.max(1, (v / 100) * SPARK_H);
-                // Opacity ramps toward the newest sample so the trace reads
-                // left-to-right as time without needing an axis.
-                const o = 0.32 + 0.68 * ((i + 1) / bars.length);
-                return (
-                  <rect
-                    key={idx}
-                    x={idx * barW}
-                    y={SPARK_H - h}
-                    width={Math.max(0.8, barW - 0.7)}
-                    height={h}
-                    rx={0.5}
-                    fill="var(--accent)"
-                    opacity={o}
-                  />
-                );
-              })}
-            </svg>
-            <span className="sm-ram">
-              {/* A floor of 2%, so a machine reporting almost nothing in use
-                  still shows a sliver rather than an empty track that reads as
-                  "no data". */}
-              <span
-                className={`sm-ram-fill${ramWarn ? " warn" : ""}`}
-                style={{ transform: `scaleX(${Math.max(2, memory.usedPct) / 100})` }}
-              />
-            </span>
-          </span>
-          {/* A middle dot, not a slash. Two independent percentages joined by "/"
-              read as one fraction — "47 of 64" — which is a quantity this meter
-              never reports. The dot separates without implying arithmetic. */}
-          <span className="sm-read">
-            <b>{cpu.toFixed(0)}</b>
-            <i>·</i>
-            <b>{memory.usedPct.toFixed(0)}</b>
-          </span>
-        </span>
-        {/* The bars are decoration; this is the reading. Not a live region — it
-            would announce every three seconds and make the strip unusable. */}
-        <span className="sm-sr">
-          CPU {cpu.toFixed(0)} percent, memory {memory.usedPct.toFixed(0)} percent used
-        </span>
-      </button>
-      {open && <SystemPanel sys={sys} usageOpen={usageOpen} onClose={() => { setOpen(false); btnRef.current?.focus(); }} />}
-    </span>
+    <aside className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
+      <div className="sd-head">
+        <span className="sd-title">This machine</span>
+        {sub && <span className="sd-sub">{sub}</span>}
+        <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
+      </div>
+      {children}
+    </aside>
   );
 }
 
@@ -548,21 +424,40 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
  * sits to its left, and with usage closed it takes the slot usage would have
  * had. One rail, read right to left, nothing stacked on top of anything.
  *
- * Escape follows that idiom too. The usage panel advertises U on its close
- * button and this one has no letter to advertise, so its × named Esc from the
- * day it shipped and #545 made that true — but a panel is not a dialog, and the
+ * Escape follows that idiom too. Its × read "Close (Esc)" from the day it
+ * shipped and #545 made that key true — but a panel is not a dialog, and the
  * press it was taking belonged to the canvas behind it. The × says "Close" now,
- * and the meter above closes it as readily as it opens it.
+ * and the topbar button closes it as readily as it opens it.
+ *
+ * IT POLLS ONLY WHILE IT IS OPEN, which it could not do while a topbar meter
+ * was drawing the same snapshot: /api/system was fetched every three seconds
+ * for the life of every tab, whether or not anybody was reading it. Nothing is
+ * lost by stopping — the server samples on its own timers and keeps the
+ * history, so a panel opened an hour from now still has the hour behind it.
  */
-function SystemPanel({ sys, usageOpen, onClose }: {
-  sys: Snapshot;
+export default function MachinePanel({ usageOpen, onClose }: {
   usageOpen: boolean;
   onClose: () => void;
 }) {
+  const sys = useSystem();
   // `all` lives here rather than in Processes, because it is what decides
   // whether the poll asks for the detail columns at all — see useProcesses.
   const [allProcs, setAllProcs] = useState(false);
   const procs = useProcesses(true, allProcs);
+
+  // The first snapshot is one localhost round trip away, and until it lands
+  // there is nothing measured to draw. The panel appears anyway, at its own
+  // width and with its own ×, because the alternative is a button that reports
+  // itself expanded over an empty screen. It says what it is doing instead of
+  // standing an empty frame there, and it prints no number it does not have —
+  // the same rule the sections below it keep.
+  if (!sys || sys.cpu == null || !sys.memory) {
+    return (
+      <Shell usageOpen={usageOpen} onClose={onClose}>
+        <div className="sd-note">reading this machine…</div>
+      </Shell>
+    );
+  }
 
   const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal } = sys;
   const used = memory ? memory.total - memory.available : 0;
@@ -572,12 +467,7 @@ function SystemPanel({ sys, usageOpen, onClose }: {
   const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
 
   return (
-    <aside className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
-      <div className="sd-head">
-        <span className="sd-title">This machine</span>
-        <span className="sd-sub">up {uptime(uptimeSec)} · {cores} cores</span>
-        <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
-      </div>
+    <Shell usageOpen={usageOpen} sub={`up ${uptime(uptimeSec)} · ${cores} cores`} onClose={onClose}>
 
       {perCore && perCore.length > 0 && (
         <div className="sd-section" role="group" aria-label="Cores">
@@ -650,7 +540,7 @@ function SystemPanel({ sys, usageOpen, onClose }: {
       <ThermalSection thermal={thermal} />
 
       <Processes read={procs} all={allProcs} setAll={setAllProcs} sys={sys} />
-    </aside>
+    </Shell>
   );
 }
 

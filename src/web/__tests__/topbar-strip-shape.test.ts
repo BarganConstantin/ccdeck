@@ -14,16 +14,19 @@
 //
 // That file is gone because its subject is. The two board readouts it counted
 // lines between — a token total and a dollar figure, both sums over the agents
-// on the canvas right now — were dropped, and the dividers went with them.
-// There is nothing left to count: two members, one gap, no rules.
+// on the canvas right now — were dropped, and the dividers went with them. Then
+// the machine meter went too: a 50x24 sparkline that moved every three seconds
+// in a bar whose job is to say whether the stream is alive, replaced by a
+// button in the icon run that opens the same panel and draws nothing. There is
+// nothing left to count: one member, no gap to fill, no rules.
 //
 // WHY A TEST STILL. The removal is only durable if the strip cannot quietly
-// grow a third member and a divider to go with it. The next such addition is
+// grow a second member and a divider to go with it. The next such addition is
 // the one that has to redo the geometry, and this file is where it finds out.
-// So the invariant is now the SHAPE rather than the run: exactly two members in
-// a known order, and no divider rules under `.topbar .status` at all. A third
-// readout arriving fails here first, and whoever adds it either brings the
-// counting test back with it or explains why the gap alone is enough.
+// So the invariant is now the SHAPE rather than the run: one member, and no
+// divider rules under `.topbar .status` at all. A second readout arriving fails
+// here first, and whoever adds it either brings the counting test back with it
+// or explains why the gap alone is enough.
 //
 // No DOM, same as before: the rules come out of styles.css and the row out of
 // App.tsx's markup, the way dead-css and session-hue read the same two files.
@@ -56,24 +59,23 @@ describe("the topbar's readout strip", () => {
     expect(strip, "the .status strip is gone from App.tsx").toBeTruthy();
   });
 
-  it("holds the status pill and the machine meter, in that order, and nothing else", () => {
-    const order = ["`pill ${pill.tone}`", "<SystemMeter"].map(needle => strip.indexOf(needle));
-    expect(order.every(at => at > -1), `the strip lost one of ${order}`).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // The pill's own three spans are the only other elements in here. A third
+  it("holds the status pill and nothing else", () => {
+    expect(strip, "the strip lost the pill").toContain("`pill ${pill.tone}`");
+    expect(strip, "the machine meter is back in the strip").not.toContain("<MachinePanel");
+    // The pill's own three spans are the only other elements in here. A second
     // member of the strip proper would show up as a fourth class name.
     const classes = new Set([...strip.matchAll(/className="([\w- ]+)"/g)].map(m => m[1]));
     expect([...classes].sort()).toEqual(["pill-box", "pill-label", "pill-widest", "status"]);
   });
 
-  it("draws no divider between them — the 14px gap is the whole separation", () => {
+  it("draws no divider at all — the 14px gap is the whole separation", () => {
     // Read off the sheet rather than listed here, so a divider that is added
     // anywhere under the strip is answered by this same walk.
     const dividers = RULES
       .filter(r => /width:\s*1px/.test(r.body) && /background:\s*var\(--line\)/.test(r.body))
       .flatMap(r => r.selectors)
       .filter(s => s.startsWith(".topbar .status") && s.endsWith("::before"));
-    expect(dividers, "a divider rule came back to a strip with two members").toEqual([]);
+    expect(dividers, "a divider rule came back to a strip with one member").toEqual([]);
     const status = RULES.filter(r => r.selectors.includes(".topbar .status"));
     expect(status, "the strip lost its own rule").toHaveLength(1);
     expect(status[0].body, "the 14px between readouts moved").toMatch(/gap:\s*14px/);

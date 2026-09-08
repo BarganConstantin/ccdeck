@@ -22,7 +22,7 @@ import SessionSummary from "./components/SessionSummary";
 import ContextModal from "./components/ContextModal";
 import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
-import SystemMeter from "./components/SystemMeter";
+import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
 import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFailureId } from "./restart";
 import { copyText } from "./copy-text";
@@ -198,6 +198,10 @@ const SUMMARY_DISMISSED_KEY = "agent-dag.summariesDismissed";
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
+/** Named for the panel it opens rather than for the button, which is how it
+ *  survived the button changing: this key was written by a topbar meter that
+ *  no longer exists, and a tab that had the panel open still finds it open. */
+const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
 const ACCOUNTS_PANEL_OPEN_KEY = "agent-dag.accountsPanelOpen";
 const VERSION_DISMISSED_KEY = "agent-dag.versionNoticeDismissed";
 // Which old command the name notice has already been dismissed for — the name
@@ -312,6 +316,21 @@ function loadUsagePanelOpen(): boolean {
 function saveUsagePanelOpen(open: boolean): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(USAGE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
+}
+/**
+ * Whether the machine panel was open when this tab was last looked at.
+ *
+ * Defaults to CLOSED, unlike the usage panel's default. Usage is the panel you
+ * keep up; this one answers a question you asked once, and a machine readout
+ * that reopens itself on every refresh would be occupying the rail on behalf of
+ * a decision nobody made.
+ */
+function loadMachinePanelOpen(): boolean {
+  return readStored(MACHINE_PANEL_OPEN_KEY) === "1";
+}
+function saveMachinePanelOpen(open: boolean): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
 }
 
 function loadDismissedSummaries(): Set<string> {
@@ -812,6 +831,8 @@ function Inner() {
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
+  const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
+  useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
     try {
       const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
@@ -3251,9 +3272,9 @@ function Inner() {
               // Nothing at rest (#719). The ghost above explains why the box
               // measures its own worst case; this is the case where the box
               // itself is not earned. `.status` is a flex row, so the 14px gap
-              // leaves with it and SystemMeter becomes the first thing in the
-              // run without anything shifting on its own — the tone only ever
-              // changes because Space was pressed or the stream died.
+              // leaves with it and the strip closes up without anything
+              // shifting on its own — the tone only ever changes because Space
+              // was pressed or the stream died.
               if (pill.resting) return null;
               return (
                 <span className={`pill ${pill.tone}`} title={pill.title}>
@@ -3264,29 +3285,34 @@ function Inner() {
                 </span>
               );
             })()}
-            {/* Machine state, not session state — the only readout in this strip
-                that is not about agents. Renders nothing until the server holds
-                two CPU samples, so it never occupies the row with a number it
-                has not measured. */}
-            <SystemMeter usageOpen={usagePanelOpen} />
-            {/* The strip ends at the meter, and that is the whole strip.
-                It used to carry two more readouts — a board token count and a
-                board dollar figure, both sums over the agents on the canvas
-                right now. Neither survived the question they kept provoking:
-                the canvas evicts finished work on a timer, so both numbers fall
-                on their own with nothing on screen to account for the fall, and
-                #687 had already spent a tooltip and two qualifiers ("board
-                tokens", "board cost") trying to say so in a row that has 12px
-                to say anything in.
+            {/* The strip is the pill, and that is the whole strip.
+                It used to carry two board readouts — a token count and a dollar
+                figure, both sums over the agents on the canvas right now.
+                Neither survived the question they kept provoking: the canvas
+                evicts finished work on a timer, so both numbers fall on their
+                own with nothing on screen to account for the fall, and #687 had
+                already spent a tooltip and two qualifiers ("board tokens",
+                "board cost") trying to say so in a row that has 12px to say
+                anything in.
                 The usage panel answers the same question properly and without
                 the qualifier: it is backed by ccusage, it reads the logs on
                 disk, it covers sessions this deck never watched, and it does
                 not forget. A qualified approximation beside an authoritative
                 figure one keystroke away is a readout earning its width by
                 being second-best.
-                What is left is the two things the bar is FOR: whether the
-                stream is alive, and what the machine is doing. Both are facts
-                about right now, which is the only tense a topbar can keep. */}
+                THE MACHINE METER WENT THE SAME WAY, and it is the one that had
+                been earning its width. A 50x24 box drew a 60-second CPU
+                sparkline and a memory bar, and it was the only readout here
+                that was not about agents. What it could not do is stop: it is a
+                trace that moves whether or not anything on the canvas is
+                happening, in the corner of a bar the eye returns to for the one
+                thing this deck is for. The panel it disclosed says everything
+                it said and eleven things it could not, and the button in the
+                run below opens that panel without drawing anything at all. A
+                glance costs a click now; the bar costs no attention.
+                What is left is the one thing the bar is FOR: whether the stream
+                is alive. That is a fact about right now, which is the only
+                tense a topbar can keep. */}
           </span>
           {/* The deck's one alarm, said out loud — and the only live region in
               the topbar (#372).
@@ -3535,6 +3561,32 @@ function Inner() {
                 `sessionListOpen`, still toggled by L, still closed by its own ‹ —
                 and only the topbar control is gone. What that costs is written
                 down at the L handler, which is now the only way in. */}
+            {/* THE METER'S REPLACEMENT, and the reason the strip above is one
+                readout shorter. The panel is the same panel; what changed is
+                that opening it costs a click on a glyph rather than a live
+                trace in the corner of the bar.
+                Third in the run and not last, because this run is ordered by
+                what a control DOES: three disclosures that open a region beside
+                the canvas, then two that raise a dialog over it. A machine
+                panel filed after the two dialogs would read as a third dialog.
+                The glyph is a processor — a die with its pins — which is the
+                one shape in this row that says "the box you are sitting at"
+                rather than "your work". No aria-pressed: this discloses a
+                region, which is what aria-expanded means, and the region names
+                itself back through aria-controls. */}
+            <button
+              className="btn icon-btn"
+              onClick={() => setMachinePanelOpen(o => !o)}
+              title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature`}
+              aria-label="Toggle machine detail"
+              aria-expanded={machinePanelOpen}
+              aria-controls={machinePanelOpen ? "system-panel" : undefined}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+                <rect x="3.6" y="3.6" width="6.8" height="6.8" rx="1.2" />
+                <path d="M5.8 1.4v2.2M8.2 1.4v2.2M5.8 10.4v2.2M8.2 10.4v2.2M1.4 5.8h2.2M1.4 8.2h2.2M10.4 5.8h2.2M10.4 8.2h2.2" />
+              </svg>
+            </button>
             {/* The odd one out, and deliberately given neither aria-pressed nor
                 aria-expanded. What this opens is a modal — role="dialog"
                 aria-modal="true" behind a full-screen scrim, with the focus trap
@@ -3905,6 +3957,14 @@ function Inner() {
           the first thing such a user saw. */}
       {accountsPanelOpen && providers.claude && (
         <AccountsPanel onClose={() => setAccountsPanelOpen(false)} />
+      )}
+
+      {/* Mounted only while it is open, which is also what starts its poll: the
+          topbar meter used to keep /api/system running for the life of the tab
+          on behalf of a readout that is gone. `usageOpen` moves it one rail
+          slot left when usage has the first one — see .sysdetail.shifted. */}
+      {machinePanelOpen && (
+        <MachinePanel usageOpen={usagePanelOpen} onClose={() => setMachinePanelOpen(false)} />
       )}
 
       {sessionListOpen && (

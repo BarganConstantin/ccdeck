@@ -132,24 +132,30 @@ describe("the topbar readouts", () => {
   // readouts are provider-blind, so nothing in them may name one CLI.
   //
   // The two board figures that carried this rule after the counters have since
-  // gone too, leaving the status pill and the machine meter. Both are still
-  // provider-blind and both still carry tooltips, so the rule survives its
-  // third set of subjects — but the SOURCE it is read from has to follow them:
-  // the pill's words are built in status-pill.ts and the meter's in
-  // SystemMeter.tsx, and App.tsx's markup only interpolates them. Reading the
-  // strip's markup alone would have made this block quietly vacuous.
+  // gone too, and so has the machine meter — the strip is the status pill and
+  // nothing else now. The rule outlives all of them, and the SOURCE it is read
+  // from follows: the pill's words are built in status-pill.ts and App.tsx's
+  // markup only interpolates them, so reading the strip's markup alone would
+  // have made this block quietly vacuous.
+  //
+  // MachinePanel.tsx stays in the corpus even though it left the strip. Its
+  // tooltips are still readouts about the machine, still reached from this bar
+  // — a button in the run to the right opens the panel — and still the kind of
+  // text #404 was about: a product name in "load 6.38 · 8.03" would be exactly
+  // as wrong there as it was in the counters.
   const strip = appCode.slice(
     appCode.indexOf(`<span className="status">`),
     appCode.indexOf(`<div className="vis-hidden"`),
   );
   const readouts = strip
     + codeOf(read("src", "web", "status-pill.ts"))
-    + codeOf(read("src", "web", "components", "SystemMeter.tsx"));
+    + codeOf(read("src", "web", "components", "MachinePanel.tsx"));
 
   it("still has a strip with tooltipped readouts in it, so this block is not vacuous", () => {
     expect(strip, "the .status strip is gone from App.tsx entirely").toBeTruthy();
     expect(strip, "the pill left the strip").toContain("title={pill.title}");
-    expect(strip, "the meter left the strip").toContain("<SystemMeter");
+    expect(appCode, "nothing in the bar opens the machine panel any more")
+      .toContain('aria-label="Toggle machine detail"');
     expect((readouts.match(/title=|title:/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
@@ -157,9 +163,9 @@ describe("the topbar readouts", () => {
     // The retired pair, first: neither string comes back anywhere.
     expect(appCode).not.toContain("Distinct CC sessions");
     expect(appCode).not.toContain("Total hook events received");
-    // And nothing in the strip names a CLI. The pill reports one stream that
-    // carries both CLIs' events and the meter reports the machine, so a product
-    // name in either tooltip is the #404 defect again on a different readout.
+    // And nothing here names a CLI. The pill reports one stream that carries
+    // both CLIs' events and the panel reports the machine, so a product name in
+    // either tooltip is the #404 defect again on a different readout.
     for (const name of ["Claude Code", "Codex", " CC ", "hook events"]) {
       expect(readouts, `the status strip names ${name}`).not.toContain(name);
     }

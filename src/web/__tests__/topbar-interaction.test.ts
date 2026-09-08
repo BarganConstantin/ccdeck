@@ -46,7 +46,7 @@ function markup(...path: string[]): string {
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
 const app = markup("App.tsx");
-const systemMeter = markup("components", "SystemMeter.tsx");
+const systemMeter = markup("components", "MachinePanel.tsx");
 
 // ── the stylesheet, as rules ────────────────────────────────────────────────
 

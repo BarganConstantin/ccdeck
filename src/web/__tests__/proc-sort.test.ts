@@ -22,7 +22,7 @@ import { parsePsProcesses, pickCandidates } from "../../server/system-metrics.mj
 import {
   ariaSort, nextSort, sortProcs, visibleProcs,
   SORT_DEFAULT, type Proc, type Sort,
-} from "../components/SystemMeter";
+} from "../components/MachinePanel";
 
 const proc = (pid: number, cpu: number | null, mem: number, name = `p${pid}`): Proc =>
   ({ pid, cpu, mem, name });
@@ -210,7 +210,7 @@ describe("which eight rows are drawn", () => {
 describe("the header is a control a keyboard can reach", () => {
   // No DOM in this suite, so the markup is read rather than rendered — the same
   // way control-defects-546.test.ts reads the controls it pins.
-  const src = readFileSync(fileURLToPath(new URL("../components/SystemMeter.tsx", import.meta.url)), "utf8");
+  const src = readFileSync(fileURLToPath(new URL("../components/MachinePanel.tsx", import.meta.url)), "utf8");
 
   it("puts a real button inside a real column header", () => {
     expect(src).toMatch(/<th scope="col" aria-sort=\{state\}>/);

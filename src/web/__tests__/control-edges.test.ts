@@ -669,8 +669,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
 
   it("pins the rules whose only boundary is a ring", () => {
     // Not a count: the names, so a rule that crosses from ring to border shows
-    // up as the pair of moves it is. Nine focus indicators, the expanded system
-    // meter and the selected chart bar.
+    // up as the pair of moves it is. Nine focus indicators and the selected
+    // chart bar. The expanded machine meter was the tenth until the meter was
+    // removed; the button that replaced it wears the icon-button ring, which is
+    // a border rather than a shadow and is swept as one.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
       ".aa-field input:focus-visible",
       ".ap-field select:focus-visible",
@@ -679,7 +681,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ctx-donut:focus-visible",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
-      '.topbar .status .sysmeter[aria-expanded="true"]',
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
       "button.ap-auto-state:focus-visible",

@@ -48,7 +48,7 @@ import {
 const web = fileURLToPath(new URL("..", import.meta.url));
 const app = readFileSync(`${web}/App.tsx`, "utf8");
 const dismiss = readFileSync(`${web}/modal-dismiss.ts`, "utf8");
-const meter = readFileSync(`${web}/components/SystemMeter.tsx`, "utf8");
+const meter = readFileSync(`${web}/components/MachinePanel.tsx`, "utf8");
 const usagePanel = readFileSync(`${web}/components/UsagePanel.tsx`, "utf8");
 const sessionList = readFileSync(`${web}/components/SessionList.tsx`, "utf8");
 const accountsPanel = readFileSync(`${web}/components/AccountsPanel.tsx`, "utf8");
@@ -176,7 +176,11 @@ describe("the queue still ranks the dialogs against each other", () => {
 describe("the panel's label and the panel's behaviour agree", () => {
   it("names no key on its ×, because it answers none", () => {
     expect(meter).toMatch(/className="glyph-btn sd-close" onClick=\{onClose\} aria-label="Close" title="Close"/);
-    expect(meter, "the machine panel advertises a key again").not.toMatch(/\(Esc\)/);
+    // Asked of what the control SAYS, not of the file: the prose above quotes
+    // the label this used to carry, and a rule that could not tell a comment
+    // from a tooltip would forbid writing down why it changed.
+    expect(meter, "the machine panel advertises a key again").not.toMatch(/aria-label="[^"]*\(Esc\)/);
+    expect(meter).not.toMatch(/title="[^"]*\(Esc\)/);
   });
 
   it("registers nothing on the dismiss queue", () => {
@@ -195,12 +199,16 @@ describe("the panel's label and the panel's behaviour agree", () => {
   });
 
   it("keeps the two ways out that are the two ways in", () => {
-    // The disclosure button is a toggle, so the control that opened the panel
-    // closes it — and the × closes it and hands the keyboard back to that
-    // button, which is where a keyboard user came from.
-    expect(meter, "the topbar meter no longer toggles").toMatch(/onClick=\{\(\) => setOpen\(o => !o\)\}/);
-    expect(meter, "the meter does not say whether it is open").toMatch(/aria-expanded=\{open\}/);
-    expect(meter).toMatch(/onClose=\{\(\) => \{ setOpen\(false\); btnRef\.current\?\.focus\(\); \}\}/);
+    // The topbar button is a toggle, so the control that opened the panel
+    // closes it — and the panel's × calls the same setter. Read from App.tsx
+    // because that is where the button and the open state live: the meter that
+    // used to own both is gone, and the panel is a controlled component now.
+    expect(app, "the topbar button no longer toggles")
+      .toMatch(/onClick=\{\(\) => setMachinePanelOpen\(o => !o\)\}/);
+    expect(app, "the button does not say whether the panel is open")
+      .toMatch(/aria-expanded=\{machinePanelOpen\}/);
+    expect(app, "the panel is on screen with nothing mounting it")
+      .toMatch(/\{machinePanelOpen && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\} onClose=\{\(\) => setMachinePanelOpen\(false\)\} \/>/);
   });
 });
 
@@ -223,7 +231,7 @@ describe("the four docked panels are one idiom again", () => {
     ["UsagePanel.tsx", usagePanel, "Close (U)"],
     ["SessionList.tsx", sessionList, "Hide sidebar (L)"],
     ["AccountsPanel.tsx", accountsPanel, "Close (A)"],
-    ["SystemMeter.tsx", meter, 'aria-label="Close" title="Close"'],
+    ["MachinePanel.tsx", meter, 'aria-label="Close" title="Close"'],
   ] as const;
 
   it("names on its close button only what that button really does", () => {

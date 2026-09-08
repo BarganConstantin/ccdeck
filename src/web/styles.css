@@ -1240,10 +1240,9 @@ button.btn.sm-hear {
    the thing behind it fits the view to the agent, which moves the whole canvas.
 
    The box stays 18px and the target is drawn around it, which is NOT the
-   `.sysmeter` technique the issue proposed and is the same idea one step
-   further. Padding plus a negative margin is right for that meter because the
-   meter paints nothing at rest — grow its box and there is no fill to grow with
-   it. This glyph fills a disc on hover, and the trap is specific and was
+   padding-plus-negative-margin technique the issue proposed and is the same
+   idea one step further. That one is right for a control that paints nothing at
+   rest — grow its box and there is no fill to grow with it. This glyph fills a disc on hover, and the trap is specific and was
    measured rather than guessed at: `background` is a SHORTHAND, so the
    `background: var(--line)` in the hover rule below resets `background-clip`
    to `border-box` however carefully the resting rule set it to `content-box`.
@@ -1306,9 +1305,10 @@ button.btn.sm-hear {
    controls, via a `margin-right: 6px` that made that boundary 14px too. The
    margin is gone; .readout's 24px and .topbar's 24px carry the two boundaries
    this strip actually has.
-   Two members left, the pill and the meter, so the gap is the only thing
-   between them — the 1px dividers this strip used to draw went with the two
-   board readouts they separated. */
+   One member left, the pill, so the gap separates the strip from what follows
+   it and nothing else — the 1px dividers this strip used to draw went with the
+   two board readouts they separated, and the machine meter that was the pill's
+   last neighbour is a button in the run to the right now. */
 .topbar .status {
   color: var(--muted);
   font-size: 12px;
@@ -1316,193 +1316,6 @@ button.btn.sm-hear {
   align-items: center;
   gap: 14px;
 }
-/* ---------------- system meter ----------------
-   Machine CPU + memory, in the status strip. Two rows because the two metrics
-   have different dynamics: CPU gets a 60s sparkline because it spikes, memory
-   gets a level bar because it does not. See SystemMeter.tsx.
-
-   The numbers replace the graphic IN PLACE on hover rather than appearing
-   beside it. Expanding would shove every control to its right by ~30px on a
-   pointer that was only passing through. The row has more room than it had when
-   this was written and keeps finding more — it carried five stats then; the
-   sessions, agents and events counters and the MCP legend went, leaving tokens
-   and cost; and the run restructure took Re-layout and Clear off the bar and
-   pinned `.actions` at `flex: none`, handing every pixel of slack to this side.
-   None of that is why the rule exists. A readout that reflows its neighbours
-   because a pointer crossed it is a moving target at any width, and the extra
-   room has in fact made the shove worse rather than better: the meter now sits
-   inside `.readout`, the one group in the bar that is allowed to shrink, so a
-   hover that widened it would push against a group whose whole job is to give
-   way. There is still no responsive collapse anywhere in this sheet to absorb
-   it either. */
-.topbar .status .sysmeter-wrap { position: relative; display: inline-flex; align-items: center; }
-.topbar .status .sysmeter {
-  display: inline-flex;
-  align-items: center;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  /* Padding gives the pointer a target worth aiming at — the graphic itself is
-     36x14, which is under any sane hit-area floor — and the negative margin
-     hands the space back so the strip's rhythm is unchanged. */
-  padding: 5px 7px;
-  margin: -5px -7px;
-  border-radius: 6px;
-  /* The press eases back rather than snapping — the convention every other
-     pressable control in this sheet follows (#355). The ring below joins the
-     wash on the same 120ms, so the two channels arrive together; box-shadow is
-     in this sheet's STILL set and owes reduced motion nothing. */
-  transition: background 120ms, box-shadow 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-/* Two bars and a number look like a readout, so nothing about the resting state
-   says "press me". The fill on hover is what the other icon controls in this bar
-   already do. */
-.topbar .status .sysmeter:hover { background: var(--line); }
-/* The panel is open — and until #507 this was the SAME DECLARATION as the hover
-   above, one rule with two selectors, so pointing at a closed meter and opening
-   it produced the identical picture and the control could not tell you whether
-   the thing it opens was already on screen. The wash it shared was --line, which
-   is 1.14:1 and 1.19:1 against the two ends of the topbar gradient in dark and
-   1.60:1 / 1.41:1 in light — a fifth of the 3:1 WCAG 1.4.11 asks of a non-text
-   state, while every other disclosure in this bar sits at 5.24-11.33:1 because
-   #370 inverted them. This one escaped that sweep for a structural reason rather
-   than a considered one: #370 targeted `button.btn.icon-btn` and a meter is not
-   one, so toggle-state.test.ts could not reach it. It can now — the sweep names
-   this control by hand.
-
-   The icon buttons' answer does NOT transfer, and finding out why is the work
-   this issue asked for. Their polarity inversion fills the box with --accent and
-   flips the glyph to --bg, which works because a glyph is one shape in one
-   colour. This box is 50x24 of GRAPHIC: a sparkline whose rects are painted
-   `fill="var(--accent)"` with an opacity ramp, and a memory bar whose track is
-   --line and whose fill is --accent, or --warn past 90%. An --accent bed puts
-   the trace and the memory fill at 1.00:1 against their own background — the
-   whole readout vanishes — and the warning state is worse than vanished: --warn
-   on --accent measures 1.16:1 in dark and 1.09:1 in light, so the one colour in
-   this control that means "look at this" would be the least visible thing on it
-   at exactly the moment it fires.
-   Repainting the graphic to --bg to follow the fill fixes the first and cannot
-   fix the second without giving up the hue that IS the warning.
-
-   So the constraint #370 established is met in the other channel it left open.
-   A ring, drawn inset so no geometry moves — this box is 50x24 because
-   `padding: 5px 7px` and `margin: -5px -7px` were measured to make it exactly
-   that, and a border would have eaten a pixel of the padding and shifted the
-   trace. --accent against the two ends of the bare bar is 10.85:1 / 11.33:1 in
-   dark and 5.93:1 / 5.24:1 in light; against the --line wash it sits on when the
-   pointer is also there, 9.55:1 dark and 3.72:1 light. All eight clear 3:1, and
-   they clear it in greyscale too — accent is far lighter than the bar in dark
-   and far darker in light, so the step is luminance and not hue, which is the
-   one thing #370 said had to survive.
-   And it costs the graphic nothing: the bed under the trace is unchanged, so
-   the sparkline, the memory bar and the --warn state read exactly as they did.
-
-   Two channels across two states, which is what makes all four distinguishable
-   without a third rule: hover paints the wash, open draws the ring, and an open
-   meter under the pointer has both. */
-.topbar .status .sysmeter[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
-.sysmeter .sm-box {
-  position: relative;
-  width: 36px;
-  height: 14px;
-}
-/* Only the idle skeleton is inert. Once the meter has a reading it is a button,
-   and `cursor: default` here — left over from when this was a <span> — was
-   overriding the pointer across the whole 36x14 graphic, leaving it on the
-   padding ring alone. Aiming at the number, the one part you want to press, got
-   an arrow. */
-.sysmeter.idle .sm-box { cursor: default; }
-.sysmeter .sm-graphic,
-.sysmeter .sm-read {
-  position: absolute;
-  inset: 0;
-  transition: opacity 140ms ease;
-}
-.sysmeter .sm-graphic {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.sysmeter .sm-spark { display: block; }
-.sysmeter .sm-ram {
-  display: block;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
-}
-.sysmeter .sm-ram-fill {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  /* scaleX, not width. The level is driven by a transform so the tween is
-     composited instead of relaying out the strip on every memory sample —
-     QuotaBar animates width and predates this, but a readout that ticks on its
-     own timer should not ask the topbar to reflow to do it.
-     Memory is resampled every 30s, so an instant jump would read as a glitch
-     rather than as a measurement. Long enough to be seen, short enough that the
-     bar is never lying about the current value for meaningfully long. */
-  transform-origin: left center;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), background 200ms ease;
-}
-.sysmeter .sm-ram-fill.warn { background: var(--warn); }
-
-/* The reading. Hidden until hover, and tabular so the two figures do not
-   shuffle sideways as they change. */
-.sysmeter .sm-read {
-  opacity: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  font-size: 10px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-.sysmeter .sm-read b { font-weight: 600; }
-.sysmeter .sm-read i {
-  font-style: normal;
-  color: var(--muted);
-  opacity: 0.7;
-}
-.sysmeter:hover .sm-graphic { opacity: 0; }
-.sysmeter:hover .sm-read { opacity: 1; }
-
-/* Waiting for the first sample: the tracks are there, holding the slot, and
-   quieter than a live meter so an empty reading never competes for attention
-   with the numbers beside it. */
-.sysmeter.idle .sm-graphic { opacity: 0.45; }
-.sysmeter.idle:hover .sm-graphic { opacity: 0.45; }
-
-.sysmeter .sm-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sysmeter .sm-graphic,
-  .sysmeter .sm-read,
-  .sysmeter .sm-ram-fill {
-    transition: none;
-  }
-}
-
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
    than floating over the canvas. The two queue instead of overlapping: alone,
@@ -1561,11 +1374,6 @@ button.btn.sm-hear {
    row. It was measured at 13.34 x 16 before, which is why `.glyph-btn` carries
    a hit area at all; the exemplar was the smallest target of the lot. */
 .sd-close { margin-left: auto; }
-.topbar .status .sysmeter:active { transform: scale(0.97); }
-@media (prefers-reduced-motion: reduce) {
-  .topbar .status .sysmeter:active { transform: none; }
-}
-
 .sd-section + .sd-section { margin-top: 13px; }
 .sd-h {
   margin: 0 0 6px;
@@ -1617,7 +1425,7 @@ button.btn.sm-hear {
    rather than the corner rounding, and every other row of every column is
    identical. The three sides that touch the track are clipped by the track's own
    2px radius either way.
-   Nothing else reads this element's box: SystemMeter writes the value and the
+   Nothing else reads this element's box: MachinePanel writes the value and the
    sheet draws it, and no measurement anywhere depends on the fill's real height.
 
    The reduced-motion answer at the foot of this section covers both rules with
@@ -2298,7 +2106,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    pointer gets the square, the reader gets the character.
 
    The vertical half of that padding is handed straight back as a negative
-   margin — the technique `.sysmeter` uses a few hundred lines up, for the same
+   margin — the technique the topbar's own machine meter used, for the same
    reason: a header row should be the height of what is written in it, not of
    the invisible area around it. The HORIZONTAL half is deliberately NOT handed
    back. These controls come in runs of two and three (`.up-header-right`,
@@ -2967,8 +2775,8 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    pointer with nothing at all. #370 hit the same wall on the topbar toggles and
    answered it with a halo. A halo cannot work here: the stack around these
    buttons is `overflow: hidden`, and it would clip one against the group edge.
-   An INSET keyline instead, in the glyph colour, which is the idiom
-   `.sysmeter[aria-expanded="true"]` already uses two hundred rules up. It adds
+   An INSET keyline instead, in the glyph colour, which is the idiom the
+   topbar's `[aria-expanded="true"]` controls already use. It adds
    rather than replaces: the fill and the glyph are untouched, so every ratio
    measured above is exactly what it was, and one value serves both themes
    because --bg is already the colour the glyph inverted to. Shifting the fill

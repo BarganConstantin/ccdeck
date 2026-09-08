@@ -412,13 +412,16 @@ describe("what each of the four toggles announces", () => {
     // Still enumerated rather than asked of one state name, so a control that
     // appeared under some other state would fail here. `soundMenuOpen` joined
     // in #711 for its own reason — the topbar speaker became a disclosure for a
-    // popover — and `sessionListOpen` rejoins here. `detailOpen` is NOT in this
-    // list and that is a decision rather than an oversight: the canvas-edge tab
-    // that used to reopen the detail panel was removed at the owner's request
-    // after the #800 trade-off was put to them, and `D` in the shortcuts sheet
-    // is the route that replaced it.
+    // popover — `sessionListOpen` rejoined here, and `machinePanelOpen` arrived
+    // when the topbar meter was removed: the panel it disclosed is opened by a
+    // glyph in the same run as the other three now, and it announces its state
+    // the same way. `detailOpen` is NOT in this list and that is a decision
+    // rather than an oversight: the canvas-edge tab that used to reopen the
+    // detail panel was removed at the owner's request after the #800 trade-off
+    // was put to them, and `D` in the shortcuts sheet is the route that
+    // replaced it.
     const expandeds = [...app.matchAll(/aria-expanded=\{(\w+)\}/g)].map(m => m[1]).sort();
-    expect(expandeds).toEqual(["accountsPanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
+    expect(expandeds).toEqual(["accountsPanelOpen", "machinePanelOpen", "sessionListOpen", "soundMenuOpen", "usagePanelOpen"]);
   });
 
   it("leaves the session list a way in and a way out, which is what the button was", () => {
@@ -542,151 +545,16 @@ describe("the category filter chips, handed over from #368", () => {
   });
 });
 
-// ── the machine meter, which this file's selector lists could not reach ──────
+// ── the machine meter is gone, and its states went back to the sweep ────────
 //
-// #507. The meter's "the panel is open" state and its hover state were ONE
-// declaration with two selectors, so the control could not tell you whether the
-// thing it opens was already on screen — and the wash they shared was --line,
-// 1.14:1 / 1.19:1 against the two ends of the topbar gradient in dark and
-// 1.60:1 / 1.41:1 in light, a fifth of what 1.4.11 asks of a state difference.
+// #507 gave the topbar's 50x24 machine meter a describe of its own, because ON
+// and ON_EXPANDED above name `button.btn.icon-btn` and a box holding a
+// sparkline and a memory bar was not one: its "the panel is open" state and its
+// hover state had drifted into a single declaration with two selectors, and
+// nothing in this file could see it.
 //
-// It escaped #370 for a structural reason rather than a considered one: ON and
-// ON_EXPANDED above name `button.btn.icon-btn`, and `.sysmeter` is a 50x24 box
-// holding a sparkline and a memory bar, not a 30x30 glyph. So the invariant that
-// pins every other disclosure in this bar simply did not apply to this one, and
-// nothing failed when it drifted. It is named by hand here so it cannot drift
-// again — and the last case below refuses the wrong repair, which is to give the
-// meter the icon-button classes so that the existing sweep swallows it.
-//
-// The icon buttons' answer does not transfer, and the arithmetic for why lives
-// here rather than only in the sheet's comment: an --accent fill is measured
-// against the trace and the memory warning, and the measurement is what rules
-// it out.
-const METER = ".topbar .status .sysmeter";
-const METER_OPEN = `${METER}[aria-expanded="true"]`;
-const METER_HOVER = `${METER}:hover`;
-const systemMeter = markup("components", "SystemMeter.tsx");
-
-/** The colour of a ring layer — `[inset] 0 0 0 Npx <colour>`. */
-function ringColourOf(body: string): string | null {
-  const shadow = declIn(body, "box-shadow");
-  if (shadow == null || shadow === "none") return null;
-  const m = /^(?:inset\s+)?0\s+0\s+0\s+[\d.]+px\s+(.+)$/.exec(shadow.trim());
-  return m ? m[1].trim() : null;
-}
-
-describe("the machine meter's open state (#507)", () => {
-  it("is no longer the same declaration as its hover", () => {
-    // The defect, stated as the thing that must stay untrue. One rule carrying
-    // both selectors is what made the two states pixel-identical.
-    const open = RULES.find(r => selectors(r.selector).includes(METER_OPEN));
-    expect(open, "nothing in the sheet keys on the meter's aria-expanded").toBeTruthy();
-    expect(selectors(open!.selector), "open and hover share a rule again")
-      .not.toContain(METER_HOVER);
-    const hover = RULES.find(r => selectors(r.selector).includes(METER_HOVER));
-    expect(hover, "the meter answers the pointer with nothing").toBeTruthy();
-    expect(declIn(hover!.body, "background")).toBe("var(--line)");
-  });
-
-  it("identifies itself with a ring rather than a wash, and the ring is the accent", () => {
-    // Inset, so the 50x24 box that `padding: 5px 7px` / `margin: -5px -7px` was
-    // measured to produce does not move by a pixel; a border would have taken
-    // that pixel out of the padding and shifted the trace inside it.
-    const body = bodyOf(METER_OPEN);
-    expect(ringColourOf(body)).toBe("var(--accent)");
-    expect(declIn(body, "box-shadow")).toMatch(/^inset\b/);
-    expect(declIn(body, "border")).toBeNull();
-    expect(declIn(body, "border-width")).toBeNull();
-  });
-
-  it("stands 3:1 or better off the bare bar, at both ends, in both themes", () => {
-    for (const theme of themes) {
-      const ring = resolve(ringColourOf(bodyOf(METER_OPEN))!, theme);
-      const ends = barEnds(theme);
-      // The same floor, for the same reason, on the meter's two bar sweeps.
-      expect(ends.length, `${theme}: no topbar ends — this case would stand the open ring off nothing`).toBe(2);
-      for (const [name, bed] of ends) {
-        expect(contrastRatio(over(ring, bed), bed), `${theme} open ring vs ${name}`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
-    }
-  });
-
-  it("stands 3:1 off the hover wash too, so these are four states and not two", () => {
-    // The pointer can be on an open meter, and then the ring is drawn over
-    // --line rather than over the bar. Both readings clear the floor or the
-    // state disappears exactly when the user is pointing at it.
-    for (const theme of themes) {
-      const ring = resolve(ringColourOf(bodyOf(METER_OPEN))!, theme);
-      const wash = resolve(declIn(bodyOf(METER_HOVER), "background")!, theme);
-      const ends = barEnds(theme);
-      expect(ends.length, `${theme}: no topbar ends — the hover wash would be composited over nothing`).toBe(2);
-      for (const [name, bed] of ends) {
-        expect(contrastRatio(ring, over(wash, bed)), `${theme} open ring on the hover wash over ${name}`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
-    }
-  });
-
-  it("carries the state as a luminance step, which greyscale and every CVD keep", () => {
-    // The channel #370 landed on, asked of this control. The ring is LIGHTER
-    // than the bar in dark and DARKER than it in light; a difference that lived
-    // in hue alone would have the same sign in both and would flatten on a
-    // monochrome screen. WCAG's ratio is already a luminance ratio, so the three
-    // cases above ARE greyscale measurements; what they cannot say on their own
-    // is that the step reverses with the theme, which is the part a hue shift
-    // would fail.
-    const signs = themes.map(theme => {
-      const ring = resolve(ringColourOf(bodyOf(METER_OPEN))!, theme);
-      const bar = barEnds(theme)[0][1];
-      return Math.sign(relativeLuminance(ring) - relativeLuminance(bar));
-    });
-    expect(signs[0], "dark: the ring must be lighter than the bar").toBe(1);
-    expect(signs[1], "light: the ring must be darker than the bar").toBe(-1);
-  });
-
-  it("leaves the graphic alone, which is why it is a ring and not the icon buttons' fill", () => {
-    // The check #507 asked for before assuming the icon-button treatment
-    // transfers. `.sysmeter` is not a glyph: the sparkline's rects are painted
-    // in --accent by the component and the memory bar is --accent on --line, or
-    // --warn past 90%. So an --accent FILL puts the trace and the memory fill at
-    // 1:1 against their own background, and the warning at very nearly that —
-    // and the warning is the one signal in this control that cannot be quiet.
-    expect(systemMeter).toMatch(/fill="var\(--accent\)"/);
-    expect(decl(".sysmeter .sm-ram-fill", "background")).toBe("var(--accent)");
-    expect(decl(".sysmeter .sm-ram-fill.warn", "background")).toBe("var(--warn)");
-    expect(decl(".sysmeter .sm-ram", "background")).toBe("var(--line)");
-    for (const theme of themes) {
-      const accent = resolve("var(--accent)", theme);
-      const warn = resolve("var(--warn)", theme);
-      expect(contrastRatio(accent, accent), `${theme} trace on an accent fill`).toBeCloseTo(1, 5);
-      expect(contrastRatio(warn, accent), `${theme} memory warning on an accent fill`)
-        .toBeLessThan(1.3);
-    }
-    // And the rule that was written repaints none of it, so the bed under the
-    // trace when the panel is open is the bed it always had.
-    const repaints = RULES.filter(r => /\[aria-expanded="true"\]/.test(r.selector)
-      && /\.sm-(spark|ram|ram-fill|read|graphic)/.test(r.selector));
-    expect(repaints.map(r => r.selector)).toEqual([]);
-    expect(declIn(bodyOf(METER_OPEN), "background"),
-      "an --accent fill here erases the readout the meter exists to show").toBeNull();
-  });
-
-  it("stays out of the icon-button rule rather than being renamed into it", () => {
-    // The wrong repair, refused. `btn icon-btn` on the meter would put it under
-    // ON/ON_EXPANDED above and make this whole describe look redundant — while
-    // handing a 50x24 graphic the 30x30 square those rules pin.
-    expect(systemMeter).toMatch(/className="sysmeter"/);
-    expect(systemMeter).not.toMatch(/className="[^"]*\bicon-btn\b/);
-    expect(selectors(RULES.find(r => selectors(r.selector).includes(ON))!.selector))
-      .not.toContain(METER_OPEN);
-  });
-
-  it("eases the ring on the same channel it eases the wash", () => {
-    // Both arrive together, or opening the panel reads as two events. box-shadow
-    // is in this sheet's STILL set, so it owes reduced motion nothing.
-    const base = declIn(bodyOf(METER), "transition")!;
-    expect(base).toMatch(/\bbackground 120ms\b/);
-    expect(base).toMatch(/\bbox-shadow 120ms\b/);
-  });
-});
+// The meter was removed. The panel it disclosed is opened by a glyph in the
+// icon run now — `aria-label="Toggle machine detail"` — so it is `btn icon-btn`
+// like the other four, and ON/ON_EXPANDED above already hold it to the ring,
+// the wash and the 3:1 that block had to spell out by hand. The exception is
+// gone with the control that needed it, which is why there is nothing here.

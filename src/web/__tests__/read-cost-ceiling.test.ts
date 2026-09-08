@@ -30,7 +30,7 @@
 // `prevProcAt` are one shared pair, and two readers each stored theirs over the
 // other's, so the CPU column came back computed against a baseline belonging to
 // somebody else's reading. It needed no attacker to reach — one Get-Process
-// takes longer than SystemMeter's four-second poll, so a single tab already
+// takes longer than MachinePanel's four-second poll, so a single tab already
 // overlapped itself.
 //
 // The assertions below are behavioural rather than structural on purpose: none
@@ -339,7 +339,7 @@ describe("the process table", () => {
     expect(again.procs.length).toBeGreaterThan(0);
 
     // Past it, and the panel gets a fresh reading. The gap is 1.5s against
-    // SystemMeter's 4s poll, so the panel this exists for never once sees a
+    // MachinePanel's 4s poll, so the panel this exists for never once sees a
     // cached list; the clock is moved rather than waited on.
     const real = Date.now;
     const clock = vi.spyOn(Date, "now").mockImplementation(() => real.call(Date) + 5_000);

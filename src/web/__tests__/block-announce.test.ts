@@ -209,7 +209,7 @@ describe("the stat strip is not a live region any more", () => {
     expect(appCode).not.toContain(`<span className="status" role="status">`);
   });
 
-  it("still holds a number that moves on its own, so the rule above is not vacuous", () => {
+  it("still holds a readout that changes on its own, so the rule above is not vacuous", () => {
     // This case used to pin `{stateRef.current.totalEvents}` itself: the counter
     // was the evidence the strip was the wrong content for a live region, so a
     // "fix" that quietened the strip by moving the counter elsewhere would have
@@ -225,18 +225,25 @@ describe("the stat strip is not a live region any more", () => {
     // region, and that argument only means anything while the strip still holds
     // such a number.
     //
-    // The meter is what holds one now, and it is a better subject than either
-    // counter was — it is not gated on anything and it cannot be argued away as
-    // a product call, because a machine meter that stopped moving would be
-    // broken. It polls on its own clock, so a live region around this strip
-    // would talk with no session running at all.
+    // Then a fourth time. The machine meter held the moving number after them,
+    // and it left the bar with the topbar meter itself — its panel is opened by
+    // a button in the icon run now and draws nothing in the strip.
+    //
+    // What is left is the status pill, and it is the subject this case should
+    // have had all along: it is not a number that moves, it is a state that
+    // arrives. The stream drops and it appears; the stream comes back and it
+    // goes. A live region around the strip would read that flap out loud, every
+    // time, over whatever the user was actually doing — the same defect the
+    // counters caused, from content nobody would call a stream of digits.
     const stripSrc = appCode.slice(
       appCode.indexOf(`<span className="status">`),
       appCode.indexOf(`<div className="vis-hidden"`),
     );
-    expect(stripSrc, "the strip lost the readout that moves").toContain("<SystemMeter");
-    const meter = read("../components/SystemMeter.tsx");
-    expect(meter, "SystemMeter stopped printing a figure that moves").toMatch(/toFixed\(/);
+    expect(stripSrc, "the strip lost the readout that changes").toContain("title={pill.title}");
+    expect(stripSrc, "the pill stopped carrying the tone that makes it appear")
+      .toMatch(/className=\{`pill \$\{pill\.tone\}`\}/);
+    expect(appCode, "the pill stopped being built from the connection state")
+      .toMatch(/statusPill\(\{\s*connected: live, paused,/);
   });
 });
 

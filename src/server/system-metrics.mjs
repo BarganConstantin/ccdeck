@@ -818,7 +818,7 @@ let procInFlightDetail = false;
 /**
  * How old a finished reading may be and still answer a caller.
  *
- * Well under SystemMeter's PROC_POLL_MS of 4000, so the panel that this exists
+ * Well under MachinePanel's PROC_POLL_MS of 4000, so the panel that this exists
  * for never once gets a cached list; long enough that a second tab, a second
  * browser, or anything else arriving between two of those polls is handed the
  * list the first tab is already looking at rather than starting its own child.
@@ -1538,7 +1538,7 @@ function seriesFor(group) {
     // different machine from twelve at 20.
     //
     // No bands, deliberately, and the reason is written at the top of
-    // SystemMeter: a CPU at 90% is the machine doing the work you asked for. An
+    // MachinePanel: a CPU at 90% is the machine doing the work you asked for. An
     // indicator that alarms during the normal case teaches you to stop reading
     // it.
     return [

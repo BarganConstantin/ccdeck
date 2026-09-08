@@ -20,7 +20,7 @@
 // labels are whatever the chip publishes, so a join on the display label breaks
 // on exactly the platform nobody re-checks.
 
-/** The shape of `/api/system` this needs, structurally — SystemMeter's own
+/** The shape of `/api/system` this needs, structurally — MachinePanel's own
  *  `Snapshot` satisfies it, without this module importing that component and
  *  closing an import cycle back through the modal that renders the strip. */
 export interface LiveSource {

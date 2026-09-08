@@ -332,7 +332,7 @@ describe("what a cell calls its reading", () => {
 });
 
 describe("the process block opens the list it is a preview of", () => {
-  const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
+  const meter = readFileSync(at("../components/MachinePanel.tsx"), "utf8");
   // Anchored at a line start, because a substring search finds the rule INSIDE
   // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
   // `.pl-cell-head {`. That is how four of these read the wrong block the
@@ -532,7 +532,7 @@ describe("the dialog's type", () => {
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
     // And the header is what carries them.
-    const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
+    const meter = readFileSync(at("../components/MachinePanel.tsx"), "utf8");
     expect(meter).toContain("note ? `Sort by ${label}");
   });
 });
