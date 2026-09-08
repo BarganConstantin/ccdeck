@@ -43,6 +43,10 @@
     {
       "title": "📝 These notes render what they were written in",
       "body": "Every note in this dialog is written in Markdown — **bold** for the sentence that carries the change, backticks for a flag or a path — and the dialog printed the string raw. So the first window you see after an upgrade has been showing you `**this**`, backticks and all, since the feature shipped: 25 of 52 notes, 52 bold spans, 54 code spans.\n\nWhat you are reading is the first version that does not.\n\nNo Markdown library came along for it. Counted in the file: bold 52, code 54, links 0, headings 0, lists 0 — and the smallest library that reads all of Markdown is 40KB on a bundle the deck fetches while you wait for it to start."
+    },
+    {
+      "title": "⎋ Esc leaves the machine panel where it is",
+      "body": "The × on **This machine** read `Close (Esc)`, so Escape put the panel away. Escape belongs to the canvas — it deselects and hands the keyboard back — and pressing it while you are reading your instruments should not close them.\n\nThe panel now closes the two ways it opens: its ×, and the meter in the topbar. The × says `Close`, and names no key it does not answer."
     }
   ],
   "3.13.0": [

@@ -23,7 +23,6 @@
 // and cores, not ratios.
 import React, { useEffect, useRef, useState } from "react";
 import { readStored } from "../storage";
-import { modalStack, PANEL_LAYER } from "../modal-dismiss";
 import SectionHistoryModal from "./SectionHistoryModal";
 import ProcessListModal from "./ProcessListModal";
 
@@ -418,40 +417,21 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
   const [open, setOpen] = useState<boolean>(loadOpen);
   useEffect(() => { saveOpen(open); }, [open]);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLElement>(null);
 
-  // The × says "Close (Esc)", so Escape has to close it (#545).
+  // THE PANEL ANSWERS NO KEY, and its × no longer claims one.
   //
-  // It said that while nothing listened: the panel registered no dismisser, so
-  // App.tsx's handler fell through to its last case and cleared the canvas
-  // selection instead — the panel stayed up and the arrangement the user had
-  // just built by shift-clicking was gone. A control that names a key must
-  // answer that key or stop naming it, and this one is a dismissible surface
-  // like the dialogs, so it answers.
+  // It claimed Esc from the day it shipped while nothing listened, so the press
+  // fell through App.tsx's handler to its last case and cleared the canvas
+  // selection: the panel stayed up and the arrangement built one shift-click at
+  // a time was gone. #545 closed that by making the key true. It is closed the
+  // other way now — a control that names a key it does not answer stops naming
+  // it — because Escape over a docked panel is the canvas's press, not the
+  // panel's: this thing covers nothing, and closing your instruments is not
+  // what you meant by it.
   //
-  // Registered at PANEL_LAYER rather than the modals' default, because this is
-  // still not a dialog: it is docked beside the canvas with no scrim and no
-  // focus trap, a modal raised over it outranks it whatever order they opened
-  // in, and a text field elsewhere on the page keeps the key while the user is
-  // typing in it. escapeOutcome in modal-dismiss.ts is where that whole order
-  // is written down.
-  //
-  // Only while it is open. The stack is a list of what is on screen, and an
-  // entry left behind by a closed panel would silently eat the Escape that
-  // belongs to the canvas.
-  useEffect(() => {
-    if (!open) return;
-    return modalStack.push(() => {
-      // Focus goes back to the disclosure button only when the press came from
-      // inside the panel — read before setOpen, since React has not unmounted
-      // anything yet. Moving it unconditionally would park the keyboard on a
-      // <button>, and a focused control owns every bare key (shortcuts.ts), so
-      // Escape would have closed the panel and killed the next j, f or space.
-      const inside = panelRef.current?.contains(document.activeElement) ?? false;
-      setOpen(false);
-      if (inside) btnRef.current?.focus();
-    }, PANEL_LAYER);
-  }, [open]);
+  // So the two ways out are the two ways in: the × here, and the topbar meter
+  // that disclosed it, which is a toggle. That is the idiom the session list
+  // and the usage and accounts panels already follow.
 
   // Before the first reading the meter holds its slot and draws its two empty
   // tracks. Two separate rules are at work and they pull in opposite
@@ -549,7 +529,7 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
           CPU {cpu.toFixed(0)} percent, memory {memory.usedPct.toFixed(0)} percent used
         </span>
       </button>
-      {open && <SystemPanel sys={sys} usageOpen={usageOpen} panelRef={panelRef} onClose={() => { setOpen(false); btnRef.current?.focus(); }} />}
+      {open && <SystemPanel sys={sys} usageOpen={usageOpen} onClose={() => { setOpen(false); btnRef.current?.focus(); }} />}
     </span>
   );
 }
@@ -568,19 +548,15 @@ export default function SystemMeter({ usageOpen = false }: { usageOpen?: boolean
  * sits to its left, and with usage closed it takes the slot usage would have
  * had. One rail, read right to left, nothing stacked on top of anything.
  *
- * Escape is the one place it does NOT follow the usage panel, and #545 is why:
- * usage advertises U on its close button and this one has no letter to
- * advertise, so its × named Esc from the day it shipped. The registration that
- * makes that true is in SystemMeter above, at PANEL_LAYER so a dialog still
- * outranks it.
+ * Escape follows that idiom too. The usage panel advertises U on its close
+ * button and this one has no letter to advertise, so its × named Esc from the
+ * day it shipped and #545 made that true — but a panel is not a dialog, and the
+ * press it was taking belonged to the canvas behind it. The × says "Close" now,
+ * and the meter above closes it as readily as it opens it.
  */
-function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
+function SystemPanel({ sys, usageOpen, onClose }: {
   sys: Snapshot;
   usageOpen: boolean;
-  /** Held by SystemMeter, which owns `open` and the disclosure button: its
-   *  Escape dismisser asks this whether the press came from inside the panel
-   *  before it decides where focus lands. */
-  panelRef: React.RefObject<HTMLElement>;
   onClose: () => void;
 }) {
   // `all` lives here rather than in Processes, because it is what decides
@@ -596,11 +572,11 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
   const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
 
   return (
-    <aside ref={panelRef} className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
+    <aside className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
       <div className="sd-head">
         <span className="sd-title">This machine</span>
         <span className="sd-sub">up {uptime(uptimeSec)} · {cores} cores</span>
-        <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+        <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
       </div>
 
       {perCore && perCore.length > 0 && (

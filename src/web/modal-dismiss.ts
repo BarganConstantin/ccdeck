@@ -29,17 +29,6 @@ export type Dismisser = () => void;
  *  drawn that way. */
 export const CONFIRM_LAYER = 1;
 
-/** The layer of a docked panel that answers Escape without being a dialog — the
- *  machine detail, which the topbar meter discloses into the right rail.
- *
- *  Below the modals, and not by arrival order: a panel whose open state is
- *  restored from localStorage is on the stack before any dialog exists, but a
- *  panel the user opened a moment ago would otherwise outrank a tool modal
- *  raised over it, and Escape would take the instruments down while the dialog
- *  the user is reading stayed up. Layer settles that once, the way CONFIRM_LAYER
- *  settles the clear prompt over a session summary. */
-export const PANEL_LAYER = -1;
-
 interface Entry {
   dismiss: Dismisser;
   layer: number;
@@ -60,12 +49,6 @@ export interface DismissStack {
   isTop(dismiss: Dismisser): boolean;
   /** How many overlays are on screen. */
   depth(): number;
-  /** Whether the overlay Escape would close is a docked panel rather than a
-   *  dialog — PANEL_LAYER, and nothing above it. escapeOutcome needs the
-   *  distinction because a panel does not cover the page: a text field
-   *  somewhere else is still the thing the user is working in, and Escape
-   *  belongs to it first. False when the stack is empty. */
-  topIsPanel(): boolean;
 }
 
 export function createDismissStack(): DismissStack {
@@ -105,10 +88,6 @@ export function createDismissStack(): DismissStack {
     depth() {
       return entries.length;
     },
-    topIsPanel() {
-      const t = top();
-      return t != null && t.layer === PANEL_LAYER;
-    },
   };
 }
 
@@ -122,11 +101,6 @@ export interface EscapeContext {
   overlayOpen: boolean;
   /** Focus is in text the user is writing. */
   typing: boolean;
-  /** The overlay on top is a docked panel rather than a dialog — see
-   *  PANEL_LAYER and DismissStack.topIsPanel. Optional, and absent means "a
-   *  dialog", because that is what every overlay on this stack was until the
-   *  machine panel joined it. */
-  panelOnTop?: boolean;
 }
 
 /** The three things Escape can mean, exactly one of which happens. */
@@ -147,24 +121,25 @@ export type EscapeOutcome = "dismiss" | "blur" | "clear-selection";
  *      ranked against each other by layer then arrival, in the stack itself.
  *   2. TEXT the user is writing — the accounts panel's alias field is the one
  *      that is reachable with no dialog up. Escape there means "leave the
- *      field", and it outranks a panel because a panel covers nothing: it is
- *      docked beside the canvas, and the field is where the user's hands are.
- *   3. a DOCKED PANEL that registered a dismisser — today only the machine
- *      detail, whose × has always promised "Close (Esc)" (#545). Before this it
- *      promised a key that fell through to case 4 and threw away the canvas
- *      selection instead, which is the whole of the bug.
- *   4. the CANVAS — release focus, clear the selection. The default, and the
+ *      field".
+ *   3. the CANVAS — release focus, clear the selection. The default, and the
  *      only case that touches the selection at all.
  *
- * The session list and the usage and accounts panels are deliberately NOT case
- * 3: they advertise a letter (L, U, A) that toggles them, register nothing
- * here, and their close buttons name that letter rather than Esc. The machine
- * meter has no letter, which is why its × named Esc in the first place.
+ * NO DOCKED PANEL IS ON THIS LIST, which is worth saying because one briefly
+ * was. #545 read the machine detail's × — it promised "Close (Esc)" while
+ * nothing listened — and made the key true. The other reading of the same rule
+ * is that a control which names a key it does not answer should stop naming it,
+ * and that is the one the panel now takes: it closes on its × and on the topbar
+ * meter that opened it, the way the session list, the usage panel and the
+ * accounts panel close on theirs, and its × names no key at all.
+ *
+ * So Escape over a docked panel is Escape over the canvas. That is the point of
+ * a panel: it covers nothing, it is docked beside the work, and the selection
+ * the user built one shift-click at a time is what the press is about.
  */
 export function escapeOutcome(ctx: EscapeContext): EscapeOutcome {
-  if (ctx.overlayOpen && !ctx.panelOnTop) return "dismiss";
-  if (ctx.typing) return "blur";
   if (ctx.overlayOpen) return "dismiss";
+  if (ctx.typing) return "blur";
   return "clear-selection";
 }
 

@@ -425,11 +425,11 @@ describe("Escape and Tab do not fight", () => {
     for (const typing of [true, false]) {
       expect(escapeOutcome({ overlayOpen: true, typing })).toBe("dismiss");
     }
-    // `panelOnTop` joined the call in #545 so the machine panel could answer
-    // the Escape its × has always advertised. It cannot weaken this case: a
-    // dialog never registers at PANEL_LAYER, so the flag is false whenever one
-    // is on top. See machine-panel-escape.test.ts for the whole order.
-    expect(app).toMatch(/const outcome = escapeOutcome\(\{ overlayOpen: modalStack\.depth\(\) > 0, panelOnTop: modalStack\.topIsPanel\(\), typing: isTypingTarget\(target\) \}\);/);
+    // The call reads two things and no more. #545 briefly added a third — a
+    // flag saying whether the docked machine panel was on top — and the panel
+    // has since gone back to closing on its own controls, so a press with no
+    // dialog up belongs to the canvas again. See machine-panel-escape.test.ts.
+    expect(app).toMatch(/const outcome = escapeOutcome\(\{ overlayOpen: modalStack\.depth\(\) > 0, typing: isTypingTarget\(target\) \}\);/);
     expect(app).toMatch(/if \(outcome === "dismiss"\) modalStack\.dismissTop\(\);/);
   });
 
