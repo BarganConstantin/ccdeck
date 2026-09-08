@@ -391,6 +391,85 @@ describe("the process block opens the list it is a preview of", () => {
   });
 });
 
+describe("the dialog's own rhythm", () => {
+  const rule = (sel: string) => {
+    const i = css.indexOf(`${sel} {`);
+    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+  };
+  const pad = (sel: string) => {
+    const m = rule(sel).match(/padding:\s*([^;]+);/);
+    const parts = (m?.[1] ?? "").trim().split(/\s+/);
+    // top right bottom left, CSS shorthand rules
+    const [t, r, b] = parts.length === 2 ? [parts[0], parts[1], parts[0]] : parts;
+    return { top: parseFloat(t), bottom: parseFloat(b ?? t), right: parseFloat(r) };
+  };
+
+  it("gives the sticky header a floor, so a scrolled row stops instead of vanishing", () => {
+    // It was opaque and edgeless: rows went under the labels with nothing
+    // marking where the header ended, and two are mid-disappearance at any
+    // scroll position. Measured gap between header and first row: -0.8px.
+    expect(rule(".pl-table thead th")).toContain("box-shadow: inset 0 -1px 0 var(--line)");
+    // A shadow and not a border: a border on a sticky cell is painted by the
+    // table rather than by the stuck box in more than one engine, which is how
+    // a rule scrolls away from the header it belongs to.
+    expect(rule(".pl-table thead th")).not.toContain("border-bottom");
+  });
+
+  it("puts the same air around every rule between peer bands", () => {
+    // Four bands, three identical 1px rules, and the space around them was
+    // 22 / 14 / 10 — not a cadence but a decay, each band having picked its own
+    // padding locally. The further down you read the more cramped it got, and
+    // the tightest rule sat above the densest text in the dialog.
+    const body = pad(".pl-body"), strip = pad(".pl-strip"), foot = pad(".pl-foot");
+    const head = 12; // .modal-head, shared by every dialog
+    expect(body.bottom + strip.top).toBe(20);
+    expect(strip.bottom + foot.top).toBe(20);
+    // A title is not a peer, so it keeps slightly more.
+    expect(head + body.top).toBe(22);
+    // And the outer frame matches itself top and bottom.
+    expect(foot.bottom).toBe(12);
+  });
+
+  it("makes the table the thing that gives, not the fixed bands", () => {
+    // Both bands sit in a column flex box at its max height. With the default
+    // shrink the browser took the room out of THEM — measured with the
+    // sparklines hanging 9px below their own band, into the footer's space.
+    expect(rule(".pl-strip")).toContain("flex-shrink: 0");
+    expect(rule(".pl-foot")).toContain("flex-shrink: 0");
+  });
+
+  it("reserves the height the band actually needs", () => {
+    // 41.3px of cell inside 10 + 10 of padding. Pinned against the padding it
+    // is derived from, so changing one without the other fails here rather
+    // than clipping a sparkline in the page.
+    const strip = pad(".pl-strip");
+    const min = Number(rule(".pl-strip").match(/min-height:\s*(\d+)px/)?.[1]);
+    expect(min).toBeGreaterThanOrEqual(41 + strip.top + strip.bottom);
+  });
+
+  it("spends its column padding where the content changes kind, and nowhere else", () => {
+    // The first version widened the gaps after `threads` and after `pid` to
+    // group the columns three ways, and measuring every row said it did not
+    // work: between two RIGHT-ALIGNED columns the ink gap is whatever the
+    // shorter value leaves over. Measured across the table: 14-23, 43-57,
+    // 18-28, 8, 13-70, 18. `memory → threads` — two numbers inside what should
+    // be the tightest group — was the WIDEST gap in the table, because
+    // `threads` is a 3-digit column under a 7-letter heading. No padding fixes
+    // that, and right alignment is not the mistake: it is what lets a column be
+    // read down, which is the whole reason to have one.
+    //
+    // The two boundaries padding does govern are the ones where a right-aligned
+    // number meets left-aligned text. They are constant to the pixel, and they
+    // are exactly where the reading changes kind — numbers to a name, name to
+    // the command line. One of them was 8px, the tightest gap in the table.
+    const padded = css.match(/\.pl-body \.pl-table th:nth-child\((\d)\),\n\.pl-body \.pl-table td:nth-child\(\d\),\n\.pl-body \.pl-table th:nth-child\((\d)\),\n\.pl-body \.pl-table td:nth-child\(\d\) \{ padding-right: 18px !important; \}/);
+    expect(padded, "the two kind-change boundaries are padded together").not.toBeNull();
+    // 4 is `up`, the last number before `user`; 6 is `pid`, the last before the
+    // command line. Not 3 (`threads`), which is number-to-number.
+    expect([padded![1], padded![2]]).toEqual(["4", "6"]);
+  });
+});
+
 describe("the server publishes a key for every series", () => {
   it("gives one to each, because the label is platform-dependent", () => {
     // `Swap` is `Commit` on Windows, so anything joining a live reading to its

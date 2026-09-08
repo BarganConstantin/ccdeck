@@ -8864,20 +8864,47 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.pl-body { padding: 10px 16px 4px; overflow-y: auto; font-size: 11px; }
+/* THE SAME AIR AROUND EVERY RULE. This dialog is four bands separated by three
+   identical 1px lines, and the space around them was 22px, 14px, 10px — not a
+   cadence but a decay, each band having chosen its own padding locally. The
+   further down you read, the more cramped it got, and the last rule sat closest
+   to the densest text in the dialog.
+
+   20px between peer bands, 22px under the title because a title is not a peer,
+   12px at the outer edge top and bottom. */
+.pl-body { padding: 10px 16px; overflow-y: auto; font-size: 11px; }
 .pl-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: 12px; }
 /* The header row sticks, because a fifty-row table you scroll is a table whose
    column you forget. */
-.pl-table thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+/* A STICKY HEADER NEEDS A BOTTOM. It was opaque and edgeless, so a scrolled row
+   did not stop at the labels — it went under them and vanished, and two rows
+   are mid-disappearance at any scroll position (measured, and the gap between
+   the header and the first row is -0.8px: they touch).
+
+   `inset` box-shadow rather than `border-bottom`, because a border on a sticky
+   cell is drawn by the table and not by the stuck box in more than one engine,
+   which is how a rule ends up scrolling away from the header it belongs to.
+
+   The extra 3px of padding under the labels is the other half: a rule tight
+   against its own text reads as an underline on the word rather than as the
+   floor of the header. */
+.pl-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.pl-body .pl-table thead th { padding-bottom: 6px; }
 .pl-pid-h {
-  width: 62px;
+  width: 72px;
   text-align: right;
   padding-right: 8px !important;
   font-size: 10px;
   font-weight: 500;
   color: var(--muted);
 }
-.pl-pid { width: 62px; }
+.pl-pid { width: 72px; }
 
 /* THE COLUMN WIDTHS, and the first two are an override rather than a new rule.
    `:is(.sysdetail, .pl-body) .sd-procs th:first-child, th:nth-child(2)` pins
@@ -8885,9 +8912,30 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    wrong here, where the second column reads "1.29 GB". Restated at a higher
    specificity for this table only, so the panel keeps the geometry it was
    measured on. */
+/* WHERE THE CONTENT CHANGES KIND, and only there.
+
+   The first version of this widened the gap after `threads` and after `pid` to
+   group the columns three ways. Measured across every row, it did not work and
+   made one boundary worse: the ink gap between two RIGHT-ALIGNED columns is
+   whatever the shorter value leaves over, not what the padding says. Column to
+   column the gaps run 14-23, 43-57, 18-28, 8, 13-70, 18 — and `memory →
+   threads`, two numbers inside what should be the tightest group, is the widest
+   gap in the table because `threads` is a 3-digit column under a 7-letter
+   heading. Padding cannot fix that, and right alignment is not a mistake: it is
+   what lets a column be compared DOWN, which is the whole reason to read one.
+
+   What padding does govern is the two boundaries where a right-aligned number
+   meets left-aligned text, and those are constant to the pixel. They are also
+   exactly the two places the reading changes kind — numbers to a name, name to
+   the command line — and one of them was 8px, the tightest gap in the table, at
+   the point a gap helps most. Both are 18px now. */
+.pl-body .pl-table th:nth-child(4),
+.pl-body .pl-table td:nth-child(4),
+.pl-body .pl-table th:nth-child(6),
+.pl-body .pl-table td:nth-child(6) { padding-right: 18px !important; }
 .pl-body .pl-table th:nth-child(2) { width: 66px; }
 .pl-body .pl-table th:nth-child(3) { width: 54px; }
-.pl-body .pl-table th:nth-child(4) { width: 42px; }
+.pl-body .pl-table th:nth-child(4) { width: 52px; }
 .pl-body .pl-table th:nth-child(5) { width: 92px; }
 /* The four numeric columns sort the way the first two already did — label,
    then the arrow's reserved slot, ending on the same right edge the digits do.
@@ -8947,14 +8995,22 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   display: flex;
   flex-wrap: wrap;
   gap: 10px 22px;
-  padding: 10px 16px 2px;
+  padding: 10px 16px;
   border-top: 1px solid var(--line);
   /* One cell's worth, held from the first paint. Buckets are a minute wide, so
      a deck younger than that has cells to draw and no lines to put in them, and
      without this the band would be 12px of border and padding until the first
-     bucket lands and then jump to 54. Measured: 54.1px with one row of cells,
-     and `box-sizing: border-box` above means this covers the padding too. */
-  min-height: 54px;
+     bucket lands and then jump to its full height. Measured: 41.3px of cell
+     inside 10px + 10px of padding, and `box-sizing: border-box` above means
+     this covers the padding too.
+
+     `flex-shrink: 0` says the structural thing this dialog needs said: THE
+     TABLE IS WHAT GIVES. Both this band and the footer are fixed bands in a
+     column flex box at its max height, and with the default shrink the browser
+     took the room out of them instead — measured with the sparklines hanging
+     9px below their own band and into the footer's space. */
+  flex-shrink: 0;
+  min-height: 62px;
 }
 .pl-cell { display: flex; flex-direction: column; gap: 2px; }
 /* 116px, from the worst head this can be asked to draw rather than from the
@@ -9028,7 +9084,8 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .pl-cell.hot .pl-spark-line { stroke: var(--err); }
 
 .pl-foot {
-  padding: 8px 16px 12px;
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--line);
   font-size: 10px;
   color: var(--muted);
