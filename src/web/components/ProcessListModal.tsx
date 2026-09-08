@@ -103,6 +103,11 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
           <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
         </div>
 
+        {/* THE TABLE AND THE MACHINE, in one box so a media query can decide
+            whether they stack or sit side by side. See .pl-split: below 1200px
+            of viewport nothing changes at all — the band stays under the list,
+            at the width it was measured on. */}
+        <div className="pl-split">
         <div className="pl-body">
           {rows.length === 0 ? (
             <p className="pl-empty">Could not read the process list on this platform.</p>
@@ -178,6 +183,7 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
             MachineStrip: opening the list hides the readings that are the
             reason for opening it. */}
         <MachineStrip sys={sys} />
+        </div>
 
         {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
             discovered. It is resident set size, which is what `ps` and Task

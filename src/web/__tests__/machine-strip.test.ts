@@ -213,9 +213,13 @@ describe("how a reading is printed in a cell", () => {
 });
 
 describe("the layout, pinned to what was measured", () => {
+  // Anchored at a line start, because a substring search finds the rule INSIDE
+  // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
+  // `.pl-cell-head {`. That is how four of these read the wrong block the
+  // moment the second layout existed.
   const rule = (sel: string) => {
-    const i = css.indexOf(`${sel} {`);
-    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+    const i = css.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : css.slice(i + 1, css.indexOf("}", i));
   };
 
   it("gives the head one line, because a wrapped label drops its own sparkline", () => {
@@ -329,9 +333,13 @@ describe("what a cell calls its reading", () => {
 
 describe("the process block opens the list it is a preview of", () => {
   const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
+  // Anchored at a line start, because a substring search finds the rule INSIDE
+  // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
+  // `.pl-cell-head {`. That is how four of these read the wrong block the
+  // moment the second layout existed.
   const rule = (sel: string) => {
-    const i = css.indexOf(`${sel} {`);
-    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+    const i = css.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : css.slice(i + 1, css.indexOf("}", i));
   };
 
   it("takes the press anywhere in the block, not only on the word", () => {
@@ -392,9 +400,13 @@ describe("the process block opens the list it is a preview of", () => {
 });
 
 describe("the dialog's own rhythm", () => {
+  // Anchored at a line start, because a substring search finds the rule INSIDE
+  // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
+  // `.pl-cell-head {`. That is how four of these read the wrong block the
+  // moment the second layout existed.
   const rule = (sel: string) => {
-    const i = css.indexOf(`${sel} {`);
-    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+    const i = css.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : css.slice(i + 1, css.indexOf("}", i));
   };
   const pad = (sel: string) => {
     const m = rule(sel).match(/padding:\s*([^;]+);/);
@@ -475,9 +487,13 @@ describe("the dialog's own rhythm", () => {
 
 describe("the dialog's type", () => {
   const modalSrc = readFileSync(at("../components/ProcessListModal.tsx"), "utf8");
+  // Anchored at a line start, because a substring search finds the rule INSIDE
+  // the wide-layout media query first: `.pl-split .pl-cell-head {` contains
+  // `.pl-cell-head {`. That is how four of these read the wrong block the
+  // moment the second layout existed.
   const rule = (sel: string) => {
-    const i = css.indexOf(`${sel} {`);
-    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+    const i = css.indexOf(`\n${sel} {`);
+    return i < 0 ? "" : css.slice(i + 1, css.indexOf("}", i));
   };
 
   it("keeps tabular figures for the columns that are numbers", () => {
@@ -518,6 +534,92 @@ describe("the dialog's type", () => {
     // And the header is what carries them.
     const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
     expect(meter).toContain("note ? `Sort by ${label}");
+  });
+});
+
+describe("two layouts, and the arithmetic that decides between them", () => {
+  const modalSrc = readFileSync(at("../components/ProcessListModal.tsx"), "utf8");
+  const wide = (() => {
+    const i = css.indexOf("@media (min-width: 1200px) {");
+    if (i < 0) return "";
+    // brace-bounded, because the block holds nested rules
+    let depth = 0;
+    for (let j = i; j < css.length; j++) {
+      if (css[j] === "{") depth++;
+      else if (css[j] === "}" && --depth === 0) return css.slice(i, j + 1);
+    }
+    return "";
+  })();
+
+  it("puts the table and the band in one box so a query can turn it on its side", () => {
+    expect(modalSrc).toContain('className="pl-split"');
+    expect(css).toContain(".pl-split { display: flex; flex-direction: column; min-height: 0; }");
+  });
+
+  it("waits for a viewport that can actually hold the wide modal", () => {
+    // `min(1120px, 94vw)` reaches 1120 at 1192px of viewport. 1200 with room.
+    expect(wide).toBeTruthy();
+    expect(wide).toContain(".pl-modal { width: 1120px; }");
+  });
+
+  it("is 1120 wide because of the process column, not because it looked right", () => {
+    // The table needs the 848px it has at 880, or the process column starts
+    // losing the part of a command line a person reads — the median row wants
+    // 519px of it and has 504. A 216px chart column plus 32px of modal padding
+    // is 248: 1120 - 248 = 872, which leaves the table BETTER off than it is
+    // now. 1080 was the first guess and would have left it at 488.
+    const modal = 1120, pad = 32, others = 344;
+    const column = Number(wide.match(/flex:\s*0 0 (\d+)px/)?.[1]);
+    expect(column).toBe(216);
+    expect(modal - pad - column - others).toBeGreaterThanOrEqual(504);
+  });
+
+  it("moves the band with `order` and never with the markup", () => {
+    // So a screen reader hears the list and then the machine at EVERY width,
+    // which is what it hears today: the wide layout changes where the pixels
+    // are and nothing about the reading.
+    expect(wide).toContain("order: -1");
+    const split = modalSrc.slice(modalSrc.indexOf('className="pl-split"'));
+    expect(split.indexOf('className="pl-body"')).toBeLessThan(split.indexOf("<MachineStrip"));
+  });
+
+  it("moves the rule with the band rather than drawing a second one", () => {
+    // It separated the band from the table underneath; it separates them beside.
+    expect(wide).toContain("border-top: 0");
+    expect(wide).toContain("border-right: 1px solid var(--line)");
+  });
+
+  it("pins the stroke to the screen, so a taller box is not a thicker line", () => {
+    // The box is stretched by the layout — 116 wide in the band, 180 and twice
+    // as tall in the column — and `preserveAspectRatio="none"` would drag the
+    // stroke with it.
+    expect(strip).toContain('preserveAspectRatio="none"');
+    const line = css.slice(css.indexOf(".pl-spark-line {"));
+    expect(line.slice(0, line.indexOf("}"))).toContain("vector-effect: non-scaling-stroke");
+    expect(css).toMatch(/\.pl-spark-floor \{[^}]*vector-effect: non-scaling-stroke/);
+  });
+
+  it("gives the drawing the height the column has room for, and stops short of filling it", () => {
+    // 24px was chosen for a band where height was scarce, and at 24 a ten-point
+    // swing is 2.4 pixels — the shape is there and nobody can see it. At 48 the
+    // one bump in an hour of throttling is visible, which is the whole reason
+    // that reading earns a cell.
+    //
+    // Seven readings stretched to fill 804px would be 86px each, and at that
+    // size they stop being a glance beside the list.
+    const h = Number(wide.match(/\.pl-split \.pl-spark \{[^}]*height: (\d+)px/)?.[1]);
+    expect(h).toBe(SPARK_H * 2);
+    expect(h).toBeLessThan(80);
+  });
+
+  it("changes nothing at all below the breakpoint", () => {
+    // Verified in the page by deleting the media rule: modal back to 880, band
+    // under the table, border-top and not border-right, spark 116x24, cell head
+    // 116px, no overflow. Every measurement in this file was taken against that
+    // layout and none of them moved.
+    expect(css).toContain(".pl-modal { width: min(880px, 94vw); }");
+    const band = css.slice(css.indexOf("\n.pl-strip {") + 1);
+    expect(band.slice(0, band.indexOf("}"))).toContain("border-top: 1px solid var(--line)");
   });
 });
 

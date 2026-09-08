@@ -8872,6 +8872,68 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    the five fixed ones take 300px of the row before the name has any — a name
    plus the arguments that identify it needs the rest, and at 680 it had 340. */
 .pl-modal { width: min(880px, 94vw); }
+/* The box that holds the table and the band. In the default layout it is what
+   the modal already was — a column whose table scrolls and whose band does not
+   — and it exists so one media query can turn that column on its side. */
+.pl-split { display: flex; flex-direction: column; min-height: 0; }
+
+/* THE MACHINE BESIDE THE LIST, once there is room for both.
+   
+   The band had outgrown its place: throttling appears the moment the machine
+   has actually been held back, and a seventh cell wraps to a second row where
+   it sits alone and takes 53px out of the table. Standing the readings in a
+   column fixes that and gives each sparkline 184px instead of 116.
+
+   1120px, from the arithmetic and not from taste. The table needs the 848px it
+   has today or the process column starts losing the part of a command line a
+   person reads — measured, the median row wants 519px of it and it has 504. A
+   216px chart column plus 32px of modal padding is 248, and 1120 - 248 = 872,
+   which leaves the table 24px BETTER off than it is now. 1080 was the first
+   guess and it was wrong: it would have left the process column at 488.
+
+   The breakpoint is the viewport width at which the modal can actually be
+   1120 wide: `min(1120px, 94vw)` reaches 1120 at 1192px, so 1200 with a little
+   room. Below it, every rule above stands untouched — the band under the list,
+   the modal at 880 — which is the layout every measurement in this file was
+   taken against.
+
+   `order: -1` rather than putting the band first in the markup. The DOM keeps
+   the order it has, so a screen reader hears the list and then the machine at
+   EVERY width, which is what it hears today: the wide layout changes where the
+   pixels are and nothing about the reading. */
+@media (min-width: 1200px) {
+  .pl-modal { width: 1120px; }
+  .pl-split { flex-direction: row; align-items: stretch; }
+  .pl-split .pl-body { flex: 1 1 auto; min-width: 0; }
+  .pl-split .pl-strip {
+    order: -1;
+    flex: 0 0 216px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 12px;
+    /* The rule moves with the band: it separated the band from the table when
+       it was underneath, and it separates them now that it is beside. */
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    padding: 10px 16px 12px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* The cell was 116px because that was the widest head a ROW could hold. In a
+     column it has the column, and the sparkline takes all of it — 180px of the
+     same hour, half again the horizontal resolution.
+
+     And twice the height. 24px was chosen for a band where height was the
+     scarce thing, and at 24px a ten-point swing is 2.4 pixels: the shape is
+     there and nobody can see it. At 48 it is 4.8 and readable.
+
+     NOT the height that would fill the column. Seven readings stretched over
+     804px would be 86px each, and at that size these stop being a supporting
+     glance beside the list and become the dialog's subject. About half the
+     column stays empty, which is what having seven readings looks like. */
+  .pl-split .pl-cell-head { width: auto; }
+  .pl-split .pl-spark { width: 100%; height: 48px; }
+}
 .pl-count {
   margin-left: auto;
   margin-right: 10px;
@@ -9083,7 +9145,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   background: var(--line-soft);
   border-radius: 2px;
 }
-.pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; }
+.pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
 /* Quieter than the full chart's, and deliberately so: .hist-line is the subject
    of its own dialog and this is a reading under a list. Same hue, half the
    presence — 0.9 of a pixel reads as a line at this height where 1.5 reads as a
@@ -9095,6 +9157,12 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   stroke-width: 0.9;
   stroke-linejoin: round;
   stroke-linecap: round;
+  /* The box is stretched to whatever the layout gives it — 116px wide in the
+     band, 180 and twice as tall in the column — and `preserveAspectRatio="none"`
+     would drag the stroke with it, so a line that is 0.9px in one place would
+     be 1.8 in the other. This pins the stroke to the screen instead of to the
+     drawing. */
+  vector-effect: non-scaling-stroke;
 }
 .pl-cell.warn .pl-spark-area { fill: var(--warn); }
 .pl-cell.warn .pl-spark-line { stroke: var(--warn); }
