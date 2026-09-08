@@ -266,6 +266,12 @@ describe("a percentage width under a horizontal margin", () => {
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.
       "hist-chart",
+      // The process modal's name cell, which fills whatever the six fixed
+      // columns leave and ellipsises the command line inside it. `max-width: 0`
+      // with `width: 100%` is the table-cell idiom for that — the panel's own
+      // `.sd-proc-name` does the same thing, and only misses this list because
+      // its rule is scoped rather than bare.
+      "pl-name",
       "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
     ]);
 

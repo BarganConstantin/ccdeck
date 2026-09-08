@@ -41,7 +41,24 @@ const SPARK_H = 8;
 
 /** `cpu` is null on a Windows first reading: a percentage needs two samples and
  *  there has only been one. Never a zero, which would rank it as idle. */
-export interface Proc { pid: number; cpu: number | null; mem: number; name: string }
+export interface Proc {
+  pid: number;
+  cpu: number | null;
+  mem: number;
+  name: string;
+  /** The four the modal asks for with `detail=1`, and the panel never does.
+   *  Optional because each is a reading that can be absent rather than zero: a
+   *  `ps -M` that lost a race with an exit, a Windows process this session may
+   *  not open, a platform with no user column. Every column that reads one
+   *  prints a dash when it is missing. */
+  rssBytes?: number;
+  threads?: number;
+  uptimeSec?: number;
+  user?: string;
+  /** The argument vector with the executable and any secret-shaped value taken
+   *  off it, capped at 180 characters — see redactCommand in system-metrics. */
+  cmd?: string;
+}
 
 /** How many process rows the panel draws. Enough to see what is eating the
  *  machine, few enough that the panel never becomes a scroll. The server sends
@@ -49,7 +66,7 @@ export interface Proc { pid: number; cpu: number | null; mem: number; name: stri
  *  why, and visibleProcs below is what spends it. */
 const ROWS = 8;
 
-export type SortKey = "cpu" | "mem" | "name";
+export type SortKey = "cpu" | "mem" | "name" | "rss" | "threads" | "uptime" | "user";
 
 export interface Sort {
   key: SortKey;
@@ -72,9 +89,15 @@ export const SORT_DEFAULT: Sort = { key: "cpu", dir: "desc", rank: "cpu" };
  * because sorting by name is a request to reorder these rows, not a request for
  * a different eight.
  */
+/** Which of the two rankings the server actually sends a column can stand on.
+ *  `rss` and `mem` are one quantity read two ways, so memory ranks as memory;
+ *  the rest order the rows they were given without choosing them, exactly as
+ *  the name always has. */
+const RANKS: Partial<Record<SortKey, "cpu" | "mem">> = { cpu: "cpu", mem: "mem", rss: "mem" };
+
 export function nextSort(current: Sort, key: SortKey): Sort {
   if (current.key === key) return { ...current, dir: current.dir === "asc" ? "desc" : "asc" };
-  return { key, dir: key === "name" ? "asc" : "desc", rank: key === "name" ? current.rank : key };
+  return { key, dir: key === "name" || key === "user" ? "asc" : "desc", rank: RANKS[key] ?? current.rank };
 }
 
 /**
@@ -96,13 +119,28 @@ export function nextSort(current: Sort, key: SortKey): Sort {
  */
 export function sortProcs(procs: Proc[], sort: Sort): Proc[] {
   const sign = sort.dir === "asc" ? 1 : -1;
+  // The three optional quantities join CPU under the null rule rather than
+  // getting one of their own: a row whose thread count did not come back is not
+  // a row with no threads, and a dash sorts to the end whichever way the arrow
+  // points — same as the Windows first reading has always done.
+  const quantity = (p: Proc): number | null | undefined =>
+    sort.key === "cpu" ? p.cpu
+      : sort.key === "mem" ? p.mem
+        : sort.key === "rss" ? p.rssBytes
+          : sort.key === "threads" ? p.threads
+            : p.uptimeSec;
   const primary = (a: Proc, b: Proc): number => {
     // Case-insensitive and locale-aware. ASCII files every capital ahead of
     // every lowercase letter, which would put WindowServer and ccusage in
     // different halves of a list being read as one.
     if (sort.key === "name") return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    const av = sort.key === "cpu" ? a.cpu : a.mem;
-    const bv = sort.key === "cpu" ? b.cpu : b.mem;
+    if (sort.key === "user") {
+      const au = a.user ?? "", bu = b.user ?? "";
+      if (!au || !bu) return au === bu ? 0 : (au ? -1 : 1);
+      return sign * au.localeCompare(bu, undefined, { sensitivity: "base" });
+    }
+    const av = quantity(a);
+    const bv = quantity(b);
     if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
     return sign * (av - bv);
   };
@@ -350,8 +388,11 @@ function useSystem(): Snapshot | null {
   return snap;
 }
 
-/** The process list, fetched only while `on` is true. */
-function useProcesses(on: boolean): { procs: Proc[]; total: number } | null {
+/** The process list, fetched only while `on` is true — and asked for its four
+ *  extra columns only while `detail` is, which is only while the modal that
+ *  draws them is open. That gate is why a deck whose modal is never opened
+ *  never reads an argument vector at all. */
+function useProcesses(on: boolean, detail = false): { procs: Proc[]; total: number } | null {
   const [procs, setProcs] = useState<{ procs: Proc[]; total: number } | null>(null);
   useEffect(() => {
     if (!on) return;
@@ -359,7 +400,7 @@ function useProcesses(on: boolean): { procs: Proc[]; total: number } | null {
     const load = async () => {
       if (document.visibilityState === "hidden") return;
       try {
-        const res = await fetch("/api/system/processes");
+        const res = await fetch(`/api/system/processes${detail ? "?detail=1" : ""}`);
         if (!res.ok) return;
         const data = await res.json();
         if (alive && data?.ok) setProcs({ procs: data.procs ?? [], total: data.total ?? 0 });
@@ -368,7 +409,7 @@ function useProcesses(on: boolean): { procs: Proc[]; total: number } | null {
     load();
     const iv = window.setInterval(load, PROC_POLL_MS);
     return () => { alive = false; window.clearInterval(iv); };
-  }, [on]);
+  }, [on, detail]);
   return on ? procs : null;
 }
 
@@ -542,7 +583,10 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
   panelRef: React.RefObject<HTMLElement>;
   onClose: () => void;
 }) {
-  const procs = useProcesses(true);
+  // `all` lives here rather than in Processes, because it is what decides
+  // whether the poll asks for the detail columns at all — see useProcesses.
+  const [allProcs, setAllProcs] = useState(false);
+  const procs = useProcesses(true, allProcs);
 
   const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal } = sys;
   const used = memory ? memory.total - memory.available : 0;
@@ -629,7 +673,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       <ThermalSection thermal={thermal} />
 
-      <Processes read={procs} />
+      <Processes read={procs} all={allProcs} setAll={setAllProcs} />
     </aside>
   );
 }
@@ -737,9 +781,12 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
  * looking at something; a preference nobody would remember setting is not worth
  * a key that outlives the question.
  */
-function Processes({ read }: { read: { procs: Proc[]; total: number } | null }) {
+function Processes({ read, all, setAll }: {
+  read: { procs: Proc[]; total: number } | null;
+  all: boolean;
+  setAll: (open: boolean) => void;
+}) {
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
-  const [all, setAll] = useState(false);
   const procs = read?.procs ?? null;
 
   return (

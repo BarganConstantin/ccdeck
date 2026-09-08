@@ -25,6 +25,41 @@ import {
   type Proc, type Sort,
 } from "./SystemMeter";
 
+/**
+ * Bytes as a machine reader wants them: three significant figures and a unit.
+ *
+ * The panel's column is a percentage of installed memory and stays one — it has
+ * 40px. Here there is room for the figure itself, and "6.5 GB" answers "can I
+ * close this and get something back" in a way "20.3" never did.
+ *
+ * Binary units, because that is what `ps` reports and what every process
+ * viewer on all three platforms shows.
+ */
+export function fmtBytes(n: number | undefined): string {
+  if (n == null || !Number.isFinite(n) || n < 0) return "—";
+  if (n < 1024) return `${Math.round(n)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024, i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${units[i]}`;
+}
+
+/**
+ * How long it has been up, at one unit of precision.
+ *
+ * "2h" and "6d" are the whole of what this column is for — telling the process
+ * that started with this morning's build from the one that has been up since
+ * you last rebooted. A second unit would double the width to sharpen a figure
+ * nobody reads to the minute.
+ */
+export function fmtUptime(sec: number | undefined): string {
+  if (sec == null || !Number.isFinite(sec) || sec < 0) return "—";
+  if (sec < 60) return `${Math.floor(sec)}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  if (sec < 86_400) return `${Math.floor(sec / 3600)}h`;
+  return `${Math.floor(sec / 86_400)}d`;
+}
+
 export default function ProcessListModal({ procs, total, onClose }: {
   procs: Proc[];
   /** How many the machine is running, against however many were sent. */
@@ -69,7 +104,17 @@ export default function ProcessListModal({ procs, total, onClose }: {
               <thead>
                 <tr>
                   <SortHead col="cpu" label="cpu" sort={sort} onSort={setSort} />
-                  <SortHead col="mem" label="mem" sort={sort} onSort={setSort} />
+                  {/* `rss`, not `mem`: the cell prints bytes and the sort has
+                      to be the same quantity the cell is showing. They order
+                      identically on the Unixes, where both come from RSS, and
+                      differently on Windows, where the percentage is private
+                      bytes and this figure is the working set Task Manager
+                      draws. A column that sorted by one and displayed the
+                      other would be right on two platforms out of three. */}
+                  <SortHead col="rss" label="memory" sort={sort} onSort={setSort} />
+                  <SortHead col="threads" label="threads" sort={sort} onSort={setSort} />
+                  <SortHead col="uptime" label="up" sort={sort} onSort={setSort} />
+                  <SortHead col="user" label="user" sort={sort} onSort={setSort} />
                   {/* Not sortable. A pid is an identifier the machine handed
                       out, so ordering by it orders by nothing a reader cares
                       about — it is here to be COPIED, which is why it is a
@@ -86,13 +131,23 @@ export default function ProcessListModal({ procs, total, onClose }: {
                         Windows first reading — a dash, never a zero, which
                         would rank it as idle. */}
                     <td className="sd-num">{p.cpu == null ? "—" : p.cpu.toFixed(0)}</td>
-                    <td className="sd-num sd-dim">{p.mem.toFixed(1)}</td>
+                    <td className="sd-num sd-dim" title={`${p.mem.toFixed(1)}% of installed memory`}>
+                      {fmtBytes(p.rssBytes)}
+                    </td>
+                    <td className="sd-num sd-dim">{p.threads ?? "—"}</td>
+                    <td className="sd-num sd-dim">{fmtUptime(p.uptimeSec)}</td>
+                    <td className="sd-dim pl-user">{p.user ?? "—"}</td>
                     <td className="sd-num sd-dim pl-pid">{p.pid}</td>
-                    {/* Untruncated. The panel ellipsises at 164px and the
-                        longest name measured on this machine is 91 characters;
-                        here there is room, and "which of these is mine" is a
-                        question the tail of the name answers. */}
-                    <td className="pl-name">{p.name}</td>
+                    {/* The name, and after it whatever of the command line
+                        identifies WHICH one this is — `--type=renderer` beside
+                        the fourth Google Chrome Helper, `serve admin-portal`
+                        beside a node. The executable is off the front because
+                        the name already says it, and anything secret-shaped is
+                        off before it left the server. */}
+                    <td className="pl-name">
+                      {p.name}
+                      {p.cmd && <span className="pl-cmd" title={p.cmd}> {p.cmd}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -100,9 +155,21 @@ export default function ProcessListModal({ procs, total, onClose }: {
           )}
         </div>
 
+        {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
+            discovered. It is resident set size, which is what `ps` and Task
+            Manager report and is NOT the figure macOS Activity Monitor prints:
+            that one is `phys_footprint`, and on this machine the two disagree
+            by up to fourteen times on the same process. No unprivileged
+            one-shot command reports the footprint — `top` has it and takes four
+            seconds — so the choice was a number that is the same measurement on
+            all three platforms, or a different one per platform. This is the
+            first. */}
         <div className="pl-foot">
           The busiest by processor and by memory, refreshed every four seconds.
-          Not every process on the machine.
+          Not every process on the machine. Memory is resident set size, which
+          is what <code>ps</code> and Task Manager report; macOS Activity
+          Monitor shows a different figure. Command lines have anything
+          secret-shaped removed, which is a filter and not a guarantee.
         </div>
       </div>
     </div>,

@@ -78,9 +78,9 @@ function stdoutFor(file: string): string {
     // Already ordered by CPU, because psArgs asks ps to do that sort
     // (`--sort=-pcpu` on Linux, `-r` on BSD) and parsePsProcesses keeps
     // whatever order it was given.
-    return "  PID  %CPU %MEM COMMAND\n" +
-           "  777  99.0  1.2 node\n" +
-           "    1  12.5  0.4 launchd\n";
+    return "  PID  %CPU %MEM    RSS     ELAPSED USER             COMMAND\n" +
+           "  777  99.0  1.2  204800       10:00 constantin       node\n" +
+           "    1  12.5  0.4   12288 3-00:00:00 root             launchd\n";
   }
   if (file.toLowerCase().includes("powershell")) {
     return JSON.stringify([

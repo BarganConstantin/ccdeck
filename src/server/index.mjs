@@ -5452,7 +5452,15 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // `total` is how many the machine is running, against the candidates
       // actually sent. The modal says both, so a reader can see this is a
       // selection rather than a task manager pretending to be complete.
-      return guard(readProcesses().then(r => send(res, 200, { ok: true, ...r })), res);
+      // `detail=1` adds threads, uptime and the redacted command tail, and it
+      // is the modal that asks for it. Three reasons it is not the default,
+      // measured rather than assumed: it is a second `ps` child per poll (240ms
+      // against 100), it is 12 KB of the 14 KB payload, and it is the only part
+      // of this reading that has ever been near an argument vector. The panel
+      // draws four columns and needs none of it, so on a deck where the modal
+      // is never opened the argv is never read at all.
+      const detail = url.searchParams.get("detail") === "1";
+      return guard(readProcesses(process.platform, detail).then(r => send(res, 200, { ok: true, ...r })), res);
     }
     // A day of minute buckets, which is far too much to ride along on
     // /api/system's three-second poll for a chart that is usually closed. Its
