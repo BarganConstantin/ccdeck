@@ -24,7 +24,10 @@ import SessionList from "./components/SessionList";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
-import { autoRestartStep, restartEndedInFailure, restartLandingStep, upgradeFailureId } from "./restart";
+import {
+  activeCount, autoRestartRemainingMs, autoRestartStep, countdownLabel, restartEndedInFailure,
+  restartLandingStep, restartSafety, upgradeFailureId,
+} from "./restart";
 import { copyText } from "./copy-text";
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
@@ -1468,10 +1471,7 @@ function Inner() {
   // itself lives in restart.ts, where it can be tested.
   const idleSinceRef = useRef<number | null>(null);
   useEffect(() => {
-    let busy = false;
-    for (const a of stateRef.current.agents.values()) {
-      if (a.state === "active") { busy = true; break; }
-    }
+    const busy = activeCount(stateRef.current.agents.values()) > 0;
     const step = autoRestartStep({
       enabled: autoRestart,
       kind: notice?.kind,
@@ -1486,6 +1486,29 @@ function Inner() {
     idleSinceRef.current = step.idleSince;
     if (step.restart) askRestart();
   }, [autoRestart, notice?.kind, version?.canRestart, noticeOpen, now, askRestart]);
+
+  // WHAT THE BANNER SAYS ABOUT THIS PRESS, from the two things the effect above
+  // already decides with. Both were computed and thrown away: the deck knew
+  // whether a restart was safe and whether one was counting down, and told the
+  // reader neither.
+  //
+  // Read at render, from the same `now` the effect ticks on. `idleSinceRef` is
+  // a ref rather than state because the clock must not itself cause renders —
+  // this component already re-renders on every tick — and reading it here is
+  // safe for the one reason that matters: it holds an ABSOLUTE timestamp, so a
+  // value one tick old still yields an exact remainder against the current
+  // `now`. A duration would have gone stale; an instant cannot.
+  const activeNow = activeCount(stateRef.current.agents.values());
+  const restartCopy = restartSafety(activeNow);
+  const restartFuseMs = autoRestartRemainingMs({
+    enabled: autoRestart,
+    kind: notice?.kind,
+    canRestart: version?.canRestart === true,
+    noticeOpen,
+    busy: activeNow > 0,
+    idleSince: idleSinceRef.current,
+    now,
+  });
 
   // Landed — here, or in the bundle that is about to replace this one. The page
   // is code too and nothing else reloads it, so both outcomes hang off the same
@@ -3781,7 +3804,13 @@ function Inner() {
         // Both banners want grid row 2, and a dead connection is the more
         // urgent of the two — the version notice waits its turn.
         <div className={`ver-banner ${notice.kind}`} role="status">
-          <span className="ver-dot" />
+          {/* Still, until something is actually about to happen. It pulsed for
+              days over a fact that does not change, in the one visual grammar
+              this deck reserves for "running right now" — and it pulsed
+              identically whether or not a restart was counting down, so the one
+              moment motion would have carried information was the moment it
+              carried none. */}
+          <span className={`ver-dot${restartFuseMs == null ? "" : " armed"}`} />
           {notice.kind === "restart" ? (
             <>
               <strong>v{notice.to} is installed — this deck still runs v{notice.from}.</strong>
@@ -3793,16 +3822,35 @@ function Inner() {
                       the keyboard back. The word already says which state it is
                       in; `aria-busy` says it to a reader, and askRestart's own
                       ref refuses the second press. */}
+                  {/* The word changes with the machine's own answer. `Restart
+                      anyway` is the honest name for a press that drops the hook
+                      events fired while the server is down — restart.ts:1 says
+                      that is what happens — and it is a label rather than a
+                      confirmation dialog because a modal over a live canvas is
+                      worse than a true word. */}
                   <button type="button" className="ver-act" onClick={() => askRestart()} {...selfPressProps(restarting)}
                     title="Stop this process and bring it back on the same port. The canvas replays from the event log.">
-                    {restarting ? "restarting…" : "Restart now"}
+                    {restarting ? "restarting…" : restartCopy.label}
                   </button>
+                  {/* And the consequence, in the open. It was in a `title`,
+                      which is reachable by mouse and by nothing else — the
+                      defect this file spends a paragraph on thirty lines up. */}
+                  {!restarting && <span className="ver-sub">{restartCopy.clause}</span>}
+                  {/* The countdown is the cancel: a reader who can see fourteen
+                      seconds has time to reach this switch, and one who sees
+                      `auto when idle` has only the outcome.
+                      aria-hidden on the changing half, with a stable name on the
+                      button, because this banner is a role="status" — a label
+                      that renamed itself every second would read the whole
+                      banner out loud every second with it. */}
                   <button type="button" className={`ver-auto${autoRestart ? " on" : ""}`}
                     role="switch" aria-checked={autoRestart} onClick={toggleAutoRestart}
+                    aria-label="Auto-restart when idle"
                     title={autoRestart
                       ? "Restarts on its own once nothing has been running for 30 seconds. Click to require a click instead."
                       : "Only restarts when you click. Click to let it restart itself while idle."}>
-                    <i aria-hidden />auto when idle
+                    <i aria-hidden />
+                    <span aria-hidden>{restartFuseMs == null ? "auto when idle" : `auto in ${countdownLabel(restartFuseMs)}`}</span>
                   </button>
                 </>
               ) : (

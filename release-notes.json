@@ -55,6 +55,10 @@
     {
       "title": "🔎 The panel's eight process rows became one way in",
       "body": "The machine panel drew eight processes in a 280px box: three columns, names cut off mid-word, and a `ps` run every four seconds to keep them moving. **Busiest processes** is a single row you press now, and the dialog behind it is what it always was — every candidate the deck sees, its memory in bytes, threads, user, pid, and the command line that tells you which `node` this one is.\n\nWith that dialog closed, the deck reads no process list at all."
+    },
+    {
+      "title": "⏱ The restart banner says whether the press is safe, and shows the fuse",
+      "body": "The button read `Restart now` whether the machine was idle or five agents were mid-turn — and the hook events fired while the server is down are lost for good. It reads **`Restart anyway`** now when something is running, with the count beside it in the open rather than in a tooltip, and `Restart now` with *nothing is running* when the machine is quiet. No dialog: a word you can refuse by not pressing it.\n\nThe automatic restart used to say only `auto when idle`, while a 30-second clock ran where nobody could see it. It counts now — **`auto in 18s`** — which is also how you stop it, since the switch is the label. And the amber dot pulses only while that clock runs; the rest of the time it holds still, because a version number is not something that is happening."
     }
   ],
   "3.13.0": [

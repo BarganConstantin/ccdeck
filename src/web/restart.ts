@@ -156,7 +156,76 @@ export type RestartStep = {
   idleSince: number | null;
   /** Ask the server to restart, now. */
   restart: boolean;
+  /** How long is left of the quiet stretch, or null when no clock is running.
+   *  The banner draws this; see autoRestartRemainingMs for why it exists. */
+  remainingMs: number | null;
 };
+
+/**
+ * How long is left before the deck restarts itself, or null when nothing is
+ * counting.
+ *
+ * The clock was invisible for four releases. It ran here, the switch beside it
+ * said `auto when idle`, and a reader could not tell whether the deck was two
+ * seconds or twenty-nine from killing its own process — so the only way to stop
+ * it was to have already decided to. A countdown IS the cancel affordance: a
+ * user who can see nineteen seconds has time to reach the switch, and one who
+ * cannot see anything has only the outcome.
+ *
+ * Same gate as the step below, deliberately, and shared rather than copied.
+ * Two spellings of "is the clock running" is how a banner ends up counting down
+ * to a restart that will not happen, or standing still through one that will.
+ */
+export function autoRestartRemainingMs(g: RestartGate): number | null {
+  const threshold = g.thresholdMs ?? IDLE_BEFORE_RESTART_MS;
+  if (!g.enabled || g.kind !== "restart" || !g.canRestart || !g.noticeOpen) return null;
+  if (g.busy) return null;
+  // A stretch that has not begun, and one whose start is in the future — a
+  // laptop waking, an NTP correction — are both a full window from now.
+  if (g.idleSince == null || g.now < g.idleSince) return threshold;
+  return Math.max(0, threshold - (g.now - g.idleSince));
+}
+
+/**
+ * The countdown as a reader says it.
+ *
+ * Seconds under a minute, because "auto in 18s" is how a person reads eighteen
+ * seconds and `0:18` is how a stopwatch does. Minutes above it, zero-padded,
+ * for the same reason clocks are.
+ */
+export function countdownLabel(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** How many agents are running right now. Structural over the agent map's
+ *  values, so the rule can be tested without the deck's whole state type. */
+export function activeCount(agents: Iterable<{ state?: string }>): number {
+  let n = 0;
+  for (const a of agents) if (a.state === "active") n++;
+  return n;
+}
+
+/**
+ * What the restart button says, and what it says beside itself.
+ *
+ * The deck knows whether this press is safe. It computes `busy` on the same
+ * render as the banner, spends it on the timer nobody asked for, and told the
+ * button nothing — so the rule at the top of this file, the one that exists
+ * because events fired during the gap are gone for good, was enforced on the
+ * automatic path and not on the deliberate one. The safest-looking action was
+ * the least guarded.
+ *
+ * A label, not a dialog. A modal over a live canvas is worse than an honest
+ * word: `Restart anyway` is a sentence the user can refuse by not pressing it,
+ * and it costs no second click when the machine is quiet.
+ */
+export function restartSafety(active: number): { label: string; clause: string } {
+  if (active <= 0) return { label: "Restart now", clause: "nothing is running" };
+  const agents = active === 1 ? "1 agent is running" : `${active} agents are running`;
+  return { label: "Restart anyway", clause: `${agents} — their events during the restart are lost` };
+}
 
 /**
  * One tick of the idle watch. Pure, so the caller owns the timer and the state.
@@ -167,12 +236,13 @@ export type RestartStep = {
  * remainder of the old one.
  */
 export function autoRestartStep(g: RestartGate): RestartStep {
-  const threshold = g.thresholdMs ?? IDLE_BEFORE_RESTART_MS;
-  if (!g.enabled || g.kind !== "restart" || !g.canRestart || !g.noticeOpen) return { idleSince: null, restart: false };
-  if (g.busy) return { idleSince: null, restart: false };
-  if (g.idleSince == null) return { idleSince: g.now, restart: false };
+  // Derived from the countdown rather than computed again: whether the clock is
+  // running, and whether it has run out, are one question, and the banner shows
+  // the answer to the first while this decides the second.
+  const remainingMs = autoRestartRemainingMs(g);
+  if (remainingMs == null) return { idleSince: null, restart: false, remainingMs: null };
   // Clocks move backwards — a laptop waking, an NTP correction — and a negative
   // elapsed must not read as "not yet" forever. Treat it as a fresh start.
-  if (g.now < g.idleSince) return { idleSince: g.now, restart: false };
-  return { idleSince: g.idleSince, restart: g.now - g.idleSince >= threshold };
+  if (g.idleSince == null || g.now < g.idleSince) return { idleSince: g.now, restart: false, remainingMs };
+  return { idleSince: g.idleSince, restart: remainingMs === 0, remainingMs };
 }

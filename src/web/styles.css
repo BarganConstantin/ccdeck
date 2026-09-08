@@ -2221,13 +2221,21 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   font-weight: 500;
   animation: fadeIn 200ms ease;
 }
+/* STILL AT REST, and it pulses only while a restart is actually counting down.
+   `pulse` is this deck's word for "running right now" — the live pill, the
+   tools in flight, the outage dot — and a version notice is an inert fact that
+   can sit here for days. It was spending the chrome's one moving channel on the
+   one thing in the bar that will not change, and spending it identically
+   whether or not the deck was thirty seconds from killing itself. Armed, it
+   says the fuse is burning, which is a fact about right now and is the only
+   thing here that ever was. */
 .ver-banner .ver-dot {
   flex: none;
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 8px var(--warn);
-  animation: pulse 2.4s infinite;
 }
+.ver-banner .ver-dot.armed { animation: pulse 2.4s infinite; }
 .ver-banner strong { font-weight: 600; }
 /* The consequence, in the voice of the person who has to act on it. Dimmer
    than the headline so the two read in order rather than competing. */

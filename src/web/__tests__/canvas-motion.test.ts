@@ -483,7 +483,11 @@ const LIVE_PULSE = [
  *  written down here with a reason. */
 const OTHER_PULSES: [selector: string, meaning: string][] = [
   [".topbar .brand button.v .v-dot", "--warn: a newer ccdeck is published"],
-  [".ver-banner .ver-dot", "--warn: you are running a stale version"],
+  // `.armed`, not the dot itself: it is still at rest for as long as the
+  // notice is only a notice, and pulses only once a restart is actually
+  // counting down — which is the one thing in this banner that IS happening
+  // right now, and so the one thing the live grammar is for.
+  [".ver-banner .ver-dot.armed", "--warn: the deck is about to restart itself"],
   [".topbar .status .pill.live::before", "--ok: the event stream is connected"],
   [".conn-banner .conn-dot", "--err: the event stream is down"],
 ];
