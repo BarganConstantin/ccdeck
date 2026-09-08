@@ -24,6 +24,8 @@ import {
   ariaSort, nextSort, sortProcs, SortHead, SORT_DEFAULT,
   type Proc, type Sort,
 } from "./SystemMeter";
+import MachineStrip from "./MachineStrip";
+import type { LiveSource } from "../machine-live";
 
 /**
  * Bytes as a machine reader wants them: three significant figures and a unit.
@@ -60,10 +62,15 @@ export function fmtUptime(sec: number | undefined): string {
   return `${Math.floor(sec / 86_400)}d`;
 }
 
-export default function ProcessListModal({ procs, total, onClose }: {
+export default function ProcessListModal({ procs, total, sys, onClose }: {
   procs: Proc[];
   /** How many the machine is running, against however many were sent. */
   total: number;
+  /** The panel's own snapshot, for the strip below the list. It is passed down
+   *  rather than polled again here: this dialog covers the panel, and two
+   *  independent three-second polls of the same endpoint would put two readings
+   *  of one machine on screen that disagree by a tick. */
+  sys: LiveSource;
   onClose: () => void;
 }) {
   const dialogRef = useModalDismiss(onClose);
@@ -154,6 +161,11 @@ export default function ProcessListModal({ procs, total, onClose }: {
             </table>
           )}
         </div>
+
+        {/* THE PANEL THIS DIALOG IS COVERING, in the room a footer has. See
+            MachineStrip: opening the list hides the readings that are the
+            reason for opening it. */}
+        <MachineStrip sys={sys} />
 
         {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
             discovered. It is resident set size, which is what `ps` and Task

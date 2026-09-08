@@ -673,7 +673,7 @@ function SystemPanel({ sys, usageOpen, panelRef, onClose }: {
 
       <ThermalSection thermal={thermal} />
 
-      <Processes read={procs} all={allProcs} setAll={setAllProcs} />
+      <Processes read={procs} all={allProcs} setAll={setAllProcs} sys={sys} />
     </aside>
   );
 }
@@ -781,10 +781,14 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
  * looking at something; a preference nobody would remember setting is not worth
  * a key that outlives the question.
  */
-function Processes({ read, all, setAll }: {
+function Processes({ read, all, setAll, sys }: {
   read: { procs: Proc[]; total: number } | null;
   all: boolean;
   setAll: (open: boolean) => void;
+  /** Threaded through rather than re-polled inside the dialog — see
+   *  ProcessListModal's `sys` prop for why two polls of one endpoint is the
+   *  wrong shape here. */
+  sys: Snapshot;
 }) {
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
   const procs = read?.procs ?? null;
@@ -812,7 +816,7 @@ function Processes({ read, all, setAll }: {
         )}
       </div>
       {all && read && (
-        <ProcessListModal procs={read.procs} total={read.total} onClose={() => setAll(false)} />
+        <ProcessListModal procs={read.procs} total={read.total} sys={sys} onClose={() => setAll(false)} />
       )}
       {procs == null ? (
         <div className="sd-note">reading…</div>

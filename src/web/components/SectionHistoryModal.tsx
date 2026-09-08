@@ -28,6 +28,11 @@ import { useModalDismiss } from "./use-modal-dismiss";
 
 export interface Point { t: number; v: number }
 export interface Series {
+  /** The stable name the ring records this reading under — `mem:swap`, not
+   *  `Swap`. The label is what the eye reads and is platform-dependent (`Swap`
+   *  is `Commit` on Windows); anything joining a live reading to its history
+   *  has to join on this. */
+  key: string;
   label: string;
   /** Empty for a quantity that has no unit — a load average is a count of
    *  queued work, not a percentage of anything. */
@@ -50,6 +55,12 @@ export interface History { ok: boolean; sinceMs: number; stepMs: number; series:
  *  bottom for the clock, and one pixel at the top so a reading at the ceiling
  *  is not clipped by its own stroke. */
 const PAD = { l: 30, r: 6, t: 6, b: 2 };
+export type Pad = { l: number; r: number; t: number; b: number };
+/** The same shapes at a size with no axis to leave room for. A footer sparkline
+ *  is 96px wide, and PAD.l alone is 30 of them — a third of the cell spent on
+ *  numbers that are not drawn there. Passed in rather than branched on, so the
+ *  two sizes share one arithmetic instead of growing a second. */
+export const SPARK_PAD: Pad = { l: 0, r: 0, t: 2, b: 1 };
 
 /**
  * How tall a chart is, and why the two are not the same.
@@ -83,9 +94,9 @@ const H_FLAT = 64;
  * exception — genuinely unbounded, measured at 114 on twelve cores — and its
  * section draws no track for a fitted scale to contradict.
  */
-export function yFor(v: number, top = 100, height = H): number {
-  const inner = height - PAD.t - PAD.b;
-  return PAD.t + inner * (1 - Math.max(0, Math.min(top, v)) / top);
+export function yFor(v: number, top = 100, height = H, pad: Pad = PAD): number {
+  const inner = height - pad.t - pad.b;
+  return pad.t + inner * (1 - Math.max(0, Math.min(top, v)) / top);
 }
 
 /**
@@ -97,18 +108,18 @@ export function yFor(v: number, top = 100, height = H): number {
  * feature refuses to do. Anything more than two steps apart starts a new
  * subpath instead.
  */
-export function linePath(points: Point[], width: number, stepMs: number, top = 100, height = H): string {
+export function linePath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD): string {
   if (!points.length) return "";
   const span = points[points.length - 1].t - points[0].t;
   const x = (t: number) => {
-    const inner = width - PAD.l - PAD.r;
-    return PAD.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
+    const inner = width - pad.l - pad.r;
+    return pad.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
   };
   let d = "";
   let prev: Point | null = null;
   for (const p of points) {
     const cmd = prev && p.t - prev.t <= stepMs * 2 ? "L" : "M";
-    d += `${cmd}${x(p.t).toFixed(1)} ${yFor(p.v, top, height).toFixed(1)}`;
+    d += `${cmd}${x(p.t).toFixed(1)} ${yFor(p.v, top, height, pad).toFixed(1)}`;
     prev = p;
   }
   return d;
@@ -125,18 +136,18 @@ export function linePath(points: Point[], width: number, stepMs: number, top = 1
  * for the other two hours to avoid inventing twelve minutes. Each run is
  * dropped to the floor on its own and the gap stays empty.
  */
-export function areaPath(points: Point[], width: number, stepMs: number, top = 100, height = H): string {
+export function areaPath(points: Point[], width: number, stepMs: number, top = 100, height = H, pad: Pad = PAD): string {
   if (points.length < 2) return "";
-  const floor = height - PAD.b;
+  const floor = height - pad.b;
   const span = points[points.length - 1].t - points[0].t;
-  const inner = width - PAD.l - PAD.r;
-  const x = (t: number) => PAD.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
+  const inner = width - pad.l - pad.r;
+  const x = (t: number) => pad.l + (span > 0 ? (inner * (t - points[0].t)) / span : inner / 2);
   let out = "";
   let run: Point[] = [];
   const flush = () => {
     if (run.length >= 2) {
       let d = `M${x(run[0].t).toFixed(1)} ${floor}`;
-      for (const p of run) d += `L${x(p.t).toFixed(1)} ${yFor(p.v, top, height).toFixed(1)}`;
+      for (const p of run) d += `L${x(p.t).toFixed(1)} ${yFor(p.v, top, height, pad).toFixed(1)}`;
       out += `${d}L${x(run[run.length - 1].t).toFixed(1)} ${floor}Z`;
     }
     run = [];

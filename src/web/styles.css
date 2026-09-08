@@ -8887,6 +8887,97 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    has room for. */
 .pl-body tbody tr:hover .pl-cmd { color: var(--muted); }
 .pl-body tbody tr:hover td { color: var(--text); }
+/* THE MACHINE, UNDER THE LIST IT EXPLAINS. See MachineStrip: this dialog covers
+   the panel that carries these readings, so the footer carries them back.
+
+   Wraps rather than scrolls. The cell count is what the machine publishes — six
+   here, four on a Windows box with no load average and no sensor — and a
+   horizontal scroller would hide a reading behind a gesture nobody makes in a
+   footer. Two rows of three is a worse shape than one row of six and a better
+   one than a reading you never find. */
+.pl-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 10px 16px 2px;
+  border-top: 1px solid var(--line);
+  /* One cell's worth, held from the first paint. Buckets are a minute wide, so
+     a deck younger than that has cells to draw and no lines to put in them, and
+     without this the band would be 12px of border and padding until the first
+     bucket lands and then jump to 54. Measured: 54.1px with one row of cells,
+     and `box-sizing: border-box` above means this covers the padding too. */
+  min-height: 54px;
+}
+.pl-cell { display: flex; flex-direction: column; gap: 2px; }
+/* 116px, from the worst head this can be asked to draw rather than from the
+   one on screen when it was written. The longest label measured 59.7px
+   (`Busiest core`) and the widest reading is a load average under load —
+   `123.45`, about 33px, where an idle `5.24` is 26. 59.7 + 8 + 33 = 101, and
+   `Queued work` with a three-digit load is 104: at the first width the label
+   this exists to show read `Queued wo…` exactly when the machine was busy
+   enough to look at it.
+
+   NOWRAP is the part that is not about this machine at all. Thermal labels come
+   from the chip — a Linux hwmon box publishes `Package id 0` where this one
+   says `GPU` — and a head that wraps drops its own sparkline half a line below
+   every other cell's, measured at 13.6px of misalignment. */
+.pl-cell-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 116px;
+  white-space: nowrap;
+}
+/* The label yields and the number does not: a truncated `Package id 0` is still
+   findable — the cell's title has it in full — where a number pushed out of its
+   own cell is the reading itself going missing. */
+.pl-cell-label {
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pl-cell-now {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+/* The one moving part in a 24px box, so it moves and nothing else does: a value
+   crossing into warn recolours the number and the line together, and the label
+   stays where it was. */
+.pl-cell.warn .pl-cell-now { color: var(--warn); }
+.pl-cell.hot .pl-cell-now { color: var(--err); }
+/* The box IS the scale, which is the panel's own grammar for these readings —
+   `.sd-track` holds a `.sd-fill` against the same 0-100. Without it a line at
+   4px and a line at 15px in a 24px box are two positions with nothing to be
+   positions against, and `Swap 90%` looks like `All cores 31%`. */
+.pl-spark {
+  display: block;
+  background: var(--line-soft);
+  border-radius: 2px;
+}
+.pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; }
+/* Quieter than the full chart's, and deliberately so: .hist-line is the subject
+   of its own dialog and this is a footnote under a list. Same hue, half the
+   presence — 0.9 of a pixel reads as a line at this height where 1.5 reads as a
+   band. */
+.pl-spark-area { fill: var(--accent); opacity: 0.10; }
+.pl-spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pl-cell.warn .pl-spark-area { fill: var(--warn); }
+.pl-cell.warn .pl-spark-line { stroke: var(--warn); }
+.pl-cell.hot .pl-spark-area { fill: var(--err); }
+.pl-cell.hot .pl-spark-line { stroke: var(--err); }
+
 .pl-foot {
   padding: 8px 16px 12px;
   border-top: 1px solid var(--line);

@@ -1510,6 +1510,11 @@ function seriesFor(group) {
       }
     }
     return labels.map(label => ({
+      // The stable name of this reading, which the display label is not: `Swap`
+      // is `Commit` on Windows, and anything joining on what the eye sees
+      // breaks on the one platform nobody re-reads this on. It is the key the
+      // ring is already recorded under, published rather than invented.
+      key: `thermal:${label}`,
       label,
       unit: label === THROTTLE_LABEL ? "%" : "C",
       top: 100,
@@ -1537,8 +1542,8 @@ function seriesFor(group) {
     // indicator that alarms during the normal case teaches you to stop reading
     // it.
     return [
-      { label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all"), restsAtZero: false },
-      { label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest"), restsAtZero: false },
+      { key: "cpu:all", label: "All cores", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:all"), restsAtZero: false },
+      { key: "cpu:busiest", label: "Busiest core", unit: "%", top: 100, warnAt: null, critAt: null, points: at("cpu:busiest"), restsAtZero: false },
     ].filter(s => s.points.length);
   }
 
@@ -1548,8 +1553,8 @@ function seriesFor(group) {
       // One band, not two. A `critAt` of 100 draws a rule along the top of a
       // chart whose scale ends at 100 — it is the ceiling, drawn again in red,
       // and it says nothing the edge did not.
-      { label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:physical") },
-      { label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:swap") },
+      { key: "mem:physical", label: "Physical", unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:physical") },
+      { key: "mem:swap", label: swapLabel, unit: "%", top: 100, warnAt: 90, critAt: null, restsAtZero: false, points: at("mem:swap") },
     ].filter(s => s.points.length);
   }
 
@@ -1560,6 +1565,7 @@ function seriesFor(group) {
     const points = at("load:1m");
     if (!points.length) return [];
     return [{
+      key: "load:1m",
       label: "Queued work",
       unit: "",
       top: loadTop(points, coreCount),
