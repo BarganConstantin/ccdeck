@@ -72,6 +72,34 @@ describe("the shared token formatter", () => {
     }
   });
 
+  it("prints a whole count for a fraction, in every tier", () => {
+    // The panel's headline strip is animated, and a tween interpolates: the
+    // frames between 389,700 and 112 include 594.3268260610639 and
+    // 113.99999952241691. Every tier above 1000 was already fixed to one or two
+    // decimals by `toFixed`, so only the bottom one leaked — and it leaked the
+    // whole float, which is what a reader saw for a fifth of a second every
+    // time they moved from `month` to `today`.
+    //
+    // The sweep above could not catch it: its shape `^\d+(\.\d+)?[kMB]?$`
+    // ADMITS "594.3268260610639", and it was only ever handed integers anyway.
+    // This one is quantified over the fractions the count actually produces.
+    expect(fmtTokens(594.3268260610639)).toBe("594");
+    expect(fmtTokens(113.99999952241691)).toBe("114");
+    expect(fmtTokens(0.4)).toBe("0");
+    expect(fmtTokens(0.6)).toBe("1");
+    // Rounded before the tiers, not inside the bottom one: 999.6 is a thousand
+    // tokens and reads as one, rather than falling out of the tier as "1000".
+    expect(fmtTokens(999.6)).toBe("1.0k");
+    expect(fmtTokens(999.4)).toBe("999");
+    for (const n of [12.5, 594.3268260610639, 1234.5678, 1_234_567.89, 2_300_000_000.5]) {
+      expect(fmtTokens(n), `${n} printed a fraction`).toMatch(/^-?\d+(\.\d{1,2})?[kMB]?$/);
+      // No tier may print more decimals than its own toFixed allows, which is
+      // the property the sweep above was reaching for and did not state.
+      const decimals = /\.(\d+)/.exec(fmtTokens(n))?.[1].length ?? 0;
+      expect(decimals, `${n} printed ${decimals} decimals`).toBeLessThanOrEqual(2);
+    }
+  });
+
   it("hands back a count that is not a real number rather than dressing it up", () => {
     // No caller can produce these, and every copy rendered them this way. A
     // guard would turn a broken count into a plausible-looking one.
