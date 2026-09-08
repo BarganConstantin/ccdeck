@@ -64,11 +64,40 @@ export interface RangeTotals {
  */
 export type PeriodKey = "today" | "month" | "all";
 
-export const PERIODS: ReadonlyArray<{ key: PeriodKey; label: string; noun: string }> = [
-  { key: "today", label: "today", noun: "today" },
-  { key: "month", label: "month", noun: "this month" },
-  { key: "all", label: "all", noun: "all time" },
+export const PERIODS: ReadonlyArray<{ key: PeriodKey; label: string; noun: string; hint: string }> = [
+  // The `hint` is what the tab says when you rest on it, and `month` is the
+  // reason all three have one. Three words with no unit between them read as a
+  // scale, and a reader who assumes the middle of a scale is a rolling 30 days
+  // is wrong by up to 30 days on the 1st of the month with nothing on screen to
+  // correct them. Saying it on one tab and not the others would have made the
+  // named one look like the exception; these are the three sentences `sinceFor`
+  // already implements, written down.
+  { key: "today", label: "today", noun: "today", hint: "Since midnight, on this machine's clock." },
+  { key: "month", label: "month", noun: "this month", hint: "Since the 1st of this calendar month — not the last 30 days." },
+  { key: "all", label: "all", noun: "all time", hint: "Every transcript on disk, back to 2020." },
 ];
+
+/**
+ * Where focus goes when an arrow, Home or End is pressed inside the period
+ * strip, or null when the key is not one of those.
+ *
+ * FOCUS, NOT SELECTION, and that is the whole design of it. Arrowing onto
+ * "all" would otherwise start a ccusage read of every transcript on disk —
+ * seconds of work — on the way past it to something else. So the arrows move
+ * the ring and Enter or Space commits, which is also what `role="toolbar"`
+ * promises: the strip is a group of buttons, not a radio group.
+ *
+ * Wraps, because a three-member strip is short enough that walking off one end
+ * and stopping there reads as the key having failed.
+ */
+export function periodFocusMove(key: string, from: number, count = PERIODS.length): number | null {
+  if (count <= 0) return null;
+  if (key === "ArrowRight" || key === "ArrowDown") return (from + 1) % count;
+  if (key === "ArrowLeft" || key === "ArrowUp") return (from - 1 + count) % count;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
 
 /**
  * The `since` a period asks ccusage for, against a given clock.

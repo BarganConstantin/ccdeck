@@ -295,6 +295,10 @@ const PRESSES: Press[] = [
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
   [".bw-settings select:active:not(:disabled)", "0.97", "transform"],
+  // The usage panel's session heading, which opens and shuts the one unbounded
+  // block in it. 0.97 like every other labelled control — the target is the
+  // whole 250px heading rather than the 9px chevron drawn on it.
+  [".up-disclose:active", "0.97", "transform"],
   // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
   [".bw-toggle:active", "0.97", "transform"],
   // The sound menu's two switches, the same track as Browser Watch's and

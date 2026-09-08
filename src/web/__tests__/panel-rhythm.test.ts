@@ -204,6 +204,11 @@ describe("the distance a panel prints its content at", () => {
     [".ap-failure", "margin"],
     [".session-list .sl-header", "padding"],
     [".up-header", "padding"],
+    // The period strip prints its edge as a margin rather than a padding, and
+    // nothing held it to the token until the strip went full width — up to
+    // then it was centred and intrinsic, so its inset was whatever was left
+    // over. It is a panel edge now like any other.
+    [".uh-range.up-period", "margin"],
     [".up-total", "padding"],
     [".up-tokens-row", "padding"],
     [".up-section", "padding"],

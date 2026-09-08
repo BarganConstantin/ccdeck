@@ -41,7 +41,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  nounFor, panelFigures, rangeView, PERIODS,
+  nounFor, panelFigures, rangeView, PERIODS, periodFocusMove, sinceFor,
   type Board, type Delta, type Landed, type UsageRange,
 } from "../usage-from-ccusage";
 
@@ -380,15 +380,19 @@ describe("markup, read as source", () => {
     // PERIODS is the single list: `sinceFor` switches on the same keys, so a
     // period the component offered and the shaper did not know would silently
     // request the wrong range.
-    expect(panel).toContain("{PERIODS.map(p => (");
+    expect(panel).toContain("{PERIODS.map((p, i) => (");
     expect(panel).toContain("aria-pressed={period === p.key}");
     expect(panel).toContain("onClick={() => setPeriod(p.key)}");
+    // The hint is the shaper's too, for the same reason: `month` means what
+    // `sinceFor` makes it mean, and a sentence written here could drift from it.
+    expect(panel).toContain("title={p.hint}");
+    expect(panel).not.toMatch(/title="[^"]*month/i);
   });
 
   it("shows the selector only when there is a source with periods in it", () => {
     // The board has exactly one span — now — so three chips over a board-only
     // panel would be three words for the same figure.
-    expect(panel).toMatch(/\{fromRange && \(\s*<div className="uh-range up-period"/);
+    expect(panel).toMatch(/\{fromRange && \([\s\S]{0,1600}?<div\s+className="uh-range up-period"/);
   });
 
   it("puts the selector outside the token gate, so an empty period cannot strand the reader", () => {
@@ -437,5 +441,308 @@ describe("markup, read as source", () => {
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
       expect(panel, `${gone} is decided in the component again`).not.toContain(gone);
     }
+  });
+});
+
+// ── the mark under the selected period ──────────────────────────────────────
+//
+// The strip is three equal segments of a 250px column and the words in them are
+// not equal: `today` and `month` set 30.11px of monospace, `all` sets 18.06px.
+// A mark sized as a fraction of the SEGMENT is therefore a different thing on
+// each tab — it stood at 1.66x the word under `today` and 2.77x under `all`,
+// where it cleared the label by 16px on either side and read as underlining the
+// column. Nothing in this codebase can measure text, so the fix is structural:
+// one `max-content` grid column holds the label, the ::after shares it, and the
+// browser does the measuring. These assertions pin the structure, because the
+// structure is the whole of the argument.
+describe("the period strip's indicator", () => {
+  const block = (selector: string) => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, `no rule for ${selector}`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("takes its width from the label, never from the segment", () => {
+    const seg = block(".up-period .uh-range-btn");
+    expect(seg).toMatch(/display:\s*grid/);
+    expect(seg).toMatch(/grid-template-columns:\s*max-content/);
+    // A percentage here would be a percentage of the segment again, under any
+    // spelling — that is the defect, not the number 60.
+    const mark = block('.up-period .uh-range-btn[aria-pressed="true"]::after');
+    expect(mark).not.toMatch(/width\s*:/);
+    expect(block(".up-period .uh-range-btn::after")).not.toMatch(/width\s*:\s*\d+%/);
+  });
+
+  it("occupies its row at rest, so no label steps when the period changes", () => {
+    // The row is `auto` and sized by the ::after. If the ::after existed only
+    // while pressed the row would collapse to 0 on the other two segments and
+    // every label would sit 1px lower than the selected one — a shift the
+    // reader sees as the strip twitching under their own click.
+    const seg = block(".up-period .uh-range-btn");
+    expect(seg).toMatch(/grid-template-rows:\s*1fr auto/);
+    const rest = block(".up-period .uh-range-btn::after");
+    expect(rest).toMatch(/content:\s*""/);
+    expect(rest).toMatch(/height:\s*2px/);
+    expect(rest).toMatch(/background:\s*transparent/);
+    // And because the row is always there, the state can fade rather than
+    // teleport — over the same 120ms the label's colour takes.
+    expect(rest).toMatch(/transition:\s*background-color 120ms/);
+  });
+
+  it("does not let hover wear the selected colour", () => {
+    // The shared chip rule repaints any hovered label in --text, which is
+    // exactly what the selected label steps to. With the pointer still resting
+    // on the strip after a click — the commonest frame there is — two of three
+    // segments read identically and a 2px rule was the only difference left.
+    expect(block(".up-period .uh-range-btn:hover"))
+      .toMatch(/color:\s*color-mix\(in srgb, var\(--text\) 45%, var\(--muted\)\)/);
+  });
+
+  it("keeps the selected word legible under the pointer that chose it", () => {
+    // `.uh-range-btn[aria-pressed="true"]:hover` paints the label in --bg,
+    // which is right for the modal's chips — there it sits on an --accent
+    // FILL. This strip has no fill, both selectors are (0,3,0), and the shared
+    // one is declared later, so the selected word was --bg on --panel: 1.080:1
+    // in dark, 1.132:1 in light. Gone, at the exact moment the pointer is
+    // guaranteed to be on it.
+    const held = block('.up-period .uh-range-btn[aria-pressed="true"]:hover');
+    expect(held).toMatch(/color:\s*var\(--text\)/);
+    // And it has to out-specify the shared rule, not merely restate it.
+    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover'))
+      .toBeGreaterThan(-1);
+  });
+
+  it("keeps its focus ring inside the segment and off the indicator", () => {
+    // The shared `button:focus-visible` draws 2px of --accent at offset 1px.
+    // On this control its bottom stroke landed on the indicator's own pixels in
+    // the indicator's own colour, so the selected tab, focused, showed no
+    // indicator at all; and `border-radius: 0` on the segment had shadowed the
+    // global ring's 4px, leaving the one hard-cornered ring in the deck.
+    const ring = block(".up-period .uh-range-btn:focus-visible");
+    expect(ring).toMatch(/outline-offset:\s*-4px/);
+    expect(ring).toMatch(/border-radius:\s*4px/);
+  });
+});
+
+// ── the strip as a keyboard control, and as a remembered one ────────────────
+//
+// Three things the panel did not do, added together because they are one
+// complaint: the strip cost more of the reader's keyboard than it was worth,
+// it forgot the answer it had been given, and the middle word did not say what
+// it meant. None of them is visible in a screenshot.
+describe("the period strip's keyboard and memory", () => {
+  it("moves the ring with the arrows and both ends, and nothing else", () => {
+    // Wrapping, because three members with a hard stop at each end reads as
+    // the key having failed rather than as a boundary.
+    expect(periodFocusMove("ArrowRight", 0)).toBe(1);
+    expect(periodFocusMove("ArrowRight", 2)).toBe(0);
+    expect(periodFocusMove("ArrowLeft", 0)).toBe(2);
+    expect(periodFocusMove("ArrowLeft", 2)).toBe(1);
+    // Down and Up alias Right and Left: the strip is one row, and a reader who
+    // reaches for the vertical pair on a horizontal group has not made a
+    // mistake worth a dead key.
+    expect(periodFocusMove("ArrowDown", 1)).toBe(2);
+    expect(periodFocusMove("ArrowUp", 1)).toBe(0);
+    expect(periodFocusMove("Home", 2)).toBe(0);
+    expect(periodFocusMove("End", 0)).toBe(2);
+    for (const key of ["Enter", " ", "Tab", "Escape", "a", "PageDown"]) {
+      expect(periodFocusMove(key, 1), `${key} is swallowed`).toBeNull();
+    }
+    // A caller that has lost the selected period must not be handed an index.
+    expect(periodFocusMove("ArrowRight", 0, 0)).toBeNull();
+  });
+
+  it("pays for the role it announces", () => {
+    // tablist-contract.test.ts's rule, applied to the neighbouring role: a
+    // toolbar promises one tab stop and arrows across the members. Both are
+    // here, or the role is a lie.
+    expect(panel).toContain('role="toolbar"');
+    expect(panel).toContain('aria-orientation="horizontal"');
+    expect(panel).toContain("tabIndex={period === p.key ? 0 : -1}");
+    // From the focused segment, never from the selected one. Reckoning off
+    // `period` walks one step and then stops — Right three times from `today`
+    // gives `month`, `month`, `month` — and it looked correct in the source.
+    expect(panel).toContain("periodRefs.current.indexOf(e.target as HTMLButtonElement)");
+    expect(panel).toContain("periodFocusMove(e.key, from)");
+    expect(panel).not.toContain("periodFocusMove(e.key, PERIODS.findIndex");
+    // The arrows have to stop being the page's arrows, or the panel scrolls
+    // under the ring the moment it moves.
+    expect(panel).toMatch(/if \(to === null\) return;\s*\n\s*e\.preventDefault\(\);/);
+    expect(panel).toContain("periodRefs.current[to]?.focus();");
+    // And it must not have become the thing #381 deleted. Read with the
+    // comments stripped: the block above this markup names that role in order
+    // to say why it is wrong, and a substring match cannot tell the two apart.
+    const code = panel.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toContain('role="tablist"');
+    expect(code).not.toContain('role="tab"');
+  });
+
+  it("moves focus without committing a period", () => {
+    // Arrowing PAST `all` would otherwise start a read of every transcript on
+    // disk on the way to something else. The arrows move the ring; the click
+    // handler is the only place a period is chosen.
+    const handler = panel.slice(panel.indexOf("onKeyDown={e => {"), panel.indexOf("periodRefs.current[to]?.focus();"));
+    expect(handler).not.toContain("setPeriod");
+  });
+
+  it("remembers the period, under a key of the deck's own shape", () => {
+    expect(panel).toContain('const PERIOD_KEY = "agent-dag.usagePeriod";');
+    expect(panel).toContain("useState<PeriodKey>(loadPeriod)");
+    expect(panel).toContain("useEffect(() => { savePeriod(period); }, [period]);");
+    // Through storage.ts, because the bare property read throws outright on a
+    // browser that blocks site data — and this one runs in a useState
+    // initialiser, so it would take the panel's first render with it.
+    expect(panel).toContain('import { readStored } from "../storage";');
+    expect(panel).toMatch(/function loadPeriod\(\)[\s\S]{0,240}readStored\(PERIOD_KEY\)/);
+    // Validated, not cast. The store holds whatever was last written into it —
+    // an older build's spelling, or a hand edit — and an unknown period would
+    // ask /api/ccusage for a range it cannot spell.
+    expect(panel).toContain("PERIODS.some(p => p.key === stored)");
+    expect(panel).toMatch(/function savePeriod[\s\S]{0,200}catch \{/);
+  });
+
+  it("says what each span actually covers, from the shaper that decides it", () => {
+    // `month` is the one that needed this: three bare words read as a scale,
+    // and a reader who takes the middle of a scale for a rolling 30 days is
+    // wrong by up to 30 days on the 1st with nothing on screen to correct them.
+    const month = PERIODS.find(p => p.key === "month")!;
+    expect(month.hint).toMatch(/calendar month/i);
+    expect(month.hint).toMatch(/not the last 30 days/i);
+    for (const p of PERIODS) expect(p.hint, `${p.key} has no hint`).toMatch(/\S/);
+    // And the sentence has to stay true of `sinceFor`, which is what actually
+    // asks for the range: the month starts on the 1st, locally.
+    const may = new Date(2026, 4, 17, 9, 30);
+    expect(sinceFor("month", may)).toBe("20260501");
+    expect(sinceFor("today", may)).toBe("20260517");
+  });
+});
+
+// ── the one section that shuts ──────────────────────────────────────────────
+//
+// Every other block in this panel is a fixed two or three rows, or a model
+// table bounded by the models that exist. The session list is as long as the
+// reader's week, and it was the reason the panel scrolled at all: measured on
+// this deck, 1078px of content in a 935px column with it open, 754 in 754 with
+// it shut. So it shuts, and it is the only one that does.
+describe("the session section's disclosure", () => {
+  const block = (selector: string) => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, `no rule for ${selector}`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("puts the button inside the heading rather than instead of it", () => {
+    // The ARIA disclosure pattern, and the one spelling that keeps four
+    // headings in the document outline while still giving the reader a real
+    // control — landmark-outline.test.ts counts them and would have lost one.
+    expect(panel).toMatch(/<h3 className="up-section-title">\s*<button/);
+    expect(panel).toContain('className="up-disclose"');
+    expect(panel).toContain("aria-expanded={sessionsOpen}");
+    expect(panel).toContain('aria-controls="up-sessions"');
+    expect(panel).toContain('id="up-sessions"');
+    expect(panel).toContain("hidden={!sessionsOpen}");
+  });
+
+  it("hides the list in CSS as well as in the attribute", () => {
+    // `[hidden]` alone does NOT hide this. The attribute works through a UA
+    // rule — `[hidden] { display: none }` — and ANY author declaration of
+    // `display` outranks the whole UA sheet. `.up-sessions` declares `flex`,
+    // so the measured result was: attribute set, `el.hidden` true, twelve rows
+    // on screen and in the accessibility tree. Silent in both directions.
+    expect(block(".up-sessions")).toMatch(/display:\s*flex/);
+    expect(css).toContain(".up-sessions[hidden] { display: none; }");
+  });
+
+  it("takes the whole heading as the target, and gives the height back", () => {
+    // A 9px chevron is a 9px hit area for a section-sized decision, and
+    // SC 2.5.8 asks 24 of the short side. The heading's ink is 15.9px tall, so
+    // the padding buys the difference and the negative margin returns it to the
+    // layout: the button's border box measures 25.9, its margin box measures
+    // what the words always did, and the section keeps the rhythm of the three
+    // headings above it.
+    const b = block(".up-disclose");
+    expect(b).toMatch(/padding:\s*5px 0/);
+    expect(b).toMatch(/margin:\s*-5px 0/);
+    expect(b).toMatch(/flex:\s*1 1 auto/);
+    // And it has to be invisible as a control: same font, same colour, same
+    // left edge as the three headings that do not open.
+    expect(b).toMatch(/font:\s*inherit/);
+    expect(b).toMatch(/color:\s*inherit/);
+    expect(b).toMatch(/text-align:\s*left/);
+    expect(b).toMatch(/background:\s*transparent/);
+    expect(b).toMatch(/border:\s*none/);
+  });
+
+  it("turns the chevron rather than swapping two glyphs", () => {
+    // `.bw-chev` prints ▾ and ▸ and is at the mercy of whichever font answers
+    // for them on Windows and Linux. A path is the same three strokes on every
+    // OS, and it can rotate instead of being replaced.
+    expect(panel).toContain('<svg className="up-chev"');
+    expect(panel).not.toMatch(/up-chev[^>]*>\s*[▾▸▼►]/);
+    expect(block('.up-disclose[aria-expanded="true"] .up-chev')).toMatch(/transform:\s*rotate\(180deg\)/);
+    // Under reduced motion it still turns — it just stops travelling.
+    // `transform: none` there would have frozen it pointing down over an open
+    // section, which is the one thing it must never do.
+    const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(rm).toContain(".up-chev { transition: none; }");
+    expect(rm).not.toMatch(/\.up-chev[^{]*\{[^}]*transform:\s*none/);
+  });
+
+  it("remembers whether it is open, and starts shut", () => {
+    expect(panel).toContain('const SESSIONS_OPEN_KEY = "agent-dag.usageSessionsOpen";');
+    expect(panel).toContain("useState<boolean>(loadSessionsOpen)");
+    expect(panel).toContain("useEffect(() => { saveSessionsOpen(sessionsOpen); }, [sessionsOpen]);");
+    // Shut is the default, which is the deliberate half. An absent key, a
+    // blocked store and a junk value all have to land on the same answer, and
+    // `=== "1"` is the spelling that gives it: anything that is not the string
+    // written by `saveSessionsOpen` reads as shut.
+    expect(panel).toMatch(/function loadSessionsOpen\(\)[\s\S]{0,160}readStored\(SESSIONS_OPEN_KEY\) === "1"/);
+    expect(panel).toMatch(/function saveSessionsOpen[\s\S]{0,220}catch \{/);
+  });
+
+  it("says how much is behind it, on the title rather than in ink", () => {
+    // Shut, the reader cannot see how many sessions there are, and that is the
+    // one fact the collapse actually takes away. The heading already carries
+    // two things; a third in ink would be the noise this panel is short of.
+    expect(panel).toContain("const sessionCount = fromRange ? rangeSessionRows.length : boardSessionRows.length;");
+    expect(panel).toMatch(/Show the per-session breakdown — \$\{sessionCount\} session\$\{sessionCount === 1 \? "" : "s"\}/);
+    expect(panel).toContain('"Hide the per-session breakdown"');
+  });
+});
+
+// ── the scrollbar, which is not there until it is asked for ─────────────────
+describe("the scrollbar at rest", () => {
+  it("fades the thumb and never the track's width", () => {
+    // Asking for `::-webkit-scrollbar` at all opts Chrome out of the overlay
+    // bar macOS draws, so these 10px are real layout — and on Windows and Linux
+    // they are real layout in every browser. A rule that took the width back at
+    // rest would reflow the panel under the pointer as it arrived, on the two
+    // platforms this repo cannot render. Measured: clientWidth 267 in both
+    // states.
+    const bar = css.slice(css.indexOf("*::-webkit-scrollbar {"), css.indexOf(":hover, :focus-within { scrollbar-color"));
+    expect(bar).toMatch(/\*::-webkit-scrollbar \{ width: 10px; height: 10px; \}/);
+    expect(bar).not.toMatch(/:hover[^{]*::-webkit-scrollbar \{/);
+    const thumb = css.slice(css.indexOf("*::-webkit-scrollbar-thumb {"), css.indexOf("}", css.indexOf("*::-webkit-scrollbar-thumb {")));
+    expect(thumb).toMatch(/background-color:\s*transparent/);
+    // The border was `var(--bg)` — a hairline of the CANVAS colour drawn over
+    // whatever surface the scroller has, right on one scroller and wrong on
+    // every panel. Transparent, with the clip doing what the colour was doing.
+    expect(thumb).toMatch(/border:\s*2px solid transparent/);
+    expect(thumb).toMatch(/background-clip:\s*padding-box/);
+    expect(thumb).not.toMatch(/var\(--bg\)/);
+  });
+
+  it("comes back for a pointer and for a keyboard alike", () => {
+    // A bar that only exists under a pointer does not exist for the reader
+    // arrowing through the thing it measures.
+    expect(css).toMatch(/:hover::-webkit-scrollbar-thumb,\s*\n:focus-within::-webkit-scrollbar-thumb \{ background-color: var\(--line\); \}/);
+    // Firefox's half, in its own property, degrading to today's always-visible
+    // bar if it declines a transparent thumb.
+    expect(css).toContain("* { scrollbar-color: transparent transparent; scrollbar-width: thin; }");
+    expect(css).toContain(":hover, :focus-within { scrollbar-color: var(--line) transparent; }");
+    // The thumb's own hover has to stay the loudest of the three, so it is
+    // declared last where source order settles the tie at equal specificity.
+    expect(css.indexOf("*::-webkit-scrollbar-thumb:hover"))
+      .toBeGreaterThan(css.indexOf(":focus-within::-webkit-scrollbar-thumb"));
   });
 });

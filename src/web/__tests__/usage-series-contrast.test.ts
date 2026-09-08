@@ -533,12 +533,15 @@ describe("the selected range is a state you can see (#583)", () => {
     const scoped = [...css.matchAll(/([^{}]*\[aria-pressed="true"\][^{}]*)\{([^}]*)\}/g)]
       .filter(m => /\buh-range-btn\b/.test(m[1]) && !/^\s*\.uh-range-btn\[aria-pressed="true"\]/.test(m[1]))
       .map(m => ({ sel: m[1].trim(), body: m[2] }));
-    // Two, and both are the period strip's: the segment, which resets the
-    // shared fill and takes a neutral label, and the ::after that carries the
-    // accent. Split like that on purpose — cyan appears once in this control
-    // and it is the indicator, never the type.
+    // Three, and all of them the period strip's: the segment, which resets the
+    // shared fill and takes a neutral label; the hover that holds that label
+    // against the shared rule's --bg, written for chips that sit on an accent
+    // fill this strip does not have; and the ::after that carries the accent.
+    // Split like that on purpose — cyan appears once in this control and it is
+    // the indicator, never the type.
     expect(scoped.map(r => r.sel)).toEqual([
       '.up-period .uh-range-btn[aria-pressed="true"]',
+      '.up-period .uh-range-btn[aria-pressed="true"]:hover',
       '.up-period .uh-range-btn[aria-pressed="true"]::after',
     ]);
     // The accent arrives solid, in exactly one of them.
