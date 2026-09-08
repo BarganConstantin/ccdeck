@@ -1760,6 +1760,21 @@ button.btn.sm-hear {
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 10px; }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+/* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
+   the six numeric columns, which is what tabular is for — digits that line up
+   so a column can be compared DOWN. It reached the two text columns as well,
+   and there it is the wrong feature doing visible harm: every digit in
+   `--metrics-client-id=6ff2549f-9feb-40ee` and in `--port 4319` is padded to
+   the width of a zero, inside a run of proportional letters, so the numbers in
+   a command line come out gappy and wider than the words around them. An
+   account name has the same problem for the same reason.
+
+   Stated on the cells rather than by narrowing the table's own rule, so the
+   default stays "a cell in this table is a number" and the exceptions name
+   themselves. */
+:is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user, .sd-proc-name) {
+  font-variant-numeric: normal;
+}
 /* The header is the sort control now (#739), so the appearance moved onto the
    button inside the cell and what is left on the cell is column geometry. 40px
    is the widest label plus the arrow's reserved slot plus the 8px that `.sd-num`
@@ -9089,4 +9104,24 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   border-top: 1px solid var(--line);
   font-size: 10px;
   color: var(--muted);
+}
+/* Each statement on its own line — see the markup for the measurement. `3px`
+   between them and not a paragraph's usual gap: they are three captions in one
+   footnote, not three paragraphs, and the line break is already doing the
+   separating. Anything more and the footer reads as a list of rules. */
+.pl-foot p { margin: 0; }
+.pl-foot p + p { margin-top: 3px; }
+/* `ps` is a command you could type, and it was reaching the page as a bare
+   family swap — monospace at the same 10px in the same muted grey, which at
+   this size reads as a rendering fault rather than as a literal. The deck
+   already treats inline code this way in six other places; this was the one
+   that missed it. --text rather than --muted, because the point of the word is
+   that it is the thing itself. */
+.pl-foot code {
+  background: var(--line);
+  color: var(--text);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
 }

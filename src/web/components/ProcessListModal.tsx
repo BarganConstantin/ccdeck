@@ -176,12 +176,37 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
             seconds — so the choice was a number that is the same measurement on
             all three platforms, or a different one per platform. This is the
             first. */}
+        {/* ONE STATEMENT PER LINE, and the words are unchanged. Run together in
+            a box this wide the paragraph measured 142 characters a line over
+            four lines — nearly double the comfortable maximum, at the smallest
+            size in the dialog and in the dimmest colour it uses. Split, the
+            sentences measure 103, 119 and 89, which is to say they were written
+            as readable units and the paragraph was what ruined them.
+
+            119 is still past the 45-75 a paragraph wants, and that is the
+            deliberate half of this: a single line nobody has to return-sweep is
+            easier than the same words wrapped four times, and capping the
+            measure instead would have doubled the height of a caption to serve
+            a rule about continuous reading that this is not. The gain is
+            finding the one line you came for — somebody who wonders whether
+            this memory figure is Activity Monitor's now lands on a line that
+            starts `Memory is`, rather than hunting it inside a wall. */}
         <div className="pl-foot">
-          The busiest by processor and by memory, refreshed every four seconds.
-          Not every process on the machine. Memory is resident set size, which
-          is what <code>ps</code> and Task Manager report; macOS Activity
-          Monitor shows a different figure. Command lines have anything
-          secret-shaped removed, which is a filter and not a guarantee.
+          <p>
+            The busiest by processor and by memory, refreshed every four
+            seconds. Not every process on the machine.
+          </p>
+          <p>
+            Memory is resident set size, which is what <code>ps</code> and Task
+            Manager report; macOS Activity Monitor shows a different figure.
+          </p>
+          {/* Broken before `which` and not mid-phrase: process-detail-807
+              greps this file for "which is a filter and not a guarantee", and a
+              claim this careful is worth keeping greppable. */}
+          <p>
+            Command lines have anything secret-shaped removed,
+            which is a filter and not a guarantee.
+          </p>
         </div>
       </div>
     </div>,

@@ -470,6 +470,64 @@ describe("the dialog's own rhythm", () => {
   });
 });
 
+describe("the dialog's type", () => {
+  const modalSrc = readFileSync(at("../components/ProcessListModal.tsx"), "utf8");
+  const rule = (sel: string) => {
+    const i = css.indexOf(`${sel} {`);
+    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+  };
+
+  it("keeps tabular figures for the columns that are numbers", () => {
+    // What tabular is FOR: digits of one width so a column can be read down.
+    // Six of the eight columns are numbers, so the table sets it and the
+    // exceptions name themselves.
+    expect(css).toContain(":is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }");
+  });
+
+  it("takes them off the two columns that are prose", () => {
+    // It reached the text columns as well, and there the feature does visible
+    // harm: every digit in `--metrics-client-id=6ff2549f-9feb-40ee` and in
+    // `--port 4319` padded to the width of a zero, inside a run of proportional
+    // letters, so the numbers in a command line come out gappy and wider than
+    // the words around them. An account name has it for the same reason.
+    const off = rule(":is(.sysdetail, .pl-body) .sd-procs :is(.pl-name, .pl-user, .sd-proc-name)");
+    expect(off).toContain("font-variant-numeric: normal");
+    // Both tables, because it is one defect and one rule produced it.
+    expect(off).toContain(".sd-proc-name");
+  });
+
+  it("writes the footnote as statements rather than as a paragraph", () => {
+    // Run together in a box this wide it measured 142 characters a line over
+    // four lines — nearly double the comfortable maximum, at the smallest size
+    // in the dialog and in its dimmest colour. Split, the sentences are 103,
+    // 119 and 89: they were written as readable units and the paragraph was
+    // what ruined them. Each renders on ONE line at the dialog's own width, so
+    // there is no return sweep at all.
+    const foot = modalSrc.slice(modalSrc.indexOf('className="pl-foot"'));
+    const body = foot.slice(0, foot.indexOf("</div>"));
+    expect((body.match(/<p>/g) ?? []).length).toBe(3);
+    expect(rule(".pl-foot p")).toContain("margin: 0");
+    // Three captions in one footnote, not three paragraphs: the line break
+    // already separates them and a paragraph's gap would make it read as a
+    // list of rules.
+    expect(rule(".pl-foot p + p")).toContain("margin-top: 3px");
+  });
+
+  it("gives the footnote's one literal the treatment every other literal has", () => {
+    // `ps` reached the page as a bare family swap — monospace at the same 10px
+    // in the same muted grey — which at that size reads as a rendering fault
+    // rather than as a command you could type. The deck already treats inline
+    // code this way in six other places.
+    const code = rule(".pl-foot code");
+    expect(code).toContain("background: var(--line)");
+    expect(code).toContain("color: var(--text)");
+    expect(code).toMatch(/font-family:\s*ui-monospace/);
+    // The one place it is spelled in the markup, so a future footnote that
+    // needs a second literal already has the shape.
+    expect(modalSrc).toContain("<code>ps</code>");
+  });
+});
+
 describe("the server publishes a key for every series", () => {
   it("gives one to each, because the label is platform-dependent", () => {
     // `Swap` is `Commit` on Windows, so anything joining a live reading to its
