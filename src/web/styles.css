@@ -4954,6 +4954,25 @@ button.tool.clickable:last-child { border-bottom: none; }
   white-space: pre-line;
 }
 
+/* THE MARKS INSIDE THAT TEXT, which were printed as themselves until now. The
+   body is `--muted`, so emphasis has to be a step UP in colour and not only in
+   weight — bold at the same tone as its paragraph is a difference you have to
+   already know is there. */
+.release-notes .rn-strong { color: var(--text); font-weight: 600; }
+/* `pre-wrap`, not the paragraph's inherited `pre-line`: a code span says
+   exactly what to type, and `pre-line` collapses runs of spaces inside it. It
+   still wraps, because `{"command":"rm -rf node_modules"}` is 34 characters and
+   `nowrap` would push it out of the dialog. */
+.release-notes .rn-code {
+  background: var(--line);
+  color: var(--text);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
 /* ---------------- session-end summary modal ---------------- */
 
 .session-summary { width: min(720px, 92vw); }

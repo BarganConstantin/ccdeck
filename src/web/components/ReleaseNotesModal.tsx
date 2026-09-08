@@ -28,6 +28,7 @@
 // the two sentences that came before it.
 import { releaseNotesIntro, splitNoteTitle, versionRangeLabel, type VersionNotes } from "../release-notes";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { parseInline, type Inline } from "../inline-markdown";
 
 interface Props {
   /** The releases to show, newest first — decideReleaseNotes' answer, or every
@@ -120,7 +121,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
                         {icon && <span className="rn-note-icon">{icon}</span>}
                         {rest}
                       </p>
-                      <p className="rn-note-body">{note.body}</p>
+                      <p className="rn-note-body">{renderInline(parseInline(note.body))}</p>
                     </li>
                   );
                 })}
@@ -131,4 +132,23 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
       </div>
     </div>
   );
+}
+
+/**
+ * The runs as elements.
+ *
+ * `<strong>` and `<code>`, which is what the marks mean — not two spans with
+ * classes. A screen reader announces emphasis and a code span from the tag, and
+ * the release note whose whole point is `**do not upgrade past 3.4**` should
+ * carry that in the markup rather than only in the weight of the pixels.
+ *
+ * The key is the index, for the reason the note list gives above it: this is
+ * built from a frozen import and never reorders.
+ */
+function renderInline(nodes: Inline[]): React.ReactNode[] {
+  return nodes.map((n, i) => {
+    if (n.kind === "text") return n.text;
+    if (n.kind === "code") return <code key={i} className="rn-code">{n.text}</code>;
+    return <strong key={i} className="rn-strong">{renderInline(n.kids)}</strong>;
+  });
 }
