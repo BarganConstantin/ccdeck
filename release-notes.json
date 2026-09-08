@@ -31,6 +31,20 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.14.0": [
+    {
+      "title": "📊 The machine comes back under the list that covers it",
+      "body": "**Busiest processes** opens over the machine panel and hides it — which is to say it hides the memory bar, the swap bar, the load average and the temperature that are the reason anybody opened it. You go looking for what is eating the machine, and the act of looking covers every reading that told you something was.\n\nThere is now a band under the table: **the reading right now, and up to an hour of history behind it**. `All cores`, `Busiest core`, `Physical RAM`, `Swap memory`, `Queued work`, `GPU temp`.\n\n**The cells are whatever your machine actually publishes**, not a fixed list of six. Windows has no load average and calls swap `Commit`; a machine with no sensor has no temperature; a Linux box names its sensors whatever the chip calls them, and `Package id 0` gets a cell as readily as `GPU` does.\n\nEach cell is two readings from two places and the split is deliberate. **The line** is the deck's minute-by-minute ring. **The number** is the same three-second reading the panel behind it shows — because taking the number from the ring too would mean closing this dialog and seeing the same quantity twice, seconds apart, one of them up to a minute stale.\n\n**Nothing that rests at zero gets a cell until it leaves zero.** Throttling on a desktop is `0%` essentially always, and a readout showing the same nothing every time stops being believed on the day it is not nothing. It appears the moment your machine is actually held back. An idle CPU keeps its cell — nought per cent is a real answer to a real question.\n\nThe band says how much history it actually has — *over the last 7 minutes* on a deck you just started — rather than claiming an hour it has not had."
+    },
+    {
+      "title": "👆 The whole process block opens the list, not just the word",
+      "body": "Eight rows of processes read as something you can look further into, and the only thing that said so was a 10px `more` in the corner. The **whole block** takes the press now, with a pointer that says so, and it lights on hover the way the four sections above it already did.\n\nThe column headers still sort — pressing `cpu` reorders the eight and opens nothing. `more` is still there, and it is still the control your keyboard and your screen reader use."
+    },
+    {
+      "title": "📝 These notes render what they were written in",
+      "body": "Every note in this dialog is written in Markdown — **bold** for the sentence that carries the change, backticks for a flag or a path — and the dialog printed the string raw. So the first window you see after an upgrade has been showing you `**this**`, backticks and all, since the feature shipped: 25 of 52 notes, 52 bold spans, 54 code spans.\n\nWhat you are reading is the first version that does not.\n\nNo Markdown library came along for it. Counted in the file: bold 52, code 54, links 0, headings 0, lists 0 — and the smallest library that reads all of Markdown is 40KB on a bundle the deck fetches while you wait for it to start."
+    }
+  ],
   "3.13.0": [
     {
       "title": "📊 Usage history stops jumping out from under you",

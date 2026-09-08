@@ -45,31 +45,72 @@ describe("the real file, every note", () => {
   });
 
   it("loses no character but the marks", () => {
-    // Independent of the parser: the expected value is the body with the
-    // delimiter characters deleted, by `replace`. If the parser dropped a
-    // word, swallowed a paragraph looking for a partner, or emitted a run
-    // twice, this is where it shows.
+    // Independent of the parser: both sides have every delimiter character
+    // deleted, so what is compared is the prose. If the parser dropped a word,
+    // swallowed a paragraph looking for a partner, or emitted a run twice,
+    // this is where it shows.
+    //
+    // Stripping BOTH sides rather than only the input, which is what this did
+    // first. That version assumed a `**` in the file is always a mark, and
+    // 3.14.0's own note broke the assumption honestly: it contains
+    // `` `**this**` `` — asterisks inside a CODE span, showing the reader what
+    // the bug used to look like. Code says exactly what it says, so the
+    // parser is right to keep them and the test was wrong to expect them gone.
+    // Which mark survived where is the next test's job.
+    const bare = (t: string) => t.replace(/[*`]/g, "");
     for (const n of everyNote) {
-      const expected = n.body.replace(/\*\*/g, "").replace(/`/g, "");
-      expect(plainOf(parseInline(n.body)), `${n.version}: ${n.title}`).toBe(expected);
+      expect(bare(plainOf(parseInline(n.body))), `${n.version}: ${n.title}`).toBe(bare(n.body));
     }
   });
 
-  it("leaves no mark on screen", () => {
-    // The defect itself, stated over the whole file.
+  it("leaves no mark on screen except inside a code span", () => {
+    // The defect itself, stated over the whole file — and stated over the
+    // TEXT runs, because a code span is allowed to contain anything. Walking
+    // the tree rather than the flattened string is what lets this stay strict
+    // where it matters instead of being loosened to accommodate one note.
+    const marksInText = (nodes: Inline[]): string[] =>
+      nodes.flatMap(n => {
+        if (n.kind === "code") return [];
+        if (n.kind === "bold") return marksInText(n.kids);
+        return /\*\*|`/.test(n.text) ? [n.text] : [];
+      });
     for (const n of everyNote) {
-      const shown = plainOf(parseInline(n.body));
-      expect(shown, `${n.version}: ${n.title}`).not.toContain("**");
-      expect(shown, `${n.version}: ${n.title}`).not.toContain("`");
+      expect(marksInText(parseInline(n.body)), `${n.version}: ${n.title}`).toEqual([]);
     }
   });
 
-  it("finds the bold and the code that are actually in there", () => {
+  it("keeps asterisks that a code span was written around", () => {
+    // 3.14.0's note, and the general rule under it.
+    const nodes = parseInline("showing you `**this**`, backticks and all");
+    expect(kinds(nodes)).toEqual(["text", "code", "text"]);
+    expect(plainOf(nodes)).toBe("showing you **this**, backticks and all");
+  });
+
+  it("finds every mark that is actually in there", () => {
     // A parser that returned one text run per note would pass every assertion
     // above. This is the one that says it did the work.
+    //
+    // Counted independently rather than pinned to a number: `52 and 54` was
+    // the first version and it broke on the release that came next, which is
+    // the wrong thing for a test to notice. What is counted here is delimiter
+    // PAIRS, by a scan that shares no code with parseInline — backticks first,
+    // because a code span is allowed to contain `**` and one of them now does.
+    let code = 0, bold = 0;
+    for (const n of everyNote) {
+      const ticks = n.body.split("`");
+      code += (ticks.length - 1) / 2;
+      // The odd-indexed pieces are the insides of code spans; the even ones
+      // are the prose between them, and only those can hold a bold mark.
+      const prose = ticks.filter((_, i) => i % 2 === 0).join("");
+      bold += (prose.match(/\*\*/g) ?? []).length / 2;
+    }
     const found = everyNote.flatMap(n => kinds(parseInline(n.body)));
-    expect(found.filter(k => k === "bold").length).toBe(52);
-    expect(found.filter(k => k === "code").length).toBe(54);
+    expect(found.filter(k => k === "code").length).toBe(code);
+    expect(found.filter(k => k === "bold").length).toBe(bold);
+    // And the file really does exercise both, so this is not a sweep over
+    // nothing.
+    expect(code).toBeGreaterThan(40);
+    expect(bold).toBeGreaterThan(40);
   });
 
   it("carries no markup in a title, and says so the day one does", () => {
