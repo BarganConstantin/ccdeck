@@ -790,11 +790,11 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   // that — see the markup — and moving the ring needs the buttons themselves.
   const periodRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [rangeRefresh, setRangeRefresh] = useState(0);
-  // `loading` is deliberately not read here. What the reader needs to know is
-  // that the figures on screen are the PREVIOUS range's, which is `stale`; a
-  // refresh of the range already shown changes nothing they can act on, and
-  // dimming for it would make the panel flicker every five minutes on its own
-  // poll.
+  // `loading` on its own is not a state this panel shows, and that has not
+  // changed: a refresh of the range already on screen moves no figure the
+  // reader can act on, and dimming for it would make the panel flicker every
+  // five minutes on its own poll. What is read below is `loading AND stale` —
+  // a fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   // What the board sums to right now, behind a stable identity. `state` and
   // `now` move constantly, so handing the hook a fresh closure would re-run its
   // fetch on every 250ms tick; the ref is reassigned each render and the
@@ -803,9 +803,31 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
   boardNowRef.current = () => boardBySession(state.agents.values(), now);
   const takeBaseline = useCallback(() => boardNowRef.current(), []);
 
-  const { data: range, shown: shownPeriod, stale: rangeStale, baseline } =
+  const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline } =
     useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
+
+  /**
+   * A read for the pressed period is running, and what is on screen is not it.
+   *
+   * MEASURED BEFORE IT WAS DRAWN, because the comments here used to say "ccusage
+   * against 'all time' takes seconds" and that is only half true. On this deck:
+   * the first read of ANY period is 2.4-2.8s — today, this month and all time
+   * within four tenths of each other, because what costs is walking the
+   * transcript directory rather than the range asked of it — and every read of
+   * a range already fetched is 10ms, from the server's own cache. So the wait is
+   * uniform, it happens on the first press of each word, and after that the
+   * strip is instant for the rest of the session. Two and a half seconds of a
+   * panel that only dims is a panel that looks broken rather than busy.
+   *
+   * `loading && stale` rather than `loading`, for the reason above it, and
+   * rather than `stale` alone for a reason that matters more: a fetch that
+   * FAILS leaves the figures stale for good, and an indicator keyed on staleness
+   * would then say "reading" forever. `loading` clears in the fetch's own
+   * `finally`, so a failure stops the signal and leaves the figures dimmed —
+   * which is the truth: they are the previous period's, and nothing is coming.
+   */
+  const rangePending = rangeLoading && rangeStale;
 
   // The board's own names, by session id. ccusage knows what a session cost and
   // the canvas knows what to call it; `period` on a ccusage session row is the
@@ -1226,6 +1248,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
           role="toolbar"
           aria-orientation="horizontal"
           aria-label="Period"
+          aria-busy={rangePending || undefined}
           onKeyDown={e => {
             // From where the RING is, not from where the selection is. Arrows
             // that reckon off `period` walk one step from the selected segment
@@ -1247,11 +1270,42 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
               ref={el => { periodRefs.current[i] = el; }}
               tabIndex={period === p.key ? 0 : -1}
               aria-pressed={period === p.key}
-              title={p.hint}
+              // Only ever on the pressed one, which is what lets the CSS key the
+              // pulse on this attribute alone: a rule that also named
+              // `[aria-pressed="true"]` would join the set of scoped state rules
+              // usage-series-contrast.test.ts holds to exactly three, and this
+              // is a temporary activity rather than a fourth way of being
+              // selected.
+              data-pending={period === p.key && rangePending ? "" : undefined}
+              // While it reads, the tooltip says what it is reading. The wait is
+              // the deck walking transcripts on this disk, and a reader who
+              // knows that reads two and a half seconds as work rather than as a
+              // request that may not come back.
+              title={period === p.key && rangePending ? `Reading ${p.noun} from the transcripts on this machine…` : p.hint}
               className="uh-range-btn"
               onClick={() => setPeriod(p.key)}
             >{p.label}</button>
           ))}
+        </div>
+      )}
+      {/* WHAT THE WAIT SOUNDS LIKE, since until now it made no sound at all: a
+          reader who cannot see the strip pressed `all`, and for two and a half
+          seconds nothing was announced, nothing was disabled, and the figures
+          they could read were the previous period's.
+          Always mounted with only its text moving — App.tsx's blocked-session
+          region carries the whole argument, and the half that matters here is
+          that a live region registers when it ENTERS the tree, so text arriving
+          in the same tick as the region is routinely never spoken. Rendering
+          this only while pending would put the region and its one sentence on
+          screen together, which is the delivery screen readers are least
+          reliable about, and would take it away again before it could say the
+          wait was over.
+          Polite, because a figure that is two seconds late costs nothing and
+          talking over the reader costs a sentence. `aria-atomic` because half
+          of this only means the wrong thing. */}
+      {fromRange && (
+        <div className="vis-hidden" role="status" aria-atomic="true">
+          {rangePending ? `Reading ${nounFor(period, period)}…` : ""}
         </div>
       )}
 

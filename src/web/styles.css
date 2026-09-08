@@ -5445,6 +5445,33 @@ button.tool.clickable:last-child { border-bottom: none; }
   background: var(--accent);
 }
 
+/* THE MARK THAT SAYS WHICH PERIOD ALSO SAYS IT IS BEING FETCHED, and nothing
+   new appears to say it. The first read of any period is 2.4-2.8s — measured,
+   uniform across the three, because the cost is walking the transcript
+   directory rather than the range — and every read after that is 10ms from the
+   server's cache. For those two and a half seconds the panel only dimmed its
+   figures, which reads as broken rather than as busy.
+   So the indicator breathes: it is already the thing the eye is on, because it
+   is directly under the word the finger just pressed. `scaleX` from the centre
+   and a step of opacity, both of which are compositor-only and neither of which
+   moves a pixel of layout — the 2px rule is a grid item and a transform on it
+   cannot reflow the label above it.
+   Keyed on `[data-pending]` alone rather than on `[aria-pressed="true"]
+   [data-pending]`: only the pressed segment is ever given the attribute, and
+   naming aria-pressed here would enter this rule into the set of scoped state
+   rules usage-series-contrast.test.ts holds to exactly three. This is activity,
+   not a fourth way of being selected. The colour is untouched — the accent
+   arrives solid or not at all, which is that issue's whole finding.
+   1100ms, which is slow enough to read as breathing rather than as blinking and
+   fast enough that two cycles fit inside the wait. */
+@keyframes up-period-reading {
+  0%, 100% { transform: scaleX(1);    opacity: 1; }
+  50%      { transform: scaleX(0.28); opacity: 0.55; }
+}
+.up-period .uh-range-btn[data-pending]::after {
+  animation: up-period-reading 1100ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* The ring goes inside the segment, for the reason the control exists at all.
    The shared `button:focus-visible` draws 2px of accent at `outline-offset:
    1px` — an 87.3 x 34px rectangle around a control whose premise is no box —
@@ -7556,6 +7583,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      just stops travelling. `transform: none` would have frozen it pointing
      down over an open section, which is the one thing it must never do. */
   .up-chev { transition: none; }
+  /* The period strip's read signal. A pulse is motion and a loop is the kind
+     that has to stop first, so the mark simply stands still — the figures below
+     it are still dimmed and the live region still says what is being read, so
+     nothing about the wait is only in the animation. */
+  .up-period .uh-range-btn[data-pending]::after { animation: none; }
 }
 
 

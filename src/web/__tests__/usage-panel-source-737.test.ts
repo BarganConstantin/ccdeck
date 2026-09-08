@@ -385,7 +385,10 @@ describe("markup, read as source", () => {
     expect(panel).toContain("onClick={() => setPeriod(p.key)}");
     // The hint is the shaper's too, for the same reason: `month` means what
     // `sinceFor` makes it mean, and a sentence written here could drift from it.
-    expect(panel).toContain("title={p.hint}");
+    // The tooltip is now a pair — what the span covers at rest, and what is
+    // being read while it reads — so the assertion is that `p.hint` is still
+    // the resting half rather than that it is the only half.
+    expect(panel).toMatch(/title=\{period === p\.key && rangePending \? `Reading \$\{p\.noun\}[^`]*` : p\.hint\}/);
     expect(panel).not.toMatch(/title="[^"]*month/i);
   });
 
@@ -412,12 +415,24 @@ describe("markup, read as source", () => {
     expect(css).toContain(".up-period {");
   });
 
-  it("keeps the chips pressable while a slower period loads", () => {
-    // ccusage against "all time" takes seconds. Nothing about the chips changes
-    // while it does — they are the reader's intent, and a reader who hit the
-    // wrong one must be able to correct it immediately.
+  it("keeps every segment pressable while a period loads", () => {
+    // The first read of ANY period takes seconds — measured 2.4-2.8s across all
+    // three on this deck, because what costs is walking the transcript
+    // directory rather than the range asked of it — and nothing about the
+    // control may change while it does. They are the reader's intent, and a
+    // reader who hit the wrong word has to be able to correct it immediately.
+    //
+    // This used to be spelled as `not.toContain("rangeLoading")`, which banned
+    // a VARIABLE NAME rather than the behaviour: it would have passed a strip
+    // that disabled itself under any other identifier, and it failed the moment
+    // the pending signal was drawn without disabling anything. What it was
+    // reaching for is below.
     expect(panel).not.toContain("up-period-busy");
-    expect(panel).not.toContain("rangeLoading");
+    const strip = panel.slice(panel.indexOf('className="uh-range up-period"'), panel.indexOf("</div>\n      )}"));
+    expect(strip).not.toMatch(/\bdisabled\b/);
+    expect(strip).not.toMatch(/pointer-events/);
+    // And the press still commits unconditionally — no guard in front of it.
+    expect(strip).toContain("onClick={() => setPeriod(p.key)}");
   });
 
   it("dims the figures, not the control, and with the token that means stale", () => {
@@ -599,6 +614,60 @@ describe("the period strip's keyboard and memory", () => {
     // ask /api/ccusage for a range it cannot spell.
     expect(panel).toContain("PERIODS.some(p => p.key === stored)");
     expect(panel).toMatch(/function savePeriod[\s\S]{0,200}catch \{/);
+  });
+
+  it("says a read is running, where the finger just was", () => {
+    // MEASURED FIRST. The first read of any period is 2.4-2.8s and every read
+    // of a range already fetched is 10ms from the server's cache — so the wait
+    // is uniform, lands on the first press of each word, and is long enough
+    // that a panel which only dims looks broken rather than busy.
+    //
+    // `loading && stale`, and both halves earn their place. `loading` alone
+    // would fire on the five-minute poll of the range already on screen;
+    // `stale` alone would keep saying "reading" for good after a fetch that
+    // FAILED, because a failure leaves the figures stale and nothing coming.
+    expect(panel).toContain("const rangePending = rangeLoading && rangeStale;");
+    expect(panel).toContain('data-pending={period === p.key && rangePending ? "" : undefined}');
+    expect(panel).toContain("aria-busy={rangePending || undefined}");
+    // The mark that already says WHICH period is the one that says it is being
+    // fetched — nothing new appears. Keyed on the attribute alone so it stays
+    // out of the set of scoped state rules usage-series-contrast holds to three.
+    const at = css.indexOf("\n.up-period .uh-range-btn[data-pending]::after {");
+    expect(at, "no pending rule for the indicator").toBeGreaterThan(-1);
+    const rule = css.slice(at, css.indexOf("}", at));
+    expect(rule).toMatch(/animation: up-period-reading 1100ms/);
+    expect(rule, "the accent may not be diluted, even while it moves")
+      .not.toMatch(/--accent-dim|color-mix[^;]*--accent|background/);
+    // Compositor-only, so a 2px grid item cannot reflow the label above it.
+    const frames = css.slice(css.indexOf("@keyframes up-period-reading"));
+    expect(frames.slice(0, frames.indexOf("\n}"))).not.toMatch(/width|height|margin|padding/);
+  });
+
+  it("stops the loop under reduced motion without hiding the wait", () => {
+    // A pulse is motion and a loop is the kind that has to stop first. The
+    // figures are still dimmed and the live region still speaks, so nothing
+    // about the wait lives only in the animation.
+    const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(rm).toContain(".up-period .uh-range-btn[data-pending]::after { animation: none; }");
+  });
+
+  it("says the wait out loud, from a region that was already there", () => {
+    // Until now a reader who could not see the strip pressed `all` and got two
+    // and a half seconds of nothing: no announcement, nothing disabled, and
+    // figures that were the previous period's.
+    //
+    // Always mounted with only its text moving. A live region registers when it
+    // ENTERS the tree, so text arriving in the same tick as the region is
+    // routinely never spoken — rendering this only while pending would put the
+    // region and its one sentence on screen together, and take it away again
+    // before it could say the wait was over. App.tsx's blocked-session region
+    // is the precedent and carries the whole argument.
+    expect(panel).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">/);
+    expect(panel).toContain('{rangePending ? `Reading ${nounFor(period, period)}…` : ""}');
+    // Polite, not assertive: a figure two seconds late costs nothing and
+    // talking over the reader costs a sentence.
+    const at = panel.indexOf('<div className="vis-hidden" role="status"');
+    expect(panel.slice(at, at + 200)).not.toContain('role="alert"');
   });
 
   it("says what each span actually covers, from the shaper that decides it", () => {
