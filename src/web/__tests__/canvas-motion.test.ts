@@ -281,6 +281,11 @@ const PRESSES: Press[] = [
   // "more" beside the process table's heading — a 10px word, so 0.97 like every
   // other labelled control rather than the 0.94 the round glyphs take.
   [".sd-all:active", "0.97", "transform"],
+  // The whole PROCESS block, which opens the same list `more` does. It could
+  // not be a `.sd-open` — its column headers are buttons and a button cannot
+  // contain one — so it is a section that takes the press instead, at the tier
+  // every other block that opens something takes.
+  [".sysdetail .sd-section.sd-openable:active", "0.97", "transform"],
   [".topbar .waiting-stat:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.

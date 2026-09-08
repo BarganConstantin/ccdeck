@@ -21,7 +21,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fmtReading, liveReadings, THROTTLE_SERIES, type LiveSource } from "../machine-live";
-import { worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
+import { cellLabel, worthACell, windowOf, SPARK_W, SPARK_H, WINDOW_BUCKETS, REFRESH_MS, GROUPS } from "../components/MachineStrip";
 import { spanLabel, type Series } from "../components/SectionHistoryModal";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -241,9 +241,12 @@ describe("the layout, pinned to what was measured", () => {
   });
 
   it("is wide enough for the worst head, not for the one on screen", () => {
-    // 59.7px for the longest label plus 8px of gap plus about 33px for a
-    // three-digit load average.
-    expect(SPARK_W).toBeGreaterThanOrEqual(101);
+    // The longest label plus 8px of gap plus about 33px for a three-digit load
+    // average. The label measured 59.7px (`Busiest core`) when this was
+    // written and 67px (`Swap memory`) once the names grew their nouns — the
+    // number that matters lives in the cellLabel block, which is where the
+    // widest name is decided.
+    expect(SPARK_W).toBeGreaterThanOrEqual(67 + 8 + 33);
   });
 
   it("holds its own height before the first bucket exists", () => {
@@ -275,6 +278,116 @@ describe("the layout, pinned to what was measured", () => {
     // empty box reads as a broken chart rather than as a young deck.
     expect(strip).toContain("pl-spark-floor");
     expect(rule(".pl-spark-floor")).toContain("stroke: var(--line-soft)");
+  });
+});
+
+describe("what a cell calls its reading", () => {
+  it("gives a name its own noun, because the band has no heading", () => {
+    // The panel puts `Physical` under a section called Memory and the history
+    // dialog under `Memory history`. Six readings in a row with nothing above
+    // them cannot borrow that: `Physical 63%` is a number about nothing.
+    expect(cellLabel(series({ key: "mem:physical", label: "Physical" }))).toBe("Physical RAM");
+  });
+
+  it("derives the temperature name from the unit, not from a list of sensors", () => {
+    // A Linux hwmon box publishes whatever the chip calls its sensors. A
+    // lookup table would have covered `GPU` and left `Package id 0` bare.
+    expect(cellLabel(series({ key: "thermal:GPU", label: "GPU", unit: "C" }))).toBe("GPU temp");
+    expect(cellLabel(series({ key: "thermal:Package id 0", label: "Package id 0", unit: "C" })))
+      .toBe("Package id 0 temp");
+  });
+
+  it("keeps the server's word for swap, because Windows has no swap file", () => {
+    // The server already renames that reading `Commit` there. A hardcoded
+    // "Swap memory" would have been wrong on the one platform nobody re-reads.
+    expect(cellLabel(series({ key: "mem:swap", label: "Swap" }))).toBe("Swap memory");
+    expect(cellLabel(series({ key: "mem:swap", label: "Commit" }))).toBe("Commit memory");
+  });
+
+  it("leaves alone the names that already read", () => {
+    // `All cores` and `Busiest core` explain each other, and `Queued work` is
+    // plainer than "load average". Renaming those would be churn.
+    expect(cellLabel(series({ key: "cpu:all", label: "All cores" }))).toBe("All cores");
+    expect(cellLabel(series({ key: "cpu:busiest", label: "Busiest core" }))).toBe("Busiest core");
+    expect(cellLabel(series({ key: "load:1m", label: "Queued work", unit: "" }))).toBe("Queued work");
+  });
+
+  it("does not treat the throttle percentage as a temperature", () => {
+    // It lives in the thermal group and is measured in %, so the rule keyed on
+    // the unit is what keeps `Throttling temp` off the screen.
+    expect(cellLabel(series({ key: "thermal:Throttling", label: "Throttling", unit: "%" })))
+      .toBe("Throttling");
+  });
+
+  it("still fits the widest name it can now produce", () => {
+    // Re-measured after the labels grew nouns: `Swap memory` is 67px where
+    // `Busiest core` was 59.7, and the widest reading is a three-digit load
+    // average at about 33px, plus 8px of gap.
+    expect(SPARK_W).toBeGreaterThanOrEqual(67 + 8 + 33);
+  });
+});
+
+describe("the process block opens the list it is a preview of", () => {
+  const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
+  const rule = (sel: string) => {
+    const i = css.indexOf(`${sel} {`);
+    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+  };
+
+  it("takes the press anywhere in the block, not only on the word", () => {
+    // Eight rows of processes read as something you can look further into, and
+    // the only thing that said so was a 10px word in the corner.
+    expect(meter).toContain("sd-openable");
+    expect(rule(".sysdetail .sd-section.sd-openable")).toContain("cursor: pointer");
+  });
+
+  it("steps aside for the controls already inside it", () => {
+    // The column headers sort and `more` opens this same dialog. Without the
+    // guard a press on `cpu` would sort AND open the modal over it, and `more`
+    // would fire twice. Verified in the page: sorting does not open, a row
+    // does, the heading does, and `more` opens exactly one.
+    expect(meter).toContain('(e.target as HTMLElement).closest("button")');
+  });
+
+  it("does not claim to be a control the keyboard can reach", () => {
+    // role="button" plus a tabindex was the obvious next step and is wrong
+    // twice: a second tab stop for an action `more` already offers with a real
+    // name, on an element that CONTAINS the sort buttons. The mouse gets a
+    // shortcut; the keyboard and a screen reader keep the button.
+    const block = meter.slice(meter.indexOf("function Processes("), meter.indexOf("function Row("));
+    const opening = block.slice(block.indexOf("<div"), block.indexOf(">", block.indexOf("onClick")));
+    expect(opening).not.toContain('role="button"');
+    expect(opening).not.toContain("tabIndex");
+    expect(opening).toContain('role="group"');
+  });
+
+  it("only becomes a target when there is a list to open", () => {
+    expect(meter).toContain("const openable = read != null && procs != null && procs.length > 0");
+  });
+
+  it("lights the way the four sections above it already do", () => {
+    // A fifth block that behaved differently would read as a different kind of
+    // thing. Same fill, same 6% of --text, same active scale.
+    const mine = rule(".sysdetail .sd-section.sd-openable:hover");
+    const theirs = rule(".sysdetail .sd-open:hover");
+    expect(mine).toContain("color-mix(in srgb, var(--text) 6%, transparent)");
+    expect(theirs).toContain("color-mix(in srgb, var(--text) 6%, transparent)");
+    expect(rule(".sysdetail .sd-section.sd-openable:active")).toContain("scale(0.97)");
+  });
+
+  it("keeps the gap between sections it bleeds into", () => {
+    // The margin is on the SECTION, not on a button inside it, so a flat -4px
+    // would have eaten the 13px `.sd-section + .sd-section` gap. 9 + 4 is that
+    // 13 — measured in the page at the same 5px of daylight the other sections
+    // leave.
+    expect(rule(".sysdetail .sd-section + .sd-section.sd-openable")).toContain("margin-top: 9px");
+    expect(rule(".sysdetail .sd-section.sd-openable")).toContain("margin-bottom: -4px");
+    expect(rule(".sd-section + .sd-section")).toContain("margin-top: 13px");
+  });
+
+  it("drops the press animation for anyone who asked for less movement", () => {
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .sysdetail"));
+    expect(reduced.slice(0, reduced.indexOf("\n}"))).toContain(".sysdetail .sd-section.sd-openable:active { transform: none; }");
   });
 });
 

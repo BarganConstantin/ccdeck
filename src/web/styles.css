@@ -1698,6 +1698,34 @@ button.btn.sm-hear {
   transition: color 140ms ease;
 }
 .sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
+
+/* THE PROCESS BLOCK, which opens the same list its `more` does — the one
+   section that could not be a `.sd-open` because its column headers are buttons
+   and a button cannot contain one. Everything below is `.sd-open`'s own
+   treatment, reused rather than reinvented: the four sections above it already
+   light as a block on hover, and a fifth that behaved differently would read as
+   a different kind of thing.
+
+   The bleed is split instead of `margin: -4px …` because the margin here is on
+   the SECTION, not on a button inside it, and a flat -4px would eat the 13px
+   `.sd-section + .sd-section` gap. 9 + 4 is that 13, so the daylight between
+   sections is unchanged and the fill still reaches 4px past the text. */
+.sysdetail .sd-section.sd-openable {
+  padding: 4px var(--pad-x);
+  margin-inline: calc(var(--pad-x) * -1);
+  margin-bottom: -4px;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.sysdetail .sd-section + .sd-section.sd-openable { margin-top: 9px; }
+.sysdetail .sd-section.sd-openable:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sysdetail .sd-section.sd-openable:active { transform: scale(0.97); }
+/* The word and the chevron brighten with the block, so the affordance and the
+   target are one thing — `.sd-all` is the control, the block is its target. */
+.sysdetail .sd-section.sd-openable:hover .sd-all,
+.sysdetail .sd-section.sd-openable:hover .sd-row-more { color: var(--text); }
+/* The headers need nothing here: `.sd-sort` already declares its own pointer
+   and its own press, and the section's handler steps aside for them. */
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .sd-row-label { color: var(--muted); }
 .sd-row-val { font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -1834,6 +1862,7 @@ button.btn.sm-hear {
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }
   .sd-all:active { transform: none; }
   .sysdetail .sd-open:active { transform: none; }
+  .sysdetail .sd-section.sd-openable:active { transform: none; }
 }
 /* The one thing on this bar that says whether the rest of it is true, so its
    weight is 600 rather than the 400 it inherited from the strip. It was the
@@ -8910,12 +8939,13 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 }
 .pl-cell { display: flex; flex-direction: column; gap: 2px; }
 /* 116px, from the worst head this can be asked to draw rather than from the
-   one on screen when it was written. The longest label measured 59.7px
-   (`Busiest core`) and the widest reading is a load average under load —
-   `123.45`, about 33px, where an idle `5.24` is 26. 59.7 + 8 + 33 = 101, and
-   `Queued work` with a three-digit load is 104: at the first width the label
-   this exists to show read `Queued wo…` exactly when the machine was busy
-   enough to look at it.
+   one on screen when it was written. The longest label measured 67px
+   (`Swap memory`) and the widest reading is a load average under load —
+   `123.45`, about 33px, where an idle `5.24` is 26. 67 + 8 + 33 = 108, and at
+   the first width of 104 the label this exists to show read `Queued wo…`
+   exactly when the machine was busy enough to look at it. Re-measured after
+   the labels grew nouns: `Busiest core` was the longest at 59.7px until
+   `Physical` became `Physical RAM`.
 
    NOWRAP is the part that is not about this machine at all. Thermal labels come
    from the chip — a Linux hwmon box publishes `Package id 0` where this one

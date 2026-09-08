@@ -65,6 +65,36 @@ export function worthACell(s: Series): boolean {
   return s.points.some(p => p.v > 0);
 }
 
+/**
+ * What a cell calls its reading.
+ *
+ * The server's label is written for a place that has a heading over it: the
+ * panel puts `Physical` and `Swap` under a section called Memory, and the
+ * history dialog puts them under `Memory history`. The band has no heading —
+ * six readings in a row with nothing above them — so each name has to carry its
+ * own noun. `Physical 63%` is a number about nothing until you already know.
+ *
+ * Only the names that failed that test are changed. `All cores` and
+ * `Busiest core` explain each other, and `Queued work` is already plainer than
+ * "load average"; renaming those would be churn.
+ *
+ * Two of the three are DERIVED rather than written out, and that is the part
+ * that matters beyond this machine:
+ *
+ *  • anything measured in degrees gets `temp`, so a Linux box publishing
+ *    `Package id 0` and `Composite` gets `Package id 0 temp` without this
+ *    module having heard of either;
+ *  • swap keeps the server's own word for it, because Windows has no swap file
+ *    and the server already renames that reading `Commit`. A hardcoded
+ *    "Swap memory" would have been wrong on the one platform nobody re-reads.
+ */
+export function cellLabel(s: Series): string {
+  if (s.unit === "C") return `${s.label} temp`;
+  if (s.key === "mem:physical") return "Physical RAM";
+  if (s.key === "mem:swap") return `${s.label} memory`;
+  return s.label;
+}
+
 /** The tail of a series, at most WINDOW_BUCKETS long. */
 export function windowOf(s: Series, n = WINDOW_BUCKETS): Series {
   return s.points.length <= n ? s : { ...s, points: s.points.slice(-n) };
@@ -150,7 +180,8 @@ export default function MachineStrip({ sys }: { sys: LiveSource }) {
 }
 
 function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; now: number | undefined; span: string }) {
-  const { points, top, unit, label, warnAt, critAt } = series;
+  const { points, top, unit, warnAt, critAt } = series;
+  const label = cellLabel(series);
   // The live reading where the snapshot has one, and the last bucket where it
   // does not — a series can outlive its reading by an hour, and a cell with a
   // shape and no number is worse than a slightly old number.

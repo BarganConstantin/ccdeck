@@ -792,9 +792,34 @@ function Processes({ read, all, setAll, sys }: {
 }) {
   const [sort, setSort] = useState<Sort>(SORT_DEFAULT);
   const procs = read?.procs ?? null;
+  const openable = read != null && procs != null && procs.length > 0;
 
   return (
-    <div className="sd-section" role="group" aria-label="Busiest processes">
+    // THE WHOLE BLOCK OPENS THE LIST, not just the word `more`. Eight rows of
+    // processes read as something you can look further into, and the only thing
+    // that said so was a 10px word in the corner.
+    //
+    // ONE HANDLER ON THE SECTION, and it steps aside for anything that is
+    // already a control: the column headers sort, and `more` opens this same
+    // dialog through its own onClick. Without the `closest("button")` guard a
+    // press on `cpu` would sort the list AND open the modal over it, and `more`
+    // would fire twice.
+    //
+    // NOT a role="button" with a tabindex, which was the obvious next step and
+    // is wrong twice over: it would put a second tab stop on the keyboard for
+    // an action `more` already offers with a real name, and it would make a
+    // focusable container out of an element that CONTAINS the sort buttons.
+    // The mouse gets a shortcut; the keyboard and a screen reader keep the
+    // button, which is the control.
+    <div
+      className={`sd-section${openable ? " sd-openable" : ""}`}
+      role="group"
+      aria-label="Busiest processes"
+      onClick={openable ? e => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        setAll(true);
+      } : undefined}
+    >
       {/* The one section that is NOT wrapped in a single control, and it is the
           markup that decides: its column headers are already buttons, and a
           button cannot contain a button. So the affordance is its own small
