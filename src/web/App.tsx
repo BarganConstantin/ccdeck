@@ -25,7 +25,7 @@ import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
 import {
-  activeCount, autoRestartRemainingMs, autoRestartStep, countdownLabel, restartEndedInFailure,
+  activeCount, autoRestartLabel, autoRestartRemainingMs, autoRestartStep, restartEndedInFailure,
   restartLandingStep, restartSafety, upgradeFailureId,
 } from "./restart";
 import { copyText } from "./copy-text";
@@ -1479,6 +1479,10 @@ function Inner() {
       // #804: the same condition the switch renders under, so the deck never
       // restarts itself at a moment when nothing on screen offers to stop it.
       noticeOpen,
+      // Not in a tab nobody is looking at. A background tab's timers are
+      // throttled rather than stopped, so a forgotten one could restart the
+      // server under the tab in use — see RestartGate.visible.
+      visible: document.visibilityState === "visible",
       busy,
       idleSince: idleSinceRef.current,
       now,
@@ -1505,6 +1509,7 @@ function Inner() {
     kind: notice?.kind,
     canRestart: version?.canRestart === true,
     noticeOpen,
+    visible: document.visibilityState === "visible",
     busy: activeNow > 0,
     idleSince: idleSinceRef.current,
     now,
@@ -3828,8 +3833,13 @@ function Inner() {
                       that is what happens — and it is a label rather than a
                       confirmation dialog because a modal over a live canvas is
                       worse than a true word. */}
+                  {/* WHY A RESTART IS NEEDED AT ALL, on the branch where the
+                      reader can actually do something about it. The sentence
+                      existed and rendered only under `canRestart: false` — the
+                      one audience that cannot act on it. */}
                   <button type="button" className="ver-act" onClick={() => askRestart()} {...selfPressProps(restarting)}
-                    title="Stop this process and bring it back on the same port. The canvas replays from the event log.">
+                    title={"Stop this process and bring it back on the same port. The canvas replays from the event log.\n\n"
+                      + "Node loads every module once, at startup. An upgrade replaces the files on disk but not the code already in memory, so this process keeps running the old version until it is restarted."}>
                     {restarting ? "restarting…" : restartCopy.label}
                   </button>
                   {/* And the consequence, in the open. It was in a `title`,
@@ -3850,7 +3860,7 @@ function Inner() {
                       ? "Restarts on its own once nothing has been running for 30 seconds. Click to require a click instead."
                       : "Only restarts when you click. Click to let it restart itself while idle."}>
                     <i aria-hidden />
-                    <span aria-hidden>{restartFuseMs == null ? "auto when idle" : `auto in ${countdownLabel(restartFuseMs)}`}</span>
+                    <span aria-hidden>{autoRestartLabel(autoRestart, restartFuseMs)}</span>
                   </button>
                 </>
               ) : (

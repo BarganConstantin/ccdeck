@@ -6,8 +6,8 @@
 // the part worth pinning down.
 import { describe, it, expect } from "vitest";
 import {
-  activeCount, autoRestartRemainingMs, autoRestartStep, countdownLabel, restartSafety,
-  shouldReloadBundle, IDLE_BEFORE_RESTART_MS,
+  activeCount, autoRestartLabel, autoRestartRemainingMs, autoRestartStep, countdownLabel,
+  restartSafety, shouldReloadBundle, IDLE_BEFORE_RESTART_MS,
 } from "../restart";
 
 const NOW = 1_800_000_000_000;
@@ -16,6 +16,7 @@ const ok = {
   kind: "restart" as string | null | undefined,
   canRestart: true,
   noticeOpen: true,
+  visible: true,
   busy: false,
   idleSince: null as number | null,
   now: NOW,
@@ -89,7 +90,7 @@ describe("autoRestartStep", () => {
     // disqualification in the gate, and every one of them has to reach here.
     for (const off of [
       { enabled: false }, { busy: true }, { noticeOpen: false },
-      { canRestart: false }, { kind: "upgrade" }, { kind: null },
+      { canRestart: false }, { kind: "upgrade" }, { kind: null }, { visible: false },
     ]) {
       const g = { ...ok, idleSince: NOW - 10 * IDLE_BEFORE_RESTART_MS, ...off };
       expect(autoRestartRemainingMs(g), JSON.stringify(off)).toBeNull();
@@ -124,6 +125,22 @@ describe("autoRestartStep", () => {
     expect(countdownLabel(125_000)).toBe("2:05");
   });
 
+  it("does not restart the deck from a tab nobody is looking at", () => {
+    // Two tabs on one deck arm this independently, and a browser throttles a
+    // background tab's timers rather than stopping them — about a tick a minute
+    // in Chrome, which is plenty for a thirty-second window to pass between two
+    // of them. So the tab in front of the user would have learned about a
+    // restart it never offered to stop as `Lost connection`.
+    const stale = { ...ok, idleSince: NOW - 10 * IDLE_BEFORE_RESTART_MS };
+    expect(autoRestartStep({ ...stale, visible: false }))
+      .toEqual({ idleSince: null, restart: false, remainingMs: null });
+    // Reset rather than paused, like every other disqualification: coming back
+    // to the tab buys a full window, not whatever was left of the old one.
+    expect(autoRestartStep({ ...ok, visible: false }).idleSince).toBeNull();
+    // And the visible tab still does its job, so this is a gate and not a stop.
+    expect(autoRestartStep(stale).restart).toBe(true);
+  });
+
   it("obeys the server when it says a restart is impossible", () => {
     // Unsupervised, or --no-persist, where restarting would wipe the canvas.
     const stale = { ...ok, idleSince: NOW - 10 * IDLE_BEFORE_RESTART_MS };
@@ -135,6 +152,30 @@ describe("autoRestartStep", () => {
     // for however long the jump was.
     const step = autoRestartStep({ ...ok, idleSince: NOW + 60_000 });
     expect(step).toEqual({ idleSince: NOW, restart: false, remainingMs: IDLE_BEFORE_RESTART_MS });
+  });
+});
+
+describe("what the auto-restart switch says", () => {
+  // The state was carried by colour alone — --muted to --warn on the label and
+  // on a 6px dot — on the one control in this deck that arms a process kill.
+  // 1.4.1 asks for a second channel; the word is it.
+  it("says off in a word rather than in a hue", () => {
+    expect(autoRestartLabel(false, null)).toBe("auto-restart off");
+    expect(autoRestartLabel(false, 12_000)).toBe("auto-restart off");
+  });
+
+  it("says the rule while it is armed and nothing is counting", () => {
+    expect(autoRestartLabel(true, null)).toBe("auto when idle");
+  });
+
+  it("says the clock the moment there is one", () => {
+    expect(autoRestartLabel(true, 18_000)).toBe("auto in 18s");
+    expect(autoRestartLabel(true, 0)).toBe("auto in 0s");
+  });
+
+  it("never reads the same in two different states", () => {
+    const labels = [autoRestartLabel(false, null), autoRestartLabel(true, null), autoRestartLabel(true, 18_000)];
+    expect(new Set(labels).size).toBe(labels.length);
   });
 });
 

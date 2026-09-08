@@ -306,6 +306,12 @@ describe("#804 — the deck restarting itself", () => {
     const NOW = 1_800_000_000_000;
     const gate = {
       enabled: true, kind: "restart" as const, canRestart: true, busy: false,
+      // The same rule one layer out, added later: a background tab's timers are
+      // throttled rather than stopped, so a forgotten tab could restart the
+      // deck under the tab in use. Set true here because THIS case is about the
+      // dismissed banner, and a second `false` would make it pass for the wrong
+      // reason.
+      visible: true,
       idleSince: NOW - 10 * 60_000, now: NOW,
     };
     expect(autoRestartStep({ ...gate, noticeOpen: false }).restart).toBe(false);

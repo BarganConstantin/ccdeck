@@ -2301,7 +2301,18 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--warn) 16%, transparent);
-  color: var(--warn);
+  /* THE LABEL IS NOT AMBER, and it used to be. Measured on the real render:
+     --warn on this button's own 16% fill over the banner's wash comes to
+     7.41:1 in dark and 3.39:1 in light — under AA at 11px/600, on the most
+     consequential control in the deck. It is also POSITIONAL: the wash is a
+     gradient that only reaches 0% at the bar's right edge, so the figure gets
+     worse the wider the window and the shorter the sentence in front of it.
+     The sheet had already diagnosed this exact trap for the running text a few
+     rules up and not carried the fix to the button.
+     The warn identity is unhurt: the border is 85% warn and the fill is 16%,
+     which is what makes this read as the banner's own button — the ink is just
+     no longer the same hue as the thing it sits on. */
+  color: var(--text);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -2332,21 +2343,27 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   border: 1px solid transparent;
   border-radius: 999px;
   background: none;
-  color: var(--muted);
+  /* One colour for both states, because the STATE IS THE WORD now — `off`
+     against `when idle` / `in 18s`. It was carried by hue alone (--muted to
+     --warn on the label, --muted-dim to --warn on the dot), which is 1.4.1 on
+     the control that arms a process kill, and both of those greys measured
+     under AA on the wash in one theme each: --muted at 4.32:1 in dark, --warn
+     at 4.20:1 in light. --text clears both by a distance, and the dot below
+     stays as reinforcement rather than as the whole signal. */
+  color: var(--text);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
   transition: color 130ms, border-color 130ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ver-banner .ver-auto:hover { color: var(--text); border-color: var(--ctl-edge); }
+.ver-banner .ver-auto:hover { border-color: var(--ctl-edge); }
 .ver-banner .ver-auto:active { transform: scale(0.97); }
 .ver-banner .ver-auto i {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--muted-dim);
   transition: background 130ms, box-shadow 130ms;
 }
-.ver-banner .ver-auto.on { color: var(--warn); }
 .ver-banner .ver-auto.on i { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
 
 /* A <button> now, so the element brings its own border and background to strip.

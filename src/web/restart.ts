@@ -145,6 +145,20 @@ export type RestartGate = {
   noticeOpen: boolean;
   /** Any agent currently running. */
   busy: boolean;
+  /** Whether this tab is the one being looked at.
+   *
+   *  Two tabs on one deck each arm this independently, and a browser THROTTLES
+   *  a background tab's timers rather than stopping them — roughly a tick a
+   *  minute in Chrome, which is plenty for a thirty-second window to elapse
+   *  between two of them. So a forgotten tab could decide to restart the
+   *  server, and the tab actually in front of the user would learn about it as
+   *  `Lost connection`, from a control it never saw and a countdown it never
+   *  drew.
+   *
+   *  #804's rule, one layer out: do not arm something destructive in a surface
+   *  nobody is looking at. The visible tab still restarts on its own; the
+   *  hidden one waits until it is the visible one. */
+  visible: boolean;
   /** When the current quiet stretch began, or null if it has not begun. */
   idleSince: number | null;
   now: number;
@@ -179,7 +193,7 @@ export type RestartStep = {
 export function autoRestartRemainingMs(g: RestartGate): number | null {
   const threshold = g.thresholdMs ?? IDLE_BEFORE_RESTART_MS;
   if (!g.enabled || g.kind !== "restart" || !g.canRestart || !g.noticeOpen) return null;
-  if (g.busy) return null;
+  if (!g.visible || g.busy) return null;
   // A stretch that has not begun, and one whose start is in the future — a
   // laptop waking, an NTP correction — are both a full window from now.
   if (g.idleSince == null || g.now < g.idleSince) return threshold;
@@ -197,6 +211,21 @@ export function countdownLabel(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000));
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * What the auto-restart switch says.
+ *
+ * The state used to be carried by colour alone — `--muted` to `--warn` on the
+ * label and on a 6px dot — which is 1.4.1 on the one control in this deck that
+ * arms a process kill, and the two greys measured under AA in one theme each.
+ * So the word carries it: `off` is a word, `when idle` and `in 18s` are not,
+ * and the dot went back to being reinforcement.
+ */
+export function autoRestartLabel(enabled: boolean, remainingMs: number | null): string {
+  if (!enabled) return "auto-restart off";
+  if (remainingMs == null) return "auto when idle";
+  return `auto in ${countdownLabel(remainingMs)}`;
 }
 
 /** How many agents are running right now. Structural over the agent map's
