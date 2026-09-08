@@ -308,7 +308,7 @@ describe("sorting the columns that can be absent", () => {
     // differently on Windows, where the percentage is private bytes and the
     // column is the working set. Sorting by one and showing the other would be
     // right on two platforms out of three.
-    expect(modal).toMatch(/<SortHead col="rss" label="memory"/);
+    expect(modal).toMatch(/<SortHead\s+col="rss"\s+label="memory"/);
     expect(modal).toMatch(/fmtBytes\(p\.rssBytes\)/);
   });
 });

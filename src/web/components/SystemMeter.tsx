@@ -881,9 +881,14 @@ function Processes({ read, all, setAll, sys }: {
 
 /** One column header: the word, the direction it is pointing, and the press
  *  that changes it. */
-export function SortHead({ col, label, sort, onSort }: {
+export function SortHead({ col, label, note, sort, onSort }: {
   col: SortKey;
   label: string;
+  /** What this column means, where the meaning is not the label. It rides on
+   *  the header's own tooltip, under the sort action, because a caveat about a
+   *  column belongs to the column: it is findable from the thing it is about
+   *  rather than from a footnote at the other end of the dialog. */
+  note?: string;
   sort: Sort;
   onSort: (next: Sort) => void;
 }) {
@@ -893,7 +898,7 @@ export function SortHead({ col, label, sort, onSort }: {
       <button
         type="button"
         className="sd-sort"
-        title={`Sort by ${label}`}
+        title={note ? `Sort by ${label}\n\n${note}` : `Sort by ${label}`}
         onClick={() => onSort(nextSort(sort, col))}
       >
         {label}

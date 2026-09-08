@@ -220,7 +220,7 @@ describe("the header is a control a keyboard can reach", () => {
   it("names itself with the word in the column, and describes the press in a title", () => {
     // The accessible name comes from the contents, so a voice-control user says
     // the word they can see. The tooltip is the description.
-    expect(src).toMatch(/title=\{`Sort by \$\{label\}`\}/);
+    expect(src).toMatch(/title=\{note \? `Sort by \$\{label\}/);
   });
 
   it("hides the arrow from the reading, because aria-sort has already said it", () => {

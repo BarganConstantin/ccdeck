@@ -418,24 +418,27 @@ describe("the dialog's own rhythm", () => {
   it("puts the same air around every rule between peer bands", () => {
     // Four bands, three identical 1px rules, and the space around them was
     // 22 / 14 / 10 — not a cadence but a decay, each band having picked its own
-    // padding locally. The further down you read the more cramped it got, and
-    // the tightest rule sat above the densest text in the dialog.
-    const body = pad(".pl-body"), strip = pad(".pl-strip"), foot = pad(".pl-foot");
+    // padding locally. The further down you read the more cramped it got.
+    //
+    // Three bands now: the footnote band was removed and its two claims moved
+    // onto the headers of the columns they are about. The cadence survives the
+    // removal because it was stated as a relationship and not as a list of
+    // paddings.
+    const body = pad(".pl-body"), strip = pad(".pl-strip");
     const head = 12; // .modal-head, shared by every dialog
     expect(body.bottom + strip.top).toBe(20);
-    expect(strip.bottom + foot.top).toBe(20);
     // A title is not a peer, so it keeps slightly more.
     expect(head + body.top).toBe(22);
-    // And the outer frame matches itself top and bottom.
-    expect(foot.bottom).toBe(12);
+    // The strip is the last band, so its bottom IS the outer frame, and the
+    // frame matches itself top and bottom.
+    expect(strip.bottom).toBe(12);
   });
 
-  it("makes the table the thing that gives, not the fixed bands", () => {
-    // Both bands sit in a column flex box at its max height. With the default
-    // shrink the browser took the room out of THEM — measured with the
-    // sparklines hanging 9px below their own band, into the footer's space.
+  it("makes the table the thing that gives, not the fixed band", () => {
+    // The band sits in a column flex box at its max height. With the default
+    // shrink the browser took the room out of IT — measured with the sparklines
+    // hanging 9px below their own band.
     expect(rule(".pl-strip")).toContain("flex-shrink: 0");
-    expect(rule(".pl-foot")).toContain("flex-shrink: 0");
   });
 
   it("reserves the height the band actually needs", () => {
@@ -496,35 +499,25 @@ describe("the dialog's type", () => {
     expect(off).toContain(".sd-proc-name");
   });
 
-  it("writes the footnote as statements rather than as a paragraph", () => {
-    // Run together in a box this wide it measured 142 characters a line over
-    // four lines — nearly double the comfortable maximum, at the smallest size
-    // in the dialog and in its dimmest colour. Split, the sentences are 103,
-    // 119 and 89: they were written as readable units and the paragraph was
-    // what ruined them. Each renders on ONE line at the dialog's own width, so
-    // there is no return sweep at all.
-    const foot = modalSrc.slice(modalSrc.indexOf('className="pl-foot"'));
-    const body = foot.slice(0, foot.indexOf("</div>"));
-    expect((body.match(/<p>/g) ?? []).length).toBe(3);
-    expect(rule(".pl-foot p")).toContain("margin: 0");
-    // Three captions in one footnote, not three paragraphs: the line break
-    // already separates them and a paragraph's gap would make it read as a
-    // list of rules.
-    expect(rule(".pl-foot p + p")).toContain("margin-top: 3px");
-  });
-
-  it("gives the footnote's one literal the treatment every other literal has", () => {
-    // `ps` reached the page as a bare family swap — monospace at the same 10px
-    // in the same muted grey — which at that size reads as a rendering fault
-    // rather than as a command you could type. The deck already treats inline
-    // code this way in six other places.
-    const code = rule(".pl-foot code");
-    expect(code).toContain("background: var(--line)");
-    expect(code).toContain("color: var(--text)");
-    expect(code).toMatch(/font-family:\s*ui-monospace/);
-    // The one place it is spelled in the markup, so a future footnote that
-    // needs a second literal already has the shape.
-    expect(modalSrc).toContain("<code>ps</code>");
+  it("keeps the two claims the footnote carried, on the columns they are about", () => {
+    // The band said three things. Two were worth keeping — what the memory
+    // column measures, and that the redaction is a filter rather than a promise
+    // — and neither was worth a permanent 72px under a list nobody scrolls to
+    // the end of. They ride the header tooltip of the column they describe,
+    // which is where somebody wondering about a column looks.
+    //
+    // The third described the list as the busiest by processor and memory,
+    // refreshed every four seconds. The heading says "Busiest processes", the
+    // count beside it says how many of how many, and the numbers move while you
+    // watch: a caption for what the reader could already see.
+    expect(modalSrc).toContain("macOS Activity Monitor shows a different figure.");
+    expect(modalSrc).toMatch(/which is a filter and not a guarantee/);
+    // On the headers, not in a band of their own.
+    expect(modalSrc).not.toContain("pl-foot");
+    expect(css).not.toContain(".pl-foot");
+    // And the header is what carries them.
+    const meter = readFileSync(at("../components/SystemMeter.tsx"), "utf8");
+    expect(meter).toContain("note ? `Sort by ${label}");
   });
 });
 

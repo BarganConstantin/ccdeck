@@ -9010,13 +9010,16 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   display: flex;
   flex-wrap: wrap;
   gap: 10px 22px;
-  padding: 10px 16px;
+  /* 12px at the bottom and not 10: with the footnote band gone this is the
+     last thing in the dialog, so its bottom edge is the modal's outer frame and
+     matches the 12px above the title. */
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--line);
   /* One cell's worth, held from the first paint. Buckets are a minute wide, so
      a deck younger than that has cells to draw and no lines to put in them, and
      without this the band would be 12px of border and padding until the first
      bucket lands and then jump to its full height. Measured: 41.3px of cell
-     inside 10px + 10px of padding, and `box-sizing: border-box` above means
+     inside 10px + 12px of padding, and `box-sizing: border-box` above means
      this covers the padding too.
 
      `flex-shrink: 0` says the structural thing this dialog needs said: THE
@@ -9025,7 +9028,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
      took the room out of them instead — measured with the sparklines hanging
      9px below their own band and into the footer's space. */
   flex-shrink: 0;
-  min-height: 62px;
+  min-height: 64px;
 }
 .pl-cell { display: flex; flex-direction: column; gap: 2px; }
 /* 116px, from the worst head this can be asked to draw rather than from the
@@ -9082,7 +9085,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 }
 .pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; }
 /* Quieter than the full chart's, and deliberately so: .hist-line is the subject
-   of its own dialog and this is a footnote under a list. Same hue, half the
+   of its own dialog and this is a reading under a list. Same hue, half the
    presence — 0.9 of a pixel reads as a line at this height where 1.5 reads as a
    band. */
 .pl-spark-area { fill: var(--accent); opacity: 0.10; }
@@ -9097,31 +9100,3 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .pl-cell.warn .pl-spark-line { stroke: var(--warn); }
 .pl-cell.hot .pl-spark-area { fill: var(--err); }
 .pl-cell.hot .pl-spark-line { stroke: var(--err); }
-
-.pl-foot {
-  flex-shrink: 0;
-  padding: 10px 16px 12px;
-  border-top: 1px solid var(--line);
-  font-size: 10px;
-  color: var(--muted);
-}
-/* Each statement on its own line — see the markup for the measurement. `3px`
-   between them and not a paragraph's usual gap: they are three captions in one
-   footnote, not three paragraphs, and the line break is already doing the
-   separating. Anything more and the footer reads as a list of rules. */
-.pl-foot p { margin: 0; }
-.pl-foot p + p { margin-top: 3px; }
-/* `ps` is a command you could type, and it was reaching the page as a bare
-   family swap — monospace at the same 10px in the same muted grey, which at
-   this size reads as a rendering fault rather than as a literal. The deck
-   already treats inline code this way in six other places; this was the one
-   that missed it. --text rather than --muted, because the point of the word is
-   that it is the thing itself. */
-.pl-foot code {
-  background: var(--line);
-  color: var(--text);
-  padding: 0 3px;
-  border-radius: 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9px;
-}

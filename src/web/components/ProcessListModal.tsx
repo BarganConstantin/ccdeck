@@ -118,7 +118,13 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
                       bytes and this figure is the working set Task Manager
                       draws. A column that sorted by one and displayed the
                       other would be right on two platforms out of three. */}
-                  <SortHead col="rss" label="memory" sort={sort} onSort={setSort} />
+                  <SortHead
+                    col="rss"
+                    label="memory"
+                    note="Resident set size, which is what ps and Task Manager report; macOS Activity Monitor shows a different figure."
+                    sort={sort}
+                    onSort={setSort}
+                  />
                   <SortHead col="threads" label="threads" sort={sort} onSort={setSort} />
                   <SortHead col="uptime" label="up" sort={sort} onSort={setSort} />
                   <SortHead col="user" label="user" sort={sort} onSort={setSort} />
@@ -127,7 +133,13 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
                       about — it is here to be COPIED, which is why it is a
                       column at all and not a tooltip like it is in the panel. */}
                   <th scope="col" className="pl-pid-h">pid</th>
-                  <SortHead col="name" label="process" sort={sort} onSort={setSort} />
+                  <SortHead
+                    col="name"
+                    label="process"
+                    note="Command lines have anything secret-shaped removed, which is a filter and not a guarantee."
+                    sort={sort}
+                    onSort={setSort}
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -176,38 +188,20 @@ export default function ProcessListModal({ procs, total, sys, onClose }: {
             seconds — so the choice was a number that is the same measurement on
             all three platforms, or a different one per platform. This is the
             first. */}
-        {/* ONE STATEMENT PER LINE, and the words are unchanged. Run together in
-            a box this wide the paragraph measured 142 characters a line over
-            four lines — nearly double the comfortable maximum, at the smallest
-            size in the dialog and in the dimmest colour it uses. Split, the
-            sentences measure 103, 119 and 89, which is to say they were written
-            as readable units and the paragraph was what ruined them.
+        {/* NO FOOTNOTE BAND. It said three things and only two of them were
+            worth a permanent 72px under a list nobody scrolls to the end of:
+            what the memory column measures, and that the redaction is a filter
+            rather than a promise. Both are now on the header of the column they
+            are about, which is where somebody wondering about a column actually
+            looks — findable from the thing, instead of from a paragraph at the
+            other end of the dialog.
 
-            119 is still past the 45-75 a paragraph wants, and that is the
-            deliberate half of this: a single line nobody has to return-sweep is
-            easier than the same words wrapped four times, and capping the
-            measure instead would have doubled the height of a caption to serve
-            a rule about continuous reading that this is not. The gain is
-            finding the one line you came for — somebody who wonders whether
-            this memory figure is Activity Monitor's now lands on a line that
-            starts `Memory is`, rather than hunting it inside a wall. */}
-        <div className="pl-foot">
-          <p>
-            The busiest by processor and by memory, refreshed every four
-            seconds. Not every process on the machine.
-          </p>
-          <p>
-            Memory is resident set size, which is what <code>ps</code> and Task
-            Manager report; macOS Activity Monitor shows a different figure.
-          </p>
-          {/* Broken before `which` and not mid-phrase: process-detail-807
-              greps this file for "which is a filter and not a guarantee", and a
-              claim this careful is worth keeping greppable. */}
-          <p>
-            Command lines have anything secret-shaped removed,
-            which is a filter and not a guarantee.
-          </p>
-        </div>
+            The third said the list is the busiest by processor and memory and
+            refreshed every four seconds. The heading says "Busiest processes",
+            the count beside it says how many of how many, and the numbers move
+            while you watch: it was a caption describing what the reader could
+            already see. */}
+
       </div>
     </div>,
     document.body,
