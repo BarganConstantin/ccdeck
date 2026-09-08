@@ -14,6 +14,12 @@ import {
   availableFromVmStat,
   parsePsProcesses,
   psArgs,
+  psDetailArgs,
+  parsePsThreadsBsd,
+  parsePsThreadsProcps,
+  redactCommand,
+  commandTail,
+  elapsedSeconds,
   cpuFromDeltas,
   parseGetProcessJson,
   startSystemMetrics,
@@ -170,19 +176,31 @@ describe("swap, which is the reading a percentage cannot give you", () => {
 });
 
 describe("the process list", () => {
-  const PS = `  PID  %CPU %MEM COMM
-27993  56.6  2.4 dotnet
-54317  53.0  0.2 node (vitest 8)
-64025  51.9  1.9 claude
+  const PS = `  PID  %CPU %MEM    RSS     ELAPSED USER             COMM
+27993  56.6  2.4 2517368    03:14:15 constantin       dotnet
+54317  53.0  0.2  204800       12:30 constantin       node (vitest 8)
+64025  51.9  1.9 1992704  2-01:00:00 root             claude
 `;
 
   it("drops the header and keeps the command name with its spaces", () => {
     const rows = parsePsProcesses(PS);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toEqual({ pid: 27993, cpu: 56.6, mem: 2.4, name: "dotnet" });
+    expect(rows[0]).toEqual({
+      pid: 27993, cpu: 56.6, mem: 2.4,
+      // `ps` reports RSS in kibibytes on both Unixes; the payload is bytes, so
+      // nothing downstream has to know which unit it was handed.
+      rssBytes: 2517368 * 1024,
+      uptimeSec: 3 * 3600 + 14 * 60 + 15,
+      user: "constantin",
+      name: "dotnet",
+    });
     // `node (vitest 8)` has to survive intact — splitting on whitespace would
-    // truncate every process whose name has a space in it.
+    // truncate every process whose name has a space in it, which is why COMM is
+    // the last field and why `args` is not in this call at all.
     expect(rows[1].name).toBe("node (vitest 8)");
+    // The day form, which is the one a regex written for HH:MM:SS drops.
+    expect(rows[2].uptimeSec).toBe(2 * 86400 + 3600);
+    expect(rows[2].user).toBe("root");
   });
 
   it("honours the row limit so the panel never becomes a scroll", () => {
@@ -273,7 +291,7 @@ describe("the ps invocation, which is not the same on both Unixes", () => {
   it("keeps macOS on the flags that were right there all along", () => {
     // Unchanged from 1.36.0: -r sorts by CPU on BSD, -c prints the accounting
     // name instead of the argument vector.
-    expect(psArgs("darwin")).toEqual(["-Aceo", "pid,pcpu,pmem,comm", "-r"]);
+    expect(psArgs("darwin")).toEqual(["-Aceo", "pid,pcpu,pmem,rss,etime,user,comm", "-r"]);
   });
 
   it("leaves the other BSDs on the BSD form rather than a GNU long option", () => {
@@ -284,23 +302,36 @@ describe("the ps invocation, which is not the same on both Unixes", () => {
     expect(psArgs("openbsd")).toEqual(psArgs("darwin"));
   });
 
-  it("asks for the same four columns in the same order, so one parser reads both", () => {
-    // The parser takes pid, pcpu, pmem and then everything left on the line as
-    // the name. A different column order on Linux would mean silently reading
-    // the memory column as CPU.
-    for (const platform of ["darwin", "linux"]) {
-      const spec = psArgs(platform).find(a => a.includes("pid,"));
-      expect(spec).toBe("pid,pcpu,pmem,comm");
-    }
+  it("asks for the same columns in the same order, so one parser reads both", () => {
+    // The parser takes five fixed fields and then everything left on the line
+    // as the name. A different column order on Linux would mean silently
+    // reading the memory column as CPU.
+    //
+    // `user:24` on procps and a bare `user` on BSD is the one spelling that
+    // differs, and it has to: procps truncates USER to the header's width and
+    // marks it with a `+`, which would put a `+` in the payload for any account
+    // over eight characters. BSD pads instead. The FIELDS are what the parser
+    // depends on, so that is what is compared.
+    const fields = (p: string) => psArgs(p).find(a => a.includes("pid,"))!.split(",").map(f => f.split(":")[0]);
+    expect(fields("darwin")).toEqual(["pid", "pcpu", "pmem", "rss", "etime", "user", "comm"]);
+    expect(fields("linux")).toEqual(fields("darwin"));
   });
 
-  it("never asks for argv on either Unix, which is what keeps a prompt out of the UI", () => {
-    // `comm` is the executable name. `args`/`command` would put the full command
-    // line — every prompt and every token typed on one — into the panel.
+  it("keeps argv off the call every deck makes, and onto the one it may not", () => {
+    // `comm` is the executable name; `args` is the full command line, prompts
+    // and tokens included. The list the panel polls asks only for the first —
+    // so a deck whose process modal is never opened never reads an argument
+    // vector at all. psDetailArgs is where argv is asked for, it is scoped to
+    // the candidate pids, and redactCommand runs on the answer before it is
+    // put on the wire.
     for (const platform of ["darwin", "linux"]) {
-      const joined = psArgs(platform).join(" ");
-      expect(joined).not.toMatch(/\bargs\b|\bcommand\b/);
+      expect(psArgs(platform).join(" ")).not.toMatch(/\bargs\b|\bcommand\b/);
     }
+    expect(psDetailArgs([1, 2], "linux")).toEqual(["-o", "pid,nlwp,args", "-p", "1,2"]);
+    // BSD has no thread-count keyword at all — `ps -L` lists every one it takes
+    // and `nlwp` is not among them — so the listing is the only way to count
+    // them, and it carries the argument vector on the process line for free.
+    expect(psDetailArgs([1, 2], "darwin")).toEqual(["-M", "-p", "1,2"]);
   });
 
   it("parses real procps output, truncated 15-character comm and all", () => {
@@ -309,16 +340,22 @@ describe("the ps invocation, which is not the same on both Unixes", () => {
     // characters by /proc/<pid>/comm. The rows are sorted by CPU descending and
     // include sleeping processes — which is the whole difference from the state
     // R filter that shipped.
-    const PROCPS = `    PID %CPU %MEM COMMAND
-   4821 98.7  3.1 node
-   1290 51.9  1.9 containerd-shim
-      1  0.1  0.4 systemd
+    const PROCPS = `    PID %CPU %MEM   RSS     ELAPSED USER                     COMMAND
+   4821 98.7  3.1 3244032    01:02:03 deploy                   node
+   1290 51.9  1.9 1998848 12-03:04:05 root                     containerd-shim
+      1  0.1  0.4  412160 88-00:00:01 root                     systemd
 `;
     const rows = parsePsProcesses(PROCPS);
     expect(rows.map(r => r.pid)).toEqual([4821, 1290, 1]);
     expect(rows.map(r => r.cpu)).toEqual([98.7, 51.9, 0.1]);
     // Truncation shortens the name; it must not shift a column or drop a row.
-    expect(rows[1]).toEqual({ pid: 1290, cpu: 51.9, mem: 1.9, name: "containerd-shim" });
+    expect(rows[1]).toEqual({
+      pid: 1290, cpu: 51.9, mem: 1.9,
+      rssBytes: 1998848 * 1024,
+      uptimeSec: 12 * 86400 + 3 * 3600 + 4 * 60 + 5,
+      user: "root",
+      name: "containerd-shim",
+    });
   });
 });
 
@@ -329,7 +366,7 @@ describe("the ps invocation, which is not the same on both Unixes", () => {
 describe("one CPU scale across platforms", () => {
   /** One core, fully busy, expressed the way each platform reports it. */
   const unixCpu = (pcpu: string) =>
-    parsePsProcesses(`  PID  %CPU %MEM COMM\n  42 ${pcpu}  1.0 busy\n`)[0].cpu;
+    parsePsProcesses(`  PID  %CPU %MEM  RSS ELAPSED USER COMM\n  42 ${pcpu}  1.0 1024   00:10 root busy\n`)[0].cpu;
   const winCpu = (cpuSecBurned: number, wallMs: number) =>
     cpuFromDeltas(
       [{ pid: 42, name: "busy", cpuSec: 100 + cpuSecBurned, mem: 1.0 }],

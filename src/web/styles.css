@@ -8708,7 +8708,10 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    What the panel's eight rows cannot answer: "is my vitest still running". Same
    reading and the same ordering rules, every candidate instead of eight, plus
    the pid and the untruncated name the panel has no width for. */
-.pl-modal { width: min(680px, 92vw); }
+/* 880, up from 680. The table carries seven columns now instead of four, and
+   the five fixed ones take 300px of the row before the name has any — a name
+   plus the arguments that identify it needs the rest, and at 680 it had 340. */
+.pl-modal { width: min(880px, 94vw); }
 .pl-count {
   margin-left: auto;
   margin-right: 10px;
@@ -8730,9 +8733,62 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   color: var(--muted);
 }
 .pl-pid { width: 62px; }
+
+/* THE COLUMN WIDTHS, and the first two are an override rather than a new rule.
+   `:is(.sysdetail, .pl-body) .sd-procs th:first-child, th:nth-child(2)` pins
+   both to 40px — right in a 280px panel whose second column is a percentage,
+   wrong here, where the second column reads "1.29 GB". Restated at a higher
+   specificity for this table only, so the panel keeps the geometry it was
+   measured on. */
+.pl-body .pl-table th:nth-child(2) { width: 66px; }
+.pl-body .pl-table th:nth-child(3) { width: 54px; }
+.pl-body .pl-table th:nth-child(4) { width: 42px; }
+.pl-body .pl-table th:nth-child(5) { width: 92px; }
+/* The four numeric columns sort the way the first two already did — label,
+   then the arrow's reserved slot, ending on the same right edge the digits do.
+   `.sd-sort`'s base rule puts the arrow first, which is what a left-aligned
+   column wants and not what these do. */
+.pl-body .pl-table th:nth-child(3) .sd-sort,
+.pl-body .pl-table th:nth-child(4) .sd-sort {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  padding-right: 8px;
+}
+/* The user cell is a name, so it reads left like the process does, and it
+   truncates rather than widening the column for one long system account. */
+.pl-user {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* No truncation here, unlike the panel: there is width for the tail of a name,
-   and the tail is what tells one `node` from another. */
-.pl-name { padding-left: 2px; color: var(--muted); }
+   and the tail is what tells one `node` from another.
+   --text rather than --muted, which is a change and is the arguments' fault.
+   The cell holds two things now and they have to read as two; the token note
+   at the top of this sheet says the dark ramp has no third readable tier below
+   --muted, so the step had to be taken from the OTHER end. Name 12.95:1 on
+   --panel in dark and 18.92:1 in light, arguments 4.70:1 and 7.87:1 — both
+   above 4.5:1, which --muted-dim's 2.35:1 is not, and it is a decorative tint
+   this cell is explicitly not allowed to use for copy anyone reads. */
+.pl-name {
+  padding-left: 2px;
+  color: var(--text);
+  max-width: 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The arguments sit behind the name in the same cell and a step quieter, so
+   the column still scans as a list of names with detail after them rather than
+   as a wall of flags. The full string is on the cell's own title. */
+.pl-cmd { color: var(--text-dim); }
+/* The row hover lifts every cell to --text, which would flatten the two halves
+   of this one back together. It keeps its step, and gains what the light ramp
+   has room for. */
+.pl-body tbody tr:hover .pl-cmd { color: var(--muted); }
 .pl-body tbody tr:hover td { color: var(--text); }
 .pl-foot {
   padding: 8px 16px 12px;

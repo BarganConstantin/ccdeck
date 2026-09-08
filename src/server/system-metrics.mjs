@@ -448,13 +448,209 @@ export function pickCandidates(rows, limit = CANDIDATE_N) {
  * prove which flags were passed to produce it.
  */
 export function psArgs(platform = process.platform) {
-  // procps: an explicit CPU sort, and `comm` in `-o` is what keeps argv — and
-  // any prompt or token on it — out of the panel. Linux `comm` comes from
-  // /proc/<pid>/comm and is capped at 15 characters.
-  if (platform === "linux") return ["-eo", "pid,pcpu,pmem,comm", "--sort=-pcpu"];
+  // SEVEN FIELDS, THE SAME SEVEN ON BOTH, and `args` last because it is the one
+  // that contains spaces. `etime` is `[[DD-]HH:]MM:SS` on both and `rss` is
+  // kibibytes on both, so one parser still reads both — which is why the thread
+  // count is fetched separately (readThreads) rather than as an eighth column:
+  // procps spells it `nlwp` and BSD has no keyword for it at all, and one
+  // divergent column would have cost the shared parser this list is built on.
+  //
+  // `args` REPLACES `comm`, which is a change with a cost, and redactCommand is
+  // the payment. `comm` was chosen so that argv — and any token on it — could
+  // not reach the panel; that made every `node`, `dotnet` and `python` on the
+  // machine indistinguishable from every other one, which is most of what a
+  // reader opens this list to tell apart. The argument vector is redacted and
+  // capped before it leaves this module, and the short name is derived from
+  // argv[0] rather than asked for a second time.
+  if (platform === "linux") return ["-eo", "pid,pcpu,pmem,rss,etime,user:24,comm", "--sort=-pcpu"];
   // BSD/macOS: `-c` prints the accounting name rather than the argument vector,
   // and `-r` sorts by current CPU.
-  return ["-Aceo", "pid,pcpu,pmem,comm", "-r"];
+  return ["-Aceo", "pid,pcpu,pmem,rss,etime,user,comm", "-r"];
+}
+
+/**
+ * The second call: how many threads each candidate has, and what it was
+ * actually launched with.
+ *
+ * Two facts, one child, and it has to be a second call for two separate
+ * reasons. The thread count has no shared spelling — procps says `nlwp` and BSD
+ * has no keyword for it at all, only the `-M` listing — so an eighth column
+ * would have cost the single parser psArgs is built around. And `args` cannot
+ * sit beside `comm`: only one field in an `-o` list may contain spaces, because
+ * only the last one is unambiguous.
+ *
+ * Scoped to the candidate pids rather than to the machine, which is what makes
+ * it cheap: measured here, `ps -M -p` over forty pids is 0.15s against 0.10s
+ * for the whole-machine call it follows. `top -stats th,ports` would have
+ * answered both in one go and takes 4.25s on an idle machine — see readThreads'
+ * note on why ports is not a column at all.
+ */
+export function psDetailArgs(pids, platform = process.platform) {
+  const list = pids.join(",");
+  // procps: `nlwp` is free here, and `args` is last as ever.
+  if (platform === "linux") return ["-o", "pid,nlwp,args", "-p", list];
+  // BSD: `-M` lists each process followed by one line per thread, and the
+  // process line carries the untruncated argument vector. Counting the lines is
+  // the thread count; the process line is the argv. One child, both answers.
+  return ["-M", "-p", list];
+}
+
+/**
+ * `ps -M` output: a process line, then one line per thread, per pid.
+ *
+ * The two kinds are told apart by column one. A process line begins with the
+ * owning user and a thread line begins with spaces — `ps` leaves USER, TT and
+ * COMMAND blank on a thread because a thread has none of its own. So the count
+ * is "lines mentioning this pid, less the one that named it", and the argv is
+ * whatever the named line ended with.
+ *
+ * A kernel thread and an exiting process print a bracketed command
+ * (`[kworker/0:1]`, `(ccusage)`); that is `ps` reporting a state and it is left
+ * exactly as it came.
+ */
+export function parsePsThreadsBsd(text) {
+  const out = new Map();
+  for (const line of String(text ?? "").split("\n")) {
+    if (!line.trim()) continue;
+    // USER PID TT %CPU STAT PRI STIME UTIME COMMAND — eight fixed fields, and
+    // COMMAND is everything after them.
+    const proc = /^(\S+)\s+(\d+)\s+\S+\s+[\d.,]+\s+\S+\s+\S+\s+\S+\s+\S+\s*(.*)$/.exec(line);
+    if (proc) {
+      if (proc[1] === "USER") continue;            // the header
+      const pid = Number(proc[2]);
+      const row = out.get(pid) ?? { threads: 0, cmd: "" };
+      row.cmd = proc[3].trim();
+      out.set(pid, row);
+      continue;
+    }
+    const thread = /^\s+(\d+)\s/.exec(line);
+    if (!thread) continue;
+    const pid = Number(thread[1]);
+    const row = out.get(pid) ?? { threads: 0, cmd: "" };
+    row.threads += 1;
+    out.set(pid, row);
+  }
+  return out;
+}
+
+/** `ps -o pid,nlwp,args` output, which is two numbers and then the rest. */
+export function parsePsThreadsProcps(text) {
+  const out = new Map();
+  for (const line of String(text ?? "").split("\n")) {
+    const m = /^\s*(\d+)\s+(\d+)\s*(.*)$/.exec(line);
+    if (!m) continue;
+    out.set(Number(m[1]), { threads: Number(m[2]), cmd: m[3].trim() });
+  }
+  return out;
+}
+
+/**
+ * The pieces of a `ps` ELAPSED field, which is `[[DD-]HH:]MM:SS` on both Unixes.
+ *
+ * Returns seconds, or null for anything that is not that shape — a header line
+ * that slipped through, a locale doing something unexpected. Null prints as a
+ * dash rather than as "0s", because a process that has been up for no time and
+ * a process whose uptime could not be read are different facts.
+ */
+export function elapsedSeconds(text) {
+  const m = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(String(text ?? "").trim());
+  if (!m) return null;
+  const [, d, h, min, sec] = m;
+  return (Number(d ?? 0) * 86400) + (Number(h ?? 0) * 3600) + (Number(min) * 60) + Number(sec);
+}
+
+/**
+ * An argument vector with the parts that must not be looked at taken out, and
+ * the parts nobody reads cut off.
+ *
+ * THIS IS A BLOCKLIST AND A BLOCKLIST LEAKS. It is written down here rather
+ * than implied, because the alternative — `comm`, which is what this replaced —
+ * leaked nothing and told the reader nothing either. What it removes is the
+ * shapes a secret actually takes on a command line; what it cannot remove is a
+ * secret that looks like an ordinary word, and no rule here pretends otherwise.
+ *
+ * The cap is the other half, and it is not a nicety. Measured on this machine:
+ * one Chrome helper's argv is 906 characters of `--field-trial-handle`,
+ * base64 `--gpu-preferences` and shared-memory handles. Forty of those is 36 KB
+ * on the wire every four seconds to render a column nobody can read. What
+ * identifies a process is its first few arguments — `ng serve admin-portal
+ * --port 44440` — and that is what fits.
+ */
+export const CMD_MAX = 180;
+
+const SECRET_FLAG =
+  /(-{1,2}[\w.-]*(?:token|password|passwd|secret|api[-_]?key|apikey|auth|credential|bearer|cookie|session[-_]?id|private[-_]?key)[\w.-]*)(=|\s+)(\S+)/gi;
+// The shapes that are a secret on their own, with no flag in front of them.
+const BARE_SECRET =
+  /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,})/g;
+// user:password@host, in any URL. The password goes; the rest is a location.
+const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+):[^\s@/]+@/gi;
+
+export function redactCommand(argv, home = "") {
+  let s = String(argv ?? "").trim();
+  if (!s) return "";
+  s = s.replace(SECRET_FLAG, (_, flag, sep, value) => `${flag}${sep === "=" ? "=" : " "}\u2022\u2022\u2022`);
+  s = s.replace(URL_CREDENTIALS, "$1:\u2022\u2022\u2022@");
+  s = s.replace(BARE_SECRET, "\u2022\u2022\u2022");
+  // `~` last, so a home path inside a redacted value is already gone. Only a
+  // whole path segment, so a user called `con` cannot rewrite the middle of an
+  // unrelated word.
+  if (home && home.length > 1) s = s.split(home + "/").join("~/").split(home + " ").join("~ ");
+  if (s.length > CMD_MAX) s = s.slice(0, CMD_MAX - 1).trimEnd() + "\u2026";
+  return s;
+}
+
+/**
+ * The ARGUMENTS, with the executable that carries them taken off the front.
+ *
+ * The name column already says `Google Chrome Helper`; repeating
+ * `/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome
+ * Framework.framework/Versions/152.0.7977.76/Helpers/Google Chrome
+ * Helper.app/Contents/MacOS/Google Chrome Helper` beside it spends the entire
+ * 180-character budget on a path the reader can already see the end of, and
+ * cuts off `--type=renderer`, which is the part that says WHICH helper this is.
+ *
+ * argv[0] cannot be found by splitting on whitespace — on macOS the executable
+ * path routinely contains spaces, and `/Applications/Google Chrome.app/…` would
+ * be cut at "Google". The name from the first `ps` call is what resolves it:
+ * argv begins with a path whose last segment IS that name.
+ *
+ * "Last segment" is the whole of the rule, and the first version of this got it
+ * wrong in a way only the render showed. A plain `indexOf` cuts at the FIRST
+ * occurrence, and a macOS bundle contains the name twice — `…/Helpers/Google
+ * Chrome Helper.app/Contents/MacOS/Google Chrome Helper` — so every browser row
+ * read `.app/Contents/MacOS/Google Chrome Helper --type=gpu-process`, having
+ * spent the budget on the half of the path it was supposed to remove. A plain
+ * `lastIndexOf` is wrong the other way: `node /srv/node_modules/x` would cut
+ * inside `node_modules`.
+ *
+ * So: the first occurrence that a path segment actually ends at — preceded by a
+ * separator or nothing, followed by whitespace or nothing. `node /srv/app.js
+ * --port 3000` leaves `/srv/app.js --port 3000`; `/usr/local/bin/dotnet exec
+ * --runtimeconfig …` leaves `exec --runtimeconfig …`, which is what identifies
+ * it.
+ *
+ * When the name is not in argv at all — a process that rewrote argv[0], or a
+ * `comm` that Linux truncated at 15 characters — the first whitespace token
+ * goes only if it looks like a path, because dropping the first word of
+ * something already short would take the only word there was.
+ */
+export function commandTail(argv, name) {
+  const s = String(argv ?? "").trim();
+  if (!s) return "";
+  const n = String(name ?? "").trim();
+  if (n) {
+    for (let at = s.indexOf(n); at >= 0; at = s.indexOf(n, at + 1)) {
+      const before = at === 0 ? "" : s[at - 1];
+      const after = s[at + n.length] ?? "";
+      if ((before === "" || before === "/" || before === "\\" || /\s/.test(before))
+        && (after === "" || /\s/.test(after))) {
+        return s.slice(at + n.length).trim();
+      }
+    }
+  }
+  const first = s.split(/\s+/)[0] ?? "";
+  return first.includes("/") ? s.slice(first.length).trim() : s;
 }
 
 /**
@@ -485,10 +681,34 @@ export function parsePsProcesses(text, limit = Infinity) {
     // fix, and this is what keeps a stripped environment from emptying the
     // panel. `%CPU` and `%MEM` are percentages printed with %.1f, so a comma in
     // either can only be the decimal point.
-    const m = /^\s*(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+(.+?)\s*$/.exec(line);
+    //
+    // Seven fields, and only the last of them may contain a space — which is
+    // why `comm` is last and why `args` is not here at all (psDetailArgs).
+    // `rss` is an integer of kibibytes, `etime` and `user` cannot contain
+    // whitespace, so the shape stays unambiguous with three more columns in it.
+    const m = /^\s*(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.+?)\s*$/.exec(line);
     if (!m) continue;
     const num = v => Number(v.replace(",", "."));
-    out.push({ pid: Number(m[1]), cpu: num(m[2]), mem: num(m[3]), name: m[4] });
+    out.push({
+      pid: Number(m[1]),
+      cpu: num(m[2]),
+      mem: num(m[3]),
+      // RSS IS NOT WHAT ACTIVITY MONITOR CALLS MEMORY, and on macOS it is not
+      // close. Measured here against `top`'s MEM on the same processes at the
+      // same moment: `dotnet` 37 MB against 534, `rider` 1300 against 3833,
+      // one Brave renderer 240 against 153 — ratios from 0.02 to 1.57. The
+      // column Activity Monitor draws is `phys_footprint`, which no
+      // unprivileged one-shot command reports; `top -stats mem` has it and
+      // takes 4.25 seconds on an idle machine, against 0.10 for this call.
+      // So the figure is resident set size, the panel says so, and it is the
+      // same measurement on all three platforms rather than a different one
+      // per OS. On Linux and Windows it is also the figure their own tools
+      // show.
+      rssBytes: Number(m[4]) * 1024,
+      uptimeSec: elapsedSeconds(m[5]),
+      user: m[6],
+      name: m[7],
+    });
     if (out.length >= limit) break;
   }
   return out;
@@ -530,6 +750,13 @@ export function parseGetProcessJson(json, totalMem) {
       mem: totalMem > 0
         ? Math.round((Number(r.WorkingSetPrivate) || 0) / totalMem * 1000) / 10
         : 0,
+      // The same three optional fields the POSIX branch attaches, so one client
+      // shape covers both. Absent rather than zero when the value did not come
+      // back: `StartTime` throws for a process this session may not open, and
+      // `Threads.Count` is undefined on a row that failed to project.
+      ...(Number.isFinite(Number(r.Threads)) && Number(r.Threads) > 0 ? { threads: Number(r.Threads) } : {}),
+      ...(Number.isFinite(Number(r.StartedAt)) ? { uptimeSec: Number(r.StartedAt) } : {}),
+      rssBytes: Number(r.WorkingSet) || 0,
     }));
 }
 
@@ -585,7 +812,8 @@ let prevProcAt = 0;
 
 /** The run producing the next list, and the last one that finished. */
 let procInFlight = null;
-let procLast = null; // { at, read: { procs, total } }
+let procLast = null; // { at, read: { procs, total }, detail }
+let procInFlightDetail = false;
 
 /**
  * How old a finished reading may be and still answer a caller.
@@ -617,10 +845,13 @@ const PROC_MIN_GAP_MS = 1_500;
  * that arrive while a run is going share its promise; callers that arrive just
  * after one finished are served that reading.
  */
-export async function readProcesses(platform = process.platform) {
+export async function readProcesses(platform = process.platform, detail = false) {
   const now = Date.now();
-  if (procLast && now - procLast.at < PROC_MIN_GAP_MS) return procLast.read;
-  if (procInFlight) return procInFlight;
+  // A cached reading serves a caller that wants LESS than it holds, never one
+  // that wants more: the panel is happy with a detailed reading, and the modal
+  // opening onto a plain one would show four empty columns for up to a poll.
+  if (procLast && now - procLast.at < PROC_MIN_GAP_MS && (procLast.detail || !detail)) return procLast.read;
+  if (procInFlight && (procInFlightDetail || !detail)) return procInFlight;
   // Only a real reading is remembered. Every failure inside readProcessesNow —
   // a spawn that never started, a non-zero exit, the timeout — resolves to an
   // empty array, and no machine has nothing running on it, so an empty list is
@@ -628,20 +859,30 @@ export async function readProcesses(platform = process.platform) {
   // single hiccup into a blank panel that outlives it; the next caller retries
   // instead. The in-flight share still applies, so a burst arriving during a
   // failing read is one failing child, not a burst of them.
-  procInFlight = readProcessesNow(platform)
+  procInFlightDetail = detail;
+  procInFlight = readProcessesNow(platform, detail)
     .then(read => {
-      if (read.procs.length) procLast = { at: Date.now(), read };
+      if (read.procs.length) procLast = { at: Date.now(), read, detail };
       return read;
     })
-    .finally(() => { procInFlight = null; });
+    .finally(() => { procInFlight = null; procInFlightDetail = false; });
   return procInFlight;
 }
 
-async function readProcessesNow(platform) {
+async function readProcessesNow(platform, detail = false) {
   if (platform === "win32") {
     const out = await run("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
-      "Get-Process | Select-Object Id,ProcessName,CPU,@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress",
+      // Threads and StartTime ride along on the call that was already being
+      // made — `Get-Process` has both, so the two columns cost nothing here.
+      // `WorkingSet64` joins `PrivateMemorySize64` rather than replacing it:
+      // the percentage has always been computed from private bytes and moving
+      // it would change a number that is on screen today, while the new column
+      // wants the resident figure Task Manager itself shows.
+      // NOT `-IncludeUserName`: it requires an elevated session, and no part
+      // of this deck may ask for one. The user column is simply absent on
+      // Windows, which is the same rule the thermal section keeps.
+      "Get-Process | Select-Object Id,ProcessName,CPU,@{n='Threads';e={$_.Threads.Count}},@{n='StartedAt';e={if($_.StartTime){[int]((Get-Date)-$_.StartTime).TotalSeconds}else{$null}}},@{n='WorkingSet';e={$_.WorkingSet64}},@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress",
     ], 6_000);
     // The same shape the POSIX branch below returns, and not a bare array: the
     // caller reads `read.procs.length` to decide whether this was a real
@@ -661,7 +902,49 @@ async function readProcessesNow(platform) {
   const out = await run("ps", psArgs(platform), 4_000);
   if (!out) return { procs: [], total: 0 };
   const all = parsePsProcesses(out);
-  return { procs: pickCandidates(all), total: all.length };
+  const procs = pickCandidates(all);
+  if (detail) await attachDetail(procs, platform);
+  return { procs, total: all.length };
+}
+
+/**
+ * Fill in threads and the command tail, for the candidates and no further.
+ *
+ * AFTER pickCandidates, deliberately: this is a per-pid listing, and asking it
+ * about every process on the machine would be several hundred pids to answer a
+ * question about forty. The candidates are what any surface can draw, so they
+ * are what gets the second child.
+ *
+ * A failure here is not a failure of the reading. `ps -M` can lose a race with
+ * a process that exited between the two calls, a hardened environment can
+ * refuse it, and neither is a reason to blank a list whose CPU and memory
+ * columns are already correct. The fields are simply absent, and the columns
+ * that read them print a dash — the same rule the rest of this module keeps:
+ * an unknown is never rendered as a zero.
+ */
+async function attachDetail(procs, platform) {
+  if (!procs.length) return;
+  const pids = procs.map(p => p.pid).filter(n => Number.isInteger(n) && n > 0);
+  if (!pids.length) return;
+  let out;
+  try { out = await run("ps", psDetailArgs(pids, platform), 4_000); }
+  catch { return; }
+  if (!out) return;
+  const detail = platform === "linux" ? parsePsThreadsProcps(out) : parsePsThreadsBsd(out);
+  const home = os.homedir?.() ?? "";
+  for (const p of procs) {
+    const d = detail.get(p.pid);
+    if (!d) continue;
+    // Zero threads is not a reading. Every process has at least one, so a zero
+    // here means the listing named the pid and gave no thread lines for it —
+    // a race with an exit — and a `0` in that column would be a claim.
+    if (d.threads > 0) p.threads = d.threads;
+    // REDACTED BEFORE IT LEAVES THIS MODULE, not on the way to the screen.
+    // /api/system/processes is served to anything that can reach the loopback
+    // port, and a token that only the client hides is a token that shipped.
+    const cmd = redactCommand(commandTail(d.cmd, p.name), home);
+    if (cmd) p.cmd = cmd;
+  }
 }
 
 // ---------------------------------------------------------------------------
