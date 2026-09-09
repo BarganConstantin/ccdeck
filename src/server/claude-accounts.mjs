@@ -464,6 +464,19 @@ async function readRoster(now, gen) {
       email:    acct.email ?? null,
       alias:    acct.alias ?? null,
       org:      acct.organizationName ?? null,
+      // The other half of an account's identity, and the reason a slot number
+      // is not one: claude-swap keys on `(email, organizationUuid)` — the same
+      // email under two orgs is two accounts on purpose — and assigns slots
+      // max+1 per store, so the account that is 4 here is 2 on another machine.
+      // Surfaced for LAN sync, which has to match accounts across two stores
+      // that grew in a different order.
+      orgUuid:  acct.organizationUuid ?? null,
+      // Whether CLAUDE-SWAP'S STORED COPY works — not whether the user is
+      // signed in. The two differ, and #721 is the whole argument: a
+      // `stale-copy` row means the live session is fine while the copy in the
+      // store is dead, and the copy is what a share would carry and what a
+      // peer's copy would heal. So both kinds of trouble read as not alive.
+      alive:    trouble == null,
       active:   String(seq.activeAccountNumber) === num,
       disabled: acct.disabled === true,
       lanes,
