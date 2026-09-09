@@ -289,64 +289,72 @@ describe("the credential on the wire", () => {
 });
 
 describe("whose copy of an account wins", () => {
-  // The four outcomes, and the rule that three of them are decided by THIS
-  // machine's own verdict rather than by anything a peer claims.
-  const live = (expiresAt: number) => ({ key: "a@@1", email: "a@x", expiresAt, dead: false });
-  const dead = { key: "a@@1", email: "a@x", expiresAt: 5, dead: true };
+  // Two outcomes, and neither overwrites something that works. A third —
+  // "replace", take a peer's copy when it is newer — was designed and dropped:
+  // measuring "newer" needs the OAuth payload's expiresAt, which means the deck
+  // opening a credential it does not own, and on macOS reading a Keychain a
+  // background process cannot reliably reach. What settled it is that a working
+  // credential replaced by a newer working credential changes nothing today.
+  const live = { key: "a@@1", email: "a@x", alive: true };
+  const dead = { key: "a@@1", email: "a@x", alive: false };
 
   it("adds an account this deck has never had", () => {
-    expect(syncAction(null, live(100))).toBe("add");
+    expect(syncAction(null, live)).toBe("add");
   });
 
   it("heals one this machine has PROVEN is dead", () => {
     // "Dead" is claude-swap's quarantine — an invalid_grant from Anthropic,
     // counted, not a guess from an expiry field. A plain import replaces
     // exactly this case, so no --force is involved.
-    expect(syncAction(dead, live(1))).toBe("heal");
+    expect(syncAction(dead, live)).toBe("heal");
   });
 
-  it("replaces a working credential only when theirs is strictly newer", () => {
-    expect(syncAction(live(100), live(200))).toBe("replace");
-    expect(syncAction(live(100), live(100))).toBeNull();
-    expect(syncAction(live(100), live(50))).toBeNull();
-  });
-
-  it("does not let two decks trade one credential back and forth forever", () => {
-    // The whole reason the comparison is strict. With `>=`, each side would
-    // see the other's copy as not-older and import it, every round, forever.
-    const same = live(100);
-    expect(syncAction(same, { ...same })).toBeNull();
+  it("never touches a credential that works", () => {
+    // The whole safety property, and it is claude-swap's rather than ours: a
+    // plain import skips an account that is present and healthy. Nothing here
+    // ever asks for anything else, so a peer cannot overwrite a working
+    // credential even by lying about its own.
+    expect(syncAction(live, live)).toBeNull();
   });
 
   it("refuses a dead copy even when mine is dead too", () => {
     // Replacing a broken credential with another broken one is churn that
-    // looks like repair, and it clears the quarantine that was telling the
-    // truth.
+    // looks like repair, and it clears a quarantine that was telling the truth.
     expect(syncAction(dead, dead)).toBeNull();
-    expect(syncAction(live(100), dead)).toBeNull();
+    expect(syncAction(live, dead)).toBeNull();
     expect(syncAction(null, dead)).toBeNull();
   });
 
-  it("takes a copy that has an expiry over one of mine that has none", () => {
-    const noExpiry = { key: "a@@1", email: "a@x", expiresAt: null, dead: false };
-    expect(syncAction(noExpiry, live(100))).toBe("replace");
-    // But not the other way: a peer that cannot say how fresh it is has not
-    // made a claim worth acting on.
-    expect(syncAction(live(100), { ...noExpiry })).toBeNull();
-    expect(syncAction(noExpiry, { ...noExpiry })).toBeNull();
+  it("asks for nothing when the peer offers nothing", () => {
+    expect(syncAction(dead, null)).toBeNull();
+    expect(syncAction(null, undefined)).toBeNull();
+  });
+
+  it("never asks for the one import flag that could overwrite my work", () => {
+    // Stated as an invariant over every combination rather than as three cases,
+    // because the danger is a fourth outcome being added later without anybody
+    // noticing it needs --force.
+    const states = [null, live, dead];
+    for (const mine of states) {
+      for (const theirs of states) {
+        expect(["add", "heal", null]).toContain(syncAction(mine, theirs));
+      }
+    }
   });
 
   it("plans the same work in the same order on both machines", () => {
-    // A failure halfway through is then repeatable rather than a different
-    // half each time.
-    const localSide = [live(100), { key: "b@@1", email: "b@x", expiresAt: 100, dead: true }];
+    // A failure halfway through is then repeatable rather than a different half
+    // each time.
+    const localSide = [
+      { key: "a@@1", email: "a@x", alive: true },
+      { key: "b@@1", email: "b@x", alive: false },
+    ];
     const remote = [
-      { key: "c@@1", email: "c@x", expiresAt: 5, dead: false },
-      { key: "b@@1", email: "b@x", expiresAt: 50, dead: false },
-      { key: "a@@1", email: "a@x", expiresAt: 300, dead: false },
+      { key: "c@@1", email: "c@x", alive: true },
+      { key: "b@@1", email: "b@x", alive: true },
+      { key: "a@@1", email: "a@x", alive: true },
     ];
     expect(plan(localSide, remote)).toEqual([
-      { key: "a@@1", email: "a@x", action: "replace" },
       { key: "b@@1", email: "b@x", action: "heal" },
       { key: "c@@1", email: "c@x", action: "add" },
     ]);
@@ -354,7 +362,7 @@ describe("whose copy of an account wins", () => {
   });
 
   it("has nothing to do when both stores already agree", () => {
-    const both = [live(100)];
+    const both = [{ key: "a@@1", email: "a@x", alive: true }];
     expect(plan(both, both)).toEqual([]);
   });
 });
@@ -377,9 +385,9 @@ describe("which account is which", () => {
 
 describe("what the group is told about my accounts", () => {
   const accounts = [
-    { key: "a@@1", email: "a@x", expiresAt: 100, dead: false },
-    { key: "b@@1", email: "b@x", expiresAt: 200, dead: true },
-    { key: "c@@1", email: "c@x", expiresAt: 300, dead: false },
+    { key: "a@@1", email: "a@x", alive: true },
+    { key: "b@@1", email: "b@x", alive: false },
+    { key: "c@@1", email: "c@x", alive: true },
   ];
 
   it("carries only what the user ticked", () => {
@@ -399,10 +407,21 @@ describe("what the group is told about my accounts", () => {
     expect(manifestFor(accounts, [])).toEqual([]);
   });
 
-  it("says how fresh each one is, and whether this machine gave up on it", () => {
+  it("says whether this machine can actually use each one", () => {
+    // An account this deck cannot use is worth nothing to a peer, and saying so
+    // plainly is what stops a peer asking for it.
     const [a] = manifestFor(accounts, ["a@@1"]);
-    expect(Object.keys(a).sort()).toEqual(["dead", "email", "expiresAt", "key"]);
-    expect(manifestFor(accounts, ["b@@1"])[0].dead).toBe(true);
+    expect(Object.keys(a).sort()).toEqual(["alive", "email", "key"]);
+    expect(manifestFor(accounts, ["b@@1"])[0].alive).toBe(false);
+  });
+
+  it("carries nothing about the credential itself", () => {
+    // Not the expiry, not a fingerprint of the token, not a slot number. A
+    // manifest is a list of what exists and whether it works.
+    const wire = JSON.stringify(manifestFor(accounts, ["a@@1", "b@@1", "c@@1"]));
+    for (const leak of ["expiresAt", "refresh", "token", "num", "slot"]) {
+      expect(wire, `the manifest carries ${leak}`).not.toContain(leak);
+    }
   });
 });
 

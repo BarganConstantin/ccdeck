@@ -500,38 +500,38 @@ export function accountKey(email, orgUuid) {
 /**
  * What to do about one account, given what I have and what a peer has.
  *
- * FRESHNESS IS `expiresAt`, which is the access token's expiry in ms and is
- * written by the OAuth server at every refresh (`now + expires_in`). A copy
- * that was refreshed more recently therefore carries a strictly larger number,
- * and the comparison needs no clock of ours and no trust in theirs.
+ * TWO OUTCOMES, AND NEITHER OVERWRITES SOMETHING THAT WORKS.
  *
- * Four outcomes, and three of them are decided by the LOCAL machine's own
- * verdict rather than by anything the peer claims:
+ *   "add"   I do not have this account at all.
+ *   "heal"  I have it and claude-swap has quarantined it — refresh token dead,
+ *           verified by an invalid_grant from Anthropic rather than guessed
+ *           from an expiry field — and the peer's copy is alive.
+ *   null    Anything else, which is most of the time.
  *
- *   "add"     I do not have this account. `cswap import -` adds it.
- *   "heal"    I have it and claude-swap has quarantined it — refresh token
- *             dead, verified by an invalid_grant from Anthropic, not guessed.
- *             A plain import replaces exactly this case (transfer.py, #136).
- *   "replace" Mine works and theirs is strictly newer. This is the only
- *             outcome that needs `--force`, and the only one where a peer can
- *             overwrite something of mine that was not broken.
- *   null      Nothing to do.
+ * A third outcome was designed and dropped, and the reason is worth keeping
+ * because it looks like a feature being given up. It was "replace": take a
+ * peer's copy when it is strictly newer than mine, so the freshest copy wins
+ * everywhere. Measuring "newer" needs the OAuth payload's `expiresAt`, which
+ * means the deck opening a credential — something it does not do, claude-swap
+ * owns that — and on macOS that credential is in the Keychain, which a
+ * background process cannot reliably read at all.
  *
- * The strictness matters. `>` rather than `>=` means two decks holding the same
- * credential do not trade it back and forth forever, each seeing the other's as
- * "not older". And a dead peer copy is refused even when mine is dead too:
- * replacing a broken credential with another broken one is churn that looks
- * like repair.
+ * What settled it is not the obstacle. It is that a working credential replaced
+ * by a newer working credential changes nothing today. It would only matter if
+ * mine were about to die — and a login dies from not being used, so if I am not
+ * using it I do not care, and if I am using it the refresh keeps it alive. The
+ * whole value is in the account that is already dead.
+ *
+ * So this never returns an outcome that needs `cswap import --force`, which
+ * makes claude-swap's own rule the entire safety property: a plain import skips
+ * an account that is present and healthy, and replaces exactly one that is
+ * quarantined. A peer cannot overwrite a credential of mine that works, because
+ * nothing here ever asks for that.
  */
 export function syncAction(mine, theirs) {
-  if (!theirs || theirs.dead) return null;
+  if (!theirs || !theirs.alive) return null;
   if (!mine) return "add";
-  if (mine.dead) return "heal";
-  const a = Number(mine.expiresAt);
-  const b = Number(theirs.expiresAt);
-  if (!Number.isFinite(b)) return null;
-  if (!Number.isFinite(a)) return "replace";
-  return b > a ? "replace" : null;
+  return mine.alive ? null : "heal";
 }
 
 /**
@@ -556,11 +556,16 @@ export function plan(local, remote) {
  * What this deck publishes about its own accounts — to the group, and only to
  * the group.
  *
- * Emails are in it, in the clear (inside the encrypted channel). That is a
- * deliberate line: a manifest is only ever sent to a deck that has already
- * proved it holds the passphrase, and the panel has to name the account it is
- * offering to heal. Hashing the email would buy nothing against that reader and
- * would cost the one thing the row needs to say.
+ * Three fields, and `alive` is the only one that is a judgement: it is
+ * claude-swap's own verdict on this machine's copy, not a guess. An account
+ * this deck cannot use is worth nothing to a peer, so saying so plainly is what
+ * stops a peer asking for it.
+ *
+ * Emails are in it, in the clear inside the encrypted channel. That is a
+ * deliberate line: a manifest only ever reaches a deck that has already proved
+ * it holds the passphrase, and the panel has to name the account it is offering
+ * to heal. Hashing the email would buy nothing against that reader and would
+ * cost the one thing the row needs to say.
  *
  * `shared` is the user's list. An account absent from it is absent from the
  * manifest entirely — not listed as withheld, which would tell the group that
@@ -571,6 +576,6 @@ export function manifestFor(accounts, shared) {
   const want = new Set(shared);
   return accounts
     .filter(a => want.has(a.key))
-    .map(a => ({ key: a.key, email: a.email, expiresAt: a.expiresAt ?? null, dead: !!a.dead }))
+    .map(a => ({ key: a.key, email: a.email, alive: !!a.alive }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }
