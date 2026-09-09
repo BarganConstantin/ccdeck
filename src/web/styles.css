@@ -6743,6 +6743,18 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 }
 
 .ap-lan-drop { margin-left: auto; }
+/* The group's own name, and the one value in this section a reader is meant to
+   COMPARE with another screen rather than merely read. It takes 11px against
+   the 9px the addresses take, and --text against their --text: same ink, more
+   size, because the difference between it and them is importance and not kind.
+   `user-select: all` for the same reason the addresses have it — one click
+   takes the whole thing, so it can be pasted into a chat without a partial
+   selection turning a comparison into a false negative. */
+.ap-lan-group {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
 .ap-lan-addr { margin-top: 10px; }
 .ap-lan-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

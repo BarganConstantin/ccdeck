@@ -272,6 +272,38 @@ export function groupTag(key) {
 }
 
 /**
+ * The group's name, which every deck holding the same passphrase computes for
+ * itself and none of them types.
+ *
+ * WHY IT EXISTS. The passphrase is the group's identity and it is the one thing
+ * the panel must never print. So a reader had no way at all to answer "which
+ * group am I in, and is it the same one my colleague is in" — and the empty
+ * peer list could only tell them to go and check the passphrase matches, which
+ * means reading a secret out loud to compare it.
+ *
+ * DERIVED, NEVER TYPED. Two decks cannot disagree about it and nobody has to
+ * keep it in step: it falls out of the key, so the same passphrase always
+ * produces the same three words and a different one practically never does.
+ * That makes it a real check rather than a label — if the two screens say
+ * different words, the passphrases differ, and that is the whole diagnosis.
+ *
+ * A SEPARATE LABEL FROM THE WIRE TAG, so the name a person may read out over a
+ * desk or paste into a chat is not the value that travels in the beacon. Both
+ * come from the key, which is the secret either way; this only refuses to hand
+ * one out for free.
+ *
+ * Three words rather than two. A name whose only job is to be compared has to
+ * make an accidental match unlikely: 100^2 is one collision in ten thousand,
+ * which over a company's worth of small groups will happen and will be read as
+ * "we are in the same group" when they are not. 100^3 is one in a million.
+ */
+export function groupName(key) {
+  if (!key) return null;
+  const digest = createHmac("sha256", key).update("group-name").digest();
+  return [0, 1, 2].map(i => WORDS[digest.readUInt16BE(i * 2) % WORDS.length]).join("-");
+}
+
+/**
  * Read a packet off the wire, refusing before understanding.
  *
  * The order is the whole point and it is the CVE-2020-26164 lesson: length

@@ -46,6 +46,8 @@ interface Status {
   running: boolean;
   name: string;
   fp: string | null;
+  /** The three words every deck holding this passphrase computes for itself. */
+  group: string | null;
   port: number | null;
   addrs: string[];
   shared: string[];
@@ -446,6 +448,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
       {on && (
         <>
+          {/* WHICH GROUP AM I IN. First, before anything that configures
+              anything, and never hidden — it is the question a reader opens
+              this section with and the panel could not answer it, because the
+              only thing that identified a group was the one value that must
+              never be printed. Nobody types this and two decks cannot disagree
+              about it: it falls out of the passphrase, so the same words on
+              both screens IS the check the empty peer list used to ask people
+              to make by reading a secret out loud. */}
+          <div className="ap-lan-row">
+            <span className="ap-lan-label">group</span>
+            {status?.group
+              ? <code className="ap-lan-code ap-lan-group">{status.group}</code>
+              : <span className="ap-lan-set">no group yet — set a passphrase</span>}
+          </div>
+
           <div className="ap-lan-row">
             <span className="ap-lan-label">appear as</span>
             <input
@@ -605,9 +622,13 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   // The two things that actually cause this, in the order they
                   // are worth checking. Not "no decks found", which is what a
                   // reader can already see.
+                  // Naming the group name rather than the passphrase, because
+                  // comparing two screens is a thing two people can actually do
+                  // — reading a secret out loud to compare it is not.
                   <span className="ap-lan-empty">
-                    no other deck yet — check the passphrase matches, and that
-                    this machine&apos;s firewall lets {status?.name || "the deck"} use the network
+                    no other deck yet — check the other deck shows the same group
+                    name, and that this machine&apos;s firewall lets {status?.name || "the deck"} use
+                    the network
                   </span>
                 )}
                 {/* ONE LIST. A typed address is a deck in the group like any

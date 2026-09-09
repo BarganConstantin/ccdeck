@@ -29,7 +29,7 @@
 // anything.
 import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
-import { fingerprint, groupKey } from "./lan-sync.mjs";
+import { fingerprint, groupKey, groupName } from "./lan-sync.mjs";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -334,6 +334,9 @@ export function createEngine({
         running: !!beacon,
         name: cfg.name,
         fp: identity?.fp ?? null,
+        // The three words every deck in this group computes for itself. Null
+        // until there is a passphrase, because there is no group before one.
+        group: key ? groupName(key) : null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the
         // panel says rather than printing a placeholder.

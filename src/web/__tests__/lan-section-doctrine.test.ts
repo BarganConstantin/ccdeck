@@ -221,6 +221,55 @@ describe("the passphrase the deck knows how to make", () => {
   });
 });
 
+describe("which group am I in", () => {
+  it("names the group from the passphrase, so no deck has to be told and none can disagree", async () => {
+    const { groupKey, groupName, groupTag } = await import("../../server/lan-sync.mjs");
+    const a = groupKey("amber-canyon-forty-drift-cobalt-hollow");
+    const b = groupKey("amber-canyon-forty-drift-cobalt-hollow");
+    // The point of the whole thing: two machines, one passphrase, one name,
+    // computed independently and never sent.
+    expect(groupName(a)).toBe(groupName(b));
+    expect(groupName(a)).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/);
+    // A different passphrase is a different group and says so.
+    expect(groupName(groupKey("something else entirely"))).not.toBe(groupName(a));
+    // And it is not the value that travels in the beacon, so a name read out
+    // over a desk or pasted into a chat does not hand anybody the wire tag.
+    expect(groupName(a)).not.toContain(groupTag(a));
+    expect(groupTag(a)).not.toContain(groupName(a));
+  });
+
+  it("has no name before there is a passphrase, rather than a placeholder one", async () => {
+    const { groupName, groupKey } = await import("../../server/lan-sync.mjs");
+    expect(groupName(null)).toBeNull();
+    expect(groupName(groupKey(""))).toBeNull();
+  });
+
+  it("is three words, because a name whose job is to be compared cannot collide", async () => {
+    // 100^2 is one in ten thousand, which over a company's worth of small
+    // groups happens and reads as "we are in the same group" when they are not.
+    const { groupName, groupKey, WORDS } = await import("../../server/lan-sync.mjs");
+    const words = groupName(groupKey("amber-canyon-forty-drift-cobalt-hollow")).split("-");
+    expect(words).toHaveLength(3);
+    for (const w of words) expect(WORDS).toContain(w);
+  });
+
+  it("is on screen whenever the switch is on, above everything that configures anything", () => {
+    // It is the question a reader opens this section with, and the section
+    // could not answer it: the only thing identifying a group was the one value
+    // that must never be printed.
+    const rows = CODE.indexOf('className="ap-lan-label">group<');
+    expect(rows).toBeGreaterThan(-1);
+    expect(rows).toBeLessThan(CODE.indexOf('className="ap-lan-label">appear as<'));
+    expect(CODE).toMatch(/status\?\.group[\s\S]{0,120}ap-lan-group/);
+    expect(CODE).toMatch(/no group yet — set a passphrase/);
+  });
+
+  it("tells two people to compare the name, not to read a secret out loud", () => {
+    expect(CODE).toMatch(/check the other deck shows the same group\s+name/);
+    expect(CODE).not.toMatch(/check the passphrase matches/);
+  });
+});
+
 describe("what did not change", () => {
   it("still refuses an address with no usable port", () => {
     expect(parseAddress("192.168.1.5:54340")).toEqual({ addr: "192.168.1.5", port: 54340 });
