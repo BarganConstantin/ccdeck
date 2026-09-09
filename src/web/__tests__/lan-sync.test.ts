@@ -306,7 +306,12 @@ describe("proving membership without spending it", () => {
   it("compares without leaking how close a guess was", () => {
     const good = proof(KEY, ctx);
     expect(proofOk(good, good)).toBe(true);
-    expect(proofOk(good, good.slice(0, -1) + "0")).toBe(false);
+    // Changed to a character it is NOT. `slice(0, -1) + "0"` rebuilds the same
+    // string one time in sixteen, and the key here is derived from a keypair
+    // made fresh per run — so that version passed on this machine and failed on
+    // a CI runner, which is the worst possible way for a test to be wrong.
+    const last = good.slice(-1);
+    expect(proofOk(good, good.slice(0, -1) + (last === "0" ? "1" : "0"))).toBe(false);
     // A length mismatch must be false rather than a throw: timingSafeEqual
     // throws on unequal lengths, and a throw in a packet handler is a crash
     // where a refusal was wanted.
