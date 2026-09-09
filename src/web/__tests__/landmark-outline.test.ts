@@ -295,17 +295,25 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(code(usage)).not.toMatch(/<h4/);
   });
 
-  it("leaves <h4> only inside the dialogs, which are their own naming context", () => {
+  it("keeps <h4> to the dialogs, plus the one panel section that really has subsections", () => {
     // aria-modal="true" prunes everything outside the dialog from the tree, and
-    // all six of these dialogs name themselves with aria-label or
-    // aria-labelledby rather than with a heading — so their internal levels are
-    // a separate question from the page's outline, and re-levelling them is not
-    // this issue's change. Pinned so the scope-out is a decision on the record
+    // all of these dialogs name themselves with aria-label or aria-labelledby
+    // rather than with a heading — so their internal levels are a separate
+    // question from the page's outline, and re-levelling them is not this
+    // issue's change. Pinned so the scope-out is a decision on the record
     // rather than something that was missed.
+    //
+    // LanSyncSection is the one file here that is NOT a dialog, and it is on
+    // the list on purpose. It is an <h3> section of the accounts panel that
+    // divides into two named parts — which accounts this deck offers, and which
+    // decks are in the group — and both were <div>s, so the part of the panel
+    // that most needs landmarks had none. h3 -> h4 skips nothing; the outline
+    // assertions above are what enforce that, and they still run.
     const withH4 = BUNDLE.filter(([, src]) => /<h4[\s>]/.test(src)).map(([name]) => name).sort();
     expect(withH4).toEqual([
       "components/AddAccountDialog.tsx",
       "components/BrowserWatchModal.tsx",
+      "components/LanSyncSection.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
       "components/ToolModal.tsx",

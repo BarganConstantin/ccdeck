@@ -6607,6 +6607,17 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+/* Auto-switch puts its title on one line and four controls on the next, which
+   is what the column direction buys it. This section has ONE control up here,
+   so the column left the most consequential switch on the surface alone on a
+   line with 190px of nothing to its left — the least anchored thing on screen
+   attached to the decision with the highest stakes. One row, and it reads the
+   way AUTO-SWITCH reads. `margin-left: auto` on the switch is already in
+   `.ap-auto-state`, so the gap does the rest. */
+.ap-lan .ap-auto-head {
+  flex-direction: row;
+  align-items: center;
+}
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -6630,6 +6641,8 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    from the list of decks. Uppercase like the panel's own group labels, and
    `justify-content: space-between` because the one on the right is a control. */
 .ap-lan-sub {
+  margin: 0;
+  font-weight: 400;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -6667,7 +6680,12 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    information rather than a warning. --muted, not --err. */
 .ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: 9px; }
 
-.ap-lan-peers { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+/* 10px, not 4. Each peer's round line wraps to a row of its own INSIDE the
+   peer, so at 4px the distance between two decks and the distance between a
+   deck and its own sentence were the same — three decks read as six unrelated
+   lines. The gap is now larger than the line-height that separates a peer's own
+   two rows, which is the whole of what makes one peer one object. */
+.ap-lan-peers { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 .ap-lan-peer { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11px; }
 .ap-lan-peer-name { color: var(--text); }
 .ap-lan-peer-when { color: var(--muted); font-size: 10px; }
@@ -6682,6 +6700,35 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 /* Takes a typed address off the list. `margin-left: auto` puts it at the far
    edge of its row, away from the name it removes — the same distance the panel
    uses everywhere else to keep a destructive control off the thing it acts on. */
+/* THE ONE LINE IN THIS SECTION THAT IS NOT ROUTINE. A round that could not
+   reach a deck was drawn in --text-dim at 10px: the same colour, size and
+   weight as `nothing to do · checked now` on the row above it — 4.70:1 both,
+   measured. This list is the entire readout of whether the feature works, and
+   the one thing anybody scans a list like this for is which row is wrong. It
+   takes --warn, which is what .ap-err and .ap-stale already mean by wrong. The
+   tone is decided in roundLabel, where it can be tested. */
+.ap-lan-bad { color: var(--warn); }
+
+/* The passphrase's own line of verbs. `copy`, `save` and `cancel` do not fit
+   beside a 66px label and a field in 288px, and the field is the one thing on
+   the row that must not be narrowed — it is holding six words somebody is
+   about to read out loud. Indented to the field's left edge so the three read
+   as belonging to it rather than to the section. */
+.ap-lan-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  margin-left: 72px;
+}
+/* The press that opens the picks the first time. Full width, because it is the
+   only thing in its block and a 140px pill floating at the left edge reads as
+   an afterthought rather than as the deliberate act it is. */
+.ap-lan-open {
+  width: 100%;
+  margin-top: 6px;
+  justify-content: center;
+}
+
 .ap-lan-drop { margin-left: auto; }
 .ap-lan-addr { margin-top: 10px; }
 .ap-lan-code {

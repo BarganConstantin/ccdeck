@@ -18,6 +18,7 @@ import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
+import { suggestPassphrase } from "./lan-sync.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
@@ -3302,6 +3303,25 @@ function handleLanStatus(req, res) {
   return send(res, 200, { ok: true, ...lanEngine.status() });
 }
 
+/**
+ * A strong group passphrase, for the field to open with.
+ *
+ * THE WHOLE FEATURE'S SECURITY IS THIS STRING — groupKey scrypts it and
+ * everything else hangs off that — and until this route existed the field
+ * opened empty under a placeholder reading "the same words on every deck",
+ * which is an invitation to type something two people can both remember.
+ * suggestPassphrase has been written, documented and tested since the first
+ * commit of the feature and was reachable from nothing.
+ *
+ * Generated per request rather than folded into the status route, because the
+ * status route is polled every five seconds and a suggestion that changed
+ * under somebody's fingers while they read it out loud would be worse than no
+ * suggestion at all.
+ */
+function handleLanSuggest(req, res) {
+  return send(res, 200, { ok: true, passphrase: suggestPassphrase() });
+}
+
 /** Ask every peer now rather than at the next tick — the button beside the
  *  list, for somebody who has just fixed a login on the other machine and does
  *  not want to wait a minute to see it arrive. */
@@ -5538,6 +5558,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
     if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
+    if (req.method === "GET"  && url.pathname === "/api/lan/passphrase") return handleLanSuggest(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
