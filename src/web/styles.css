@@ -6586,6 +6586,111 @@ button.tool.clickable:last-child { border-bottom: none; }
   flex-shrink: 0;
 }
 button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+
+/* ---------------- local network sync ----------------
+   The last section of the Accounts panel, and the only one that is not about
+   this machine's accounts but about other machines' copies of them.
+
+   It reuses `.ap-auto`'s frame, heading and switch rather than inventing a
+   second look for a second section: a reader who has learned what Auto-switch
+   is has learned what this is, and a panel whose two bottom sections were drawn
+   differently would be claiming a difference that is not there.
+
+   Everything below is the inside of it. The ladder is the panel's — 11px for a
+   thing you read, 10px for a label beside it — and the gaps are 8 and 6 like
+   the section above. */
+/* The section's own frame is `.ap-auto`'s. What this adds is the seam above
+   it: it follows the panel's footnote rather than another section, so without a
+   rule of its own it would sit against a sentence with nothing between them. */
+.ap-lan {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.ap-lan-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Fixed, so `appear as` and `passphrase` put their fields on one left edge.
+   Measured off the longer of the two at 10px, rounded up to the panel's step. */
+.ap-lan-label {
+  flex: none;
+  width: 66px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.ap-lan-input { flex: 1 1 auto; min-width: 0; }
+/* Not the passphrase, and not dots standing in for it: the server never sends
+   it, so there is nothing here to print. `set` is the whole claim. */
+.ap-lan-set { flex: 1 1 auto; color: var(--text-dim); font-size: 10px; }
+
+/* A heading inside the section, which is what separates the list of accounts
+   from the list of decks. Uppercase like the panel's own group labels, and
+   `justify-content: space-between` because the one on the right is a control. */
+.ap-lan-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ap-lan-now { margin: -2px 0; }
+
+.ap-lan-picks { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+/* The whole row takes the press, not just the box — a 13px checkbox is under
+   the 24px SC 2.5.8 asks for, and a label wrapping its own input is the one
+   shape where the target is the sentence rather than the square. */
+.ap-lan-pick {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text);
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.ap-lan-pick:active { transform: scale(0.97); }
+.ap-lan-pick input { accent-color: var(--accent); margin: 0; }
+.ap-lan-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Said on the row rather than left to be inferred from a missing tick: an
+   account that is dead HERE is exactly the one a peer will heal, so the word is
+   information rather than a warning. --muted, not --err. */
+.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: 9px; }
+
+.ap-lan-peers { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.ap-lan-peer { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+.ap-lan-peer-name { color: var(--text); }
+.ap-lan-peer-when { color: var(--muted); font-size: 10px; }
+/* What the last round with this deck actually did. Its own line when the row
+   wraps, because it is a sentence and the two above it are a name and a time. */
+.ap-lan-peer-last { flex: 1 0 100%; color: var(--text-dim); font-size: 10px; }
+
+/* Both empty states — no accounts yet, and no other deck yet. The second one
+   carries the two things worth checking, so it wraps rather than truncating. */
+.ap-lan-empty { color: var(--muted); font-size: 10px; line-height: 1.45; }
+
+/* Takes a typed address off the list. `margin-left: auto` puts it at the far
+   edge of its row, away from the name it removes — the same distance the panel
+   uses everywhere else to keep a destructive control off the thing it acts on. */
+.ap-lan-drop { margin-left: auto; }
+.ap-lan-addr { margin-top: 10px; }
+.ap-lan-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--text);
+  user-select: all;
+}
+
 button.ap-auto-state:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 button.ap-auto-state:active:not(:disabled) { transform: scale(0.97); }
 button.ap-auto-state:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -7474,6 +7579,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
+  .ap-lan-pick:active,
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
