@@ -3258,6 +3258,13 @@ const lanEngine = createEngine({
   // The deck's own public id, kept so a restart is the same deck rather than a
   // new row in every peer's list. Written once, on the first start that has
   // none — not a secret, and in every beacon this deck sends.
+  // The port it actually got, kept so an address typed on the other machine
+  // still reaches this deck after it restarts. Written only when it differs
+  // from what is stored, so a normal start writes nothing.
+  onPort: async port => {
+    try { _prefs = await writePrefs({ lan: { port } }); }
+    catch { /* the address field still works this session; next start re-pins */ }
+  },
   onIdentity: async id => {
     try {
       _prefs = await writePrefs({ lan: { deckId: id } });
@@ -3288,6 +3295,7 @@ async function applyLanPrefs() {
       passphrase: lan.passphrase || "",
       shared: Array.isArray(lan.shared) ? lan.shared : [],
       deckId: lan.deckId || "",
+      port: lan.port || 0,
     });
     // Wholesale, so removing an address in the panel really stops it being
     // dialled rather than only taking the row away.

@@ -115,9 +115,9 @@ export function localAddresses(faces = networkInterfaces()) {
  */
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, onIdentity, now = Date.now,
+  onChange, onError, onIdentity, onPort, now = Date.now,
 } = {}) {
-  let cfg = { enabled: false, name: defaultName(), passphrase: "", shared: [], deckId: "" };
+  let cfg = { enabled: false, name: defaultName(), passphrase: "", shared: [], deckId: "", port: 0 };
   let identity = null;
   let beacon = null;
   let server = null;
@@ -285,8 +285,16 @@ export function createEngine({
       // Hand the caller an id to keep when there was none, so the next start is
       // the same deck rather than a new row in everybody's list.
       if (identity.id !== cfg.deckId) onIdentity?.(identity.id);
-      server = createSyncServer({ fp: identity.fp, name: cfg.name, key, handlers: serve, onError });
+      // The port last used, so an address somebody typed on the other machine
+      // still works after this deck restarts. createSyncServer falls through to
+      // an OS-chosen one when it is taken, and the caller stores whatever came
+      // back — so the pin drifts to a free port rather than failing.
+      server = createSyncServer({
+        fp: identity.fp, name: cfg.name, key, handlers: serve, onError,
+        prefer: cfg.port,
+      });
       const port = await server.start();
+      if (port !== cfg.port) onPort?.(port);
       beacon = createBeacon({
         port, name: cfg.name, fp: identity.fp, key,
         onPeer: () => onChange?.(),

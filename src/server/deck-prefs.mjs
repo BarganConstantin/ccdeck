@@ -54,7 +54,7 @@ export const DEFAULTS = Object.freeze({
   notifications: true,
   // LAN sync, off until somebody turns it on. `passphrase` is the only secret
   // this file has ever held, which is why the write below now names a mode.
-  lan: Object.freeze({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "" }),
+  lan: Object.freeze({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "", port: 0 }),
 });
 
 /** The mode prefs.json is created with.
@@ -88,6 +88,14 @@ function normaliseLan(raw) {
     // that, every restart adds a row to every peer's list that will never
     // answer again, and the list is a graveyard within an afternoon.
     deckId: typeof src.deckId === "string" && /^[0-9a-f]{12}$/.test(src.deckId) ? src.deckId : "",
+    // The port this deck listened on last time, so an address somebody typed on
+    // the other machine still works after a restart. It asked the OS for a new
+    // one every start, which is invisible while broadcast works and is exactly
+    // what does not work in the case the address field exists for.
+    //
+    // A PREFERENCE, never a requirement: a port already taken falls through to
+    // an OS-chosen one and this is rewritten. 0 means "none yet".
+    port: Number.isInteger(src.port) && src.port > 0 && src.port < 65_536 ? src.port : 0,
   };
 }
 

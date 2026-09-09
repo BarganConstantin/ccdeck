@@ -87,16 +87,107 @@ describe("two decks in one group, talking", () => {
   });
 });
 
+describe("the port it listens on", () => {
+  it("takes the one it had last time, so a typed address survives a restart", async () => {
+    // It asked the OS for a new port every start, which is invisible while
+    // broadcast works — and broadcast not working is the entire reason the
+    // panel has an address field. The address somebody typed on the other
+    // machine stopped working at the next restart, with `handshake timed out`
+    // and nothing to say the port had simply moved.
+    const first = server();
+    const port = await first.s.start();
+    first.s.stop();
+    await new Promise(r => setTimeout(r, 120));
+    const again = server({ prefer: port });
+    expect(await again.s.start()).toBe(port);
+  });
+
+  it("falls through to any free port rather than refusing to start", async () => {
+    // Two decks on one machine, or something unrelated holding it. The pin is a
+    // preference and never a requirement: a deck that would not start because
+    // its remembered port was busy is a worse failure than a moved port.
+    const held = server();
+    const port = await held.s.start();
+    const second = server({ prefer: port });
+    const got = await second.s.start();
+    expect(got).toBeGreaterThan(0);
+    expect(got).not.toBe(port);
+  });
+
+  it("still asks the OS when it has no port to remember", async () => {
+    const { s } = server({ prefer: 0 });
+    expect(await s.start()).toBeGreaterThan(0);
+  });
+});
+
 describe("a caller who does not hold the passphrase", () => {
-  it("is refused, and cannot tell that from the deck being gone", async () => {
-    // Deliberate. A listener that explained which check failed would be a
-    // listener helping whoever is probing it — so the wrong passphrase and a
-    // closed socket look identical from outside, and the panel does the
-    // explaining where there is a person to explain to.
+  it("is refused, and told that it is the group and not the network", async () => {
+    // THIS DECISION WAS REVERSED, and the reversal is the point of the test.
+    //
+    // The listener used to destroy the socket without a word, on the argument
+    // that explaining which check failed helps whoever is probing. It cost two
+    // people twenty minutes on a real network: their only evidence was `peer
+    // closed the connection`, which is true, useless, and reads as a firewall.
+    // The one thing that actually causes it in the field is two decks holding
+    // different passphrases.
+    //
+    // The old argument does not survive being written down. There is no partial
+    // information in a proof: it verifies or it does not, so a constant saying
+    // "you are not in this group" tells a prober exactly what the silent close
+    // already told them, and nothing that helps them guess. It is not an oracle
+    // — nobody binary-searches a passphrase from an answer that is always the
+    // same until they already have it.
     const { s } = server();
     const port = await s.start();
     await expect(connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: WRONG, timeoutMs: 1500 }))
-      .rejects.toThrow();
+      .rejects.toThrow(/different group — the passphrases do not match/);
+  });
+
+  it("is refused with a constant, never with anything the key made", async () => {
+    // The refusal is one of two fixed words. A listener that said which byte
+    // of the proof went wrong, or echoed anything derived from its own key,
+    // would be handing out exactly what the four-message handshake exists to
+    // withhold.
+    const frames: Record<string, unknown>[] = [];
+    const { s, fp } = server();
+    const port = await s.start();
+    await new Promise<void>(resolve => {
+      const sock = net.createConnection({ host: "127.0.0.1", port }, () => {
+        sendFrame(sock, { t: "hello", fp: caller(), challenge: randomBytes(16).toString("hex") });
+      });
+      sock.setEncoding("utf8");
+      sock.on("data", frameReader((msg: Record<string, unknown>) => {
+        frames.push(msg);
+        if (msg.t === "challenge") { sendFrame(sock, { t: "auth", proof: "0".repeat(64) }); return; }
+        sock.destroy();
+        resolve();
+      }, () => resolve()));
+      sock.on("close", () => resolve());
+    });
+    const no = frames.find(f => f.t === "no");
+    expect(no, "the refusal is said, not merely performed by closing").toBeTruthy();
+    expect(no!.why).toBe("group");
+    // Two keys and a fingerprint, and none of them is in the refusal.
+    expect(Object.keys(no!).sort()).toEqual(["t", "why"]);
+    expect(JSON.stringify(no)).not.toContain(fp);
+  });
+
+  it("says protocol, not group, for a caller that never made a proof at all", async () => {
+    // A build that does not speak this handshake and a deck in another group
+    // are different problems with different fixes, and the panel can only say
+    // which if the wire says which.
+    const frames: Record<string, unknown>[] = [];
+    const { s } = server();
+    const port = await s.start();
+    await new Promise<void>(resolve => {
+      const sock = net.createConnection({ host: "127.0.0.1", port }, () => {
+        sendFrame(sock, { t: "hello", fp: caller() });   // no challenge: not a hello this build knows
+      });
+      sock.setEncoding("utf8");
+      sock.on("data", frameReader((msg: Record<string, unknown>) => { frames.push(msg); }, () => resolve()));
+      sock.on("close", () => resolve());
+    });
+    expect(frames.find(f => f.t === "no")?.why).toBe("protocol");
   });
 
   it("is never handed anything the group key made, just for connecting", async () => {
@@ -146,24 +237,64 @@ describe("a caller who is trying to cost something", () => {
     ])).resolves.toBeUndefined();
   }, HANDSHAKE_MS + 5000);
 
+  // THE CLIENT HAS TO READ, and that is a change worth writing down. These two
+  // used to attach no `data` handler at all and wait for `close`, which worked
+  // while the refusal was a bare `destroy` on a socket with nothing buffered.
+  // The refusal says which check failed now, and a paused socket holding unread
+  // bytes never emits `close` however the other end goes away — so a test that
+  // does not read is testing node's backpressure, not this listener. Every real
+  // caller reads: `connectToPeer` is the only one there is.
+  const refusedFrom = (send: (s: net.Socket) => void, port: number) =>
+    new Promise<Record<string, unknown> | null>(resolve => {
+      let seen: Record<string, unknown> | null = null;
+      const sock = net.createConnection({ port, host: "127.0.0.1" });
+      sock.setEncoding("utf8");
+      sock.on("data", frameReader((msg: Record<string, unknown>) => { seen = msg; }, () => {}));
+      sock.on("close", () => resolve(seen));
+      sock.on("error", () => { /* the reset that follows the refusal */ });
+      sock.on("connect", () => send(sock));
+    });
+
   it("is dropped for saying something that is not the handshake", async () => {
-    const { s } = server();
+    const { s, errors } = server();
     const port = await s.start();
-    const sock = net.createConnection({ port, host: "127.0.0.1" });
-    sock.setEncoding("utf8");
-    const closed = new Promise<void>(res => sock.on("close", () => res()));
-    sock.on("connect", () => sendFrame(sock, { t: "manifest" }));
-    await expect(closed).resolves.toBeUndefined();
+    const said = await refusedFrom(sock => sendFrame(sock, { t: "manifest" }), port);
+    expect(said).toEqual({ t: "no", why: "protocol" });
+    expect(errors).toContain("frame");
+    // And the listener is still a listener: a refusal is not a wound.
+    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY });
+    peer.sock.destroy();
   });
 
   it("cannot skip the challenge by sending the auth first", async () => {
     const { s } = server();
     const port = await s.start();
-    const sock = net.createConnection({ port, host: "127.0.0.1" });
-    sock.setEncoding("utf8");
-    const closed = new Promise<void>(res => sock.on("close", () => res()));
-    sock.on("connect", () => sendFrame(sock, { t: "auth", proof: "0".repeat(64) }));
-    await expect(closed).resolves.toBeUndefined();
+    // Refused as protocol rather than as group: without a challenge there is
+    // nothing to check a proof against, so no proof was wrong.
+    expect(await refusedFrom(sock => sendFrame(sock, { t: "auth", proof: "0".repeat(64) }), port))
+      .toEqual({ t: "no", why: "protocol" });
+  });
+
+  it("frees its own socket even when the caller never reads the refusal", async () => {
+    // The caller that is trying to cost something does not read, and cannot be
+    // made to. What matters is that the LISTENER is not the one holding a
+    // socket: it writes, resets, and forgets, so a run of these cannot fill the
+    // MAX_SOCKETS table and lock a deck out of its own group.
+    const { s } = server();
+    const port = await s.start();
+    const held: net.Socket[] = [];
+    for (let i = 0; i < MAX_SOCKETS + 4; i++) {
+      const sock = net.createConnection({ port, host: "127.0.0.1" });
+      sock.setEncoding("utf8");           // deliberately no data handler
+      sock.on("error", () => { /* reset */ });
+      sock.on("connect", () => sendFrame(sock, { t: "manifest" }));
+      held.push(sock);
+    }
+    await new Promise(r => setTimeout(r, 400));
+    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY, timeoutMs: 2000 });
+    expect(peer.peerFp).toBeTruthy();
+    peer.sock.destroy();
+    for (const sock of held) sock.destroy();
   });
 
   it("cannot hold more sockets than the deck will keep", async () => {

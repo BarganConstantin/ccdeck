@@ -72,7 +72,10 @@ describe("what a page is allowed to see", () => {
 describe("the shape on disk", () => {
   it("is off until somebody turns it on", () => {
     expect(DEFAULTS.lan.enabled).toBe(false);
-    expect(normalise({}).lan).toEqual({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "" });
+    // `port` is 0 until this deck has listened once. It is remembered so an
+    // address typed on the other machine still reaches this one after a
+    // restart — broadcast not arriving is the whole reason that field exists.
+    expect(normalise({}).lan).toEqual({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "", port: 0 });
   });
 
   it("does not lose the passphrase when a page toggles the switch", async () => {
@@ -86,7 +89,7 @@ describe("the shape on disk", () => {
       rename: async () => {},
     };
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
-    expect(saved!.lan).toEqual({ enabled: true, name: "", passphrase: "kept", shared: ["a@@1"], manual: [], deckId: "" });
+    expect(saved!.lan).toEqual({ enabled: true, name: "", passphrase: "kept", shared: ["a@@1"], manual: [], deckId: "", port: 0 });
   });
 
   it("refuses a deck id that is not one, so a junk beacon is never sent", () => {

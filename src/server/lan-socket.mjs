@@ -226,7 +226,7 @@ export function sendFrame(sock, obj) {
  * `handlers` is called only with authenticated frames, and it never sees the
  * handshake at all.
  */
-export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0.0.0" } = {}) {
+export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0.0.0", prefer = 0 } = {}) {
   let server = null;
   const live = new Set();
 
@@ -251,7 +251,41 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
     sock.on("close", done);
     sock.on("error", err => { done(); onError?.("peer", err); });
 
-    const refuse = why => { onError?.("frame", new Error(why)); sock.destroy(); };
+    /**
+     * Refuse, and SAY SO, which cost two people twenty minutes.
+     *
+     * This used to destroy the socket without a word, so the caller's only
+     * evidence was `peer closed the connection` — true, and useless. The one
+     * thing that actually causes it in the field is two decks holding different
+     * passphrases, and that is precisely diagnosable here and nowhere else.
+     *
+     * It leaks nothing. "You are not in this group" is exactly what the silent
+     * close already told them, and there is no partial information in it: the
+     * proof either verifies or it does not, so nobody learns anything about the
+     * passphrase by being told which of two constants applies.
+     *
+     * `end` rather than `destroy`, or the frame is dropped with the socket.
+     */
+    const refuse = why => {
+      onError?.("frame", new Error(why));
+      const bye = () => { try { sock.destroy(); } catch { /* already gone */ } };
+      // DESTROY, NOT END, and the difference is a caller that never reads.
+      //
+      // `end` is a FIN, and a peer whose socket is paused — connected, refusing
+      // to read, which is exactly the shape of a caller that is trying to cost
+      // something — never notices a FIN and holds the socket open. `destroy`
+      // after the write has reached the kernel resets it, which every peer
+      // notices whether it is reading or not.
+      //
+      // The callback is what orders the two: destroying before the write
+      // flushes would throw the sentence away, which is the whole point of
+      // sending it. The timer is the backstop for a peer whose receive window
+      // is full and whose callback therefore never comes.
+      try {
+        sock.write(`${JSON.stringify({ t: "no", why: why === "bad proof" ? "group" : "protocol" })}\n`, bye);
+      } catch { bye(); return; }
+      setTimeout(bye, 250).unref?.();
+    };
 
     sock.on("data", frameReader(msg => {
       if (!authed) {
@@ -308,12 +342,39 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
   };
 
   return {
+    /**
+     * Listen, on the same port as last time when that is still possible.
+     *
+     * IT ASKED FOR PORT 0 EVERY TIME, and the reasoning was sound in isolation:
+     * the beacon carries whichever port the OS picked, so nothing needs a fixed
+     * one and a fixed one is a thing to collide with. But the beacon is exactly
+     * what does not arrive when this feature is hardest to set up — a router
+     * or a firewall in the way is the whole reason the panel has an address
+     * field — and then the address somebody typed on the other machine stopped
+     * working the next time this deck restarted, with `handshake timed out` and
+     * nothing to say the port had simply moved.
+     *
+     * So the caller keeps one and hands it back, and a port already taken falls
+     * straight through to 0 rather than refusing to start. The pin is a
+     * preference, never a requirement.
+     */
     start: () => new Promise((resolve, reject) => {
+      const wanted = Number.isInteger(prefer) && prefer > 0 && prefer < 65_536 ? prefer : 0;
+      let retried = wanted === 0;
       server = net.createServer(onConnection);
-      server.on("error", err => { onError?.("listen", err); reject(err); });
-      // Port 0: the OS picks, and the beacon carries whichever it picked. One
-      // fixed port in this feature is enough to collide with.
-      server.listen(0, host, () => resolve(server.address().port));
+      server.on("error", err => {
+        if (!retried) {
+          // Somebody else has it — another deck on this machine, or something
+          // unrelated. The pin is not worth failing to start over.
+          retried = true;
+          onError?.("listen", err);
+          try { server.listen(0, host, () => resolve(server.address().port)); } catch { reject(err); }
+          return;
+        }
+        onError?.("listen", err);
+        reject(err);
+      });
+      server.listen(wanted, host, () => resolve(server.address().port));
     }),
     port: () => server?.address()?.port ?? null,
     stop() {
@@ -377,6 +438,14 @@ export function connectToPeer({ host, port, fp, key, timeoutMs = HANDSHAKE_MS })
           }),
         });
         return;
+      }
+      // A deck that heard us and said no. The only one worth a sentence of its
+      // own is the mismatched passphrase, because it is both the common case
+      // and the one the person reading the row can fix.
+      if (msg.t === "no") {
+        return fail(new Error(msg.why === "group"
+          ? "the other deck is in a different group — the passphrases do not match"
+          : "the other deck refused this handshake"));
       }
       // The same deck that gave us the challenge, or nothing: a reply naming a
       // different fingerprint is a second party in the middle of this.
