@@ -336,5 +336,15 @@
       "title": "🔕 The deck no longer puts anything in your settings.json",
       "body": "It used to add a hook there so Claude Code would play a sound when a turn ended. That entry is removed the first time you start this version, and any sound hook you wrote yourself is put back exactly where you had it. Nothing else in that file is touched. The deck makes the sound itself now — which is also why you finally hear one when a Codex turn ends, not just a Claude one."
     }
+  ],
+  "3.16.0": [
+    {
+      "title": "🤝 Pair two decks with one piece of text",
+      "body": "**Accounts ▸ Local network ▸ setup… ▸ make an invite.** Send the text however you already talk to them; they paste it and the two decks are paired. Nobody presses accept, and neither of you has to know which of your addresses the other can reach — the invite carries them all and their deck tries each one.\n\nDecks on the same router still find each other on their own and appear under **on this network right now**. An invite is for the case that does not work: another subnet, a VPN, a firewall.\n\nThe invite lasts 10 minutes and is used once. Anyone who gets hold of the text can pair with your deck until it runs out, so send it the way you would send anything else you would not want forwarded."
+    },
+    {
+      "title": "⚠️ Both machines have to be on this version",
+      "body": "The two decks no longer speak the old protocol, and there is no fallback: a 3.15 deck and a 3.16 deck cannot see each other at all. Update both.\n\nThe group passphrase is gone. If you had one set, that pairing is not carried over — make an invite and pair again. It was replaced because a passphrase that differs by one character produced a closed socket and no other symptom on either machine, and a secret is the one thing a panel must never print, so neither person could check theirs against the other's."
+    }
   ]
 }
