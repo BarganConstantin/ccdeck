@@ -11,7 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { roundLabel, writeFailure, sameKeys, parseAddress } from "../components/LanSyncSection";
+import { roundLabel, writeFailure, sameKeys, parseAddress, askedLabel } from "../components/LanSyncSection";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
@@ -21,6 +21,10 @@ const SERVER = readFileSync(
   fileURLToPath(new URL("../../server/index.mjs", import.meta.url)),
   "utf8",
 );
+const MODAL = readFileSync(
+  fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
+  "utf8",
+).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
@@ -132,37 +136,50 @@ describe("the three rules the panel above it already keeps", () => {
     // The `else` that was missing, and the `catch` that was missing. Counted
     // rather than merely present: a single setFailure would satisfy a `toMatch`
     // and leave the other path silent.
-    expect([...CODE.matchAll(/setFailure\(writeFailure\(/g)]).toHaveLength(4);
+    expect([...CODE.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
+    expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
     expect(CODE).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
   });
 
   it("gives every write the verb its failure will be reported with", () => {
     // save(patch) with no second argument is a write whose failure has no
     // sentence. Every call site passes one.
-    const calls = [...CODE.matchAll(/\bsave\(\s*\{[\s\S]*?\}\s*,/g)];
-    expect(calls.length).toBeGreaterThanOrEqual(6);
-    expect(CODE).not.toMatch(/\bsave\(\s*\{[^{}]*\}\s*\)/);
+    expect(MODAL).not.toMatch(/\bwrite\(\s*\{[^{}]*\}\s*\)/);
+    expect([...MODAL.matchAll(/\bwrite\(\s*\{[\s\S]*?\}\s*,/g)].length).toBeGreaterThanOrEqual(3);
   });
 
-  it("costs one deliberate press before the first login is offered", () => {
-    // Not a confirmation on every tick — the second account is a decision the
-    // user has already made once. The block is closed only while it is empty,
-    // so nothing that exists is ever hidden, and the press is what puts the
-    // warning above it in front of the decision rather than beside it.
-    expect(CODE).toMatch(/const showPicks = picking \|\| sharedList\.length > 0;/);
-    expect(CODE).toMatch(/choose accounts to share/);
+  it("keeps every decision out of the panel and in a dialog", () => {
+    // The section had grown to nine controls in a 288px column, all of them on
+    // screen every time somebody opened the panel to look at a quota. What is
+    // left is an instrument: is it on, who is paired, what happened, who is
+    // asking. The two exceptions are deliberate — the switch, because it is the
+    // control that answers "is this on", and a request, because it arrives
+    // while nobody has a dialog open.
+    expect(CODE).toMatch(/LanSetupModal/);
+    // The FIELDS, not the words: "by address" still appears in the panel as a
+    // reading — it is how a peer row says how that deck got there — and a
+    // reading is exactly what belongs in an instrument.
+    for (const field of [
+      `aria-label="This deck's name on the network"`,
+      `aria-label="Another deck's address"`,
+      'type="checkbox"',
+    ]) {
+      expect(CODE, field).not.toContain(field);
+      expect(MODAL, field).toContain(field);
+    }
+    expect(CODE).toMatch(/role="switch"/);
+    expect(CODE).toMatch(/wants to pair/);
   });
 
   it("builds the next share list from what it last sent, not from the last render", () => {
     // The race: `status.shared` only changes after a write has landed AND the
     // poll after it has returned, so a second tick inside that window rebuilt
-    // its Set from before the first one and silently dropped an account from
-    // the group.
-    expect(CODE).toMatch(/new Set\(pending\.current \?\? status\?\.shared \?\? \[\]\)/);
-    expect(CODE).toMatch(/pending\.current = \[\.\.\.next\]/);
+    // its Set from before the first one and silently dropped an account.
+    expect(MODAL).toMatch(/new Set\(pending\.current \?\? status\.shared \?\? \[\]\)/);
+    expect(MODAL).toMatch(/pending\.current = \[\.\.\.next\]/);
     // And retires the optimistic copy once the server agrees with it, or the
-    // panel would stop believing the server forever.
-    expect(CODE).toMatch(/sameKeys\(pending\.current, lan\.shared \?\? \[\]\)/);
+    // boxes would keep showing what was sent even after the deck refused it.
+    expect(MODAL).toMatch(/sameKeys\(pending\.current, status\.shared \?\? \[\]\)/);
   });
 
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {
@@ -172,101 +189,52 @@ describe("the three rules the panel above it already keeps", () => {
   });
 });
 
-describe("the passphrase the deck knows how to make", () => {
-  it("is reachable from the panel at all, which it was not", () => {
-    // suggestPassphrase was written, documented and tested with the first
-    // commit of this feature and called by nothing but its own test, while the
-    // field opened empty under a placeholder reading "the same words on every
-    // deck" — an instruction to invent one two people can both remember.
-    expect(SERVER).toMatch(/import \{ suggestPassphrase \} from "\.\/lan-sync\.mjs";/);
-    expect(SERVER).toMatch(/url\.pathname === "\/api\/lan\/passphrase"/);
-    expect(CODE).toMatch(/fetch\("\/api\/lan\/passphrase"\)/);
+describe("the pairing that replaced the passphrase", () => {
+  it("asks a person about a named machine, not about a string nobody can see", () => {
+    // THE DEFECT THE WHOLE REDESIGN CAME OUT OF. A passphrase differing by one
+    // character produced a closed socket and no other symptom on both machines,
+    // and a secret is the one value a panel must never print — so neither
+    // person could check theirs against the other's.
+    expect(CODE).toMatch(/wants to pair/);
+    expect(CODE).toMatch(/accept/);
+    expect(CODE).toMatch(/dismiss/);
+    // And what the reader is asked to compare is on the request itself.
+    expect(CODE).toMatch(/fingerprint is \$\{p\.fp\}/);
   });
 
-  it("is generated per request, not folded into the polled status route", () => {
-    // The status route is polled every five seconds. A suggestion that changed
-    // under somebody's fingers while they read it out loud would be worse than
-    // none.
-    expect(SERVER).toMatch(/function handleLanSuggest/);
-    expect(SERVER).not.toMatch(/lanEngine\.status\(\)[\s\S]{0,120}suggestPassphrase/);
+  it("has no passphrase left anywhere in the surface", () => {
+    for (const src of [CODE, MODAL]) {
+      expect(src).not.toMatch(/passphrase/i);
+      expect(src).not.toMatch(/type="password"/);
+    }
   });
 
-  it("is readable while it is being set, and never put back in a field afterwards", () => {
-    // The rule is about a STORED value: publicPrefs does not send one, so there
-    // is nothing to re-display. A suggestion nobody has saved yet is a
-    // different thing, and hiding it would hide the one thing this step exists
-    // to move to a second machine.
-    expect(CODE).not.toMatch(/type="password"/);
-    expect(CODE).toMatch(/hasPassphrase \? "set" : "not set yet"/);
-    expect(CODE).not.toMatch(/•{3,}|•/);
+  it("puts the request above everything else, because nothing moves until it is answered", () => {
+    const ask = CODE.indexOf('className="ap-lan-asks"');
+    expect(ask).toBeGreaterThan(-1);
+    expect(ask).toBeLessThan(CODE.indexOf(">\n            paired decks"));
+    // Announced, because it arrives while the reader is three sections up
+    // looking at a quota.
+    expect(CODE).toMatch(/className="ap-lan-asks" role="alert"/);
   });
 
-  it("has the suggestion in hand before the field exists, so nothing lands late", () => {
-    // It used to open the field empty and fill it on the answer, guarded by "only
-    // if the field is still empty" — and that guard cannot tell "we just opened
-    // this" from "the user selected all six words and pressed delete". Clearing
-    // the field to type your own refilled it with the suggestion under your
-    // cursor. With nothing in flight once the field is on screen there is no
-    // late write at all.
-    const body = /const openPassphrase = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[\]\);/
-      .exec(CODE)?.[1] ?? "";
-    expect(body).toBeTruthy();
-    // The field is opened once, at the end, with whatever the fetch produced.
-    expect(body).toMatch(/if \(alive\.current\) setDraft\(suggestion\);\s*$/);
-    expect([...body.matchAll(/setDraft\(/g)]).toHaveLength(1);
-    // And the wait is bounded, so a deck that never answers still leaves a
-    // field to type into rather than a button that looks dead.
-    expect(body).toMatch(/Promise\.race/);
-    expect(body).toMatch(/1_500/);
-  });
-});
-
-describe("which group am I in", () => {
-  it("names the group from the passphrase, so no deck has to be told and none can disagree", async () => {
-    const { groupKey, groupName, groupTag } = await import("../../server/lan-sync.mjs");
-    const a = groupKey("amber-canyon-forty-drift-cobalt-hollow");
-    const b = groupKey("amber-canyon-forty-drift-cobalt-hollow");
-    // The point of the whole thing: two machines, one passphrase, one name,
-    // computed independently and never sent.
-    expect(groupName(a)).toBe(groupName(b));
-    expect(groupName(a)).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/);
-    // A different passphrase is a different group and says so.
-    expect(groupName(groupKey("something else entirely"))).not.toBe(groupName(a));
-    // And it is not the value that travels in the beacon, so a name read out
-    // over a desk or pasted into a chat does not hand anybody the wire tag.
-    expect(groupName(a)).not.toContain(groupTag(a));
-    expect(groupTag(a)).not.toContain(groupName(a));
+  it("says how long a request has been waiting, coarsely, because the answer is a press", () => {
+    const NOW = 1_700_000_000_000;
+    expect(askedLabel(NOW, NOW)).toBe("just now");
+    expect(askedLabel(NOW - 30_000, NOW)).toBe("just now");
+    expect(askedLabel(NOW - 5 * 60_000, NOW)).toBe("5m ago");
+    expect(askedLabel(NOW - 3 * 3_600_000, NOW)).toBe("3h ago");
   });
 
-  it("has no name before there is a passphrase, rather than a placeholder one", async () => {
-    const { groupName, groupKey } = await import("../../server/lan-sync.mjs");
-    expect(groupName(null)).toBeNull();
-    expect(groupName(groupKey(""))).toBeNull();
-  });
-
-  it("is three words, because a name whose job is to be compared cannot collide", async () => {
-    // 100^2 is one in ten thousand, which over a company's worth of small
-    // groups happens and reads as "we are in the same group" when they are not.
-    const { groupName, groupKey, WORDS } = await import("../../server/lan-sync.mjs");
-    const words = groupName(groupKey("amber-canyon-forty-drift-cobalt-hollow")).split("-");
-    expect(words).toHaveLength(3);
-    for (const w of words) expect(WORDS).toContain(w);
-  });
-
-  it("is on screen whenever the switch is on, above everything that configures anything", () => {
-    // It is the question a reader opens this section with, and the section
-    // could not answer it: the only thing identifying a group was the one value
-    // that must never be printed.
-    const rows = CODE.indexOf('className="ap-lan-label">group<');
-    expect(rows).toBeGreaterThan(-1);
-    expect(rows).toBeLessThan(CODE.indexOf('className="ap-lan-label">appear as<'));
-    expect(CODE).toMatch(/status\?\.group[\s\S]{0,120}ap-lan-group/);
-    expect(CODE).toMatch(/no group yet — set a passphrase/);
-  });
-
-  it("tells two people to compare the name, not to read a secret out loud", () => {
-    expect(CODE).toMatch(/check the other deck shows the same group\s+name/);
-    expect(CODE).not.toMatch(/check the passphrase matches/);
+  it("routes accept, dismiss and unpair through one server verb each", () => {
+    expect(SERVER).toMatch(/function handleLanPeer/);
+    expect(SERVER).toMatch(/url\.pathname === "\/api\/lan\/peer"/);
+    for (const verb of ["accept", "dismiss", "unpair"]) {
+      expect(SERVER, verb).toMatch(new RegExp(`case "${verb}"`));
+    }
+    // The KEY being pinned comes from what this deck saw on the wire, never
+    // from the page — so a page cannot pair this deck with a key nobody met.
+    expect(SERVER).toMatch(/never from\s+\*\s*the page/);
   });
 });
 
@@ -283,8 +251,8 @@ describe("what did not change", () => {
   });
 
   it("still says the deck's name is public, where the field is", () => {
-    // The beacon carries it in the clear to everyone on the network, with or
-    // without the passphrase, and the panel had never said so.
-    expect(CODE).toMatch(/everyone on this network can see this name/);
+    // The beacon carries it in the clear to everyone on the network, paired or
+    // not. It is said beside the field, which moved into the dialog with it.
+    expect(MODAL).toMatch(/Everyone on this network can see this name/);
   });
 });

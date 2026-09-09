@@ -6743,17 +6743,24 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 }
 
 .ap-lan-drop { margin-left: auto; }
-/* The group's own name, and the one value in this section a reader is meant to
-   COMPARE with another screen rather than merely read. It takes 11px against
-   the 9px the addresses take, and --text against their --text: same ink, more
-   size, because the difference between it and them is importance and not kind.
-   `user-select: all` for the same reason the addresses have it — one click
-   takes the whole thing, so it can be pasted into a chat without a partial
-   selection turning a comparison into a false negative. */
-.ap-lan-group {
-  font-size: 11px;
-  letter-spacing: 0.01em;
+/* SOMEBODY IS WAITING, and this is the only thing in the panel that is a
+   question rather than a reading. It takes a bed and an accent edge — the one
+   place in this section that spends colour — because until it is answered
+   nothing at all moves between the two machines, and it arrives while the
+   reader is looking at a quota three sections up. */
+.ap-lan-asks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
+.ap-lan-ask { display: flex; flex-direction: column; gap: 6px; }
+.ap-lan-ask-what { font-size: 11px; color: var(--text); line-height: 1.45; }
+.ap-lan-ask-acts { display: flex; gap: 6px; }
 
 .ap-lan-addr { margin-top: 10px; }
 .ap-lan-code {
@@ -9158,3 +9165,50 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .pl-cell.warn .pl-spark-line { stroke: var(--warn); }
 .pl-cell.hot .pl-spark-area { fill: var(--err); }
 .pl-cell.hot .pl-spark-line { stroke: var(--err); }
+
+/* ---------------- local network setup ----------------
+   The dialog behind the panel's `setup…`. Every DECISION about LAN sync lives
+   here: the panel had grown to nine controls in a 288px column, all of them on
+   screen every time somebody opened it to look at a quota. Configuration is
+   done twice; looking is done every day.
+
+   It borrows the shared `.modal-*` shell and the panel's own `.ap-lan-*` rows,
+   rather than inventing a second look for the same settings — a reader who has
+   used the section knows this dialog already. What is new here is only what a
+   288px column could not hold. */
+.lan-modal { max-width: 520px; }
+/* h3 inside the dialog, which names itself with aria-labelledby rather than
+   with a heading — so these are the first level of structure inside it. `margin: 0`
+   because the UA sheet's 1em would fight the section gap that is doing the work. */
+.lan-h {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* The sentence under a control, explaining the thing the control cannot say
+   about itself. --text-dim rather than --muted: it is prose a reader reads
+   rather than a figure they glance at, which is the distinction the two tokens
+   exist to hold. */
+.lan-note {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+/* The one paragraph in the dialog that is a warning rather than an explanation,
+   above the only control that cannot be undone. It takes --warn, which is what
+   this panel already means by "this is the part that bites". */
+.lan-warn {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.lan-dials { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+/* An address is a control here rather than a label, because the only thing
+   anybody does with it is put it on a clipboard and send it to somebody. */
+.lan-dial { display: inline-flex; align-items: center; gap: 6px; }
+.lan-copied { color: var(--accent); font-size: 9px; }

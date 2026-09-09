@@ -54,7 +54,7 @@ export const DEFAULTS = Object.freeze({
   notifications: true,
   // LAN sync, off until somebody turns it on. `passphrase` is the only secret
   // this file has ever held, which is why the write below now names a mode.
-  lan: Object.freeze({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "", port: 0 }),
+  lan: Object.freeze({ enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0 }),
 });
 
 /** The mode prefs.json is created with.
@@ -79,15 +79,21 @@ function normaliseLan(raw) {
   return {
     enabled: typeof src.enabled === "boolean" ? src.enabled : false,
     name: typeof src.name === "string" ? src.name : "",
-    passphrase: typeof src.passphrase === "string" ? src.passphrase : "",
+    // THIS DECK'S PRIVATE KEY, and the only secret this file has ever held —
+    // which is why the write below names a mode rather than taking the umask's.
+    // It is an X25519 private key in base64 pkcs8; anything else is replaced on
+    // the next start rather than refused, because a corrupt key is not a thing
+    // anybody can act on and refusing to start would take the feature away.
+    secret: typeof src.secret === "string" ? src.secret : "",
     shared: strings(src.shared),
     manual: strings(src.manual),
-    // A PUBLIC identifier, not a key and not a secret: it is in every beacon
-    // this deck broadcasts, and what authenticates is the passphrase. It is
-    // persisted so a restarted deck is recognised as the same one — without
-    // that, every restart adds a row to every peer's list that will never
-    // answer again, and the list is a graveyard within an afternoon.
-    deckId: typeof src.deckId === "string" && /^[0-9a-f]{12}$/.test(src.deckId) ? src.deckId : "",
+    // THE DECKS SOMEBODY PRESSED ACCEPT ON. The public key is the load-bearing
+    // half: a fingerprint is a hash of it, so an entry without one cannot be
+    // checked against whatever answers at an address later, and an entry that
+    // cannot be checked is worse than no entry at all.
+    trusted: (Array.isArray(src.trusted) ? src.trusted : [])
+      .filter(t => t && typeof t.fp === "string" && typeof t.pub === "string")
+      .map(t => ({ fp: t.fp, pub: t.pub, name: typeof t.name === "string" ? t.name : "" })),
     // The port this deck listened on last time, so an address somebody typed on
     // the other machine still works after a restart. It asked the OS for a new
     // one every start, which is invisible while broadcast works and is exactly
@@ -176,18 +182,23 @@ export async function writePrefs(patch, home = claudeConfigDir(), deps = {}) {
 /**
  * The preferences as a PAGE may see them.
  *
- * The passphrase never leaves this process. `GET /api/prefs` is readable by
+ * THE PRIVATE KEY NEVER LEAVES THIS PROCESS. `GET /api/prefs` is readable by
  * anything that can reach the loopback port — which is the whole point of the
  * deck's own threat model, and is why the share envelope is not served there
- * either — so what goes out is whether one is set, not what it is.
+ * either. A page has no use for the key: what it needs is this deck's
+ * fingerprint, which is a hash of the PUBLIC half and comes from `/api/lan`.
  *
- * A boolean rather than a mask: `••••••••` in a field invites a page to send it
- * back, and then the dots are the passphrase.
+ * The pinned public keys of trusted decks go the same way, for a smaller
+ * reason: they are not secret, and they are forty characters of base64 that no
+ * page draws. What a page shows is a name and a fingerprint.
  */
 export function publicPrefs(prefs) {
   const p = normalise(prefs);
-  const { passphrase, ...lan } = p.lan;
-  return { ...p, lan: { ...lan, hasPassphrase: passphrase !== "" } };
+  const { secret, trusted, ...lan } = p.lan;
+  return {
+    ...p,
+    lan: { ...lan, trusted: trusted.map(t => ({ fp: t.fp, name: t.name })) },
+  };
 }
 
 export function notificationsOn(prefs, env = process.env) {

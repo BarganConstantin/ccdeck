@@ -15,19 +15,23 @@ import { describe, it, expect } from "vitest";
 import { createHash, randomBytes } from "node:crypto";
 // @ts-expect-error — plain .mjs server module, no types
 import {
-  accountKey, beaconPayload, beaconVerdict, cleanName, fingerprint, groupKey, groupTag,
+  accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, dropTrusted, fingerprint,
   isPresent, manifestFor, notePeer, open, peerRows, plan, proof, proofOk, readBeacon,
-  seal, stillListed, suggestPassphrase, syncAction, transferChallenge,
-  ANNOUNCE_MS, FORGET_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL, WORDS,
+  handshakeTranscript, identityFrom, readPub, seal, sessionKey, stillListed, syncAction,
+  transferChallenge, trustedPeer,
+  ANNOUNCE_MS, FORGET_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL,
 } from "../../server/lan-sync.mjs";
 
-const KEY = groupKey("amber-canyon-forty-drift");
-const TAG = groupTag(KEY);
+const A = identityFrom("");
+const B = identityFrom("");
+/** One connection's key, which is what everything below is keyed on now. There
+ *  is no long-lived key any more: see sessionKey. */
+const KEY = sessionKey(A.secret, B.pub, "test-transcript");
 const FP = fingerprint(Buffer.from("this deck"));
 const OTHER = fingerprint(Buffer.from("that deck"));
 
 const beacon = (over: Record<string, unknown> = {}) => Buffer.from(JSON.stringify({
-  ...beaconPayload({ name: "MacBook", fp: OTHER, port: 4319, group: TAG, instance: "0badc0de" }),
+  ...beaconPayload({ name: "MacBook", fp: OTHER, port: 4319, instance: "0badc0de" }),
   ...over,
 }));
 
@@ -36,28 +40,31 @@ describe("what a stranger on the same wifi learns", () => {
   // exposure. Every field is enumerated rather than spot-checked: a field added
   // later without thinking is exactly how an email ends up being broadcast.
   it("says a deck is here, and nothing about what is on it", () => {
-    const p = beaconPayload({ name: "MacBook", fp: FP, port: 4319, group: TAG, instance: "0badc0de" });
-    expect(Object.keys(p).sort()).toEqual(["f", "g", "i", "m", "n", "p", "v"]);
+    const p = beaconPayload({ name: "MacBook", fp: FP, port: 4319, instance: "0badc0de" });
+    expect(Object.keys(p).sort()).toEqual(["f", "i", "m", "n", "p", "v"]);
     const wire = JSON.stringify(p);
     for (const secret of ["amber-canyon-forty-drift", "@", "claude", "sapec", "refresh", "oauth"]) {
       expect(wire, `the beacon carries ${secret}`).not.toContain(secret);
     }
   });
 
-  it("does not carry the passphrase, nor anything reversible to it in one step", () => {
-    // `g` IS derived from the passphrase and that is the point of it — what has
-    // to hold is that the derivation is the expensive one, so the tag is worth
-    // no more to a listener than a scrypt grind.
-    const p = beaconPayload({ name: "x", fp: FP, port: 1, group: TAG, instance: "aa" });
-    expect(p.g).toBe(TAG);
-    expect(p.g).not.toBe(KEY.toString("hex"));
-    // A plain hash of the passphrase would be a different value; if these ever
-    // matched, the tag had become a cheap oracle.
-    expect(p.g).not.toBe(createHash("sha256").update("amber-canyon-forty-drift").digest("hex").slice(0, 16));
+  it("carries nothing derived from a secret at all any more", () => {
+    // THE GROUP TAG IS GONE, and with it the last field in this packet that had
+    // to be argued about. It was HMAC over a scrypt'd passphrase — defensible,
+    // and the reason the derivation had to stay expensive. What is left is a
+    // name, a port, and a hash of a PUBLIC key, none of which is worth grinding
+    // because none of them is secret.
+    const p = beaconPayload({ name: "x", fp: FP, port: 1, instance: "aa" });
+    expect(p).not.toHaveProperty("g");
+    const id = identityFrom("");
+    // The fingerprint is a hash of the public half, so publishing it publishes
+    // nothing the public half does not.
+    expect(fingerprint(Buffer.from(id.pub, "base64"))).toBe(id.fp);
+    expect(JSON.stringify(p)).not.toContain(id.secret);
   });
 
   it("stays small enough that a beacon is never worth fragmenting", () => {
-    const long = beaconPayload({ name: "x".repeat(200), fp: FP, port: 65_535, group: TAG, instance: "f".repeat(32) });
+    const long = beaconPayload({ name: "x".repeat(200), fp: FP, port: 65_535, instance: "f".repeat(32) });
     expect(JSON.stringify(long).length).toBeLessThan(MAX_BEACON_BYTES);
   });
 });
@@ -94,21 +101,22 @@ describe("a packet built to be expensive, or to be a lie", () => {
     }
   });
 
-  it("refuses a fingerprint or a tag that is the wrong shape", () => {
+  it("refuses a fingerprint that is the wrong shape, and ignores a field it does not know", () => {
     // Shape-checked because both are used as map keys and as hex buffers; a
     // field that reaches Buffer.from with the wrong length is a throw in a
     // packet handler, which is a crash rather than a refusal.
     for (const f of ["", "zzz-816-bf8-f01", "ba7816bf8f01", "ba7-816-bf8", 42]) {
       expect(readBeacon(beacon({ f })), `fp ${f}`).toBeNull();
     }
-    for (const g of ["", "4393c0ee3690c4f", "4393c0ee3690c4f1f", "ZZ93c0ee3690c4f1"]) {
-      expect(readBeacon(beacon({ g })), `tag ${g}`).toBeNull();
-    }
+    // The tag it used to check here does not exist any more, and a field a
+    // reader does not know is ignored rather than refused — that is what keeps
+    // a deck a version behind discoverable. An UNKNOWN `g` must not be fatal.
+    expect(readBeacon(beacon({ g: "ZZ93c0ee3690c4f1" })), "an unknown field").not.toBeNull();
   });
 
   it("takes a good packet, and hands back only fields it validated", () => {
     const got = readBeacon(beacon());
-    expect(got).toEqual({ name: "MacBook", fp: OTHER, port: 4319, group: TAG, instance: "0badc0de" });
+    expect(got).toEqual({ name: "MacBook", fp: OTHER, port: 4319, instance: "0badc0de" });
   });
 
   it("keeps a peer's name from being a lie about anything but itself", () => {
@@ -132,11 +140,11 @@ describe("who gets answered at all", () => {
   it("ignores its own shout, which it hears on every interface it owns", () => {
     // By fingerprint rather than by address: a deck hears itself on each
     // interface, and the address list changes when a VPN comes up.
-    expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP, selfGroup: TAG })).toBe("self");
+    expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP })).toBe("self");
   });
 
   it("tells its own packet from another deck wearing its name", () => {
-    // The id is stored in prefs, so two decks sharing a config directory hold
+    // The key is stored in prefs, so two decks sharing a config directory hold
     // the same one — and so does the second machine when somebody copies their
     // ~/.claude across, which people do. Both would file every one of the
     // other's beacons as "that is me" and be permanently invisible to each
@@ -145,81 +153,131 @@ describe("who gets answered at all", () => {
     // `instance` is fresh per process, so our own packet carries the instance
     // we are running and another deck's cannot.
     const mine = readBeacon(beacon({ f: FP, i: "aaaaaaaa" }));
-    expect(beaconVerdict(mine, { selfFp: FP, selfGroup: TAG, selfInstance: "aaaaaaaa" })).toBe("self");
-    expect(beaconVerdict(mine, { selfFp: FP, selfGroup: TAG, selfInstance: "bbbbbbbb" })).toBe("id-clash");
+    expect(beaconVerdict(mine, { selfFp: FP, selfInstance: "aaaaaaaa" })).toBe("self");
+    expect(beaconVerdict(mine, { selfFp: FP, selfInstance: "bbbbbbbb" })).toBe("id-clash");
   });
 
   it("still reads a bare self-check as self, for a caller with no instance", () => {
-    // The parameter arrived later than the function; a caller that does not
-    // pass one must keep the answer it had rather than start reporting a clash.
-    expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP, selfGroup: TAG })).toBe("self");
+    expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP })).toBe("self");
   });
 
-  it("names a deck in another group as such, so a mistyped passphrase is legible", () => {
-    const theirs = groupTag(groupKey("some-other-passphrase"));
-    expect(beaconVerdict(readBeacon(beacon({ g: theirs })), { selfFp: FP, selfGroup: TAG })).toBe("other-group");
+  it("calls a deck nobody has accepted a stranger, rather than dropping it", () => {
+    // THE SHAPE OF THE WHOLE FEATURE CHANGED HERE. A group tag used to sort
+    // strangers from peers before any handshake existed to attack, which is a
+    // real property — and it only worked when two people held the same
+    // passphrase, which is exactly what neither of them could check. A stranger
+    // is a name and an address now: a row somebody accepts, or does not.
+    expect(beaconVerdict(readBeacon(beacon()), { selfFp: FP, trusted: [] })).toBe("stranger");
+    expect(beaconVerdict(readBeacon(beacon()), { selfFp: FP })).toBe("stranger");
   });
 
-  it("answers nobody at all while this deck has no passphrase", () => {
-    expect(beaconVerdict(readBeacon(beacon()), { selfFp: FP, selfGroup: null })).toBe("no-group");
-  });
-
-  it("accepts a deck that holds the same passphrase", () => {
-    expect(beaconVerdict(readBeacon(beacon()), { selfFp: FP, selfGroup: TAG })).toBe("peer");
-    // Derived independently, the way the other machine would have derived it.
-    expect(groupTag(groupKey("amber-canyon-forty-drift"))).toBe(TAG);
+  it("calls a deck somebody accepted a peer", () => {
+    const heard = readBeacon(beacon());
+    expect(beaconVerdict(heard, { selfFp: FP, trusted: [{ fp: heard!.fp, pub: "x" }] })).toBe("peer");
   });
 
   it("has nothing to say to an unreadable packet", () => {
-    expect(beaconVerdict(null, { selfFp: FP, selfGroup: TAG })).toBe("unreadable");
+    expect(beaconVerdict(null, { selfFp: FP })).toBe("unreadable");
   });
 });
 
-describe("the passphrase itself", () => {
-  it("is expensive to guess, because it is the only gate", () => {
-    // scrypt at these parameters, not a hash. The number is the whole defence:
-    // a captured beacon plus a fast KDF is a weak passphrase falling in
-    // seconds. Measured rather than asserted from the constants, so a
-    // parameter quietly lowered fails here.
-    const t0 = process.hrtime.bigint();
-    groupKey("a-passphrase-to-time");
-    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-    expect(ms, "the group key got cheap to derive").toBeGreaterThan(20);
+describe("this deck's own key", () => {
+  it("is the same deck after a restart, which is what a pin is worth", () => {
+    const first = identityFrom("");
+    expect(first.fresh).toBe(true);
+    const again = identityFrom(first.secret);
+    expect(again.fresh).toBe(false);
+    expect(again.fp).toBe(first.fp);
+    expect(again.pub).toBe(first.pub);
   });
 
-  it("gives two decks with the same passphrase the same key, and no others", () => {
-    expect(groupKey("same").equals(groupKey("same"))).toBe(true);
-    expect(groupKey("same").equals(groupKey("other"))).toBe(false);
-    // Typed on two keyboards, one of which composed its accents differently.
-    expect(groupKey("café-x").equals(groupKey("café-x"))).toBe(true);
-  });
-
-  it("treats no passphrase as no group rather than as an empty one", () => {
-    for (const v of ["", null, undefined, 5]) expect(groupKey(v as string), String(v)).toBeNull();
-  });
-
-  it("suggests one that is worth suggesting", () => {
-    const p = suggestPassphrase();
-    expect(p.split("-")).toHaveLength(6);
-    for (const w of p.split("-")) expect(WORDS).toContain(w);
-    // 100 words, six of them: about 40 bits, which is only a defence because
-    // the derivation above is slow. Both halves are needed and both are pinned.
-    expect(WORDS.length).toBeGreaterThanOrEqual(100);
-    expect(new Set(WORDS).size, "the word list repeats itself").toBe(WORDS.length);
-  });
-
-  it("picks its words evenly, so the suggestion is worth its bit count", () => {
-    // `% WORDS.length` on a byte would make the first 56 words likelier than
-    // the rest — a real bias in the one number here that is a security claim.
-    const seen = new Map<string, number>();
-    for (let i = 0; i < 400; i++) {
-      for (const w of suggestPassphrase(6).split("-")) seen.set(w, (seen.get(w) ?? 0) + 1);
+  it("replaces a key it cannot use rather than refusing to start", () => {
+    // A corrupt secret is not something anybody can act on mid-session, and
+    // refusing to start would take the whole feature away over one bad string.
+    // The cost is real and is stated where it happens: this deck gets a new
+    // fingerprint, so every peer that pinned the old one asks again.
+    for (const junk of ["", "not-base64-at-all!!", "aGVsbG8="]) {
+      expect(identityFrom(junk).fresh, junk).toBe(true);
     }
-    // 2400 draws over 100 words: ~24 each. A modulo bias would show as the
-    // early words running well over and the late ones well under.
-    const early = WORDS.slice(0, 28).reduce((n: number, w: string) => n + (seen.get(w) ?? 0), 0);
-    const late = WORDS.slice(-28).reduce((n: number, w: string) => n + (seen.get(w) ?? 0), 0);
-    expect(Math.abs(early - late) / (early + late)).toBeLessThan(0.2);
+  });
+
+  it("is a fingerprint of the PUBLIC half, so a peer can check what it pinned", () => {
+    const id = identityFrom("");
+    expect(readPub(id.pub)?.fp).toBe(id.fp);
+    expect(id.fp).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+  });
+
+  it("refuses a public key that is not one, before anything tries to use it", () => {
+    for (const junk of ["", "x", "!!!!", "a".repeat(200), null, 5]) {
+      expect(readPub(junk as string), String(junk)).toBeNull();
+    }
+  });
+});
+
+describe("the key for one connection, and no other", () => {
+  it("is the same on both sides and derived by neither of them alone", () => {
+    const t = handshakeTranscript(A.fp, B.fp, "aaaa", "bbbb");
+    expect(sessionKey(A.secret, B.pub, t).equals(sessionKey(B.secret, A.pub, t))).toBe(true);
+  });
+
+  it("is bound to the transcript, so a recording derives a different one", () => {
+    const mine = sessionKey(A.secret, B.pub, handshakeTranscript(A.fp, B.fp, "aaaa", "bbbb"));
+    const other = sessionKey(A.secret, B.pub, handshakeTranscript(A.fp, B.fp, "aaaa", "cccc"));
+    expect(mine.equals(other)).toBe(false);
+  });
+
+  it("builds the transcript one way, whichever end is asking", () => {
+    // Caller first, always. A transcript the two sides build differently is a
+    // handshake that never agrees and a bug that only appears between two
+    // machines.
+    expect(handshakeTranscript("a", "b", "1", "2")).toBe("a|b|1|2");
+    expect(handshakeTranscript("a", "b", "1", "2")).not.toBe(handshakeTranscript("b", "a", "2", "1"));
+  });
+
+  it("is 32 bytes, which is what AES-256-GCM below is expecting", () => {
+    expect(sessionKey(A.secret, B.pub, "t")).toHaveLength(32);
+  });
+
+  it("gives a third deck nothing, holding only what travelled in the clear", () => {
+    const C = identityFrom("");
+    const t = handshakeTranscript(A.fp, B.fp, "aaaa", "bbbb");
+    expect(sessionKey(C.secret, B.pub, t).equals(sessionKey(A.secret, B.pub, t))).toBe(false);
+  });
+});
+
+describe("the decks somebody accepted", () => {
+  it("keeps the public key, because a fingerprint alone cannot be checked later", () => {
+    const { list, added } = addTrusted([], { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "laptop" });
+    expect(added).toBe(true);
+    expect(trustedPeer(list, "aaa-bbb-ccc-ddd")).toEqual({ fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "laptop" });
+  });
+
+  it("never lets a pinned key change under us", () => {
+    // A fingerprint we hold, presented with a different key, is not a peer
+    // whose details changed. 48 bits is far past accident.
+    const { list } = addTrusted([], { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "laptop" });
+    const again = addTrusted(list, { fp: "aaa-bbb-ccc-ddd", pub: "OTHER", name: "laptop" });
+    expect(again.added).toBe(false);
+    expect(trustedPeer(again.list, "aaa-bbb-ccc-ddd")?.pub).toBe("PUB");
+  });
+
+  it("does update the name, which is the peer's to change", () => {
+    const { list } = addTrusted([], { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "laptop" });
+    const renamed = addTrusted(list, { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "the laptop" });
+    expect(renamed.added).toBe(false);
+    expect(trustedPeer(renamed.list, "aaa-bbb-ccc-ddd")?.name).toBe("the laptop");
+    expect(renamed.list).toHaveLength(1);
+  });
+
+  it("refuses an entry with no key at all", () => {
+    expect(addTrusted([], { fp: "aaa-bbb-ccc-ddd" }).added).toBe(false);
+    expect(addTrusted([], null).added).toBe(false);
+  });
+
+  it("takes one back out, which stops what has not happened yet and nothing else", () => {
+    const { list } = addTrusted([], { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "laptop" });
+    expect(dropTrusted(list, "aaa-bbb-ccc-ddd")).toEqual([]);
+    expect(dropTrusted(list, "nobody")).toHaveLength(1);
   });
 });
 
@@ -242,7 +300,7 @@ describe("proving membership without spending it", () => {
   });
 
   it("cannot be produced without the passphrase", () => {
-    expect(proof(groupKey("wrong-one"), ctx)).not.toBe(proof(KEY, ctx));
+    expect(proof(sessionKey(B.secret, A.pub, "another-connection"), ctx)).not.toBe(proof(KEY, ctx));
   });
 
   it("compares without leaking how close a guess was", () => {
@@ -278,7 +336,7 @@ describe("the credential on the wire", () => {
   it("comes back only to somebody holding the same passphrase", () => {
     const sealed = seal(KEY, "ccdeck2:pretend-blob", aad);
     expect(open(KEY, sealed, aad)).toBe("ccdeck2:pretend-blob");
-    expect(open(groupKey("wrong-one"), sealed, aad)).toBeNull();
+    expect(open(sessionKey(B.secret, A.pub, "another-connection"), sealed, aad)).toBeNull();
   });
 
   it("never puts the plaintext on the wire, even inside the group", () => {
@@ -447,7 +505,7 @@ describe("what the group is told about my accounts", () => {
 
 describe("the list of decks, which outlives their being on", () => {
   const now = 1_800_000_000_000;
-  const b = { fp: OTHER, name: "MacBook", port: 4319, group: TAG, instance: "0badc0de" };
+  const b = { fp: OTHER, name: "MacBook", port: 4319, instance: "0badc0de" };
 
   it("remembers a deck that went away rather than dropping it", () => {
     // The list answers "who is in my group", and that does not change when a
@@ -558,6 +616,6 @@ describe("the fingerprint a person is asked to compare", () => {
 describe("the packet says which protocol it is", () => {
   it("is marked so a stray packet on the port is recognisable as somebody else's", () => {
     expect(MAGIC).toBe("CCDK");
-    expect(beaconPayload({ name: "x", fp: FP, port: 1, group: TAG, instance: "aa" }).m).toBe(MAGIC);
+    expect(beaconPayload({ name: "x", fp: FP, port: 1, instance: "aa" }).m).toBe(MAGIC);
   });
 });

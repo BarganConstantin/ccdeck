@@ -1,3 +1,21 @@
+  it("reports a deck nobody has accepted, instead of dropping it", async () => {
+    // THE OPPOSITE OF WHAT THIS USED TO DO. A packet from outside the group was
+    // dropped and counted; there is no outside any more. A deck shouting on the
+    // same network is a name and an address, which is a row somebody accepts —
+    // and it is not in `peers`, so nothing is asked of it and nothing offered.
+    const sock = fakeSocket();
+    const { b, seen, strangers } = beaconOn(sock);
+    await b.start();
+    sock.deliver(Buffer.from(JSON.stringify({
+      m: "CCDK", v: PROTOCOL, n: "Stranger", f: "aaa-bbb-ccc-ddd", p: 4319, i: "deadbeef",
+    })), "192.168.1.99");
+    expect(seen).toHaveLength(0);
+    expect(b.peers.size).toBe(0);
+    expect(strangers).toHaveLength(1);
+    expect(strangers[0]).toMatchObject({ fp: "aaa-bbb-ccc-ddd", name: "Stranger", addr: "192.168.1.99", port: 4319 });
+    b.stop();
+  });
+
 // The plumbing under the rules: a socket that shouts, a listener that answers,
 // and the deadlines around both.
 //
@@ -19,15 +37,18 @@ import { describe, it, expect, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import net from "node:net";
 // @ts-expect-error — plain .mjs server modules, no types
-import { fingerprint, groupKey, groupTag, readBeacon, ANNOUNCE_MS } from "../../server/lan-sync.mjs";
+import { fingerprint, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server modules, no types
 import {
   connectToPeer, createBeacon, createSyncServer, frameReader, sendFrame,
   DISCOVERY_PORT, HANDSHAKE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
 } from "../../server/lan-socket.mjs";
 
-const KEY = groupKey("amber-canyon-forty-drift");
-const WRONG = groupKey("some-other-passphrase");
+/** One caller and one listener for the whole file. Identities are the point of
+ *  the handshake now, so they are made once and reused rather than regenerated
+ *  per test — an X25519 keypair is cheap and a hundred of them are not. */
+const CALLER = identityFrom("");
+const STRANGER = identityFrom("");
 
 /** Everything a case opened, closed even when it failed — a leaked listener
  *  holds a port and the next case picks a different one and passes for the
@@ -36,11 +57,17 @@ const opened: Array<{ stop: () => void }> = [];
 afterEach(() => { for (const o of opened.splice(0)) o.stop(); });
 
 function server(over: Record<string, unknown> = {}) {
-  const fp = fingerprint(randomBytes(32));
+  const me = identityFrom("");
   const heard: Record<string, unknown>[] = [];
   const errors: string[] = [];
+  const pending: Record<string, unknown>[] = [];
+  // Trusting CALLER by default, because most of what this file tests is what
+  // happens BETWEEN two decks that have already been paired. The pairing itself
+  // has its own block below, which passes an empty list.
   const s = createSyncServer({
-    fp, name: "Server-Deck", key: KEY,
+    fp: me.fp, pub: me.pub, secret: me.secret, name: "Server-Deck",
+    trusted: () => [{ fp: CALLER.fp, pub: CALLER.pub, name: "Caller-Deck" }],
+    onPending: (e: Record<string, unknown>) => pending.push(e),
     handlers: (msg: Record<string, unknown>, ctx: { send: (o: unknown) => void }) => {
       heard.push(msg);
       ctx.send({ t: "pong", saw: msg.t });
@@ -50,16 +77,19 @@ function server(over: Record<string, unknown> = {}) {
     ...over,
   });
   opened.push(s);
-  return { s, fp, heard, errors };
+  return { s, fp: me.fp, pub: me.pub, heard, errors, pending };
 }
 
-const caller = () => fingerprint(randomBytes(32));
+/** The caller's own identity, spread into connectToPeer. */
+const caller = () => ({ fp: CALLER.fp, pub: CALLER.pub, secret: CALLER.secret, name: "Caller-Deck" });
+/** A deck nobody has accepted, for the half of the file about being refused. */
+const stranger = () => ({ fp: STRANGER.fp, pub: STRANGER.pub, secret: STRANGER.secret, name: "Stranger-Deck" });
 
 describe("two decks in one group, talking", () => {
   it("completes the handshake and knows who it reached", async () => {
     const { s, fp } = server();
     const port = await s.start();
-    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY });
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller() });
     expect(peer.peerFp).toBe(fp);
     expect(peer.peerName).toBe("Server-Deck");
     peer.sock.destroy();
@@ -68,7 +98,7 @@ describe("two decks in one group, talking", () => {
   it("carries frames once, and only once, both are proved", async () => {
     const { s, heard } = server();
     const port = await s.start();
-    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY });
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller() });
     const back = new Promise<string>(res => peer.sock.on("data", (d: string) => res(d.trim())));
     peer.send({ t: "manifest" });
     expect(JSON.parse(await back)).toEqual({ t: "pong", saw: "manifest" });
@@ -120,40 +150,69 @@ describe("the port it listens on", () => {
   });
 });
 
-describe("a caller who does not hold the passphrase", () => {
-  it("is refused, and told that it is the group and not the network", async () => {
-    // THIS DECISION WAS REVERSED, and the reversal is the point of the test.
+describe("a caller nobody has accepted", () => {
+  it("is told it is waiting on a person, not fighting a firewall", async () => {
+    // THIS IS THE DEFECT THE WHOLE REDESIGN CAME OUT OF. The listener used to
+    // destroy the socket without a word, so the caller's only evidence was
+    // `peer closed the connection` — true, useless, and it reads as a firewall.
+    // Two people spent twenty minutes on one that was fine.
     //
-    // The listener used to destroy the socket without a word, on the argument
-    // that explaining which check failed helps whoever is probing. It cost two
-    // people twenty minutes on a real network: their only evidence was `peer
-    // closed the connection`, which is true, useless, and reads as a firewall.
-    // The one thing that actually causes it in the field is two decks holding
-    // different passphrases.
-    //
-    // The old argument does not survive being written down. There is no partial
-    // information in a proof: it verifies or it does not, so a constant saying
-    // "you are not in this group" tells a prober exactly what the silent close
-    // already told them, and nothing that helps them guess. It is not an oracle
-    // — nobody binary-searches a passphrase from an answer that is always the
-    // same until they already have it.
-    const { s } = server();
+    // It leaks nothing. "I do not know you" is what the silent close already
+    // said, and the fingerprints involved are in every beacon this deck sends.
+    const { s, pending } = server({ trusted: () => [] });
     const port = await s.start();
-    await expect(connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: WRONG, timeoutMs: 1500 }))
-      .rejects.toThrow(/different group — the passphrases do not match/);
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...stranger(), timeoutMs: 1500 }))
+      .rejects.toThrow(/waiting for the other deck to accept/);
+    // And the other deck now has something to accept: a real deck that finished
+    // a handshake, with a name and an address a person can recognise.
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ fp: STRANGER.fp, pub: STRANGER.pub, name: "Stranger-Deck" });
   });
 
-  it("is refused with a constant, never with anything the key made", async () => {
-    // The refusal is one of two fixed words. A listener that said which byte
-    // of the proof went wrong, or echoed anything derived from its own key,
-    // would be handing out exactly what the four-message handshake exists to
-    // withhold.
+  it("is let in once somebody accepts it, and not before", async () => {
+    let trusted: Array<Record<string, unknown>> = [];
+    const { s } = server({ trusted: () => trusted });
+    const port = await s.start();
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...stranger(), timeoutMs: 1500 })).rejects.toThrow();
+    trusted = [{ fp: STRANGER.fp, pub: STRANGER.pub, name: "Stranger-Deck" }];
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...stranger(), timeoutMs: 1500 });
+    expect(peer.peerName).toBe("Server-Deck");
+    peer.sock.destroy();
+  });
+
+  it("is refused as an impostor when it wears a paired deck's fingerprint", async () => {
+    // The pinned key is the load-bearing half. A fingerprint we hold, presented
+    // with a different key, is not a peer whose details changed — 48 bits is far
+    // past accident, so it is somebody trying.
+    const { s } = server({
+      trusted: () => [{ fp: STRANGER.fp, pub: CALLER.pub, name: "not really" }],
+    });
+    const port = await s.start();
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...stranger(), timeoutMs: 1500 }))
+      .rejects.toThrow(/pinned under a different key/);
+  });
+
+  it("refuses the caller too, when the deck answering is not the one it pinned", async () => {
+    // Both directions, and the second is the one that is easy to skip: a
+    // handshake where only the listener checks stops a stranger reading a
+    // manifest and stops nothing else.
+    const { s } = server();
+    const port = await s.start();
+    await expect(connectToPeer({
+      host: "127.0.0.1", port, ...caller(), timeoutMs: 1500, expectPub: STRANGER.pub,
+    })).rejects.toThrow(/a different deck is answering at that address/);
+  });
+
+  it("says which refusal it is, in a constant, with nothing keyed in it", async () => {
+    // A listener that said which byte of the proof went wrong, or echoed
+    // anything derived from a key, would hand out what the four-message
+    // handshake exists to withhold.
     const frames: Record<string, unknown>[] = [];
-    const { s, fp } = server();
+    const { s, fp } = server({ trusted: () => [] });
     const port = await s.start();
     await new Promise<void>(resolve => {
       const sock = net.createConnection({ host: "127.0.0.1", port }, () => {
-        sendFrame(sock, { t: "hello", fp: caller(), challenge: randomBytes(16).toString("hex") });
+        sendFrame(sock, { t: "hello", fp: STRANGER.fp, pub: STRANGER.pub, challenge: randomBytes(16).toString("hex") });
       });
       sock.setEncoding("utf8");
       sock.on("data", frameReader((msg: Record<string, unknown>) => {
@@ -166,31 +225,30 @@ describe("a caller who does not hold the passphrase", () => {
     });
     const no = frames.find(f => f.t === "no");
     expect(no, "the refusal is said, not merely performed by closing").toBeTruthy();
-    expect(no!.why).toBe("group");
-    // Two keys and a fingerprint, and none of them is in the refusal.
+    expect(no!.why).toBe("bad proof");
     expect(Object.keys(no!).sort()).toEqual(["t", "why"]);
     expect(JSON.stringify(no)).not.toContain(fp);
   });
 
-  it("says protocol, not group, for a caller that never made a proof at all", async () => {
-    // A build that does not speak this handshake and a deck in another group
-    // are different problems with different fixes, and the panel can only say
-    // which if the wire says which.
+  it("refuses a hello whose fingerprint and key disagree", async () => {
+    // The fingerprint IS a hash of the key, so a hello whose two halves do not
+    // match is not a deck with a stale field — it is somebody announced as one
+    // deck trying to prove they are another.
     const frames: Record<string, unknown>[] = [];
-    const { s } = server();
+    const { s } = server({ trusted: () => [] });
     const port = await s.start();
     await new Promise<void>(resolve => {
       const sock = net.createConnection({ host: "127.0.0.1", port }, () => {
-        sendFrame(sock, { t: "hello", fp: caller() });   // no challenge: not a hello this build knows
+        sendFrame(sock, { t: "hello", fp: CALLER.fp, pub: STRANGER.pub, challenge: "a".repeat(32) });
       });
       sock.setEncoding("utf8");
       sock.on("data", frameReader((msg: Record<string, unknown>) => { frames.push(msg); }, () => resolve()));
       sock.on("close", () => resolve());
     });
-    expect(frames.find(f => f.t === "no")?.why).toBe("protocol");
+    expect(frames.find(f => f.t === "no")?.why).toBe("bad hello");
   });
 
-  it("is never handed anything the group key made, just for connecting", async () => {
+  it("is never handed anything a key made, just for connecting", async () => {
     // The whole reason the handshake is four messages rather than three. A
     // listener that answered `hello` with its own proof would hand anybody who
     // opens a socket a MAC over values they chose, for free, forever — an
@@ -202,22 +260,25 @@ describe("a caller who does not hold the passphrase", () => {
     sock.setEncoding("utf8");
     const first = await new Promise<Record<string, unknown>>((res, rej) => {
       sock.on("error", rej);
-      sock.on("connect", () => sendFrame(sock, { t: "hello", fp: caller(), challenge: "aaaa" }));
+      sock.on("connect", () => sendFrame(sock, { t: "hello", fp: CALLER.fp, pub: CALLER.pub, challenge: "aaaa" }));
       sock.on("data", (d: string) => res(JSON.parse(d.trim())));
     });
     expect(first.t).toBe("challenge");
-    expect(Object.keys(first).sort()).toEqual(["challenge", "fp", "t"]);
+    expect(Object.keys(first).sort()).toEqual(["challenge", "fp", "name", "pub", "t"]);
     expect(first).not.toHaveProperty("proof");
-    // And the fingerprint it does carry is already in every beacon, so it is
-    // not a leak — it is what lets the caller name us in its own proof.
+    // And what it DOES carry is already public: the fingerprint is in every
+    // beacon, the public key is what that fingerprint hashes, and the name is
+    // in the beacon too. None of it is a leak; all of it is what lets the
+    // caller name us in its own proof and pin us afterwards.
     expect(typeof first.fp).toBe("string");
+    expect(typeof first.pub).toBe("string");
     sock.destroy();
   });
 
   it("gets nothing at all when the deck has no passphrase set", async () => {
-    const { s } = server({ key: null });
+    const { s } = server({ secret: null });
     const port = await s.start();
-    await expect(connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY, timeoutMs: 1000 }))
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 1000 }))
       .rejects.toThrow();
   });
 });
@@ -259,20 +320,21 @@ describe("a caller who is trying to cost something", () => {
     const { s, errors } = server();
     const port = await s.start();
     const said = await refusedFrom(sock => sendFrame(sock, { t: "manifest" }), port);
-    expect(said).toEqual({ t: "no", why: "protocol" });
+    expect(said).toEqual({ t: "no", why: "expected auth" });
     expect(errors).toContain("frame");
     // And the listener is still a listener: a refusal is not a wound.
-    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY });
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller() });
     peer.sock.destroy();
   });
 
   it("cannot skip the challenge by sending the auth first", async () => {
     const { s } = server();
     const port = await s.start();
-    // Refused as protocol rather than as group: without a challenge there is
-    // nothing to check a proof against, so no proof was wrong.
+    // `expected auth` rather than `bad proof`: with no challenge there is
+    // nothing to check a proof against, so no proof was wrong. The two are
+    // different problems with different fixes and the wire says which.
     expect(await refusedFrom(sock => sendFrame(sock, { t: "auth", proof: "0".repeat(64) }), port))
-      .toEqual({ t: "no", why: "protocol" });
+      .toEqual({ t: "no", why: "expected auth" });
   });
 
   it("frees its own socket even when the caller never reads the refusal", async () => {
@@ -291,7 +353,7 @@ describe("a caller who is trying to cost something", () => {
       held.push(sock);
     }
     await new Promise(r => setTimeout(r, 400));
-    const peer = await connectToPeer({ host: "127.0.0.1", port, fp: caller(), key: KEY, timeoutMs: 2000 });
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 2000 });
     expect(peer.peerFp).toBeTruthy();
     peer.sock.destroy();
     for (const sock of held) sock.destroy();
@@ -394,15 +456,18 @@ function fakeSocket() {
 function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unknown> = {}) {
   const fp = fingerprint(randomBytes(32));
   const seen: Array<Record<string, unknown>> = [];
+  const strangers: Array<Record<string, unknown>> = [];
   const errors: string[] = [];
   const b = createBeacon({
-    port: 51234, name: "MacBook", fp, key: KEY,
+    port: 51234, name: "MacBook", fp,
+    trusted: () => (over.trustedFps as string[] ?? []).map(f => ({ fp: f, pub: "x" })),
+    onStranger: (e: Record<string, unknown>) => strangers.push(e),
     onPeer: (n: Record<string, unknown>) => seen.push(n),
     onError: (what: string) => errors.push(what),
     createSocket: () => sock,
     ...over,
   });
-  return { b, fp, seen, errors };
+  return { b, fp, seen, strangers, errors };
 }
 
 describe("shouting, and hearing", () => {
@@ -431,25 +496,27 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
-  it("says nothing at all while there is no passphrase", async () => {
-    // Not "shouts without a group tag": a deck with no group has nobody to
-    // find and nothing to say, and a beacon from it would only tell the
-    // network a deck is here.
+  it("shouts as soon as it is on, because there is nothing left to keep quiet about", async () => {
+    // It used to stay silent until a passphrase existed, on the grounds that a
+    // deck with no group had nobody to find. There are no groups now: a beacon
+    // says a deck is here and hashes a PUBLIC key, and what it finds is
+    // strangers somebody can accept. Silence would only mean nobody ever gets
+    // the chance.
     const sock = fakeSocket();
-    const { b } = beaconOn(sock, { key: null });
+    const { b } = beaconOn(sock);
     await b.start();
-    expect(sock.sent).toHaveLength(0);
+    expect(sock.sent).toHaveLength(1);
     b.stop();
   });
 
-  it("hears a peer in its group, and remembers where it came from", async () => {
+  it("hears a deck it was told to trust, and remembers where it came from", async () => {
     const sock = fakeSocket();
-    const { b, seen } = beaconOn(sock);
-    await b.start();
     const theirs = beaconOn(fakeSocket());
+    const { b, seen } = beaconOn(sock, { trustedFps: [theirs.fp] });
+    await b.start();
     await theirs.b.start();
     sock.deliver(Buffer.from(JSON.stringify({
-      m: "CCDK", v: 1, n: "Desktop", f: theirs.fp, p: 4319, g: groupTag(KEY), i: "0badc0de",
+      m: "CCDK", v: PROTOCOL, n: "Desktop", f: theirs.fp, p: 4319, i: "0badc0de",
     })), "192.168.1.42");
     expect(seen).toHaveLength(1);
     expect(b.peers.get(theirs.fp).addr).toBe("192.168.1.42");
@@ -471,22 +538,6 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
-  it("ignores a deck whose passphrase is different, and says so once", async () => {
-    // "Found a deck that is not in your group" is the single most useful
-    // sentence when somebody has mistyped the passphrase on one machine, so
-    // the refusal is reported rather than silent.
-    const sock = fakeSocket();
-    const { b, seen, errors } = beaconOn(sock);
-    await b.start();
-    sock.deliver(Buffer.from(JSON.stringify({
-      m: "CCDK", v: 1, n: "Stranger", f: "aaa-bbb-ccc-ddd", p: 4319, g: groupTag(WRONG), i: "deadbeef",
-    })), "192.168.1.99");
-    expect(seen).toHaveLength(0);
-    expect(b.peers.size).toBe(0);
-    expect(errors).toContain("other-group");
-    b.stop();
-  });
-
   it("drops a packet that is not ours without a word", async () => {
     const sock = fakeSocket();
     const { b, seen, errors } = beaconOn(sock);
@@ -497,12 +548,12 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
-  it("puts its own name, port and group in what it sends, and nothing more", async () => {
+  it("puts its own name and port in what it sends, and nothing more", async () => {
     const sock = fakeSocket();
     const { b, fp } = beaconOn(sock);
     await b.start();
     const out = readBeacon(sock.sent[0].msg);
-    expect(out).toEqual({ name: "MacBook", fp, port: 51234, group: groupTag(KEY), instance: out.instance });
+    expect(out).toEqual({ name: "MacBook", fp, port: 51234, instance: out.instance });
     b.stop();
   });
 
@@ -516,7 +567,7 @@ describe("shouting, and hearing", () => {
     await b.start();
     // Our own fingerprint, from a process that is not ours.
     sock.deliver(Buffer.from(JSON.stringify({
-      m: "CCDK", v: 1, n: "Twin", f: fp, p: 4319, g: groupTag(KEY), i: "ffffffff",
+      m: "CCDK", v: PROTOCOL, n: "Twin", f: fp, p: 4319, i: "ffffffff",
     })), "192.168.1.99");
     expect(clashes).toHaveLength(1);
     expect(b.peers.size, "a clashing deck was filed as a peer").toBe(0);
@@ -538,7 +589,7 @@ describe("shouting, and hearing", () => {
     const stranger = beaconOn(fakeSocket());
     await stranger.b.start();
     const packet = Buffer.from(JSON.stringify({
-      m: "CCDK", v: 1, n: "Desktop", f: stranger.fp, p: 4319, g: groupTag(KEY), i: "0badc0de",
+      m: "CCDK", v: PROTOCOL, n: "Desktop", f: stranger.fp, p: 4319, i: "0badc0de",
     }));
     sock.deliver(packet, "192.168.1.42");
     expect(sock.sent, "a stranger got no answer").toHaveLength(2);

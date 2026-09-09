@@ -18,7 +18,6 @@ import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
-import { suggestPassphrase } from "./lan-sync.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
@@ -3255,9 +3254,9 @@ const lanEngine = createEngine({
     const out = await importAccount(blob);
     return !!out?.ok;
   },
-  // The deck's own public id, kept so a restart is the same deck rather than a
-  // new row in every peer's list. Written once, on the first start that has
-  // none — not a secret, and in every beacon this deck sends.
+  // The deck's own long-term key, kept so a restart is the same deck rather
+  // than a stranger to everybody who has paired with it. Written once, on the
+  // first start that has none. It IS a secret — prefs.json is 0600 for this.
   // The port it actually got, kept so an address typed on the other machine
   // still reaches this deck after it restarts. Written only when it differs
   // from what is stored, so a normal start writes nothing.
@@ -3265,9 +3264,16 @@ const lanEngine = createEngine({
     try { _prefs = await writePrefs({ lan: { port } }); }
     catch { /* the address field still works this session; next start re-pins */ }
   },
-  onIdentity: async id => {
+  // A deck was accepted or unpaired. Written straight through, because the
+  // trusted list is the whole of who this deck will talk to and a list that
+  // only existed in memory would drop every pairing on restart.
+  onTrust: async trusted => {
+    try { _prefs = await writePrefs({ lan: { trusted } }); }
+    catch (err) { console.error(`${PRODUCT}: lan sync could not save the pairing:`, err?.message ?? err); }
+  },
+  onIdentity: async secret => {
     try {
-      _prefs = await writePrefs({ lan: { deckId: id } });
+      _prefs = await writePrefs({ lan: { secret } });
       // AND PUT IT TO WORK. Writing it alone was not enough: a clash was
       // detected, a new id was stored, and both decks kept broadcasting the old
       // one — so they stayed invisible to each other with a correct file on
@@ -3292,9 +3298,9 @@ async function applyLanPrefs() {
     await lanEngine.apply({
       enabled: !!lan.enabled,
       name: lan.name || defaultName(),
-      passphrase: lan.passphrase || "",
+      secret: lan.secret || "",
       shared: Array.isArray(lan.shared) ? lan.shared : [],
-      deckId: lan.deckId || "",
+      trusted: Array.isArray(lan.trusted) ? lan.trusted : [],
       port: lan.port || 0,
     });
     // Wholesale, so removing an address in the panel really stops it being
@@ -3312,22 +3318,45 @@ function handleLanStatus(req, res) {
 }
 
 /**
- * A strong group passphrase, for the field to open with.
+ * Accept a deck, dismiss a request, or unpair one.
  *
- * THE WHOLE FEATURE'S SECURITY IS THIS STRING — groupKey scrypts it and
- * everything else hangs off that — and until this route existed the field
- * opened empty under a placeholder reading "the same words on every deck",
- * which is an invitation to type something two people can both remember.
- * suggestPassphrase has been written, documented and tested since the first
- * commit of the feature and was reachable from nothing.
- *
- * Generated per request rather than folded into the status route, because the
- * status route is polled every five seconds and a suggestion that changed
- * under somebody's fingers while they read it out loud would be worse than no
- * suggestion at all.
+ * ONE ROUTE, THREE VERBS, in the shape the accounts panel already uses for its
+ * own multi-verb writes. Each one takes a fingerprint and nothing else: the key
+ * being pinned comes from what this deck actually saw on the wire, never from
+ * the page, so a page cannot pair this deck with a key nobody has met.
  */
-function handleLanSuggest(req, res) {
-  return send(res, 200, { ok: true, passphrase: suggestPassphrase() });
+async function handleLanPeer(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  const fp = body && typeof body.fp === "string" ? body.fp : null;
+  if (!fp) return send(res, 400, { ok: false, reason: "bad_request" });
+  switch (body.action) {
+    case "accept": {
+      const added = lanEngine.accept(fp);
+      if (!added) return send(res, 409, { ok: false, reason: "not_seen" });
+      // A deck we only HEARD is not pinned, it is dialled — see accept. The
+      // address has to reach prefs or the next write of the settings wipes it:
+      // setPeers replaces the dial list wholesale, on purpose, so an address
+      // that lives only in memory disappears the first time anything else is
+      // saved.
+      if (added.dialled) {
+        const entry = `${added.addr}:${added.port}`;
+        const manual = Array.isArray(_prefs?.lan?.manual) ? _prefs.lan.manual : [];
+        if (!manual.includes(entry)) {
+          try { _prefs = await writePrefs({ lan: { manual: [...manual, entry] } }); }
+          catch { /* it is dialled this session; the next accept re-adds it */ }
+        }
+      }
+      return send(res, 200, { ok: true, added, ...lanEngine.status() });
+    }
+    case "dismiss":
+      return send(res, 200, { ok: lanEngine.dismiss(fp), ...lanEngine.status() });
+    case "unpair":
+      return send(res, 200, { ok: lanEngine.unpair(fp), ...lanEngine.status() });
+    default:
+      return send(res, 400, { ok: false, reason: "unknown_action" });
+  }
 }
 
 /** Ask every peer now rather than at the next tick — the button beside the
@@ -5566,7 +5595,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
     if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
-    if (req.method === "GET"  && url.pathname === "/api/lan/passphrase") return handleLanSuggest(req, res);
+    if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());

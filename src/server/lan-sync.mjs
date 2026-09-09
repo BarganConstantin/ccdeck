@@ -65,11 +65,27 @@
 // notice it. A manual address covers the routed and VPN cases that a scan
 // cannot reach anyway, and it costs one text field.
 //
-// NO PER-PEER PAIRING. A code typed on both machines is what KDE Connect and
-// Syncthing do, and it is the right shape when the two devices are a phone and
-// a laptop meeting once. It is the wrong shape for a fleet: every new deck
-// means a trip to every existing one. One group passphrase, typed once per
-// deck, is the same trust decision made once instead of n² times.
+// PER-PEER PAIRING, AND THIS REVERSES AN EARLIER DECISION. The first version
+// used one group passphrase, on the argument that a fleet of n decks should not
+// cost n² pairings. That argument is sound and it was answering the wrong
+// question. What two people actually hit on real hardware was this: a
+// passphrase that differs by one character produces a closed socket and no
+// other symptom, on both machines, with the panel unable to tell them apart
+// from a firewall — because a secret is the one value the panel must never
+// print, so neither person can check theirs against the other's.
+//
+// A deck is now identified by its own long-term key, and a peer is somebody
+// this deck has been told to trust: an address typed into the panel, or an
+// incoming connection somebody pressed accept on. Nothing is shared before that
+// press, and the press is a decision about a named machine at a named address
+// rather than about a string neither person can see.
+//
+// TRUST ON FIRST USE, and said plainly rather than implied. The first
+// connection to a fingerprint is taken on faith and pinned; every one after it
+// is checked against the pin. That stops a stranger replacing a paired deck and
+// does not stop somebody standing in the middle of the very first exchange. The
+// answer to that is comparing fingerprints out of band, which the panel shows
+// and which is the next thing to build.
 //
 // NO DEPENDENCY. node:crypto has X25519, HKDF, scrypt, AES-256-GCM and
 // timingSafeEqual, all of which this needs and none of which it should be
@@ -78,8 +94,9 @@
 // cryptography to protect live credentials is worse than the plain construction
 // below.
 import {
-  createCipheriv, createDecipheriv, createHash, createHmac,
-  randomBytes, scryptSync, timingSafeEqual,
+  createCipheriv, createDecipheriv, createHash, createHmac, createPrivateKey,
+  createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes,
+  timingSafeEqual,
 } from "node:crypto";
 
 /** Marks a packet as ours before anything reads a field of it. Four bytes of
@@ -90,7 +107,7 @@ export const MAGIC = "CCDK";
 /** The wire format. Bumped when a field changes meaning, never when one is
  *  added — a reader that does not know a field ignores it, which is what makes
  *  a deck a version behind still discoverable. */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 
 /** The most a beacon may be. A beacon is a name, a port and two hashes; the
  *  worst realistic case is under 300 bytes. Refusing at 512 before parsing is
@@ -179,56 +196,90 @@ export function cleanName(raw, fallback = "unnamed deck") {
  * being generated at 128 bits by default; a table against a random 128-bit
  * secret is not a thing that exists.
  */
-export const GROUP_SALT = "ccdeck-lan-group-v1";
-export const SCRYPT_PARAMS = Object.freeze({ N: 1 << 15, r: 8, p: 1, maxmem: 64 << 20 });
-
-export function groupKey(passphrase) {
-  if (typeof passphrase !== "string" || passphrase === "") return null;
-  return scryptSync(passphrase.normalize("NFKC"), GROUP_SALT, 32, { ...SCRYPT_PARAMS });
+/**
+ * A deck's own long-term identity.
+ *
+ * X25519, because the only thing it is ever used for is agreeing a session key
+ * with a peer — never a signature — and node has it built in. The private half
+ * lives in prefs.json, which is written 0600 for exactly this reason; the
+ * public half is what a peer pins, and its fingerprint is what a person
+ * compares.
+ */
+export function newKeypair() {
+  const { publicKey, privateKey } = generateKeyPairSync("x25519");
+  return {
+    secret: privateKey.export({ type: "pkcs8", format: "der" }).toString("base64"),
+    pub: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
+  };
 }
 
 /**
- * A passphrase the deck makes up, so most groups never have a weak one.
+ * The keypair on disk, or a fresh one when there is none or it is unusable.
  *
- * Words rather than characters, because this gets read aloud across a room and
- * typed on a phone: `amber-canyon-forty-drift` survives that trip where twenty
- * random characters do not. Four words from a 2048-word list is 44 bits, which
- * is thin against an offline grind — so the number is six, for 66 bits, which
- * at scrypt's cost above is beyond reach.
- *
- * The list is short and deliberately boring: no words that differ only by a
- * letter, nothing that sounds like another word over a phone.
+ * A corrupt secret is not an error anybody can act on mid-session, and refusing
+ * to start would take the whole feature away over one bad string — so it is
+ * replaced. The cost of replacing it is stated rather than hidden: this deck
+ * gets a new fingerprint, so every peer that had pinned the old one sees a
+ * stranger and asks its owner to accept again.
  */
-export const WORDS = Object.freeze([
-  "amber", "anchor", "arrow", "basin", "beacon", "birch", "bridge", "bronze",
-  "canyon", "cedar", "cinder", "clover", "cobalt", "copper", "coral", "cotton",
-  "crater", "crimson", "dawn", "delta", "drift", "ember", "falcon", "fern",
-  "flint", "forest", "garnet", "glacier", "granite", "harbor", "hazel", "hollow",
-  "indigo", "island", "ivory", "jasper", "juniper", "kettle", "lagoon", "lantern",
-  "ledger", "lichen", "linen", "lumber", "marble", "meadow", "mesa", "mineral",
-  "monsoon", "mosaic", "nectar", "nickel", "nimbus", "oasis", "onyx", "opal",
-  "orchard", "otter", "paddle", "pebble", "pewter", "pigment", "pillar", "pinion",
-  "plateau", "prairie", "quarry", "quartz", "ravine", "ribbon", "ridge", "rustic",
-  "saffron", "sandbar", "sapphire", "scarlet", "shadow", "shale", "sierra", "silver",
-  "solstice", "spruce", "summit", "sunset", "talon", "tandem", "thicket", "thunder",
-  "timber", "tundra", "umber", "valley", "velvet", "verdant", "walnut", "willow",
-  "window", "winter", "zenith", "zephyr",
-]);
-
-export function suggestPassphrase(words = 6, rand = randomBytes) {
-  const out = [];
-  // Rejection sampling, so the words are uniform: `% WORDS.length` on a byte
-  // would make the first 56 words likelier than the rest, which is a real bias
-  // in the one number here that is supposed to be a security claim.
-  const limit = Math.floor(256 / WORDS.length) * WORDS.length;
-  while (out.length < words) {
-    for (const b of rand(words * 2)) {
-      if (b >= limit) continue;
-      out.push(WORDS[b % WORDS.length]);
-      if (out.length === words) break;
-    }
+export function identityFrom(secret) {
+  if (typeof secret === "string" && secret !== "") {
+    try {
+      const priv = createPrivateKey({ key: Buffer.from(secret, "base64"), format: "der", type: "pkcs8" });
+      const pub = createPublicKey(priv).export({ type: "spki", format: "der" });
+      return { secret, pub: pub.toString("base64"), fp: fingerprint(pub), fresh: false };
+    } catch { /* unusable; fall through and make one */ }
   }
-  return out.join("-");
+  const made = newKeypair();
+  return { ...made, fp: fingerprint(Buffer.from(made.pub, "base64")), fresh: true };
+}
+
+/**
+ * The key two decks use for one connection, and for nothing else.
+ *
+ * X25519 to a shared secret, then HKDF over the transcript — both fingerprints
+ * and both challenges, in a fixed order — so the key is bound to THIS exchange.
+ * A recording of an old one derives a different key and proves nothing.
+ *
+ * PER CONNECTION, never stored. The old design sealed credentials under one
+ * long-lived group key, which meant a single recorded transfer stayed readable
+ * to anybody who ever learned the passphrase. This gives forward secrecy for
+ * free: the ephemeral halves are gone when the socket is.
+ */
+export function sessionKey(secret, peerPub, transcript) {
+  const priv = createPrivateKey({ key: Buffer.from(secret, "base64"), format: "der", type: "pkcs8" });
+  const theirs = createPublicKey({ key: Buffer.from(peerPub, "base64"), format: "der", type: "spki" });
+  const shared = diffieHellman({ privateKey: priv, publicKey: theirs });
+  return Buffer.from(hkdfSync("sha256", shared, Buffer.alloc(0),
+    Buffer.from(`ccdeck-lan-v${PROTOCOL}|${transcript}`, "utf8"), 32));
+}
+
+/**
+ * The string both sides bind their session key to.
+ *
+ * One definition, used by the caller and the listener, because a transcript the
+ * two build differently is a handshake that never agrees and a bug that only
+ * appears between two machines. Caller first, always, so the order does not
+ * depend on which end is asking.
+ */
+export function handshakeTranscript(callerFp, listenerFp, callerChallenge, listenerChallenge) {
+  return `${callerFp}|${listenerFp}|${callerChallenge}|${listenerChallenge}`;
+}
+
+/**
+ * A public key somebody sent, or null.
+ *
+ * It arrives from the network before anything has been agreed, so it is checked
+ * for being an X25519 public key at all rather than trusted to be one — a
+ * string that is not gets a refusal here instead of a throw three frames later.
+ */
+export function readPub(raw) {
+  if (typeof raw !== "string" || raw.length < 40 || raw.length > 128) return null;
+  try {
+    const der = Buffer.from(raw, "base64");
+    createPublicKey({ key: der, format: "der", type: "spki" });
+    return { pub: raw, fp: fingerprint(der) };
+  } catch { return null; }
 }
 
 // ── the beacon ──────────────────────────────────────────────────────────────
@@ -238,69 +289,32 @@ export function suggestPassphrase(words = 6, rand = randomBytes) {
  *
  * NO ACCOUNTS AND NO SECRET. This is the packet a stranger on the same wifi
  * receives, so what is in it is what a stranger learns: that a ccdeck is here,
- * what it calls itself, and two hashes. Not which Anthropic accounts exist on
- * the machine, not how many, not the group passphrase, and nothing derived
- * from the passphrase that could be ground at offline.
+ * what it calls itself, and a hash of its public key. Not which Anthropic
+ * accounts exist on the machine, not how many, and nothing that could be ground
+ * at offline, because there is nothing in it derived from a secret.
  *
- * `group` IS derived from the passphrase, and that needs saying plainly: it is
- * HMAC(groupKey, "beacon-group") — a value that only lets two decks in the same
- * group recognise each other. An eavesdropper sees a 64-bit tag; grinding it
- * back to the passphrase means grinding scrypt, which is exactly the cost that
- * function was chosen for. What it buys is that a deck with the wrong
- * passphrase is not asked a single question — the packet is dropped by
- * comparison, before any handshake exists to attack.
+ * IT NO LONGER CARRIES A GROUP TAG, and that is the shape of the whole feature
+ * changing rather than a field going away. The tag let a deck drop a packet
+ * from outside its group before any handshake existed to attack, which is a
+ * real property and was worth having — but it only worked when both people
+ * held the same passphrase, and a passphrase neither of them can see is exactly
+ * what nobody could get right. What replaces it is later and cheaper: a beacon
+ * from a deck this one does not trust becomes a row somebody can accept, and
+ * nothing at all happens until they do.
  */
-export function beaconPayload({ name, fp, port, group, instance }) {
+export function beaconPayload({ name, fp, port, instance }) {
   return {
     m: MAGIC,
     v: PROTOCOL,
     n: cleanName(name),
     f: fp,
     p: port,
-    g: group,
     // Randomised at start. Two beacons from one fingerprint with different
     // instance ids mean the deck restarted between them, which is the signal to
     // drop whatever session state was held for it rather than trying to resume
     // into a process that no longer exists. Syncthing's field, same job.
     i: instance,
   };
-}
-
-/** The tag that says "same group as me", without saying what the group is. */
-export function groupTag(key) {
-  return createHmac("sha256", key).update("beacon-group").digest("hex").slice(0, 16);
-}
-
-/**
- * The group's name, which every deck holding the same passphrase computes for
- * itself and none of them types.
- *
- * WHY IT EXISTS. The passphrase is the group's identity and it is the one thing
- * the panel must never print. So a reader had no way at all to answer "which
- * group am I in, and is it the same one my colleague is in" — and the empty
- * peer list could only tell them to go and check the passphrase matches, which
- * means reading a secret out loud to compare it.
- *
- * DERIVED, NEVER TYPED. Two decks cannot disagree about it and nobody has to
- * keep it in step: it falls out of the key, so the same passphrase always
- * produces the same three words and a different one practically never does.
- * That makes it a real check rather than a label — if the two screens say
- * different words, the passphrases differ, and that is the whole diagnosis.
- *
- * A SEPARATE LABEL FROM THE WIRE TAG, so the name a person may read out over a
- * desk or paste into a chat is not the value that travels in the beacon. Both
- * come from the key, which is the secret either way; this only refuses to hand
- * one out for free.
- *
- * Three words rather than two. A name whose only job is to be compared has to
- * make an accidental match unlikely: 100^2 is one collision in ten thousand,
- * which over a company's worth of small groups will happen and will be read as
- * "we are in the same group" when they are not. 100^3 is one in a million.
- */
-export function groupName(key) {
-  if (!key) return null;
-  const digest = createHmac("sha256", key).update("group-name").digest();
-  return [0, 1, 2].map(i => WORDS[digest.readUInt16BE(i * 2) % WORDS.length]).join("-");
 }
 
 /**
@@ -332,9 +346,8 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
   if (typeof raw.p !== "number" || !Number.isInteger(raw.p) || raw.p < 1 || raw.p > 65_535) return null;
   const port = raw.p;
   if (typeof raw.f !== "string" || !/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/.test(raw.f)) return null;
-  if (typeof raw.g !== "string" || !/^[0-9a-f]{16}$/.test(raw.g)) return null;
   if (typeof raw.i !== "string" || !/^[0-9a-f]{8,32}$/.test(raw.i)) return null;
-  return { name: cleanName(raw.n, raw.f), fp: raw.f, port, group: raw.g, instance: raw.i };
+  return { name: cleanName(raw.n, raw.f), fp: raw.f, port, instance: raw.i };
 }
 
 /**
@@ -350,30 +363,65 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
  * broadcast on every interface it owns, and filtering by address would need a
  * list of them that changes when a VPN comes up.
  */
-export function beaconVerdict(beacon, { selfFp, selfGroup, selfInstance }) {
+export function beaconVerdict(beacon, { selfFp, selfInstance, trusted } = {}) {
   if (!beacon) return "unreadable";
   if (beacon.fp === selfFp) {
-    // OUR OWN NAME, FROM SOMEBODY ELSE'S PROCESS. The id is stored in prefs, so
-    // two decks sharing a config directory hold the same one — and so does the
-    // second machine when somebody copies their ~/.claude across, which people
-    // do. Both then file every one of the other's beacons as "that is me" and
-    // the two are permanently invisible to each other, with nothing on screen
-    // to say why.
+    // OUR OWN NAME, FROM SOMEBODY ELSE'S PROCESS. Two decks sharing a config
+    // directory hold the same key — and so does the second machine when
+    // somebody copies their ~/.claude across, which people do. Both then file
+    // every one of the other's beacons as "that is me" and the two are
+    // permanently invisible to each other, with nothing on screen to say why.
     //
     // `instance` is what separates the cases: it is fresh per process, so our
     // own packet carries the instance we are running and another deck's cannot.
     // Told apart here rather than healed here — this function decides, and
-    // regenerating an id is the engine's to do.
+    // taking a new key is the engine's to do.
     return selfInstance && beacon.instance !== selfInstance ? "id-clash" : "self";
   }
-  if (!selfGroup) return "no-group";
-  // Constant-time, because this compares a value derived from a secret against
-  // one an attacker chooses, once per packet, forever. A byte-at-a-time compare
-  // here is a genuine oracle: the network lets them send as many as they like.
-  const a = Buffer.from(beacon.group, "hex");
-  const b = Buffer.from(selfGroup, "hex");
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return "other-group";
-  return "peer";
+  // A DECK WE HAVE BEEN TOLD TO TRUST, or one somebody may choose to. There is
+  // no third answer any more: the group tag used to sort strangers from peers
+  // before a handshake existed, and now every stranger is a row with a name and
+  // an address that a person can accept or ignore. Nothing is asked of an
+  // unknown deck and nothing is offered to it.
+  return Array.isArray(trusted) && trusted.some(t => t.fp === beacon.fp) ? "peer" : "stranger";
+}
+
+/** Whether this fingerprint is one somebody has already accepted, and what was
+ *  recorded about it — the pinned public key above all, which is what makes a
+ *  second connection from the same fingerprint checkable rather than merely
+ *  claimed. */
+export function trustedPeer(trusted, fp) {
+  return (Array.isArray(trusted) ? trusted : []).find(t => t && t.fp === fp) ?? null;
+}
+
+/**
+ * Add a deck to the trusted list, or update what is known about one.
+ *
+ * THE PINNED KEY NEVER CHANGES UNDER US. A second entry claiming a fingerprint
+ * we already hold with a different public key is not an update, it is a
+ * different deck wearing the name — and 48 bits of fingerprint is far past
+ * accident, so it is somebody trying. The old entry stands and the caller is
+ * told nothing changed.
+ */
+export function addTrusted(trusted, entry) {
+  const list = Array.isArray(trusted) ? trusted : [];
+  if (!entry || typeof entry.fp !== "string" || typeof entry.pub !== "string") return { list, added: false };
+  const had = trustedPeer(list, entry.fp);
+  if (had) {
+    if (had.pub !== entry.pub) return { list, added: false };
+    return {
+      list: list.map(t => (t.fp === entry.fp ? { ...t, name: entry.name ?? t.name } : t)),
+      added: false,
+    };
+  }
+  return { list: [...list, { fp: entry.fp, pub: entry.pub, name: entry.name ?? "" }], added: true };
+}
+
+/** Take one back out. Unpairing stops what has not happened yet and takes back
+ *  nothing that has — the same sentence the panel says about a shared login,
+ *  and true here for the same reason. */
+export function dropTrusted(trusted, fp) {
+  return (Array.isArray(trusted) ? trusted : []).filter(t => t && t.fp !== fp);
 }
 
 // ── the peer table ──────────────────────────────────────────────────────────

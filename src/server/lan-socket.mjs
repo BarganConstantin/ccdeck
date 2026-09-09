@@ -25,7 +25,8 @@ import dgram from "node:dgram";
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, groupTag, notePeer, proof, proofOk, readBeacon,
+  beaconPayload, beaconVerdict, handshakeTranscript, notePeer, proof, proofOk,
+  readBeacon, readPub, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 
@@ -73,7 +74,10 @@ export const REPLY_COOLDOWN_MS = 2_000;
  * panel to be able to say what happened.
  */
 export function createBeacon({
-  port, name, fp, key, onPeer, onError, onIdClash, now = Date.now,
+  port, name, fp, onPeer, onStranger, onError, onIdClash, now = Date.now,
+  /** The decks somebody has accepted, read fresh each packet so an accept takes
+   *  effect immediately rather than at the next restart. */
+  trusted = () => [],
   // Injected so the suite can drive this with a socket it controls. CI runners
   // are not a network: GitHub's have no broadcast domain worth the name, and a
   // test that quietly skipped there would be a test that stopped testing
@@ -81,7 +85,6 @@ export function createBeacon({
   // machine, which works because a broadcast comes back to its own host.
   createSocket = opts => dgram.createSocket(opts),
 } = {}) {
-  const group = key ? groupTag(key) : null;
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
   // drop any session held for it rather than resume into a process that is gone.
@@ -89,14 +92,17 @@ export function createBeacon({
   const peers = new Map();
   let sock = null;
   let timer = null;
-  /** When this deck last answered a stranger, so answering cannot become a
-   *  storm. See the reply in the message handler. */
+  /** When this deck last answered a deck it had not heard, so answering cannot
+   *  become a storm, and which decks it has already answered — without the
+   *  second, a deck that is never accepted is answered again on every packet
+   *  for as long as both are running. */
   let repliedAt = 0;
+  const answered = new Set();
 
-  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, group, instance })));
+  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance })));
 
   const announce = () => {
-    if (!sock || !group) return;
+    if (!sock) return;
     // 255.255.255.255 rather than a multicast group, and rather than the
     // subnet's own broadcast address. The subnet-directed form needs the
     // netmask of whichever interface the packet leaves by, which changes when a
@@ -117,31 +123,43 @@ export function createBeacon({
       // the bytes and the address and does what it is told.
       if (msg.length > MAX_BEACON_BYTES) return;
       const beacon = readBeacon(msg);
-      const verdict = beaconVerdict(beacon, { selfFp: fp, selfGroup: group, selfInstance: instance });
-      if (verdict !== "peer") {
-        if (verdict === "other-group") onError?.("other-group", null);
-        // Another deck is using this one's id — see beaconVerdict. Reported
-        // rather than fixed here: this file carries packets, and choosing a new
-        // name for the deck belongs to whoever stores it.
-        if (verdict === "id-clash") onIdClash?.();
-        return;
-      }
-      const known = peers.has(beacon.fp);
-      const noted = notePeer(peers, beacon, rinfo.address, now());
-      // ANSWER A DECK WE HAVE NEVER SEEN, once. Without this the second deck to
-      // start finds nobody until the first one's next interval — measured on
-      // two real decks: 1 saw 2 immediately, 2 saw nobody, because 1's own
-      // immediate announce went out before 2 was listening. Thirty seconds of
-      // an empty list is how a working feature reads as broken.
+      const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, trusted: trusted() });
+      // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
+      // part is the change. It used to answer only a deck already in the group,
+      // which was fine when a group existed. Now the first thing a new deck has
+      // to become is a row on somebody's screen, and it cannot become one if
+      // this deck never tells it that it exists.
       //
-      // Only for a stranger, and at most once every few seconds, because the
-      // obvious version is a shout storm: two decks answering each other's
-      // answers forever. A new pair converges in two extra packets — A answers
-      // B, B answers A's answer, and A stays quiet because B is no longer new.
-      if (!known && now() - repliedAt > REPLY_COOLDOWN_MS) {
+      // Measured on two real decks before any of this: deck 1 saw deck 2 the
+      // instant it started and deck 2 saw nobody, because deck 1's own
+      // immediate announce went out before deck 2 was listening. Thirty seconds
+      // of an empty list is how a working feature reads as broken.
+      //
+      // At most once every few seconds, because the obvious version is a shout
+      // storm: two decks answering each other's answers forever. A new pair
+      // converges in two extra packets.
+      const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
+        && !peers.has(beacon.fp) && !answered.has(beacon.fp);
+      if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
         repliedAt = now();
+        answered.add(beacon.fp);
         announce();
       }
+      if (verdict !== "peer") {
+        // Another deck is using this one's key — see beaconVerdict. Reported
+        // rather than fixed here: this file carries packets, and choosing a new
+        // identity for the deck belongs to whoever stores it.
+        if (verdict === "id-clash") onIdClash?.();
+        // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
+        // dropped: it is a name and an address on the same network, which is a
+        // row somebody can accept. Nothing is asked of it and nothing is
+        // offered to it until they do.
+        if (verdict === "stranger") {
+          onStranger?.({ fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port, at: now() });
+        }
+        return;
+      }
+      const noted = notePeer(peers, beacon, rinfo.address, now());
       if (noted.changed || noted.restarted) onPeer?.(noted);
     });
     sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {
@@ -226,18 +244,30 @@ export function sendFrame(sock, obj) {
  * `handlers` is called only with authenticated frames, and it never sees the
  * handshake at all.
  */
-export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0.0.0", prefer = 0 } = {}) {
+export function createSyncServer({
+  fp, pub, name, secret, handlers, onError, host = "0.0.0.0", prefer = 0,
+  /** The peers somebody has accepted, read fresh on every connection so an
+   *  accept takes effect on the next one rather than on the next restart. */
+  trusted = () => [],
+  /** A deck we have never been told to trust, which finished the handshake and
+   *  is therefore a real deck rather than a port scan. The panel turns this
+   *  into a row with an accept on it. */
+  onPending,
+} = {}) {
   let server = null;
   const live = new Set();
 
   const onConnection = sock => {
-    if (!key || live.size >= MAX_SOCKETS) { sock.destroy(); return; }
+    if (!secret || live.size >= MAX_SOCKETS) { sock.destroy(); return; }
     live.add(sock);
     sock.setEncoding("utf8");
     sock.setNoDelay(true);
 
     let authed = false;
     let peerFp = null;
+    let peerPub = null;
+    let peerName = "";
+    let key = null;
     const myChallenge = randomBytes(16).toString("hex");
     let theirChallenge = null;
 
@@ -255,65 +285,58 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
      * Refuse, and SAY SO, which cost two people twenty minutes.
      *
      * This used to destroy the socket without a word, so the caller's only
-     * evidence was `peer closed the connection` — true, and useless. The one
-     * thing that actually causes it in the field is two decks holding different
-     * passphrases, and that is precisely diagnosable here and nowhere else.
+     * evidence was `peer closed the connection` — true, and useless. Every
+     * reason here is a different problem with a different fix, and the caller
+     * cannot tell them apart from the outside.
      *
-     * It leaks nothing. "You are not in this group" is exactly what the silent
-     * close already told them, and there is no partial information in it: the
-     * proof either verifies or it does not, so nobody learns anything about the
-     * passphrase by being told which of two constants applies.
+     * It leaks nothing an attacker did not have. "I do not know you" is what
+     * the silent close already said, and the fingerprints involved are in every
+     * beacon this deck broadcasts.
      *
-     * `end` rather than `destroy`, or the frame is dropped with the socket.
+     * DESTROY, NOT END, and the difference is a caller that never reads. `end`
+     * is a FIN, and a peer whose socket is paused — connected, refusing to
+     * read, which is exactly the shape of a caller trying to cost something —
+     * never notices a FIN and holds the socket open. The callback orders the
+     * two: destroying before the write flushes would throw away the sentence
+     * that is the whole point. The timer is the backstop for a peer whose
+     * receive window is full and whose callback therefore never comes.
      */
     const refuse = why => {
       onError?.("frame", new Error(why));
       const bye = () => { try { sock.destroy(); } catch { /* already gone */ } };
-      // DESTROY, NOT END, and the difference is a caller that never reads.
-      //
-      // `end` is a FIN, and a peer whose socket is paused — connected, refusing
-      // to read, which is exactly the shape of a caller that is trying to cost
-      // something — never notices a FIN and holds the socket open. `destroy`
-      // after the write has reached the kernel resets it, which every peer
-      // notices whether it is reading or not.
-      //
-      // The callback is what orders the two: destroying before the write
-      // flushes would throw the sentence away, which is the whole point of
-      // sending it. The timer is the backstop for a peer whose receive window
-      // is full and whose callback therefore never comes.
-      try {
-        sock.write(`${JSON.stringify({ t: "no", why: why === "bad proof" ? "group" : "protocol" })}\n`, bye);
-      } catch { bye(); return; }
+      try { sock.write(`${JSON.stringify({ t: "no", why })}\n`, bye); }
+      catch { bye(); return; }
       setTimeout(bye, 250).unref?.();
     };
 
     sock.on("data", frameReader(msg => {
       if (!authed) {
         // FOUR MESSAGES, and the order is chosen so that a stranger who merely
-        // connects receives nothing derived from the group key.
+        // connects receives nothing derived from a key.
         //
-        //   1. caller  -> hello,     its fingerprint and a fresh challenge
-        //   2. us      -> challenge, a random number and nothing else
-        //   3. caller  -> auth,      a proof over both challenges
-        //   4. us      -> ok,        our name, and our proof over both
+        //   1. caller  -> hello,     its fingerprint, its public key, a challenge
+        //   2. us      -> challenge, ours, and a random number
+        //   3. caller  -> auth,      a proof over the whole transcript
+        //   4. us      -> ok,        our name, and our proof over the same
         //
-        // The tempting three-message version has us answer the hello with our
-        // proof already in it. That hands anybody who opens a socket a MAC over
-        // values they chose, forever, for free. Here they get a random number:
-        // to obtain any keyed material they have to produce a valid proof
-        // first, which is the thing they do not have.
+        // BOTH PUBLIC KEYS TRAVEL IN THE CLEAR and that is fine: a public key
+        // is public, and the fingerprint in the beacon is a hash of this exact
+        // value. What the exchange establishes is that whoever is on the other
+        // end holds the private half of the key they claimed — which is the
+        // only thing a pin can later be checked against.
         if (msg.t === "hello") {
-          if (theirChallenge || typeof msg.fp !== "string" || typeof msg.challenge !== "string") {
-            return refuse("bad hello");
-          }
+          if (theirChallenge || typeof msg.challenge !== "string") return refuse("bad hello");
+          const them = readPub(msg.pub);
+          // The fingerprint is a hash of the key, so a hello whose two halves
+          // disagree is not a deck with a stale field, it is somebody trying to
+          // be announced as one deck and prove they are another.
+          if (!them || them.fp !== msg.fp) return refuse("bad hello");
           theirChallenge = msg.challenge;
-          peerFp = msg.fp;
-          // Our fingerprint travels with the challenge. It is already in
-          // every beacon we broadcast, so this tells an unauthenticated caller
-          // nothing new — and without it the caller cannot name us in its
-          // proof, which would leave the transcript covering only one of the
-          // two decks and one recorded proof valid at every deck in the group.
-          sendFrame(sock, { t: "challenge", fp, challenge: myChallenge });
+          peerFp = them.fp;
+          peerPub = them.pub;
+          peerName = typeof msg.name === "string" ? msg.name : "";
+          key = sessionKey(secret, peerPub, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
+          sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge });
           return;
         }
         if (msg.t !== "auth" || !theirChallenge) return refuse("expected auth");
@@ -324,10 +347,33 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
         // A recording of a previous exchange fails here, because `myChallenge`
         // was made when this socket opened and has never been sent before.
         if (!proofOk(want, msg.proof)) return refuse("bad proof");
+
+        // WHO IS THIS, and it is the only question left. The handshake proves
+        // they hold the key they claimed; the trusted list says whether anybody
+        // here ever agreed to talk to it.
+        const known = trustedPeer(trusted(), peerFp);
+        if (known && known.pub !== peerPub) {
+          // The fingerprint we pinned, presented with a different key. 48 bits
+          // is far past accident, so this is somebody wearing a paired deck's
+          // name — refused loudly rather than quietly re-pinned.
+          return refuse("impostor");
+        }
+        if (!known) {
+          // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
+          // a port scan, and it told us a name and an address a person can
+          // recognise. That is a row with an accept on it, and nothing else
+          // happens until somebody presses it.
+          onPending?.({
+            fp: peerFp, pub: peerPub, name: peerName,
+            addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "",
+          });
+          return refuse("pending");
+        }
+
         authed = true;
         clearTimeout(deadline);
-        // And ours, so the caller knows it reached a deck in its own group
-        // rather than something standing in the way of one.
+        // And ours, so the caller knows it reached the deck it pinned rather
+        // than something standing in the way of one.
         sendFrame(sock, {
           t: "ok", fp, name,
           proof: proof(key, {
@@ -337,7 +383,7 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
         });
         return;
       }
-      handlers?.(msg, { sock, peerFp, send: obj => sendFrame(sock, obj) });
+      handlers?.(msg, { sock, peerFp, key, send: obj => sendFrame(sock, obj) });
     }, refuse));
   };
 
@@ -396,7 +442,12 @@ export function createSyncServer({ fp, name, key, handlers, onError, host = "0.0
  * that deck was going to say. So this checks the reply with the same care the
  * server checks the hello, and gives up if it does not hold.
  */
-export function connectToPeer({ host, port, fp, key, timeoutMs = HANDSHAKE_MS }) {
+export function connectToPeer({
+  host, port, fp, pub, secret, name, timeoutMs = HANDSHAKE_MS,
+  /** The public key we pinned for this deck the first time, or null for a deck
+   *  we are meeting — an address somebody typed. */
+  expectPub = null,
+}) {
   return new Promise((resolve, reject) => {
     const myChallenge = randomBytes(16).toString("hex");
     const sock = net.createConnection({ host, port });
@@ -417,19 +468,39 @@ export function connectToPeer({ host, port, fp, key, timeoutMs = HANDSHAKE_MS })
       // No proof in the hello: the caller cannot cover a challenge it has not
       // been given, and a proof over an empty one would be a proof that means
       // nothing. It goes in message three.
-      sendFrame(sock, { t: "hello", fp, challenge: myChallenge });
+      sendFrame(sock, { t: "hello", fp, pub, name, challenge: myChallenge });
     });
 
     let theirChallenge = null;
     let theirFp = null;
+    let theirPub = null;
+    let key = null;
     sock.on("data", frameReader(msg => {
       if (settled) return;
+      // A deck that heard us and said no. Each reason is a different problem
+      // with a different fix, and until this frame existed they were all one
+      // silent close that read as a firewall.
+      if (msg.t === "no") {
+        return fail(new Error({
+          pending: "waiting for the other deck to accept this one",
+          impostor: "that deck has this one pinned under a different key",
+          "bad proof": "the other deck refused this one's proof",
+        }[msg.why] ?? "the other deck refused this handshake"));
+      }
       if (msg.t === "challenge") {
-        if (theirFp || typeof msg.challenge !== "string" || typeof msg.fp !== "string") {
-          return fail(new Error("bad challenge"));
+        if (theirFp || typeof msg.challenge !== "string") return fail(new Error("bad challenge"));
+        const them = readPub(msg.pub);
+        if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
+        // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
+        // this key and no other; a key that does not match is not a peer whose
+        // details changed, it is a different machine at the same address.
+        if (expectPub && expectPub !== them.pub) {
+          return fail(new Error("a different deck is answering at that address"));
         }
         theirChallenge = msg.challenge;
-        theirFp = msg.fp;
+        theirFp = them.fp;
+        theirPub = them.pub;
+        key = sessionKey(secret, theirPub, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge));
         sendFrame(sock, {
           t: "auth",
           proof: proof(key, {
@@ -439,14 +510,6 @@ export function connectToPeer({ host, port, fp, key, timeoutMs = HANDSHAKE_MS })
         });
         return;
       }
-      // A deck that heard us and said no. The only one worth a sentence of its
-      // own is the mismatched passphrase, because it is both the common case
-      // and the one the person reading the row can fix.
-      if (msg.t === "no") {
-        return fail(new Error(msg.why === "group"
-          ? "the other deck is in a different group — the passphrases do not match"
-          : "the other deck refused this handshake"));
-      }
       // The same deck that gave us the challenge, or nothing: a reply naming a
       // different fingerprint is a second party in the middle of this.
       if (msg.t !== "ok" || msg.fp !== theirFp) return fail(new Error("expected ok"));
@@ -454,11 +517,15 @@ export function connectToPeer({ host, port, fp, key, timeoutMs = HANDSHAKE_MS })
         challenge: theirChallenge, peerChallenge: myChallenge,
         fromFp: theirFp, toFp: fp, direction: "reply",
       });
-      if (!proofOk(want, msg.proof)) return fail(new Error("peer could not prove the group"));
+      if (!proofOk(want, msg.proof)) return fail(new Error("that deck could not prove its own key"));
       settled = true;
       clearTimeout(timer);
       sock.removeAllListeners("close");
-      resolve({ sock, peerFp: msg.fp, peerName: msg.name, send: obj => sendFrame(sock, obj) });
+      resolve({
+        sock, key,
+        peerFp: theirFp, peerPub: theirPub, peerName: msg.name,
+        send: obj => sendFrame(sock, obj),
+      });
     }, fail));
   });
 }

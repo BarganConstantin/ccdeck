@@ -29,8 +29,8 @@
 // anything.
 import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
-import { fingerprint, groupKey, groupName } from "./lan-sync.mjs";
-import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { addTrusted, dropTrusted, identityFrom, trustedPeer } from "./lan-sync.mjs";
+import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
 /** How often a deck asks its peers what they have. A minute is far more often
@@ -43,32 +43,6 @@ export const SYNC_MS = 60_000;
  *  going to answer, and holding the attempt open would stall the next round. */
 export const ROUND_MS = 10_000;
 
-
-/**
- * The name everybody knows this deck by.
- *
- * PERSISTED, and the first version was not. It regenerated on every start, on
- * the argument that a stored key is one more secret to protect — and that
- * argument was about the wrong thing, because this is not a key. Nothing is
- * signed with it and nothing is decrypted with it; the group passphrase is what
- * authenticates, and this is only an identifier, broadcast in the clear in
- * every beacon. There is nothing here to steal.
- *
- * What regenerating it cost was measured rather than guessed: on a machine
- * where decks had been restarted a few times, every peer's list held a row per
- * restart — dozens of them, each reporting ECONNREFUSED every minute against a
- * port nothing has listened on for an hour. Remembered forever and never
- * recognised again is the worst of both, and a stable id is the whole fix.
- */
-export function newIdentity(stored) {
-  if (typeof stored === "string" && /^[0-9a-f]{12}$/.test(stored)) {
-    return { fp: stored.replace(/(.{3})(?=.)/g, "$1-"), id: stored };
-  }
-  const { publicKey } = generateKeyPairSync("x25519");
-  const raw = publicKey.export({ type: "spki", format: "der" });
-  const fp = fingerprint(raw);
-  return { fp, id: fp.replace(/-/g, "") };
-}
 
 /** What this machine calls itself when the user has not said. The hostname,
  *  because that is the word they already use for this machine everywhere else. */
@@ -115,14 +89,25 @@ export function localAddresses(faces = networkInterfaces()) {
  */
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, onIdentity, onPort, now = Date.now,
+  onChange, onError, onIdentity, onPort, onTrust, now = Date.now,
 } = {}) {
-  let cfg = { enabled: false, name: defaultName(), passphrase: "", shared: [], deckId: "", port: 0 };
+  let cfg = { enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0 };
   let identity = null;
   let beacon = null;
   let server = null;
   let timer = null;
-  let key = null;
+  /**
+   * Decks that finished a handshake and that nobody here has accepted yet, and
+   * decks merely heard shouting on the network. Two lists because they are two
+   * different claims: a pending deck proved it holds the key it announced, a
+   * heard one only said so. Both are rows with an accept on them; only the
+   * first is evidence.
+   *
+   * In memory rather than on disk. A request that is a day old is not a request
+   * any more, and a list of them that survives restarts is a list nobody reads.
+   */
+  const pending = new Map();
+  const strangers = new Map();
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
@@ -139,8 +124,10 @@ export function createEngine({
     }));
   };
 
-  /** Frames from a peer that has proved the passphrase. Nothing reaches this
-   *  before that, which is the whole point of where the check sits. */
+  /** Frames from a deck that finished the handshake AND that somebody here has
+   *  accepted. Nothing reaches this before both, which is the whole point of
+   *  where the two checks sit. `ctx.key` is this connection's key and no other
+   *  connection's — see sessionKey. */
   const serve = async (msg, ctx) => {
     try {
       if (msg.t === "manifest") {
@@ -152,7 +139,7 @@ export function createEngine({
         // session says who connected; this says they are asking for this
         // account, now. A long-lived connection authenticated an hour ago is
         // not a statement about now.
-        const want = transferChallenge(key, {
+        const want = transferChallenge(ctx.key, {
           nonce: msg.nonce, accountKey: msg.key, fromFp: ctx.peerFp, toFp: identity.fp,
         });
         if (typeof msg.proof !== "string" || msg.proof !== want) {
@@ -168,7 +155,7 @@ export function createEngine({
         const blob = await exportAccount(mine.num);
         if (!blob) return ctx.send({ t: "no", why: "export failed" });
         const aad = `${identity.fp}->${ctx.peerFp}|${msg.key}`;
-        return ctx.send({ t: "have", key: msg.key, sealed: seal(key, blob, aad) });
+        return ctx.send({ t: "have", key: msg.key, sealed: seal(ctx.key, blob, aad) });
       }
     } catch (err) {
       onError?.("serve", err);
@@ -180,7 +167,13 @@ export function createEngine({
   const roundWith = async peer => {
     let conn = null;
     try {
-      conn = await connectToPeer({ host: peer.addr, port: peer.port, fp: identity.fp, key, timeoutMs: ROUND_MS });
+      conn = await connectToPeer({
+        host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
+        fp: identity.fp, pub: identity.pub, secret: identity.secret, name: cfg.name,
+        // The key pinned when this deck was accepted, so a second machine
+        // answering at that address is refused rather than talked to.
+        expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
+      });
       const ask = frame => new Promise((resolve, reject) => {
         const bell = setTimeout(() => reject(new Error("peer went quiet")), ROUND_MS);
         bell.unref?.();
@@ -197,6 +190,30 @@ export function createEngine({
         sendFrame(conn.sock, frame);
       });
 
+      // TRUST ON FIRST USE, AND ONLY FOR AN ADDRESS SOMEBODY TYPED. Reaching a
+      // deck we have no pin for means the person at this keyboard put its
+      // address in the field, which is the same decision the accept button is
+      // on the other side. Pinning it here is what makes the two lists agree —
+      // without it this deck would dial a peer every minute and still show it
+      // as nobody, and its own listener would refuse the same deck calling
+      // back.
+      //
+      // A deck we DO have a pin for was checked before this line: connectToPeer
+      // was given expectPub and refuses a different key at that address.
+      // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
+      // and nothing else until somebody answers it — and once one has, the deck
+      // on the other end has told us what it calls itself. The row says that
+      // from then on, because "Constantin-PC" is what the person who typed the
+      // address was trying to reach.
+      learned.set(`${peer.addr}:${peer.port}`, { fp: conn.peerFp, name: conn.peerName || "" });
+
+      if (!trustedPeer(cfg.trusted, conn.peerFp)) {
+        const { list, added } = addTrusted(cfg.trusted, {
+          fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName,
+        });
+        if (added) { cfg = { ...cfg, trusted: list }; onTrust?.(list); }
+      }
+
       const theirs = await ask({ t: "manifest" });
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const mine = await localAccounts();
@@ -205,10 +222,10 @@ export function createEngine({
       // A HEAL NEEDS MY TICK; AN ADD DOES NOT, and the asymmetry is deliberate.
       // Healing replaces a slot I already have, so it is only reasonable for an
       // account I said I share. Adding is the case the owner asked for by name:
-      // an account that appears in the group appears everywhere in it, which is
-      // the whole of "I do not want to paste blobs any more". The group is
-      // passphrase-gated, so what can reach this is what somebody I trusted
-      // with that passphrase chose to offer.
+      // an account that appears among the decks I paired with appears on all of
+      // them, which is the whole of "I do not want to paste blobs any more".
+      // What can reach this is what a deck somebody here pressed accept on
+      // chose to offer.
       const wanted = plan(mine, theirs.accounts)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
@@ -216,12 +233,12 @@ export function createEngine({
         const nonce = randomBytes(12).toString("hex");
         const reply = await ask({
           t: "want", key: step.key, nonce,
-          proof: transferChallenge(key, {
+          proof: transferChallenge(conn.key, {
             nonce, accountKey: step.key, fromFp: identity.fp, toFp: conn.peerFp,
           }),
         });
         if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: reply?.why ?? "refused" }); continue; }
-        const blob = open(key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
+        const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
         const ok = await importAccount(blob);
         done.push({ ...step, ok: !!ok, why: ok ? null : "import failed" });
@@ -241,13 +258,19 @@ export function createEngine({
    *
    *  Broadcast dies at the first router and is dropped by a switch that
    *  filters it, so a deck across a VPN or on another subnet is unreachable by
-   *  discovery and perfectly reachable by address. The passphrase remains the
-   *  only gate, so an address is not a way in — it is a way to be dialled.
+   *  discovery and perfectly reachable by address. Typing one is a decision to
+   *  trust whatever answers there the first time, and to pin it: an address is
+   *  a way to reach a deck, and the accept on the other machine is what lets
+   *  anything move.
    *
    *  Keyed by `host:port` rather than by fingerprint, because a fingerprint is
    *  what a deck says about itself after the handshake and this list has to
    *  exist before there has been one. */
   const manual = new Map();
+  /** What answered at a typed address, once something has. Keyed the same way
+   *  `manual` is, because until a connection succeeds an address is all there
+   *  is to key on. */
+  const learned = new Map();
 
   const round = async () => {
     if (!beacon) return [];
@@ -274,43 +297,114 @@ export function createEngine({
       const was = cfg;
       cfg = { ...cfg, ...next };
       const restart = !was.enabled !== !cfg.enabled
-        || was.passphrase !== cfg.passphrase
-        || was.name !== cfg.name
-        || was.deckId !== cfg.deckId;
+        || was.secret !== cfg.secret
+        || was.name !== cfg.name;
       if (!restart) return;
       this.stop();
-      if (!cfg.enabled || !cfg.passphrase) return;
-      key = groupKey(cfg.passphrase);
-      identity = newIdentity(cfg.deckId);
-      // Hand the caller an id to keep when there was none, so the next start is
-      // the same deck rather than a new row in everybody's list.
-      if (identity.id !== cfg.deckId) onIdentity?.(identity.id);
+      if (!cfg.enabled) return;
+      identity = identityFrom(cfg.secret);
+      // Hand the caller a key to keep when there was none, so the next start is
+      // the same deck rather than a stranger to everybody who paired with it.
+      if (identity.secret !== cfg.secret) {
+        cfg = { ...cfg, secret: identity.secret };
+        onIdentity?.(identity.secret);
+      }
       // The port last used, so an address somebody typed on the other machine
       // still works after this deck restarts. createSyncServer falls through to
       // an OS-chosen one when it is taken, and the caller stores whatever came
       // back — so the pin drifts to a free port rather than failing.
       server = createSyncServer({
-        fp: identity.fp, name: cfg.name, key, handlers: serve, onError,
-        prefer: cfg.port,
+        fp: identity.fp, pub: identity.pub, secret: identity.secret,
+        name: cfg.name, handlers: serve, onError, prefer: cfg.port,
+        trusted: () => cfg.trusted,
+        onPending: entry => {
+          const had = pending.get(entry.fp);
+          pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
+          if (!had) onChange?.();
+        },
       });
       const port = await server.start();
       if (port !== cfg.port) onPort?.(port);
       beacon = createBeacon({
-        port, name: cfg.name, fp: identity.fp, key,
+        port, name: cfg.name, fp: identity.fp,
+        trusted: () => cfg.trusted,
         onPeer: () => onChange?.(),
-        // Take a new name and keep it. Two decks with one id are invisible to
-        // each other forever otherwise, and the second one to notice moving is
-        // enough — whichever notices first, moves.
+        onStranger: entry => {
+          const had = strangers.get(entry.fp);
+          strangers.set(entry.fp, entry);
+          if (!had) onChange?.();
+        },
+        // Take a new key and keep it. Two decks with one identity are invisible
+        // to each other forever otherwise, and the second one to notice moving
+        // is enough — whichever notices first, moves.
         onIdClash: () => {
-          const fresh = newIdentity();
-          onIdentity?.(fresh.id);
-          onError?.("id-clash", new Error("another deck was using this one's id; taking a new one"));
+          const fresh = identityFrom("");
+          onIdentity?.(fresh.secret);
+          onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
         },
         onError, now,
       });
       await beacon.start();
       timer = setInterval(() => { void round(); }, SYNC_MS);
       timer.unref?.();
+    },
+    /**
+     * Accept a deck, which is the only thing that lets anything move.
+     *
+     * It takes the fingerprint AND the key that was seen with it, from the
+     * pending or heard list — never from whatever is at an address now, because
+     * the point of pinning is that the thing answering later has to be the same
+     * thing. A fingerprint nobody has actually met is refused rather than
+     * trusted on a name somebody typed.
+     */
+    accept(fp) {
+      const asked = pending.get(fp) ?? null;
+      const heard = strangers.get(fp) ?? null;
+      const seen = asked ?? heard;
+      if (!seen) return null;
+      // TWO KINDS OF ROW, AND THEY ARE NOT THE SAME CLAIM.
+      //
+      // A deck that ASKED finished a handshake, so it held the private half of
+      // the key it announced and that key can be pinned right here. A deck we
+      // merely HEARD has only shouted: a beacon carries a fingerprint and no
+      // key, and pinning a fingerprint with no key to check it against later is
+      // worse than not pinning at all — it looks like a pairing and is not one.
+      //
+      // So accepting a heard deck starts a conversation rather than ending one:
+      // its address goes on the dial list, the next round reaches it and pins
+      // whatever answers, and its owner gets the same request to accept. Which
+      // is the same two presses, in the other order.
+      if (!seen.pub) {
+        if (!seen.addr || !seen.port) return null;
+        this.addPeer(seen.addr, seen.port);
+        strangers.delete(fp);
+        onChange?.();
+        return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
+      }
+      const { list, added } = addTrusted(cfg.trusted, { fp, pub: seen.pub, name: seen.name });
+      cfg = { ...cfg, trusted: list };
+      pending.delete(fp);
+      strangers.delete(fp);
+      onTrust?.(list);
+      onChange?.();
+      return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null } : null;
+    },
+    /** Say no, and stop being asked. The deck is dropped from both lists; if it
+     *  connects again it is a new request, because refusing is not a block. */
+    dismiss(fp) {
+      const had = pending.delete(fp) || strangers.delete(fp);
+      if (had) onChange?.();
+      return had;
+    },
+    /** Unpair. It stops what has not happened yet and takes back nothing that
+     *  has — the same sentence the panel says about a shared login. */
+    unpair(fp) {
+      const list = dropTrusted(cfg.trusted, fp);
+      if (list.length === cfg.trusted.length) return false;
+      cfg = { ...cfg, trusted: list };
+      onTrust?.(list);
+      onChange?.();
+      return true;
     },
     round,
     /** Dial this address on every round from now on. Returns false for an
@@ -342,19 +436,25 @@ export function createEngine({
         running: !!beacon,
         name: cfg.name,
         fp: identity?.fp ?? null,
-        // The three words every deck in this group computes for itself. Null
-        // until there is a passphrase, because there is no group before one.
-        group: key ? groupName(key) : null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the
         // panel says rather than printing a placeholder.
         port: server?.port() ?? null,
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
+        // Decks somebody accepted, decks that asked and have not been answered,
+        // and decks merely heard. Three lists because they are three different
+        // things a person does something different about.
+        trusted: cfg.trusted.map(t => ({ fp: t.fp, name: t.name })),
+        pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
+        strangers: [...strangers.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at })),
         // The rule is stillListed's, in lan-sync.mjs, where it can be tested.
         peers: beacon ? [...beacon.peers.values(), ...manual.values()]
           .filter(p => stillListed(p, now()))
-          .map(p => ({ ...p, last: lastRound.get(p.fp) ?? null })) : [],
+          .map(p => {
+            const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
+            return { ...p, name: met?.name || p.name, met: !!met, last: lastRound.get(p.fp) ?? null };
+          }) : [],
       };
     },
     stop() {
@@ -364,7 +464,6 @@ export function createEngine({
       server?.stop();
       beacon = null;
       server = null;
-      key = null;
     },
   };
 }

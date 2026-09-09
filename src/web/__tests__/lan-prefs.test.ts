@@ -2,10 +2,10 @@
 // keep it from getting out.
 //
 // prefs.json held nothing but booleans until LAN sync. A booleans file at the
-// umask default is unremarkable; a group passphrase at the umask default is
-// handed to every other account on a shared machine, and from it they can
-// decrypt any credential that crosses the network. So the file has a mode now,
-// and the passphrase never reaches a page.
+// umask default is unremarkable; this deck's PRIVATE KEY at the umask default
+// is handed to every other account on a shared machine, and with it they are
+// this deck to every peer that pinned it. So the file has a mode now, and the
+// key never reaches a page.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import { DEFAULTS, normalise, publicPrefs, PREFS_MODE, writePrefs } from "../../server/deck-prefs.mjs";
@@ -21,7 +21,7 @@ describe("where the passphrase is written", () => {
     // umask-derived mode for the window between the two, which is exactly when
     // the secret is in it.
     const wrote: Array<{ path: string; opts: unknown }> = [];
-    await writePrefs({ lan: { passphrase: "amber-canyon" } }, "/tmp/nowhere", {
+    await writePrefs({ lan: { secret: "a-private-key" } }, "/tmp/nowhere", {
       readFile: async () => { throw new Error("no file"); },
       mkdir: async () => {},
       writeFile: async (path: string, _body: string, opts: unknown) => { wrote.push({ path, opts }); },
@@ -33,7 +33,7 @@ describe("where the passphrase is written", () => {
 
   it("writes to a temp path and renames, so a crash cannot truncate it", async () => {
     const paths: string[] = [];
-    await writePrefs({ lan: { passphrase: "x" } }, "/tmp/nowhere", {
+    await writePrefs({ lan: { secret: "x" } }, "/tmp/nowhere", {
       readFile: async () => { throw new Error("no file"); },
       mkdir: async () => {},
       writeFile: async (path: string) => { paths.push(path); },
@@ -45,20 +45,25 @@ describe("where the passphrase is written", () => {
 });
 
 describe("what a page is allowed to see", () => {
-  const withSecret = normalise({ lan: { enabled: true, name: "MacBook", passphrase: "amber-canyon-forty" } });
-
-  it("never sends the passphrase, because anything on loopback can ask", () => {
-    const out = JSON.stringify(publicPrefs(withSecret));
-    expect(out).not.toContain("amber-canyon-forty");
-    expect(publicPrefs(withSecret).lan).not.toHaveProperty("passphrase");
+  const withSecret = normalise({
+    lan: {
+      enabled: true, name: "MacBook", secret: "AAAAsecret-private-keyAAAA",
+      trusted: [{ fp: "aaa-bbb-ccc-ddd", pub: "THEIR-PUBLIC-KEY", name: "Desktop" }],
+    },
   });
 
-  it("says only whether one is set", () => {
-    // A boolean rather than a mask: dots in a field invite a page to send them
-    // back, and then the dots are the passphrase.
-    expect(publicPrefs(withSecret).lan.hasPassphrase).toBe(true);
-    expect(publicPrefs(normalise({})).lan.hasPassphrase).toBe(false);
-    expect(publicPrefs(normalise({ lan: { passphrase: "" } })).lan.hasPassphrase).toBe(false);
+  it("never sends the private key, because anything on loopback can ask", () => {
+    const out = JSON.stringify(publicPrefs(withSecret));
+    expect(out).not.toContain("AAAAsecret-private-keyAAAA");
+    expect(publicPrefs(withSecret).lan).not.toHaveProperty("secret");
+  });
+
+  it("sends a paired deck as a name and a fingerprint, not as a key", () => {
+    // The pinned key is not secret and no page draws it. What a page shows is
+    // the name somebody recognises and the fingerprint they compare.
+    const out = publicPrefs(withSecret);
+    expect(JSON.stringify(out)).not.toContain("THEIR-PUBLIC-KEY");
+    expect(out.lan.trusted).toEqual([{ fp: "aaa-bbb-ccc-ddd", name: "Desktop" }]);
   });
 
   it("still sends everything that is not a secret", () => {
@@ -75,30 +80,41 @@ describe("the shape on disk", () => {
     // `port` is 0 until this deck has listened once. It is remembered so an
     // address typed on the other machine still reaches this one after a
     // restart — broadcast not arriving is the whole reason that field exists.
-    expect(normalise({}).lan).toEqual({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "", port: 0 });
+    expect(normalise({}).lan).toEqual({ enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0 });
   });
 
-  it("does not lose the passphrase when a page toggles the switch", async () => {
+  it("does not lose the private key when a page toggles the switch", async () => {
     // The LAN section merges rather than replaces, which is what lets a page
     // change one field without sending back a secret it was never given.
     let saved: Record<string, unknown> | null = null;
     const deps = {
-      readFile: async () => JSON.stringify({ lan: { enabled: false, passphrase: "kept", shared: ["a@@1"] } }),
+      readFile: async () => JSON.stringify({ lan: { enabled: false, secret: "kept", shared: ["a@@1"] } }),
       mkdir: async () => {},
       writeFile: async (_p: string, body: string) => { saved = JSON.parse(body); },
       rename: async () => {},
     };
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
-    expect(saved!.lan).toEqual({ enabled: true, name: "", passphrase: "kept", shared: ["a@@1"], manual: [], deckId: "", port: 0 });
+    expect(saved!.lan).toEqual({ enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0 });
   });
 
-  it("refuses a deck id that is not one, so a junk beacon is never sent", () => {
-    // It travels in every beacon, where the reader validates the shape and
-    // drops a packet that fails — a junk id would make this deck invisible with
-    // nothing on screen to say why.
-    expect(normalise({ lan: { deckId: "0123456789ab" } }).lan.deckId).toBe("0123456789ab");
-    for (const junk of ["", "nope", "ZZZZZZZZZZZZ", "0123456789abcdef", 5, null]) {
-      expect(normalise({ lan: { deckId: junk } }).lan.deckId, String(junk)).toBe("");
+  it("refuses a paired deck that has no key to check it against later", () => {
+    // The pinned public key is the load-bearing half: a fingerprint is a hash
+    // of it, so an entry without one cannot be checked against whatever answers
+    // at that address later — and an entry that cannot be checked is worse than
+    // no entry, because it looks like a pairing and is not one.
+    const good = { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "Desktop" };
+    expect(normalise({ lan: { trusted: [good] } }).lan.trusted).toEqual([good]);
+    for (const junk of [{ fp: "aaa-bbb-ccc-ddd" }, { pub: "PUB" }, "nope", 5, null, {}]) {
+      expect(normalise({ lan: { trusted: [junk] } }).lan.trusted, JSON.stringify(junk)).toEqual([]);
+    }
+  });
+
+  it("keeps the private key exactly as it was written", () => {
+    // It is base64 of a DER key. Anything else is replaced on the next start
+    // rather than refused here — see identityFrom, which owns that decision.
+    expect(normalise({ lan: { secret: "AAAA" } }).lan.secret).toBe("AAAA");
+    for (const junk of [5, null, {}, []]) {
+      expect(normalise({ lan: { secret: junk } }).lan.secret, String(junk)).toBe("");
     }
   });
 

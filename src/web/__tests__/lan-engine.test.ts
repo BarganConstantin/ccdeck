@@ -21,12 +21,12 @@
 // fingerprint question rather than an address question.
 import { describe, it, expect, afterEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
-import { createEngine, defaultName, localAddresses, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
+import { createEngine, defaultName, localAddresses, SYNC_MS } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
-import { accountKey } from "../../server/lan-sync.mjs";
+import { accountKey, identityFrom } from "../../server/lan-sync.mjs";
 
-const PASS = "amber-canyon-forty-drift";
+
 const K = (email: string, org: string) => accountKey(email, org);
 
 interface Row { num: number; email: string; orgUuid: string; alive: boolean }
@@ -53,10 +53,22 @@ afterEach(() => { for (const e of running.splice(0)) e.stop(); });
 
 async function deck(s: ReturnType<typeof store>, name: string, shared: string[], over = {}) {
   const errors: string[] = [];
-  const e = createEngine({ ...s.deps(over), onError: (w: string) => errors.push(w) });
+  // The key is kept by the caller in the real deck, so it is kept here too:
+  // every engine gets its own, made once, rather than a fresh one per apply.
+  const id = identityFrom("");
+  const trusted: Array<{ fp: string; pub: string; name: string }> = [];
+  const e = createEngine({
+    ...s.deps(over),
+    onError: (w: string) => errors.push(w),
+    // Written straight back into what the next apply is given, which is what
+    // index.mjs does through prefs.
+    onTrust: (list: Array<{ fp: string; pub: string; name: string }>) => {
+      trusted.splice(0, trusted.length, ...list);
+    },
+  });
   running.push(e);
-  await e.apply({ enabled: true, name, passphrase: PASS, shared });
-  return { e, errors, port: e.status().port as number };
+  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted });
+  return { e, errors, id, trusted, port: e.status().port as number };
 }
 
 /**
@@ -75,8 +87,18 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
  * on this machine, which find each other because a broadcast comes back to its
  * own host.
  */
-function point(from: { addPeer: (a: string, p: number) => boolean }, to: { status: () => { port?: number } }, port: number) {
-  expect(from.addPeer("127.0.0.1", port)).toBe(true);
+async function point(
+  from: { e: { addPeer: (a: string, p: number) => boolean; round: () => Promise<unknown>; status: () => { fp: string } } },
+  to: { e: { accept: (fp: string) => unknown } },
+  port: number,
+) {
+  expect(from.e.addPeer("127.0.0.1", port)).toBe(true);
+  // TWO PRESSES, AND BOTH OF THEM ARE REAL. Somebody types an address here and
+  // somebody presses accept there. The first round is refused — the listener
+  // has never been told to trust this deck — and that refusal is what puts it
+  // in the list with an accept on it.
+  await from.e.round();
+  expect(to.e.accept(from.e.status().fp), "the other deck had nothing to accept").toBeTruthy();
 }
 
 describe("the account that is dead here and alive there", () => {
@@ -93,7 +115,7 @@ describe("the account that is dead here and alive there", () => {
     const shared = [K("claude1@sapec.md", "org-1"), K("claude2@sapec.md", "org-2")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
 
     const done = await a.e.round();
     expect(done).toEqual([{
@@ -117,7 +139,7 @@ describe("the account that is dead here and alive there", () => {
     const shared = [K("claude1@sapec.md", "org-1")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     expect(await a.e.round()).toEqual([]);
     expect(await a.e.round()).toEqual([]);
     expect(mine.imported).toEqual([]);
@@ -129,7 +151,7 @@ describe("the account that is dead here and alive there", () => {
     const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
     const a = await deck(mine, "Deck-A", [K("claude1@sapec.md", "org-1")]);
     const b = await deck(theirs, "Deck-B", [K("new@sapec.md", "org-9")]);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     const done = await a.e.round();
     expect(done.map((d: { action: string }) => d.action)).toEqual(["add"]);
     expect(mine.imported).toEqual(["ccdeck2:slot-4"]);
@@ -141,7 +163,7 @@ describe("the account that is dead here and alive there", () => {
     const shared = [K("claude2@sapec.md", "org-2")];
     const a = await deck(mine, "Deck-A", shared);
     const b = await deck(theirs, "Deck-B", shared);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     expect(await a.e.round()).toEqual([]);
     expect(mine.imported).toEqual([]);
   }, 20_000);
@@ -157,7 +179,7 @@ describe("what a peer is refused", () => {
     const a = await deck(mine, "Deck-A", [K("secret@sapec.md", "org-2")]);
     // The holder shares nothing.
     const b = await deck(theirs, "Deck-B", []);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     expect(await a.e.round()).toEqual([]);
     expect(theirs.exported).toEqual([]);
     expect(mine.imported).toEqual([]);
@@ -173,22 +195,21 @@ describe("what a peer is refused", () => {
     const mine = store([]);
     const a = await deck(mine, "Deck-A", []);
     const b = await deck(theirs, "Deck-B", [K("shared@sapec.md", "org-5")]);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     await a.e.round();
     expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
     expect(theirs.exported).toEqual([5]);
   }, 20_000);
 
-  it("does not find a deck whose passphrase is different", async () => {
+  it("does not talk to a deck nobody has accepted", async () => {
     const mine = store([{ num: 2, email: "a@x", orgUuid: "o", alive: false }]);
     const theirs = store([{ num: 5, email: "a@x", orgUuid: "o", alive: true }]);
     const a = await deck(mine, "Deck-A", [K("a@x", "o")]);
-    const b = createEngine(theirs.deps());
-    running.push(b);
-    await b.apply({ enabled: true, name: "Stranger", passphrase: "a-different-passphrase", shared: [K("a@x", "o")] });
-    // Dialled deliberately, so this tests the refusal rather than a packet that
-    // never arrived: the handshake fails and nothing moves.
-    expect(a.e.addPeer("127.0.0.1", b.status().port)).toBe(true);
+    const b = await deck(theirs, "Stranger", [K("a@x", "o")]);
+    // Dialled deliberately AND NEVER ACCEPTED, so this tests the refusal rather
+    // than a packet that never arrived: the handshake completes, the listener
+    // has no reason to talk to this deck, and nothing moves.
+    expect(a.e.addPeer("127.0.0.1", b.port)).toBe(true);
     expect(await a.e.round()).toEqual([]);
     expect(theirs.exported).toEqual([]);
     expect(mine.imported).toEqual([]);
@@ -205,15 +226,18 @@ describe("the switch, and what turning it off means", () => {
     expect(e.status().fp).toBeNull();
   });
 
-  it("needs a passphrase as well as a switch", async () => {
-    // A deck with the switch on and no passphrase has nobody to find and
-    // nothing to say. It must not shout anyway.
+  it("needs nothing but the switch, because there is no passphrase to wait for", async () => {
+    // IT USED TO NEED ONE. A deck with the switch on and no passphrase had
+    // nobody to find and nothing to say, so it stayed silent. There is nothing
+    // to hold it back now: it makes its own key on the first start, announces
+    // itself, and waits for somebody to accept it.
     const s = store([]);
     const e = createEngine(s.deps());
     running.push(e);
-    await e.apply({ enabled: true, passphrase: "" });
-    expect(e.status().running).toBe(false);
-  });
+    await e.apply({ enabled: true });
+    expect(e.status().running).toBe(true);
+    expect(e.status().fp).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+  }, 20_000);
 
   it("stops completely when it is turned off", async () => {
     const s = store([]);
@@ -226,13 +250,14 @@ describe("the switch, and what turning it off means", () => {
     expect(await e.round()).toEqual([]);
   }, 20_000);
 
-  it("starts over when the passphrase changes, rather than keeping old peers", async () => {
-    // A changed passphrase is a different group. Keeping the peer table across
-    // it would leave rows for decks this deck can no longer talk to.
+  it("starts over when its own key changes, rather than keeping old peers", async () => {
+    // A new key is a different deck to everybody who pinned the old one.
+    // Keeping the peer table across it would leave rows for decks that will
+    // refuse this one on the next connection.
     const s = store([]);
     const { e } = await deck(s, "Deck-A", []);
     const first = e.status().fp;
-    await e.apply({ passphrase: "another-passphrase-entirely" });
+    await e.apply({ secret: identityFrom("").secret });
     expect(e.status().running).toBe(true);
     expect(e.status().peers).toEqual([]);
     expect(e.status().fp).not.toBe(first);
@@ -246,43 +271,46 @@ describe("how a deck names itself", () => {
   });
 
   it("keeps the same fingerprint across restarts, once it has one", () => {
-    // The first version regenerated it every start, on the argument that a
-    // stored key is one more secret. That was about the wrong thing: nothing is
-    // signed or decrypted with this, the passphrase authenticates, and this is
-    // broadcast in the clear in every beacon.
+    // The first version regenerated the identity every start, on the argument
+    // that a stored key is one more secret to protect. What that cost was
+    // measured on a real machine: every peer's list held a row per restart,
+    // dozens of them, each reporting ECONNREFUSED every minute against a port
+    // nothing had listened on for an hour.
     //
-    // What regenerating it cost was measured on a real machine: every peer's
-    // list held a row per restart, dozens of them, each reporting ECONNREFUSED
-    // every minute against a port nothing had listened on for an hour.
-    const first = newIdentity();
+    // It is a real private key now rather than a public id, so it is a secret
+    // after all — and prefs.json is written 0600 for exactly that. What it buys
+    // is the thing a pin is worth: a deck that comes back is the same deck.
+    const first = identityFrom("");
     expect(first.fp).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
-    expect(newIdentity(first.id).fp).toBe(first.fp);
-    expect(newIdentity(first.id).id).toBe(first.id);
+    expect(identityFrom(first.secret).fp).toBe(first.fp);
+    expect(identityFrom(first.secret).pub).toBe(first.pub);
     // A fresh deck still gets one, and two fresh decks are not the same deck.
-    expect(newIdentity().fp).not.toBe(newIdentity().fp);
+    expect(identityFrom("").fp).not.toBe(identityFrom("").fp);
   });
 
-  it("refuses a stored id that is not one, rather than broadcasting it", () => {
-    // It reaches a beacon, where the reader validates the shape and drops a
-    // packet that fails — so a junk id would make this deck invisible with no
-    // way to tell why.
+  it("replaces a stored key it cannot use, rather than refusing to start", () => {
+    // A corrupt key is not something anybody can act on mid-session, and
+    // refusing to start would take the feature away over one bad string. The
+    // cost is real: this deck gets a new fingerprint, so every peer that pinned
+    // the old one asks its owner again.
     for (const junk of ["", "nope", "ZZZZZZZZZZZZ", "0123456789abcdef", 5, null]) {
-      expect(newIdentity(junk as string).fp, String(junk)).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+      const made = identityFrom(junk as string);
+      expect(made.fp, String(junk)).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+      expect(made.fresh, String(junk)).toBe(true);
     }
   });
 
-  it("hands a new id back so the caller can keep it", async () => {
+  it("hands a new key back so the caller can keep it", async () => {
     const kept: string[] = [];
-    const e = createEngine({ ...store([]).deps(), onIdentity: (id: string) => kept.push(id) });
+    const e = createEngine({ ...store([]).deps(), onIdentity: (secret: string) => kept.push(secret) });
     running.push(e);
-    await e.apply({ enabled: true, name: "Deck-A", passphrase: PASS, shared: [] });
+    await e.apply({ enabled: true, name: "Deck-A", shared: [] });
     expect(kept).toHaveLength(1);
-    expect(e.status().fp).toBe(kept[0].replace(/(.{3})(?=.)/g, "$1-"));
     // And says nothing when it was given one, because there is nothing to keep.
     const kept2: string[] = [];
-    const e2 = createEngine({ ...store([]).deps(), onIdentity: (id: string) => kept2.push(id) });
+    const e2 = createEngine({ ...store([]).deps(), onIdentity: (secret: string) => kept2.push(secret) });
     running.push(e2);
-    await e2.apply({ enabled: true, name: "Deck-B", passphrase: PASS, shared: [], deckId: kept[0] });
+    await e2.apply({ enabled: true, name: "Deck-B", shared: [], secret: kept[0] });
     expect(kept2).toEqual([]);
     expect(e2.status().fp).toBe(e.status().fp);
   }, 20_000);
@@ -290,9 +318,9 @@ describe("how a deck names itself", () => {
   it("shows the name the user chose to its peers", async () => {
     const a = await deck(store([]), "Constantin-MacBook", []);
     const b = await deck(store([]), "Constantin-PC", []);
-    point(a.e, b, b.port);
+    await point(a, b, b.port);
     // The address is what got us there; the NAME comes back from the deck
-    // itself, over a handshake it had to prove the passphrase to complete.
+    // itself, over a handshake it had to prove its own key to complete.
     const conn = await a.e.round();
     expect(conn).toEqual([]);
     expect(a.e.status().peers.some((p: { addr: string }) => p.addr === "127.0.0.1")).toBe(true);
@@ -337,6 +365,10 @@ describe("an address somebody typed", () => {
     const a = await deck(mine, "Deck-A", [K("a@x", "o")]);
     const b = await deck(theirs, "Deck-B", [K("a@x", "o")]);
     expect(a.e.setPeers([`127.0.0.1:${b.port}`])).toBe(1);
+    // Refused the first time and accepted on the other machine, exactly as the
+    // two presses go in the product.
+    await a.e.round();
+    expect(b.e.accept(a.e.status().fp)).toBeTruthy();
     const done = await a.e.round();
     expect(done.map((d: { action: string }) => d.action)).toEqual(["heal"]);
     expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
@@ -350,6 +382,8 @@ describe("an address somebody typed", () => {
     const a = await deck(mine, "Deck-A", [K("a@x", "o")]);
     const b = await deck(theirs, "Deck-B", [K("a@x", "o")]);
     a.e.setPeers([`127.0.0.1:${b.port}`, `127.0.0.1:${b.port}`]);
+    await a.e.round();
+    expect(b.e.accept(a.e.status().fp)).toBeTruthy();
     const done = await a.e.round();
     expect(done).toHaveLength(1);
   }, 20_000);
