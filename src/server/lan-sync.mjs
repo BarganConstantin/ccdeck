@@ -564,9 +564,22 @@ export function dropTrusted(trusted, fp) {
  * NEWEST FIRST, AND CAPPED. The deck somebody just started is the one they are
  * looking for; a list longer than a screen is a list nobody reads.
  */
-export function pairable(strangers, now, { presentMs = PRESENT_MS, limit = 8 } = {}) {
+export function pairable(strangers, now, { presentMs = PRESENT_MS, limit = 8, mine = [] } = {}) {
+  // NOT THIS MACHINE. A deck's own beacon is filtered by fingerprint, which is
+  // right and is not enough: a second deck on the same computer is a different
+  // process with a different key, so it passes that check honestly and then
+  // shows up in the list under this machine's own hostname, at this machine's
+  // own address, offering to pair with itself.
+  //
+  // It was reported from a screenshot — "why myself appear here in list" — and
+  // the answer is that the address is the one thing that cannot lie: a beacon
+  // arriving FROM an address this machine holds came from this machine. Pairing
+  // with it would also buy nothing, because both decks read one claude-swap
+  // store and there is nothing for either to heal.
+  const own = new Set(Array.isArray(mine) ? mine : []);
   const live = [...(strangers ?? [])]
     .filter(p => p && typeof p.at === "number" && now - p.at <= presentMs)
+    .filter(p => !own.has(p.addr))
     .sort((a, b) => b.at - a.at);
   const seen = new Set();
   const out = [];

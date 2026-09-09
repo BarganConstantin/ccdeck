@@ -408,6 +408,26 @@ describe("the list of decks nearby, which was a wall of ghosts", () => {
     expect(out.more).toBe(6);
   });
 
+  it("never offers to pair with this machine", async () => {
+    // A deck's own beacon is filtered by fingerprint, and that is not enough: a
+    // second deck on the same computer is a different process with a different
+    // key, so it passes that check honestly and then appears under this
+    // machine's own hostname, at its own address, offering to pair with itself.
+    // Reported from a screenshot — "why myself appear here in list".
+    const { pairable } = await import("../../server/lan-sync.mjs");
+    const rows = [
+      heard({ fp: "self", name: "Constantins-iMac", addr: "192.168.1.82" }),
+      heard({ fp: "vpn", name: "Constantins-iMac", addr: "100.67.32.58" }),
+      heard({ fp: "them", name: "cbargan-windows", addr: "192.168.88.41" }),
+    ];
+    const out = pairable(rows, T, { mine: ["192.168.1.82", "100.67.32.58"] });
+    expect(out.shown.map((p: { fp: string }) => p.fp)).toEqual(["them"]);
+    // And with no addresses to compare against, it does not silently drop
+    // everything — a machine that cannot name its own addresses still has
+    // neighbours worth showing.
+    expect(pairable(rows, T).shown).toHaveLength(3);
+  });
+
   it("survives an empty list and junk in it", async () => {
     const { pairable } = await import("../../server/lan-sync.mjs");
     expect(pairable([], T).shown).toEqual([]);

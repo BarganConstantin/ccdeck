@@ -597,7 +597,7 @@ export function createEngine({
         // per machine, newest first — see pairable, which is where the rule
         // that keeps this from becoming a wall of ghosts lives.
         strangers: (() => {
-          const { shown, more } = pairable([...strangers.values()], now());
+          const { shown, more } = pairable([...strangers.values()], now(), { mine: localAddresses() });
           return shown.map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more }));
         })(),
         peers: beacon ? (() => {
