@@ -21,7 +21,7 @@
 // fingerprint question rather than an address question.
 import { describe, it, expect, afterEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
-import { createEngine, defaultName, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
+import { createEngine, defaultName, localAddress, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -262,6 +262,36 @@ describe("how a deck names itself", () => {
     expect(conn).toEqual([]);
     expect(a.e.status().peers.some((p: { addr: string }) => p.addr === "127.0.0.1")).toBe(true);
   }, 20_000);
+});
+
+describe("the address a person reads out to a colleague", () => {
+  // Printed in the panel for the field on the other deck, because broadcast
+  // dies at the first router and across a VPN an address is the only way in.
+  it("is the machine's own, not loopback and not a failed lease", () => {
+    expect(localAddress({ lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }] })).toBeNull();
+    // 169.254 is what a machine gets when DHCP failed — reachable by nobody
+    // worth telling about, so it is not offered as though it were.
+    expect(localAddress({ en0: [{ internal: false, family: "IPv4", address: "169.254.1.2" }] })).toBeNull();
+    expect(localAddress({ en0: [{ internal: false, family: "IPv6", address: "fe80::1" }] })).toBeNull();
+    expect(localAddress({
+      lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }],
+      en0: [{ internal: false, family: "IPv4", address: "192.168.1.82" }],
+    })).toBe("192.168.1.82");
+  });
+
+  it("is null rather than a guess when there is no ordinary answer", () => {
+    // A machine with a VPN up has several and which one a peer can reach
+    // depends on where the peer is — a question this side cannot answer. The
+    // panel prints nothing rather than a placeholder somebody has to decode.
+    expect(localAddress({})).toBeNull();
+    expect(localAddress(null)).toBeNull();
+    expect(localAddress(undefined)).toBeTruthy();
+  });
+
+  it("takes node's numeric family as well as its string one", () => {
+    // It changed spelling between node versions and this runs on 18 through 22.
+    expect(localAddress({ en0: [{ internal: false, family: 4, address: "10.0.0.5" }] })).toBe("10.0.0.5");
+  });
 });
 
 describe("the cadence", () => {

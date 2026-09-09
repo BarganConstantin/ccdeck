@@ -27,6 +27,7 @@ import {
 } from "../accounts-reload";
 import { resetCountdown, shortAgoSec } from "../relative-time";
 import { shareExpiry } from "../share-bundle";
+import LanSyncSection from "./LanSyncSection";
 
 interface Lane {
   id: string;
@@ -49,6 +50,15 @@ interface Account {
   stale: boolean;
   error: string | null;
   staleCopy?: boolean;
+  /** The other half of an account's identity. A slot number is not one:
+   *  claude-swap assigns them max+1 per store, so the account that is 4 here
+   *  is 2 on another machine. LAN sync matches on this pair. */
+  orgUuid?: string | null;
+  /** Whether claude-swap's STORED COPY works on this machine — which is not
+   *  the same question as whether the user is signed in (#721). The copy is
+   *  what a share carries and what a peer's copy heals, so both kinds of
+   *  trouble read as not alive. */
+  alive?: boolean;
 }
 
 interface AccountsData {
@@ -1195,6 +1205,23 @@ export default function AccountsPanel({ onClose }: Props) {
           <p className="ap-footnote" title="Anthropic's usage endpoint allows roughly 28–30 requests per hour per account, shared by every tool on this machine — polling it from here would rate-limit your account. So the deck never fetches: it asks claude-swap to collect while this panel is open, at most once every three minutes, and claude-swap decides whether that touches the network at all.">
             These numbers only update while this panel is open.
           </p>
+
+          {/* Last, under the accounts it is about. It is the one section here
+              that is not about THIS machine's accounts but about other
+              machines' copies of them, so it comes after everything a reader
+              opened the panel for. */}
+          <LanSyncSection
+            accounts={(data?.accounts ?? []).map(a => ({
+              // The same key the server builds, from the same two fields: an
+              // account is (email, organizationUuid) and never a slot number,
+              // because slots are assigned max+1 per store and diverge between
+              // two machines that grew in a different order.
+              key: `${String(a.email ?? "").trim().toLowerCase()}@@${a.orgUuid ?? ""}`,
+              email: a.email ?? "",
+              alive: a.alive === true,
+            }))}
+            onChanged={() => load(true)}
+          />
         </>
       )}
 

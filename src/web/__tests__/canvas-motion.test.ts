@@ -287,6 +287,11 @@ const PRESSES: Press[] = [
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
   [".ap-more:active", "0.94", "transform"],
+  // The account rows in the LAN section, which are labels wrapping their own
+  // checkbox: a 13px box is under the 24px SC 2.5.8 asks for, so the target is
+  // the whole sentence and the sentence is what answers the press. 0.97 like
+  // every other labelled control.
+  [".ap-lan-pick:active", "0.97", "transform"],
   [".ap-fix:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],

@@ -31,7 +31,7 @@ import { accountKey, manifestFor, open, plan, proof, seal, transferChallenge } f
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
 import { fingerprint, groupKey } from "./lan-sync.mjs";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
-import { hostname } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
 
 /** How often a deck asks its peers what they have. A minute is far more often
  *  than a login dies, and it is what makes the panel's list feel live rather
@@ -64,6 +64,32 @@ export function newIdentity() {
  *  because that is the word they already use for this machine everywhere else. */
 export function defaultName() {
   return hostname().replace(/\.local$/i, "") || "this machine";
+}
+
+/**
+ * The address another deck would dial, for the panel to print.
+ *
+ * FIRST NON-LOOPBACK IPv4, and the caveats are the reason this returns null
+ * rather than guessing harder. A machine with a VPN up has several, and which
+ * one a peer can reach depends on where the peer is — a question this side
+ * cannot answer. What it can do is offer the one address that is right in the
+ * ordinary case and say nothing when there is no ordinary case, which is better
+ * than printing `this machine` and leaving somebody to work out that it was a
+ * placeholder.
+ *
+ * `internal` is what node calls loopback, and a link-local 169.254 address is a
+ * machine that failed to get a lease — reachable by nobody worth telling about.
+ */
+export function localAddress(faces = networkInterfaces()) {
+  for (const list of Object.values(faces ?? {})) {
+    for (const n of list ?? []) {
+      if (n.internal) continue;
+      if (n.family !== "IPv4" && n.family !== 4) continue;
+      if (typeof n.address !== "string" || n.address.startsWith("169.254.")) continue;
+      return n.address;
+    }
+  }
+  return null;
 }
 
 /**
@@ -268,9 +294,11 @@ export function createEngine({
         running: !!beacon,
         name: cfg.name,
         fp: identity?.fp ?? null,
-        // The listening port, so a person on another subnet has something to
-        // type into the other deck's address field.
+        // The address and port a person on another subnet types into the other
+        // deck's field. Null when this machine has no ordinary one, which the
+        // panel says rather than printing a placeholder.
         port: server?.port() ?? null,
+        addr: beacon ? localAddress() : null,
         shared: [...cfg.shared],
         peers: beacon ? [...beacon.peers.values(), ...manual.values()].map(p => ({
           ...p, last: lastRound.get(p.fp) ?? null,
