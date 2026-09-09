@@ -34,11 +34,11 @@
   "3.15.0": [
     {
       "title": "🔗 Decks on one network heal each other's dead logins",
-      "body": "A login dies on the machine that has not used it, while the same account keeps working on the machine that has. The fix was a blob copied out of one deck and pasted into another. Now it is nothing: **Accounts ▸ Local network**, one passphrase — the deck offers you six words — on each deck, and they find each other and repair themselves.\n\nA deck only ever **adds** an account it does not have, or **replaces one it has proven dead** — verified by Anthropic refusing the token, not guessed. A credential that works is never touched, by anyone.\n\nThe passphrase is the only gate. A stranger on the same wifi sees that a deck exists and nothing else — no account, no email, no count."
+      "body": "A login dies on the machine that has not used it while the same account keeps working on the machine that has. The fix was a blob copied out of one deck and pasted into another. Now: **Accounts ▸ Local network**, the same passphrase on each deck — it offers you six words — and they find each other and repair themselves.\n\nA deck only **adds** an account it does not have, or **replaces one it has proven dead** — proven by Anthropic refusing the token, not guessed. A credential that works is never touched. The passphrase is the only gate; a stranger on the same wifi sees that a deck exists and nothing else."
     },
     {
       "title": "⚠️ What sharing a login actually means",
-      "body": "The panel says it once, above the first account you can tick: **a login you share is a live one, and it cannot be taken back.** Turning the switch off stops what has not happened yet. A credential that has left your machine is gone — the only real revocation is signing in again at Anthropic, which ends the session on every machine at once.\n\nSharing a Claude account with another person may also be against Anthropic's terms. Your call; the deck says it once and does not nag."
+      "body": "**A login you share is a live one, and it cannot be taken back.** Turning the switch off stops what has not happened yet; a credential that has left your machine is gone, and the only real revocation is signing in again at Anthropic — which ends the session everywhere at once.\n\nSharing a Claude account may also be against Anthropic's terms. Your call; the deck says it once and does not nag."
     }
   ],
   "3.14.0": [
