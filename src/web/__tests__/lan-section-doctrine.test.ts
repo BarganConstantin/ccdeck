@@ -364,6 +364,58 @@ describe("the invite, which is one piece of text and every address", () => {
   });
 });
 
+describe("the list of decks nearby, which was a wall of ghosts", () => {
+  const T = 1_700_000_000_000;
+  const heard = (over: Record<string, unknown> = {}) => ({ fp: "a", name: "Deck-A", addr: "192.168.1.82", port: 1, at: T, ...over });
+
+  it("drops a deck nobody has heard from in a while", async () => {
+    // Every deck ever heard stayed forever, so a machine started and stopped
+    // seven times was seven rows — same name, same address, none of them
+    // reachable. That is what made the dialog unreadable.
+    const { pairable, PRESENT_MS } = await import("../../server/lan-sync.mjs");
+    const live = heard({ at: T - 1_000 });
+    const gone = heard({ fp: "b", name: "Deck-B", at: T - PRESENT_MS - 1 });
+    expect(pairable([live, gone], T).shown.map((p: { fp: string }) => p.fp)).toEqual(["a"]);
+  });
+
+  it("shows one row per machine, keeping the one still running", async () => {
+    // A deck that restarts takes a new key, so the same machine arrives under a
+    // new fingerprint. To the person reading, a name at an address is a
+    // machine — and the freshest of them is the one still there.
+    const { pairable } = await import("../../server/lan-sync.mjs");
+    const shown = pairable([
+      heard({ fp: "old", at: T - 40_000 }),
+      heard({ fp: "new", at: T - 1_000 }),
+      heard({ fp: "other", name: "Deck-B", at: T - 2_000 }),
+    ], T).shown;
+    expect(shown.map((p: { fp: string }) => p.fp)).toEqual(["new", "other"]);
+  });
+
+  it("puts the deck somebody just started at the top", async () => {
+    const { pairable } = await import("../../server/lan-sync.mjs");
+    const shown = pairable([
+      heard({ fp: "a", name: "A", at: T - 50_000 }),
+      heard({ fp: "b", name: "B", at: T - 1_000 }),
+    ], T).shown;
+    expect(shown.map((p: { name: string }) => p.name)).toEqual(["B", "A"]);
+  });
+
+  it("caps the list and says how many it did not show", async () => {
+    const { pairable } = await import("../../server/lan-sync.mjs");
+    const many = Array.from({ length: 14 }, (_, i) => heard({ fp: `f${i}`, name: `Deck-${i}`, at: T - i }));
+    const out = pairable(many, T, { limit: 8 });
+    expect(out.shown).toHaveLength(8);
+    expect(out.more).toBe(6);
+  });
+
+  it("survives an empty list and junk in it", async () => {
+    const { pairable } = await import("../../server/lan-sync.mjs");
+    expect(pairable([], T).shown).toEqual([]);
+    expect(pairable(null as never, T).shown).toEqual([]);
+    expect(pairable([null, {}, heard()] as never, T).shown).toHaveLength(1);
+  });
+});
+
 describe("what did not change", () => {
   it("still refuses an address with no usable port", () => {
     expect(parseAddress("192.168.1.5:54340")).toEqual({ addr: "192.168.1.5", port: 54340 });

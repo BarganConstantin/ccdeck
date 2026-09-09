@@ -9338,7 +9338,54 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    rather than inventing a second look for the same settings — a reader who has
    used the section knows this dialog already. What is new here is only what a
    288px column could not hold. */
-.lan-modal { max-width: 520px; }
+/* TWO COLUMNS, BECAUSE THE CONTENT IS TWO SUBJECTS. Left is this machine —
+   what it is called, where it can be reached, and which of its logins it
+   offers. Right is everybody else — how to reach one, who is nearby, and who it
+   already talks to. One column made a reader scroll past their own settings to
+   find the deck they came for, and left half the dialog empty.
+
+   `min(980px, 94vw)` rather than the shell's 820: the token is 140 characters
+   and the address rows are monospace, and both were wrapping into three lines
+   in a column that had room for none of it. */
+.lan-modal { width: min(980px, 94vw); }
+.lan-modal .modal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px 22px;
+}
+/* A column is a real column, not two cells the grid happened to stack: sections
+   of very different heights in one row-major grid leave a hole under the
+   shorter of them. */
+.lan-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* The seam. A rule between the two subjects rather than a gap alone, because at
+   this width the eye needs telling that the right column is not a continuation
+   of the left. */
+.lan-modal .modal-body > .lan-col + .lan-col {
+  padding-left: 22px;
+  border-left: 1px solid var(--line);
+  margin-left: -22px;
+}
+/* One column when there is not room for two — a laptop at 1280 with both side
+   panels open leaves this dialog under 700px, and two columns of monospace in
+   that is worse than a scroll. */
+@media (max-width: 900px) {
+  .lan-modal .modal-body { grid-template-columns: minmax(0, 1fr); }
+  .lan-modal .modal-body > .lan-col + .lan-col {
+    padding-left: 0;
+    border-left: 0;
+    margin-left: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+}
+/* A failure is about the whole dialog, not about one column of it. */
+.lan-modal .modal-body > .ap-failure { grid-column: 1 / -1; }
 /* h3 inside the dialog, which names itself with aria-labelledby rather than
    with a heading — so these are the first level of structure inside it. `margin: 0`
    because the UA sheet's 1em would fight the section gap that is doing the work. */

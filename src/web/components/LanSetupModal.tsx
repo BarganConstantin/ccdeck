@@ -219,6 +219,11 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     if (!manual.includes(entry)) void write({ manual: [...manual, entry] }, "add that address");
   };
 
+  // ONLY THE ONES SOMEBODY ACTUALLY PAIRED WITH. An address in the dial list
+  // that has never answered is not a paired deck, and listing it under that
+  // heading was the dialog telling the reader something untrue — those rows
+  // already have a home two blocks up, under the addresses this deck dials.
+  const paired = (status.peers ?? []).filter(p => p.paired);
   const sharedList = pending.current ?? status.shared ?? [];
   const shared = new Set(sharedList);
   const dials = dialLines(status.addrs ?? [], status.port);
@@ -245,6 +250,13 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
             </div>
           )}
 
+          {/* TWO COLUMNS, AND THEY ARE TWO SUBJECTS. Left is this machine —
+              what it is called, where it can be reached, which of its logins it
+              offers. Right is everybody else — how to reach one, who is nearby,
+              who it already talks to. Wrapped rather than left to the grid's own
+              row-major flow, because two sections of very different heights in
+              one grid leave a hole under the shorter of them. */}
+          <div className="lan-col">
           {/* ── this deck ─────────────────────────────────────────────────── */}
           <div className="modal-section">
             <h3 className="lan-h">This deck</h3>
@@ -305,6 +317,41 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
             )}
           </div>
 
+          {/* ── what this deck offers ─────────────────────────────────────── */}
+          <div className="modal-section">
+            <h3 className="lan-h">Share these accounts</h3>
+            <p className="lan-warn">
+              A login you share is a live one, and it cannot be taken back.
+              Turning this off stops what has not happened yet.
+            </p>
+            <div className="ap-lan-picks">
+              {accounts.length === 0 && <span className="ap-lan-empty">no accounts to share yet</span>}
+              {accounts.map(a => (
+                <label key={a.key} className="ap-lan-pick" title={a.alive
+                  ? "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours"
+                  : "This deck cannot use this login, so it has nothing to offer — a deck that can will heal it"}>
+                  <input
+                    type="checkbox"
+                    checked={shared.has(a.key)}
+                    onChange={e => {
+                      const next = new Set(pending.current ?? status.shared ?? []);
+                      if (e.target.checked) next.add(a.key); else next.delete(a.key);
+                      pending.current = [...next];
+                      void write(
+                        { shared: [...next] },
+                        e.target.checked ? "share that account" : "stop sharing that account",
+                      );
+                    }}
+                  />
+                  <span className="ap-lan-pick-name">{a.email}</span>
+                  {!a.alive && <span className="ap-lan-dead">dead here</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          </div>
+          <div className="lan-col">
           {/* ── pair with a deck ──────────────────────────────────────────── */}
           <div className="modal-section">
             <h3 className="lan-h">Pair with another deck</h3>
@@ -351,7 +398,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 className="ap-manage-input ap-lan-input"
                 aria-label="An invite you were sent"
                 value={joinDraft}
-                placeholder="ccdeck1.…"
+                placeholder="ccdeck1…"
                 spellCheck={false}
                 onChange={e => { setJoinDraft(e.target.value); setTried(null); setJoinedWith(null); }}
                 onKeyDown={e => { if (e.key === "Enter") void join(); }}
@@ -364,7 +411,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 </button>
               )}
             </div>
-            {joinedWith && <p className="lan-note lan-good">Paired with {joinedWith}.</p>}
+            {joinedWith && <p className="lan-note lan-good">✓ Paired with {joinedWith}.</p>}
             {tried && (
               <div className="ap-lan-tried">
                 <span className="lan-note">None of the addresses in that invite answered:</span>
@@ -379,15 +426,20 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
 
             {(status.strangers ?? []).length > 0 && (
               <>
-                <h4 className="ap-lan-sub">heard on this network</h4>
+                <h4 className="ap-lan-sub">on this network right now</h4>
+                <p className="lan-note">
+                  Not paired with any of these. Asking one sends it a request its owner has to accept.
+                </p>
                 <div className="ap-lan-peers">
                   {(status.strangers ?? []).map(p => (
                     <div key={p.fp} className="ap-lan-peer">
                       <span className="ap-lan-peer-name">{p.name}</span>
                       <code className="ap-lan-code">{p.addr}</code>
                       <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
-                        onClick={() => void peerAction("accept", p.fp, "pair with that deck")}
-                        title={`Reach ${p.name} and ask its owner to accept. Its fingerprint is ${p.fp}.`}>ask it</button>
+                        onClick={() => void peerAction("accept", p.fp, "reach that deck")}
+                        title={`Send ${p.name} a request. Its owner has to accept it before anything moves. Fingerprint ${p.fp}.`}>
+                        ask to pair
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -428,39 +480,6 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
             )}
           </div>
 
-          {/* ── what this deck offers ─────────────────────────────────────── */}
-          <div className="modal-section">
-            <h3 className="lan-h">Share these accounts</h3>
-            <p className="lan-warn">
-              A login you share is a live one, and it cannot be taken back.
-              Turning this off stops what has not happened yet.
-            </p>
-            <div className="ap-lan-picks">
-              {accounts.length === 0 && <span className="ap-lan-empty">no accounts to share yet</span>}
-              {accounts.map(a => (
-                <label key={a.key} className="ap-lan-pick" title={a.alive
-                  ? "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours"
-                  : "This deck cannot use this login, so it has nothing to offer — a deck that can will heal it"}>
-                  <input
-                    type="checkbox"
-                    checked={shared.has(a.key)}
-                    onChange={e => {
-                      const next = new Set(pending.current ?? status.shared ?? []);
-                      if (e.target.checked) next.add(a.key); else next.delete(a.key);
-                      pending.current = [...next];
-                      void write(
-                        { shared: [...next] },
-                        e.target.checked ? "share that account" : "stop sharing that account",
-                      );
-                    }}
-                  />
-                  <span className="ap-lan-pick-name">{a.email}</span>
-                  {!a.alive && <span className="ap-lan-dead">dead here</span>}
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* ── who this deck talks to ────────────────────────────────────── */}
           <div className="modal-section">
             <h3 className="lan-h">
@@ -471,13 +490,13 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 {checking ? "checking…" : "check now"}
               </button>
             </h3>
-            {(status.peers ?? []).length === 0 ? (
+            {paired.length === 0 ? (
               <span className="ap-lan-empty">
                 none yet — make an invite above and send it, or paste one you were sent
               </span>
             ) : (
               <div className="ap-lan-peers">
-                {(status.peers ?? []).map(p => {
+                {paired.map(p => {
                   const line = roundLabel(p.last, now);
                   const here = isOnline(p, now);
                   return (
@@ -503,6 +522,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 })}
               </div>
             )}
+          </div>
           </div>
         </section>
       </div>

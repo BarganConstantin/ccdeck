@@ -541,6 +541,44 @@ export function dropTrusted(trusted, fp) {
   return (Array.isArray(trusted) ? trusted : []).filter(t => t && t.fp !== fp);
 }
 
+/**
+ * The decks worth offering to pair with, out of everything that has ever been
+ * heard.
+ *
+ * THIS LIST WAS A WALL. Every deck ever heard stayed in it forever, and a deck
+ * that restarts takes a NEW key — so a machine started and stopped seven times
+ * was seven rows, all with the same name, all at the same address, none of them
+ * reachable any more. The dialog it filled was unreadable, which is exactly
+ * what somebody reported.
+ *
+ * Three rules, in order:
+ *
+ * PRESENT ONLY. A deck that has not been heard for a couple of announce
+ * intervals is not somewhere you can pair right now, so it is not offered. This
+ * is the same window the peer table uses, for the same reason.
+ *
+ * ONE ROW PER MACHINE. A person reading this sees a name and an address, and
+ * two rows carrying the same pair are the same machine to them whatever the
+ * fingerprints say. The freshest wins, because it is the one still running.
+ *
+ * NEWEST FIRST, AND CAPPED. The deck somebody just started is the one they are
+ * looking for; a list longer than a screen is a list nobody reads.
+ */
+export function pairable(strangers, now, { presentMs = PRESENT_MS, limit = 8 } = {}) {
+  const live = [...(strangers ?? [])]
+    .filter(p => p && typeof p.at === "number" && now - p.at <= presentMs)
+    .sort((a, b) => b.at - a.at);
+  const seen = new Set();
+  const out = [];
+  for (const p of live) {
+    const key = `${p.name}@${p.addr}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return { shown: out.slice(0, limit), more: Math.max(0, out.length - limit) };
+}
+
 // ── the peer table ──────────────────────────────────────────────────────────
 
 /**

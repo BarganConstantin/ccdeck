@@ -29,7 +29,7 @@
 // anything.
 import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
-import { addTrusted, dropTrusted, identityFrom, mintInvite, readInvite, trustedPeer } from "./lan-sync.mjs";
+import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -363,6 +363,8 @@ export function createEngine({
         onStranger: entry => {
           const had = strangers.get(entry.fp);
           strangers.set(entry.fp, entry);
+          // Only a deck that is new to us is news. A beacon every thirty
+          // seconds from one already on the list is not a reason to redraw.
           if (!had) onChange?.();
         },
         // Take a new key and keep it. Two decks with one identity are invisible
@@ -577,7 +579,13 @@ export function createEngine({
         // things a person does something different about.
         trusted: cfg.trusted.map(t => ({ fp: t.fp, name: t.name })),
         pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
-        strangers: [...strangers.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at })),
+        // Only the ones somebody could actually pair with right now, one row
+        // per machine, newest first — see pairable, which is where the rule
+        // that keeps this from becoming a wall of ghosts lives.
+        strangers: (() => {
+          const { shown, more } = pairable([...strangers.values()], now());
+          return shown.map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more }));
+        })(),
         peers: beacon ? (() => {
           // ONE DECK, ONE ROW, and it takes work because a deck can arrive here
           // twice by two different routes: heard on the network, and dialled at
