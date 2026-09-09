@@ -20,6 +20,8 @@
 // of this was written and it is the same fact that makes self-recognition a
 // fingerprint question rather than an address question.
 import { describe, it, expect, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
 import { createEngine, defaultName, localAddresses, SYNC_MS } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
@@ -48,6 +50,27 @@ function store(rows: Row[]) {
   };
 }
 
+/**
+ * A socket that goes nowhere.
+ *
+ * The TCP half of every case below is real — two engines, one handshake, a
+ * sealed credential — and that is the point. The UDP half must not be: the
+ * beacon broadcasts to 255.255.255.255, so a suite left on the default socket
+ * announced `Deck-A` and `Stranger` on whatever network the machine was on.
+ * They arrived in a real panel, on a real screen, in the list of decks a person
+ * can pair with. Found exactly that way.
+ */
+function deafSocket() {
+  const handlers = new Map<string, (...a: unknown[]) => void>();
+  return {
+    on(ev: string, fn: (...a: unknown[]) => void) { handlers.set(ev, fn); },
+    bind(_p: number, _h: string, cb: () => void) { cb(); },
+    setBroadcast() { /* nothing to set */ },
+    send(_m: unknown, _p: number, _a: string, cb?: (e: Error | null) => void) { cb?.(null); },
+    close() { /* nothing to release */ },
+  };
+}
+
 const running: Array<{ stop: () => void }> = [];
 afterEach(() => { for (const e of running.splice(0)) e.stop(); });
 
@@ -59,6 +82,7 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
   const trusted: Array<{ fp: string; pub: string; name: string }> = [];
   const e = createEngine({
     ...s.deps(over),
+    createSocket: () => deafSocket(),
     onError: (w: string) => errors.push(w),
     // Written straight back into what the next apply is given, which is what
     // index.mjs does through prefs.
@@ -219,7 +243,7 @@ describe("what a peer is refused", () => {
 describe("the switch, and what turning it off means", () => {
   it("is off until it is turned on, and shouts nothing until then", async () => {
     const s = store([]);
-    const e = createEngine(s.deps());
+    const e = createEngine({ ...s.deps(), createSocket: () => deafSocket() });
     running.push(e);
     expect(e.status().enabled).toBe(false);
     expect(e.status().running).toBe(false);
@@ -232,7 +256,7 @@ describe("the switch, and what turning it off means", () => {
     // to hold it back now: it makes its own key on the first start, announces
     // itself, and waits for somebody to accept it.
     const s = store([]);
-    const e = createEngine(s.deps());
+    const e = createEngine({ ...s.deps(), createSocket: () => deafSocket() });
     running.push(e);
     await e.apply({ enabled: true });
     expect(e.status().running).toBe(true);
@@ -302,13 +326,13 @@ describe("how a deck names itself", () => {
 
   it("hands a new key back so the caller can keep it", async () => {
     const kept: string[] = [];
-    const e = createEngine({ ...store([]).deps(), onIdentity: (secret: string) => kept.push(secret) });
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket(), onIdentity: (secret: string) => kept.push(secret) });
     running.push(e);
     await e.apply({ enabled: true, name: "Deck-A", shared: [] });
     expect(kept).toHaveLength(1);
     // And says nothing when it was given one, because there is nothing to keep.
     const kept2: string[] = [];
-    const e2 = createEngine({ ...store([]).deps(), onIdentity: (secret: string) => kept2.push(secret) });
+    const e2 = createEngine({ ...store([]).deps(), createSocket: () => deafSocket(), onIdentity: (secret: string) => kept2.push(secret) });
     running.push(e2);
     await e2.apply({ enabled: true, name: "Deck-B", shared: [], secret: kept[0] });
     expect(kept2).toEqual([]);
@@ -349,7 +373,7 @@ describe("an address somebody typed", () => {
     // Adding one at a time would leave a removed address still dialled every
     // minute until the next restart — the row would vanish from the panel while
     // the socket kept opening, which is the worst of both.
-    const e = createEngine(store([]).deps());
+    const e = createEngine({ ...store([]).deps(), createSocket: () => deafSocket() });
     running.push(e);
     expect(e.setPeers(["1.2.3.4:5", "6.7.8.9:10"])).toBe(2);
     expect(e.setPeers(["1.2.3.4:5"])).toBe(1);
@@ -436,5 +460,23 @@ describe("the cadence", () => {
   it("asks often enough to feel live and far less often than a login dies", () => {
     expect(SYNC_MS).toBeGreaterThanOrEqual(30_000);
     expect(SYNC_MS).toBeLessThanOrEqual(5 * 60_000);
+  });
+});
+
+describe("the suite must not shout on somebody's network", () => {
+  it("gives every engine a socket that goes nowhere", () => {
+    // The TCP half of these cases is real and should be: two engines, one
+    // handshake, a sealed credential, and a mock would only check that the mock
+    // agrees with the code it was written from.
+    //
+    // The UDP half must not be. The beacon broadcasts to 255.255.255.255, so a
+    // case left on the default socket announced `Deck-A` and `Stranger` on
+    // whatever network the machine was on — and they arrived in a real panel,
+    // on a real screen, in the list of decks a person can pair with. Found
+    // exactly that way, in a screenshot.
+    const src = readFileSync(fileURLToPath(new URL("./lan-engine.test.ts", import.meta.url)), "utf8");
+    const builds = [...src.matchAll(/createEngine\(/g)].length;
+    const deaf = [...src.matchAll(/createSocket: \(\) => deafSocket\(\)/g)].length;
+    expect(deaf, "an engine was built without a deaf socket").toBe(builds);
   });
 });

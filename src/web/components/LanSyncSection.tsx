@@ -363,8 +363,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
           {...selfPressProps(busy)}
           onClick={() => void toggle()}
           title={on
-            ? "Stop answering other decks and stop dialling them"
-            : "Let decks you pair with heal this one's dead logins"}
+            ? "Stop talking to other decks. Nothing is shared while this is off."
+            : "Let the decks you pair with repair this one's expired logins"}
         >
           <i className={on ? "ap-pulse" : "ap-dot"} aria-hidden />
           {on ? "on" : "off"}
@@ -375,7 +375,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
           line: this section is read by a person who came to look at a quota,
           and a paragraph here is a paragraph they scroll past. What sharing a
           login costs is said in the dialog, where the decision is. */}
-      <p className="ap-auto-note">Decks you pair with heal each other&apos;s dead logins.</p>
+      {/* One verb for one thing, everywhere. The account rows in this panel
+          already say `login expired`, so this says expired too — "heal" and
+          "dead" were two more words for the same state and a reader scanning
+          three of them has to work out that they are one. */}
+      <p className="ap-auto-note">Decks you pair with repair each other&apos;s expired logins.</p>
 
       {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
           by reading the whole thing and working it out. This is the panel's own
@@ -409,12 +413,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   <span className="ap-lan-ask-acts">
                     <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                       onClick={() => void answer("accept", p.fp)}
-                      title={`Talk to this deck from now on. Its fingerprint is ${p.fp} — check that it matches what is on their screen.`}>
+                      title={`Talk to this deck from now on. Its fingerprint is ${p.fp} — check it matches the one on their screen before you accept.`}>
                       accept
                     </button>
                     <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                       onClick={() => void answer("dismiss", p.fp)}
-                      title="Take this request off the list. If that deck asks again it comes back.">
+                      title="Take this request off the list. Nothing is shared. If that deck asks again, it comes back.">
                       dismiss
                     </button>
                   </span>
@@ -450,8 +454,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
           {online.length === 0 && (
             <p className="ap-lan-fine">
               {(status?.peers ?? []).length === 0
-                ? "Open setup to invite a deck. It takes one paste on the other machine."
-                : "Nothing is answering right now."}
+                ? "No deck paired yet. Open setup, make an invite and send it — they paste it and you are done."
+                : "None of the decks you paired with is answering right now."}
             </p>
           )}
 
@@ -461,7 +465,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
               something you do twice. What you do every day is look. */}
           <button type="button" className="ap-manage-btn ap-lan-setup" {...selfPressProps(busy)}
             onClick={() => setSetupOpen(true)}
-            title="Invite a deck, join one, and choose which accounts this deck offers">
+            title="Invite a deck, join one, and choose which logins this deck offers">
             {offline.length
               ? `setup · ${offline.length} away`
               : (status?.peers ?? []).length ? "setup…" : "invite a deck…"}

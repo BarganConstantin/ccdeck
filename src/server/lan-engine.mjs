@@ -90,6 +90,19 @@ export function localAddresses(faces = networkInterfaces()) {
 export function createEngine({
   readAccounts, exportAccount, importAccount,
   onChange, onError, onIdentity, onPort, onTrust, onDial, now = Date.now,
+  /**
+   * The UDP socket the beacon shouts through, injectable for the same reason
+   * lan-socket exposes it — and for one more that only showed up in use.
+   *
+   * The suite runs whole engines over real sockets, which is right: a handshake
+   * between two of them is the thing being tested and a mock would only check
+   * that the mock agrees with the code it was written from. But `createBeacon`
+   * defaulted to a real dgram socket, so `npm test` BROADCAST on whatever
+   * network the machine was on — and the fake decks it announces turned up in
+   * a real panel, on a real screen, in a list of decks somebody could pair
+   * with. Nothing secret leaves, and it is still a test shouting at an office.
+   */
+  createSocket,
 } = {}) {
   let cfg = { enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0 };
   let identity = null;
@@ -376,6 +389,7 @@ export function createEngine({
           onError?.("id-clash", new Error("another deck was using this one's key; taking a new one"));
         },
         onError, now,
+        ...(createSocket ? { createSocket } : {}),
       });
       await beacon.start();
       timer = setInterval(() => { void round(); }, SYNC_MS);

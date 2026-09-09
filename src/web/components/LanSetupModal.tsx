@@ -277,7 +277,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
               {nameDraft != null && nameDraft !== (status.name ?? "") && (
                 <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                   onClick={() => { void write({ name: nameDraft }, "save the name"); setNameDraft(null); }}
-                  title="Save the name other decks see">save</button>
+                  title="Save it. This is the name other decks show for this one.">save</button>
               )}
             </div>
             <p className="lan-note">Everyone on this network can see this name.</p>
@@ -295,7 +295,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                       <button key={d} type="button" className="ap-manage-btn lan-dial"
                         {...selfPressProps(busy)}
                         onClick={() => void copy(d)}
-                        title="Copy this, and give it to the other deck">
+                        title="Copy this address, and give it to the other deck">
                         <code className="ap-lan-code">{d}</code>
                         {copied === d && <span className="lan-copied">copied</span>}
                       </button>
@@ -303,17 +303,26 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                   </span>
                 </div>
                 <p className="lan-note">
-                  Broadcast does not cross a router, so give the other deck whichever of these it can reach.
+                  A deck on another network cannot find this one on its own. Give it whichever
+                  of these it can reach — or send an invite, which carries them all.
                 </p>
               </>
             ) : (
-              <p className="lan-note">This machine has no network address to give out yet.</p>
+              <p className="lan-note">
+                No network address yet. This machine is not connected to anything other decks could reach.
+              </p>
             )}
             {status.fp && (
-              <div className="ap-lan-row">
-                <span className="ap-lan-label">fingerprint</span>
-                <code className="ap-lan-code">{status.fp}</code>
-              </div>
+              <>
+                <div className="ap-lan-row">
+                  <span className="ap-lan-label">fingerprint</span>
+                  <code className="ap-lan-code">{status.fp}</code>
+                </div>
+                <p className="lan-note">
+                  This deck&apos;s own. When somebody asks to pair, compare the one they show
+                  against the one on their screen.
+                </p>
+              </>
             )}
           </div>
 
@@ -321,11 +330,16 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
           <div className="modal-section">
             <h3 className="lan-h">Share these accounts</h3>
             <p className="lan-warn">
-              A login you share is a live one, and it cannot be taken back.
-              Turning this off stops what has not happened yet.
+              A login you tick here is a working one, and another deck keeps its own copy.
+              Unticking stops it being offered from now on — it does not take back a copy
+              somebody already has.
             </p>
             <div className="ap-lan-picks">
-              {accounts.length === 0 && <span className="ap-lan-empty">no accounts to share yet</span>}
+              {accounts.length === 0 && (
+                <span className="ap-lan-empty">
+                  No Claude accounts on this deck yet — add one with + at the top of this panel.
+                </span>
+              )}
               {accounts.map(a => (
                 <label key={a.key} className="ap-lan-pick" title={a.alive
                   ? "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours"
@@ -344,7 +358,10 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                     }}
                   />
                   <span className="ap-lan-pick-name">{a.email}</span>
-                  {!a.alive && <span className="ap-lan-dead">dead here</span>}
+                  {/* Not "dead": a reader who has not read the docs cannot tell whether
+                      that is about the account or about this machine. It is about this
+                      machine's copy, and that is what makes it the one a peer heals. */}
+                  {!a.alive && <span className="ap-lan-dead">not working here</span>}
                 </label>
               ))}
             </div>
@@ -371,23 +388,25 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                   </button>
                   <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                     onClick={() => void invite("withdraw")}
-                    title="Stop offering it. Anybody holding it can no longer pair.">
-                    put it away
+                    title="Cancel it. Anybody already holding the text can no longer use it.">
+                    cancel invite
                   </button>
                 </div>
                 {/* Said once, where the decision is: what holding this token
                     actually lets somebody do, and that it carries every address
                     so they never have to know which one they can reach. */}
                 <p className="lan-note">
-                  It carries this deck&apos;s addresses and a code, so they do not have to know
-                  which one they can reach. Anyone holding it can pair with this deck until it
-                  runs out. They paste it and it pairs itself — nobody has to press anything here.
+                  They paste it and it pairs itself — nothing to press here.
+                  It carries every address this deck has, so they do not have to know which one works.
+                </p>
+                <p className="lan-warn">
+                  Anyone who gets hold of this text can pair with this deck until it runs out.
                 </p>
               </div>
             ) : (
               <button type="button" className="ap-manage-btn lan-primary" {...selfPressProps(busy)}
                 onClick={() => void invite("make")}
-                title="One piece of text that carries this deck's addresses and a code">
+                title="One piece of text you send them. They paste it and the two decks pair.">
                 make an invite
               </button>
             )}
@@ -406,15 +425,22 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
               {joinDraft.trim() !== "" && (
                 <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                   onClick={() => void join()}
-                  title="Reach that deck and pair with it. Nobody has to press anything on the other side.">
+                  title="Reach that deck and pair with it. Nobody has to press anything there.">
                   {joining ? "joining…" : "join"}
                 </button>
               )}
             </div>
-            {joinedWith && <p className="lan-note lan-good">✓ Paired with {joinedWith}.</p>}
+            {joinedWith && (
+              <p className="lan-note lan-good">
+                ✓ Paired with {joinedWith}. It is in the list below now.
+              </p>
+            )}
             {tried && (
               <div className="ap-lan-tried">
-                <span className="lan-note">None of the addresses in that invite answered:</span>
+                <span className="lan-note">
+                  Nothing answered at any address in that invite. Check that deck is running
+                  and that its Local network switch is on.
+                </span>
                 {tried.map(t => (
                   <span key={t.addr} className="ap-lan-tried-row">
                     <code className="ap-lan-code">{t.addr}</code>
@@ -428,7 +454,8 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
               <>
                 <h4 className="ap-lan-sub">on this network right now</h4>
                 <p className="lan-note">
-                  Not paired with any of these. Asking one sends it a request its owner has to accept.
+                  You are not paired with any of these yet. Asking sends a request the
+                  person at that machine has to accept.
                 </p>
                 <div className="ap-lan-peers">
                   {(status.strangers ?? []).map(p => (
@@ -437,7 +464,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                       <code className="ap-lan-code">{p.addr}</code>
                       <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
                         onClick={() => void peerAction("accept", p.fp, "reach that deck")}
-                        title={`Send ${p.name} a request. Its owner has to accept it before anything moves. Fingerprint ${p.fp}.`}>
+                        title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
                         ask to pair
                       </button>
                     </div>
@@ -448,15 +475,15 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
 
             {(status.manualRows ?? []).length > 0 && (
               <>
-                <h4 className="ap-lan-sub">addresses this deck dials</h4>
+                <h4 className="ap-lan-sub">addresses this deck keeps trying</h4>
                 <div className="ap-lan-peers">
                   {(status.manualRows ?? []).map(row => (
                     <div key={row} className="ap-lan-peer">
                       <code className="ap-lan-code">{row}</code>
                       <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
                         onClick={() => void write({ manual: manual.filter(m => m !== row) }, "stop dialling that address")}
-                        aria-label={`Stop dialling ${row}`}
-                        title="Stop dialling this address">remove</button>
+                        aria-label={`Stop trying ${row}`}
+                        title="Stop trying this address">remove</button>
                     </div>
                   ))}
                 </div>
@@ -473,7 +500,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                   {addrDraft.trim() !== "" && (
                     <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
                       onClick={() => { if (selfPressAccepted(busyRef.current)) addAddress(); }}
-                      title="Dial this deck directly, for a machine broadcast cannot reach">add</button>
+                      title="Try this address every minute. Use it when a deck cannot be found on its own.">add</button>
                   )}
                 </div>
               </>
@@ -486,7 +513,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
               Paired decks
               <button type="button" className="ap-manage-btn lan-h-btn" {...selfPressProps(busy)}
                 onClick={() => void checkNow()}
-                title="Ask every paired deck right now instead of waiting for the next minute">
+                title="Check every paired deck now, instead of waiting for the next minute">
                 {checking ? "checking…" : "check now"}
               </button>
             </h3>
@@ -506,12 +533,15 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                         ? <code className="ap-lan-code">{p.addr}:{p.port}</code>
                         : <span className="ap-lan-peer-name">{p.name}</span>}
                       <span className="ap-lan-peer-when" title={p.addr ? `${p.addr}:${p.port}` : undefined}>
-                        {here ? "here" : p.waiting ? "it calls us" : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away"}
+                        {/* "it calls us" was true and internal-sounding. What it means to a
+                            reader is that this deck has no address for that one, so the
+                            connection only happens in one direction. */}
+                        {here ? "here" : p.waiting ? "reaches us" : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away"}
                       </span>
                       <button type="button" className="ap-manage-btn danger ap-lan-drop" {...selfPressProps(busy)}
                         onClick={() => void peerAction("unpair", p.peerFp ?? p.fp, "unpair that deck")}
                         aria-label={`Unpair ${p.name}`}
-                        title="Stop talking to this deck. It takes back nothing already shared.">unpair</button>
+                        title="Stop talking to this deck from now on. Logins it already has stay with it.">unpair</button>
                       {line && (
                         <span className={`ap-lan-peer-last${line.tone === "bad" ? " ap-lan-bad" : ""}`}>
                           {line.text}

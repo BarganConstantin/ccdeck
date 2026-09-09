@@ -424,12 +424,16 @@ describe("what did not change", () => {
     }
   });
 
-  it("still keeps the sentence that cannot be softened, where the decision is", () => {
-    // It moved with the checkboxes. The panel does not share anything any more
-    // — it says who is here — so the sentence belongs above the only control
-    // that can put a live login on the network, which is in the dialog.
-    expect(MODAL).toMatch(/cannot be taken back/);
-    expect(MODAL.indexOf("cannot be taken back")).toBeLessThan(MODAL.indexOf('type="checkbox"'));
+  it("still says the thing that cannot be softened, where the decision is", () => {
+    // It moved with the checkboxes, and a clarify pass changed the words. What
+    // is pinned is the MEANING, in the two halves that have to survive any
+    // rewrite: another machine keeps its own copy, and untick does not take
+    // that copy back. Pinning the sentence verbatim would have made honest
+    // rewording look like a regression.
+    const warn = /<p className="lan-warn">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
+    expect(warn).toMatch(/keeps its own copy/);
+    expect(warn).toMatch(/does not take back/);
+    expect(MODAL.indexOf("lan-warn")).toBeLessThan(MODAL.indexOf('type="checkbox"'));
   });
 
   it("still says the deck's name is public, where the field is", () => {
