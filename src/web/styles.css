@@ -6679,6 +6679,10 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    carries the two things worth checking, so it wraps rather than truncating. */
 .ap-lan-empty { color: var(--muted); font-size: 10px; line-height: 1.45; }
 
+/* Takes a typed address off the list. `margin-left: auto` puts it at the far
+   edge of its row, away from the name it removes — the same distance the panel
+   uses everywhere else to keep a destructive control off the thing it acts on. */
+.ap-lan-drop { margin-left: auto; }
 .ap-lan-addr { margin-top: 10px; }
 .ap-lan-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

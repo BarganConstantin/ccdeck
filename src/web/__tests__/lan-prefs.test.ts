@@ -72,7 +72,7 @@ describe("what a page is allowed to see", () => {
 describe("the shape on disk", () => {
   it("is off until somebody turns it on", () => {
     expect(DEFAULTS.lan.enabled).toBe(false);
-    expect(normalise({}).lan).toEqual({ enabled: false, name: "", passphrase: "", shared: [], manual: [] });
+    expect(normalise({}).lan).toEqual({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "" });
   });
 
   it("does not lose the passphrase when a page toggles the switch", async () => {
@@ -86,7 +86,17 @@ describe("the shape on disk", () => {
       rename: async () => {},
     };
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
-    expect(saved!.lan).toEqual({ enabled: true, name: "", passphrase: "kept", shared: ["a@@1"], manual: [] });
+    expect(saved!.lan).toEqual({ enabled: true, name: "", passphrase: "kept", shared: ["a@@1"], manual: [], deckId: "" });
+  });
+
+  it("refuses a deck id that is not one, so a junk beacon is never sent", () => {
+    // It travels in every beacon, where the reader validates the shape and
+    // drops a packet that fails — a junk id would make this deck invisible with
+    // nothing on screen to say why.
+    expect(normalise({ lan: { deckId: "0123456789ab" } }).lan.deckId).toBe("0123456789ab");
+    for (const junk of ["", "nope", "ZZZZZZZZZZZZ", "0123456789abcdef", 5, null]) {
+      expect(normalise({ lan: { deckId: junk } }).lan.deckId, String(junk)).toBe("");
+    }
   });
 
   it("refuses anything in the lists that is not a string", () => {

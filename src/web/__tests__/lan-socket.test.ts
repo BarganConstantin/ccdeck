@@ -375,6 +375,26 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
+  it("says so when another deck is wearing its name", async () => {
+    // Two decks sharing a config directory, or a ~/.claude copied to a second
+    // machine. Reported rather than fixed here: this file carries packets, and
+    // choosing a new name belongs to whoever stores it.
+    const sock = fakeSocket();
+    const clashes: number[] = [];
+    const { b, fp } = beaconOn(sock, { onIdClash: () => clashes.push(1) });
+    await b.start();
+    // Our own fingerprint, from a process that is not ours.
+    sock.deliver(Buffer.from(JSON.stringify({
+      m: "CCDK", v: 1, n: "Twin", f: fp, p: 4319, g: groupTag(KEY), i: "ffffffff",
+    })), "192.168.1.99");
+    expect(clashes).toHaveLength(1);
+    expect(b.peers.size, "a clashing deck was filed as a peer").toBe(0);
+    // And our own packet coming back is still just our own packet.
+    sock.deliver(sock.sent[0].msg, "192.168.1.82");
+    expect(clashes).toHaveLength(1);
+    b.stop();
+  });
+
   it("answers a deck it has never seen, so the second one to start is not blind", async () => {
     // Measured on two real decks before this existed: deck 1 saw deck 2 the
     // instant it started and deck 2 saw nobody, because deck 1's own immediate

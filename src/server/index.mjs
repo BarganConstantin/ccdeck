@@ -3254,6 +3254,20 @@ const lanEngine = createEngine({
     const out = await importAccount(blob);
     return !!out?.ok;
   },
+  // The deck's own public id, kept so a restart is the same deck rather than a
+  // new row in every peer's list. Written once, on the first start that has
+  // none — not a secret, and in every beacon this deck sends.
+  onIdentity: async id => {
+    try {
+      _prefs = await writePrefs({ lan: { deckId: id } });
+      // AND PUT IT TO WORK. Writing it alone was not enough: a clash was
+      // detected, a new id was stored, and both decks kept broadcasting the old
+      // one — so they stayed invisible to each other with a correct file on
+      // disk. `apply` restarts only when the id it is holding differs from the
+      // one it is given, so this settles after one pass rather than looping.
+      await applyLanPrefs();
+    } catch { /* the next start picks it up; a shared id is the cost until then */ }
+  },
   onError: (what, err) => {
     // Reported, never thrown. A machine with no route, a firewall that refuses
     // the bind, an interface that comes and goes with a VPN — none of them is a
@@ -3272,11 +3286,11 @@ async function applyLanPrefs() {
       name: lan.name || defaultName(),
       passphrase: lan.passphrase || "",
       shared: Array.isArray(lan.shared) ? lan.shared : [],
+      deckId: lan.deckId || "",
     });
-    for (const entry of Array.isArray(lan.manual) ? lan.manual : []) {
-      const i = String(entry).lastIndexOf(":");
-      if (i > 0) lanEngine.addPeer(entry.slice(0, i), Number(entry.slice(i + 1)));
-    }
+    // Wholesale, so removing an address in the panel really stops it being
+    // dialled rather than only taking the row away.
+    lanEngine.setPeers(lan.manual);
   } catch (err) {
     console.error(`${PRODUCT}: lan sync could not start:`, err?.message ?? err);
   }

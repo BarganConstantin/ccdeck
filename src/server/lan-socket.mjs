@@ -73,7 +73,7 @@ export const REPLY_COOLDOWN_MS = 2_000;
  * panel to be able to say what happened.
  */
 export function createBeacon({
-  port, name, fp, key, onPeer, onError, now = Date.now,
+  port, name, fp, key, onPeer, onError, onIdClash, now = Date.now,
   // Injected so the suite can drive this with a socket it controls. CI runners
   // are not a network: GitHub's have no broadcast domain worth the name, and a
   // test that quietly skipped there would be a test that stopped testing
@@ -117,8 +117,15 @@ export function createBeacon({
       // the bytes and the address and does what it is told.
       if (msg.length > MAX_BEACON_BYTES) return;
       const beacon = readBeacon(msg);
-      const verdict = beaconVerdict(beacon, { selfFp: fp, selfGroup: group });
-      if (verdict !== "peer") { if (verdict === "other-group") onError?.("other-group", null); return; }
+      const verdict = beaconVerdict(beacon, { selfFp: fp, selfGroup: group, selfInstance: instance });
+      if (verdict !== "peer") {
+        if (verdict === "other-group") onError?.("other-group", null);
+        // Another deck is using this one's id — see beaconVerdict. Reported
+        // rather than fixed here: this file carries packets, and choosing a new
+        // name for the deck belongs to whoever stores it.
+        if (verdict === "id-clash") onIdClash?.();
+        return;
+      }
       const known = peers.has(beacon.fp);
       const noted = notePeer(peers, beacon, rinfo.address, now());
       // ANSWER A DECK WE HAVE NEVER SEEN, once. Without this the second deck to

@@ -54,7 +54,7 @@ export const DEFAULTS = Object.freeze({
   notifications: true,
   // LAN sync, off until somebody turns it on. `passphrase` is the only secret
   // this file has ever held, which is why the write below now names a mode.
-  lan: Object.freeze({ enabled: false, name: "", passphrase: "", shared: [], manual: [] }),
+  lan: Object.freeze({ enabled: false, name: "", passphrase: "", shared: [], manual: [], deckId: "" }),
 });
 
 /** The mode prefs.json is created with.
@@ -82,6 +82,12 @@ function normaliseLan(raw) {
     passphrase: typeof src.passphrase === "string" ? src.passphrase : "",
     shared: strings(src.shared),
     manual: strings(src.manual),
+    // A PUBLIC identifier, not a key and not a secret: it is in every beacon
+    // this deck broadcasts, and what authenticates is the passphrase. It is
+    // persisted so a restarted deck is recognised as the same one — without
+    // that, every restart adds a row to every peer's list that will never
+    // answer again, and the list is a graveyard within an afternoon.
+    deckId: typeof src.deckId === "string" && /^[0-9a-f]{12}$/.test(src.deckId) ? src.deckId : "",
   };
 }
 

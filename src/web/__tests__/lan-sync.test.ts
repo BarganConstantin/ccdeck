@@ -17,8 +17,8 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   accountKey, beaconPayload, beaconVerdict, cleanName, fingerprint, groupKey, groupTag,
   isPresent, manifestFor, notePeer, open, peerRows, plan, proof, proofOk, readBeacon,
-  seal, suggestPassphrase, syncAction, transferChallenge,
-  ANNOUNCE_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL, WORDS,
+  seal, stillListed, suggestPassphrase, syncAction, transferChallenge,
+  ANNOUNCE_MS, FORGET_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL, WORDS,
 } from "../../server/lan-sync.mjs";
 
 const KEY = groupKey("amber-canyon-forty-drift");
@@ -132,6 +132,26 @@ describe("who gets answered at all", () => {
   it("ignores its own shout, which it hears on every interface it owns", () => {
     // By fingerprint rather than by address: a deck hears itself on each
     // interface, and the address list changes when a VPN comes up.
+    expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP, selfGroup: TAG })).toBe("self");
+  });
+
+  it("tells its own packet from another deck wearing its name", () => {
+    // The id is stored in prefs, so two decks sharing a config directory hold
+    // the same one — and so does the second machine when somebody copies their
+    // ~/.claude across, which people do. Both would file every one of the
+    // other's beacons as "that is me" and be permanently invisible to each
+    // other with nothing on screen to say why.
+    //
+    // `instance` is fresh per process, so our own packet carries the instance
+    // we are running and another deck's cannot.
+    const mine = readBeacon(beacon({ f: FP, i: "aaaaaaaa" }));
+    expect(beaconVerdict(mine, { selfFp: FP, selfGroup: TAG, selfInstance: "aaaaaaaa" })).toBe("self");
+    expect(beaconVerdict(mine, { selfFp: FP, selfGroup: TAG, selfInstance: "bbbbbbbb" })).toBe("id-clash");
+  });
+
+  it("still reads a bare self-check as self, for a caller with no instance", () => {
+    // The parameter arrived later than the function; a caller that does not
+    // pass one must keep the answer it had rather than start reporting a clash.
     expect(beaconVerdict(readBeacon(beacon({ f: FP })), { selfFp: FP, selfGroup: TAG })).toBe("self");
   });
 
@@ -478,6 +498,36 @@ describe("the list of decks, which outlives their being on", () => {
     // And again with the map built in the other order.
     const flipped = new Map([...peers.entries()].reverse());
     expect(peerRows(flipped, now).map((p: { name: string }) => p.name)).toEqual(["Alpha", "Zed", "Beta"]);
+  });
+
+  it("forgets a deck nobody has heard from since yesterday", () => {
+    // Without this the list is a graveyard, and that was measured rather than
+    // imagined: on a machine where decks had been restarted a few times, every
+    // peer's list held a row per restart, each reporting ECONNREFUSED once a
+    // minute against a port nothing had listened on for an hour.
+    const heard = { fp: OTHER, lastSeen: now };
+    expect(stillListed(heard, now)).toBe(true);
+    // Still listed the same evening, with the time beside it — the list answers
+    // "who is in my group", and that does not change when a laptop closes.
+    expect(stillListed(heard, now + 8 * 60 * 60_000)).toBe(true);
+    expect(stillListed(heard, now + FORGET_MS - 1)).toBe(true);
+    expect(stillListed(heard, now + FORGET_MS)).toBe(false);
+    expect(stillListed(heard, now + 30 * FORGET_MS)).toBe(false);
+  });
+
+  it("never forgets an address somebody typed", () => {
+    // The whole reason this is a rule rather than a comparison at the call
+    // site: a typed address is a decision the user made, and a deck that has
+    // been off for a week is exactly the case they typed it for.
+    const typed = { fp: "manual:1.2.3.4:5", manual: true, lastSeen: null };
+    expect(stillListed(typed, now)).toBe(true);
+    expect(stillListed(typed, now + 100 * FORGET_MS)).toBe(true);
+  });
+
+  it("does not list a peer that has never been heard at all", () => {
+    expect(stillListed({ fp: OTHER, lastSeen: null }, now)).toBe(false);
+    expect(stillListed(null, now)).toBe(false);
+    expect(stillListed(undefined, now)).toBe(false);
   });
 
   it("keeps a hand-typed peer hand-typed once a beacon finds it", () => {

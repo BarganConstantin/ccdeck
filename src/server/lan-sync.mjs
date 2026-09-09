@@ -318,9 +318,22 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
  * broadcast on every interface it owns, and filtering by address would need a
  * list of them that changes when a VPN comes up.
  */
-export function beaconVerdict(beacon, { selfFp, selfGroup }) {
+export function beaconVerdict(beacon, { selfFp, selfGroup, selfInstance }) {
   if (!beacon) return "unreadable";
-  if (beacon.fp === selfFp) return "self";
+  if (beacon.fp === selfFp) {
+    // OUR OWN NAME, FROM SOMEBODY ELSE'S PROCESS. The id is stored in prefs, so
+    // two decks sharing a config directory hold the same one — and so does the
+    // second machine when somebody copies their ~/.claude across, which people
+    // do. Both then file every one of the other's beacons as "that is me" and
+    // the two are permanently invisible to each other, with nothing on screen
+    // to say why.
+    //
+    // `instance` is what separates the cases: it is fresh per process, so our
+    // own packet carries the instance we are running and another deck's cannot.
+    // Told apart here rather than healed here — this function decides, and
+    // regenerating an id is the engine's to do.
+    return selfInstance && beacon.instance !== selfInstance ? "id-clash" : "self";
+  }
   if (!selfGroup) return "no-group";
   // Constant-time, because this compares a value derived from a secret against
   // one an attacker chooses, once per packet, forever. A byte-at-a-time compare
@@ -376,6 +389,32 @@ export function notePeer(peers, beacon, addr, now) {
  *  all — see notePeer. */
 export function isPresent(peer, now) {
   return peer.lastSeen != null && now - peer.lastSeen < PRESENT_MS;
+}
+
+/** How long a deck stays in the list after its last beacon. See stillListed. */
+export const FORGET_MS = 24 * 60 * 60_000;
+
+/**
+ * Whether a peer still belongs in the list at all.
+ *
+ * The list answers "who is in my group", and that does not change when a laptop
+ * closes — so a deck heard this morning is still there tonight with the time
+ * beside it. A day later it is not news that it once existed.
+ *
+ * WITHOUT THIS the list is a graveyard, and that was measured rather than
+ * imagined: on a machine where decks had been restarted a few times, every
+ * peer's list held a row per restart, each reporting ECONNREFUSED once a minute
+ * against a port nothing had listened on for an hour. A stable deck id stopped
+ * new rows appearing; this is what clears the ones that are genuinely gone.
+ *
+ * A TYPED ADDRESS IS EXEMPT, and that is the whole reason this is a rule rather
+ * than a comparison inlined at the call site: an address somebody typed is a
+ * decision they made, and a deck that has been off for a week is exactly the
+ * case they typed it for. Only the user takes those off.
+ */
+export function stillListed(peer, now, forgetMs = FORGET_MS) {
+  if (peer?.manual) return true;
+  return peer?.lastSeen != null && now - peer.lastSeen < forgetMs;
 }
 
 /**

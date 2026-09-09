@@ -27,7 +27,7 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, manifestFor, open, plan, proof, seal, transferChallenge } from "./lan-sync.mjs";
+import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
 import { fingerprint, groupKey } from "./lan-sync.mjs";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
@@ -43,21 +43,31 @@ export const SYNC_MS = 60_000;
  *  going to answer, and holding the attempt open would stall the next round. */
 export const ROUND_MS = 10_000;
 
+
 /**
- * The deck's own long-term key, and the fingerprint everybody knows it by.
+ * The name everybody knows this deck by.
  *
- * REGENERATED EVERY START, which is a real decision and not a shortcut. A
- * persisted key would let a peer recognise this deck across restarts and would
- * be one more secret on disk to protect; what recognition buys is a stable row
- * in a list, and what it costs is a file whose theft lets somebody impersonate
- * this deck to its own group. The group passphrase is what authenticates, and
- * it is the same after a restart, so the only thing lost is that a restarted
- * deck appears as a new row for one interval.
+ * PERSISTED, and the first version was not. It regenerated on every start, on
+ * the argument that a stored key is one more secret to protect — and that
+ * argument was about the wrong thing, because this is not a key. Nothing is
+ * signed with it and nothing is decrypted with it; the group passphrase is what
+ * authenticates, and this is only an identifier, broadcast in the clear in
+ * every beacon. There is nothing here to steal.
+ *
+ * What regenerating it cost was measured rather than guessed: on a machine
+ * where decks had been restarted a few times, every peer's list held a row per
+ * restart — dozens of them, each reporting ECONNREFUSED every minute against a
+ * port nothing has listened on for an hour. Remembered forever and never
+ * recognised again is the worst of both, and a stable id is the whole fix.
  */
-export function newIdentity() {
+export function newIdentity(stored) {
+  if (typeof stored === "string" && /^[0-9a-f]{12}$/.test(stored)) {
+    return { fp: stored.replace(/(.{3})(?=.)/g, "$1-"), id: stored };
+  }
   const { publicKey } = generateKeyPairSync("x25519");
   const raw = publicKey.export({ type: "spki", format: "der" });
-  return { fp: fingerprint(raw) };
+  const fp = fingerprint(raw);
+  return { fp, id: fp.replace(/-/g, "") };
 }
 
 /** What this machine calls itself when the user has not said. The hostname,
@@ -101,9 +111,9 @@ export function localAddress(faces = networkInterfaces()) {
  */
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, now = Date.now,
+  onChange, onError, onIdentity, now = Date.now,
 } = {}) {
-  let cfg = { enabled: false, name: defaultName(), passphrase: "", shared: [] };
+  let cfg = { enabled: false, name: defaultName(), passphrase: "", shared: [], deckId: "" };
   let identity = null;
   let beacon = null;
   let server = null;
@@ -241,7 +251,9 @@ export function createEngine({
     // Heard first, typed second, and a typed one is skipped when the beacon
     // already found that address: otherwise a deck that is both would be dialled
     // twice a round and its work counted twice.
-    const heard = [...beacon.peers.values()];
+    // The same rule the list uses. A deck that has been silent for a day is not
+    // dialled once a minute forever on the chance it comes back.
+    const heard = [...beacon.peers.values()].filter(p => stillListed(p, now()));
     const seen = new Set(heard.map(p => `${p.addr}:${p.port}`));
     for (const peer of [...heard, ...[...manual.values()].filter(p => !seen.has(`${p.addr}:${p.port}`))]) {
       // Sequential rather than parallel. The store takes one mutation at a
@@ -259,17 +271,29 @@ export function createEngine({
       cfg = { ...cfg, ...next };
       const restart = !was.enabled !== !cfg.enabled
         || was.passphrase !== cfg.passphrase
-        || was.name !== cfg.name;
+        || was.name !== cfg.name
+        || was.deckId !== cfg.deckId;
       if (!restart) return;
       this.stop();
       if (!cfg.enabled || !cfg.passphrase) return;
       key = groupKey(cfg.passphrase);
-      identity = newIdentity();
+      identity = newIdentity(cfg.deckId);
+      // Hand the caller an id to keep when there was none, so the next start is
+      // the same deck rather than a new row in everybody's list.
+      if (identity.id !== cfg.deckId) onIdentity?.(identity.id);
       server = createSyncServer({ fp: identity.fp, name: cfg.name, key, handlers: serve, onError });
       const port = await server.start();
       beacon = createBeacon({
         port, name: cfg.name, fp: identity.fp, key,
         onPeer: () => onChange?.(),
+        // Take a new name and keep it. Two decks with one id are invisible to
+        // each other forever otherwise, and the second one to notice moving is
+        // enough — whichever notices first, moves.
+        onIdClash: () => {
+          const fresh = newIdentity();
+          onIdentity?.(fresh.id);
+          onError?.("id-clash", new Error("another deck was using this one's id; taking a new one"));
+        },
         onError, now,
       });
       await beacon.start();
@@ -288,6 +312,18 @@ export function createEngine({
       return true;
     },
     removePeer(addr, port) { return manual.delete(`${String(addr).trim()}:${Number(port)}`); },
+    /** Replace the typed list wholesale, which is what a settings write means.
+     *  Adding one at a time would leave a removed address still being dialled
+     *  every minute until the next restart — the row would vanish from the
+     *  panel while the socket kept opening, which is the worst of both. */
+    setPeers(entries) {
+      manual.clear();
+      for (const entry of Array.isArray(entries) ? entries : []) {
+        const at = String(entry).lastIndexOf(":");
+        if (at > 0) this.addPeer(String(entry).slice(0, at), Number(String(entry).slice(at + 1)));
+      }
+      return manual.size;
+    },
     status() {
       return {
         enabled: !!cfg.enabled,
@@ -300,9 +336,10 @@ export function createEngine({
         port: server?.port() ?? null,
         addr: beacon ? localAddress() : null,
         shared: [...cfg.shared],
-        peers: beacon ? [...beacon.peers.values(), ...manual.values()].map(p => ({
-          ...p, last: lastRound.get(p.fp) ?? null,
-        })) : [],
+        // The rule is stillListed's, in lan-sync.mjs, where it can be tested.
+        peers: beacon ? [...beacon.peers.values(), ...manual.values()]
+          .filter(p => stillListed(p, now()))
+          .map(p => ({ ...p, last: lastRound.get(p.fp) ?? null })) : [],
       };
     },
     stop() {

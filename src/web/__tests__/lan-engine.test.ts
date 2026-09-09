@@ -22,6 +22,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import { createEngine, defaultName, localAddress, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
+import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -244,13 +245,47 @@ describe("how a deck names itself", () => {
     expect(defaultName()).not.toMatch(/\.local$/i);
   });
 
-  it("is known by a fingerprint that changes every start", () => {
-    // Deliberate: a persisted key would be one more secret on disk whose theft
-    // lets somebody impersonate this deck to its own group, and what it would
-    // buy is a stable row in a list.
+  it("keeps the same fingerprint across restarts, once it has one", () => {
+    // The first version regenerated it every start, on the argument that a
+    // stored key is one more secret. That was about the wrong thing: nothing is
+    // signed or decrypted with this, the passphrase authenticates, and this is
+    // broadcast in the clear in every beacon.
+    //
+    // What regenerating it cost was measured on a real machine: every peer's
+    // list held a row per restart, dozens of them, each reporting ECONNREFUSED
+    // every minute against a port nothing had listened on for an hour.
+    const first = newIdentity();
+    expect(first.fp).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+    expect(newIdentity(first.id).fp).toBe(first.fp);
+    expect(newIdentity(first.id).id).toBe(first.id);
+    // A fresh deck still gets one, and two fresh decks are not the same deck.
     expect(newIdentity().fp).not.toBe(newIdentity().fp);
-    expect(newIdentity().fp).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
   });
+
+  it("refuses a stored id that is not one, rather than broadcasting it", () => {
+    // It reaches a beacon, where the reader validates the shape and drops a
+    // packet that fails — so a junk id would make this deck invisible with no
+    // way to tell why.
+    for (const junk of ["", "nope", "ZZZZZZZZZZZZ", "0123456789abcdef", 5, null]) {
+      expect(newIdentity(junk as string).fp, String(junk)).toMatch(/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/);
+    }
+  });
+
+  it("hands a new id back so the caller can keep it", async () => {
+    const kept: string[] = [];
+    const e = createEngine({ ...store([]).deps(), onIdentity: (id: string) => kept.push(id) });
+    running.push(e);
+    await e.apply({ enabled: true, name: "Deck-A", passphrase: PASS, shared: [] });
+    expect(kept).toHaveLength(1);
+    expect(e.status().fp).toBe(kept[0].replace(/(.{3})(?=.)/g, "$1-"));
+    // And says nothing when it was given one, because there is nothing to keep.
+    const kept2: string[] = [];
+    const e2 = createEngine({ ...store([]).deps(), onIdentity: (id: string) => kept2.push(id) });
+    running.push(e2);
+    await e2.apply({ enabled: true, name: "Deck-B", passphrase: PASS, shared: [], deckId: kept[0] });
+    expect(kept2).toEqual([]);
+    expect(e2.status().fp).toBe(e.status().fp);
+  }, 20_000);
 
   it("shows the name the user chose to its peers", async () => {
     const a = await deck(store([]), "Constantin-MacBook", []);
@@ -261,6 +296,62 @@ describe("how a deck names itself", () => {
     const conn = await a.e.round();
     expect(conn).toEqual([]);
     expect(a.e.status().peers.some((p: { addr: string }) => p.addr === "127.0.0.1")).toBe(true);
+  }, 20_000);
+});
+
+describe("an address somebody typed", () => {
+  // The field's own parser, which is strict about the port and loose about the
+  // host: this side cannot tell a typo from a hostname it has never heard of —
+  // the network will — while a bad port means dialling nothing forever, which
+  // is a row that reports an error every minute and can never come right.
+  it("takes the shapes a person would type", () => {
+    expect(parseAddress("192.168.1.5:54340")).toEqual({ addr: "192.168.1.5", port: 54340 });
+    expect(parseAddress("  laptop.local:5000  ")).toEqual({ addr: "laptop.local", port: 5000 });
+    // Last colon, not the first, or a bracketed IPv6 loses its address.
+    expect(parseAddress("[fe80::1]:5000")).toEqual({ addr: "[fe80::1]", port: 5000 });
+  });
+
+  it("refuses anything that could only ever dial nothing", () => {
+    for (const bad of ["", "   ", "192.168.1.5", "192.168.1.5:", ":5000", "host:0", "host:70000", "host:abc"]) {
+      expect(parseAddress(bad), bad).toBeNull();
+    }
+  });
+
+  it("replaces the list wholesale, so removing one really stops it", async () => {
+    // Adding one at a time would leave a removed address still dialled every
+    // minute until the next restart — the row would vanish from the panel while
+    // the socket kept opening, which is the worst of both.
+    const e = createEngine(store([]).deps());
+    running.push(e);
+    expect(e.setPeers(["1.2.3.4:5", "6.7.8.9:10"])).toBe(2);
+    expect(e.setPeers(["1.2.3.4:5"])).toBe(1);
+    expect(e.setPeers([])).toBe(0);
+    expect(e.setPeers(["nonsense", "", "x:0"]), "junk was stored as a row that can never connect").toBe(0);
+  });
+
+  it("dials a typed address that no beacon would have found", async () => {
+    // The whole reason the field exists. These two are on loopback, which no
+    // broadcast reaches from another subnet either.
+    const mine = store([{ num: 2, email: "a@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "a@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [K("a@x", "o")]);
+    const b = await deck(theirs, "Deck-B", [K("a@x", "o")]);
+    expect(a.e.setPeers([`127.0.0.1:${b.port}`])).toBe(1);
+    const done = await a.e.round();
+    expect(done.map((d: { action: string }) => d.action)).toEqual(["heal"]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("does not dial the same deck twice when a beacon also found it", async () => {
+    // A deck that is both heard and typed would otherwise be worked twice a
+    // round and its results counted twice.
+    const mine = store([{ num: 2, email: "a@x", orgUuid: "o", alive: false }]);
+    const theirs = store([{ num: 5, email: "a@x", orgUuid: "o", alive: true }]);
+    const a = await deck(mine, "Deck-A", [K("a@x", "o")]);
+    const b = await deck(theirs, "Deck-B", [K("a@x", "o")]);
+    a.e.setPeers([`127.0.0.1:${b.port}`, `127.0.0.1:${b.port}`]);
+    const done = await a.e.round();
+    expect(done).toHaveLength(1);
   }, 20_000);
 });
 

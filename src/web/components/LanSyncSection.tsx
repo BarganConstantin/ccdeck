@@ -79,6 +79,27 @@ export function roundLabel(last: Peer["last"], now: number): string | null {
     : `took ${ok.length} of ${done.length} · ${seenLabel(last.at, now)}`;
 }
 
+/**
+ * An address somebody typed, or null.
+ *
+ * Deliberately strict about the PORT and loose about the host: a host can be a
+ * name, an IPv4, or a bracketed IPv6, and this side cannot tell a typo from a
+ * hostname it has never heard of — the network will. A port is a number in a
+ * known range, and getting that wrong means dialling nothing forever, which is
+ * a row that reports an error every minute and can never come right.
+ *
+ * The last colon splits, not the first, so `[fe80::1]:5000` keeps its address.
+ */
+export function parseAddress(raw: string): { addr: string; port: number } | null {
+  const s = (raw ?? "").trim();
+  const at = s.lastIndexOf(":");
+  if (at <= 0 || at === s.length - 1) return null;
+  const addr = s.slice(0, at).trim();
+  const port = Number(s.slice(at + 1).trim());
+  if (!addr || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
+  return { addr, port };
+}
+
 async function post(body: Record<string, unknown>) {
   const res = await fetch("/api/prefs", {
     method: "POST",
@@ -100,6 +121,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  user is clearing. */
   const [draft, setDraft] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [addrDraft, setAddrDraft] = useState("");
+  const [manual, setManual] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   /** Read by the press guard rather than the state, because `busy` is a render
    *  behind: two clicks in the same frame both see `false` and both fire. */
@@ -115,7 +138,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
       ]);
       if (!alive.current) return;
       if (lan?.ok) setStatus(lan);
-      if (prefs?.ok) setHasPassphrase(prefs.prefs?.lan?.hasPassphrase === true);
+      if (prefs?.ok) {
+        setHasPassphrase(prefs.prefs?.lan?.hasPassphrase === true);
+        setManual(Array.isArray(prefs.prefs?.lan?.manual) ? prefs.prefs.lan.manual : []);
+      }
     } catch { /* the deck is down; the connection banner already says so */ }
   }, []);
 
@@ -288,10 +314,25 @@ export default function LanSyncSection({ accounts, onChanged }: {
                     this machine&apos;s firewall lets {status?.name || "the deck"} use the network
                   </span>
                 )}
+                {/* ONE LIST. A typed address is a deck in the group like any
+                    other and was briefly drawn twice — once here and once in a
+                    block of its own — which read as two decks at one address.
+                    It is a row with a mark and a way to take it off. */}
                 {(status?.peers ?? []).map(p => (
                   <div key={p.fp} className="ap-lan-peer">
-                    <span className="ap-lan-peer-name">{p.name}</span>
-                    <span className="ap-lan-peer-when">{seenLabel(p.lastSeen, now)}</span>
+                    <span className="ap-lan-peer-name">{p.manual ? `${p.addr}:${p.port}` : p.name}</span>
+                    {/* A typed deck never beacons, so it has no last-seen and
+                        "not seen" would read as broken next to a round that
+                        just succeeded. What it says instead is how it got
+                        here. */}
+                    <span className="ap-lan-peer-when">{p.manual ? "by address" : seenLabel(p.lastSeen, now)}</span>
+                    {p.manual && (
+                      <button type="button" className="ap-manage-btn ap-lan-drop"
+                        {...selfPressProps(busy)}
+                        onClick={() => void save({ manual: manual.filter(m => m !== `${p.addr}:${p.port}`) })}
+                        aria-label={`Stop dialling ${p.addr}:${p.port}`}
+                        title="Stop dialling this address">remove</button>
+                    )}
                     {roundLabel(p.last, now) && (
                       <span className="ap-lan-peer-last">{roundLabel(p.last, now)}</span>
                     )}
@@ -303,10 +344,29 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   rather than hidden behind a copy button, because the case it
                   is for is somebody reading it out to a colleague across a
                   desk. */}
+              <div className="ap-lan-row">
+                <span className="ap-lan-label">by address</span>
+                <input
+                  className="ap-manage-input ap-lan-input"
+                  aria-label="Another deck's address"
+                  value={addrDraft}
+                  placeholder="192.168.1.5:54340"
+                  onChange={e => setAddrDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+                  onBlur={() => {
+                    const parsed = parseAddress(addrDraft);
+                    if (!parsed) { setAddrDraft(""); return; }
+                    const entry = `${parsed.addr}:${parsed.port}`;
+                    setAddrDraft("");
+                    if (!manual.includes(entry)) void save({ manual: [...manual, entry] });
+                  }}
+                />
+              </div>
+
               {status?.port != null && status.addr != null && (
                 <p className="ap-auto-note ap-lan-addr">
-                  Across a VPN or another subnet, add this deck by address:
-                  {" "}<code className="ap-lan-code">{status.addr}:{status.port}</code>
+                  Across a VPN or another subnet, give the other deck this
+                  address: <code className="ap-lan-code">{status.addr}:{status.port}</code>
                 </p>
               )}
             </>
