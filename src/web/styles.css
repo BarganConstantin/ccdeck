@@ -6202,6 +6202,14 @@ button.tool.clickable:last-child { border-bottom: none; }
    click that landed looks exactly like a click that missed. */
 .ap-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 
+/* The roster is a list and now says so. Nothing here changes the box model —
+   the row is the <li>, so no element was added between the panel and it — and
+   the three declarations are only undoing what the UA sheet does to a <ul>. */
+.ap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .ap-account {
   padding: 9px var(--panel-inset) 8px;
   border-bottom: 1px solid var(--line-soft);

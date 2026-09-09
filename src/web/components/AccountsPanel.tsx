@@ -671,12 +671,20 @@ export default function AccountsPanel({ onClose }: Props) {
         </div>
       ) : (
         <>
+          {/* A LIST, because it is one. The roster was a run of sibling divs, so
+              a reader on a screen reader had no way to learn how many accounts
+              exist or where one ends without walking every control on it — and
+              heading navigation jumps from the panel's h2 straight past all of
+              them to Auto-switch. ShareAccountsDialog has used ul/li since the
+              day it was written; this is the same shape, and the row keeps its
+              own class so nothing in the sheet moves. */}
+          <ul className="ap-list">
           {data.accounts?.map(a => {
             const { shown, rest, fuller, peak } = laneSplit(a.lanes);
             const lanesOpen = openLanes.includes(laneKey(a));
             const more = moreLabel(rest.length, lanesOpen, fuller);
             return (
-            <div key={a.num} className={`ap-account${a.active ? " active" : ""}`}>
+            <li key={a.num} className={`ap-account${a.active ? " active" : ""}`}>
               <div className="ap-account-head">
                 <span className="ap-num">{a.num}</span>
                 {/* Both of these are clipped with an ellipsis so a long one
@@ -1067,9 +1075,10 @@ export default function AccountsPanel({ onClose }: Props) {
 
                 </div>
               )}
-            </div>
+            </li>
             );
           })}
+          </ul>
 
           {/* ── auto-switch ── */}
           {auto?.ok && (

@@ -604,7 +604,13 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   const line = roundLabel(p.last, now);
                   return (
                     <div key={p.fp} className="ap-lan-peer">
-                      <span className="ap-lan-peer-name">{p.manual ? `${p.addr}:${p.port}` : p.name}</span>
+                      {/* A typed peer's "name" IS an address, and it was set in
+                          the body font two hundred pixels above the same deck's
+                          own addresses in monospace. One kind of thing, one
+                          typeface. */}
+                      {p.manual
+                        ? <code className="ap-lan-code">{p.addr}:{p.port}</code>
+                        : <span className="ap-lan-peer-name">{p.name}</span>}
                       {/* A typed deck never beacons, so it has no last-seen and
                           "not seen" would read as broken next to a round that
                           just succeeded. What it says instead is how it got
