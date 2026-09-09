@@ -34,7 +34,7 @@
   "3.15.0": [
     {
       "title": "🔗 Decks on one network heal each other's dead logins",
-      "body": "A login dies on the machine that has not used it, while the same account keeps working on the machine that has. The fix was a blob copied out of one deck and pasted into another. Now it is nothing: **Accounts ▸ Local network**, one passphrase typed once on each deck, and they find each other and repair themselves.\n\nA deck only ever **adds** an account it does not have, or **replaces one it has proven dead** — verified by Anthropic refusing the token, not guessed. A credential that works is never touched, by anyone.\n\nThe passphrase is the only gate. A stranger on the same wifi sees that a deck exists and nothing else — no account, no email, no count."
+      "body": "A login dies on the machine that has not used it, while the same account keeps working on the machine that has. The fix was a blob copied out of one deck and pasted into another. Now it is nothing: **Accounts ▸ Local network**, one passphrase — the deck offers you six words — on each deck, and they find each other and repair themselves.\n\nA deck only ever **adds** an account it does not have, or **replaces one it has proven dead** — verified by Anthropic refusing the token, not guessed. A credential that works is never touched, by anyone.\n\nThe passphrase is the only gate. A stranger on the same wifi sees that a deck exists and nothing else — no account, no email, no count."
     },
     {
       "title": "⚠️ What sharing a login actually means",
