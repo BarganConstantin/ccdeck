@@ -6663,7 +6663,12 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 }
 .ap-lan-now { margin: -2px 0; }
 
-.ap-lan-picks { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+/* 3px, and the one pixel is the whole reason. The row measures 21.9px tall, so
+   at a 2px gap two ticks sat 23.9px apart centre to centre — one tenth of a
+   pixel under what SC 2.5.8's spacing exception asks of a target below 24px.
+   The row is deliberately the target rather than the 13px box (see below), and
+   that argument only holds if the spacing does. */
+.ap-lan-picks { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
 /* The whole row takes the press, not just the box — a 13px checkbox is under
    the 24px SC 2.5.8 asks for, and a label wrapping its own input is the one
    shape where the target is the sentence rather than the square. */
