@@ -9350,7 +9350,11 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .lan-modal { width: min(980px, 94vw); }
 .lan-modal .modal-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* NOT 50/50. The left column is this machine — four label/value rows and a
+     short list — and the right carries three groups, the longest of which is a
+     140-character token. Equal halves stranded 400px of empty space on the left
+     while the right ran past the fold. */
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   align-items: start;
   gap: 16px 22px;
 }
@@ -9360,9 +9364,42 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .lan-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  /* 20, against the 8 that separates a heading from its own rows and the 6 that
+     separates rows inside one group. Three intervals, and the widest of them is
+     where the subject changes. Everything in this dialog sat between 6 and 12,
+     so nothing read as a group — the whole right column was one undifferentiated
+     stack of controls. */
+  gap: 20px;
   min-width: 0;
 }
+
+/* A GROUP INSIDE A SECTION, and it had no air at all above it. The shared
+   `.modal-section h4` rule wins on specificity over `.ap-lan-sub`'s own
+   margin-top, so both of these headings sat flush against the control above
+   them — `ON THIS NETWORK RIGHT NOW` looked like a caption for the paste field
+   rather than the start of something else. Scoped here so the panel's own copy
+   of this class keeps the tighter spacing a 288px column needs. */
+.lan-modal .ap-lan-sub {
+  margin: 20px 0 8px;
+}
+/* The first one in a section has the section heading above it doing that job. */
+.lan-modal .lan-h + .ap-lan-sub { margin-top: 0; }
+/* Rows inside one group. 8, not 10: every row here is one line, and the extra
+   two pixels came from the panel, where a row can wrap onto three. */
+.lan-modal .ap-lan-peers { gap: 8px; }
+/* The fork between the two ways in. Generous above, because it ends the invite
+   card; tighter below, because the field under it is the other half of the
+   same sentence. */
+.lan-modal .lan-or { margin: 18px 0 8px; }
+/* The note under a heading belongs to it, so it stays tight — and the rows
+   under the note belong to the note. */
+.lan-modal .ap-lan-sub + .lan-note { margin-top: 0; }
+/* The account rows bleed 4px past their own box, which is right in the panel:
+   the hover bed reaches the panel's inset there and the row reads as full
+   width. In a dialog there is no inset to reach, so the same rule pushed four
+   pixels of horizontal overflow through three ancestors — measured. The bleed
+   is paid for here instead of leaking. */
+.lan-modal .ap-lan-picks { padding: 0 4px; }
 /* The seam. A rule between the two subjects rather than a gap alone, because at
    this width the eye needs telling that the right column is not a continuation
    of the left. */
