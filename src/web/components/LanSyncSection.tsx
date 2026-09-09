@@ -38,7 +38,7 @@ interface Status {
   name: string;
   fp: string | null;
   port: number | null;
-  addr: string | null;
+  addrs: string[];
   shared: string[];
   peers: Peer[];
 }
@@ -363,10 +363,24 @@ export default function LanSyncSection({ accounts, onChanged }: {
                 />
               </div>
 
-              {status?.port != null && status.addr != null && (
+              {/* EVERY ADDRESS, not the first one. This printed the first and
+                  it was wrong the first time somebody checked: the first here
+                  is the LAN address and the deck that needed reaching was on a
+                  VPN, so the panel offered an address that peer cannot route
+                  to. Which one is right depends on where the peer is, which
+                  this side cannot answer — so the person picks, because they
+                  are the only one who knows how the other machine sees this
+                  one. */}
+              {status?.port != null && (status.addrs ?? []).length > 0 && (
                 <p className="ap-auto-note ap-lan-addr">
-                  Across a VPN or another subnet, give the other deck this
-                  address: <code className="ap-lan-code">{status.addr}:{status.port}</code>
+                  Broadcast does not cross a router, so give the other deck
+                  whichever of these it can reach:{" "}
+                  {(status.addrs ?? []).map((a, i) => (
+                    <span key={a}>
+                      {i > 0 && " or "}
+                      <code className="ap-lan-code">{a}:{status.port}</code>
+                    </span>
+                  ))}
                 </p>
               )}
             </>

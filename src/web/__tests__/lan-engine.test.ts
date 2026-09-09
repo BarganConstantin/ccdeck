@@ -21,7 +21,7 @@
 // fingerprint question rather than an address question.
 import { describe, it, expect, afterEach } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
-import { createEngine, defaultName, localAddress, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
+import { createEngine, defaultName, localAddresses, newIdentity, SYNC_MS } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
@@ -359,29 +359,42 @@ describe("the address a person reads out to a colleague", () => {
   // Printed in the panel for the field on the other deck, because broadcast
   // dies at the first router and across a VPN an address is the only way in.
   it("is the machine's own, not loopback and not a failed lease", () => {
-    expect(localAddress({ lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }] })).toBeNull();
+    expect(localAddresses({ lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }] })).toEqual([]);
     // 169.254 is what a machine gets when DHCP failed — reachable by nobody
     // worth telling about, so it is not offered as though it were.
-    expect(localAddress({ en0: [{ internal: false, family: "IPv4", address: "169.254.1.2" }] })).toBeNull();
-    expect(localAddress({ en0: [{ internal: false, family: "IPv6", address: "fe80::1" }] })).toBeNull();
-    expect(localAddress({
-      lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }],
-      en0: [{ internal: false, family: "IPv4", address: "192.168.1.82" }],
-    })).toBe("192.168.1.82");
+    expect(localAddresses({ en0: [{ internal: false, family: "IPv4", address: "169.254.1.2" }] })).toEqual([]);
+    expect(localAddresses({ en0: [{ internal: false, family: "IPv6", address: "fe80::1" }] })).toEqual([]);
   });
 
-  it("is null rather than a guess when there is no ordinary answer", () => {
-    // A machine with a VPN up has several and which one a peer can reach
-    // depends on where the peer is — a question this side cannot answer. The
-    // panel prints nothing rather than a placeholder somebody has to decode.
-    expect(localAddress({})).toBeNull();
-    expect(localAddress(null)).toBeNull();
-    expect(localAddress(undefined)).toBeTruthy();
+  it("offers EVERY address, because only the person knows which one reaches them", () => {
+    // It returned the first and that was wrong the first time somebody checked:
+    // the first here is the LAN address and the deck that needed reaching was
+    // on a VPN, so the panel offered an address that peer cannot route to and
+    // left them to work out why. A list of two is a smaller ask than a wrong
+    // answer.
+    expect(localAddresses({
+      lo: [{ internal: true, family: "IPv4", address: "127.0.0.1" }],
+      en1: [{ internal: false, family: "IPv4", address: "192.168.1.82" }],
+      utun4: [{ internal: false, family: "IPv4", address: "100.67.32.58" }],
+    })).toEqual(["192.168.1.82", "100.67.32.58"]);
+  });
+
+  it("says the same address once, however many interfaces claim it", () => {
+    expect(localAddresses({
+      en0: [{ internal: false, family: "IPv4", address: "10.0.0.5" }],
+      bridge0: [{ internal: false, family: "IPv4", address: "10.0.0.5" }],
+    })).toEqual(["10.0.0.5"]);
+  });
+
+  it("is empty rather than a guess when there is nothing to offer", () => {
+    expect(localAddresses({})).toEqual([]);
+    expect(localAddresses(null)).toEqual([]);
+    expect(localAddresses(undefined).length).toBeGreaterThan(0);
   });
 
   it("takes node's numeric family as well as its string one", () => {
     // It changed spelling between node versions and this runs on 18 through 22.
-    expect(localAddress({ en0: [{ internal: false, family: 4, address: "10.0.0.5" }] })).toBe("10.0.0.5");
+    expect(localAddresses({ en0: [{ internal: false, family: 4, address: "10.0.0.5" }] })).toEqual(["10.0.0.5"]);
   });
 });
 

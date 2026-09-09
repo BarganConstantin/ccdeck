@@ -77,29 +77,33 @@ export function defaultName() {
 }
 
 /**
- * The address another deck would dial, for the panel to print.
+ * EVERY address another deck might dial, for the panel to print.
  *
- * FIRST NON-LOOPBACK IPv4, and the caveats are the reason this returns null
- * rather than guessing harder. A machine with a VPN up has several, and which
- * one a peer can reach depends on where the peer is — a question this side
- * cannot answer. What it can do is offer the one address that is right in the
- * ordinary case and say nothing when there is no ordinary case, which is better
- * than printing `this machine` and leaving somebody to work out that it was a
- * placeholder.
+ * It returned the first one, and that was wrong the first time somebody
+ * checked: on this machine the first is 192.168.1.82 and the deck it needs to
+ * reach is on Tailscale at 100.67.32.58, so the panel would have offered an
+ * address that peer cannot route to and left them to work out why.
  *
- * `internal` is what node calls loopback, and a link-local 169.254 address is a
- * machine that failed to get a lease — reachable by nobody worth telling about.
+ * WHICH ONE IS RIGHT DEPENDS ON WHERE THE PEER IS, which this side cannot
+ * answer — a VPN, a second NIC, a container bridge, all real and all at once.
+ * So it offers them all and the person picks: they are the only one who knows
+ * how the other machine sees this one, and a list of two is a smaller ask than
+ * a wrong answer.
+ *
+ * `internal` is node's word for loopback, and a link-local 169.254 address is a
+ * machine whose DHCP failed — reachable by nobody worth telling about.
  */
-export function localAddress(faces = networkInterfaces()) {
+export function localAddresses(faces = networkInterfaces()) {
+  const out = [];
   for (const list of Object.values(faces ?? {})) {
     for (const n of list ?? []) {
       if (n.internal) continue;
       if (n.family !== "IPv4" && n.family !== 4) continue;
       if (typeof n.address !== "string" || n.address.startsWith("169.254.")) continue;
-      return n.address;
+      if (!out.includes(n.address)) out.push(n.address);
     }
   }
-  return null;
+  return out;
 }
 
 /**
@@ -334,7 +338,7 @@ export function createEngine({
         // deck's field. Null when this machine has no ordinary one, which the
         // panel says rather than printing a placeholder.
         port: server?.port() ?? null,
-        addr: beacon ? localAddress() : null,
+        addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The rule is stillListed's, in lan-sync.mjs, where it can be tested.
         peers: beacon ? [...beacon.peers.values(), ...manual.values()]
