@@ -3271,6 +3271,17 @@ const lanEngine = createEngine({
     try { _prefs = await writePrefs({ lan: { trusted } }); }
     catch (err) { console.error(`${PRODUCT}: lan sync could not save the pairing:`, err?.message ?? err); }
   },
+  // An address this deck must keep dialling: the far end of a pairing that
+  // happened over an invite. Kept in prefs, because setPeers replaces the dial
+  // list wholesale on every settings write and a row that lives only in memory
+  // is a pairing that goes one-way at the next restart.
+  onDial: async entry => {
+    try {
+      const manual = Array.isArray(_prefs?.lan?.manual) ? _prefs.lan.manual : [];
+      if (manual.includes(entry)) return;
+      _prefs = await writePrefs({ lan: { manual: [...manual, entry] } });
+    } catch { /* dialled this session; the next round re-adds it */ }
+  },
   onIdentity: async secret => {
     try {
       _prefs = await writePrefs({ lan: { secret } });
@@ -3325,6 +3336,40 @@ function handleLanStatus(req, res) {
  * being pinned comes from what this deck actually saw on the wire, never from
  * the page, so a page cannot pair this deck with a key nobody has met.
  */
+/**
+ * Make an invite, put one away, or join on somebody else's.
+ *
+ * The token is the secret and it is never stored: minted on request, held in
+ * memory until it expires or is used, and gone with the process. Nothing about
+ * it reaches prefs.json, so a deck that restarts is offering nothing rather
+ * than offering something its owner has forgotten they sent.
+ */
+async function handleLanInvite(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  switch (body?.action) {
+    case "make": {
+      const made = lanEngine.invite();
+      if (!made) return send(res, 409, { ok: false, reason: "not_running" });
+      // AFTER the spread, not before: status carries its own `invite` — the
+      // token and its expiry, which is all a panel needs — and letting that
+      // overwrite this one dropped the address list the caller asked for.
+      return send(res, 200, { ok: true, ...lanEngine.status(), invite: made });
+    }
+    case "withdraw":
+      lanEngine.withdraw();
+      return send(res, 200, { ok: true, ...lanEngine.status() });
+    case "join": {
+      const out = await lanEngine.join(body.token);
+      if (!out.ok) return send(res, 200, { ok: false, ...out, ...lanEngine.status() });
+      return send(res, 200, { ok: true, ...out, ...lanEngine.status() });
+    }
+    default:
+      return send(res, 400, { ok: false, reason: "unknown_action" });
+  }
+}
+
 async function handleLanPeer(req, res) {
   const raw = await readBody(req).catch(() => null);
   let body = null;
@@ -5596,6 +5641,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());

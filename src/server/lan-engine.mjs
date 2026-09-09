@@ -29,7 +29,7 @@
 // anything.
 import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
-import { addTrusted, dropTrusted, identityFrom, trustedPeer } from "./lan-sync.mjs";
+import { addTrusted, dropTrusted, identityFrom, mintInvite, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -89,7 +89,7 @@ export function localAddresses(faces = networkInterfaces()) {
  */
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, onIdentity, onPort, onTrust, now = Date.now,
+  onChange, onError, onIdentity, onPort, onTrust, onDial, now = Date.now,
 } = {}) {
   let cfg = { enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0 };
   let identity = null;
@@ -108,6 +108,9 @@ export function createEngine({
    */
   const pending = new Map();
   const strangers = new Map();
+  /** The invite this deck is offering, or null. One at a time: a deck showing
+   *  two tokens is a deck whose owner cannot say which one they sent. */
+  let invite = null;
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
@@ -170,6 +173,9 @@ export function createEngine({
       conn = await connectToPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
         fp: identity.fp, pub: identity.pub, secret: identity.secret, name: cfg.name,
+        // Where this deck listens, so the far side can reach back after it
+        // accepts rather than only being reachable.
+        myPort: server?.port() ?? null,
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
@@ -317,6 +323,31 @@ export function createEngine({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
         name: cfg.name, handlers: serve, onError, prefer: cfg.port,
         trusted: () => cfg.trusted,
+        invite: () => (invite && invite.expiresAt > now() ? invite : null),
+        // Somebody used the token. They are pinned, and the token is retired —
+        // one that pairs twice is one worth stealing twice.
+        onInviteUsed: entry => {
+          const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name });
+          cfg = { ...cfg, trusted: list };
+          invite = null;
+          // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
+          // deck with no way to reach it: an inbound connection puts nothing in
+          // the dial list. Without this the pairing is mutual in the trusted
+          // list and one-way in fact — and `addPeer` alone lives in memory, so
+          // it would be one-way again after the next restart.
+          if (entry.addr && entry.port) {
+            this.addPeer(entry.addr, entry.port);
+            onDial?.(`${entry.addr}:${entry.port}`);
+            // AND SAY WHO IS THERE, NOW. `learned` is what joins a dialled row
+            // to a heard one, and it was only ever filled by a round that
+            // succeeded — so between accepting a deck and the next round, one
+            // machine appeared as two rows. We already know the answer here:
+            // the handshake that just finished said so.
+            learned.set(`${entry.addr}:${entry.port}`, { fp: entry.fp, name: entry.name || "" });
+          }
+          onTrust?.(list);
+          onChange?.();
+        },
         onPending: entry => {
           const had = pending.get(entry.fp);
           pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
@@ -348,6 +379,90 @@ export function createEngine({
       timer = setInterval(() => { void round(); }, SYNC_MS);
       timer.unref?.();
     },
+    /**
+     * Make an invite: every address this deck has, its port, its name, and a
+     * code, in one piece of text somebody sends however they already talk.
+     *
+     * EVERY ADDRESS, and that is the whole reason this exists. A person cannot
+     * know which of their machine's addresses the other machine can route to —
+     * a VPN, a second card, another subnet, all real and all at once — and
+     * neither can this deck. The one machine that can find out is the one doing
+     * the reaching, so it gets the list and tries it.
+     */
+    invite() {
+      if (!server || !beacon) return null;
+      const port = server.port();
+      if (port == null) return null;
+      const addrs = localAddresses().map(a => `${a}:${port}`);
+      const made = mintInvite({ addrs, name: cfg.name, now: now() });
+      if (!made) return null;
+      invite = made;
+      onChange?.();
+      return { token: made.token, expiresAt: made.expiresAt, addrs };
+    },
+
+    /** What this deck is offering right now, for the panel to draw. Null once
+     *  it has run out, so a token nobody can use is not shown as if they could. */
+    offering() {
+      if (!invite || invite.expiresAt <= now()) return null;
+      return { token: invite.token, expiresAt: invite.expiresAt };
+    },
+
+    /** Put it away without using it. */
+    withdraw() {
+      const had = !!invite;
+      invite = null;
+      if (had) onChange?.();
+      return had;
+    },
+
+    /**
+     * Join on somebody else's invite: try every address it carries until one
+     * answers, and pair with whatever does.
+     *
+     * IN ORDER, AND STOPPING AT THE FIRST, because the addresses are the same
+     * deck seen from different networks — reaching it twice would pair one deck
+     * as two. The failures are collected rather than thrown away: when none of
+     * them worked, which ones were tried and what each said is the only thing
+     * the reader can act on.
+     */
+    async join(token) {
+      const inv = readInvite(token, now());
+      if (!inv) return { ok: false, reason: "not_an_invite" };
+      if (inv.expired) return { ok: false, reason: "expired" };
+      if (!identity || !server) return { ok: false, reason: "not_running" };
+      const tried = [];
+      for (const at of inv.addrs) {
+        let conn = null;
+        try {
+          conn = await connectToPeer({
+            host: at.addr, port: at.port, timeoutMs: ROUND_MS,
+            fp: identity.fp, pub: identity.pub, secret: identity.secret,
+            name: cfg.name, myPort: server.port(), code: inv.code,
+          });
+          const { list } = addTrusted(cfg.trusted, {
+            fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name,
+          });
+          cfg = { ...cfg, trusted: list };
+          this.addPeer(at.addr, at.port);
+          onDial?.(`${at.addr}:${at.port}`);
+          learned.set(`${at.addr}:${at.port}`, { fp: conn.peerFp, name: conn.peerName || inv.name });
+          onTrust?.(list);
+          onChange?.();
+          return {
+            ok: true,
+            peer: { fp: conn.peerFp, name: conn.peerName || inv.name, addr: at.addr, port: at.port },
+            tried,
+          };
+        } catch (err) {
+          tried.push({ addr: `${at.addr}:${at.port}`, why: err.message });
+        } finally {
+          conn?.sock?.destroy();
+        }
+      }
+      return { ok: false, reason: "unreachable", tried };
+    },
+
     /**
      * Accept a deck, which is the only thing that lets anything move.
      *
@@ -387,7 +502,17 @@ export function createEngine({
       strangers.delete(fp);
       onTrust?.(list);
       onChange?.();
-      return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null } : null;
+      // AND DIAL IT BACK. Accepting a deck that called us made it welcome and
+      // left this one with no way to reach it: the peer list is what this deck
+      // dials, and an inbound connection puts nothing in it. So the pairing was
+      // mutual in the trusted list and one-way in fact — if the other machine
+      // stopped calling, nothing here would ever call it. The hello carries the
+      // port it listens on for exactly this.
+      const back = seen.addr && seen.port && this.addPeer(seen.addr, seen.port)
+        ? (learned.set(`${seen.addr}:${seen.port}`, { fp, name: seen.name || "" }),
+           { addr: seen.addr, port: seen.port })
+        : null;
+      return added ? { fp, name: seen.name, addr: seen.addr, port: seen.port ?? null, dialBack: back } : null;
     },
     /** Say no, and stop being asked. The deck is dropped from both lists; if it
      *  connects again it is a new request, because refusing is not a block. */
@@ -442,19 +567,70 @@ export function createEngine({
         port: server?.port() ?? null,
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
+        // The token this deck is offering, if any. Drawn as the one thing to do
+        // when nobody is paired yet, and put away once somebody is.
+        invite: invite && invite.expiresAt > now()
+          ? { token: invite.token, expiresAt: invite.expiresAt }
+          : null,
         // Decks somebody accepted, decks that asked and have not been answered,
         // and decks merely heard. Three lists because they are three different
         // things a person does something different about.
         trusted: cfg.trusted.map(t => ({ fp: t.fp, name: t.name })),
         pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
         strangers: [...strangers.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at })),
-        // The rule is stillListed's, in lan-sync.mjs, where it can be tested.
-        peers: beacon ? [...beacon.peers.values(), ...manual.values()]
-          .filter(p => stillListed(p, now()))
-          .map(p => {
+        peers: beacon ? (() => {
+          // ONE DECK, ONE ROW, and it takes work because a deck can arrive here
+          // twice by two different routes: heard on the network, and dialled at
+          // an address somebody typed or that an invite carried. Both are the
+          // same machine and neither knows it — the beacon row is keyed by the
+          // fingerprint it announced, the typed row by `host:port`, and until a
+          // connection succeeds nothing joins them.
+          //
+          // What joins them is `learned`: the fingerprint that actually
+          // answered at that address. So every row is given the identity it is
+          // really about, and rows that turn out to share one are merged — the
+          // heard half brings liveness, the dialled half brings the last round.
+          const rows = [];
+          const byId = new Map();
+          const put = row => {
+            const had = byId.get(row.id);
+            if (!had) { byId.set(row.id, row); rows.push(row); return; }
+            // Keep what each half is the authority on.
+            had.lastSeen = had.lastSeen ?? row.lastSeen;
+            had.last = had.last ?? row.last;
+            had.manual = had.manual || row.manual;
+            had.met = had.met || row.met;
+            if (row.name && !had.name) had.name = row.name;
+          };
+          for (const p of [...beacon.peers.values(), ...manual.values()]) {
+            if (!stillListed(p, now())) continue;
             const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
-            return { ...p, name: met?.name || p.name, met: !!met, last: lastRound.get(p.fp) ?? null };
-          }) : [],
+            const id = met?.fp ?? p.fp;
+            put({
+              ...p,
+              id,
+              // The fingerprint an unpair has to name. A typed row's own `fp` is
+              // a placeholder built from its address and matches nothing.
+              peerFp: p.manual ? met?.fp ?? null : p.fp,
+              name: met?.name || p.name,
+              met: !!met,
+              paired: !!trustedPeer(cfg.trusted, id),
+              last: lastRound.get(p.fp) ?? null,
+            });
+          }
+          // A DECK WE ARE PAIRED WITH AND DO NOT DIAL. It called us, we accepted
+          // it, and nothing here has its address — which used to mean the panel
+          // listed failing addresses under "paired decks" and left out the one
+          // deck that actually was.
+          for (const t of cfg.trusted) {
+            if (byId.has(t.fp)) continue;
+            put({
+              id: t.fp, fp: t.fp, peerFp: t.fp, name: t.name || t.fp, addr: "", port: 0,
+              paired: true, waiting: true, last: lastRound.get(t.fp) ?? null,
+            });
+          }
+          return rows;
+        })() : [],
       };
     },
     stop() {

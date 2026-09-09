@@ -9,14 +9,20 @@
 // up, once when you change your mind. What you do every day is look, and
 // looking is what the panel is for.
 //
-// WHAT IS NOT HERE. The switch, and the requests waiting to be accepted. Both
-// stay in the panel: the switch because it is the one control that answers "is
-// this thing on", and a request because it arrives while nobody is looking at a
-// dialog and is worthless if it waits for one to be opened.
+// WHAT IS NOT HERE. The switch, who is online right now, and the requests
+// waiting to be accepted. All three stay in the panel: the switch because it is
+// the control that answers "is this on", the roster because it is the one thing
+// worth a glance every day, and a request because it arrives while nobody is
+// looking at a dialog and is worthless if it waits for one to be opened.
+//
+// EVERYTHING ELSE IS HERE, and that is the whole shape of it. Making an invite,
+// joining on somebody else's, this deck's name and fingerprint, which accounts
+// it offers, and every deck it has ever paired with — online or not. The panel
+// is an instrument; this is the workshop.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { parseAddress, sameKeys, writeFailure } from "./LanSyncSection";
+import { isOnline, leftLabel, parseAddress, roundLabel, sameKeys, seenLabel, writeFailure } from "./LanSyncSection";
 import type { LanAccount, LanStatus } from "./LanSyncSection";
 
 /** How this deck is reached, as one line a person reads out to somebody else. */
@@ -42,6 +48,20 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
   const [failure, setFailure] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [joinDraft, setJoinDraft] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [checking, setChecking] = useState(false);
+  /** Which addresses a failed join tried, and what each one said. An invite
+   *  carries several because nobody knows which routes; when none did, that
+   *  list is the only thing the reader can act on. */
+  const [tried, setTried] = useState<Array<{ addr: string; why: string }> | null>(null);
+  const [joinedWith, setJoinedWith] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    // The invite has a countdown on it, so this dialog has a clock.
+    const iv = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(iv);
+  }, []);
   const busyRef = useRef(false);
   /** What we last sent, so a second tick inside one poll window composes with
    *  the first instead of being built from a render that predates it. The same
@@ -96,6 +116,85 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     } finally {
       busyRef.current = false;
       if (alive.current) setBusy(false);
+    }
+  }, [onChanged]);
+
+  const call = useCallback(async (url: string, body: Record<string, unknown>) => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return res.json().catch(() => null);
+  }, []);
+
+  const invite = useCallback(async (action: "make" | "withdraw") => {
+    if (!selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
+    setBusy(true);
+    setCopied(null);
+    try {
+      const out = await call("/api/lan/invite", { action });
+      if (!alive.current) return;
+      if (out?.ok) { setFailure(null); onChanged(); }
+      else setFailure(writeFailure(action === "make" ? "make an invite" : "put the invite away", out));
+    } catch {
+      if (alive.current) setFailure(writeFailure("make an invite", null));
+    } finally {
+      busyRef.current = false;
+      if (alive.current) setBusy(false);
+    }
+  }, [call, onChanged]);
+
+  const join = useCallback(async () => {
+    const token = joinDraft.trim();
+    if (!token || !selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
+    setBusy(true);
+    setJoining(true);
+    setTried(null);
+    setJoinedWith(null);
+    try {
+      const out = await call("/api/lan/invite", { action: "join", token });
+      if (!alive.current) return;
+      if (out?.ok) {
+        setFailure(null);
+        setJoinDraft("");
+        setJoinedWith(out.peer?.name ?? "that deck");
+        onChanged();
+      } else if (out?.reason === "not_an_invite") {
+        setFailure("That is not an invite. Paste the whole thing — it starts with ccdeck1.");
+      } else if (out?.reason === "expired") {
+        setFailure("That invite has run out. Ask for a new one.");
+      } else if (out?.reason === "unreachable") {
+        setTried(out.tried ?? []);
+      } else {
+        setFailure(writeFailure("join that deck", out));
+      }
+    } catch {
+      if (alive.current) setFailure(writeFailure("join that deck", null));
+    } finally {
+      busyRef.current = false;
+      if (alive.current) { setBusy(false); setJoining(false); }
+    }
+  }, [joinDraft, call, onChanged]);
+
+  const checkNow = useCallback(async () => {
+    if (!selfPressAccepted(busyRef.current)) return;
+    busyRef.current = true;
+    setBusy(true);
+    setChecking(true);
+    try {
+      const res = await fetch("/api/lan/sync", { method: "POST" });
+      const out = await res.json().catch(() => null);
+      if (!alive.current) return;
+      if (out?.ok) { setFailure(null); onChanged(); }
+      else setFailure(writeFailure("check the paired decks", out));
+    } catch {
+      if (alive.current) setFailure(writeFailure("check the paired decks", null));
+    } finally {
+      busyRef.current = false;
+      if (alive.current) { setBusy(false); setChecking(false); }
     }
   }, [onChanged]);
 
@@ -206,28 +305,77 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
             )}
           </div>
 
-          {/* ── add a deck ────────────────────────────────────────────────── */}
+          {/* ── pair with a deck ──────────────────────────────────────────── */}
           <div className="modal-section">
-            <h3 className="lan-h">Add a deck</h3>
-            <div className="ap-lan-row">
-              <span className="ap-lan-label">by address</span>
+            <h3 className="lan-h">Pair with another deck</h3>
+
+            {status.invite && status.invite.expiresAt > now ? (
+              <div className="ap-lan-invite">
+                <div className="ap-lan-invite-head">
+                  <span className="ap-lan-invite-title">Send this to them</span>
+                  <span className="ap-lan-invite-left">{leftLabel(status.invite.expiresAt, now)} left</span>
+                </div>
+                <code className="ap-lan-token">{status.invite.token}</code>
+                <div className="ap-lan-acts">
+                  <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                    onClick={() => void copy(status.invite!.token)}
+                    title="Copy it, and send it however you already talk to them">
+                    {copied === status.invite.token ? "copied" : "copy invite"}
+                  </button>
+                  <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                    onClick={() => void invite("withdraw")}
+                    title="Stop offering it. Anybody holding it can no longer pair.">
+                    put it away
+                  </button>
+                </div>
+                {/* Said once, where the decision is: what holding this token
+                    actually lets somebody do, and that it carries every address
+                    so they never have to know which one they can reach. */}
+                <p className="lan-note">
+                  It carries this deck&apos;s addresses and a code, so they do not have to know
+                  which one they can reach. Anyone holding it can pair with this deck until it
+                  runs out. They paste it and it pairs itself — nobody has to press anything here.
+                </p>
+              </div>
+            ) : (
+              <button type="button" className="ap-manage-btn lan-primary" {...selfPressProps(busy)}
+                onClick={() => void invite("make")}
+                title="One piece of text that carries this deck's addresses and a code">
+                make an invite
+              </button>
+            )}
+
+            <div className="lan-or">or paste one you were sent</div>
+            <div className="ap-lan-join">
               <input
                 className="ap-manage-input ap-lan-input"
-                aria-label="Another deck's address"
-                value={addrDraft}
-                placeholder="192.168.1.5:54340"
-                onChange={e => setAddrDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") addAddress(); }}
+                aria-label="An invite you were sent"
+                value={joinDraft}
+                placeholder="ccdeck1.…"
+                spellCheck={false}
+                onChange={e => { setJoinDraft(e.target.value); setTried(null); setJoinedWith(null); }}
+                onKeyDown={e => { if (e.key === "Enter") void join(); }}
               />
-              {addrDraft.trim() !== "" && (
+              {joinDraft.trim() !== "" && (
                 <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
-                  onClick={() => { if (selfPressAccepted(busyRef.current)) addAddress(); }}
-                  title="Dial this deck directly, for a machine broadcast cannot reach">add</button>
+                  onClick={() => void join()}
+                  title="Reach that deck and pair with it. Nobody has to press anything on the other side.">
+                  {joining ? "joining…" : "join"}
+                </button>
               )}
             </div>
-            <p className="lan-note">
-              The other deck asks its own owner to accept you. Nothing moves until they do.
-            </p>
+            {joinedWith && <p className="lan-note lan-good">Paired with {joinedWith}.</p>}
+            {tried && (
+              <div className="ap-lan-tried">
+                <span className="lan-note">None of the addresses in that invite answered:</span>
+                {tried.map(t => (
+                  <span key={t.addr} className="ap-lan-tried-row">
+                    <code className="ap-lan-code">{t.addr}</code>
+                    <span className="ap-lan-bad">{t.why}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {(status.strangers ?? []).length > 0 && (
               <>
@@ -239,7 +387,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                       <code className="ap-lan-code">{p.addr}</code>
                       <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
                         onClick={() => void peerAction("accept", p.fp, "pair with that deck")}
-                        title={`Pair with ${p.name}. Its fingerprint is ${p.fp}.`}>pair</button>
+                        title={`Reach ${p.name} and ask its owner to accept. Its fingerprint is ${p.fp}.`}>ask it</button>
                     </div>
                   ))}
                 </div>
@@ -259,6 +407,22 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                         title="Stop dialling this address">remove</button>
                     </div>
                   ))}
+                </div>
+                <div className="ap-lan-row">
+                  <span className="ap-lan-label">by address</span>
+                  <input
+                    className="ap-manage-input ap-lan-input"
+                    aria-label="Another deck's address"
+                    value={addrDraft}
+                    placeholder="192.168.1.5:54340"
+                    onChange={e => setAddrDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addAddress(); }}
+                  />
+                  {addrDraft.trim() !== "" && (
+                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                      onClick={() => { if (selfPressAccepted(busyRef.current)) addAddress(); }}
+                      title="Dial this deck directly, for a machine broadcast cannot reach">add</button>
+                  )}
                 </div>
               </>
             )}
@@ -299,23 +463,44 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
 
           {/* ── who this deck talks to ────────────────────────────────────── */}
           <div className="modal-section">
-            <h3 className="lan-h">Paired decks</h3>
-            {(status.trusted ?? []).length === 0 ? (
+            <h3 className="lan-h">
+              Paired decks
+              <button type="button" className="ap-manage-btn lan-h-btn" {...selfPressProps(busy)}
+                onClick={() => void checkNow()}
+                title="Ask every paired deck right now instead of waiting for the next minute">
+                {checking ? "checking…" : "check now"}
+              </button>
+            </h3>
+            {(status.peers ?? []).length === 0 ? (
               <span className="ap-lan-empty">
-                none yet — give another deck one of the addresses above, or accept the request it sends you
+                none yet — make an invite above and send it, or paste one you were sent
               </span>
             ) : (
               <div className="ap-lan-peers">
-                {(status.trusted ?? []).map(t => (
-                  <div key={t.fp} className="ap-lan-peer">
-                    <span className="ap-lan-peer-name">{t.name || t.fp}</span>
-                    <code className="ap-lan-code">{t.fp}</code>
-                    <button type="button" className="ap-manage-btn danger ap-lan-drop" {...selfPressProps(busy)}
-                      onClick={() => void peerAction("unpair", t.fp, "unpair that deck")}
-                      aria-label={`Unpair ${t.name || t.fp}`}
-                      title="Stop talking to this deck. It takes back nothing already shared.">unpair</button>
-                  </div>
-                ))}
+                {(status.peers ?? []).map(p => {
+                  const line = roundLabel(p.last, now);
+                  const here = isOnline(p, now);
+                  return (
+                    <div key={p.fp} className="ap-lan-peer">
+                      <i className={here ? "ap-pulse" : "ap-dot"} aria-hidden />
+                      {p.manual && !p.met
+                        ? <code className="ap-lan-code">{p.addr}:{p.port}</code>
+                        : <span className="ap-lan-peer-name">{p.name}</span>}
+                      <span className="ap-lan-peer-when" title={p.addr ? `${p.addr}:${p.port}` : undefined}>
+                        {here ? "here" : p.waiting ? "it calls us" : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away"}
+                      </span>
+                      <button type="button" className="ap-manage-btn danger ap-lan-drop" {...selfPressProps(busy)}
+                        onClick={() => void peerAction("unpair", p.peerFp ?? p.fp, "unpair that deck")}
+                        aria-label={`Unpair ${p.name}`}
+                        title="Stop talking to this deck. It takes back nothing already shared.">unpair</button>
+                      {line && (
+                        <span className={`ap-lan-peer-last${line.tone === "bad" ? " ap-lan-bad" : ""}`}>
+                          {line.text}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

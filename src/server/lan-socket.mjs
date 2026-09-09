@@ -26,7 +26,7 @@ import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
   beaconPayload, beaconVerdict, handshakeTranscript, notePeer, proof, proofOk,
-  readBeacon, readPub, sessionKey, trustedPeer,
+  inviteProof, readBeacon, readPub, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 
@@ -253,6 +253,13 @@ export function createSyncServer({
    *  is therefore a real deck rather than a port scan. The panel turns this
    *  into a row with an accept on it. */
   onPending,
+  /** The invite this deck is currently offering, or null. A caller that proves
+   *  it holds the code is somebody the owner handed a token to, so it is paired
+   *  on arrival rather than queued behind a press. */
+  invite = () => null,
+  /** One was used. The caller stores the pairing and retires the invite: a
+   *  token that pairs twice is a token worth stealing twice. */
+  onInviteUsed,
 } = {}) {
   let server = null;
   const live = new Set();
@@ -267,6 +274,7 @@ export function createSyncServer({
     let peerFp = null;
     let peerPub = null;
     let peerName = "";
+    let peerPort = null;
     let key = null;
     const myChallenge = randomBytes(16).toString("hex");
     let theirChallenge = null;
@@ -335,6 +343,7 @@ export function createSyncServer({
           peerFp = them.fp;
           peerPub = them.pub;
           peerName = typeof msg.name === "string" ? msg.name : "";
+          peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
           key = sessionKey(secret, peerPub, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
           sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge });
           return;
@@ -359,6 +368,32 @@ export function createSyncServer({
           return refuse("impostor");
         }
         if (!known) {
+          // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
+          // holds a token the owner of this machine copied and sent, which is
+          // the same decision the accept button is — made earlier, and made
+          // once. So there is nothing to press: the deck is pinned here.
+          //
+          // The proof is over the transcript, so it is worth nothing to
+          // somebody who recorded an earlier exchange, and the code itself
+          // never travels.
+          const live = invite();
+          if (live && typeof msg.invite === "string") {
+            const want = inviteProof(live.code, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
+            if (proofOk(want, msg.invite)) {
+              onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
+                addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
+              authed = true;
+              clearTimeout(deadline);
+              sendFrame(sock, {
+                t: "ok", fp, name,
+                proof: proof(key, {
+                  challenge: myChallenge, peerChallenge: theirChallenge,
+                  fromFp: fp, toFp: peerFp, direction: "reply",
+                }),
+              });
+              return;
+            }
+          }
           // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
           // a port scan, and it told us a name and an address a person can
           // recognise. That is a row with an accept on it, and nothing else
@@ -366,6 +401,9 @@ export function createSyncServer({
           onPending?.({
             fp: peerFp, pub: peerPub, name: peerName,
             addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "",
+            // Where it LISTENS, from the hello — not this socket's remote port,
+            // which is ephemeral. This is what lets an accept dial back.
+            port: peerPort,
           });
           return refuse("pending");
         }
@@ -443,7 +481,7 @@ export function createSyncServer({
  * server checks the hello, and gives up if it does not hold.
  */
 export function connectToPeer({
-  host, port, fp, pub, secret, name, timeoutMs = HANDSHAKE_MS,
+  host, port, fp, pub, secret, name, myPort = null, code = null, timeoutMs = HANDSHAKE_MS,
   /** The public key we pinned for this deck the first time, or null for a deck
    *  we are meeting — an address somebody typed. */
   expectPub = null,
@@ -468,7 +506,11 @@ export function connectToPeer({
       // No proof in the hello: the caller cannot cover a challenge it has not
       // been given, and a proof over an empty one would be a proof that means
       // nothing. It goes in message three.
-      sendFrame(sock, { t: "hello", fp, pub, name, challenge: myChallenge });
+      // `port` is where WE listen, which is not the port this socket came from
+      // — that one is ephemeral and useless to dial. Without it a deck can
+      // accept an incoming request and still have no way to reach back, so the
+      // pairing is mutual on paper and one-way in fact.
+      sendFrame(sock, { t: "hello", fp, pub, name, port: myPort, challenge: myChallenge });
     });
 
     let theirChallenge = null;
@@ -507,6 +549,10 @@ export function connectToPeer({
             challenge: myChallenge, peerChallenge: theirChallenge,
             fromFp: fp, toFp: theirFp, direction: "hello",
           }),
+          // Only when joining on an invite. Sent in the same frame as the
+          // session proof so a deck that holds a token is paired in one round
+          // trip rather than being queued behind somebody else's press.
+          ...(code ? { invite: inviteProof(code, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge)) } : {}),
         });
         return;
       }

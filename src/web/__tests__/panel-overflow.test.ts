@@ -266,11 +266,18 @@ describe("a percentage width under a horizontal margin", () => {
       // afterthought rather than as the deliberate act it is, so it takes the
       // column. Named here so it enters the margin check below.
       "ap-lan-open",
+      // The way out of the section, at its foot. Full width because a pill
+      // floating at the left edge reads as an afterthought where a section's
+      // one remaining door is not one.
+      "ap-lan-setup",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.
       "hist-chart",
+      // The one press that starts pairing, alone in its block in the setup
+      // dialog until an invite exists.
+      "lan-primary",
       // The process modal's name cell, which fills whatever the six fixed
       // columns leave and ellipsises the command line inside it. `max-width: 0`
       // with `width: 100%` is the table-cell idiom for that — the panel's own

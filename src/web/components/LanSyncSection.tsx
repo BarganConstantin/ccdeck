@@ -34,6 +34,10 @@ import LanSetupModal from "./LanSetupModal";
 /** One deck this one dials, as the status route reports it. */
 interface Peer {
   fp: string;
+  /** The identity this row is really about: a heard deck's own fingerprint, or
+   *  the one that answered at a typed address. Null while an address has never
+   *  answered, which is the only state where there is nothing to name. */
+  peerFp?: string | null;
   name: string;
   addr: string;
   port: number;
@@ -41,6 +45,11 @@ interface Peer {
   /** A typed address that has answered at least once, so its name is the name
    *  the deck on the other end gave rather than the address we dialled. */
   met?: boolean;
+  /** Somebody here pressed accept on this deck. */
+  paired?: boolean;
+  /** Paired, and this deck has no address to reach it at — it called us and we
+   *  said yes, so it calls and we answer. */
+  waiting?: boolean;
   lastSeen?: number;
   last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean }> } | null;
 }
@@ -59,6 +68,7 @@ export interface LanStatus {
   shared: string[];
   peers: Peer[];
   trusted: Array<{ fp: string; name: string }>;
+  invite: LanInvite | null;
   pending: LanStranger[];
   strangers: LanStranger[];
   /** Filled in by the section from prefs, so the modal can list what this deck
@@ -157,6 +167,90 @@ export function sameKeys(a: string[], b: string[]): boolean {
   return b.every(k => seen.has(k));
 }
 
+/** What this deck is offering, and until when. */
+export interface LanInvite { token: string; expiresAt: number }
+
+/** A countdown a person reads while somebody else is reading the token out. */
+export function leftLabel(expiresAt: number, now: number): string {
+  const s = Math.max(0, Math.round((expiresAt - now) / 1000));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Is this deck reachable right now?
+ *
+ * TWO DIFFERENT KINDS OF EVIDENCE, and neither is available for both kinds of
+ * peer. A deck found by broadcast says so every thirty seconds, so a recent
+ * `lastSeen` is the answer. A deck reached by address never beacons at all, so
+ * the only evidence is whether the last round got through — which is exactly
+ * what a person means by "is it up".
+ *
+ * A round that failed is offline whatever the beacon says: a deck this one can
+ * hear and cannot talk to is not somewhere you can send an account.
+ */
+export function isOnline(p: Peer, now: number): boolean {
+  if (p.last?.error) return false;
+  if (p.last?.at && now - p.last.at < ONLINE_MS) return true;
+  if (p.lastSeen != null && now - p.lastSeen < ONLINE_MS) return true;
+  return false;
+}
+
+/** Three beacon intervals plus slack, the same window the peer table uses to
+ *  decide a deck is still present. Two lost packets do not put somebody
+ *  offline. */
+export const ONLINE_MS = 95_000;
+
+/** Who is here now, and how many are not. The panel shows the first and counts
+ *  the second — a list of machines that are switched off is a list nobody
+ *  reads, and it is what made this section feel like a settings page. */
+export function rosterSplit(peers: Peer[], now: number): { online: Peer[]; offline: Peer[] } {
+  const online: Peer[] = [];
+  const offline: Peer[] = [];
+  for (const p of peers ?? []) (isOnline(p, now) ? online : offline).push(p);
+  return { online, offline };
+}
+
+/**
+ * THE ONE LINE THAT SAYS WHAT IS HAPPENING, which is the thing this section did
+ * not have.
+ *
+ * Every other state was legible only by reading the whole section and working
+ * it out — is it on, is anybody there, did the last round do anything, is that
+ * invite still good. The panel's own doctrine has had the answer since the
+ * freshness column: put the state in a sentence, at the top, in the vocabulary
+ * a person would use.
+ *
+ * The tone travels with it for the same reason roundLabel's does: a stylesheet
+ * cannot tell "nobody yet" from "it broke", and those are the two states a
+ * reader most needs told apart.
+ */
+export function sectionState(
+  s: { enabled?: boolean; running?: boolean; peers?: Peer[]; pending?: LanStranger[] } | null,
+  now: number,
+): { text: string; tone: "bad" | "idle" | "ok" | "wait" } {
+  if (!s?.enabled) return { text: "off — this deck is not on the network", tone: "idle" };
+  if (!s.running) return { text: "starting…", tone: "wait" };
+  const asking = (s.pending ?? []).length;
+  if (asking) {
+    return {
+      text: asking === 1 ? "one deck is asking to pair" : `${asking} decks are asking to pair`,
+      tone: "wait",
+    };
+  }
+  const peers = s.peers ?? [];
+  if (!peers.length) return { text: "no decks paired yet", tone: "idle" };
+  const { online, offline } = rosterSplit(peers, now);
+  if (!online.length) {
+    return {
+      text: offline.length === 1 ? "the paired deck is not reachable" : "no paired deck is reachable",
+      tone: "bad",
+    };
+  }
+  const here = online.length === 1 ? "1 deck here" : `${online.length} decks here`;
+  return { text: offline.length ? `${here} · ${offline.length} away` : here, tone: "ok" };
+}
+
 /** How long a request has been waiting. Coarser than the peer clock on purpose:
  *  the answer is a press, and "4m ago" changes nothing about whether to make
  *  it. */
@@ -184,7 +278,6 @@ export default function LanSyncSection({ accounts, onChanged }: {
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [manual, setManual] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   /** The one thing this section could not say. See writeFailure. */
   const [failure, setFailure] = useState<string | null>(null);
@@ -252,29 +345,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
     }
   }, [load]);
 
-  const syncNow = useCallback(async () => {
-    if (!selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
-    setChecking(true);
-    try {
-      const res = await fetch("/api/lan/sync", { method: "POST" });
-      const out = await res.json().catch(() => null);
-      if (!alive.current) return;
-      if (out?.ok) { setStatus(out); setFailure(null); }
-      else setFailure(writeFailure("check the paired decks", out));
-      if (out?.done?.length) onChanged();
-    } catch {
-      if (alive.current) setFailure(writeFailure("check the paired decks", null));
-    } finally {
-      busyRef.current = false;
-      if (alive.current) { setBusy(false); setChecking(false); }
-    }
-  }, [onChanged]);
-
   const on = status?.enabled === true;
   const asking = status?.pending ?? [];
-  const peers = status?.peers ?? [];
+  const { online, offline } = rosterSplit(status?.peers ?? [], now);
+  const state = sectionState(status, now);
 
   return (
     <div className="ap-auto ap-lan">
@@ -290,20 +364,24 @@ export default function LanSyncSection({ accounts, onChanged }: {
           onClick={() => void toggle()}
           title={on
             ? "Stop answering other decks and stop dialling them"
-            : "Let decks you have paired with heal this one's dead logins"}
+            : "Let decks you pair with heal this one's dead logins"}
         >
           <i className={on ? "ap-pulse" : "ap-dot"} aria-hidden />
           {on ? "on" : "off"}
         </button>
       </div>
 
-      {/* The sentence, before anything can be shared. A refresh token that has
-          left this machine cannot be called back — the only revocation is a
-          re-login at Anthropic, which ends the session everywhere at once. */}
-      <p className="ap-auto-note">
-        Decks you pair with heal each other&apos;s dead logins.
-        A login you share is a live one, and it cannot be taken back.
-      </p>
+      {/* What the thing IS, for somebody meeting it. One line, and it stays one
+          line: this section is read by a person who came to look at a quota,
+          and a paragraph here is a paragraph they scroll past. What sharing a
+          login costs is said in the dialog, where the decision is. */}
+      <p className="ap-auto-note">Decks you pair with heal each other&apos;s dead logins.</p>
+
+      {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
+          by reading the whole thing and working it out. This is the panel's own
+          answer, the one the freshness column has made on every account row for
+          a year: say the state, at the top, in the words a person would use. */}
+      <p className={`ap-lan-status ${state.tone}`}>{state.text}</p>
 
       {failure && (
         <div className="ap-failure" role="alert">
@@ -315,11 +393,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
       {on && (
         <>
-          {/* THE REQUEST, AND IT COMES FIRST. Somebody on the other machine
-              typed this deck's address and is waiting; until this is answered
-              nothing at all moves between them. Announced, because it arrives
-              while the reader is looking at a quota rather than at this
-              section. */}
+          {/* THE REQUEST, AND IT COMES FIRST. Somebody dialled this deck without
+              an invite and is waiting; until this is answered nothing moves
+              between them. Announced, because it arrives while the reader is
+              three sections up looking at a quota. */}
           {asking.length > 0 && (
             <div className="ap-lan-asks" role="alert">
               {asking.map(p => (
@@ -346,57 +423,48 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </div>
           )}
 
-          <h4 className="ap-lan-sub">
-            paired decks
-            <button type="button" className="ap-manage-btn ap-lan-now" {...selfPressProps(busy)}
-              onClick={() => void syncNow()}
-              title="Ask every paired deck right now instead of waiting for the next minute">
-              {/* The word, because the attribute could not. selfPressProps sets
-                  aria-busy and aria-busy has no rule anywhere in the sheet, so
-                  this button looked identical pressed and unpressed. */}
-              {checking ? "checking…" : "check now"}
-            </button>
-          </h4>
-          <div className="ap-lan-peers">
-            {peers.length === 0 && (
-              <span className="ap-lan-empty">
-                none yet — open setup, give the other deck one of this one&apos;s addresses,
-                and accept the request it sends back
-              </span>
-            )}
-            {peers.map(p => {
-              const line = roundLabel(p.last, now);
-              return (
-                <div key={p.fp} className="ap-lan-peer">
-                  {/* THE NAME AS SOON AS THERE IS ONE. A typed address is all
-                      there is to show until something answers it, and the
-                      moment something does it has said what it calls itself —
-                      which is what the person typing the address was trying to
-                      reach. Until then the address is the honest label, and it
-                      is set like an address rather than like a name. */}
-                  {p.manual && !p.met
-                    ? <code className="ap-lan-code">{p.addr}:{p.port}</code>
-                    : <span className="ap-lan-peer-name">{p.name}</span>}
-                  {/* A typed deck never beacons, so it has no last-seen and
-                      "not seen" would read as broken next to a round that just
-                      succeeded. What it says instead is how it got here. */}
-                  <span className="ap-lan-peer-when" title={p.manual ? `${p.addr}:${p.port}` : undefined}>
-                    {p.manual ? "by address" : seenLabel(p.lastSeen, now)}
-                  </span>
-                  {line && (
-                    <span className={`ap-lan-peer-last${line.tone === "bad" ? " ap-lan-bad" : ""}`}>
-                      {line.text}
+          {/* WHO IS HERE NOW, AND ONLY THEM. A list of machines that are
+              switched off is a list nobody reads, and it is what made this
+              section read as a settings page rather than as an instrument. The
+              ones that are away are counted, not enumerated — and the count is
+              the way into the dialog that has them all. */}
+          {online.length > 0 && (
+            <ul className="ap-lan-here">
+              {online.map(p => {
+                const line = roundLabel(p.last, now);
+                return (
+                  <li key={p.fp} className="ap-lan-who">
+                    <i className="ap-pulse" aria-hidden />
+                    <span className="ap-lan-who-name">
+                      {p.manual && !p.met ? `${p.addr}:${p.port}` : p.name}
                     </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    <span className="ap-lan-who-when">
+                      {line ? line.text : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "here"}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
-          <button type="button" className="ap-manage-btn ap-lan-open" {...selfPressProps(busy)}
+          {online.length === 0 && (
+            <p className="ap-lan-fine">
+              {(status?.peers ?? []).length === 0
+                ? "Open setup to invite a deck. It takes one paste on the other machine."
+                : "Nothing is answering right now."}
+            </p>
+          )}
+
+          {/* EVERYTHING ELSE IS BEHIND ONE DOOR. The invite, the join field,
+              this deck's name, which accounts it offers, every deck it has ever
+              paired with — all of it is configuration, and configuration is
+              something you do twice. What you do every day is look. */}
+          <button type="button" className="ap-manage-btn ap-lan-setup" {...selfPressProps(busy)}
             onClick={() => setSetupOpen(true)}
-            title="This deck's name and address, which decks it talks to, and which accounts it offers them">
-            setup…
+            title="Invite a deck, join one, and choose which accounts this deck offers">
+            {offline.length
+              ? `setup · ${offline.length} away`
+              : (status?.peers ?? []).length ? "setup…" : "invite a deck…"}
           </button>
         </>
       )}

@@ -11,7 +11,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { roundLabel, writeFailure, sameKeys, parseAddress, askedLabel } from "../components/LanSyncSection";
+import {
+  askedLabel, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
+  sectionState, writeFailure, ONLINE_MS,
+} from "../components/LanSyncSection";
 
 const SRC = readFileSync(
   fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)),
@@ -185,7 +188,8 @@ describe("the three rules the panel above it already keeps", () => {
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {
     // `check now` looked identical pressed and unpressed: selfPressProps sets
     // aria-busy, and aria-busy has no rule anywhere in the stylesheet.
-    expect(CODE).toMatch(/checking\s*\?\s*"checking…"\s*:\s*"check now"/);
+    expect(MODAL).toMatch(/checking\s*\?\s*"checking…"\s*:\s*"check now"/);
+    expect(MODAL).toMatch(/joining\s*\?\s*"joining…"\s*:\s*"join"/);
   });
 });
 
@@ -212,7 +216,8 @@ describe("the pairing that replaced the passphrase", () => {
   it("puts the request above everything else, because nothing moves until it is answered", () => {
     const ask = CODE.indexOf('className="ap-lan-asks"');
     expect(ask).toBeGreaterThan(-1);
-    expect(ask).toBeLessThan(CODE.indexOf(">\n            paired decks"));
+    // Above the roster, which is the only other thing in the section.
+    expect(ask).toBeLessThan(CODE.indexOf('className="ap-lan-here"'));
     // Announced, because it arrives while the reader is three sections up
     // looking at a quota.
     expect(CODE).toMatch(/className="ap-lan-asks" role="alert"/);
@@ -238,6 +243,127 @@ describe("the pairing that replaced the passphrase", () => {
   });
 });
 
+describe("who is here, which is what the panel is for now", () => {
+  const NOW2 = 1_700_000_000_000;
+  const peer = (over: Record<string, unknown> = {}) => ({ fp: "a", name: "Deck", addr: "", port: 0, ...over });
+
+  it("counts a deck that beacons recently as here", () => {
+    expect(isOnline(peer({ lastSeen: NOW2 - 10_000 }) as never, NOW2)).toBe(true);
+    expect(isOnline(peer({ lastSeen: NOW2 - ONLINE_MS - 1 }) as never, NOW2)).toBe(false);
+  });
+
+  it("counts a deck reached by address, which never beacons at all", () => {
+    // The only evidence for a typed peer is whether the last round got through,
+    // and that is exactly what a person means by "is it up".
+    expect(isOnline(peer({ last: { at: NOW2 - 5_000, done: [] } }) as never, NOW2)).toBe(true);
+  });
+
+  it("counts a deck it can hear and cannot talk to as away", () => {
+    // A round that failed is offline whatever the beacon says: somewhere you
+    // cannot send an account is not somewhere that is here.
+    expect(isOnline(peer({ lastSeen: NOW2, last: { at: NOW2, error: "timed out" } }) as never, NOW2)).toBe(false);
+  });
+
+  it("splits the roster so the panel can list one half and count the other", () => {
+    const { online, offline } = rosterSplit([
+      peer({ fp: "a", lastSeen: NOW2 }),
+      peer({ fp: "b", lastSeen: NOW2 - 10 * 60_000 }),
+    ] as never, NOW2);
+    expect(online.map(p => p.fp)).toEqual(["a"]);
+    expect(offline.map(p => p.fp)).toEqual(["b"]);
+  });
+
+  it("says what is happening in one line, in the words a person would use", () => {
+    expect(sectionState(null, NOW2).text).toMatch(/^off/);
+    expect(sectionState({ enabled: true, running: false }, NOW2).text).toBe("starting…");
+    expect(sectionState({ enabled: true, running: true, peers: [] }, NOW2))
+      .toEqual({ text: "no decks paired yet", tone: "idle" });
+    expect(sectionState({ enabled: true, running: true, peers: [peer({ lastSeen: NOW2 })] as never }, NOW2))
+      .toEqual({ text: "1 deck here", tone: "ok" });
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ fp: "a", lastSeen: NOW2 }), peer({ fp: "b", lastSeen: NOW2 - 10 * 60_000 })] as never,
+    }, NOW2)).toEqual({ text: "1 deck here · 1 away", tone: "ok" });
+  });
+
+  it("leads with a request, because until it is answered nothing moves", () => {
+    expect(sectionState({
+      enabled: true, running: true, pending: [{ fp: "a", name: "x", addr: "y", at: NOW2 }],
+      peers: [peer({ lastSeen: NOW2 })] as never,
+    }, NOW2)).toEqual({ text: "one deck is asking to pair", tone: "wait" });
+  });
+
+  it("says it plainly when nothing is reachable, rather than counting to zero", () => {
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ last: { at: NOW2, error: "timed out" } })] as never,
+    }, NOW2)).toEqual({ text: "the paired deck is not reachable", tone: "bad" });
+  });
+
+  it("counts an invite down in minutes and seconds, which is how it is read out", () => {
+    expect(leftLabel(NOW2 + 600_000, NOW2)).toBe("10:00");
+    expect(leftLabel(NOW2 + 61_000, NOW2)).toBe("1:01");
+    expect(leftLabel(NOW2 + 9_000, NOW2)).toBe("0:09");
+    expect(leftLabel(NOW2 - 5_000, NOW2)).toBe("0:00");
+  });
+});
+
+describe("the invite, which is one piece of text and every address", () => {
+  it("carries all of them, because nobody knows which one routes", async () => {
+    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const made = mintInvite({ addrs: ["100.67.32.58:49336", "192.168.1.82:49336"], name: "Constantins-iMac" });
+    const read = readInvite(made.token);
+    expect(read.addrs).toEqual([
+      { addr: "100.67.32.58", port: 49336 },
+      { addr: "192.168.1.82", port: 49336 },
+    ]);
+    expect(read.name).toBe("Constantins-iMac");
+    expect(read.code).toBe(made.code);
+  });
+
+  it("tells an expired one apart from a thing that is not an invite", async () => {
+    // Two different instructions for the reader: ask for a new one, or paste
+    // the whole thing. A reader who cannot tell them apart retypes the same.
+    const { mintInvite, readInvite, INVITE_MS } = await import("../../server/lan-sync.mjs");
+    const made = mintInvite({ addrs: ["1.2.3.4:5"], name: "x", now: 1_000 });
+    expect(readInvite(made.token, 1_000).expired).toBe(false);
+    expect(readInvite(made.token, 1_000 + INVITE_MS + 1).expired).toBe(true);
+    for (const junk of ["", "hello", "ccdeck1.", "ccdeck1.!!!", "ccdeck2.abc", null, 5]) {
+      expect(readInvite(junk as string), String(junk)).toBeNull();
+    }
+  });
+
+  it("has a code that is six digits and evenly drawn", async () => {
+    // A modulo over a byte would make 0-5 likelier than 6-9, in the one number
+    // that decides whether a stranger can pair.
+    const { inviteCode } = await import("../../server/lan-sync.mjs");
+    const seen = new Map<string, number>();
+    for (let i = 0; i < 400; i++) {
+      const c = inviteCode();
+      expect(c).toMatch(/^[0-9]{6}$/);
+      for (const d of c) seen.set(d, (seen.get(d) ?? 0) + 1);
+    }
+    const counts = [...Array(10).keys()].map(d => seen.get(String(d)) ?? 0);
+    expect(Math.min(...counts)).toBeGreaterThan(Math.max(...counts) * 0.6);
+  });
+
+  it("proves the holder without ever sending the code", async () => {
+    const { inviteProof } = await import("../../server/lan-sync.mjs");
+    const a = inviteProof("482100", "fpA|fpB|c1|c2");
+    expect(a).not.toContain("482100");
+    // Bound to the transcript, so a recording of one exchange is worth nothing.
+    expect(inviteProof("482100", "fpA|fpB|c1|c3")).not.toBe(a);
+    expect(inviteProof("482101", "fpA|fpB|c1|c2")).not.toBe(a);
+  });
+
+  it("refuses a token built to make this deck dial a list", async () => {
+    const { mintInvite, MAX_INVITE_ADDRS, readInvite } = await import("../../server/lan-sync.mjs");
+    const many = Array.from({ length: 50 }, (_, i) => `10.0.0.${i}:5000`);
+    const made = mintInvite({ addrs: many, name: "x" });
+    expect(readInvite(made.token).addrs).toHaveLength(MAX_INVITE_ADDRS);
+  });
+});
+
 describe("what did not change", () => {
   it("still refuses an address with no usable port", () => {
     expect(parseAddress("192.168.1.5:54340")).toEqual({ addr: "192.168.1.5", port: 54340 });
@@ -246,8 +372,12 @@ describe("what did not change", () => {
     }
   });
 
-  it("still keeps the sentence that cannot be softened", () => {
-    expect(SRC).toMatch(/cannot be taken back/);
+  it("still keeps the sentence that cannot be softened, where the decision is", () => {
+    // It moved with the checkboxes. The panel does not share anything any more
+    // — it says who is here — so the sentence belongs above the only control
+    // that can put a live login on the network, which is in the dialog.
+    expect(MODAL).toMatch(/cannot be taken back/);
+    expect(MODAL.indexOf("cannot be taken back")).toBeLessThan(MODAL.indexOf('type="checkbox"'));
   });
 
   it("still says the deck's name is public, where the field is", () => {

@@ -6743,6 +6743,168 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 }
 
 .ap-lan-drop { margin-left: auto; }
+/* WHAT IS HAPPENING, IN ONE LINE, directly under the head. Every state this
+   section has was legible only by reading the whole thing and working it out;
+   this is the panel's own answer, the one the freshness column has made on
+   every account row for a year. It carries the tone because a stylesheet cannot
+   tell "nobody yet" from "it broke", and those are the two a reader most needs
+   told apart. */
+.ap-lan-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.ap-lan-status.ok { color: var(--text); }
+.ap-lan-status.bad { color: var(--warn); }
+.ap-lan-status.wait { color: var(--accent); }
+
+/* WHO IS HERE, and only them. The section's own complaint was that it looked
+   unfinished — a stack of 10px labels with no rhythm and nothing that read as
+   important. This is one list of one kind of thing, at one size, with a live
+   dot: a roster, which is what a person opens this to see. */
+.ap-lan-here {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ap-lan-who {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+/* The name is the row. It takes --text at 12px against the panel's 10px
+   labels, because a machine somebody is talking to is a thing and the words
+   around it are about that thing. */
+.ap-lan-who-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+/* What it last did, at the right edge, in the panel's own freshness idiom. */
+.ap-lan-who-when {
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 10px;
+  color: var(--muted);
+}
+/* The dot sits on the text baseline rather than the row's, or it rides high
+   against a 12px name — and it takes the accent, because inheriting --text from
+   the row made "here" the same ink as the name it is about. The word beside it
+   says the same thing, so this is reinforcement rather than the only channel. */
+.ap-lan-who .ap-pulse, .ap-lan-who .ap-dot { align-self: center; }
+.ap-lan-who .ap-pulse { color: var(--accent); opacity: 1; }
+
+/* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
+   rather than a row: it is the one thing on this screen a person came here to
+   do, and a 10px label above a code block would have been the fourth
+   indistinguishable stripe in a section whose complaint was that it looked
+   unfinished. */
+.ap-lan-invite {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-soft);
+}
+.ap-lan-invite-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ap-lan-invite-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* The countdown is a number that changes while somebody reads the token out
+   loud, so it is set as one: tabular, so it does not shuffle its own width. */
+.ap-lan-invite-left {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* The token itself. It wraps rather than scrolling, because a token half of
+   which is off-screen is a token somebody copies half of — and `user-select:
+   all` makes one click take the whole thing. */
+.ap-lan-token {
+  display: block;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+/* The sentence a reader needs and would otherwise have to guess: what holding
+   this token actually lets somebody do. */
+.ap-lan-fine {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.ap-lan-joined { color: var(--ok); }
+
+/* The other half of the same act, one press away from it. */
+.ap-lan-join {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Which addresses were tried and what each one said. An invite carries several
+   because nobody knows which routes; when none did, this list is the only thing
+   the reader can act on. */
+.ap-lan-tried {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.ap-lan-tried-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10px;
+}
+
+/* THE GLANCE, and never the only channel: the sentence on the row below says
+   the same thing in words. Sized and coloured like the switch's own dot, so a
+   reader who has learned one has learned the other. */
+.ap-lan-mark {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+  background: currentColor;
+  color: var(--muted);
+  opacity: 0.55;
+}
+.ap-lan-mark.ok { color: var(--accent); opacity: 1; }
+.ap-lan-mark.bad { color: var(--warn); opacity: 1; }
+
+/* The way out of the section, at the foot, where a thing you do twice belongs. */
+.ap-lan-setup {
+  width: 100%;
+  margin-top: 10px;
+  justify-content: center;
+}
+
 /* SOMEBODY IS WAITING, and this is the only thing in the panel that is a
    question rather than a reading. It takes a bed and an accent edge — the one
    place in this section that spends colour — because until it is answered
@@ -9212,3 +9374,41 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    anybody does with it is put it on a clipboard and send it to somebody. */
 .lan-dial { display: inline-flex; align-items: center; gap: 6px; }
 .lan-copied { color: var(--accent); font-size: 9px; }
+
+/* The one press that starts the whole thing, in the dialog that owns it. Full
+   width and centred: it is the only thing in its block until an invite exists,
+   and a pill at the left edge reads as an afterthought where a section's whole
+   purpose is not one. */
+.lan-primary {
+  width: 100%;
+  justify-content: center;
+}
+/* The seam between the two halves of one act — make one, or paste one. A rule
+   with a word in it, because "or" between two controls is the whole of what a
+   reader needs and a heading would claim they are separate things. */
+.lan-or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.lan-or::before, .lan-or::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid var(--line);
+}
+/* A verb parked in a section heading, the way `check now` sits in the panel's
+   own subheadings. `margin-left: auto` puts it at the far edge of the line. */
+.lan-h-btn {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.lan-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lan-good { color: var(--ok); }
