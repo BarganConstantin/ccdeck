@@ -375,6 +375,29 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
+  it("answers a deck it has never seen, so the second one to start is not blind", async () => {
+    // Measured on two real decks before this existed: deck 1 saw deck 2 the
+    // instant it started and deck 2 saw nobody, because deck 1's own immediate
+    // announce went out before deck 2 was listening. Thirty seconds of an empty
+    // list is how a working feature reads as broken.
+    const sock = fakeSocket();
+    const { b } = beaconOn(sock);
+    await b.start();
+    expect(sock.sent).toHaveLength(1);
+    const stranger = beaconOn(fakeSocket());
+    await stranger.b.start();
+    const packet = Buffer.from(JSON.stringify({
+      m: "CCDK", v: 1, n: "Desktop", f: stranger.fp, p: 4319, g: groupTag(KEY), i: "0badc0de",
+    }));
+    sock.deliver(packet, "192.168.1.42");
+    expect(sock.sent, "a stranger got no answer").toHaveLength(2);
+    // And only for a stranger. The obvious version of this is a shout storm:
+    // two decks answering each other's answers forever.
+    sock.deliver(packet, "192.168.1.42");
+    expect(sock.sent, "a deck we already knew was answered again").toHaveLength(2);
+    b.stop(); stranger.b.stop();
+  });
+
   it("keeps announcing on its own clock", async () => {
     const sock = fakeSocket();
     const { b } = beaconOn(sock);

@@ -16,7 +16,8 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
-import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, readPrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
+import { createEngine, defaultName } from "./lan-engine.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
@@ -3169,7 +3170,10 @@ function redactDeckToken(raw) {
  * same freshness every other cross-deck setting has.
  */
 let _prefs = { ...PREF_DEFAULTS };
-readPrefs().then(p => { _prefs = p; }).catch(() => {});
+// And LAN sync starts from the same read, so a deck that had it on comes back
+// with it on. `applyLanPrefs` is defined below — this runs after module
+// evaluation, which is what makes the forward reference fine.
+readPrefs().then(async p => { _prefs = p; await applyLanPrefs(); }).catch(() => {});
 
 const blockNotifier = createBlockNotifier({
   notify: osNotify,
@@ -3197,7 +3201,11 @@ const blockNotifier = createBlockNotifier({
 function prefsPayload() {
   return {
     ok: true,
-    prefs: _prefs,
+    // `publicPrefs`, never `_prefs`. This route answers anything that can reach
+    // the loopback port, and the LAN group passphrase is in the stored object —
+    // one field, and sending it here would put it in front of every page on the
+    // machine. What goes out is whether one is set.
+    prefs: publicPrefs(_prefs),
     notificationsAllowed: notificationsOn(_prefs),
     notificationsVetoed: notificationsVetoed(),
   };
@@ -3214,7 +3222,78 @@ async function handlePrefsWrite(req, res) {
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
   _prefs = await writePrefs(body);
+  // The engine reads its settings from here rather than holding its own copy,
+  // so turning the switch off in the panel really does stop the sockets rather
+  // than only changing what the panel says.
+  await applyLanPrefs();
   return send(res, 200, prefsPayload());
+}
+
+// ── LAN sync ────────────────────────────────────────────────────────────────
+//
+// The engine is built once and told the settings; it opens and closes its own
+// sockets as those change. Nothing here touches a credential — see
+// lan-engine.mjs, which passes an opaque blob between two claude-swap commands.
+const lanEngine = createEngine({
+  readAccounts: async () => {
+    const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
+    return fetchClaudeAccounts();
+  },
+  exportAccount: async num => {
+    const { shareAccounts } = await import("./cswap-admin.mjs");
+    const out = await shareAccounts([String(num)]);
+    return out?.ok ? out.blob : null;
+  },
+  importAccount: async blob => {
+    const { importAccount } = await import("./cswap-admin.mjs");
+    // NO `force`, ever, and this is the line where that promise is kept. A
+    // plain import adds an account that is missing and replaces exactly one
+    // claude-swap has quarantined; it SKIPS one that is present and healthy.
+    // So a peer cannot overwrite a working credential of this deck's even by
+    // lying about its own, because the flag that would allow it is not passed.
+    const out = await importAccount(blob);
+    return !!out?.ok;
+  },
+  onError: (what, err) => {
+    // Reported, never thrown. A machine with no route, a firewall that refuses
+    // the bind, an interface that comes and goes with a VPN — none of them is a
+    // reason for the deck to fall over.
+    if (what !== "other-group") console.error(`${PRODUCT}: lan sync (${what}):`, err?.message ?? err);
+  },
+});
+
+/** Push whatever is in prefs at the engine. Called at boot and after every
+ *  write, so there is one source of truth and it is the file. */
+async function applyLanPrefs() {
+  const lan = _prefs?.lan ?? {};
+  try {
+    await lanEngine.apply({
+      enabled: !!lan.enabled,
+      name: lan.name || defaultName(),
+      passphrase: lan.passphrase || "",
+      shared: Array.isArray(lan.shared) ? lan.shared : [],
+    });
+    for (const entry of Array.isArray(lan.manual) ? lan.manual : []) {
+      const i = String(entry).lastIndexOf(":");
+      if (i > 0) lanEngine.addPeer(entry.slice(0, i), Number(entry.slice(i + 1)));
+    }
+  } catch (err) {
+    console.error(`${PRODUCT}: lan sync could not start:`, err?.message ?? err);
+  }
+}
+
+/** What the panel draws: the switch, this deck's own name and address, and who
+ *  else is in the group. No passphrase, for the reason prefsPayload gives. */
+function handleLanStatus(req, res) {
+  return send(res, 200, { ok: true, ...lanEngine.status() });
+}
+
+/** Ask every peer now rather than at the next tick — the button beside the
+ *  list, for somebody who has just fixed a login on the other machine and does
+ *  not want to wait a minute to see it arrive. */
+async function handleLanSync(req, res) {
+  const done = await lanEngine.round();
+  return send(res, 200, { ok: true, done, ...lanEngine.status() });
 }
 
 function pushEvent(raw, source, opts = {}) {
@@ -5444,6 +5523,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
     if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
+    if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
+    if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/system")       return send(res, 200, systemSnapshot());
     // On demand only — the process list costs a subprocess on every platform,

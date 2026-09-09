@@ -55,6 +55,11 @@ export const MAX_FRAME_BYTES = MAX_MANIFEST_BYTES;
  *  in a peer or somebody holding sockets open to see what happens. */
 export const MAX_SOCKETS = 16;
 
+/** The shortest gap between two "I am here too" replies to a stranger. Long
+ *  enough that a burst of decks starting together cannot make a storm, short
+ *  enough that starting two decks by hand feels instant. */
+export const REPLY_COOLDOWN_MS = 2_000;
+
 /**
  * The shouting half.
  *
@@ -84,6 +89,9 @@ export function createBeacon({
   const peers = new Map();
   let sock = null;
   let timer = null;
+  /** When this deck last answered a stranger, so answering cannot become a
+   *  storm. See the reply in the message handler. */
+  let repliedAt = 0;
 
   const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, group, instance })));
 
@@ -111,7 +119,22 @@ export function createBeacon({
       const beacon = readBeacon(msg);
       const verdict = beaconVerdict(beacon, { selfFp: fp, selfGroup: group });
       if (verdict !== "peer") { if (verdict === "other-group") onError?.("other-group", null); return; }
+      const known = peers.has(beacon.fp);
       const noted = notePeer(peers, beacon, rinfo.address, now());
+      // ANSWER A DECK WE HAVE NEVER SEEN, once. Without this the second deck to
+      // start finds nobody until the first one's next interval — measured on
+      // two real decks: 1 saw 2 immediately, 2 saw nobody, because 1's own
+      // immediate announce went out before 2 was listening. Thirty seconds of
+      // an empty list is how a working feature reads as broken.
+      //
+      // Only for a stranger, and at most once every few seconds, because the
+      // obvious version is a shout storm: two decks answering each other's
+      // answers forever. A new pair converges in two extra packets — A answers
+      // B, B answers A's answer, and A stays quiet because B is no longer new.
+      if (!known && now() - repliedAt > REPLY_COOLDOWN_MS) {
+        repliedAt = now();
+        announce();
+      }
       if (noted.changed || noted.restarted) onPeer?.(noted);
     });
     sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {
