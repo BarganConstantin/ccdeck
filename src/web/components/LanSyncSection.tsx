@@ -339,15 +339,29 @@ export default function LanSyncSection({ accounts, onChanged }: {
   const openPassphrase = useCallback(async () => {
     if (!selfPressAccepted(busyRef.current)) return;
     setCopied(false);
-    setDraft("");
+    // FETCHED BEFORE THE FIELD EXISTS, and this ordering is the whole fix.
+    //
+    // It opened the field empty and filled it when the answer came back, under
+    // a guard that only wrote if the field was still empty. That guard cannot
+    // tell the two empties apart: "we just opened this" and "the user selected
+    // all six words and pressed delete" are the same string. So somebody who
+    // cleared the field to type their own passphrase had it refilled with the
+    // suggestion under their cursor, and typing over it did not help — the next
+    // clear brought it back.
+    //
+    // With nothing in flight once the field is on screen, there is no late
+    // write to guard against. The wait is bounded because a deck that does not
+    // answer must still leave a field somebody can type into, rather than a
+    // button that looks dead.
+    let suggestion = "";
     try {
-      const out = await fetch("/api/lan/passphrase").then(r => r.json());
-      // Only if the field is still the empty one we just opened: the fetch is a
-      // round trip, and somebody can have started typing inside it.
-      if (alive.current && out?.ok && out.passphrase) {
-        setDraft(d => (d === "" ? out.passphrase : d));
-      }
+      const out = await Promise.race([
+        fetch("/api/lan/passphrase").then(r => r.json()),
+        new Promise(r => window.setTimeout(() => r(null), 1_500)),
+      ]) as { ok?: boolean; passphrase?: string } | null;
+      if (out?.ok && typeof out.passphrase === "string") suggestion = out.passphrase;
     } catch { /* an empty field still works; the placeholder says what it wants */ }
+    if (alive.current) setDraft(suggestion);
   }, []);
 
   /**

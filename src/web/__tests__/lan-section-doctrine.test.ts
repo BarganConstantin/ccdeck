@@ -201,9 +201,23 @@ describe("the passphrase the deck knows how to make", () => {
     expect(CODE).not.toMatch(/•{3,}|•/);
   });
 
-  it("only fills a field the user has not started typing in", () => {
-    // The fetch is a round trip and somebody can type inside it.
-    expect(CODE).toMatch(/setDraft\(d => \(d === "" \? out\.passphrase : d\)\)/);
+  it("has the suggestion in hand before the field exists, so nothing lands late", () => {
+    // It used to open the field empty and fill it on the answer, guarded by "only
+    // if the field is still empty" — and that guard cannot tell "we just opened
+    // this" from "the user selected all six words and pressed delete". Clearing
+    // the field to type your own refilled it with the suggestion under your
+    // cursor. With nothing in flight once the field is on screen there is no
+    // late write at all.
+    const body = /const openPassphrase = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[\]\);/
+      .exec(CODE)?.[1] ?? "";
+    expect(body).toBeTruthy();
+    // The field is opened once, at the end, with whatever the fetch produced.
+    expect(body).toMatch(/if \(alive\.current\) setDraft\(suggestion\);\s*$/);
+    expect([...body.matchAll(/setDraft\(/g)]).toHaveLength(1);
+    // And the wait is bounded, so a deck that never answers still leaves a
+    // field to type into rather than a button that looks dead.
+    expect(body).toMatch(/Promise\.race/);
+    expect(body).toMatch(/1_500/);
   });
 });
 
