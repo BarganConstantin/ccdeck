@@ -9505,10 +9505,25 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    every control below it still works. */
 .ap-lan-reach {
   margin: 0 0 10px;
-  padding: 8px 0 8px 10px;
-  border-left: 2px solid var(--warn);
+  padding: 8px 10px;
+  border-radius: 4px;
+  /* The shape `.ap-failure` already uses for "read this before you go on": a
+     wash of the tone it is about, at a weight that stays under the text. It
+     began as a 2px rule down the left edge, which is the stock callout costume
+     and a heavier mark than anything else in this dialog wears. */
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
 }
 .ap-lan-reach .lan-warn { margin: 0; }
+/* SECONDARY TEXT ON A TINTED SURFACE IS TINTED, NOT GREY. Measured, because it
+   was wrong first: `--text-dim` clears 4.5:1 against the panel and only against
+   the panel — the 10% wash above lifts the ground under it, and the same ink
+   fell to 3.79:1 in dark. Mixing the surface's own hue into the foreground
+   instead of reaching for a lighter grey keeps the block reading as one object
+   and puts both themes back over the bar. */
+.ap-lan-reach .lan-note,
+.ap-lan-reach-fix > summary {
+  color: color-mix(in srgb, var(--warn) 22%, var(--text));
+}
 /* Folded away by default. The way out is the paragraph above it and needs no
    administrator at all; this is the other answer, for somebody who wants the
    discovery half working rather than a deck that dials. A reader who does not
@@ -9517,9 +9532,12 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .ap-lan-reach-fix { margin: 8px 0 0; }
 .ap-lan-reach-fix > summary {
   font-size: 10px;
-  color: var(--text-dim);
   cursor: pointer;
   list-style: revert;
+  /* 14.5px of line box was the smallest target in the dialog by a clear margin
+     — every button here is 22.5. The padding costs nothing and is the whole of
+     the difference, since the row is full width already. */
+  padding: 4px 0;
 }
 .ap-lan-reach-fix > summary:hover { color: var(--text); }
 /* A command is read before it is run, and one that wraps mid-flag is one
@@ -9537,3 +9555,37 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   border-radius: 4px;
   white-space: pre;
 }
+
+/* ── a control that is working says so ──────────────────────────────────────
+   `selfPressProps` and `pressProps` have set `aria-busy` on every primary
+   control in this app since #518, and nothing in 8700 lines of sheet ever
+   painted it. The consequence was measured rather than guessed: `check now`
+   fires a request that takes a second or two and the button did not move, so
+   the reported behaviour was pressing it three times.
+
+   The label swap answers this where there is a label to swap — `copy`→`copied`,
+   `check now`→`checking…`. This is for the rest, and for the moment before a
+   swapped label re-renders. It borrows the vocabulary the panel already uses
+   for "this one is live" (the accent that `.ap-auto-state:hover` takes) rather
+   than inventing a second one, and it deliberately does not dim: dim is what
+   `:disabled` means here, and a working control is the opposite of inert.
+
+   `cursor: progress` is the browser surface half. It costs nothing and it is
+   the one signal that arrives before any repaint. */
+[aria-busy="true"] { cursor: progress; }
+button[aria-busy="true"]:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── the surfaces nobody drew ───────────────────────────────────────────────
+   Selection and the caret ship with a browser default that belongs to no
+   design system, and on a dark deck the UA's blue-on-blue selection is the one
+   place the palette stops. Both take the accent the rest of the app already
+   uses for "this is the live one", at a weight that leaves the text readable
+   rather than reversing it. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+}
+input, textarea { caret-color: var(--accent); }

@@ -18,6 +18,14 @@
 // owner to accept. The trust decision is a named machine at a named address on
 // somebody's screen, rather than a string nobody can see.
 //
+// AND THEN AN INVITE, which is that decision made in advance. Whoever mints one
+// has already chosen who to send it to, so the deck that pastes it is paired on
+// arrival and nobody presses anything. The two routes are not alternatives:
+// `ask to pair` is for a deck you can SEE, an invite for one you cannot — and
+// only the invite works when the machine that cannot be seen is this one, since
+// an invite is dialled by whoever pastes it. What decides that is not in this
+// file; see lan-reach.mjs.
+//
 // WHAT THIS SECTION IS NOW. An instrument: is it on, who is paired, what
 // happened, and who is asking. Every DECISION moved into LanSetupModal, because
 // configuration is something you do twice and looking is something you do every
@@ -28,7 +36,7 @@
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { pressAccepted, pressState } from "../panel-press";
 import LanSetupModal from "./LanSetupModal";
 
 /** One deck this one dials, as the status route reports it. */
@@ -293,13 +301,40 @@ export default function LanSyncSection({ accounts, onChanged }: {
 }) {
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [manual, setManual] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  /** WHICH control is working, not WHETHER one is — the tagged slot #518 wrote
+   *  for this panel, which this section was spelling as one boolean.
+   *
+   *  It read the same to the eye only because nothing painted `aria-busy`. Now
+   *  that something does, a shared boolean would light the switch, `setup…` and
+   *  every accept at once on a press of any one of them — six controls claiming
+   *  to be working when one is. The tag is what makes `pressState` able to tell
+   *  "yours" from "somebody else's", which is the whole of the rule. */
+  const [busy, setBusy] = useState<string | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   /** The one thing this section could not say. See writeFailure. */
   const [failure, setFailure] = useState<string | null>(null);
   /** Read by the press guard rather than the state, because `busy` is a render
-   *  behind: two clicks in the same frame both see `false` and both fire. */
-  const busyRef = useRef(false);
+   *  behind: two clicks in the same frame both see `null` and both fire. */
+  const busyRef = useRef<string | null>(null);
+
+  /** Take the section's one request slot, or refuse the press. */
+  const claim = useCallback((tag: string) => {
+    if (!pressAccepted(busyRef.current)) return false;
+    busyRef.current = tag;
+    setBusy(tag);
+    return true;
+  }, []);
+  const release = useCallback(() => {
+    busyRef.current = null;
+    if (alive.current) setBusy(null);
+  }, []);
+  /** Inert while somebody else is working; busy and still focusable while it is
+   *  your own request. Spread rather than written out per control, so there is
+   *  one answer rather than one per button. */
+  const pressProps = (tag: string) => {
+    const s = pressState(busy, tag);
+    return { disabled: s.disabled, "aria-busy": s.busy };
+  };
   const [now, setNow] = useState(() => Date.now());
   const alive = useRef(true);
 
@@ -325,10 +360,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
   }, [load]);
 
   const toggle = useCallback(async () => {
-    if (!selfPressAccepted(busyRef.current)) return;
     const on = status?.enabled === true;
-    busyRef.current = true;
-    setBusy(true);
+    if (!claim("switch")) return;
     try {
       const out = await post("/api/prefs", { lan: { enabled: !on } });
       if (!alive.current) return;
@@ -338,15 +371,14 @@ export default function LanSyncSection({ accounts, onChanged }: {
     } catch {
       if (alive.current) setFailure(writeFailure(on ? "turn this off" : "turn this on", null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(false);
+      release();
     }
-  }, [status?.enabled, load]);
+  }, [status?.enabled, load, claim, release]);
 
   const answer = useCallback(async (action: "accept" | "dismiss", fp: string) => {
-    if (!selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
+    // Tagged per REQUEST rather than per section: two decks asking at once
+    // light only the row that was actually pressed.
+    if (!claim(`${action}:${fp}`)) return;
     try {
       const out = await post("/api/lan/peer", { action, fp });
       if (!alive.current) return;
@@ -356,10 +388,9 @@ export default function LanSyncSection({ accounts, onChanged }: {
     } catch {
       if (alive.current) setFailure(writeFailure("answer that request", null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(false);
+      release();
     }
-  }, [load]);
+  }, [load, claim, release]);
 
   const on = status?.enabled === true;
   const asking = status?.pending ?? [];
@@ -376,7 +407,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
           role="switch"
           aria-checked={on}
           aria-label="Local network sync"
-          {...selfPressProps(busy)}
+          {...pressProps("switch")}
           onClick={() => void toggle()}
           title={on
             ? "Stop talking to other decks. Nothing is shared while this is off."
@@ -427,12 +458,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
                     {" wants to pair · "}{askedLabel(p.at, now)}
                   </span>
                   <span className="ap-lan-ask-acts">
-                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                    <button type="button" className="ap-manage-btn" {...pressProps(`accept:${p.fp}`)}
                       onClick={() => void answer("accept", p.fp)}
                       title={`Talk to this deck from now on. Its fingerprint is ${p.fp} — check it matches the one on their screen before you accept.`}>
                       accept
                     </button>
-                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                    <button type="button" className="ap-manage-btn" {...pressProps(`dismiss:${p.fp}`)}
                       onClick={() => void answer("dismiss", p.fp)}
                       title="Take this request off the list. Nothing is shared. If that deck asks again, it comes back.">
                       dismiss
@@ -458,7 +489,15 @@ export default function LanSyncSection({ accounts, onChanged }: {
                     <span className="ap-lan-who-name">
                       {p.manual && !p.met ? `${p.addr}:${p.port}` : p.name}
                     </span>
-                    <span className="ap-lan-who-when">
+                    {/* THE TONE IS PAINTED HERE TOO, and it was not. `roundLabel`
+                        has returned one since the roster was written, the dialog
+                        uses it, and this — the list somebody actually glances at,
+                        in the panel that is meant to be an instrument — drew a
+                        refused handshake in the same ink as a clean round. The
+                        one thing anybody scans a list like this for is which row
+                        is wrong, and here that was the one thing it would not
+                        say. */}
+                    <span className={`ap-lan-who-when${line?.tone === "bad" ? " ap-lan-bad" : ""}`}>
                       {line ? line.text : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "here"}
                     </span>
                   </li>
@@ -479,7 +518,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
               this deck's name, which accounts it offers, every deck it has ever
               paired with — all of it is configuration, and configuration is
               something you do twice. What you do every day is look. */}
-          <button type="button" className="ap-manage-btn ap-lan-setup" {...selfPressProps(busy)}
+          <button type="button" className="ap-manage-btn ap-lan-setup" {...pressProps("setup")}
             onClick={() => setSetupOpen(true)}
             title="Invite a deck, join one, and choose which logins this deck offers">
             {offline.length

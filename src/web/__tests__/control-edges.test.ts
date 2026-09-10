@@ -977,6 +977,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // has to be worth is measured — as a state rather than as an edge — by
       // usage-series-contrast.test.ts, which holds it to the same bar #583 set.
       ".up-period .uh-range-btn[aria-pressed=\"true\"]",
+      // A control whose own request is in flight. Same reason as the period
+      // strip above and the same shape: the boundary is drawn at rest by
+      // whatever control this is, and is measured there; `aria-busy` only
+      // RECOLOURS that edge for as long as the request is out. Nothing appears,
+      // nothing moves, the geometry is identical before and after, and the
+      // button is identified by the word written in it. It is a state
+      // indicator, not the control's boundary — and it is the state #518 has
+      // been announcing to screen readers since it was written, with nothing on
+      // screen saying the same thing.
+      "button[aria-busy=\"true\"]:not(:disabled)",
       // A label on the canvas, whose rim is a tint of the session hue and
       // whose floors session-hue.test.ts owns as decoration. It reads its own
       // name at 4.5:1, which is the identification. (It read "draggable" here

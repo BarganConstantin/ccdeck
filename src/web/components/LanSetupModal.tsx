@@ -21,7 +21,7 @@
 // is an instrument; this is the workshop.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { pressAccepted, pressState } from "../panel-press";
 import { isOnline, leftLabel, parseAddress, roundLabel, sameKeys, seenLabel, writeFailure } from "./LanSyncSection";
 import type { LanAccount, LanStatus } from "./LanSyncSection";
 
@@ -47,7 +47,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
   const [addrDraft, setAddrDraft] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [joinDraft, setJoinDraft] = useState("");
   const [joining, setJoining] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -62,7 +62,31 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     const iv = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(iv);
   }, []);
-  const busyRef = useRef(false);
+  /** WHICH control is working, not WHETHER one is. This dialog spelled the
+   *  panel's tagged request slot as a single boolean across thirteen controls,
+   *  which was invisible only while nothing painted `aria-busy`. Painted, one
+   *  boolean would mark `make an invite`, `join`, `check now`, every `unpair`
+   *  and every account tick as working the instant any one of them was pressed.
+   *  `pressState` exists to tell "yours" from "somebody else's"; it needs a tag
+   *  to do it. */
+  const busyRef = useRef<string | null>(null);
+  /** Take the dialog's one request slot, or refuse the press. */
+  const claim = useCallback((tag: string) => {
+    if (!pressAccepted(busyRef.current)) return false;
+    busyRef.current = tag;
+    setBusy(tag);
+    return true;
+  }, []);
+  const release = useCallback(() => {
+    busyRef.current = null;
+    if (alive.current) setBusy(null);
+  }, []);
+  /** Inert while somebody else is working; busy and still focusable while it is
+   *  your own request. */
+  const pressProps = (tag: string) => {
+    const s = pressState(busy, tag);
+    return { disabled: s.disabled, "aria-busy": s.busy };
+  };
   /** What we last sent, so a second tick inside one poll window composes with
    *  the first instead of being built from a render that predates it. The same
    *  race the panel had, and the same fix. */
@@ -76,9 +100,12 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     if (pending.current && sameKeys(pending.current, status.shared ?? [])) pending.current = null;
   }, [status.shared]);
 
-  const write = useCallback(async (lan: Record<string, unknown>, what: string) => {
-    busyRef.current = true;
-    setBusy(true);
+  const write = useCallback(async (lan: Record<string, unknown>, what: string, tag = "write") => {
+    // Unguarded on purpose, as it always was: a tick composes with the tick
+    // before it through `pending`, and refusing the second press would drop it.
+    // What the tag adds is only which control says it is working.
+    busyRef.current = tag;
+    setBusy(tag);
     try {
       const res = await fetch("/api/prefs", {
         method: "POST",
@@ -96,15 +123,12 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
       if (alive.current) setFailure(writeFailure(what, null));
       return false;
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(false);
+      release();
     }
   }, [onChanged]);
 
   const peerAction = useCallback(async (action: string, fp: string, what: string) => {
-    if (!selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
+    if (!claim(`:`)) return;
     try {
       const res = await fetch("/api/lan/peer", {
         method: "POST",
@@ -118,8 +142,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     } catch {
       if (alive.current) setFailure(writeFailure(what, null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(false);
+      release();
     }
   }, [onChanged]);
 
@@ -133,9 +156,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
   }, []);
 
   const invite = useCallback(async (action: "make" | "withdraw") => {
-    if (!selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
+    if (!claim(`invite:`)) return;
     setCopied(null);
     try {
       const out = await call("/api/lan/invite", { action });
@@ -145,16 +166,13 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     } catch {
       if (alive.current) setFailure(writeFailure("make an invite", null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) setBusy(false);
+      release();
     }
   }, [call, onChanged]);
 
   const join = useCallback(async () => {
     const token = joinDraft.trim();
-    if (!token || !selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
+    if (!token || !claim("join")) return;
     setJoining(true);
     setTried(null);
     setJoinedWith(null);
@@ -178,15 +196,13 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     } catch {
       if (alive.current) setFailure(writeFailure("join that deck", null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) { setBusy(false); setJoining(false); }
+      release();
+      if (alive.current) setJoining(false);
     }
   }, [joinDraft, call, onChanged]);
 
   const checkNow = useCallback(async () => {
-    if (!selfPressAccepted(busyRef.current)) return;
-    busyRef.current = true;
-    setBusy(true);
+    if (!claim("check")) return;
     setChecking(true);
     try {
       const res = await fetch("/api/lan/sync", { method: "POST" });
@@ -197,8 +213,8 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     } catch {
       if (alive.current) setFailure(writeFailure("check the paired decks", null));
     } finally {
-      busyRef.current = false;
-      if (alive.current) { setBusy(false); setChecking(false); }
+      release();
+      if (alive.current) setChecking(false);
     }
   }, [onChanged]);
 
@@ -227,7 +243,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     // nothing for up to SYNC_MS is that question unanswered. The write puts it
     // in the dial list; this makes the first dial happen while they are still
     // looking at it.
-    if (await write({ manual: [...manual, entry] }, "add that address")) await checkNow();
+    if (await write({ manual: [...manual, entry] }, "add that address", "add")) await checkNow();
   };
 
   // ONLY THE ONES SOMEBODY ACTUALLY PAIRED WITH. An address in the dial list
@@ -281,13 +297,13 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 onChange={e => setNameDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key !== "Enter" || nameDraft == null) return;
-                  void write({ name: nameDraft }, "save the name");
+                  void write({ name: nameDraft }, "save the name", "name");
                   setNameDraft(null);
                 }}
               />
               {nameDraft != null && nameDraft !== (status.name ?? "") && (
-                <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
-                  onClick={() => { void write({ name: nameDraft }, "save the name"); setNameDraft(null); }}
+                <button type="button" className="ap-manage-btn" {...pressProps("name")}
+                  onClick={() => { void write({ name: nameDraft }, "save the name", "name"); setNameDraft(null); }}
                   title="Save it. This is the name other decks show for this one.">save</button>
               )}
             </div>
@@ -304,7 +320,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                   <span className="lan-dials">
                     {dials.map(d => (
                       <button key={d} type="button" className="ap-manage-btn lan-dial"
-                        {...selfPressProps(busy)}
+                        {...pressProps(`copy:${d}`)}
                         onClick={() => void copy(d)}
                         title="Copy this address, and give it to the other deck">
                         <code className="ap-lan-code">{d}</code>
@@ -417,7 +433,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                       )}
                     </p>
                     <pre className="ap-lan-cmd"><code>{(status.reach.steps ?? []).join("\n")}</code></pre>
-                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                    <button type="button" className="ap-manage-btn" {...pressProps("copy:fix")}
                       onClick={() => void copy((status.reach?.steps ?? []).join("\n"))}
                       title="Copy these lines, then paste them into an elevated PowerShell">
                       {copied === (status.reach.steps ?? []).join("\n") ? "copied" : "copy command"}
@@ -435,12 +451,12 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 </div>
                 <code className="ap-lan-token">{status.invite.token}</code>
                 <div className="ap-lan-acts">
-                  <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                  <button type="button" className="ap-manage-btn" {...pressProps("copy:invite")}
                     onClick={() => void copy(status.invite!.token)}
                     title="Copy it, and send it however you already talk to them">
                     {copied === status.invite.token ? "copied" : "copy invite"}
                   </button>
-                  <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                  <button type="button" className="ap-manage-btn" {...pressProps("invite:withdraw")}
                     onClick={() => void invite("withdraw")}
                     title="Cancel it. Anybody already holding the text can no longer use it.">
                     cancel invite
@@ -458,7 +474,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 </p>
               </div>
             ) : (
-              <button type="button" className="ap-manage-btn lan-primary" {...selfPressProps(busy)}
+              <button type="button" className="ap-manage-btn lan-primary" {...pressProps("invite:make")}
                 onClick={() => void invite("make")}
                 title="One piece of text you send them. They paste it and the two decks pair.">
                 make an invite
@@ -477,7 +493,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 onKeyDown={e => { if (e.key === "Enter") void join(); }}
               />
               {joinDraft.trim() !== "" && (
-                <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                <button type="button" className="ap-manage-btn" {...pressProps("join")}
                   onClick={() => void join()}
                   title="Reach that deck and pair with it. Nobody has to press anything there.">
                   {joining ? "joining…" : "join"}
@@ -516,7 +532,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                     <div key={p.fp} className="ap-lan-peer">
                       <span className="ap-lan-peer-name">{p.name}</span>
                       <code className="ap-lan-code">{p.addr}</code>
-                      <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
+                      <button type="button" className="ap-manage-btn ap-lan-drop" {...pressProps(`accept:${p.fp}`)}
                         onClick={() => void peerAction("accept", p.fp, "reach that deck")}
                         title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
                         ask to pair
@@ -534,8 +550,8 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                   {(status.manualRows ?? []).map(row => (
                     <div key={row} className="ap-lan-peer">
                       <code className="ap-lan-code">{row}</code>
-                      <button type="button" className="ap-manage-btn ap-lan-drop" {...selfPressProps(busy)}
-                        onClick={() => void write({ manual: manual.filter(m => m !== row) }, "stop dialling that address")}
+                      <button type="button" className="ap-manage-btn ap-lan-drop" {...pressProps(`manual:${row}`)}
+                        onClick={() => void write({ manual: manual.filter(m => m !== row) }, "stop dialling that address", `manual:${row}`)}
                         aria-label={`Stop trying ${row}`}
                         title="Stop trying this address">remove</button>
                     </div>
@@ -561,8 +577,8 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                 onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
               />
               {addrDraft.trim() !== "" && (
-                <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
-                  onClick={() => { if (selfPressAccepted(busyRef.current)) void addAddress(); }}
+                <button type="button" className="ap-manage-btn" {...pressProps("add")}
+                  onClick={() => void addAddress()}
                   title="Try this address every minute, starting now. Use it when a deck cannot be found on its own.">add</button>
               )}
             </div>
@@ -578,7 +594,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
           <div className="modal-section">
             <h3 className="lan-h">
               Paired decks
-              <button type="button" className="ap-manage-btn lan-h-btn" {...selfPressProps(busy)}
+              <button type="button" className="ap-manage-btn lan-h-btn" {...pressProps("check")}
                 onClick={() => void checkNow()}
                 title="Check every paired deck now, instead of waiting for the next minute">
                 {checking ? "checking…" : "check now"}
@@ -605,7 +621,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                             connection only happens in one direction. */}
                         {here ? "here" : p.waiting ? "reaches us" : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away"}
                       </span>
-                      <button type="button" className="ap-manage-btn danger ap-lan-drop" {...selfPressProps(busy)}
+                      <button type="button" className="ap-manage-btn danger ap-lan-drop" {...pressProps(`unpair:${p.peerFp ?? p.fp}`)}
                         onClick={() => void peerAction("unpair", p.peerFp ?? p.fp, "unpair that deck")}
                         aria-label={`Unpair ${p.name}`}
                         title="Stop talking to this deck from now on. Logins it already has stay with it.">unpair</button>
