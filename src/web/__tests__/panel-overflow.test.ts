@@ -261,6 +261,11 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
+      // The one press the LAN section is for: fetch now what an expired login
+      // here needs from the deck beside it. Full width because it is the
+      // section's primary act — it took the column `setup…` used to hold,
+      // which opened a dialog with a name field in it.
+      "ap-lan-check",
       // The one press that mints an invite, alone in its block in the panel's
       // add-a-deck drawer until one exists.
       "ap-lan-mint",
@@ -269,10 +274,6 @@ describe("a percentage width under a horizontal margin", () => {
       // afterthought rather than as the deliberate act it is, so it takes the
       // column. Named here so it enters the margin check below.
       "ap-lan-open",
-      // The way out of the section, at its foot. Full width because a pill
-      // floating at the left edge reads as an afterthought where a section's
-      // one remaining door is not one.
-      "ap-lan-setup",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check

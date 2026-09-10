@@ -561,6 +561,25 @@ const CONTROLS: Control[] = [
     states: [".ap-manage-btn.danger:hover:not(:disabled)", ".ap-manage-btn.danger.armed"], beds: ACCOUNTS },
   { at: ".ap-share-foot .ap-manage-btn", fillFrom: ".ap-share-foot .ap-manage-btn",
     states: [".ap-share-foot .ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
+  // The verbs on a LAN roster row. At rest they draw no boundary at all — a
+  // transparent border on the section's own ground — because `unpair` in the
+  // error colour, once per paired deck, was the loudest repeated thing in a
+  // section whose one real press sat below it. That rest state owes nothing
+  // under 1.4.11: each is a word, and the word identifies it. What it does owe
+  // is that the edge it draws WHERE SOMEBODY IS POINTING clears the bar, and
+  // that focus draws the same one as hover rather than less.
+  { at: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
+    fillFrom: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
+    states: [".ap-lan-who .ap-manage-btn:focus-visible"], beds: ACCOUNTS },
+  { at: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
+    fillFrom: ".ap-lan-who .ap-manage-btn.danger:hover:not(:disabled)",
+    states: [
+      ".ap-lan-who .ap-manage-btn.danger:focus-visible",
+      // Armed keeps the colour without being pointed at, because the press has
+      // already happened once and the next one is the half that cannot be
+      // undone.
+      ".ap-lan-who .ap-manage-btn.danger.armed",
+    ], beds: ACCOUNTS },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
   // add-account dialog
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
@@ -669,13 +688,15 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
 
   it("pins the rules whose only boundary is a ring", () => {
     // Not a count: the names, so a rule that crosses from ring to border shows
-    // up as the pair of moves it is. Nine focus indicators and the selected
-    // chart bar. The expanded machine meter was the tenth until the meter was
+    // up as the pair of moves it is. Ten focus indicators and the selected
+    // chart bar — the tenth is the LAN section's foot word, which is a control
+    // with no box at all, so its ring is the whole of its boundary. The expanded machine meter was the tenth until the meter was
     // removed; the button that replaced it wears the icon-button ring, which is
     // a border rather than a shadow and is swept as one.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
       ".aa-field input:focus-visible",
       ".ap-field select:focus-visible",
+      ".ap-lan-word:focus-visible",
       ".ap-manage-input:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
@@ -698,7 +719,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // they were made secondary, which is a control gaining an edge rather than
     // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(85);
+    expect(EDGED_CONTROLS.length).toBeLessThan(92);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

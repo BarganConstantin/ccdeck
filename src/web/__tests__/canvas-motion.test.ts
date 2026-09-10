@@ -292,6 +292,11 @@ const PRESSES: Press[] = [
   // the whole sentence and the sentence is what answers the press. 0.97 like
   // every other labelled control.
   [".ap-lan-pick:active", "0.97", "transform"],
+  // The LAN section's two foot words — `+ add a deck` and `name & shared
+  // logins`. They gave up their pills so the one press the section is for could
+  // have the column, and a control with no box still owes an answer to a press.
+  // 0.97 like every other labelled control.
+  [".ap-lan-word:active:not(:disabled)", "0.97", "transform"],
   [".ap-fix:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],

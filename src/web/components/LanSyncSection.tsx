@@ -138,8 +138,36 @@ export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
  * are one protocol and this is the panel's half of it.
  */
 const WIRE_ANSWERS: Record<string, RoundLine> = {
-  "waiting for the other deck to accept this one": { text: "waiting for them to accept", tone: "idle" },
-  "that deck said no": { text: "it declined this deck", tone: "bad" },
+  "waiting for the other deck to accept this one": { text: "waiting for them to say yes", tone: "idle" },
+  "that deck said no": { text: "it said no", tone: "bad" },
+};
+
+/**
+ * The faults, in words somebody who does not know what a handshake is can act
+ * on — and the prefix that used to carry them, gone.
+ *
+ * `could not reach it — handshake timed out` is two clauses, an em dash and a
+ * protocol noun, in a row that is one line high and 190px wide: it wrapped, and
+ * the wrap is what pushed the machine's own name off the row. Every word of the
+ * prefix is now said by the row itself — the mark is red and the sentence sits
+ * under the name it is about — so what is left to say is what happened.
+ *
+ * Anything not listed passes through verbatim. A sentence this file has never
+ * seen is more useful whole than replaced by a guess, and lan-socket.mjs is
+ * free to add one without this map lying about it.
+ */
+const WIRE_FAULTS: Record<string, string> = {
+  "handshake timed out": "no answer",
+  "peer closed the connection": "it hung up",
+  "peer went quiet": "it stopped mid-sentence",
+  "bad reply": "it answered with nonsense",
+  "no manifest": "it would not say what it has",
+  "bad challenge": "it answered as somebody else",
+  "a different deck is answering at that address": "a different deck is at that address",
+  "that deck could not prove its own key": "it could not prove who it is",
+  "the other deck refused this one's proof": "it would not take this deck's word",
+  "the other deck refused this handshake": "it turned this deck away",
+  "that deck has this one pinned under a different key": "it knows this deck by another key",
 };
 
 /**
@@ -157,16 +185,23 @@ const WIRE_ANSWERS: Record<string, RoundLine> = {
  */
 export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (!last) return null;
-  if (last.error) return WIRE_ANSWERS[last.error] ?? { text: `could not reach it — ${last.error}`, tone: "bad" };
+  if (last.error) return WIRE_ANSWERS[last.error] ?? { text: WIRE_FAULTS[last.error] ?? last.error, tone: "bad" };
   const done = last.done ?? [];
-  if (!done.length) return { text: `nothing to do · checked ${seenLabel(last.at, now)}`, tone: "idle" };
+  // NOT "nothing to do", which reads two ways and one of them is alarming: a
+  // reader cannot tell it from "nothing is shared, so there was nothing to
+  // send". Two decks whose logins all work is the steady state of this feature
+  // and the sentence says so.
+  if (!done.length) return { text: `all logins fine · ${seenLabel(last.at, now)}`, tone: "idle" };
   const ok = done.filter(d => d.ok);
-  const verb = ok.length === 1 ? "account" : "accounts";
+  const verb = ok.length === 1 ? "login" : "logins";
   return ok.length === done.length
-    ? { text: `took ${ok.length} ${verb} · ${seenLabel(last.at, now)}`, tone: "ok" }
+    // "arrived", because a round only ever pulls: roundWith dials, reads the
+    // other deck's manifest and imports. Nothing leaves this deck on a round it
+    // started, and "took 2 accounts" left which way it went to the reader.
+    ? { text: `${ok.length} ${verb} arrived · ${seenLabel(last.at, now)}`, tone: "ok" }
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
-    : { text: `took ${ok.length} of ${done.length} · ${seenLabel(last.at, now)}`, tone: "bad" };
+    : { text: `${ok.length} of ${done.length} logins arrived · ${seenLabel(last.at, now)}`, tone: "bad" };
 }
 
 /**
@@ -279,22 +314,43 @@ export function sectionState(
   if (!s.running) return { text: "starting…", tone: "wait" };
   const asking = (s.pending ?? []).length;
   if (asking) {
+    // Somebody is waiting on a person at this keyboard, and that outranks every
+    // other state this line can report.
     return {
-      text: asking === 1 ? "one deck is asking to pair" : `${asking} decks are asking to pair`,
+      text: asking === 1 ? "1 deck is waiting for your answer" : `${asking} decks are waiting for your answer`,
       tone: "wait",
     };
   }
-  const peers = s.peers ?? [];
-  if (!peers.length) return { text: "no decks paired yet", tone: "idle" };
-  const { online, offline } = rosterSplit(peers, now);
-  if (!online.length) {
+  // THREE BUCKETS, NOT TWO, AND THE THIRD IS WHY THIS LINE USED TO LIE.
+  //
+  // An address this deck has never reached is not a deck that is away — it is a
+  // string somebody typed that may never have been a deck at all, and counting
+  // it as an unreachable peer let one typo report the whole fleet as broken.
+  //
+  // And a deck that CALLS IN is not away either. lan-engine.mjs synthesizes a
+  // row for every deck we accepted and hold no address for; it is never dialled,
+  // so `last` stays null and `lastSeen` never arrives, so `isOnline` is false
+  // for it forever. The old line therefore drew `no paired deck is reachable` in
+  // the warning ink over a pairing that was working perfectly — the far deck
+  // dials in, and its own row said `reaches us` two lines below.
+  const peers = (s.peers ?? []).filter(p => p.paired !== false || p.met);
+  if (!peers.length) return { text: "no deck paired yet", tone: "idle" };
+  const calling = peers.filter(p => p.waiting && !p.last?.error);
+  const dialled = peers.filter(p => !calling.includes(p));
+  const { online, offline } = rosterSplit(dialled, now);
+  const here = online.length + calling.length;
+  if (!here) {
+    // Named and directional. "Not reachable" says nothing about which side
+    // cannot do what, and a reader who does not know the answer cannot act.
     return {
-      text: offline.length === 1 ? "the paired deck is not reachable" : "no paired deck is reachable",
+      text: offline.length === 1
+        ? "this deck cannot reach the one it is paired with"
+        : `this deck cannot reach any of its ${offline.length} decks`,
       tone: "bad",
     };
   }
-  const here = online.length === 1 ? "1 deck here" : `${online.length} decks here`;
-  return { text: offline.length ? `${here} · ${offline.length} away` : here, tone: "ok" };
+  const ready = here === 1 ? "1 deck ready" : `${here} decks ready`;
+  return { text: offline.length ? `${ready} · ${offline.length} away` : ready, tone: "ok" };
 }
 
 /** How long a request has been waiting. Coarser than the peer clock on purpose:
@@ -308,7 +364,7 @@ export function askedLabel(at: number, now: number): string {
 }
 
 /** One line in the panel's list of machines. */
-export type DeckKind = "asks" | "paired" | "nearby" | "declined";
+export type DeckKind = "asks" | "paired" | "dialling" | "nearby" | "declined";
 
 export interface DeckRow {
   fp: string;
@@ -320,26 +376,43 @@ export interface DeckRow {
   tone: RoundLine["tone"] | "wait";
   /** Drawn as live: the emitter rather than the still dot. */
   here: boolean;
+  /** The whole of it, for the hover and the accessible name — a row is 190px
+   *  wide and a sentence that fits there cannot also explain a direction. */
+  hint: string;
 }
+
+/** A deck that is paired, holds no address here, and reaches this one by
+ *  calling it.
+ *
+ *  `one-way` first, because that is the word a reader can act on without
+ *  knowing anything about sockets, and the whole sentence has to fit the 190px
+ *  it is given — the honest long form ran to two lines on every row that wore
+ *  it, in a list where three of them can be true at once. What it costs is
+ *  said in full in the row's hint. */
+const CALLS_IN = "one-way · it calls this deck";
 
 /**
  * EVERY DECK ON ONE LIST, which is the whole of this redesign.
  *
- * The four things a machine on the network can be to this one lived in four
+ * The five things a machine on the network can be to this one lived in four
  * places: a request was in the panel, a paired deck in the panel's roster, a
- * deck nearby was two clicks into a dialog, and a deck somebody had said no to
- * was nowhere at all. So "who is out there and what is happening with them" —
- * the only question anybody opens this section to ask — could not be answered
- * by looking at any one surface.
+ * deck nearby was two clicks into a dialog, an address somebody typed was
+ * indistinguishable from a paired deck, and a deck somebody had said no to was
+ * nowhere at all. So "who is out there and what is happening with them" — the
+ * only question anybody opens this section to ask — could not be answered by
+ * looking at any one surface.
  *
  * They are one list because they are one question. What differs between them is
- * the sentence on the right and the control on the end, and that is exactly
- * what a list is for.
+ * the sentence under the name and the verb on the end, and that is exactly what
+ * a list is for.
  *
- * THE ORDER IS WHAT IS OWED TO WHOM. A request is somebody waiting on an answer
- * from this keyboard, so it is first. Then the decks that are working, then the
- * ones that are not, then the machines nearby that could be asked, and last the
- * ones already answered — a decision that is made is not news.
+ * THE ORDER IS WHAT IS OWED TO WHOM, AND THEN IT IS ALPHABETICAL. A request is
+ * somebody waiting on an answer from this keyboard, so it is first; then the
+ * decks that are paired, then the addresses still being tried, then machines
+ * nearby, then the ones already answered. WITHIN a kind the order is by name
+ * and never by liveness — sorting the paired decks by whether they answered
+ * last made a row change position between two five-second polls on a lost
+ * beacon, in a list somebody is scanning for one machine.
  */
 export function deckRows(
   s: { peers?: Peer[]; pending?: LanStranger[]; strangers?: LanStranger[]; declined?: LanStranger[] } | null,
@@ -348,6 +421,7 @@ export function deckRows(
   if (!s) return [];
   const rows: DeckRow[] = [];
   const seen = new Set<string>();
+  const byName = (a: DeckRow, b: DeckRow) => a.name.localeCompare(b.name, undefined, { numeric: true });
 
   for (const p of s.pending ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
@@ -355,49 +429,79 @@ export function deckRows(
     rows.push({
       fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
       kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
+      hint: `${p.name || p.fp} at ${p.addr} is waiting for an answer.`,
     });
   }
 
   const paired: DeckRow[] = [];
+  const dialling: DeckRow[] = [];
   for (const p of s.peers ?? []) {
     const fp = p.peerFp ?? p.fp;
     if (!fp || seen.has(fp)) continue;
     seen.add(fp);
     const line = roundLabel(p.last, now);
     const here = isOnline(p, now);
+    const where = p.addr ? `${p.addr}:${p.port}` : "";
+    // AN ADDRESS THAT HAS NEVER ANSWERED IS NOT A PAIRED DECK. It wore the
+    // paired row and the paired verb, and `unpair` on it named a fingerprint
+    // built out of the address — which matches nothing this deck ever met, so
+    // the one control on the row answered `could not unpair that deck`. One
+    // typo made a row that failed every minute and could not be removed.
+    if (!p.paired && p.manual && !p.met) {
+      dialling.push({
+        fp: where, name: where || p.name || fp, addr: p.addr ?? "",
+        kind: "dialling",
+        state: line ? line.text : "trying…",
+        tone: line ? line.tone : "idle",
+        here: false,
+        hint: line
+          ? `Nothing has answered at ${where} yet — ${line.text}.`
+          : `Dialling ${where} every minute until something answers.`,
+      });
+      continue;
+    }
     paired.push({
       fp,
-      // A typed address that has never answered has no name to show, and the
-      // address is what the person who typed it was trying to reach.
-      name: p.manual && !p.met ? `${p.addr}:${p.port}` : (p.name || fp),
+      name: p.manual && !p.met ? where : (p.name || fp),
       addr: p.addr ?? "",
       kind: "paired",
-      state: line ? line.text : here ? "here" : p.waiting ? "reaches us" : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away",
+      // The one-way case, said out loud. A deck this one holds no address for
+      // heals ITSELF from here and can never heal this one, because a round
+      // only ever pulls — see roundWith. "reaches us" was true, cheerful, and
+      // hid the half that matters to somebody whose own login has expired.
+      state: line ? line.text : here ? "ready" : p.waiting ? CALLS_IN : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away",
       tone: line ? line.tone : here ? "ok" : "idle",
-      here,
+      here: here || (!!p.waiting && !p.last?.error),
+      hint: p.waiting && !line
+        ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. Add its address with + add a deck.`
+        : `${p.name || fp}${where ? ` at ${where}` : ""}`,
     });
   }
-  // The ones that are working, then the ones that are not. Same list, and the
-  // order is the one thing that makes a long list scannable.
-  rows.push(...paired.filter(r => r.here), ...paired.filter(r => !r.here));
+  rows.push(...paired.sort(byName), ...dialling.sort(byName));
 
+  const nearby: DeckRow[] = [];
   for (const p of s.strangers ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
-    rows.push({
+    nearby.push({
       fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
-      kind: "nearby", state: "on this network", tone: "idle", here: true,
+      kind: "nearby", state: "not paired yet", tone: "idle", here: true,
+      hint: `${p.name || p.fp} at ${p.addr} is on this network and nothing is shared with it.`,
     });
   }
+  rows.push(...nearby.sort(byName));
 
+  const declined: DeckRow[] = [];
   for (const p of s.declined ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
-    rows.push({
+    declined.push({
       fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
       kind: "declined", state: "you said no", tone: "idle", here: false,
+      hint: `${p.name || p.fp} asked and was turned away. It is not asking any more.`,
     });
   }
+  rows.push(...declined.sort(byName));
 
   return rows;
 }
@@ -428,6 +532,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  "yours" from "somebody else's", which is the whole of the rule. */
   const [busy, setBusy] = useState<string | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  /** Which unpair is armed. The account rows above have made an irreversible
+   *  press cost a second deliberate one since the panel was written; this row
+   *  is the same act against a different noun. */
+  const [armed, setArmed] = useState<string | null>(null);
   /** The block that holds the two ways of reaching a deck that is not on the
    *  list. Shut by default: it is the thing you do once, and the list is the
    *  thing you read every day. */
@@ -550,6 +658,28 @@ export default function LanSyncSection({ accounts, onChanged }: {
     }
   }, [addrDraft, manual, load, onChanged, claim, release]);
 
+  /** Stop dialling an address that never answered.
+   *
+   *  Through prefs rather than through /api/lan/peer, because there is nothing
+   *  to unpair: no deck was ever met here, and the row's fingerprint is a
+   *  placeholder built out of the address. `setPeers` replaces the dial list
+   *  wholesale on every prefs write, so filtering the entry out is the whole of
+   *  the removal. */
+  const dropAddress = useCallback(async (entry: string) => {
+    if (!claim(`drop:${entry}`)) return;
+    try {
+      const out = await post("/api/prefs", { lan: { manual: manual.filter(m => m !== entry) } });
+      if (!alive.current) return;
+      if (out?.ok) { setFailure(null); onChanged(); }
+      else setFailure(writeFailure("stop dialling that address", out));
+      await load();
+    } catch {
+      if (alive.current) setFailure(writeFailure("stop dialling that address", null));
+    } finally {
+      release();
+    }
+  }, [manual, load, onChanged, claim, release]);
+
   /** Make one, or put it away. A deck that cannot be reached from outside has
    *  to be the one PASTING rather than the one minting — see lan-reach.mjs — so
    *  both halves of that exchange are here, side by side. */
@@ -662,7 +792,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
           by reading the whole thing and working it out. This is the panel's own
           answer, the one the freshness column has made on every account row for
           a year: say the state, at the top, in the words a person would use. */}
-      <p className={`ap-lan-status ${state.tone}`}>{state.text}</p>
+      {/* Announced, and it was not: the one line that says whether anything is
+          working changes under a reader who is looking at a quota three
+          sections up, and a screen reader was told nothing at all. `polite`
+          rather than `alert` — the request box beside it is the assertive one,
+          and two live regions shouting about one event is one too many. */}
+      <p className={`ap-lan-status ${state.tone}`} role="status">{state.text}</p>
 
       {failure && (
         <div className="ap-failure" role="alert">
@@ -714,28 +849,56 @@ export default function LanSyncSection({ accounts, onChanged }: {
           {rest.length > 0 && (
             <ul className="ap-lan-here">
               {rest.map(p => (
-                <li key={`${p.kind}:${p.fp}`} className="ap-lan-who">
+                <li key={`${p.kind}:${p.fp}`} className="ap-lan-who" data-tone={p.tone} title={p.hint}>
                   <i className={p.here ? "ap-pulse" : "ap-dot"} aria-hidden />
-                  <span className="ap-lan-who-name" title={p.addr || undefined}>{p.name}</span>
-                  {/* THE TONE IS PAINTED HERE, and it was not. `roundLabel` has
-                      returned one since the roster was written, and this — the
-                      list somebody actually glances at — drew a refused
-                      handshake in the same ink as a clean round. The one thing
-                      anybody scans a list like this for is which row is wrong. */}
-                  <span className={`ap-lan-who-when${p.tone === "bad" ? " ap-lan-bad" : ""}`}>{p.state}</span>
+                  {/* THE NAME OWNS THE ROW'S WIDTH, and it did not. The state
+                      was the flex item that grew and the name the one that
+                      shrank, so a machine's identity — the thing a reader is
+                      looking for — collapsed to `192.168.1….` while a sentence
+                      that changes every minute took the space and wrapped
+                      anyway. They are two lines now, and the second one is
+                      allowed to be long. */}
+                  <span className="ap-lan-who-name">{p.name}</span>
+                  <span className="ap-lan-who-when">{p.state}</span>
                   {p.kind === "nearby" && (
                     <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                       onClick={() => void answer("accept", p.fp, "reach that deck")}
+                      aria-label={`Ask ${p.name} to pair`}
                       title={`Send ${p.name} a request. Somebody at that machine has to accept it before anything is shared. Its fingerprint is ${p.fp}.`}>
                       ask
                     </button>
                   )}
                   {p.kind === "paired" && (
-                    <button type="button" className="ap-manage-btn danger ap-lan-do" {...pressProps(`unpair:${p.fp}`)}
-                      onClick={() => void answer("unpair", p.fp, "unpair that deck")}
-                      aria-label={`Unpair ${p.name}`}
-                      title="Stop talking to this deck from now on. Logins it already has stay with it.">
-                      unpair
+                    // ARMED, like the account row's own remove. Unpairing is
+                    // the one thing in this section that cannot be undone from
+                    // this section — the other deck has to ask again and
+                    // somebody has to answer — and it sat one stray click away,
+                    // once per row, in the loudest ink on the surface.
+                    <button type="button"
+                      className={`ap-manage-btn ap-lan-do danger${armed === p.fp ? " armed" : ""}`}
+                      {...pressProps(`unpair:${p.fp}`)}
+                      onClick={() => {
+                        if (armed !== p.fp) {
+                          setArmed(p.fp);
+                          window.setTimeout(() => setArmed(a => (a === p.fp ? null : a)), 4_000);
+                          return;
+                        }
+                        setArmed(null);
+                        void answer("unpair", p.fp, "unpair that deck");
+                      }}
+                      aria-label={armed === p.fp ? `Confirm unpairing ${p.name}` : `Unpair ${p.name}`}
+                      title={armed === p.fp
+                        ? "Press again to stop talking to this deck. Logins it already has stay with it."
+                        : "Stop talking to this deck from now on"}>
+                      {armed === p.fp ? "sure?" : "unpair"}
+                    </button>
+                  )}
+                  {p.kind === "dialling" && (
+                    <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`drop:${p.fp}`)}
+                      onClick={() => void dropAddress(p.fp)}
+                      aria-label={`Stop dialling ${p.name}`}
+                      title="Stop trying this address. Nothing was ever paired here.">
+                      stop
                     </button>
                   )}
                   {p.kind === "declined" && (
@@ -743,7 +906,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       onClick={() => void answer("allow", p.fp, "let that deck ask again")}
                       aria-label={`Let ${p.name} ask again`}
                       title="Take the no back. That deck is still trying, so the request comes round again on its own.">
-                      undo
+                      allow
                     </button>
                   )}
                 </li>
@@ -753,32 +916,42 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
           {rest.length === 0 && asks.length === 0 && (
             <p className="ap-lan-fine">
-              No other deck yet. Decks on one network find each other on their own — if that
-              has not happened, add one below.
+              No other deck yet. Decks on one network usually find each other on their own;
+              when that has not happened, <strong>+ add a deck</strong> reaches one by address
+              or by invite.
             </p>
           )}
 
-          {/* THE DECK THE NETWORK CANNOT OFFER, and the round that does not
-              wait for the minute. Both at the foot: one is the thing you do
-              once, the other is the thing you do when you have just fixed a
-              login on the other machine — and neither is something to read. */}
+          {/* ONE PRESS THAT IS LOUDER THAN THE REST, and it is the one somebody
+              came here for: a login expired on this machine and the deck next
+              to it has a working copy. It was half a row wide, beside a control
+              that opens a drawer, under a full-width button that opens a dialog
+              holding a name field. The weight is the other way round now, and
+              nothing was added to do it — two controls gave theirs up. */}
+          {paired > 0 && (
+            <button type="button" className="ap-manage-btn ap-lan-check" {...pressProps("check")}
+              onClick={() => void checkNow()}
+              title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next minute">
+              {busy === "check" ? "checking…" : "check now"}
+            </button>
+          )}
+
+          {/* The two things you do once, at the size of things you do once. */}
           <div className="ap-lan-foot">
-            {paired > 0 && (
-              <button type="button" className="ap-manage-btn ap-lan-foot-btn" {...pressProps("check")}
-                onClick={() => void checkNow()}
-                title="Check every paired deck now, instead of waiting for the next minute">
-                {busy === "check" ? "checking…" : "check now"}
-              </button>
-            )}
-            <button type="button" className="ap-manage-btn ap-lan-foot-btn" aria-expanded={addOpen}
+            <button type="button" className="ap-lan-word" aria-expanded={addOpen} aria-controls="ap-lan-adder"
               onClick={() => setAddOpen(v => !v)}
               title="Reach a deck that has not turned up on its own — by address, or with an invite">
               {addOpen ? "− add a deck" : "+ add a deck"}
             </button>
+            <button type="button" className="ap-lan-word" {...pressProps("setup")}
+              onClick={() => setSetupOpen(true)}
+              title="This deck's name on the network, and which of its logins it offers">
+              name &amp; shared logins
+            </button>
           </div>
 
           {addOpen && (
-            <div className="ap-lan-adder">
+            <div className="ap-lan-adder" id="ap-lan-adder">
               {/* WHY THE LIST IS EMPTY, WHEN THE MACHINE CAN BE ASKED. "Nothing
                   here yet" and "nothing can get in" look identical and are not:
                   the first is answered by waiting and the second never is. What
@@ -904,15 +1077,6 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </div>
           )}
 
-          {/* WHAT IS LEFT BEHIND THE DOOR is what this deck is, rather than who
-              it talks to: the name it appears under and the logins it offers.
-              Both are decisions somebody makes twice; the list above is what
-              they look at every day. */}
-          <button type="button" className="ap-manage-btn ap-lan-setup" {...pressProps("setup")}
-            onClick={() => setSetupOpen(true)}
-            title="This deck's name on the network, and which logins it offers">
-            setup…
-          </button>
         </>
       )}
 

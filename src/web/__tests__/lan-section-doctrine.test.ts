@@ -12,7 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  askedLabel, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
+  askedLabel, deckRows, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
   sectionState, writeFailure, ONLINE_MS,
 } from "../components/LanSyncSection";
 
@@ -37,30 +37,65 @@ const NOW = 1_700_000_000_000;
 describe("a round says which of the three things it was", () => {
   it("marks a deck it could not reach, so the one row worth reading is the one that reads differently", () => {
     // The whole point. The sentence was already honest; it was drawn in the
-    // dimmest ink the panel has, identical to `nothing to do` on the row above,
-    // and in Operate mode the only thing anybody scans a list like this for is
-    // which row is wrong.
+    // dimmest ink the panel has, identical to `all logins fine` on the row
+    // above, and in Operate mode the only thing anybody scans a list like this
+    // for is which row is wrong.
+    //
+    // A sentence this file has never seen passes through whole rather than
+    // being replaced by a guess: lan-socket.mjs is free to add one, and a map
+    // that swallowed the unknown would report a fault it cannot name.
     expect(roundLabel({ at: NOW, error: "handshake refused" }, NOW))
-      .toEqual({ text: "could not reach it — handshake refused", tone: "bad" });
+      .toEqual({ text: "handshake refused", tone: "bad" });
+  });
+
+  it("says the faults it does know in words somebody can act on", () => {
+    // `could not reach it — handshake timed out` was two clauses, an em dash
+    // and a protocol noun in a 190px row: it wrapped, and the wrap is what
+    // pushed the machine's own name off its own row. The prefix is said by the
+    // row now — red mark, sentence under the name — so what is left is what
+    // happened.
+    expect(roundLabel({ at: NOW, error: "handshake timed out" }, NOW))
+      .toEqual({ text: "no answer", tone: "bad" });
+    expect(roundLabel({ at: NOW, error: "peer closed the connection" }, NOW))
+      .toEqual({ text: "it hung up", tone: "bad" });
+    for (const said of ["no answer", "it hung up", "it stopped mid-sentence"]) {
+      expect(said.length, said).toBeLessThan(26);
+    }
+  });
+
+  it("keeps the two refusals that are answers out of the fault vocabulary", () => {
+    // Both arrive as `last.error`, on the same channel as a dead socket, and
+    // drawn in that vocabulary they would read as breakage. One is a person who
+    // has not answered yet and the other is a person who has.
+    expect(roundLabel({ at: NOW, error: "waiting for the other deck to accept this one" }, NOW))
+      .toEqual({ text: "waiting for them to say yes", tone: "idle" });
+    expect(roundLabel({ at: NOW, error: "that deck said no" }, NOW))
+      .toEqual({ text: "it said no", tone: "bad" });
   });
 
   it("calls a round that moved nothing idle rather than wrong", () => {
     // Two decks whose accounts all agree is the STEADY STATE of this feature,
     // not a fault. Painting it like one would make the list permanently red.
+    // And it says which of the two "nothing happened" cases it is: `nothing to
+    // do` could be read as "nothing is shared, so there was nothing to send",
+    // which is a setup mistake rather than the steady state.
     expect(roundLabel({ at: NOW, done: [] }, NOW))
-      .toEqual({ text: "nothing to do · checked now", tone: "idle" });
+      .toEqual({ text: "all logins fine · now", tone: "idle" });
   });
 
   it("calls a clean round ok, and counts in the singular when it is one", () => {
+    // "arrived", because a round only ever pulls — roundWith dials, reads the
+    // far manifest and imports. `took 1 account` left the direction to the
+    // reader in the one feature where direction is the whole confusion.
     expect(roundLabel({ at: NOW, done: [{ email: "a@b.c", action: "heal", ok: true }] }, NOW))
-      .toEqual({ text: "took 1 account · now", tone: "ok" });
+      .toEqual({ text: "1 login arrived · now", tone: "ok" });
     expect(roundLabel({
       at: NOW,
       done: [
         { email: "a@b.c", action: "heal", ok: true },
         { email: "d@e.f", action: "add", ok: true },
       ],
-    }, NOW)).toEqual({ text: "took 2 accounts · now", tone: "ok" });
+    }, NOW)).toEqual({ text: "2 logins arrived · now", tone: "ok" });
   });
 
   it("marks a partial round, because some of it failed and nothing else says so", () => {
@@ -72,7 +107,7 @@ describe("a round says which of the three things it was", () => {
         { email: "a@b.c", action: "heal", ok: true },
         { email: "d@e.f", action: "add", ok: false },
       ],
-    }, NOW)).toEqual({ text: "took 1 of 2 · now", tone: "bad" });
+    }, NOW)).toEqual({ text: "1 of 2 logins arrived · now", tone: "bad" });
   });
 
   it("says nothing at all about a deck it has not had a round with yet", () => {
@@ -291,27 +326,145 @@ describe("who is here, which is what the panel is for now", () => {
     expect(sectionState(null, NOW2).text).toMatch(/^off/);
     expect(sectionState({ enabled: true, running: false }, NOW2).text).toBe("starting…");
     expect(sectionState({ enabled: true, running: true, peers: [] }, NOW2))
-      .toEqual({ text: "no decks paired yet", tone: "idle" });
+      .toEqual({ text: "no deck paired yet", tone: "idle" });
     expect(sectionState({ enabled: true, running: true, peers: [peer({ lastSeen: NOW2 })] as never }, NOW2))
-      .toEqual({ text: "1 deck here", tone: "ok" });
+      .toEqual({ text: "1 deck ready", tone: "ok" });
     expect(sectionState({
       enabled: true, running: true,
       peers: [peer({ fp: "a", lastSeen: NOW2 }), peer({ fp: "b", lastSeen: NOW2 - 10 * 60_000 })] as never,
-    }, NOW2)).toEqual({ text: "1 deck here · 1 away", tone: "ok" });
+    }, NOW2)).toEqual({ text: "1 deck ready · 1 away", tone: "ok" });
+  });
+
+  it("does not call a deck that CALLS IN unreachable, which is the line that lied", () => {
+    // lan-engine.mjs synthesizes a row for every deck this one accepted and
+    // holds no address for. It is never dialled, so `last` stays null and
+    // `lastSeen` never arrives, so `isOnline` is false for it forever — and the
+    // line drew `no paired deck is reachable` in the warning ink over a pairing
+    // that was working perfectly, two lines above that deck's own row saying it
+    // reaches us.
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ fp: "a", paired: true, waiting: true })] as never,
+    }, NOW2)).toEqual({ text: "1 deck ready", tone: "ok" });
+    // And a deck that calls in AND failed the last round it was part of is not
+    // laundered by the same rule.
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ fp: "a", paired: true, waiting: true, last: { at: NOW2, error: "timed out" } })] as never,
+    }, NOW2).tone).toBe("bad");
+  });
+
+  it("does not let one typed address report the whole fleet as broken", () => {
+    // An address nothing has ever answered at is not a deck that is away. It is
+    // a string somebody typed, it has its own row and its own verb, and
+    // counting it as an unreachable peer let one typo paint the section red.
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [
+        peer({ fp: "manual:10.0.0.9:5000", paired: false, manual: true, met: false, last: { at: NOW2, error: "timed out" } }),
+        peer({ fp: "b", paired: true, lastSeen: NOW2 }),
+      ] as never,
+    }, NOW2)).toEqual({ text: "1 deck ready", tone: "ok" });
   });
 
   it("leads with a request, because until it is answered nothing moves", () => {
     expect(sectionState({
       enabled: true, running: true, pending: [{ fp: "a", name: "x", addr: "y", at: NOW2 }],
       peers: [peer({ lastSeen: NOW2 })] as never,
-    }, NOW2)).toEqual({ text: "one deck is asking to pair", tone: "wait" });
+    }, NOW2)).toEqual({ text: "1 deck is waiting for your answer", tone: "wait" });
   });
 
   it("says it plainly when nothing is reachable, rather than counting to zero", () => {
+    // And it names the DIRECTION, because "not reachable" says nothing about
+    // which side cannot do what — which is the whole confusion in a feature
+    // where one machine dials and the other answers.
     expect(sectionState({
       enabled: true, running: true,
-      peers: [peer({ last: { at: NOW2, error: "timed out" } })] as never,
-    }, NOW2)).toEqual({ text: "the paired deck is not reachable", tone: "bad" });
+      peers: [peer({ paired: true, last: { at: NOW2, error: "timed out" } })] as never,
+    }, NOW2)).toEqual({ text: "this deck cannot reach the one it is paired with", tone: "bad" });
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [
+        peer({ fp: "a", paired: true, last: { at: NOW2, error: "timed out" } }),
+        peer({ fp: "b", paired: true, last: { at: NOW2, error: "timed out" } }),
+      ] as never,
+    }, NOW2)).toEqual({ text: "this deck cannot reach any of its 2 decks", tone: "bad" });
+  });
+
+  it("gives every machine one row, in the order of what is owed to whom", () => {
+    const rows = deckRows({
+      pending: [{ fp: "p", name: "Asking-Deck", addr: "10.0.0.1", at: NOW2 }],
+      peers: [
+        peer({ fp: "z", peerFp: "z", name: "Zed", paired: true, lastSeen: NOW2 }),
+        peer({ fp: "a", peerFp: "a", name: "Alma", paired: true, lastSeen: NOW2 }),
+        peer({ fp: "manual:10.0.0.9:5000", name: "10.0.0.9", addr: "10.0.0.9", port: 5000, manual: true, met: false, paired: false }),
+      ] as never,
+      strangers: [{ fp: "s", name: "Near", addr: "10.0.0.2", at: NOW2 }],
+      declined: [{ fp: "d", name: "Turned-Away", addr: "10.0.0.3", at: NOW2 }],
+    }, NOW2);
+    expect(rows.map(r => r.kind)).toEqual(["asks", "paired", "paired", "dialling", "nearby", "declined"]);
+    // Alphabetical INSIDE a kind, never by liveness: sorting the paired decks
+    // by whether they answered last made a row change position between two
+    // five-second polls on one lost beacon, in a list somebody is scanning for
+    // one machine.
+    expect(rows.filter(r => r.kind === "paired").map(r => r.name)).toEqual(["Alma", "Zed"]);
+  });
+
+  it("keeps an address that never answered out of the paired rows", () => {
+    // It wore the paired row and the paired verb, and `unpair` on it named a
+    // fingerprint built out of the address — which matches nothing this deck
+    // ever met, so the row's one control answered `could not unpair that deck`.
+    const [row] = deckRows({
+      peers: [peer({ fp: "manual:10.0.0.9:5000", name: "10.0.0.9", addr: "10.0.0.9", port: 5000, manual: true, met: false, paired: false })] as never,
+    }, NOW2);
+    expect(row.kind).toBe("dialling");
+    // The verb names the address, because that is what the removal filters out
+    // of prefs — there is no fingerprint here to unpair.
+    expect(row.fp).toBe("10.0.0.9:5000");
+    expect(row.state).toBe("trying…");
+  });
+
+  it("says the one-way case out loud, because a round only ever pulls", () => {
+    // roundWith dials, reads the far manifest and imports: nothing leaves on a
+    // round this deck starts. So a deck this one holds no address for repairs
+    // ITSELF from here and can never repair this one — and `reaches us` was
+    // true, cheerful, and hid the half that matters to somebody whose own login
+    // has expired.
+    const [row] = deckRows({
+      peers: [peer({ fp: "a", peerFp: "a", name: "Studio", paired: true, waiting: true })] as never,
+    }, NOW2);
+    expect(row.state).toBe("one-way · it calls this deck");
+    // Short enough to be one line in a 190px row, because three of them can be
+    // true at once and the honest long form wrapped on every one.
+    expect(row.state.length).toBeLessThan(30);
+    expect(row.hint).toMatch(/cannot repair from it/);
+    expect(row.hint).toMatch(/add its address/i);
+  });
+
+  it("carries the whole of a name in the hint, because 190px does not", () => {
+    // The row `title` used to hold the ADDRESS while the NAME was the thing
+    // being truncated, so a long hostname could not be read in full anywhere in
+    // the app.
+    const [row] = deckRows({
+      strangers: [{ fp: "s", name: "DESKTOP-QK7H2LM-ENGINEERING-04", addr: "10.0.0.2", at: NOW2 }],
+    }, NOW2);
+    expect(row.hint).toContain("DESKTOP-QK7H2LM-ENGINEERING-04");
+  });
+
+  it("shows one machine once, whichever lists it turns up in", () => {
+    const rows = deckRows({
+      pending: [{ fp: "same", name: "Twice", addr: "10.0.0.1", at: NOW2 }],
+      strangers: [{ fp: "same", name: "Twice", addr: "10.0.0.1", at: NOW2 }],
+      declined: [{ fp: "same", name: "Twice", addr: "10.0.0.1", at: NOW2 }],
+    }, NOW2);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("asks");
+  });
+
+  it("survives a null status and junk in the lists", () => {
+    expect(deckRows(null, NOW2)).toEqual([]);
+    expect(deckRows({}, NOW2)).toEqual([]);
+    expect(deckRows({ pending: [null, { name: "no fp" }] as never }, NOW2)).toEqual([]);
   });
 
   it("counts an invite down in minutes and seconds, which is how it is read out", () => {
