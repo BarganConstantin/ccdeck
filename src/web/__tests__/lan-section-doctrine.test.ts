@@ -476,10 +476,17 @@ describe("the list is quiet until it is not", () => {
     expect(head).toMatch(/ap-lan-check/);
     // A glyph has to carry its label somewhere, and `+` alone is not one.
     expect(head).not.toMatch(/aria-label=""/);
+    expect(head).toMatch(/ap-lan-set/);
+    expect(head).toMatch(/aria-label="This deck's name and shared logins"/);
+    // A cog drawn out of an emoji font would be a colour glyph at a size of its
+    // own choosing, in a header of three monochrome ones.
+    expect(head).toContain("\\u2699\\uFE0E");
+    // What is left at the foot is the one thing down there that is not a
+    // control: when the last round ran.
     const foot = /<div className="ap-lan-foot">([\s\S]*?)<\/div>/.exec(CODE)?.[1] ?? "";
-    expect(foot).toContain("name &amp; sharing");
-    expect(foot).not.toMatch(/ap-lan-plus/);
-    expect(CODE).not.toContain("shared logins");
+    expect(foot).toMatch(/ap-lan-checked/);
+    expect(foot).not.toMatch(/<button/);
+    expect(CODE).not.toContain("name &amp; sharing");
     // And the title is what pushes the header's controls right, so the row
     // survives every combination of the three that can be missing.
     expect(rule(".ap-lan .ap-auto-title")).toMatch(/margin-right:\s*auto/);

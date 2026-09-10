@@ -939,6 +939,24 @@ export default function LanSyncSection({ accounts, onChanged }: {
             ↻
           </button>
         )}
+        {/* AND THE SETTINGS, on the same row as the three controls that are also
+            about this deck rather than about the machines on the list. It was
+            `name & sharing` at the foot — a phrase naming a dialog's two fields,
+            which is a caption rather than a control, and the last thing left
+            down there beside a timestamp. A cog is what every application on
+            this machine uses for the same door. */}
+        {on && (
+          <button type="button" className="glyph-btn ap-lan-set" {...pressProps("setup")}
+            onClick={() => setSetupOpen(true)}
+            aria-label="This deck's name and shared logins"
+            title="This deck's name on the network, and which of its logins it offers">
+            {/* U+FE0E, the text presentation selector. Without it a browser is
+                free to draw U+2699 out of an emoji font — a colour cog, at a
+                size of its own choosing, in a header of three monochrome
+                glyphs. */}
+            {"\u2699\uFE0E"}
+          </button>
+        )}
         <button
           type="button"
           className={`ap-auto-state${on ? " live" : ""}`}
@@ -1161,23 +1179,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </p>
           )}
 
-          {/* The two things you do once, at the size of things you do once. */}
+          {/* WHAT IS LEFT AT THE FOOT IS ONE FIGURE. The two words that were here
+              are two glyphs in the header now, beside the switch they belong
+              with — and what stayed is the one thing that is not a control:
+              when the last round ran. A list that refreshes itself and one that
+              has stopped look identical without it. */}
           <div className="ap-lan-foot">
-            {/* `name & shared logins` listed the dialog's two fields and never
-                said whose they are, which is the whole of what it had to say:
-                everything else in this section is about OTHER machines. */}
-            <button type="button" className="ap-lan-word" {...pressProps("setup")}
-              onClick={() => setSetupOpen(true)}
-              title="This deck's name on the network, and which of its logins it offers">
-              name &amp; sharing
-            </button>
-            {/* WHEN THE LAST ROUND RAN, at the far end of the row that holds the
-                two things you do to this section rather than above the list it
-                is about. A list that refreshes itself and one that has stopped
-                look identical, and pressing the ↻ to find out was the only way
-                to tell — so the figure stays. Over the list it read as a heading
-                for it; down here it is one more thing that is true of the
-                section, beside the two words that change it. */}
             {on && paired > 0 && (
               <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
             )}
