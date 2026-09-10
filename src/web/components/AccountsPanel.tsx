@@ -1151,7 +1151,10 @@ export default function AccountsPanel({ onClose }: Props) {
                       racing: the setting means nothing without knowing where
                       you are. */}
                   {activePct != null && (
-                    <span className={`ap-auto-now${nearTrigger ? " near" : ""}`}>{Math.round(activePct)}%</span>
+                    <span className={`ap-auto-now${nearTrigger ? " near" : ""}`}
+                      title={`The active account has used ${Math.round(activePct)}% of its limit. Auto-switch trips at ${threshold}%.`}>
+                      {Math.round(activePct)}%
+                    </span>
                   )}
                   {/* The same pairing as the slot picker, for the same reason:
                       this select wrote a setting per keystroke, `8` then `7`

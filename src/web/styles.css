@@ -7037,16 +7037,26 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    numbers and their relationship in the width one label used to take. The
    slash is drawn here rather than typed into the markup so it cannot be
    selected, read aloud, or left behind when the live number is unknown.
-   Ambient until it is close to tripping, at which point it is the most useful
-   number in the panel. */
+
+   THE TWO HALVES ARE ONE READING, so they are drawn as one. This was 10px of
+   --muted against a threshold sitting at 11px of --text one glyph away: the
+   figure that MOVES, the one the whole setting is racing, drawn quieter than
+   the constant it is racing and in the same ink as the punctuation between
+   them. "Ambient until it is close to tripping" is a good rule for a colour and
+   a bad one for a size — `.near` still takes --warn, and until then the number
+   is legible rather than hidden. What stays quiet is the slash, which is
+   punctuation and should be. */
 .ap-auto-now {
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 11px;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+/* 6px, the row's own gap. It had 8 on the left and inherited the flex gap's 6
+   on the right, so the one glyph in the row whose whole job is to sit between
+   two things sat two pixels off centre between them. */
 .ap-auto-now::after {
   content: "/";
-  margin-left: 8px;
+  margin-left: 6px;
   color: var(--muted);
   opacity: 0.45;
 }
