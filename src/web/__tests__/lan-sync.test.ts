@@ -665,6 +665,32 @@ describe("one row per machine, not one per key it has held", () => {
     }
   });
 
+  it("does not fight its own twin for a key, which is what kept re-asking", () => {
+    // Several decks on one computer share a config directory, so they start
+    // with one key. Each used to read the others' beacons as somebody wearing
+    // its name, take a fresh key, and write it to the file the others read —
+    // and the loop never settles. Every new key is a NEW deck to everybody
+    // else, so one machine produced a pairing request every few seconds and
+    // accepting one accomplished nothing: the deck that asked no longer existed
+    // by the time the answer arrived. Reported as "he pressed yes ten times".
+    const self = { fp: "aaa-bbb-ccc-ddd", selfInstance: "11111111", host: "abc123abc123" };
+    const twin = { fp: self.fp, name: "Same-Mac", port: 5000, instance: "22222222", host: self.host };
+    expect(beaconVerdict(twin, { selfFp: self.fp, selfInstance: self.selfInstance, selfHost: self.host, trusted: [] }))
+      .toBe("self");
+    // The clash worth healing is the other one: a ~/.claude copied to a second
+    // machine, where two real decks would otherwise be invisible to each other.
+    expect(beaconVerdict({ ...twin, host: "ffffffffffff" }, { selfFp: self.fp, selfInstance: self.selfInstance, selfHost: self.host, trusted: [] }))
+      .toBe("id-clash");
+    // A deck too old to say which machine it is on is judged the way it always
+    // was, which is the safe answer: it takes a new key rather than going
+    // silently invisible to a real second machine.
+    expect(beaconVerdict({ ...twin, host: undefined }, { selfFp: self.fp, selfInstance: self.selfInstance, selfHost: self.host, trusted: [] }))
+      .toBe("id-clash");
+    // And this deck's own packet coming back is still its own packet.
+    expect(beaconVerdict({ ...twin, instance: self.selfInstance }, { selfFp: self.fp, selfInstance: self.selfInstance, selfHost: self.host, trusted: [] }))
+      .toBe("self");
+  });
+
   it("knows another deck on this computer from a deck on another one", () => {
     // Same machine, honestly its own key: there is nothing to pair with,
     // because both read one claude-swap store and neither holds a login the

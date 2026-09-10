@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.18.1": [
+    {
+      "title": "🔁 A deck stops asking to pair over and over",
+      "body": "Several decks on one computer share a config directory, so they start with one key. Each read the others' beacons as somebody wearing its name, took a fresh key, and wrote it to the file the others read — a loop that never settles. Every new key is a **new deck** to everyone else on the network, so one machine sent a fresh pairing request every few seconds and accepting one accomplished nothing: the deck that asked no longer existed by the time the answer arrived.\n\nDecks on one computer now recognise each other as the same machine and leave the key alone. The clash still worth healing — a `~/.claude` copied to a second machine — is unchanged.\n\nThis also collapses the rows: a computer that has run the deck a few times appeared several times on everybody else's panel and is one row now. **Both machines need this version** for that to take effect on the other one's screen.\n\nA deck that answered is no longer counted as unreachable, the list refreshes itself in seconds while somebody is deciding rather than at the next minute, and a failed round says what happened — `not listening`, `no route to it` — with the address and the raw error on the hover."
+    }
+  ],
   "3.18.0": [
     {
       "title": "🟢 A deck that is switched off no longer reads as on",

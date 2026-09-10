@@ -12,7 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  askedLabel, deckRows, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
+  askedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
   sectionState, writeFailure, ONLINE_MS,
 } from "../components/LanSyncSection";
 
@@ -68,6 +68,33 @@ describe("a round says which of the three things it was", () => {
     for (const said of ["no answer", "it hung up", "it stopped mid-sentence"]) {
       expect(said.length, said).toBeLessThan(26);
     }
+  });
+
+  it("says a connect error as a thing that happened, and hovers the rest", () => {
+    // `connect ECONNREFUSED 192.168.1.229:65059` drew three wrapped lines in a
+    // 190px column — a code, an address and a port belonging to a machine whose
+    // name is the first line of the same row. Reported from a screenshot.
+    expect(roundLabel({ at: NOW, error: "connect ECONNREFUSED 192.168.1.229:65059" }, NOW))
+      .toEqual({ text: "not listening", tone: "bad" });
+    expect(faultText("connect EHOSTUNREACH 10.0.0.4:5000")).toBe("no route to it");
+    expect(faultText("read ECONNRESET")).toBe("it hung up");
+    // Anything neither this file nor Node has a code for arrives whole: a
+    // message nobody has seen is more useful than a guess about it.
+    expect(faultText("the moon is in the way")).toBe("the moon is in the way");
+    // And every short form is short enough to sit beside a presence clause in
+    // one line of a 190px row.
+    for (const said of ["not listening", "no route to it", "no answer", "it hung up"]) {
+      expect(`${said} · last online 20m ago`.length, said).toBeLessThan(38);
+    }
+    // The address and the code are not lost — they are on the row's hover.
+    const [row] = deckRows({
+      peers: [{
+        fp: "a", peerFp: "a", name: "Deniss", paired: true, addr: "192.168.1.229", port: 65059,
+        lastSeen: NOW - 5 * 60_000, last: { at: NOW, error: "connect ECONNREFUSED 192.168.1.229:65059" },
+      }] as never,
+    }, NOW);
+    expect(row.state).toBe("not listening · last online 5m ago");
+    expect(row.hint).toContain("connect ECONNREFUSED 192.168.1.229:65059");
   });
 
   it("keeps the two refusals that are answers out of the fault vocabulary", () => {

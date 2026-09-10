@@ -534,7 +534,27 @@ export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, trusted 
     // own packet carries the instance we are running and another deck's cannot.
     // Told apart here rather than healed here — this function decides, and
     // taking a new key is the engine's to do.
-    return selfInstance && beacon.instance !== selfInstance ? "id-clash" : "self";
+    //
+    // AND ONE MACHINE'S OWN TWIN IS NOT A CLASH, which is the whole of a defect
+    // reported as "Fiodor pressed yes ten times and it keeps asking". Several
+    // decks on one computer share a config directory, so they start with one
+    // key; each read the others' beacons as somebody wearing its name, each
+    // took a fresh key, each wrote that key to the file the others read — and
+    // the loop never settles. Every new key is a new deck to everybody else on
+    // the network, so one machine produced a fresh pairing request every few
+    // seconds, forever, and accepting one accomplished nothing because the deck
+    // that asked no longer existed by the time the answer arrived.
+    //
+    // Two processes on one computer sharing one key is not a problem to heal.
+    // They read one claude-swap store; there is nothing for either to send the
+    // other, they never dial each other, and to the rest of the network they
+    // are one deck — which is exactly what they are. The clash worth healing is
+    // the OTHER one: a `~/.claude` copied to a second machine, where two real
+    // decks would otherwise be permanently invisible to each other.
+    if (selfInstance && beacon.instance !== selfInstance) {
+      return selfHost && beacon.host === selfHost ? "self" : "id-clash";
+    }
+    return "self";
   }
   // A DECK WE HAVE BEEN TOLD TO TRUST, or one somebody may choose to. There is
   // no third answer any more: the group tag used to sort strangers from peers

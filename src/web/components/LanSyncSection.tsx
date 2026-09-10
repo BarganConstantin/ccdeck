@@ -160,6 +160,38 @@ const WIRE_ANSWERS: Record<string, RoundLine> = {
  * seen is more useful whole than replaced by a guess, and lan-socket.mjs is
  * free to add one without this map lying about it.
  */
+/**
+ * The errno codes Node puts in front of an address, said as a thing that
+ * happened rather than as a syscall.
+ *
+ * `connect ECONNREFUSED 192.168.1.229:65059` is what a row was drawing, in
+ * three wrapped lines, in a 190px column — the code, the address and the port
+ * of a machine whose name is already the first line of the same row. The
+ * address is a detail, and details belong on the hover: the row's `title`
+ * carries the sentence whole, and the row says what happened.
+ */
+const FAULT_CODES: Record<string, string> = {
+  ECONNREFUSED: "not listening",
+  EHOSTUNREACH: "no route to it",
+  ENETUNREACH: "no network here",
+  ETIMEDOUT: "no answer",
+  ECONNRESET: "it hung up",
+  EHOSTDOWN: "it is down",
+  ENOTFOUND: "name not found",
+  EACCES: "blocked here",
+  EPIPE: "it hung up",
+};
+
+/** What to draw for one failure: the sentence this file knows, the code Node
+ *  wrapped in one, or — for anything neither of those — the text itself, whole.
+ *  A message this file has never seen is more useful than a guess. */
+export function faultText(error: string): string {
+  const known = WIRE_FAULTS[error];
+  if (known) return known;
+  const code = /\b(E[A-Z]{3,})\b/.exec(error)?.[1];
+  return (code && FAULT_CODES[code]) || error;
+}
+
 const WIRE_FAULTS: Record<string, string> = {
   "handshake timed out": "no answer",
   "peer closed the connection": "it hung up",
@@ -189,7 +221,7 @@ const WIRE_FAULTS: Record<string, string> = {
  */
 export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
   if (!last) return null;
-  if (last.error) return WIRE_ANSWERS[last.error] ?? { text: WIRE_FAULTS[last.error] ?? last.error, tone: "bad" };
+  if (last.error) return WIRE_ANSWERS[last.error] ?? { text: faultText(last.error), tone: "bad" };
   const done = last.done ?? [];
   // NOT "nothing to do", which reads two ways and one of them is alarming: a
   // reader cannot tell it from "nothing is shared, so there was nothing to
@@ -531,9 +563,9 @@ export function deckRows(
         state: line ? line.text.replace(/ · .*$/, "") : "trying…",
         tone: line ? line.tone : "idle",
         here: false,
-        hint: line
-          ? `Nothing has answered at ${where} yet — ${line.text}.`
-          : `Dialling ${where} every minute until something answers.`,
+        hint: p.last?.error
+          ? `Nothing has answered at ${where} yet — ${p.last.error}.`
+          : `Dialling ${where} until something answers.`,
       });
       continue;
     }
@@ -572,7 +604,10 @@ export function deckRows(
         ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
             p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
           } Add its address with + add a deck to reach it either way.`
-        : `${p.name || fp}${where ? ` at ${where}` : ""}`,
+        // The whole sentence, verbatim, including the address and the code the
+        // row is too narrow to carry. This is where somebody looks when the
+        // short form is not enough.
+        : `${p.name || fp}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
     });
   }
   rows.push(...paired.sort(byName), ...dialling.sort(byName));
