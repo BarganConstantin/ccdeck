@@ -9664,11 +9664,11 @@ input, textarea { caret-color: var(--accent); }
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
    tight under the line above, which it belongs to. */
-/* Alone at the foot now that the two words are glyphs in the header, so it
-   sits on the list's own left edge rather than pushed to the far side — a lone
-   figure in the right corner reads as a column heading for nothing. */
+/* The far end of that row, opposite the fold. `margin-left: auto` is the same
+   trick the switch uses in the header: separation by distance, with no rule and
+   no colour spent on it. */
 .ap-lan-checked {
-  margin: 0;
+  margin: 0 0 0 auto;
   align-self: center;
   font-size: 10px;
   line-height: 1.45;
@@ -9678,12 +9678,16 @@ input, textarea { caret-color: var(--accent); }
 /* And the two things somebody does twice, at the size of things somebody does
    twice: words on the section's own ground, no border, no fill, no pill. They
    are still 24px of target and still take the focus ring. */
-.ap-lan-foot {
+/* The section's last line: what is folded away on the left, when it was last
+   asked on the right. Both are facts about the LIST rather than about any deck
+   on it, which is why they share a row — and it sits tight under the list for
+   the same reason, because the fold is the rest of that list. */
+.ap-lan-tail {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  /* The one real boundary below the list: these are errands, not decks. */
-  margin-top: 16px;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
 }
 .ap-lan-word {
   appearance: none;
@@ -9725,8 +9729,6 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 5px;
-  /* Tight to the list: it is the rest of that list, not the next thing. */
-  margin-top: 4px;
 }
 /* A chevron that turns, which is the whole of the animation budget here: it
    says "this opens downward" before the press and "it is open" after, and it

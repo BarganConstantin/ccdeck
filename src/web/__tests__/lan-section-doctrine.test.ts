@@ -457,8 +457,9 @@ describe("the list is quiet until it is not", () => {
     const gap = (sel: string, prop: string) => Number(new RegExp(prop + ":\\s*(\\d+)px").exec(rule(sel))?.[1]);
     const between = gap(".ap-lan-here", "gap");
     expect(between).toBeLessThan(gap(".ap-lan-here", "margin"));      // list edge above
-    expect(gap(".ap-lan-more", "margin-top")).toBeLessThanOrEqual(between);
-    expect(gap(".ap-lan-foot", "margin-top")).toBeGreaterThan(between * 2);
+    // The tail is the rest of the list rather than the next thing, so it sits
+    // no further from the last row than the rows sit from each other.
+    expect(gap(".ap-lan-tail", "margin-top")).toBeLessThanOrEqual(between);
     // 24px verbs 5px apart put their centres 29px apart, which is what SC 2.5.8
     // asks of a target that is not itself 24px away from the next one.
     expect(between + 24).toBeGreaterThanOrEqual(24);
@@ -481,11 +482,14 @@ describe("the list is quiet until it is not", () => {
     // A cog drawn out of an emoji font would be a colour glyph at a size of its
     // own choosing, in a header of three monochrome ones.
     expect(head).toContain("\\u2699\\uFE0E");
-    // What is left at the foot is the one thing down there that is not a
-    // control: when the last round ran.
-    const foot = /<div className="ap-lan-foot">([\s\S]*?)<\/div>/.exec(CODE)?.[1] ?? "";
-    expect(foot).toMatch(/ap-lan-checked/);
-    expect(foot).not.toMatch(/<button/);
+    // There is no foot any more. What was down there is two glyphs up here, and
+    // the one thing that was never a control — when the last round ran — shares
+    // the list's last line with the fold, because both are facts about the list
+    // rather than about any deck on it.
+    expect(CODE).not.toContain("ap-lan-foot");
+    const tail = /<div className="ap-lan-tail">([\s\S]*?)\n {10}<\/div>/.exec(CODE)?.[1] ?? "";
+    expect(tail).toMatch(/ap-lan-more/);
+    expect(tail).toMatch(/ap-lan-checked/);
     expect(CODE).not.toContain("name &amp; sharing");
     // And the title is what pushes the header's controls right, so the row
     // survives every combination of the three that can be missing.

@@ -1148,6 +1148,14 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </ul>
           )}
 
+          {/* THE LAST LINE OF THE SECTION, and it holds the two things that are
+              true of the list rather than of any deck on it: how much of it is
+              folded away, and when it was last asked. They were two lines and a
+              boundary apart, each alone on its own row — one word on the left,
+              one figure below it, and nothing between them but sixteen pixels.
+              One row, two ends, and the section stops there. */}
+          {((live.length > 0 && folded.length > 0) || (on && paired > 0)) && (
+          <div className="ap-lan-tail">
           {/* The count of what is not on, in the ink that says whether any of it
               matters. A chevron rather than a plus: this is one list with a
               part of it folded, not a second thing to open. */}
@@ -1169,6 +1177,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
               )}
             </button>
           )}
+            {on && paired > 0 && (
+              <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
+            )}
+          </div>
+          )}
 
           {rest.length === 0 && asks.length === 0 && (
             <p className="ap-lan-fine">
@@ -1177,17 +1190,6 @@ export default function LanSyncSection({ accounts, onChanged }: {
               reaches one by address or by invite.
             </p>
           )}
-
-          {/* WHAT IS LEFT AT THE FOOT IS ONE FIGURE. The two words that were here
-              are two glyphs in the header now, beside the switch they belong
-              with — and what stayed is the one thing that is not a control:
-              when the last round ran. A list that refreshes itself and one that
-              has stopped look identical without it. */}
-          <div className="ap-lan-foot">
-            {on && paired > 0 && (
-              <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
-            )}
-          </div>
 
         </>
       )}
