@@ -6640,8 +6640,16 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    on one of the three up here only works while that one is the leftmost of
    them, and all three are conditional — the plus and the round both need the
    switch to be on, and the round also needs a paired deck. One rule on the
-   thing that is always there survives every combination. */
+   thing that is always there survives every combination.
+
+   And the switch gives its own auto back, or the two of them split the free
+   space and the whole group floats: measured, that left the switch four pixels
+   short of the panel's right edge and a seventeen-pixel hole in front of it
+   where the other gaps are six. What it takes instead is a deliberate one —
+   the three glyphs are acts, the switch is a state, and a gap is how a row says
+   which is which without a rule drawn between them. */
 .ap-lan .ap-auto-title { margin-right: auto; }
+.ap-lan > .ap-auto-head .ap-auto-state { margin-left: 4px; }
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -9637,29 +9645,19 @@ input, textarea { caret-color: var(--accent); }
    below it — and this is the panel's own idiom for the act: the accounts header
    has carried a `↻` since it was written. The line under the title says when
    the last round ran, so most readers never press this at all. */
-.ap-lan-check {
-  font-size: 12px;
-  line-height: 1;
-  /* Level with the switch's own label rather than with the 11px title, and
-     dimmer than both at rest: it is a thing you may press, not a thing you
-     read. The glyph rises about half a pixel above its own box at this size —
-     the same nudge `.ap-header-right`'s glyphs take. */
-  color: var(--muted);
-  transform: translateY(0.5px);
-}
+/* The half-pixel nudge went with the glyph that needed it: a text arrow sits
+   where its font's baseline puts it, and an SVG sits where the flex box centres
+   it, which is the middle. */
+.ap-lan-check { color: var(--muted); }
 .ap-lan-check:hover:not(:disabled) { color: var(--text); }
 /* A ROUND IS A NETWORK ROUND, and it takes as long as the slowest deck. The
    only sign it had started was a word three lines below the glyph that was
    pressed, which is not where the eye is. It turns while it works, at the one
    speed in this app that means "still going" rather than "something happened". */
 .ap-lan-check[aria-busy="true"] { color: var(--accent); animation: lan-round 900ms linear infinite; }
-/* The half-pixel is in both keyframes on purpose: the glyph's resting
-   `translateY(0.5px)` is what centres it against the switch, and a keyframe
-   list that names only the rotation would interpolate from that transform to a
-   bare one and wobble the mark it is meant to spin. */
 @keyframes lan-round {
-  from { transform: translateY(0.5px) rotate(0deg); }
-  to   { transform: translateY(0.5px) rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
@@ -9702,23 +9700,26 @@ input, textarea { caret-color: var(--accent); }
   transition: color 120ms ease, transform 120ms ease;
 }
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
-/* The plus, beside the round it now travels with. A shade brighter than the
-   round, because it is the act somebody comes to this header to perform where
-   the round is the one most readers never press at all. */
-.ap-lan-plus {
-  font-size: 14px;
-  line-height: 1;
-  color: var(--text-dim);
-}
+/* THE THREE ARE ONE FAMILY, so what each rule carries is only its ink — and
+   the ink is the same for all three.
+   Each had a font-size before — 14 on the plus, 12 on the other two — and that
+   was not typography, it was three fonts being talked into looking one size.
+   The icons are drawn at one spec now, so the sizes went with the glyphs they
+   were correcting.
+
+   The plus had `--text-dim` under a comment claiming it was a shade brighter
+   than the other two. It is not: in dark this token and `--muted` are the same
+   six hex digits, so the rule painted nothing — and in light `--text-dim` is
+   the DIMMER of the two, so the one theme where it did anything did the
+   opposite of what it said. A hierarchy that renders as no hierarchy in one
+   theme and an inverted one in the other is worse than none. The plus leads by
+   being first and by being the only one of the three that opens something. */
+.ap-lan-plus { color: var(--muted); }
 .ap-lan-plus:hover:not(:disabled) { color: var(--text); }
 /* The cog, between the round and the switch. Quiet as the round is quiet — both
    are things you may press, against a switch that is a state you read — and a
    pixel smaller than the plus, which is a stroke where this is a shape. */
-.ap-lan-set {
-  font-size: 12px;
-  line-height: 1;
-  color: var(--muted);
-}
+.ap-lan-set { color: var(--muted); }
 .ap-lan-set:hover:not(:disabled) { color: var(--text); }
 
 /* The fold under the list: how many decks are not on, and whether any of them

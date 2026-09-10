@@ -479,9 +479,28 @@ describe("the list is quiet until it is not", () => {
     expect(head).not.toMatch(/aria-label=""/);
     expect(head).toMatch(/ap-lan-set/);
     expect(head).toMatch(/aria-label="This deck's name and shared logins"/);
-    // A cog drawn out of an emoji font would be a colour glyph at a size of its
-    // own choosing, in a header of three monochrome ones.
-    expect(head).toContain("\\u2699\\uFE0E");
+    // AN ICON IS DRAWN, NOT TYPED. The three were `+`, `↻` and `⚙` — three
+    // Unicode codepoints from three different blocks, drawn by whichever
+    // installed font happened to cover each one, which measured 8.7x7.4,
+    // 9.8x9.9 and 7.2x7.2 of ink in a row of three identical buttons. They are
+    // authored now at the spec the topbar's five already use.
+    expect(head).not.toMatch(/[\u2699\u21BB]/);
+    const icons = [...head.matchAll(/<svg([^>]*)>/g)].map(m => m[1]);
+    expect(icons).toHaveLength(3);
+    for (const attrs of icons) {
+      expect(attrs, attrs).toContain('width="13" height="13"');
+      expect(attrs, attrs).toContain('viewBox="0 0 14 14"');
+      expect(attrs, attrs).toContain('strokeWidth="1.3"');
+      expect(attrs, attrs).toContain('stroke="currentColor"');
+      // The button carries the name; the drawing inside it must not be a second
+      // one for a screen reader to read out.
+      expect(attrs, attrs).toContain("aria-hidden");
+    }
+    // And no per-control font-size survives: those were three fonts being
+    // talked into looking one size, not typography.
+    for (const sel of [".ap-lan-plus", ".ap-lan-check", ".ap-lan-set"]) {
+      expect(rule(sel), sel).not.toMatch(/font-size/);
+    }
     // There is no foot any more. What was down there is two glyphs up here, and
     // the one thing that was never a control — when the last round ran — shares
     // the list's last line with the fold, because both are facts about the list

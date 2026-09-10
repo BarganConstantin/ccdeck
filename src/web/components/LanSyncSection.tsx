@@ -916,19 +916,30 @@ export default function LanSyncSection({ accounts, onChanged }: {
             up here is also the honest size for it, now that the line under the
             title says when the last one ran and most readers will never need to
             press it at all. */}
-        {/* THE PLUS, WITH THE OTHER TWO. It was `+ add a deck` at the foot, in
-            the panel's word-button costume, beside the settings it has nothing
-            to do with — and the accounts header two sections up has kept a `+`
-            for adding one since it was written. Same act, same glyph, same
-            place. What it opens is unchanged; only the label it needed as a
-            word is gone, into the accessible name where a glyph's label
-            belongs. */}
+        {/* THREE ACTS AND A STATE, and the three are one icon family.
+            They were `+`, `↻` and `⚙` — three Unicode codepoints out of three
+            different blocks, drawn by whichever installed font happened to
+            cover each one. Measured, that is 8.7x7.4, 9.8x9.9 and 7.2x7.2 of
+            ink in a row of three 24px buttons: the round a third taller than
+            the cog beside it, and two different font-sizes here trying to
+            correct for it. An icon is drawn, not typed. These are authored at
+            the app's own small-icon spec — 13px on a 14 viewBox, 1.3 stroke,
+            round caps — which is what the topbar's five and the browser-watch
+            modal's cog already are.
+
+            The plus itself was `+ add a deck` at the foot, in the panel's
+            word-button costume, beside settings it has nothing to do with. The
+            accounts header two sections up has kept a plus for adding one since
+            it was written. */}
         {on && (
           <button type="button" className="glyph-btn ap-lan-plus"
             onClick={() => setAddOpen(true)}
             aria-label="Add a deck"
             title="Reach a deck that has not turned up on its own — by address, or with an invite">
-            +
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+              <path d="M7 2.2v9.6M2.2 7h9.6" />
+            </svg>
           </button>
         )}
         {on && paired > 0 && (
@@ -936,7 +947,14 @@ export default function LanSyncSection({ accounts, onChanged }: {
             onClick={() => void checkNow()}
             aria-label={busy === "check" ? "Checking every paired deck" : "Check every paired deck now"}
             title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next round">
-            ↻
+            {/* Open at the top right, with the head on the end that comes back
+                round — the arc reads as a return rather than as a circle with a
+                nick in it, which is what a 300° sweep at this size becomes. */}
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
+              <path d="M11.9 2.6v3.7h-3.6" />
+            </svg>
           </button>
         )}
         {/* AND THE SETTINGS, on the same row as the three controls that are also
@@ -950,11 +968,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
             onClick={() => setSetupOpen(true)}
             aria-label="This deck's name and shared logins"
             title="This deck's name on the network, and which of its logins it offers">
-            {/* U+FE0E, the text presentation selector. Without it a browser is
-                free to draw U+2699 out of an emoji font — a colour cog, at a
-                size of its own choosing, in a header of three monochrome
-                glyphs. */}
-            {"\u2699\uFE0E"}
+            {/* SLIDERS, NOT A COG, and the reason is what came back from the
+                render. The browser-watch modal draws its settings as a circle
+                with eight straight radial spokes, and at 13px that is the
+                universal brightness glyph — a sun, in a row about a network.
+                Reusing it would have been reuse of a drawing that says the
+                wrong thing, next to a plus and a round where the wrong thing is
+                readable. A gear with real teeth is mush at this size; two rails
+                and two knobs is the shape that stays a setting all the way
+                down. */}
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+              <path d="M1.8 4.7h10.4M1.8 9.3h10.4" />
+              <circle cx="9.1" cy="4.7" r="1.6" fill="var(--panel)" />
+              <circle cx="4.9" cy="9.3" r="1.6" fill="var(--panel)" />
+            </svg>
           </button>
         )}
         {/* A track and a knob, like every other switch in this app now — the
