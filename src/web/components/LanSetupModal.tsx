@@ -200,8 +200,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             <h3 className="lan-h">Pairing</h3>
             {/* Two rows and one shape, because they are the two halves of one
                 question: who reaches whom without anybody pressing anything.
-                The switch is the panel's own — same control, same words, so
-                nobody has to learn a second on. */}
+                A TRACK AND A KNOB, which is what every switch in this app wears
+                now — see `.ap-auto-state`. It was a pill with a dot and the
+                word `on` in it, which reports a state well and asks for one
+                badly. */}
             <div className="lan-switches">
               <div className="lan-switch">
                 <span className="lan-switch-what">Ask every deck this one finds</span>
@@ -220,10 +222,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title={asks
                     ? "Stop sending requests on their own. You press ask on the row instead."
                     : "Send a pairing request to every deck heard on this network. Somebody over there still has to say yes."}
-                >
-                  <i className={asks ? "ap-pulse" : "ap-dot"} aria-hidden />
-                  {asks ? "on" : "off"}
-                </button>
+                />
               </div>
               <div className="lan-switch">
                 <span className="lan-switch-what">Say yes to every deck that asks</span>
@@ -242,10 +241,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title={says
                     ? "Stop saying yes for you. A deck that asks waits in the panel again."
                     : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
-                >
-                  <i className={says ? "ap-pulse" : "ap-dot"} aria-hidden />
-                  {says ? "on" : "off"}
-                </button>
+                />
               </div>
             </div>
             {/* NOTHING TO SAY WHEN BOTH ARE ON, which is the state this ships in

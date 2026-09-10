@@ -177,10 +177,20 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     expect(toggle).toContain("aria-checked={auto.enabled}");
   });
 
-  it("carries a name of its own, since its contents can only spell its state", () => {
-    // The contents are still "on"/"off" — they are the right thing to SHOW and
-    // were never a name. aria-label outranks them, which is the whole fix.
-    expect(accounts).toContain('{auto.enabled ? "on" : "off"}');
+  it("carries a name of its own, and now it is the only name there is", () => {
+    // #546 FIXED THIS TWICE OVER. The switch used to spell its own state — a
+    // dot and the word `on` — so its accessible name was "off" when off and
+    // "on" when on, and `aria-label` was added to outrank contents that were
+    // the right thing to SHOW and were never a name.
+    //
+    // Those contents are gone: every switch in this app is a track and a knob
+    // now, where the position is the answer and a word beside it was a caption
+    // for something already legible. Which makes the label not an override but
+    // the whole of the name — an empty button with nothing else to fall back
+    // on. So the rule is stricter than it was, not looser.
+    expect(toggle).not.toMatch(/\{auto\.enabled \? "on" : "off"\}/);
+    expect(toggle).not.toMatch(/ap-pulse|ap-dot/);
+    expect(toggle.trimEnd().endsWith("/>"), "the switch has contents again").toBe(true);
     expect(/aria-label="[^"]+"/.test(toggle), NAMELESS).toBe(true);
   });
 

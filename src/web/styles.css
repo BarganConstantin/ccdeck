@@ -6533,22 +6533,61 @@ button.tool.clickable:last-child { border-bottom: none; }
 /* State reads as a status first and a control second: the dot carries it at a
    glance, the word confirms it. Same shape whether it's ours or external, so
    the eye doesn't have to relearn the corner. */
+/* A TRACK AND A KNOB, where this was a pill with a dot and the word `on` in it.
+   The pill reports a state well and asks for one badly: every switch wearing
+   this class is thrown by a person rather than watched, and a thing somebody
+   throws is the shape every application on this machine draws as a position.
+   The position IS the answer, so the word beside it was a caption for something
+   already legible — and the three of them together were three words of chrome
+   on a panel whose whole complaint was that it read as a settings page.
+
+   No text inside, so the accessible name is the whole of the name: each one
+   carries an aria-label, and `role="switch"` with `aria-checked` says which way
+   it is thrown. `.live` is the same fact in the sheet, because a stylesheet
+   cannot read an ARIA state and the two must not be able to disagree. */
 .ap-auto-state {
   /* The far edge of the control line. Whether the loop is armed at all is a
      different decision from where it trips, and the whole of the rest of the
      row between them is what says so. */
   margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px 2px 7px;
+  flex: none;
+  position: relative;
+  display: inline-block;
+  /* SMALLER THAN THE PILL IT REPLACED, on both axes: that was 39x21 of border
+     and word, and a control which now says everything by where its knob is
+     needs less room to say it than one that had to fit `off` inside. 18px of
+     height also keeps the two in the dialog 24px apart centre to centre at
+     their 6px gap, which is what SC 2.5.8 asks of a target under 24px. */
+  width: 30px;
+  height: 18px;
+  padding: 0;
   border: 1px solid var(--ctl-edge);
   border-radius: 999px;
-  background: transparent;
+  background: var(--ctl-fill);
   font: inherit;
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1.5;
+  line-height: 1;
+}
+/* The knob. 12px in an 18px track leaves two pixels of air all round it, which
+   is the proportion every platform's own switch uses — one that fills its track
+   reads as a bar rather than as something that moves. */
+.ap-auto-state::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transform: translateY(-50%);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+}
+/* Dark on the lit track rather than light: on --accent a pale knob is a pale
+   shape on a pale ground, and the one thing this has to say at a glance is
+   which end the knob is at. */
+.ap-auto-state.live::after {
+  background: var(--bg);
+  transform: translateY(-50%) translateX(12px);
 }
 .ap-dot {
   width: 5px;
@@ -6558,7 +6597,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   opacity: 0.55;
   flex-shrink: 0;
 }
-button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+button.ap-auto-state { cursor: pointer; transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 
 /* ---------------- local network sync ----------------
    The last section of the Accounts panel, and the only one that is not about
@@ -6597,12 +6636,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
      equidistant from the title it does not belong to and the switch it does. */
   gap: 6px;
 }
-/* THE HEADER'S SWITCH, AND ONLY THAT ONE. Written `.ap-lan .ap-auto-state` it
-   also reached the two switches in the dialog this section renders — a dialog
-   is a child of the section in the DOM, not a portal — and undid the
-   `margin-left: auto` that puts them on the block's right edge. They sat
-   hugging their labels at two different x instead. */
-.ap-lan > .ap-auto-head .ap-auto-state { margin-left: 0; }
 /* THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL PULLING. `margin-left: auto`
    on one of the three up here only works while that one is the leftmost of
    them, and all three are conditional — the plus and the round both need the
@@ -6922,13 +6955,15 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   min-width: 0;
 }
 
-button.ap-auto-state:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button.ap-auto-state:hover:not(:disabled) { border-color: var(--accent); }
+button.ap-auto-state:hover:not(:disabled)::after { background: var(--text); }
+button.ap-auto-state.live:hover:not(:disabled)::after { background: var(--bg); }
 button.ap-auto-state:active:not(:disabled) { transform: scale(0.97); }
 button.ap-auto-state:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-auto-state.live {
   border-color: var(--accent);
-  color: var(--accent);
+  background: var(--accent);
 }
 
 /* A ring leaving the dot on a slow interval. Emission reads as a process
@@ -9681,6 +9716,7 @@ input, textarea { caret-color: var(--accent); }
   color: var(--muted);
 }
 .ap-lan-set:hover:not(:disabled) { color: var(--text); }
+
 /* The fold under the list: how many decks are not on, and whether any of them
    is a problem. It sits at the list's own left edge rather than at the foot's,
    because it belongs to the list — the row above it is the last thing it

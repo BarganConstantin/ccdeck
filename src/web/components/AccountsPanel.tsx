@@ -1162,10 +1162,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     title={auto.enabled
                       ? "Stop switching accounts automatically"
                       : "Switch accounts automatically when the active one nears its limit"}
-                  >
-                    <i className={auto.enabled ? "ap-pulse" : "ap-dot"} aria-hidden />
-                    {auto.enabled ? "on" : "off"}
-                  </button>
+                  />
                 </span>
               </div>
 

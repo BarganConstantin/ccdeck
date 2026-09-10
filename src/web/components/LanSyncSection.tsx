@@ -957,6 +957,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
             {"\u2699\uFE0E"}
           </button>
         )}
+        {/* A track and a knob, like every other switch in this app now — the
+            shape lives on `.ap-auto-state`, and the reasoning with it. */}
         <button
           type="button"
           className={`ap-auto-state${on ? " live" : ""}`}
@@ -968,10 +970,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
           title={on
             ? "Stop talking to other decks. Nothing is shared while this is off."
             : "Let the decks you pair with repair this one's expired logins"}
-        >
-          <i className={on ? "ap-pulse" : "ap-dot"} aria-hidden />
-          {on ? "on" : "off"}
-        </button>
+        />
       </div>
 
       {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
