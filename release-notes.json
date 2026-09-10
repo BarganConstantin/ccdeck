@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.19.0": [
+    {
+      "title": "🟢 Local network: fixes and improvements",
+      "body": "The list of decks is quiet now. A deck that is **on**, with nothing to repair, is a name and a green mark — no sentence under it. Every healthy row used to carry the same words, so the one row worth reading looked like all the others. A failure, a login that arrived, a machine that is away, still say so, and they are now the only rows with anything written on them.\n\n`unpair` arrives when you point at a row rather than sitting on every one of them, two machines that share a name show their addresses, and the ↻ turns while a round is out.\n\n**Add a deck** is two ways in — by address, or with an invite — with `make one to send` beside the invite heading instead of under the paste field, where it read as that field's button. A refused address now says which mistake it was, and an invite that will not work says whether it ran out, was not an invite, or reached nothing.\n\nSwitching **Local network** on opens your name and shared logins, every time, so nothing goes on the network without you having just seen what goes with it."
+    }
+  ],
   "3.18.3": [
     {
       "title": "🟢 The list shows what is on, and folds the rest",
