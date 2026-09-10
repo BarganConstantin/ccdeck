@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.18.0": [
+    {
+      "title": "🟢 A deck that is switched off no longer reads as on",
+      "body": "A paired deck this one has no address for was drawn **live** on the strength of being paired — a machine closed an hour ago still sat under `1 deck ready`. Every row now leads with whether that machine is actually there, and when it last was: `online · 1 login arrived`, `no answer · last online 20m ago`, `never reached`. The mark beside the name is a traffic light — green for a deck that answered, amber for one that cannot be reached, grey for one nothing has heard from.\n\n**+ add a deck** opens a dialog now instead of unfolding inside the panel. An address, an invite and the firewall note never fitted a 288px column, and unfolded they turned a list of machines into a form."
+    }
+  ],
   "3.17.0": [
     {
       "title": "🔔 Pairing is two presses",
