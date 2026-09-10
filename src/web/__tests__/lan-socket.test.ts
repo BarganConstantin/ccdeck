@@ -36,8 +36,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import net from "node:net";
+import os from "node:os";
 // @ts-expect-error — plain .mjs server modules, no types
-import { fingerprint, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
+import { fingerprint, hostId, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server modules, no types
 import {
   connectToPeer, createBeacon, createSyncServer, frameReader, sendFrame,
@@ -564,13 +565,34 @@ describe("shouting, and hearing", () => {
     b.stop();
   });
 
-  it("puts its own name and port in what it sends, and nothing more", async () => {
+  it("puts its own name, port and machine in what it sends, and nothing more", async () => {
     const sock = fakeSocket();
     const { b, fp } = beaconOn(sock);
     await b.start();
     const out = readBeacon(sock.sent[0].msg);
-    expect(out).toEqual({ name: "MacBook", fp, port: 51234, instance: out.instance });
+    expect(out).toEqual({ name: "MacBook", fp, port: 51234, instance: out.instance, host: out.host });
+    // The machine id is a HASH and stays one: a hostname and a home directory
+    // carry a person's name, and this goes out in the clear to everyone on the
+    // network every thirty seconds.
+    expect(out.host).toMatch(/^[0-9a-f]{12}$/);
+    expect(out.host).toBe(hostId());
+    expect(sock.sent[0].msg.toString()).not.toContain(hostId({ hostname: "x", home: "y" }));
+    for (const leak of [os.hostname(), os.homedir()]) {
+      expect(sock.sent[0].msg.toString(), leak).not.toContain(leak);
+    }
     b.stop();
+  });
+
+  it("gives one computer one id however many decks it runs, and two computers two", () => {
+    // Derived rather than stored, so two processes on one machine agree without
+    // coordinating and a first run needs nothing written down.
+    expect(hostId({ hostname: "iMac", home: "/Users/c" })).toBe(hostId({ hostname: "iMac", home: "/Users/c" }));
+    // A copied ~/.claude is how two real machines end up holding one key, which
+    // is what id-clash exists for. The hostname is what still tells them apart.
+    expect(hostId({ hostname: "iMac", home: "/Users/c" }))
+      .not.toBe(hostId({ hostname: "MacBook", home: "/Users/c" }));
+    expect(hostId({ hostname: "iMac", home: "/Users/c" }))
+      .not.toBe(hostId({ hostname: "iMac", home: "/Users/d" }));
   });
 
   it("says so when another deck is wearing its name", async () => {

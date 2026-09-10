@@ -38,6 +38,21 @@ import { hostname, networkInterfaces } from "node:os";
  *  than something that updates when you press a button. */
 export const SYNC_MS = 60_000;
 
+/**
+ * How long to wait before dialling again while somebody is deciding.
+ *
+ * A minute is right for the steady state — two decks whose logins all work have
+ * nothing to say to each other — and it is far too long for the one moment
+ * anybody is watching: the seconds after somebody presses accept on the other
+ * machine. Reported as "it should work by itself", from a panel that had been
+ * correct for up to fifty-nine more seconds than the person in front of it.
+ *
+ * So the loop tightens while a request is outstanding and relaxes the moment it
+ * is answered — either way. A refusal is an answer, and a deck that said no is
+ * not asked every eight seconds.
+ */
+export const ASKING_MS = 8_000;
+
 /** How long one peer round may take before it is abandoned. A manifest is one
  *  round trip on a local network; anything past this is a peer that is not
  *  going to answer, and holding the attempt open would stall the next round. */
@@ -230,6 +245,16 @@ export function createEngine({
       ctx.send({ t: "no", why: "error" });
     }
   };
+
+  /**
+   * Is anybody on the other end still deciding?
+   *
+   * The exact sentence lan-socket.mjs sends for "a real deck, not yet
+   * accepted", which is the one state where dialling again in a few seconds
+   * does something a minute later would not.
+   */
+  const waitingOnSomebody = () =>
+    [...lastRound.values()].some(r => r?.error === "waiting for the other deck to accept this one");
 
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
@@ -440,6 +465,11 @@ export function createEngine({
         onPeer: () => onChange?.(),
         onStranger: entry => {
           const had = strangers.get(entry.fp);
+          // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
+          // a fresh key — a second deck sharing one config directory does, by
+          // design — used to leave its old key in this map for a day, and every
+          // one of them drew a row offering to pair with the same machine.
+          if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
           strangers.set(entry.fp, entry);
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
@@ -457,7 +487,15 @@ export function createEngine({
         ...(createSocket ? { createSocket } : {}),
       });
       await beacon.start();
-      timer = setInterval(() => { void round(); }, SYNC_MS);
+      // A self-scheduling loop rather than one interval, because the gap
+      // between rounds is not one number: see ASKING_MS.
+      const tick = async () => {
+        try { await round(); } catch { /* a round reports itself, per peer */ }
+        if (!beacon) return;
+        timer = setTimeout(() => { void tick(); }, waitingOnSomebody() ? ASKING_MS : SYNC_MS);
+        timer.unref?.();
+      };
+      timer = setTimeout(() => { void tick(); }, SYNC_MS);
       timer.unref?.();
     },
     /**
@@ -689,6 +727,9 @@ export function createEngine({
           // A deck that was told no is not somebody to offer pairing with. It
           // has its own row, with the one control that undoes the decision.
           const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
+          // pairable() collapses the rest by machine — see hostId. A computer
+          // that has run the deck a few times holds a key per run, and every
+          // one of them was a row of its own on everybody else's panel.
           const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
           return shown.map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more }));
         })(),
@@ -756,7 +797,7 @@ export function createEngine({
       };
     },
     stop() {
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;

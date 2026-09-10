@@ -98,6 +98,7 @@ import {
   createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import os from "node:os";
 
 /** Marks a packet as ours before anything reads a field of it. Four bytes of
  *  ASCII rather than a number, so a stray packet on the port is recognisable
@@ -419,7 +420,31 @@ export function inviteProof(code, transcript) {
  * from a deck this one does not trust becomes a row somebody can accept, and
  * nothing at all happens until they do.
  */
-export function beaconPayload({ name, fp, port, instance }) {
+/**
+ * WHICH MACHINE THIS IS, as opposed to which PROCESS or which KEY.
+ *
+ * Reported by somebody looking at a colleague's screen: "I appear three or four
+ * times". Every one of those rows was honest — a deck's identity is its key, a
+ * second deck sharing a config directory is told to take a fresh one
+ * (`id-clash`), and a deck heard yesterday stays listed for a day — so a
+ * machine that has run the deck a few times becomes a column of itself on
+ * everybody else's panel, under one hostname, offering to pair with each.
+ *
+ * A key cannot answer "same machine?" and was never meant to. This can: it is
+ * derived rather than stored, so two processes on one computer agree without
+ * coordinating and a first run needs nothing written; and it is HASHED, because
+ * a hostname and a home directory carry a person's name and this goes out in
+ * the clear to everyone on the network, thirty seconds apart, forever.
+ *
+ * The home directory is in it so that a copied `~/.claude` — which is how two
+ * real machines end up holding one key, and the reason `id-clash` exists —
+ * still reads as two machines when the hostnames differ, which they do.
+ */
+export function hostId({ hostname = os.hostname(), home = os.homedir() } = {}) {
+  return createHash("sha256").update(`${hostname}\u0000${home}`).digest("hex").slice(0, 12);
+}
+
+export function beaconPayload({ name, fp, port, instance, host }) {
   return {
     m: MAGIC,
     v: PROTOCOL,
@@ -431,6 +456,11 @@ export function beaconPayload({ name, fp, port, instance }) {
     // drop whatever session state was held for it rather than trying to resume
     // into a process that no longer exists. Syncthing's field, same job.
     i: instance,
+    // Which MACHINE, so several processes on one computer are one row rather
+    // than one row each. Optional on the wire: a deck older than this sends no
+    // `h`, and a reader that requires one would stop seeing every deck already
+    // installed.
+    ...(host ? { h: host } : {}),
   };
 }
 
@@ -464,7 +494,11 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
   const port = raw.p;
   if (typeof raw.f !== "string" || !/^[0-9a-f]{3}(-[0-9a-f]{3}){3}$/.test(raw.f)) return null;
   if (typeof raw.i !== "string" || !/^[0-9a-f]{8,32}$/.test(raw.i)) return null;
-  return { name: cleanName(raw.n, raw.f), fp: raw.f, port, instance: raw.i };
+  // Optional, and refused rather than tolerated when it is malformed: a field
+  // that decides which rows collapse into one is a field worth being strict
+  // about. Absent is fine and means "a deck older than this".
+  if (raw.h !== undefined && (typeof raw.h !== "string" || !/^[0-9a-f]{6,32}$/.test(raw.h))) return null;
+  return { name: cleanName(raw.n, raw.f), fp: raw.f, port, instance: raw.i, host: raw.h };
 }
 
 /**
@@ -480,8 +514,15 @@ export function readBeacon(buf, { maxBytes = MAX_BEACON_BYTES } = {}) {
  * broadcast on every interface it owns, and filtering by address would need a
  * list of them that changes when a VPN comes up.
  */
-export function beaconVerdict(beacon, { selfFp, selfInstance, trusted } = {}) {
+export function beaconVerdict(beacon, { selfFp, selfInstance, selfHost, trusted } = {}) {
   if (!beacon) return "unreadable";
+  // ANOTHER DECK ON THIS COMPUTER. Not this process — a different key, honestly
+  // its own — and still nothing to pair with: both read one claude-swap store,
+  // so neither holds a login the other could heal. It used to be filtered by
+  // the address the packet came from, which is true and needs the list of this
+  // machine's addresses to be current; the machine's own id needs nothing and
+  // is the same answer.
+  if (selfHost && beacon.host && beacon.host === selfHost && beacon.fp !== selfFp) return "self";
   if (beacon.fp === selfFp) {
     // OUR OWN NAME, FROM SOMEBODY ELSE'S PROCESS. Two decks sharing a config
     // directory hold the same key — and so does the second machine when
@@ -581,10 +622,17 @@ export function pairable(strangers, now, { presentMs = PRESENT_MS, limit = 8, mi
     .filter(p => p && typeof p.at === "number" && now - p.at <= presentMs)
     .filter(p => !own.has(p.addr))
     .sort((a, b) => b.at - a.at);
+  // ONE ROW PER MACHINE. `live` is newest first, so the row that survives is the
+  // one that spoke most recently — which is the process somebody is actually
+  // running, rather than a key its computer took and abandoned an hour ago.
+  //
+  // The machine's own id when the far deck sends one, and the old name@address
+  // pair when it does not: a deck older than the `h` field is still collapsed
+  // as well as it can be rather than not at all.
   const seen = new Set();
   const out = [];
   for (const p of live) {
-    const key = `${p.name}@${p.addr}`;
+    const key = p.host ? `host:${p.host}` : `${p.name}@${p.addr}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(p);
@@ -614,6 +662,7 @@ export function notePeer(peers, beacon, addr, now) {
     addr,
     port: beacon.port,
     instance: beacon.instance,
+    host: beacon.host,
     firstSeen: prev?.firstSeen ?? now,
     lastSeen: now,
     // Kept across a name change so the panel can say "was Laptop-birou", which

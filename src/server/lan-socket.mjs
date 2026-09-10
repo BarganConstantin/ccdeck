@@ -25,7 +25,7 @@ import dgram from "node:dgram";
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, handshakeTranscript, notePeer, proof, proofOk,
+  beaconPayload, beaconVerdict, handshakeTranscript, hostId, notePeer, proof, proofOk,
   inviteProof, readBeacon, readPub, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
@@ -89,6 +89,11 @@ export function createBeacon({
   // instance ids mean the deck restarted between them, which is the signal to
   // drop any session held for it rather than resume into a process that is gone.
   const instance = randomBytes(8).toString("hex");
+  /** Which computer this is, as opposed to which process or which key. Derived
+   *  once per beacon rather than per packet: it cannot change while a process
+   *  is running, and hashing a hostname thirty seconds apart forever is work
+   *  nobody asked for. See hostId. */
+  const host = hostId();
   const peers = new Map();
   let sock = null;
   let timer = null;
@@ -99,7 +104,7 @@ export function createBeacon({
   let repliedAt = 0;
   const answered = new Set();
 
-  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance })));
+  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
   const announce = () => {
     if (!sock) return;
@@ -123,7 +128,7 @@ export function createBeacon({
       // the bytes and the address and does what it is told.
       if (msg.length > MAX_BEACON_BYTES) return;
       const beacon = readBeacon(msg);
-      const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, trusted: trusted() });
+      const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
       // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
       // part is the change. It used to answer only a deck already in the group,
       // which was fine when a group existed. Now the first thing a new deck has
@@ -155,7 +160,12 @@ export function createBeacon({
         // row somebody can accept. Nothing is asked of it and nothing is
         // offered to it until they do.
         if (verdict === "stranger") {
-          onStranger?.({ fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port, at: now() });
+          onStranger?.({
+            fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
+            // Carried through so the list can show one row per machine rather
+            // than one per key that machine has ever held.
+            host: beacon.host, at: now(),
+          });
         }
         return;
       }

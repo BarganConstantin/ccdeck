@@ -23,7 +23,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { createEngine, defaultName, localAddresses, SYNC_MS } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, SYNC_MS } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, identityFrom } from "../../server/lan-sync.mjs";
@@ -460,6 +460,31 @@ describe("the cadence", () => {
   it("asks often enough to feel live and far less often than a login dies", () => {
     expect(SYNC_MS).toBeGreaterThanOrEqual(30_000);
     expect(SYNC_MS).toBeLessThanOrEqual(5 * 60_000);
+  });
+});
+
+describe("the gap between rounds", () => {
+  it("is a minute at rest and seconds while somebody is deciding", () => {
+    // Two numbers, and the second one exists for the only moment anybody is
+    // watching: the seconds after somebody presses accept on the other machine.
+    // Reported as "it should work by itself", from a panel that had been
+    // correct for up to fifty-nine more seconds than the person in front of it.
+    expect(SYNC_MS).toBe(60_000);
+    expect(ASKING_MS).toBeLessThan(SYNC_MS / 4);
+    expect(ASKING_MS).toBeGreaterThanOrEqual(5_000);
+  });
+
+  it("tightens only for a request nobody has answered yet", async () => {
+    // A refusal is an answer: a deck that said no is not dialled every eight
+    // seconds for the rest of the session. The sentence the loop watches for is
+    // the one lan-socket.mjs sends for "a real deck, not yet accepted" — the
+    // same string WIRE_ANSWERS keys on in the panel, so the two files cannot
+    // drift apart silently.
+    const src = readFileSync(fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
+    expect(src).toContain('"waiting for the other deck to accept this one"');
+    expect(src).toMatch(/waitingOnSomebody\(\) \? ASKING_MS : SYNC_MS/);
+    const socket = readFileSync(fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
+    expect(socket).toContain("waiting for the other deck to accept this one");
   });
 });
 

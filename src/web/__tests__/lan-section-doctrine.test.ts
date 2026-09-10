@@ -266,8 +266,11 @@ describe("the pairing that replaced the passphrase", () => {
     expect(CODE).toMatch(/wants to pair/);
     expect(CODE).toMatch(/accept/);
     expect(CODE).toMatch(/dismiss/);
-    // And what the reader is asked to compare is on the request itself.
+    // And what the reader is asked to compare is on the request itself —
+    // PRINTED, not only in a `title`. A mouse-only, screen-reader-silent place
+    // is not where the feature's one security decision can live.
     expect(CODE).toMatch(/fingerprint is \$\{p\.fp\}/);
+    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}<\/code>/);
   });
 
   it("has no passphrase left anywhere in the surface", () => {
@@ -384,6 +387,32 @@ describe("who is here, which is what the panel is for now", () => {
       enabled: true, running: true,
       peers: [peer({ fp: "a", paired: true, waiting: true, last: { at: NOW2, error: "timed out" } })] as never,
     }, NOW2).tone).toBe("bad");
+  });
+
+  it("does not call a deck that answered unreachable, nor a waiting one ready", () => {
+    // Both halves of one screenshot. Three decks each said `waiting for the
+    // other deck to accept this one` — an ANSWER, from a machine plainly there
+    // — and the line read `this deck cannot reach any of its 3 decks` while
+    // every row under it said `last online now`.
+    const asked = (fp: string) => peer({ fp, peerFp: fp, paired: true, lastSeen: NOW2,
+      last: { at: NOW2, error: "waiting for the other deck to accept this one" } });
+    expect(isOnline(asked("a") as never, NOW2)).toBe(true);
+    expect(sectionState({ enabled: true, running: true, peers: [asked("a")] as never }, NOW2))
+      .toEqual({ text: "1 deck found · waiting for them to accept", tone: "wait" });
+    expect(sectionState({
+      enabled: true, running: true, peers: [asked("a"), asked("b"), asked("c")] as never,
+    }, NOW2)).toEqual({ text: "3 decks found · waiting for them to accept", tone: "wait" });
+    // One of them accepting takes the line back to the ordinary count rather
+    // than leaving it on the waiting sentence.
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [asked("a"), peer({ fp: "b", peerFp: "b", paired: true, lastSeen: NOW2 })] as never,
+    }, NOW2).tone).toBe("ok");
+    // And the row itself is neither fine nor broken.
+    const [row] = deckRows({ peers: [asked("a")] as never }, NOW2);
+    expect(row.state).toBe("online · waiting for them to say yes");
+    expect(row.tone).toBe("wait");
+    expect(row.here).toBe(true);
   });
 
   it("does not let one typed address report the whole fleet as broken", () => {

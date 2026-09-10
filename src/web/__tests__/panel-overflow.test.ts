@@ -266,11 +266,6 @@ describe("a percentage width under a horizontal margin", () => {
       // section's primary act — it took the column `setup…` used to hold,
       // which opened a dialog with a name field in it.
       "ap-lan-check",
-      // The press that opens the share picks the first time. It is the only
-      // thing in its block and a pill floating at the left edge reads as an
-      // afterthought rather than as the deliberate act it is, so it takes the
-      // column. Named here so it enters the margin check below.
-      "ap-lan-open",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check

@@ -6641,11 +6641,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   font-size: 10px;
 }
 .ap-lan-input { flex: 1 1 auto; min-width: 0; }
-/* Not the passphrase, and not dots standing in for it: the server never sends
-   it, so there is nothing here to print. `set` is the whole claim. */
-.ap-lan-set { flex: 1 1 auto; color: var(--text-dim); font-size: 10px; }
-
-.ap-lan-now { margin: -2px 0; }
 
 /* 3px, and the one pixel is the whole reason. The row measures 21.9px tall, so
    at a 2px gap two ticks sat 23.9px apart centre to centre — one tenth of a
@@ -6680,6 +6675,12 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    the ground under it and the same ink measured 4.14:1 in dark. Mixed toward
    the foreground rather than left grey, which is the rule the reach block
    already writes down. */
+/* No ring on the LABEL, deliberately, though the label is the click target and
+   the 13px box inside it is not. The ring belongs to the element that has
+   focus, and putting a second one on the row would mean taking the first one
+   away — `outline: none` is the one thing this sheet may not say, and two
+   nested rings for one focus is worse than a small one in the right place. The
+   row already answers the press it receives: `.ap-lan-pick:active` scales. */
 .ap-lan-pick:hover .ap-lan-dead { color: color-mix(in srgb, var(--muted) 65%, var(--text)); }
 .ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: 9px; }
 
@@ -6702,24 +6703,14 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    tone is decided in roundLabel, where it can be tested. */
 .ap-lan-bad { color: var(--warn); }
 
-/* The passphrase's own line of verbs. `copy`, `save` and `cancel` do not fit
-   beside a 66px label and a field in 288px, and the field is the one thing on
-   the row that must not be narrowed — it is holding six words somebody is
-   about to read out loud. Indented to the field's left edge so the three read
-   as belonging to it rather than to the section. */
+/* The invite card's own verbs. The 72px indent that used to be here aligned
+   them to a passphrase label — a control that has not existed since pairing
+   replaced the passphrase, and which never existed in the dialog this card
+   lives in now. They sat 72px inside a 520px box, aligned to nothing. */
 .ap-lan-acts {
   display: flex;
   gap: 6px;
-  margin-top: 6px;
-  margin-left: 72px;
-}
-/* The press that opens the picks the first time. Full width, because it is the
-   only thing in its block and a 140px pill floating at the left edge reads as
-   an afterthought rather than as the deliberate act it is. */
-.ap-lan-open {
-  width: 100%;
-  margin-top: 6px;
-  justify-content: center;
+  margin-top: 8px;
 }
 
 /* WHAT IS HAPPENING, IN ONE LINE, directly under the head. Every state this
@@ -6893,21 +6884,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   font-size: 10px;
 }
 
-/* THE GLANCE, and never the only channel: the sentence on the row below says
-   the same thing in words. Sized and coloured like the switch's own dot, so a
-   reader who has learned one has learned the other. */
-.ap-lan-mark {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  align-self: center;
-  background: currentColor;
-  color: var(--muted);
-  opacity: 0.55;
-}
-.ap-lan-mark.ok { color: var(--accent); opacity: 1; }
-.ap-lan-mark.bad { color: var(--warn); opacity: 1; }
 
 
 
@@ -6928,9 +6904,11 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 }
 .ap-lan-ask { display: flex; flex-direction: column; gap: 6px; }
 .ap-lan-ask-what { font-size: 11px; color: var(--text); line-height: 1.45; }
+/* The value to compare against the other person's screen, at the size of a
+   reading rather than of the sentence above it. */
+.ap-lan-ask-fp { font-size: 10px; color: var(--text-dim); }
 .ap-lan-ask-acts { display: flex; gap: 6px; }
 
-.ap-lan-addr { margin-top: 10px; }
 .ap-lan-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
@@ -9366,6 +9344,9 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    with a heading — so these are the first level of structure inside it. `margin: 0`
    because the UA sheet's 1em would fight the section gap that is doing the work. */
 .lan-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 8px;
   font-size: 11px;
   font-weight: 600;
@@ -9393,11 +9374,6 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   color: var(--warn);
 }
 
-.lan-h {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 /* ── why nothing can reach this deck ────────────────────────────────────────
    Set apart from the pairing controls it sits above, because it is a finding

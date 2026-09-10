@@ -275,7 +275,13 @@ export function leftLabel(expiresAt: number, now: number): string {
  * hear and cannot talk to is not somewhere you can send an account.
  */
 export function isOnline(p: Peer, now: number): boolean {
-  if (p.last?.error) return false;
+  // A REFUSAL THAT WAS AN ANSWER IS NOT A FAILURE TO REACH. `waiting for the
+  // other deck to accept this one` and `that deck said no` arrive on the same
+  // `last.error` channel as a dead socket, and treating them as unreachable put
+  // three decks that were plainly there under `this deck cannot reach any of
+  // its 3 decks` — while each row said `last online now` two words later.
+  // Reported from a screenshot of exactly that contradiction.
+  if (p.last?.error && !WIRE_ANSWERS[p.last.error]) return false;
   if (p.last?.at && now - p.last.at < ONLINE_MS) return true;
   if (p.lastSeen != null && now - p.lastSeen < ONLINE_MS) return true;
   return false;
@@ -359,6 +365,19 @@ export function sectionState(
   const { online, offline: notAnswering } = rosterSplit(dialled, now);
   const offline = [...notAnswering, ...waiting.filter(p => !calling.includes(p))];
   const here = online.length + calling.length;
+  // REACHED, AND WAITING ON A PERSON. Every one of them answered — they are as
+  // present as a deck can be — and none of them can move a login until somebody
+  // at that machine presses accept. Neither `ready` nor `cannot reach` is true
+  // of that, and the line said the second one over three healthy machines.
+  const unanswered = online.filter(p => p.last?.error === "waiting for the other deck to accept this one");
+  if (here && unanswered.length === here) {
+    return {
+      text: here === 1
+        ? "1 deck found · waiting for them to accept"
+        : `${here} decks found · waiting for them to accept`,
+      tone: "wait",
+    };
+  }
   if (!here) {
     // Named and directional. "Not reachable" says nothing about which side
     // cannot do what, and a reader who does not know the answer cannot act.
@@ -531,13 +550,20 @@ export function deckRows(
       ? (present ? `online · ${line.text.replace(/ · .*$/, "")}` : `${line.text.replace(/ · .*$/, "")} · ${presenceLabel(p, present, now)}`)
       : called ? called.text
       : presenceLabel(p, present, now);
+    // A deck that has been reached and is waiting on a PERSON is neither fine
+    // nor broken, and painting it as a fault made three healthy machines read
+    // as a network problem. The tone follows what a reader can do about it:
+    // nothing here, something over there.
+    const answered = p.last?.error ? WIRE_ANSWERS[p.last.error] : null;
     paired.push({
       fp,
       name: p.manual && !p.met ? where : (p.name || fp),
       addr: p.addr ?? "",
       kind: "paired",
       state: said,
-      tone: line ? line.tone : present ? "ok" : "idle",
+      tone: answered ? (answered.tone === "bad" ? "bad" : "wait")
+        : line ? line.tone
+        : present ? "ok" : "idle",
       // NOT "paired, therefore here". Being paired says what happened once; it
       // says nothing about whether that machine is switched on now, and drawing
       // it live on that evidence is the panel inventing a fact.
@@ -811,6 +837,18 @@ export default function LanSyncSection({ accounts, onChanged }: {
                     <strong className="ap-lan-peer-name">{p.name}</strong>
                     {" at "}<code className="ap-lan-code">{p.addr}</code>
                     {" wants to pair"}
+                  </span>
+                  {/* PRINTED, NOT HOVERED. The one security decision in this
+                      feature is whether the machine asking is the one you think
+                      it is, and the only value that cannot be chosen by whoever
+                      is asking is this. It lived in `title=` — a mouse-only,
+                      one-second-delayed, screen-reader-silent place — so on the
+                      surface that answers most requests it could not be checked
+                      at all. The dialog that opens over the deck has printed it
+                      since it was written; this is the same fact on the row
+                      that does the same job. */}
+                  <span className="ap-lan-ask-fp">
+                    fingerprint <code className="ap-lan-code">{p.fp}</code>
                   </span>
                   <span className="ap-lan-ask-acts">
                     <button type="button" className="ap-manage-btn" {...pressProps(`accept:${p.fp}`)}

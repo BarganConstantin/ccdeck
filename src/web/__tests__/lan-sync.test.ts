@@ -17,7 +17,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   accountKey, addTrusted, beaconPayload, beaconVerdict, cleanName, dropTrusted, fingerprint,
   isPresent, manifestFor, notePeer, open, peerRows, plan, proof, proofOk, readBeacon,
-  handshakeTranscript, identityFrom, readPub, seal, sessionKey, stillListed, syncAction,
+  handshakeTranscript, hostId, identityFrom, pairable, readPub, seal, sessionKey, stillListed, syncAction,
   transferChallenge, trustedPeer,
   ANNOUNCE_MS, FORGET_MS, MAGIC, MAX_BEACON_BYTES, MAX_NAME, PRESENT_MS, PROTOCOL,
 } from "../../server/lan-sync.mjs";
@@ -622,5 +622,60 @@ describe("the packet says which protocol it is", () => {
   it("is marked so a stray packet on the port is recognisable as somebody else's", () => {
     expect(MAGIC).toBe("CCDK");
     expect(beaconPayload({ name: "x", fp: FP, port: 1, instance: "aa" }).m).toBe(MAGIC);
+  });
+});
+
+
+describe("one row per machine, not one per key it has held", () => {
+  it("collapses every deck that says it is the same computer, keeping the freshest", () => {
+    // Reported by somebody looking at a colleague's screen: "I appear three or
+    // four times". Every row was honest — a deck's identity is its key, a
+    // second deck sharing a config directory is told to take a fresh one, and a
+    // deck heard yesterday stays listed for a day — so one computer became a
+    // column of itself on everybody else's panel.
+    const now = 1_700_000_000_000;
+    const { shown, more } = pairable([
+      { fp: "aaa", name: "Constantins-iMac", addr: "192.168.1.82", port: 5001, host: "abc123abc123", at: now - 40_000 },
+      { fp: "bbb", name: "Constantins-iMac", addr: "192.168.1.82", port: 5002, host: "abc123abc123", at: now - 1_000 },
+      { fp: "ccc", name: "Constantins-iMac", addr: "100.67.32.58", port: 5003, host: "abc123abc123", at: now - 20_000 },
+      { fp: "ddd", name: "Someone-Else", addr: "192.168.1.90", port: 5004, host: "ffffffffffff", at: now - 5_000 },
+    ], now);
+    expect(shown.map(p => p.fp)).toEqual(["bbb", "ddd"]);
+    expect(more).toBe(0);
+  });
+
+  it("still collapses a deck too old to send a machine id, as well as it can", () => {
+    // A deck a version behind sends no `h`, and a reader that required one
+    // would stop collapsing anything at all for it.
+    const now = 1_700_000_000_000;
+    const { shown } = pairable([
+      { fp: "aaa", name: "Old-Deck", addr: "192.168.1.7", port: 5001, at: now - 30_000 },
+      { fp: "bbb", name: "Old-Deck", addr: "192.168.1.7", port: 5002, at: now - 1_000 },
+    ], now);
+    expect(shown.map(p => p.fp)).toEqual(["bbb"]);
+  });
+
+  it("refuses a machine id that is not one, rather than taking it", () => {
+    const good = { m: "CCDK", v: PROTOCOL, n: "Deck", f: "aaa-bbb-ccc-ddd", p: 5000, i: "0123456789abcdef" };
+    expect(readBeacon(Buffer.from(JSON.stringify({ ...good, h: "abc123abc123" })))?.host).toBe("abc123abc123");
+    // Absent is fine and means "a deck older than this".
+    expect(readBeacon(Buffer.from(JSON.stringify(good)))?.host).toBeUndefined();
+    for (const bad of ["", "zzz", 12, "AB12CD34EF56", "a".repeat(64)]) {
+      expect(readBeacon(Buffer.from(JSON.stringify({ ...good, h: bad }))), String(bad)).toBeNull();
+    }
+  });
+
+  it("knows another deck on this computer from a deck on another one", () => {
+    // Same machine, honestly its own key: there is nothing to pair with,
+    // because both read one claude-swap store and neither holds a login the
+    // other could heal.
+    const beacon = { fp: "aaa-bbb-ccc-ddd", name: "Twin", port: 5000, instance: "ffffffff", host: "abc123abc123" };
+    expect(beaconVerdict(beacon, { selfFp: "111-222-333-444", selfInstance: "11111111", selfHost: "abc123abc123", trusted: [] }))
+      .toBe("self");
+    expect(beaconVerdict(beacon, { selfFp: "111-222-333-444", selfInstance: "11111111", selfHost: "ffffffffffff", trusted: [] }))
+      .toBe("stranger");
+    // And a deck that sends no machine id is judged the way it always was.
+    expect(beaconVerdict({ ...beacon, host: undefined }, { selfFp: "111-222-333-444", selfInstance: "11111111", selfHost: "abc123abc123", trusted: [] }))
+      .toBe("stranger");
   });
 });
