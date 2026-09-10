@@ -38,7 +38,7 @@
 // original left where it was, so a deck downgraded to the version before this
 // one finds exactly what it had. See migrateDeckFiles.
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, posix as posixPath, win32 as winPath } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 // The Windows ladder, not `rename` (#786). MoveFileExW refuses while any other
 // process holds the destination open — a scanner, the indexer, a backup agent —
@@ -59,7 +59,8 @@ export const HOME_ENV = "CCDECK_HOME";
 
 /** Where the deck kept everything before this, and where two of its files still
  *  live. Also the place a migration reads from. */
-export function legacyDeckDir(env = process.env, home = homedir()) {
+export function legacyDeckDir(env = process.env, home = homedir(), platform = process.platform) {
+  const { join } = platform === "win32" ? winPath : posixPath;
   return join(claudeConfigDir(env, home), "agent-dag");
 }
 
@@ -75,11 +76,17 @@ export function legacyDeckDir(env = process.env, home = homedir()) {
  * they have; everybody else moves.
  */
 export function deckDataDir(platform = process.platform, env = process.env, home = homedir()) {
+  // THE TARGET PLATFORM'S SEPARATOR, NOT THE HOST'S — the same reason
+  // claudeCliCandidates does it, which is that the only way a Windows answer
+  // stays right is if it can be checked from a Mac. `node:path` joins with
+  // whatever the machine running the code uses, so a bare `join` here answers
+  // `\home\u\Library\...` on Windows for a question about macOS.
+  const { join } = platform === "win32" ? winPath : posixPath;
   const forced = env[HOME_ENV]?.trim();
   if (forced) return resolve(forced);
-  if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home);
+  if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home, platform);
   if (platform === "darwin") return join(home, "Library", "Application Support", APP);
-  if (platform === "win32") return join(localAppData(env, home), APP, "Data");
+  if (platform === "win32") return join(localAppData(env, home, platform), APP, "Data");
   return join(env.XDG_DATA_HOME?.trim() || join(home, ".local", "share"), APP);
 }
 
@@ -92,11 +99,12 @@ export function deckDataDir(platform = process.platform, env = process.env, home
  * for logs and this uses it.
  */
 export function deckLogDir(platform = process.platform, env = process.env, home = homedir()) {
+  const { join } = platform === "win32" ? winPath : posixPath;
   const forced = env[HOME_ENV]?.trim();
   if (forced) return resolve(forced);
-  if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home);
+  if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home, platform);
   if (platform === "darwin") return join(home, "Library", "Logs", APP);
-  if (platform === "win32") return join(localAppData(env, home), APP, "Log");
+  if (platform === "win32") return join(localAppData(env, home, platform), APP, "Log");
   return join(env.XDG_STATE_HOME?.trim() || join(home, ".local", "state"), APP);
 }
 
@@ -104,7 +112,8 @@ export function deckLogDir(platform = process.platform, env = process.env, home 
  *  fallback is not decoration: a service account or a stripped environment can
  *  reach this code with the variable unset, and a deck that throws there is a
  *  deck that will not start. */
-function localAppData(env = process.env, home = homedir()) {
+function localAppData(env = process.env, home = homedir(), platform = process.platform) {
+  const { join } = platform === "win32" ? winPath : posixPath;
   return env.LOCALAPPDATA?.trim() || join(home, "AppData", "Local");
 }
 
