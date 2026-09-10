@@ -17,6 +17,15 @@
 // Two fields, then, and both of them are about this machine. Everything that
 // takes an address, a token or another deck's name is in LanSyncSection.tsx.
 //
+// THE FINGERPRINT IS NOT DRAWN HERE ANY MORE. It was printed under the name
+// with a sentence telling the reader to read it out, and it is still printed at
+// both places where somebody actually decides on one: the request that arrives
+// in the panel, and the dialog that opens over the canvas to answer it. Where
+// it is NOT printed is the one surface whose whole job is to say what this deck
+// is, so a person who wants to read their own out has nowhere left to find it —
+// which is a real cost, taken on purpose, for a dialog that had grown three
+// paragraphs of prose around two controls.
+//
 // AND TWO SWITCHES, which are the third thing this deck IS on the network: does
 // it ask the machines it finds, and is a request that arrives answered here or
 // answered for it. They are last on purpose. The dialog reads as one sentence
@@ -150,21 +159,6 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title="Save it. This is the name other decks show for this one.">save</button>
               )}
             </div>
-            <p className="lan-note">Everyone on this network can see this name.</p>
-            {status.fp && (
-              <>
-                <div className="ap-lan-row">
-                  <span className="ap-lan-label">fingerprint</span>
-                  <code className="ap-lan-code">{status.fp}</code>
-                </div>
-                {/* The one value that cannot be chosen, so it is the one worth
-                    reading out. The other deck's owner sees it in the dialog
-                    that asks them to accept this one. */}
-                <p className="lan-note">
-                  Read this out when somebody is deciding whether to accept this deck.
-                </p>
-              </>
-            )}
           </div>
 
           <div className="modal-section">

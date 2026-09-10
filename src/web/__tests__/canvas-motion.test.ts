@@ -283,7 +283,6 @@ const PRESSES: Press[] = [
   [".topbar .waiting-stat:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
-  [".topbar .notify-ask:active", "0.97", "transform"],
   [".topbar .brand button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
   [".ap-more:active", "0.94", "transform"],

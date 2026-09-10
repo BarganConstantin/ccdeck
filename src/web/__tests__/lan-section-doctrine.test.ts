@@ -1020,9 +1020,20 @@ describe("what did not change", () => {
     expect(row).toMatch(/does not take back/);
   });
 
-  it("still says the deck's name is public, where the field is", () => {
-    // The beacon carries it in the clear to everyone on the network, paired or
-    // not. It is said beside the field, which moved into the dialog with it.
-    expect(MODAL).toMatch(/Everyone on this network can see this name/);
+  it("has stopped explaining itself around the two fields it is made of", () => {
+    // Three sentences and a fingerprint came off this dialog. What is left is a
+    // name to type and a list to tick, which is what it is for — the prose was
+    // written when the dialog held thirteen controls and needed to say which
+    // was which.
+    expect(MODAL).not.toMatch(/Everyone on this network can see this name/);
+    expect(MODAL).not.toMatch(/Read this out when somebody is deciding/);
+    expect(MODAL).not.toContain("lan-warn");
+    // AND THE FINGERPRINT IS STILL PRINTED WHERE IT IS ACTED ON. It is not a
+    // decoration anywhere it appears: it is the one value whoever is asking
+    // cannot choose, so it belongs on both surfaces that answer a request.
+    expect(CODE).toMatch(/fingerprint <code className="ap-lan-code">\{p\.fp\}/);
+    expect(readFileSync(
+      fileURLToPath(new URL("../components/LanPairRequestModal.tsx", import.meta.url)), "utf8",
+    )).toMatch(/fingerprint/);
   });
 });

@@ -2986,7 +2986,6 @@ function Inner() {
    *  moving target — it is mounted on `waitingSessions.length > 0`, so a block
    *  answered in the five seconds it takes to reach for it takes the button out
    *  from under the cursor. Once offered, it stays until it is answered. */
-  const [notifyOffered, setNotifyOffered] = useState(false);
   /** The deck's own switch, which is a different question from the browser's
    *  permission. Brave may have said yes and the user may still want quiet —
    *  and a permission, once granted, is not something any page can hand back,
@@ -3041,10 +3040,11 @@ function Inner() {
     }).catch(() => {});
   }, [notifyOn]);
   const notifySupported = typeof Notification !== "undefined";
+  // `canAsk` is still what decides whether a prompt can be raised at all; the
+  // latch that used to remember "a session blocked once, so offer it" went with
+  // the topbar button it existed for. The sound menu asks the question from a
+  // place that is always there.
   const notifyAskable = canAsk(notifyPermission, notifySupported);
-  useEffect(() => {
-    if (notifyAskable && notifyOn && waitingSessions.length > 0) setNotifyOffered(true);
-  }, [notifyAskable, notifyOn, waitingSessions.length]);
   // The confirmation is a status, not a state: it says what just happened and
   // then gets out of the bar. Eight seconds for a refusal against four for a
   // grant, because "blocked" is the one carrying instructions the user has to
@@ -3481,18 +3481,15 @@ function Inner() {
               browser-react.mjs refuses to ship for its own reactions, and it is
               not worth shipping here. After a refusal the switch is in the
               browser's site settings, which the title says in words. */}
-          {/* Nothing to offer while the deck's own switch is off: asking the
-              browser for a permission the deck would then decline to use is a
-              prompt that buys the user nothing. The switch is in the sound
-              menu, beside the one for the other way this deck interrupts. */}
-          {notifyOffered && notifyAskable && notifyOn && (
-            <button
-              type="button"
-              className="notify-ask"
-              onClick={askForNotifications}
-              title="Get a system notification when a session blocks on you, so the deck can reach you with this tab in the background"
-            >notify me</button>
-          )}
+          {/* THE ASK IS NOT IN THE TOPBAR ANY MORE. It was here because a browser
+              raises its permission prompt only on a user gesture, so a button
+              somewhere is not optional — but there are two others already, and
+              both are better placed: turning the notify switch on in the sound
+              menu raises the prompt itself, and that menu's `Browser
+              notifications / Enable` is the way back from a prompt somebody
+              dismissed. A third door, in the topbar, beside a count of blocked
+              sessions, was a dashed outline asking for a permission next to a
+              number about work. */}
           {/* What the browser answered, said once and then gone.
               Pressing a button and watching it disappear looks the same whether
               it worked or was refused, and only one of those is true — a user

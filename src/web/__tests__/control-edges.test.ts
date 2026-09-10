@@ -502,7 +502,6 @@ const CONTROLS: Control[] = [
   // it reads as an offer next to an alarm — but a dashed boundary is still the
   // whole of what identifies the control, so it is measured on the same floor
   // as every other one here.
-  { at: ".topbar .notify-ask", states: [".topbar .notify-ask:hover"], beds: TOPBAR },
   // The sound menu's figure picker (#711). The one control in that popover with
   // a boundary of its own — the switch and the Hear-it button are `button.btn`
   // and are swept two lines up, and the range draws no edge at all. It earns
