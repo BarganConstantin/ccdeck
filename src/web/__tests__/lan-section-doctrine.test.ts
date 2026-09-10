@@ -262,7 +262,9 @@ describe("the three rules the panel above it already keeps", () => {
       expect(CODE, field).not.toContain(field);
       expect(ADD, field).toContain(field);
     }
-    expect(CODE).toContain("+ add a deck");
+    // The word became the glyph the accounts header two sections up has always
+    // used for the same act; what is pinned is that the section still OWNS it.
+    expect(CODE).toMatch(/aria-label="Add a deck"/);
     expect(CODE).toMatch(/role="switch"/);
     expect(CODE).toMatch(/wants to pair/);
   });
@@ -462,14 +464,25 @@ describe("the list is quiet until it is not", () => {
     expect(between + 24).toBeGreaterThanOrEqual(24);
   });
 
-  it("names the errand at the foot, and says which of the two is the errand", () => {
-    // `name & shared logins` listed the dialog's two fields and never said
-    // whose they are — which is the whole of what it had to say, because
-    // everything else in this section is about other machines.
-    expect(CODE).toContain("+ add a deck");
-    expect(CODE).toContain("name &amp; sharing");
+  it("puts the act in the header and leaves the settings at the foot", () => {
+    // They were two words side by side at the foot, at one weight, offering two
+    // equal errands — and one of them is what this section is FOR while the
+    // other is done twice in a deck's life. The first is a `+` in the header
+    // now, beside the round, which is where the accounts header two sections up
+    // has kept the same glyph for the same act since it was written.
+    const head = /<div className="ap-auto-head">([\s\S]*?)<\/div>/.exec(CODE)?.[1] ?? "";
+    expect(head).toMatch(/ap-lan-plus/);
+    expect(head).toMatch(/aria-label="Add a deck"/);
+    expect(head).toMatch(/ap-lan-check/);
+    // A glyph has to carry its label somewhere, and `+` alone is not one.
+    expect(head).not.toMatch(/aria-label=""/);
+    const foot = /<div className="ap-lan-foot">([\s\S]*?)<\/div>/.exec(CODE)?.[1] ?? "";
+    expect(foot).toContain("name &amp; sharing");
+    expect(foot).not.toMatch(/ap-lan-plus/);
     expect(CODE).not.toContain("shared logins");
-    expect(rule(".ap-lan-add")).toMatch(/color:\s*var\(--text-dim\)/);
+    // And the title is what pushes the header's controls right, so the row
+    // survives every combination of the three that can be missing.
+    expect(rule(".ap-lan .ap-auto-title")).toMatch(/margin-right:\s*auto/);
   });
 });
 

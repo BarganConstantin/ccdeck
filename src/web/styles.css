@@ -6603,6 +6603,12 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    `margin-left: auto` that puts them on the block's right edge. They sat
    hugging their labels at two different x instead. */
 .ap-lan > .ap-auto-head .ap-auto-state { margin-left: 0; }
+/* THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL PULLING. `margin-left: auto`
+   on one of the three up here only works while that one is the leftmost of
+   them, and all three are conditional — the plus and the round both need the
+   switch to be on, and the round also needs a paired deck. One rule on the
+   thing that is always there survives every combination. */
+.ap-lan .ap-auto-title { margin-right: auto; }
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -9597,9 +9603,6 @@ input, textarea { caret-color: var(--accent); }
    has carried a `↻` since it was written. The line under the title says when
    the last round ran, so most readers never press this at all. */
 .ap-lan-check {
-  /* The one auto margin in the row, so the pair travels to the right edge
-     together rather than apart. */
-  margin-left: auto;
   font-size: 12px;
   line-height: 1;
   /* Level with the switch's own label rather than with the 11px title, and
@@ -9660,9 +9663,15 @@ input, textarea { caret-color: var(--accent); }
   transition: color 120ms ease, transform 120ms ease;
 }
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
-/* Reaching a deck is what this section is for; naming this one is done twice.
-   They sat in one ink at one size, so the foot offered two equal errands. */
-.ap-lan-add { color: var(--text-dim); }
+/* The plus, beside the round it now travels with. A shade brighter than the
+   round, because it is the act somebody comes to this header to perform where
+   the round is the one most readers never press at all. */
+.ap-lan-plus {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+}
+.ap-lan-plus:hover:not(:disabled) { color: var(--text); }
 /* The fold under the list: how many decks are not on, and whether any of them
    is a problem. It sits at the list's own left edge rather than at the foot's,
    because it belongs to the list — the row above it is the last thing it

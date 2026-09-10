@@ -646,7 +646,7 @@ export function deckRows(
       hint: called
         ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
             p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
-          } Add its address with + add a deck to reach it either way.`
+          } Add its address with the + at the top of this section to reach it either way.`
         // The whole sentence, verbatim, including the address and the code the
         // row is too narrow to carry. This is where somebody looks when the
         // short form is not enough.
@@ -916,6 +916,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
             up here is also the honest size for it, now that the line under the
             title says when the last one ran and most readers will never need to
             press it at all. */}
+        {/* THE PLUS, WITH THE OTHER TWO. It was `+ add a deck` at the foot, in
+            the panel's word-button costume, beside the settings it has nothing
+            to do with — and the accounts header two sections up has kept a `+`
+            for adding one since it was written. Same act, same glyph, same
+            place. What it opens is unchanged; only the label it needed as a
+            word is gone, into the accessible name where a glyph's label
+            belongs. */}
+        {on && (
+          <button type="button" className="glyph-btn ap-lan-plus"
+            onClick={() => setAddOpen(true)}
+            aria-label="Add a deck"
+            title="Reach a deck that has not turned up on its own — by address, or with an invite">
+            +
+          </button>
+        )}
         {on && paired > 0 && (
           <button type="button" className="glyph-btn ap-lan-check" {...pressProps("check")}
             onClick={() => void checkNow()}
@@ -1141,20 +1156,13 @@ export default function LanSyncSection({ accounts, onChanged }: {
           {rest.length === 0 && asks.length === 0 && (
             <p className="ap-lan-fine">
               No other deck yet. Decks on one network usually find each other on their own;
-              when that has not happened, <strong>+ add a deck</strong> reaches one by address
-              or by invite.
+              when that has not happened, <strong>+</strong> at the top of this section
+              reaches one by address or by invite.
             </p>
           )}
 
           {/* The two things you do once, at the size of things you do once. */}
           <div className="ap-lan-foot">
-            {/* The one thing anybody comes down here to do, and it read at the
-                same weight as the settings beside it. */}
-            <button type="button" className="ap-lan-word ap-lan-add"
-              onClick={() => setAddOpen(true)}
-              title="Reach a deck that has not turned up on its own — by address, or with an invite">
-              + add a deck
-            </button>
             {/* `name & shared logins` listed the dialog's two fields and never
                 said whose they are, which is the whole of what it had to say:
                 everything else in this section is about OTHER machines. */}
