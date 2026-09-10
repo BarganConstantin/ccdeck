@@ -6154,14 +6154,17 @@ button.tool.clickable:last-child { border-bottom: none; }
   letter-spacing: 0.02em;
 }
 .ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-/* #380 deleted an 11px font-size here that `button.btn`'s 12px had always
-   beaten, and said that making a rule render for the first time changes the
-   picture. It does, and this is the change: `class="glyph-btn ap-refresh"` puts
-   nothing above this rule any more, so the padding is live. Kept, because 1px
-   6px inside `.glyph-btn`'s 24px floor changes no pixel of the box — it only
-   says where the glyph sits in it.
-   The `+` two lines up is NOT one of these. See `.ap-add`. */
-.ap-refresh { padding: 1px 6px; }
+/* THE PADDING WENT WITH THE GLYPH IT PLACED. `1px 6px` said where a text arrow
+   sat inside the 24px floor, and it did change a pixel of the box after all:
+   12px of content width around a 13px icon measured the button at 25x24 in a
+   row of 24x24 ones. An SVG is centred by the flex box, so there is nothing
+   left to nudge.
+
+   It turns while a reload it was asked for is in flight — the `spin` this sheet
+   already has, at the one speed that means "still going". Reduced motion is
+   answered further down, after this rule, which is the only place the answer
+   can win. */
+.ap-refresh[aria-busy="true"] { animation: spin 900ms linear infinite; }
 /* The one moment this button does nothing. A reload can ask claude-swap to
    collect over the network, so it is not instant, and without a dimmed state a
    click that landed looks exactly like a click that missed. */
@@ -8979,7 +8982,10 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 /* The panel-level share, beside the + and the reload. An arrow glyph rides a
    little high in a 24px box; 1px 6px is the same seat `.ap-refresh` takes and
    changes no pixel of the box, only where the glyph sits inside it. */
-.ap-share-set { padding: 1px 6px; }
+/* `.ap-share-set` was here, and it is gone with the class: its whole body was
+   `padding: 1px 6px`, which placed a text arrow inside `.glyph-btn`'s 24px box.
+   The arrow is a drawn icon now, centred by that box's own flex, so the rule
+   had nothing left to say and the class had nothing left to hook. */
 
 /* ── Thermal history (#738) ──────────────────────────────────────────────────
    A chart of what the machine did with its heat, opened from a row in the
@@ -9654,11 +9660,10 @@ input, textarea { caret-color: var(--accent); }
    only sign it had started was a word three lines below the glyph that was
    pressed, which is not where the eye is. It turns while it works, at the one
    speed in this app that means "still going" rather than "something happened". */
-.ap-lan-check[aria-busy="true"] { color: var(--accent); animation: lan-round 900ms linear infinite; }
-@keyframes lan-round {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
+.ap-lan-check[aria-busy="true"] { color: var(--accent); animation: spin 900ms linear infinite; }
+/* The sheet's own `spin` does this already — see the empty-hero orbits. A
+   second set of keyframes spelling `rotate(360deg)` is a second thing to keep
+   in step with the first. */
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
    tight under the line above, which it belongs to. */
@@ -9760,7 +9765,7 @@ input, textarea { caret-color: var(--accent); }
   /* The round's glyph stops turning and keeps its colour: what the spin says is
      "still going", and the accent it takes with `aria-busy` says the same thing
      without moving. The word under the title says it a third time. */
-  .ap-lan-check[aria-busy="true"] { animation: none; }
+  .ap-lan-check[aria-busy="true"], .ap-refresh[aria-busy="true"] { animation: none; }
   /* The unpair that arrives with the pointer arrives at once. It is a reveal,
      not an entrance — the control has to be there the instant the row is
      hovered, and 120ms of fade is the only part of that anybody can lose. */

@@ -316,7 +316,12 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // always doing the work; only the never-rendered font-size is gone. Deleting
     // the whole rule would have been #383's sweep, not this one's.
     expect(decl(".ap-refresh", "font-size")).toBeNull();
-    expect(decl(".ap-refresh", "padding")).toBe("1px 6px");
+    // The padding went with the glyph it placed. `1px 6px` said where a text
+    // arrow sat inside `.glyph-btn`'s 24px floor, and it did change a pixel of
+    // the box after all: 12px of content width around the 13px icon that
+    // replaced the arrow measured the button at 25x24 in a row of 24x24 ones.
+    // An SVG is centred by the flex box; there is nothing left to nudge.
+    expect(decl(".ap-refresh", "padding")).toBeNull();
     expect(decl(".ap-switch", "font-size")).toBeNull();
     expect(decl(".ap-switch", "flex-shrink")).toBe("0");
     expect(decl(".ap-add", "font-size")).toBeNull();

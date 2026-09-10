@@ -115,6 +115,9 @@ describe("which message is left on screen", () => {
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const panel = readFileSync(`${web}components/AccountsPanel.tsx`, "utf8");
+/** The busy state is half in the markup and half in the sheet now — the button
+ *  wears `aria-busy` and the rule is what makes it turn. */
+const css = readFileSync(`${web}styles.css`, "utf8");
 
 describe("the panel's reload path", () => {
   it("ends in a message or a clean slate whichever way the request went", () => {
@@ -157,7 +160,16 @@ describe("the panel's reload path", () => {
     // assertion that was never about `disabled`.
     expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}\{\.\.\.pressProps\("reload", reloading\)\}/);
     expect(panel).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
-    expect(panel).toContain('{reloading ? "…" : "↻"}');
+    // PINNED AS THE REQUIREMENT RATHER THAN AS THE GLYPH. It said which state it
+    // was in by swapping the arrow for an ellipsis; it says it by turning now —
+    // the same `spin` the LAN section's round takes for the same act, and
+    // without the button's ink changing shape under the finger that pressed it.
+    // What has to hold either way is that the control shows its own in-flight
+    // state, which is the half of this assertion that was never about
+    // `disabled`.
+    expect(panel).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}<svg/);
+    expect(css).toMatch(/\.ap-refresh\[aria-busy="true"\][^}]*animation:\s*spin/);
+    expect(panel).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.
     expect(panel).toContain("if (force) setReloading(true);");
