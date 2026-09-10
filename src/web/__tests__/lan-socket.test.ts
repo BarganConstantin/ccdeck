@@ -169,6 +169,22 @@ describe("a caller nobody has accepted", () => {
     expect(pending[0]).toMatchObject({ fp: STRANGER.fp, pub: STRANGER.pub, name: "Stranger-Deck" });
   });
 
+  it("is told it was told no, rather than being left to wait on an answer that came", async () => {
+    // A refusal that is only HELD is a refusal the other machine cannot see:
+    // the frame for "nobody has answered yet" and the frame for "somebody said
+    // no" were the same one, so a declined deck drew "waiting for the other
+    // deck to accept this one" for as long as it kept dialling — and it dials
+    // on its own timer, so that is forever.
+    const { s, pending } = server({ trusted: () => [], declined: () => true });
+    const port = await s.start();
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...stranger(), timeoutMs: 1500 }))
+      .rejects.toThrow(/that deck said no/);
+    // And it is not asked here a second time. The whole point of keeping the
+    // name is that the person who answered is not asked the same question every
+    // minute by a deck that cannot hear the answer.
+    expect(pending).toHaveLength(0);
+  });
+
   it("is let in once somebody accepts it, and not before", async () => {
     let trusted: Array<Record<string, unknown>> = [];
     const { s } = server({ trusted: () => trusted });

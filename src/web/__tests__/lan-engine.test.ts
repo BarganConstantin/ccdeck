@@ -463,6 +463,65 @@ describe("the cadence", () => {
   });
 });
 
+describe("saying no, and meaning it", () => {
+  it("stops the asking here and tells the deck that asked", async () => {
+    // The two halves of a refusal, and before this neither existed. A deck that
+    // asks keeps asking — it dials on its own timer — so dismissing a request
+    // took a row off a list the next round put straight back, and the machine
+    // that asked could not tell "no" from "not yet": both are one refusal on
+    // the wire, and only one of them ever comes right by waiting.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", []);
+
+    // A dials B and is refused, which is what puts it in front of B's owner.
+    expect(a.e.addPeer("127.0.0.1", b.port)).toBe(true);
+    await a.e.round();
+    expect(b.e.status().pending).toHaveLength(1);
+    const fpA = a.e.status().fp as string;
+
+    expect(b.e.dismiss(fpA)).toBe(true);
+    expect(b.e.status().pending).toHaveLength(0);
+    expect(b.e.status().declined).toMatchObject([{ fp: fpA, name: "Deck-A" }]);
+
+    // A dials again, as it will, and now it is TOLD.
+    await a.e.round();
+    const row = (a.e.status().peers as Array<{ last?: { error?: string } }>)[0];
+    expect(row.last?.error).toBe("that deck said no");
+    // And B's owner is not asked the same question a second time.
+    expect(b.e.status().pending).toHaveLength(0);
+  }, 20_000);
+
+  it("takes the no back, so the next dial is a request again", async () => {
+    // A refusal nobody can undo is a refusal that outlives the reason for it.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", []);
+    a.e.addPeer("127.0.0.1", b.port);
+    await a.e.round();
+    const fpA = a.e.status().fp as string;
+    b.e.dismiss(fpA);
+
+    expect(b.e.allow(fpA)).toBe(true);
+    expect(b.e.status().declined).toEqual([]);
+    // Nothing to press on either machine: the deck that was declined is still
+    // dialling, and the next dial is a request like the first one was.
+    await a.e.round();
+    expect(b.e.status().pending).toMatchObject([{ fp: fpA, name: "Deck-A" }]);
+  }, 20_000);
+
+  it("answers a name it never declined with false rather than with a change", () => {
+    const only = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    return deck(only, "Deck-A", []).then(a => {
+      expect(a.e.allow("00:00:00:00:00:00")).toBe(false);
+      expect(a.e.dismiss("00:00:00:00:00:00")).toBe(false);
+      expect(a.e.status().declined).toEqual([]);
+    });
+  });
+});
+
 describe("the suite must not shout on somebody's network", () => {
   it("gives every engine a socket that goes nowhere", () => {
     // The TCP half of these cases is real and should be: two engines, one

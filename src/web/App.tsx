@@ -53,6 +53,8 @@ import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
 import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
+import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
+import type { LanStranger } from "./components/LanSyncSection";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
@@ -1328,6 +1330,66 @@ function Inner() {
     const t = setInterval(pull, 5 * 60_000);
     return () => { alive = false; clearInterval(t); };
   }, []);
+
+  /** Decks that have dialled this one and are waiting for an answer.
+   *
+   *  Polled up here rather than read where the answer used to live, because the
+   *  accounts panel is a place somebody GOES and this is a question somebody is
+   *  ASKED. Until it is answered the far deck is stalled and its owner is
+   *  watching an empty roster, so the question cannot depend on this deck's
+   *  owner happening to open a panel three sections down.
+   *
+   *  Five seconds, the cadence the panel's own section polls at, and cheap at
+   *  that rate: /api/lan answers out of the engine's memory, and the one probe
+   *  behind it that costs anything is throttled in the server. */
+  const [lanPending, setLanPending] = useState<LanStranger[]>([]);
+  /** Answered with Escape rather than with a press: still pending on the
+   *  server, deliberately not asked again until this page is reloaded. The
+   *  panel's section still lists it, which is where "later" points. */
+  const lanDeferred = useRef<Set<string>>(new Set());
+  const [lanBusy, setLanBusy] = useState<"accept" | "dismiss" | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const pull = () => {
+      fetch("/api/lan")
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          if (!alive || !j?.ok) return;
+          setLanPending(Array.isArray(j.pending) ? j.pending : []);
+        })
+        .catch(() => { /* the deck is down; the connection banner already says so */ });
+    };
+    pull();
+    const t = setInterval(pull, 5_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const answerLanPair = useCallback(async (action: "accept" | "dismiss", fp: string) => {
+    // One answer at a time, and the dialog disables both while it is in flight:
+    // a second press on a request the server has already consumed comes back
+    // `not_seen`, which is an error message about nothing.
+    if (lanBusy) return;
+    setLanBusy(action);
+    try {
+      const res = await fetch("/api/lan/peer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, fp }),
+      });
+      const out = await res.json().catch(() => null);
+      // The route answers with the whole status, so the next request — if there
+      // is one — is already in hand and the dialog does not blink out and back
+      // in on the next poll.
+      if (out && Array.isArray(out.pending)) setLanPending(out.pending);
+      else setLanPending(prev => prev.filter(p => p.fp !== fp));
+    } catch {
+      // Nothing was decided, so nothing is drawn as decided: the request stays
+      // in front and the next poll says whether it is still there.
+    } finally {
+      setLanBusy(null);
+    }
+  }, [lanBusy]);
 
   const watchUnseen = useMemo(
     () => unseenEpisodes(watchEpisodes, watchSeenMs).length,
@@ -4540,6 +4602,33 @@ function Inner() {
           onClose={() => setReleaseNotes(null)}
         />
       )}
+      {/* After the release notes and before the clear prompt. Both of those
+          also arrive without being asked for, and the order between them is
+          the order of what they want: a question that is holding another
+          machine up outranks an announcement about this one, and neither
+          outranks the prompt somebody is standing in front of deciding
+          whether to truncate a log. */}
+      {(() => {
+        const { request, waiting } = nextRequest(lanPending, lanDeferred.current);
+        if (!request) return null;
+        return (
+          <LanPairRequestModal
+            request={request}
+            waiting={waiting}
+            busy={lanBusy}
+            now={Date.now()}
+            onAccept={() => void answerLanPair("accept", request.fp)}
+            onDecline={() => void answerLanPair("dismiss", request.fp)}
+            onLater={() => {
+              if (lanBusy) return;
+              lanDeferred.current.add(request.fp);
+              // The set is a ref, so nothing above re-renders on its own: bump
+              // the list it is filtered against to redraw once.
+              setLanPending(prev => [...prev]);
+            }}
+          />
+        );
+      })()}
       {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening

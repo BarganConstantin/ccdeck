@@ -3446,6 +3446,10 @@ async function handleLanPeer(req, res) {
     }
     case "dismiss":
       return send(res, 200, { ok: lanEngine.dismiss(fp), ...lanEngine.status() });
+    // The undo for the one above. A deck that was told no stops asking; this is
+    // how somebody who changed their mind lets it ask again.
+    case "allow":
+      return send(res, 200, { ok: lanEngine.allow(fp), ...lanEngine.status() });
     case "unpair":
       return send(res, 200, { ok: lanEngine.unpair(fp), ...lanEngine.status() });
     default:

@@ -6645,22 +6645,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    it, so there is nothing here to print. `set` is the whole claim. */
 .ap-lan-set { flex: 1 1 auto; color: var(--text-dim); font-size: 10px; }
 
-/* A heading inside the section, which is what separates the list of accounts
-   from the list of decks. Uppercase like the panel's own group labels, and
-   `justify-content: space-between` because the one on the right is a control. */
-.ap-lan-sub {
-  margin: 0;
-  font-weight: 400;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 .ap-lan-now { margin: -2px 0; }
 
 /* 3px, and the one pixel is the whole reason. The row measures 21.9px tall, so
@@ -6693,18 +6677,8 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    information rather than a warning. --muted, not --err. */
 .ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: 9px; }
 
-/* 10px, not 4. Each peer's round line wraps to a row of its own INSIDE the
-   peer, so at 4px the distance between two decks and the distance between a
-   deck and its own sentence were the same — three decks read as six unrelated
-   lines. The gap is now larger than the line-height that separates a peer's own
-   two rows, which is the whole of what makes one peer one object. */
-.ap-lan-peers { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-.ap-lan-peer { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+/* The machine a request is about, named in the sentence that asks about it. */
 .ap-lan-peer-name { color: var(--text); }
-.ap-lan-peer-when { color: var(--muted); font-size: 10px; }
-/* What the last round with this deck actually did. Its own line when the row
-   wraps, because it is a sentence and the two above it are a name and a time. */
-.ap-lan-peer-last { flex: 1 0 100%; color: var(--text-dim); font-size: 10px; }
 
 /* Both empty states — no accounts yet, and no other deck yet. The second one
    carries the two things worth checking, so it wraps rather than truncating. */
@@ -6742,7 +6716,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   justify-content: center;
 }
 
-.ap-lan-drop { margin-left: auto; }
 /* WHAT IS HAPPENING, IN ONE LINE, directly under the head. Every state this
    section has was legible only by reading the whole thing and working it out;
    this is the panel's own answer, the one the freshness column has made on
@@ -6857,15 +6830,7 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
   line-height: 1.5;
   color: var(--text-dim);
 }
-.ap-lan-joined { color: var(--ok); }
 
-/* The other half of the same act, one press away from it. */
-.ap-lan-join {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
 /* Which addresses were tried and what each one said. An invite carries several
    because nobody knows which routes; when none did, this list is the only thing
    the reader can act on. */
@@ -9338,91 +9303,19 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    rather than inventing a second look for the same settings — a reader who has
    used the section knows this dialog already. What is new here is only what a
    288px column could not hold. */
-/* TWO COLUMNS, BECAUSE THE CONTENT IS TWO SUBJECTS. Left is this machine —
-   what it is called, where it can be reached, and which of its logins it
-   offers. Right is everybody else — how to reach one, who is nearby, and who it
-   already talks to. One column made a reader scroll past their own settings to
-   find the deck they came for, and left half the dialog empty.
-
-   `min(980px, 94vw)` rather than the shell's 820: the token is 140 characters
-   and the address rows are monospace, and both were wrapping into three lines
-   in a column that had room for none of it. */
-.lan-modal { width: min(980px, 94vw); }
-.lan-modal .modal-body {
-  display: grid;
-  /* NOT 50/50. The left column is this machine — four label/value rows and a
-     short list — and the right carries three groups, the longest of which is a
-     140-character token. Equal halves stranded 400px of empty space on the left
-     while the right ran past the fold. */
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  align-items: start;
-  gap: 16px 22px;
-}
-/* A column is a real column, not two cells the grid happened to stack: sections
-   of very different heights in one row-major grid leave a hole under the
-   shorter of them. */
-.lan-col {
-  display: flex;
-  flex-direction: column;
-  /* 20, against the 8 that separates a heading from its own rows and the 6 that
-     separates rows inside one group. Three intervals, and the widest of them is
-     where the subject changes. Everything in this dialog sat between 6 and 12,
-     so nothing read as a group — the whole right column was one undifferentiated
-     stack of controls. */
-  gap: 20px;
-  min-width: 0;
-}
-
-/* A GROUP INSIDE A SECTION, and it had no air at all above it. The shared
-   `.modal-section h4` rule wins on specificity over `.ap-lan-sub`'s own
-   margin-top, so both of these headings sat flush against the control above
-   them — `ON THIS NETWORK RIGHT NOW` looked like a caption for the paste field
-   rather than the start of something else. Scoped here so the panel's own copy
-   of this class keeps the tighter spacing a 288px column needs. */
-.lan-modal .ap-lan-sub {
-  margin: 20px 0 8px;
-}
-/* The first one in a section has the section heading above it doing that job. */
-.lan-modal .lan-h + .ap-lan-sub { margin-top: 0; }
-/* Rows inside one group. 8, not 10: every row here is one line, and the extra
-   two pixels came from the panel, where a row can wrap onto three. */
-.lan-modal .ap-lan-peers { gap: 8px; }
-/* The fork between the two ways in. Generous above, because it ends the invite
-   card; tighter below, because the field under it is the other half of the
-   same sentence. */
-.lan-modal .lan-or { margin: 18px 0 8px; }
-/* The note under a heading belongs to it, so it stays tight — and the rows
-   under the note belong to the note. */
-.lan-modal .ap-lan-sub + .lan-note { margin-top: 0; }
+/* ONE COLUMN, AND ONE SUBJECT. The dialog carried two — this machine on the
+   left, everybody else on the right — and the right half moved into the panel,
+   where a list of machines belongs. What is left is what this deck IS: the name
+   it appears under, and the logins it offers. Two sections, both short, so the
+   980px the token and the address rows needed is 980px of empty space now. */
+.lan-modal { width: min(520px, 92vw); }
+.lan-modal .modal-body { display: flex; flex-direction: column; gap: 20px; }
 /* The account rows bleed 4px past their own box, which is right in the panel:
    the hover bed reaches the panel's inset there and the row reads as full
    width. In a dialog there is no inset to reach, so the same rule pushed four
    pixels of horizontal overflow through three ancestors — measured. The bleed
    is paid for here instead of leaking. */
 .lan-modal .ap-lan-picks { padding: 0 4px; }
-/* The seam. A rule between the two subjects rather than a gap alone, because at
-   this width the eye needs telling that the right column is not a continuation
-   of the left. */
-.lan-modal .modal-body > .lan-col + .lan-col {
-  padding-left: 22px;
-  border-left: 1px solid var(--line);
-  margin-left: -22px;
-}
-/* One column when there is not room for two — a laptop at 1280 with both side
-   panels open leaves this dialog under 700px, and two columns of monospace in
-   that is worse than a scroll. */
-@media (max-width: 900px) {
-  .lan-modal .modal-body { grid-template-columns: minmax(0, 1fr); }
-  .lan-modal .modal-body > .lan-col + .lan-col {
-    padding-left: 0;
-    border-left: 0;
-    margin-left: 0;
-    border-top: 1px solid var(--line);
-    padding-top: 16px;
-  }
-}
-/* A failure is about the whole dialog, not about one column of it. */
-.lan-modal .modal-body > .ap-failure { grid-column: 1 / -1; }
 /* h3 inside the dialog, which names itself with aria-labelledby rather than
    with a heading — so these are the first level of structure inside it. `margin: 0`
    because the UA sheet's 1em would fight the section gap that is doing the work. */
@@ -9453,49 +9346,12 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   line-height: 1.5;
   color: var(--warn);
 }
-.lan-dials { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
-/* An address is a control here rather than a label, because the only thing
-   anybody does with it is put it on a clipboard and send it to somebody. */
-.lan-dial { display: inline-flex; align-items: center; gap: 6px; }
-.lan-copied { color: var(--accent); font-size: 9px; }
 
-/* The one press that starts the whole thing, in the dialog that owns it. Full
-   width and centred: it is the only thing in its block until an invite exists,
-   and a pill at the left edge reads as an afterthought where a section's whole
-   purpose is not one. */
-.lan-primary {
-  width: 100%;
-  justify-content: center;
-}
-/* The seam between the two halves of one act — make one, or paste one. A rule
-   with a word in it, because "or" between two controls is the whole of what a
-   reader needs and a heading would claim they are separate things. */
-.lan-or {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 0 8px;
-  font-size: 10px;
-  color: var(--muted);
-}
-.lan-or::before, .lan-or::after {
-  content: "";
-  flex: 1 1 auto;
-  border-top: 1px solid var(--line);
-}
-/* A verb parked in a section heading, the way `check now` sits in the panel's
-   own subheadings. `margin-left: auto` puts it at the far edge of the line. */
-.lan-h-btn {
-  margin-left: auto;
-  text-transform: none;
-  letter-spacing: 0;
-}
 .lan-h {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.lan-good { color: var(--ok); }
 
 /* ── why nothing can reach this deck ────────────────────────────────────────
    Set apart from the pairing controls it sits above, because it is a finding
@@ -9589,3 +9445,68 @@ button[aria-busy="true"]:not(:disabled) {
   color: var(--text);
 }
 input, textarea { caret-color: var(--accent); }
+
+/* ── the pair request, in front ─────────────────────────────────────────────
+   A dialog that arrives on its own and asks one question, so it is sized to
+   the question rather than to the 820px the inspectors need. Everything in it
+   is one column: who is asking, what saying yes costs, the fingerprint worth
+   comparing, and the two answers. */
+.modal.lan-ask { width: min(460px, 92vw); }
+.modal.lan-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
+/* The emitter is the accent here for the same reason it is on a live roster
+   row: this is the one thing on the screen that is happening now. */
+.lan-ask .modal-title .ap-pulse { color: var(--accent); }
+.lan-ask-who { margin: 0; font-size: 12px; color: var(--text); line-height: 1.5; }
+.lan-ask-name { font-weight: 600; }
+/* Secondary text on the panel ground, so it is dimmed rather than shouted, and
+   still over the 4.5 bar — the ground here is --panel, not a tinted wash. */
+.lan-ask-fp, .lan-ask-more { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.lan-ask-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+/* Both answers are the same size, because neither is the one the dialog wants
+   pressed — a bigger Accept is a dialog with an opinion about somebody else's
+   machine. The accent on it says which one is the forward move, and that is
+   all it says. */
+.lan-ask-acts .btn { min-width: 92px; justify-content: center; }
+
+/* ── the panel's one list of machines ───────────────────────────────────────
+   Every deck on the network is a row now — paired, nearby, asking, or already
+   answered — and what differs between them is the sentence on the right and the
+   verb on the end. So the verb needs a size that does not turn a list into a
+   column of buttons: the small pill the manage block already uses, held to the
+   right edge and kept off the name by the sentence between them. */
+.ap-lan-do {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 2px 6px;
+  font-size: 9px;
+}
+/* The foot of the section: the round that does not wait for the minute, and
+   the way to a deck the network could not offer. One row, sharing the width, so
+   two things nobody reads do not become two more stripes to read past. */
+.ap-lan-foot { display: flex; gap: 6px; margin-top: 10px; }
+.ap-lan-foot-btn { flex: 1 1 0; justify-content: center; }
+.ap-lan-adder {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The same two voices the dialog had, at the panel's own size: an explanation
+   is dim, and the one sentence that bites takes --warn. */
+.ap-lan-note {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.ap-lan-warn {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.ap-lan-mint { width: 100%; justify-content: center; }

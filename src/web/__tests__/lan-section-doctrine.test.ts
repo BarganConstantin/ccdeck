@@ -140,7 +140,10 @@ describe("the three rules the panel above it already keeps", () => {
     // rather than merely present: a single setFailure would satisfy a `toMatch`
     // and leave the other path silent.
     expect([...CODE.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
-    expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(4);
+    // Two in the dialog, and that is every path it has left: one `write`, its
+    // `else` and its `catch`. The dialog shrank to two fields when the pairing
+    // moved into the panel — the rule is unchanged, the surface is smaller.
+    expect([...MODAL.matchAll(/setFailure\(writeFailure\(/g)].length).toBeGreaterThanOrEqual(2);
     expect(CODE).toMatch(/catch\s*\{[\s\S]{0,400}?setFailure/);
   });
 
@@ -148,27 +151,37 @@ describe("the three rules the panel above it already keeps", () => {
     // save(patch) with no second argument is a write whose failure has no
     // sentence. Every call site passes one.
     expect(MODAL).not.toMatch(/\bwrite\(\s*\{[^{}]*\}\s*\)/);
-    expect([...MODAL.matchAll(/\bwrite\(\s*\{[\s\S]*?\}\s*,/g)].length).toBeGreaterThanOrEqual(3);
+    expect([...MODAL.matchAll(/\bwrite\(\s*\{[\s\S]*?\}\s*,/g)].length).toBeGreaterThanOrEqual(2);
   });
 
-  it("keeps every decision out of the panel and in a dialog", () => {
-    // The section had grown to nine controls in a 288px column, all of them on
-    // screen every time somebody opened the panel to look at a quota. What is
-    // left is an instrument: is it on, who is paired, what happened, who is
-    // asking. The two exceptions are deliberate — the switch, because it is the
-    // control that answers "is this on", and a request, because it arrives
-    // while nobody has a dialog open.
+  it("splits the surface by SUBJECT: who this deck talks to, and what it is", () => {
+    // The first cut of this rule sent every decision into the dialog, and it
+    // cut in the wrong place. What came back from use was that the two things
+    // somebody does daily — see who is there, answer somebody asking — were the
+    // two things furthest away: three panels, a button and a scroll. Reported
+    // as "it is too complicated, I should just see who wants to connect and
+    // press yes or no".
+    //
+    // So the line is not decision-versus-reading any more. WHO THIS DECK TALKS
+    // TO is a list, and every verb that changes a row on it belongs beside that
+    // row: pairing, declining, unpairing, and the two ways of reaching a deck
+    // the network could not offer. WHAT THIS DECK IS — its name, the logins it
+    // offers — is what is left in the dialog.
     expect(CODE).toMatch(/LanSetupModal/);
-    // The FIELDS, not the words: "by address" still appears in the panel as a
-    // reading — it is how a peer row says how that deck got there — and a
-    // reading is exactly what belongs in an instrument.
     for (const field of [
       `aria-label="This deck's name on the network"`,
-      `aria-label="Another deck's address"`,
       'type="checkbox"',
     ]) {
       expect(CODE, field).not.toContain(field);
       expect(MODAL, field).toContain(field);
+    }
+    // And the other way round for everything that names another machine.
+    for (const field of [
+      `aria-label="Another deck's address"`,
+      `aria-label="An invite you were sent"`,
+    ]) {
+      expect(MODAL, field).not.toContain(field);
+      expect(CODE, field).toContain(field);
     }
     expect(CODE).toMatch(/role="switch"/);
     expect(CODE).toMatch(/wants to pair/);
@@ -188,8 +201,9 @@ describe("the three rules the panel above it already keeps", () => {
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {
     // `check now` looked identical pressed and unpressed: selfPressProps sets
     // aria-busy, and aria-busy has no rule anywhere in the stylesheet.
-    expect(MODAL).toMatch(/checking\s*\?\s*"checking…"\s*:\s*"check now"/);
-    expect(MODAL).toMatch(/joining\s*\?\s*"joining…"\s*:\s*"join"/);
+    // Both moved into the panel with the controls themselves.
+    expect(CODE).toMatch(/"checking…"\s*:\s*"check now"/);
+    expect(CODE).toMatch(/"joining…"\s*:\s*"join"/);
   });
 });
 

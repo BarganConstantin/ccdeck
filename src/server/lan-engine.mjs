@@ -121,6 +121,27 @@ export function createEngine({
    */
   const pending = new Map();
   const strangers = new Map();
+  /**
+   * Decks somebody here said no to.
+   *
+   * WITHOUT THIS, DECLINING DID NOTHING THAT LASTED. A deck that asks is a deck
+   * that keeps asking — it dials on its own timer, and every dial that finds no
+   * pin here becomes a fresh request. So `dismiss` took a row off a list that
+   * the next minute put back, and on the other machine the refusal was
+   * indistinguishable from a deck that had not been answered yet: both are the
+   * same `pending` refusal on the wire, and both drew "waiting for the other
+   * deck to accept this one" forever.
+   *
+   * A name kept here is therefore two answers at once. This deck stops asking
+   * its owner, and the deck that asked is TOLD — see refuse("declined") in
+   * lan-socket.mjs, which is the only way the far end can ever learn that the
+   * answer was no rather than not yet.
+   *
+   * In memory, like the two lists above, and reversible: `allow` takes a name
+   * out and the requests come back. Nothing about it is written down, because a
+   * refusal that outlives the process is a decision nobody can find to undo.
+   */
+  const declined = new Map();
   /** The invite this deck is offering, or null. One at a time: a deck showing
    *  two tokens is a deck whose owner cannot say which one they sent. */
   let invite = null;
@@ -361,6 +382,10 @@ export function createEngine({
           onTrust?.(list);
           onChange?.();
         },
+        // Asked before the request is drawn, so a deck that was told no is
+        // told no again rather than becoming a row somebody has to answer
+        // twice. The socket sends the reason; this only knows the name.
+        declined: fp => declined.has(fp),
         onPending: entry => {
           const had = pending.get(entry.fp);
           pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
@@ -533,7 +558,28 @@ export function createEngine({
     /** Say no, and stop being asked. The deck is dropped from both lists; if it
      *  connects again it is a new request, because refusing is not a block. */
     dismiss(fp) {
+      // Whatever the row said, kept — the panel draws a declined deck by name
+      // and address, and after the delete below there is nowhere else to read
+      // them from.
+      const was = pending.get(fp) ?? strangers.get(fp) ?? null;
       const had = pending.delete(fp) || strangers.delete(fp);
+      if (had) {
+        declined.set(fp, {
+          fp,
+          name: was?.name ?? fp,
+          addr: was?.addr ?? "",
+          port: was?.port ?? 0,
+          at: now(),
+        });
+        onChange?.();
+      }
+      return had;
+    },
+    /** Change your mind. The name comes off the declined list and the next time
+     *  that deck dials, it is a request again — which it will, on its own, so
+     *  there is nothing else to press. */
+    allow(fp) {
+      const had = declined.delete(fp);
       if (had) onChange?.();
       return had;
     },
@@ -597,9 +643,16 @@ export function createEngine({
         // per machine, newest first — see pairable, which is where the rule
         // that keeps this from becoming a wall of ghosts lives.
         strangers: (() => {
-          const { shown, more } = pairable([...strangers.values()], now(), { mine: localAddresses() });
+          // A deck that was told no is not somebody to offer pairing with. It
+          // has its own row, with the one control that undoes the decision.
+          const heard = [...strangers.values()].filter(p => !declined.has(p.fp));
+          const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
           return shown.map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more }));
         })(),
+        // Said no to, by somebody at this keyboard. Listed rather than merely
+        // silenced, because a refusal nobody can see is a refusal nobody can
+        // take back.
+        declined: [...declined.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
         peers: beacon ? (() => {
           // ONE DECK, ONE ROW, and it takes work because a deck can arrive here
           // twice by two different routes: heard on the network, and dialled at

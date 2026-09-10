@@ -261,6 +261,9 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
+      // The one press that mints an invite, alone in its block in the panel's
+      // add-a-deck drawer until one exists.
+      "ap-lan-mint",
       // The press that opens the share picks the first time. It is the only
       // thing in its block and a pill floating at the left edge reads as an
       // afterthought rather than as the deliberate act it is, so it takes the
@@ -275,9 +278,6 @@ describe("a percentage width under a horizontal margin", () => {
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.
       "hist-chart",
-      // The one press that starts pairing, alone in its block in the setup
-      // dialog until an invite exists.
-      "lan-primary",
       // The process modal's name cell, which fills whatever the six fixed
       // columns leave and ellipsises the command line inside it. `max-width: 0`
       // with `width: 100%` is the table-cell idiom for that — the panel's own

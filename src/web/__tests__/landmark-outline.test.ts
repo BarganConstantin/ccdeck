@@ -313,7 +313,6 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     expect(withH4).toEqual([
       "components/AddAccountDialog.tsx",
       "components/BrowserWatchModal.tsx",
-      "components/LanSetupModal.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",
       "components/ToolModal.tsx",

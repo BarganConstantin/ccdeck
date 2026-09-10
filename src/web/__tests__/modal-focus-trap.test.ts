@@ -261,14 +261,14 @@ describe("which overlay holds Tab", () => {
 // ── what each of the seven overlays does with it ────────────────────────────
 
 describe("the deck's ten overlays", () => {
-  it("has found all thirteen, so a new one cannot skip this file", () => {
+  it("has found all fourteen, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes, nine until #723 added the share picker, ten until #738
     // added the section history and eleven until it added the process list.
     // Raising the number is how a dialog joins the sweep, not how one is
     // excused from it: every assertion below is asked of the newcomer
     // unchanged.
-    expect(MODALS.length).toBe(13);
+    expect(MODALS.length).toBe(14);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -304,6 +304,10 @@ describe("the deck's ten overlays", () => {
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
     expect(named.sort()).toEqual([
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      // The pair request names Decline for the reason the clear prompt names
+      // Cancel: a dialog that arrives on its own must not put the answer that
+      // shares a login under whatever key is pressed next.
+      "LanPairRequestModal.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

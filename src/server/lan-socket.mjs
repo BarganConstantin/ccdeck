@@ -253,6 +253,11 @@ export function createSyncServer({
    *  is therefore a real deck rather than a port scan. The panel turns this
    *  into a row with an accept on it. */
   onPending,
+  /** Was this deck already told no? A refusal has to be sent rather than
+   *  merely held, or the far end reads "declined" and "not answered yet" as one
+   *  silent wait — they are the same frame otherwise, and only one of them ever
+   *  comes right by waiting. */
+  declined = () => false,
   /** The invite this deck is currently offering, or null. A caller that proves
    *  it holds the code is somebody the owner handed a token to, so it is paired
    *  on arrival rather than queued behind a press. */
@@ -394,6 +399,12 @@ export function createSyncServer({
               return;
             }
           }
+          // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
+          // It is not asked again here, and — the half a held refusal cannot
+          // do — the deck that asked is told, so its own panel can stop saying
+          // "waiting" about a question that has been answered.
+          if (declined(peerFp)) return refuse("declined");
+
           // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
           // a port scan, and it told us a name and an address a person can
           // recognise. That is a row with an accept on it, and nothing else
@@ -525,6 +536,7 @@ export function connectToPeer({
       if (msg.t === "no") {
         return fail(new Error({
           pending: "waiting for the other deck to accept this one",
+          declined: "that deck said no",
           impostor: "that deck has this one pinned under a different key",
           "bad proof": "the other deck refused this one's proof",
         }[msg.why] ?? "the other deck refused this handshake"));
