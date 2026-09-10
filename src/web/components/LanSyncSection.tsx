@@ -964,21 +964,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
           sections up, and a screen reader was told nothing at all. `polite`
           rather than `alert` — the request box beside it is the assertive one,
           and two live regions shouting about one event is one too many. */}
-      {/* ONE LINE, TWO INKS. The state and how fresh it is were a sentence and a
-          line under it, and they are one fact read together: what the network is
-          doing, and when that was last true of it. Two elements rather than one
-          string because only the first is announced — a live region that
-          re-read itself every time a clock ticked over would be a live region
-          people switch off. */}
-      <p className="ap-lan-line">
-        <span className={`ap-lan-status ${state.tone}`} role="status">{state.text}</span>
-      {/* WHEN IT LAST ASKED, which nothing said. A list that refreshes itself
-          is indistinguishable from a list that has stopped, and the only way to
-          tell them apart was to press the button and watch — which is what the
-          button was being pressed for. */}
-        {on && paired > 0 && (
-          <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
-        )}
+      {/* EMPTY WHEN THERE IS NOTHING WRONG, and empty rather than absent. `N
+          decks ready · M away` is the state this feature is in almost all the
+          time, and the list underneath says the same thing better: the green
+          rows ARE the ready ones and the fold counts the rest. What the line is
+          for is every other answer — off, starting, could not start, somebody is
+          waiting for you, nothing can be reached — and those are worth a
+          sentence.
+
+          The element stays in the DOM with the text taken out, because a live
+          region has to exist before its content changes to be announced
+          reliably; one inserted at the moment it has something to say is one
+          several screen readers say nothing about. An empty <p> draws no line
+          box, so it costs no height, and `:empty` takes its margin too. */}
+      <p className={`ap-lan-status ${state.tone}`} role="status">
+        {state.tone === "ok" ? "" : state.text}
       </p>
 
       {failure && (
@@ -1163,6 +1163,16 @@ export default function LanSyncSection({ accounts, onChanged }: {
               title="This deck's name on the network, and which of its logins it offers">
               name &amp; sharing
             </button>
+            {/* WHEN THE LAST ROUND RAN, at the far end of the row that holds the
+                two things you do to this section rather than above the list it
+                is about. A list that refreshes itself and one that has stopped
+                look identical, and pressing the ↻ to find out was the only way
+                to tell — so the figure stays. Over the list it read as a heading
+                for it; down here it is one more thing that is true of the
+                section, beside the two words that change it. */}
+            {on && paired > 0 && (
+              <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
+            )}
           </div>
 
         </>

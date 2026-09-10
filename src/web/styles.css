@@ -6700,19 +6700,16 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    allowed and is the point: `this deck cannot reach any of its 3 decks` plus a
    clock does not fit 250px, and a line that refuses to wrap would clip the half
    that matters. */
-.ap-lan-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
-  margin: 11px 0 0;
-}
 .ap-lan-status {
-  margin: 0;
+  margin: 11px 0 0;
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
 }
+/* Nothing wrong, so nothing drawn — and the margin goes with the words. The
+   element is still there: it is a live region, and one that only exists once it
+   has something to say is one several screen readers never announce. */
+.ap-lan-status:empty { margin: 0; }
 .ap-lan-status.ok { color: var(--text); }
 .ap-lan-status.bad { color: var(--warn); }
 .ap-lan-status.wait { color: var(--accent); }
@@ -9629,16 +9626,17 @@ input, textarea { caret-color: var(--accent); }
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
    tight under the line above, which it belongs to. */
+/* At the far end of the foot, opposite the two words. `margin-left: auto` is
+   the same trick the switch uses in the header: separation by distance, with no
+   rule and no colour spent on it. */
 .ap-lan-checked {
-  margin: 0;
+  margin: 0 0 0 auto;
+  align-self: center;
   font-size: 10px;
   line-height: 1.45;
   color: var(--muted);
 }
-/* The separator belongs to the second half rather than to the string, so it
-   disappears with it — a deck with nothing paired shows the state and no
-   dangling dot. */
-.ap-lan-checked::before { content: "·"; margin-right: 6px; }
+
 /* And the two things somebody does twice, at the size of things somebody does
    twice: words on the section's own ground, no border, no fill, no pill. They
    are still 24px of target and still take the focus ring. */
