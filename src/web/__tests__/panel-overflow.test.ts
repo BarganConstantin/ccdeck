@@ -266,9 +266,6 @@ describe("a percentage width under a horizontal margin", () => {
       // section's primary act — it took the column `setup…` used to hold,
       // which opened a dialog with a name field in it.
       "ap-lan-check",
-      // The one press that mints an invite, alone in its block in the panel's
-      // add-a-deck drawer until one exists.
-      "ap-lan-mint",
       // The press that opens the share picks the first time. It is the only
       // thing in its block and a pill floating at the left edge reads as an
       // afterthought rather than as the deliberate act it is, so it takes the
@@ -284,6 +281,9 @@ describe("a percentage width under a horizontal margin", () => {
       // with `width: 100%` is the table-cell idiom for that — the panel's own
       // `.sd-proc-name` does the same thing, and only misses this list because
       // its rule is scoped rather than bare.
+      // The one press that mints an invite, alone in its block in the
+      // add-a-deck dialog until one exists.
+      "lan-add-mint",
       "pl-name",
       "tool-bursts-svg", "uh-bar", "uh-bar-seg", "up-table",
     ]);

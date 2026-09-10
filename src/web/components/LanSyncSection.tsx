@@ -37,6 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pressAccepted, pressState } from "../panel-press";
+import LanAddDeckModal from "./LanAddDeckModal";
 import LanSetupModal from "./LanSetupModal";
 
 /** One deck this one dials, as the status route reports it. */
@@ -347,9 +348,16 @@ export function sectionState(
   // dials in, and its own row said `reaches us` two lines below.
   const peers = (s.peers ?? []).filter(p => p.paired !== false || p.met);
   if (!peers.length) return { text: "no deck paired yet", tone: "idle" };
-  const calling = peers.filter(p => p.waiting && !p.last?.error);
-  const dialled = peers.filter(p => !calling.includes(p));
-  const { online, offline } = rosterSplit(dialled, now);
+  // A DECK THAT CALLS IN IS PRESENT ONLY IF IT HAS CALLED. Being paired is a
+  // thing that happened once; a machine that has been switched off for an hour
+  // is still paired, and counting it as ready was this line's second lie about
+  // the same row. What it has to go on is when it last spoke — lan-engine.mjs
+  // times every authenticated frame — held to the same window a beacon is.
+  const waiting = peers.filter(p => p.waiting);
+  const dialled = peers.filter(p => !p.waiting);
+  const calling = waiting.filter(p => !p.last?.error && p.lastSeen != null && now - p.lastSeen < ONLINE_MS);
+  const { online, offline: notAnswering } = rosterSplit(dialled, now);
+  const offline = [...notAnswering, ...waiting.filter(p => !calling.includes(p))];
   const here = online.length + calling.length;
   if (!here) {
     // Named and directional. "Not reachable" says nothing about which side
@@ -400,8 +408,44 @@ export interface DeckRow {
  *  knowing anything about sockets, and the whole sentence has to fit the 190px
  *  it is given — the honest long form ran to two lines on every row that wore
  *  it, in a list where three of them can be true at once. What it costs is
- *  said in full in the row's hint. */
-const CALLS_IN = "one-way · it calls this deck";
+ *  said in full in the row's hint.
+ *
+ *  WHEN it last called is the other half, and the half that was missing. This
+ *  deck does not dial such a peer and does not hear a beacon from it, so being
+ *  PAIRED was the only thing the row knew — and a Windows deck that had been
+ *  closed for an hour still drew live, with the section counting it as ready.
+ *  Reported from a screenshot of exactly that. lan-engine.mjs times every
+ *  authenticated frame now, so the row can say the one thing that matters about
+ *  a machine nothing here can reach: whether it has been in touch. */
+function callsIn(lastSeen: number | undefined, now: number): { text: string; here: boolean } {
+  if (lastSeen == null) return { text: "one-way · has not called yet", here: false };
+  const fresh = now - lastSeen < ONLINE_MS;
+  return {
+    text: fresh ? "online · one-way, it calls in" : `one-way · last online ${seenLabel(lastSeen, now)}`,
+    here: fresh,
+  };
+}
+
+/**
+ * WHETHER IT IS THERE NOW, AND WHEN IT LAST WAS.
+ *
+ * The row said what the last ROUND did — `all logins fine · 3m ago` — and a
+ * reader looking at a list of machines is asking something simpler first: is
+ * that one on? A time on its own does not answer it either; `12m ago` is a
+ * number with no noun, and it was doing the work of both.
+ *
+ * So presence leads and the detail follows it. `online` is the word, and the
+ * moment it is not true the same slot says when it last was — which is the
+ * thing somebody wants when the machine they need is switched off.
+ */
+export function presenceLabel(p: Peer, here: boolean, now: number): string {
+  if (here) return "online";
+  if (p.lastSeen != null) return `last online ${seenLabel(p.lastSeen, now)}`;
+  // Never once. Two different nevers, and the difference is whose move it is:
+  // an address this deck dials has never answered, and a deck that calls in has
+  // never called.
+  return p.waiting ? "has not called yet" : "never reached";
+}
 
 /**
  * EVERY DECK ON ONE LIST, which is the whole of this redesign.
@@ -463,7 +507,9 @@ export function deckRows(
       dialling.push({
         fp: where, name: where || p.name || fp, addr: p.addr ?? "",
         kind: "dialling",
-        state: line ? line.text : "trying…",
+        // No presence clause: the row IS "an address nothing has answered at",
+        // so saying it twice is the panel repeating itself.
+        state: line ? line.text.replace(/ · .*$/, "") : "trying…",
         tone: line ? line.tone : "idle",
         here: false,
         hint: line
@@ -472,20 +518,34 @@ export function deckRows(
       });
       continue;
     }
+    // The one-way case, said out loud. A deck this one holds no address for
+    // heals ITSELF from here and can never heal this one, because a round only
+    // ever pulls — see roundWith. "reaches us" was true, cheerful, and hid the
+    // half that matters to somebody whose own login has expired.
+    const called = p.waiting ? callsIn(p.lastSeen, now) : null;
+    const present = called ? called.here : here;
+    // Presence first, then whatever the last round has to add — and the round's
+    // own clock is dropped when the row is online, because `online` already
+    // dates it and two timestamps in 190px is one too many.
+    const said = !called && line
+      ? (present ? `online · ${line.text.replace(/ · .*$/, "")}` : `${line.text.replace(/ · .*$/, "")} · ${presenceLabel(p, present, now)}`)
+      : called ? called.text
+      : presenceLabel(p, present, now);
     paired.push({
       fp,
       name: p.manual && !p.met ? where : (p.name || fp),
       addr: p.addr ?? "",
       kind: "paired",
-      // The one-way case, said out loud. A deck this one holds no address for
-      // heals ITSELF from here and can never heal this one, because a round
-      // only ever pulls — see roundWith. "reaches us" was true, cheerful, and
-      // hid the half that matters to somebody whose own login has expired.
-      state: line ? line.text : here ? "ready" : p.waiting ? CALLS_IN : p.lastSeen != null ? seenLabel(p.lastSeen, now) : "away",
-      tone: line ? line.tone : here ? "ok" : "idle",
-      here: here || (!!p.waiting && !p.last?.error),
-      hint: p.waiting && !line
-        ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. Add its address with + add a deck.`
+      state: said,
+      tone: line ? line.tone : present ? "ok" : "idle",
+      // NOT "paired, therefore here". Being paired says what happened once; it
+      // says nothing about whether that machine is switched on now, and drawing
+      // it live on that evidence is the panel inventing a fact.
+      here: called ? called.here : here,
+      hint: called
+        ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
+            p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
+          } Add its address with + add a deck to reach it either way.`
         : `${p.name || fp}${where ? ` at ${where}` : ""}`,
     });
   }
@@ -548,19 +608,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  press cost a second deliberate one since the panel was written; this row
    *  is the same act against a different noun. */
   const [armed, setArmed] = useState<string | null>(null);
-  /** The block that holds the two ways of reaching a deck that is not on the
-   *  list. Shut by default: it is the thing you do once, and the list is the
-   *  thing you read every day. */
+  /** The dialog that holds the two ways of reaching a deck the network could
+   *  not offer. A DIALOG RATHER THAN A DRAWER IN THIS COLUMN: an address is
+   *  monospace, an invite is 140 characters and the firewall block is a
+   *  paragraph and a shell command — unfolded in 288px they turned a list of
+   *  machines into a form with a list on top of it. */
   const [addOpen, setAddOpen] = useState(false);
-  const [addrDraft, setAddrDraft] = useState("");
-  const [joinDraft, setJoinDraft] = useState("");
-  /** WHICH thing was copied, not WHETHER something was — the block has two copy
-   *  buttons and a boolean would light both. */
-  const [copied, setCopied] = useState<string | null>(null);
-  /** Which addresses a failed join tried, and what each one said. An invite
-   *  carries several because nobody knows which routes; when none did, that
-   *  list is the only thing the reader can act on. */
-  const [tried, setTried] = useState<Array<{ addr: string; why: string }> | null>(null);
   /** The one thing this section could not say. See writeFailure. */
   const [failure, setFailure] = useState<string | null>(null);
   /** Read by the press guard rather than the state, because `busy` is a render
@@ -649,27 +702,6 @@ export default function LanSyncSection({ accounts, onChanged }: {
     }
   }, [load, claim, release]);
 
-  /** Dial an address somebody typed, from now on. The list above is what the
-   *  network offers; this is for the deck it cannot offer — another subnet, a
-   *  VPN, a firewall in the way. */
-  const addAddress = useCallback(async () => {
-    const parsed = parseAddress(addrDraft);
-    if (!parsed) { setFailure("That is not an address and a port — try 192.168.1.5:54340."); return; }
-    if (!claim("add")) return;
-    try {
-      const entry = `${parsed.addr}:${parsed.port}`;
-      const out = await post("/api/prefs", { lan: { manual: [...manual.filter(m => m !== entry), entry] } });
-      if (!alive.current) return;
-      if (out?.ok) { setFailure(null); setAddrDraft(""); onChanged(); }
-      else setFailure(writeFailure("add that address", out));
-      await load();
-    } catch {
-      if (alive.current) setFailure(writeFailure("add that address", null));
-    } finally {
-      release();
-    }
-  }, [addrDraft, manual, load, onChanged, claim, release]);
-
   /** Stop dialling an address that never answered.
    *
    *  Through prefs rather than through /api/lan/peer, because there is nothing
@@ -692,51 +724,6 @@ export default function LanSyncSection({ accounts, onChanged }: {
     }
   }, [manual, load, onChanged, claim, release]);
 
-  /** Make one, or put it away. A deck that cannot be reached from outside has
-   *  to be the one PASTING rather than the one minting — see lan-reach.mjs — so
-   *  both halves of that exchange are here, side by side. */
-  const invite = useCallback(async (action: "make" | "withdraw") => {
-    if (!claim(`invite:${action}`)) return;
-    try {
-      const out = await post("/api/lan/invite", { action });
-      if (!alive.current) return;
-      if (out?.ok) { setStatus(out); setFailure(null); setCopied(null); }
-      else setFailure(writeFailure(action === "make" ? "make an invite" : "cancel that invite", out));
-    } catch {
-      if (alive.current) setFailure(writeFailure(action === "make" ? "make an invite" : "cancel that invite", null));
-    } finally {
-      release();
-    }
-  }, [claim, release]);
-
-  const join = useCallback(async () => {
-    const token = joinDraft.trim();
-    if (!token || !claim("join")) return;
-    setTried(null);
-    try {
-      const out = await post("/api/lan/invite", { action: "join", token });
-      if (!alive.current) return;
-      if (out?.ok) {
-        setStatus(out);
-        setJoinDraft("");
-        setFailure(null);
-        setAddOpen(false);
-        onChanged();
-      } else {
-        // Which addresses were dialled and what each one said. An invite
-        // carries several because nobody knows which one routes, and when none
-        // did, that list is the only thing the reader can act on.
-        setTried(Array.isArray(out?.tried) ? out.tried : null);
-        setFailure(writeFailure("use that invite", out));
-      }
-      await load();
-    } catch {
-      if (alive.current) setFailure(writeFailure("use that invite", null));
-    } finally {
-      release();
-    }
-  }, [joinDraft, load, onChanged, claim, release]);
-
   /** Ask every paired deck now rather than at the next tick — for somebody who
    *  has just fixed a login on the other machine and does not want to wait a
    *  minute to see it arrive. */
@@ -755,23 +742,12 @@ export default function LanSyncSection({ accounts, onChanged }: {
     }
   }, [claim, release, onChanged]);
 
-  const copyText = useCallback(async (text: string, tag: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(tag);
-      window.setTimeout(() => { if (alive.current) setCopied(c => (c === tag ? null : c)); }, 1_600);
-    } catch {
-      setFailure("Could not copy it — select the text and copy it by hand.");
-    }
-  }, []);
-
   const on = status?.enabled === true;
   const rows = deckRows(status, now);
   const asks = rows.filter(r => r.kind === "asks");
   const rest = rows.filter(r => r.kind !== "asks");
   const state = sectionState(status, now);
   const paired = rest.filter(r => r.kind === "paired").length;
-  const live = status?.invite && status.invite.expiresAt > now ? status.invite : null;
 
   return (
     <div className="ap-auto ap-lan">
@@ -950,10 +926,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
           {/* The two things you do once, at the size of things you do once. */}
           <div className="ap-lan-foot">
-            <button type="button" className="ap-lan-word" aria-expanded={addOpen} aria-controls="ap-lan-adder"
-              onClick={() => setAddOpen(v => !v)}
+            <button type="button" className="ap-lan-word"
+              onClick={() => setAddOpen(true)}
               title="Reach a deck that has not turned up on its own — by address, or with an invite">
-              {addOpen ? "− add a deck" : "+ add a deck"}
+              + add a deck
             </button>
             <button type="button" className="ap-lan-word" {...pressProps("setup")}
               onClick={() => setSetupOpen(true)}
@@ -962,134 +938,16 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </button>
           </div>
 
-          {addOpen && (
-            <div className="ap-lan-adder" id="ap-lan-adder">
-              {/* WHY THE LIST IS EMPTY, WHEN THE MACHINE CAN BE ASKED. "Nothing
-                  here yet" and "nothing can get in" look identical and are not:
-                  the first is answered by waiting and the second never is. What
-                  comes first is the way out that needs no firewall rule at all,
-                  because a round is one OUTBOUND connection — this deck dialling
-                  is the whole of it. */}
-              {status?.reach?.blocked && (
-                <div className="ap-lan-reach">
-                  <p className="lan-warn">{status.reach.text}</p>
-                  <p className="lan-note">
-                    Nothing here is stuck: a deck that dials out first needs none of this.
-                    {" "}<strong>Ask them for an invite and paste it below</strong> — an invite is
-                    dialled by whoever pastes it, so on this machine it has to be pasted rather
-                    than made. Typing their address below works the same way.
-                  </p>
-                  {(status.reach.steps ?? []).length > 0 && (
-                    <details className="ap-lan-reach-fix">
-                      <summary>or let them find this deck on their own</summary>
-                      <p className="lan-note">
-                        Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.
-                        {status.reach.category === "Public" && (
-                          <> The first line marks this network as a home or office one — leave it
-                          out on a network you do not trust.</>
-                        )}
-                      </p>
-                      <pre className="ap-lan-cmd"><code>{(status.reach.steps ?? []).join("\n")}</code></pre>
-                      <button type="button" className="ap-manage-btn" {...pressProps("copy:fix")}
-                        onClick={() => void copyText((status.reach?.steps ?? []).join("\n"), "fix")}
-                        title="Copy these lines, then paste them into an elevated PowerShell">
-                        {copied === "fix" ? "copied" : "copy command"}
-                      </button>
-                    </details>
-                  )}
-                </div>
-              )}
-
-              <div className="ap-lan-row">
-                <span className="ap-lan-label">by address</span>
-                <input
-                  className="ap-manage-input ap-lan-input"
-                  aria-label="Another deck's address"
-                  value={addrDraft}
-                  placeholder="192.168.1.5:54340"
-                  onChange={e => setAddrDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
-                />
-                {addrDraft.trim() !== "" && (
-                  <button type="button" className="ap-manage-btn" {...pressProps("add")}
-                    onClick={() => void addAddress()}
-                    title="Try this address every minute, starting now.">add</button>
-                )}
-              </div>
-
-              <div className="ap-lan-row">
-                <span className="ap-lan-label">an invite</span>
-                <input
-                  className="ap-manage-input ap-lan-input"
-                  aria-label="An invite you were sent"
-                  value={joinDraft}
-                  placeholder="paste one you were sent"
-                  spellCheck={false}
-                  onChange={e => { setJoinDraft(e.target.value); setTried(null); }}
-                  onKeyDown={e => { if (e.key === "Enter") void join(); }}
-                />
-                {joinDraft.trim() !== "" && (
-                  <button type="button" className="ap-manage-btn" {...pressProps("join")}
-                    onClick={() => void join()}
-                    title="Reach that deck and pair with it. Nobody has to press anything there.">
-                    {busy === "join" ? "joining…" : "join"}
-                  </button>
-                )}
-              </div>
-
-              {tried && (
-                <div className="ap-lan-tried">
-                  <span className="ap-lan-note">
-                    Nothing answered at any address in that invite. Check that deck is running
-                    and that its Local network switch is on.
-                  </span>
-                  {tried.map(t => (
-                    <span key={t.addr} className="ap-lan-tried-row">
-                      <code className="ap-lan-code">{t.addr}</code>
-                      <span className="ap-lan-bad">{t.why}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {live ? (
-                <div className="ap-lan-invite">
-                  <div className="ap-lan-invite-head">
-                    <span className="ap-lan-invite-title">Send this to them</span>
-                    <span className="ap-lan-invite-left">{leftLabel(live.expiresAt, now)} left</span>
-                  </div>
-                  <code className="ap-lan-token">{live.token}</code>
-                  <div className="ap-lan-acts">
-                    <button type="button" className="ap-manage-btn" {...pressProps("copy")}
-                      onClick={() => void copyText(live.token, "invite")}
-                      title="Copy it, and send it however you already talk to them">
-                      {copied === "invite" ? "copied" : "copy"}
-                    </button>
-                    <button type="button" className="ap-manage-btn" {...pressProps("invite:withdraw")}
-                      onClick={() => void invite("withdraw")}
-                      title="Cancel it. Anybody already holding the text can no longer use it.">
-                      cancel
-                    </button>
-                  </div>
-                  <p className="ap-lan-note">
-                    They paste it and it pairs itself — nothing to press here. It carries every
-                    address this deck has, so they do not have to know which one works.
-                  </p>
-                  <p className="ap-lan-warn">
-                    Anyone who gets hold of this text can pair with this deck until it runs out.
-                  </p>
-                </div>
-              ) : (
-                <button type="button" className="ap-manage-btn ap-lan-mint" {...pressProps("invite:make")}
-                  onClick={() => void invite("make")}
-                  title="One piece of text you send them. They paste it and the two decks pair.">
-                  make an invite for them
-                </button>
-              )}
-            </div>
-          )}
-
         </>
+      )}
+
+      {addOpen && status && (
+        <LanAddDeckModal
+          status={status}
+          manual={manual}
+          onClose={() => setAddOpen(false)}
+          onChanged={() => { void load(); onChanged(); }}
+        />
       )}
 
       {setupOpen && status && (

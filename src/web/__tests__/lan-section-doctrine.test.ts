@@ -28,6 +28,13 @@ const MODAL = readFileSync(
   fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
   "utf8",
 ).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+/** The dialog behind `+ add a deck`, which is the other half of "who this deck
+ *  talks to" — the half that takes an address or a token rather than naming a
+ *  machine already on the list. */
+const ADD = readFileSync(
+  fileURLToPath(new URL("../components/LanAddDeckModal.tsx", import.meta.url)),
+  "utf8",
+).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 /** The file with its comments taken out, so a rule cannot be satisfied by a
  *  paragraph that describes it. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
@@ -210,14 +217,21 @@ describe("the three rules the panel above it already keeps", () => {
       expect(CODE, field).not.toContain(field);
       expect(MODAL, field).toContain(field);
     }
-    // And the other way round for everything that names another machine.
+    // And the other way round for everything that names another machine. The
+    // two fields moved once more, out of the panel's own drawer and into a
+    // dialog of their own: an address is monospace, an invite is 140
+    // characters, and unfolded in a 288px column they turned a list of machines
+    // into a form with a list on top of it. What stays in the panel is the word
+    // that opens them.
     for (const field of [
       `aria-label="Another deck's address"`,
       `aria-label="An invite you were sent"`,
     ]) {
       expect(MODAL, field).not.toContain(field);
-      expect(CODE, field).toContain(field);
+      expect(CODE, field).not.toContain(field);
+      expect(ADD, field).toContain(field);
     }
+    expect(CODE).toContain("+ add a deck");
     expect(CODE).toMatch(/role="switch"/);
     expect(CODE).toMatch(/wants to pair/);
   });
@@ -236,9 +250,10 @@ describe("the three rules the panel above it already keeps", () => {
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {
     // `check now` looked identical pressed and unpressed: selfPressProps sets
     // aria-busy, and aria-busy has no rule anywhere in the stylesheet.
-    // Both moved into the panel with the controls themselves.
+    // Each one lives with the control it is about: `check now` is the panel's
+    // one press, `join` is in the dialog that takes the token.
     expect(CODE).toMatch(/"checking…"\s*:\s*"check now"/);
-    expect(CODE).toMatch(/"joining…"\s*:\s*"join"/);
+    expect(ADD).toMatch(/"joining…"\s*:\s*"join"/);
   });
 });
 
@@ -351,8 +366,18 @@ describe("who is here, which is what the panel is for now", () => {
     // reaches us.
     expect(sectionState({
       enabled: true, running: true,
-      peers: [peer({ fp: "a", paired: true, waiting: true })] as never,
+      peers: [peer({ fp: "a", paired: true, waiting: true, lastSeen: NOW2 - 20_000 })] as never,
     }, NOW2)).toEqual({ text: "1 deck ready", tone: "ok" });
+    // And one that has NOT called is not ready either — being paired says what
+    // happened once, not whether that machine is switched on now.
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ fp: "a", paired: true, waiting: true })] as never,
+    }, NOW2).tone).toBe("bad");
+    expect(sectionState({
+      enabled: true, running: true,
+      peers: [peer({ fp: "a", paired: true, waiting: true, lastSeen: NOW2 - 40 * 60_000 })] as never,
+    }, NOW2).tone).toBe("bad");
     // And a deck that calls in AND failed the last round it was part of is not
     // laundered by the same rule.
     expect(sectionState({
@@ -417,6 +442,33 @@ describe("who is here, which is what the panel is for now", () => {
     expect(rows.filter(r => r.kind === "paired").map(r => r.name)).toEqual(["Alma", "Zed"]);
   });
 
+  it("leads every row with whether that machine is on, and when it last was", () => {
+    // The row said what the last ROUND did, and a reader scanning a list of
+    // machines asks something simpler first: is that one up? A bare `12m ago`
+    // was a number with no noun doing the work of both answers.
+    const rows = deckRows({
+      peers: [
+        peer({ fp: "up", peerFp: "up", name: "Up", paired: true, lastSeen: NOW2,
+          last: { at: NOW2, done: [{ email: "a@b.c", action: "heal", ok: true }] } }),
+        peer({ fp: "down", peerFp: "down", name: "Down", paired: true, lastSeen: NOW2 - 20 * 60_000 }),
+        peer({ fp: "broke", peerFp: "broke", name: "Broke", paired: true, lastSeen: NOW2 - 20 * 60_000,
+          last: { at: NOW2, error: "handshake timed out" } }),
+        peer({ fp: "new", peerFp: "new", name: "New", paired: true }),
+      ] as never,
+    }, NOW2);
+    const said = Object.fromEntries(rows.map(r => [r.name, r.state]));
+    expect(said).toEqual({
+      Broke: "no answer · last online 20m ago",
+      Down: "last online 20m ago",
+      New: "never reached",
+      // Online dates itself, so the round's own clock is dropped: two
+      // timestamps do not fit in 190px and the second one answers nothing.
+      Up: "online · 1 login arrived",
+    });
+    // Every one of them fits the row it has to live in.
+    for (const [name, text] of Object.entries(said)) expect(text.length, name).toBeLessThan(36);
+  });
+
   it("keeps an address that never answered out of the paired rows", () => {
     // It wore the paired row and the paired verb, and `unpair` on it named a
     // fingerprint built out of the address — which matches nothing this deck
@@ -429,6 +481,13 @@ describe("who is here, which is what the panel is for now", () => {
     // of prefs — there is no fingerprint here to unpair.
     expect(row.fp).toBe("10.0.0.9:5000");
     expect(row.state).toBe("trying…");
+    const [failed] = deckRows({
+      peers: [peer({ fp: "manual:10.0.0.9:5000", name: "10.0.0.9", addr: "10.0.0.9", port: 5000, manual: true, met: false, paired: false,
+        last: { at: NOW2, error: "handshake timed out" } })] as never,
+    }, NOW2);
+    // No presence clause on this kind: the row already IS "an address nothing
+    // has answered at", and saying it twice is the panel repeating itself.
+    expect(failed.state).toBe("no answer");
   });
 
   it("says the one-way case out loud, because a round only ever pulls", () => {
@@ -440,10 +499,29 @@ describe("who is here, which is what the panel is for now", () => {
     const [row] = deckRows({
       peers: [peer({ fp: "a", peerFp: "a", name: "Studio", paired: true, waiting: true })] as never,
     }, NOW2);
-    expect(row.state).toBe("one-way · it calls this deck");
+    expect(row.state).toBe("one-way · has not called yet");
     // Short enough to be one line in a 190px row, because three of them can be
     // true at once and the honest long form wrapped on every one.
     expect(row.state.length).toBeLessThan(30);
+    // AND IT IS NOT DRAWN AS LIVE. Being paired says what happened once and
+    // says nothing about whether that machine is switched on now — a Windows
+    // deck closed an hour ago still drew with the live emitter, and the section
+    // counted it as ready. Reported from a screenshot of exactly that.
+    expect(row.here).toBe(false);
+    expect(row.tone).toBe("idle");
+
+    // Once it has called, the row says when — and goes live for as long as the
+    // same window the beacon rows use.
+    const [fresh] = deckRows({
+      peers: [peer({ fp: "a", peerFp: "a", name: "Studio", paired: true, waiting: true, lastSeen: NOW2 - 20_000 })] as never,
+    }, NOW2);
+    expect(fresh.state).toBe("online · one-way, it calls in");
+    expect(fresh.here).toBe(true);
+    const [stale] = deckRows({
+      peers: [peer({ fp: "a", peerFp: "a", name: "Studio", paired: true, waiting: true, lastSeen: NOW2 - 40 * 60_000 })] as never,
+    }, NOW2);
+    expect(stale.state).toBe("one-way · last online 40m ago");
+    expect(stale.here).toBe(false);
     expect(row.hint).toMatch(/cannot repair from it/);
     expect(row.hint).toMatch(/add its address/i);
   });

@@ -6807,9 +6807,20 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
 .ap-lan-who[data-tone="ok"] .ap-lan-who-when { color: var(--text-dim); }
 .ap-lan-who[data-tone="wait"] .ap-lan-who-when { color: var(--accent); }
-/* The dot takes the accent only where it means "live". Inheriting --text from
-   the row made `ready` the same ink as the name it is about. */
-.ap-lan-who .ap-pulse { color: var(--accent); opacity: 1; }
+/* A TRAFFIC LIGHT, BECAUSE THAT IS THE QUESTION. The mark said one thing —
+   accent for "live" — and the reader's question is three-valued: is that
+   machine up, is it down, or is something wrong with it. Green for a deck that
+   answered, the warning colour for one that could not be reached, and the
+   still grey dot for one nothing has heard from. The sentence under the name
+   says the same thing in words; this is what makes it answerable at a glance.
+
+   Reported from a screenshot: a Windows deck that had been closed for an hour
+   drew the live emitter, because the row took "paired" for "here". What the
+   row knows now is in deckRows; this is only its colour. */
+.ap-lan-who .ap-pulse { color: var(--ok); opacity: 1; }
+.ap-lan-who[data-tone="bad"] .ap-pulse,
+.ap-lan-who[data-tone="bad"] .ap-dot { color: var(--warn); opacity: 1; }
+.ap-lan-who[data-tone="wait"] .ap-pulse { color: var(--accent); }
 
 /* THE INVITE, WHICH IS THE WHOLE ACT WHILE NOBODY IS PAIRED. It gets a card
    rather than a row: it is the one thing on this screen a person came here to
@@ -9591,28 +9602,15 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
 .ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
-.ap-lan-adder {
-  margin-top: 8px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* The same two voices the dialog had, at the panel's own size: an explanation
-   is dim, and the one sentence that bites takes --warn. */
-.ap-lan-note {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--text-dim);
-}
-.ap-lan-warn {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--warn);
-}
-.ap-lan-mint { width: 100%; justify-content: center; }
+/* ── the dialog that reaches a deck the network could not offer ─────────────
+   It was a drawer in the 288px column and everything in it is the wrong shape
+   for that: an address is monospace, an invite is a 140-character token, and
+   the firewall block is a paragraph plus a shell command. Unfolded, the section
+   stopped being a list of machines and became a form with a list on top. */
+.modal.lan-add { width: min(520px, 92vw); }
+.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 20px; }
+/* The field is the row: one input and the verb that commits it, with nothing
+   to the left, because the section heading above already says which of the two
+   ways in this is. */
+.lan-add .ap-lan-row { gap: 8px; }
+.lan-add-mint { width: 100%; justify-content: center; }

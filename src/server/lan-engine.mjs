@@ -161,6 +161,21 @@ export function createEngine({
    * reach one peer is that peer's row, not the deck's.
    */
   let stalled = null;
+  /**
+   * When each paired deck last SPOKE TO THIS ONE, keyed by fingerprint.
+   *
+   * The panel had no evidence at all about a deck it does not dial. A deck that
+   * calls in has no beacon row here (if it had one it would be dialled), never
+   * appears in `lastRound`, and its `lastSeen` was therefore undefined forever
+   * — so the row was drawn as live on the strength of being paired, and a
+   * Windows deck that had been closed for an hour still read `ready`. Reported
+   * from a screenshot of exactly that.
+   *
+   * Every authenticated frame lands in `serve`, which is the one place that
+   * knows a paired deck is on the other end of an open socket right now. That
+   * is the evidence, and it is the same kind the beacon gives: a timestamp.
+   */
+  const spokeAt = new Map();
 
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
@@ -179,6 +194,9 @@ export function createEngine({
    *  where the two checks sit. `ctx.key` is this connection's key and no other
    *  connection's — see sessionKey. */
   const serve = async (msg, ctx) => {
+    // Before the verbs, and for every one of them: something that proved it
+    // holds a key this deck accepted is talking, now.
+    if (ctx?.peerFp) spokeAt.set(ctx.peerFp, now());
     try {
       if (msg.t === "manifest") {
         const accounts = await localAccounts();
@@ -727,6 +745,10 @@ export function createEngine({
             put({
               id: t.fp, fp: t.fp, peerFp: t.fp, name: t.name || t.fp, addr: "", port: 0,
               paired: true, waiting: true, last: lastRound.get(t.fp) ?? null,
+              // What it is to be "here" for a deck nothing dials: it called,
+              // and this is when. Undefined until it has, which is a row the
+              // panel draws as unknown rather than as live.
+              lastSeen: spokeAt.get(t.fp),
             });
           }
           return rows;
