@@ -54,7 +54,21 @@ export const DEFAULTS = Object.freeze({
   notifications: true,
   // LAN sync, off until somebody turns it on. `passphrase` is the only secret
   // this file has ever held, which is why the write below now names a mode.
-  lan: Object.freeze({ enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0 }),
+  lan: Object.freeze({
+    enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+    // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Both on, so two
+    // decks on one network find each other and pair themselves — which is what
+    // a person with three of their own machines wants and had to do by hand
+    // six times.
+    //
+    // Read this next to the two switches that gate it. `enabled` above is off,
+    // so nothing here happens until somebody deliberately puts this deck on the
+    // network; `shared` is empty, so a deck that pairs is offered nothing until
+    // somebody ticks a login. These say what happens AFTER both of those, and
+    // the dialog that turns the feature on prints them.
+    autoAsk: true,
+    autoAccept: true,
+  }),
 });
 
 /** The mode prefs.json is created with.
@@ -102,6 +116,16 @@ function normaliseLan(raw) {
     // A PREFERENCE, never a requirement: a port already taken falls through to
     // an OS-chosen one and this is rewritten. 0 means "none yet".
     port: Number.isInteger(src.port) && src.port > 0 && src.port < 65_536 ? src.port : 0,
+    // ASK FIRST. A deck heard on the broadcast is sent a pairing request without
+    // anybody pressing `ask` — the outbound half, which gives nothing away: the
+    // machine on the other end still answers it, by hand or by the switch below.
+    autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : true,
+    // AND SAY YES. Every deck that finishes a handshake and is not already
+    // trusted is pinned without anybody being asked — the accept button pressed
+    // in advance, and it hands whoever asks a copy of every login this deck
+    // shares. Absent means the default above; only a real boolean overrides it,
+    // because a truthy string from a hand-edited file is not an answer.
+    autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : true,
   };
 }
 

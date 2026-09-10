@@ -91,7 +91,12 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
     },
   });
   running.push(e);
-  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted });
+  // BY HAND, unless a test says otherwise. Both switches ship on, so a deck
+  // built with the defaults pairs itself — which is the right default and the
+  // wrong fixture for the twenty tests below, every one of which is about what
+  // a PRESS does. The automatic path has its own describe, where it is the
+  // subject rather than the weather.
+  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted, autoAsk: false, autoAccept: false });
   return { e, errors, id, trusted, port: e.status().port as number };
 }
 
@@ -586,6 +591,79 @@ describe("saying no, and meaning it", () => {
       expect(a.e.dismiss("00:00:00:00:00:00")).toBe(false);
       expect(a.e.status().declined).toEqual([]);
     });
+  });
+});
+
+describe("pairing that nobody presses", () => {
+  // Three of somebody's own machines is three pairings and six presses, and
+  // every one of them is the same answer: yes, that one is mine. Both switches
+  // ship ON so a fleet finds itself; what is pinned here is that ON does
+  // exactly what the two labels say and nothing next to it.
+
+  it("says yes to a deck that asks, without anybody being asked", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", []);
+    await b.e.apply({ autoAccept: true });
+
+    // A dials B. With the switch off this leaves a row in front of B's owner;
+    // with it on, B has already pinned A by the time the dial is refused.
+    expect(a.e.addPeer("127.0.0.1", b.port)).toBe(true);
+    await a.e.round();
+    const fpA = a.e.status().fp as string;
+    expect(b.e.status().pending).toHaveLength(0);
+    expect(b.e.status().trusted).toMatchObject([{ fp: fpA, name: "Deck-A" }]);
+
+    // AND THE WIRE IS UNCHANGED. That first dial is still refused, because
+    // trust is read fresh per connection — this is the accept button pressed,
+    // not a second way in. The next dial is the one that works, exactly as it
+    // would be if a person had pressed it.
+    await a.e.round();
+    const row = (a.e.status().peers as Array<{ last?: { error?: string } }>)[0];
+    expect(row.last?.error).toBeUndefined();
+  }, 20_000);
+
+  it("does not say yes to a deck its owner already turned away", async () => {
+    // A no is a decision about a machine, and a switch called "every deck that
+    // asks" must not be a way for that machine to come back through the side.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", []);
+    a.e.addPeer("127.0.0.1", b.port);
+    await a.e.round();
+    const fpA = a.e.status().fp as string;
+    expect(b.e.dismiss(fpA)).toBe(true);
+
+    await b.e.apply({ autoAccept: true });
+    await a.e.round();
+    expect(b.e.status().trusted).toEqual([]);
+    expect(b.e.status().declined).toMatchObject([{ fp: fpA }]);
+  }, 20_000);
+
+  it("answers what was already waiting when the switch goes on", async () => {
+    // Somebody who turns this on with two rows sitting in the panel means those
+    // two as much as the next one.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(mine, "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", []);
+    a.e.addPeer("127.0.0.1", b.port);
+    await a.e.round();
+    expect(b.e.status().pending).toHaveLength(1);
+
+    await b.e.apply({ autoAccept: true });
+    expect(b.e.status().pending).toHaveLength(0);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.e.status().fp }]);
+  }, 20_000);
+
+  it("reports both switches, so the dialog draws what the engine is doing", async () => {
+    const only = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(only, "Deck-A", []);
+    expect(a.e.status()).toMatchObject({ autoAsk: false, autoAccept: false });
+    await a.e.apply({ autoAsk: true, autoAccept: true });
+    expect(a.e.status()).toMatchObject({ autoAsk: true, autoAccept: true });
   });
 });
 

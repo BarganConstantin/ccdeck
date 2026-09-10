@@ -295,6 +295,55 @@ describe("the three rules the panel above it already keeps", () => {
   });
 });
 
+describe("who pairs with whom, without anybody pressing anything", () => {
+  it("keeps both switches in the dialog that says what this deck is", () => {
+    // They belong with the name and the share list, not on the roster: all
+    // three are what this deck IS on the network, and the roster is who else
+    // is out there. The dialog opens on every switch-on for exactly that
+    // reason — see the block above.
+    expect(MODAL).toMatch(/aria-label="Ask every deck this one finds"/);
+    expect(MODAL).toMatch(/aria-label="Say yes to every deck that asks"/);
+    expect(MODAL).toMatch(/autoAsk: !asks/);
+    expect(MODAL).toMatch(/autoAccept: !says/);
+    expect(CODE).not.toContain("autoAccept: !");
+    // Last, after the list it is a permission over, so the warning under it
+    // points at rows the reader has just looked at.
+    expect(MODAL.indexOf('type="checkbox"')).toBeLessThan(MODAL.indexOf("Pairing"));
+  });
+
+  it("reads a missing answer as on, because that is what the engine is doing", () => {
+    // A deck that has not written prefs since this shipped is a deck running
+    // the defaults. Drawing `off` there would be the dialog contradicting the
+    // machine it is a dialog about.
+    expect(MODAL).toMatch(/status\.autoAsk !== false/);
+    expect(MODAL).toMatch(/status\.autoAccept !== false/);
+    expect(SERVER).toMatch(/autoAsk: lan\.autoAsk !== false/);
+    expect(SERVER).toMatch(/autoAccept: lan\.autoAccept !== false/);
+  });
+
+  it("turns the paragraph yellow for the one of the two that gives something away", () => {
+    // Asking gives nothing away — the machine on the other end still answers.
+    // Saying yes hands somebody a copy of every ticked login, and a switch
+    // cannot say that its ON is the permissive one.
+    const warn = /\{says \? \(\s*<p className="lan-warn">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
+    expect(warn).toMatch(/without anybody being asked/);
+    expect(warn).toMatch(/its own copy of each login/);
+    expect(warn).toMatch(/network you do not trust/);
+    // And the other branch is a note rather than a warning, because it is not one.
+    expect(MODAL).toMatch(/\) : asks \? \(\s*<p className="lan-note">/);
+  });
+
+  it("never lets the switch undo a no", () => {
+    // A refusal is a decision about a machine. lan-socket refuses a declined
+    // deck before the engine is told anything, so the automatic yes is never
+    // reached for one — and the automatic ask skips it too.
+    expect(SERVER_ENGINE).toMatch(/cfg\.autoAsk && !had && !declined\.has\(entry\.fp\)/);
+    expect(readFileSync(
+      fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8",
+    )).toMatch(/if \(declined\(peerFp\)\) return refuse\("declined"\)/);
+  });
+});
+
 describe("the list is quiet until it is not", () => {
   const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
   /** The body of the first rule with this exact selector, comments stripped. */

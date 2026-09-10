@@ -77,6 +77,10 @@ export interface LanStatus {
    *  time — including while it is still coming up. */
   stalled?: string | null;
   name: string;
+  /** Whether this deck asks the machines it finds, and whether a request that
+   *  arrives is answered here or answered for you. */
+  autoAsk?: boolean;
+  autoAccept?: boolean;
   fp: string | null;
   port: number | null;
   addrs: string[];

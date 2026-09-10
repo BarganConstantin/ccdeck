@@ -119,7 +119,10 @@ export function createEngine({
    */
   createSocket,
 } = {}) {
-  let cfg = { enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0 };
+  let cfg = {
+    enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
+    autoAsk: true, autoAccept: true,
+  };
   let identity = null;
   let beacon = null;
   let server = null;
@@ -396,8 +399,23 @@ export function createEngine({
 
   return {
     async apply(next) {
+      /** The engine itself, for the callbacks handed to the socket below: they
+       *  outlive this call and `this` is not theirs to keep. */
+      const self = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
+      // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
+      // this on with two rows sitting in the panel means those two as much as
+      // the next one, and leaving them queued behind a setting called
+      // "automatic" is the switch not doing what it says.
+      if (!was.autoAccept && cfg.autoAccept) {
+        for (const fp of [...pending.keys()]) this.accept(fp);
+      }
+      // The same for the other direction: switching `ask` on with four machines
+      // already listed asks those four.
+      if (!was.autoAsk && cfg.autoAsk) {
+        for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub) this.accept(fp);
+      }
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
@@ -451,6 +469,16 @@ export function createEngine({
         onPending: entry => {
           const had = pending.get(entry.fp);
           pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
+          // SAY YES FOR SOMEBODY WHO SAID TO. It is the accept button and
+          // nothing else: the same pin, from the same key this handshake just
+          // proved, so the deck is trusted on its next attempt a few seconds
+          // later exactly as it would be if a person had pressed it. Nothing
+          // about the wire changes — this connection is still refused, because
+          // trust is read fresh per connection.
+          //
+          // A deck already told no does NOT come back this way: lan-socket
+          // refuses it before this is ever called.
+          if (cfg.autoAccept) { self.accept(entry.fp); return; }
           if (!had) onChange?.();
         },
       });
@@ -477,6 +505,16 @@ export function createEngine({
           // one of them drew a row offering to pair with the same machine.
           if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
           strangers.set(entry.fp, entry);
+          // ASK IT, which is what the `ask` verb on its row does and nothing
+          // more: the address goes on the dial list and the next round sends a
+          // request that somebody over there still has to answer. A beacon
+          // carries a fingerprint and no key, so nothing is pinned here — see
+          // accept, which is deliberate about the difference.
+          //
+          // Only a deck that is NEW is asked, or a beacon every thirty seconds
+          // would be thirty seconds of asking; and never one this deck's owner
+          // already turned away.
+          if (cfg.autoAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp); return; }
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
           if (!had) onChange?.();
@@ -712,6 +750,10 @@ export function createEngine({
         // which on a deck that has just started is the honest answer.
         checkedAt: roundAt,
         name: cfg.name,
+        // Whether this deck asks on its own, and whether a request that
+        // arrives is answered here or answered for you.
+        autoAsk: !!cfg.autoAsk,
+        autoAccept: !!cfg.autoAccept,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the

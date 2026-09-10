@@ -80,7 +80,18 @@ describe("the shape on disk", () => {
     // `port` is 0 until this deck has listened once. It is remembered so an
     // address typed on the other machine still reaches this one after a
     // restart — broadcast not arriving is the whole reason that field exists.
-    expect(normalise({}).lan).toEqual({ enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0 });
+    // The two pairing switches ship ON, and this is the line that says why
+    // that is not the same as a feature that is on. Nothing they describe can
+    // happen while `enabled` is false, and a deck that pairs is offered nothing
+    // while `shared` is empty — both of which a person has to change on purpose.
+    expect(normalise({}).lan).toEqual({
+      enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+      autoAsk: true, autoAccept: true,
+    });
+    // Absent is the default; only a real boolean overrides it, because a
+    // truthy string from a hand-edited file is not an answer.
+    expect(normalise({ lan: { autoAccept: false } }).lan.autoAccept).toBe(false);
+    expect(normalise({ lan: { autoAsk: "yes" } }).lan.autoAsk).toBe(true);
   });
 
   it("does not lose the private key when a page toggles the switch", async () => {
@@ -94,7 +105,10 @@ describe("the shape on disk", () => {
       rename: async () => {},
     };
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
-    expect(saved!.lan).toEqual({ enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0 });
+    expect(saved!.lan).toEqual({
+      enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
+      autoAsk: true, autoAccept: true,
+    });
   });
 
   it("refuses a paired deck that has no key to check it against later", () => {

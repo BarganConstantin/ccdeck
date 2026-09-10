@@ -3315,6 +3315,8 @@ async function applyLanPrefs() {
       shared: Array.isArray(lan.shared) ? lan.shared : [],
       trusted: Array.isArray(lan.trusted) ? lan.trusted : [],
       port: lan.port || 0,
+      autoAsk: lan.autoAsk !== false,
+      autoAccept: lan.autoAccept !== false,
     });
     // Wholesale, so removing an address in the panel really stops it being
     // dialled rather than only taking the row away.

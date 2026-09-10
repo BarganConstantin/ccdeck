@@ -16,6 +16,18 @@
 //
 // Two fields, then, and both of them are about this machine. Everything that
 // takes an address, a token or another deck's name is in LanSyncSection.tsx.
+//
+// AND TWO SWITCHES, which are the third thing this deck IS on the network: does
+// it ask the machines it finds, and is a request that arrives answered here or
+// answered for it. They are last on purpose. The dialog reads as one sentence
+// in three parts — this is my name, these are the logins I offer, and this is
+// who may take them — and the permission belongs after the list it is a
+// permission over, where the warning under it can point at rows the reader has
+// just looked at.
+//
+// BOTH ON BY DEFAULT, and the two are not the same risk. Asking gives nothing
+// away: the machine on the other end still answers. Saying yes is the one that
+// hands somebody a copy, so it is the one the paragraph turns yellow for.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
@@ -85,6 +97,11 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   }, [onChanged]);
 
   const shared = new Set(pending.current ?? status.shared ?? []);
+  // Absent means on: a deck that has not written prefs since this shipped is a
+  // deck with the defaults, and reading a missing key as `off` would draw the
+  // switches against what the engine is actually doing.
+  const asks = status.autoAsk !== false;
+  const says = status.autoAccept !== false;
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -185,6 +202,80 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="modal-section">
+            <h3 className="lan-h">Pairing</h3>
+            {/* Two rows and one shape, because they are the two halves of one
+                question: who reaches whom without anybody pressing anything.
+                The switch is the panel's own — same control, same words, so
+                nobody has to learn a second on. */}
+            <div className="lan-switches">
+              <div className="lan-switch">
+                <span className="lan-switch-what">Ask every deck this one finds</span>
+                <button
+                  type="button"
+                  className={`ap-auto-state${asks ? " live" : ""}`}
+                  role="switch"
+                  aria-checked={asks}
+                  aria-label="Ask every deck this one finds"
+                  {...pressProps("ask")}
+                  onClick={() => void write(
+                    { autoAsk: !asks },
+                    asks ? "stop asking automatically" : "ask every deck this one finds",
+                    "ask",
+                  )}
+                  title={asks
+                    ? "Stop sending requests on their own. You press ask on the row instead."
+                    : "Send a pairing request to every deck heard on this network. Somebody over there still has to say yes."}
+                >
+                  <i className={asks ? "ap-pulse" : "ap-dot"} aria-hidden />
+                  {asks ? "on" : "off"}
+                </button>
+              </div>
+              <div className="lan-switch">
+                <span className="lan-switch-what">Say yes to every deck that asks</span>
+                <button
+                  type="button"
+                  className={`ap-auto-state${says ? " live" : ""}`}
+                  role="switch"
+                  aria-checked={says}
+                  aria-label="Say yes to every deck that asks"
+                  {...pressProps("accept")}
+                  onClick={() => void write(
+                    { autoAccept: !says },
+                    says ? "stop accepting automatically" : "accept every deck that asks",
+                    "accept",
+                  )}
+                  title={says
+                    ? "Stop saying yes for you. A deck that asks waits in the panel again."
+                    : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
+                >
+                  <i className={says ? "ap-pulse" : "ap-dot"} aria-hidden />
+                  {says ? "on" : "off"}
+                </button>
+              </div>
+            </div>
+            {/* THE PARAGRAPH IS THE SIGNAL, because a switch cannot say that its
+                ON is the permissive one — and here exactly one of the two is. */}
+            {says ? (
+              <p className="lan-warn">
+                Any deck on this network that asks is paired without anybody being asked
+                here, and it can take its own copy of each login ticked above. Nobody reads
+                its fingerprint first. Turn this off on a network you do not trust.
+              </p>
+            ) : asks ? (
+              <p className="lan-note">
+                This deck asks; somebody on the other machine still has to say yes. A
+                request coming the other way waits in the panel for you.
+              </p>
+            ) : (
+              <p className="lan-note">
+                Nothing pairs on its own. You press <strong>ask</strong> on a deck you find,
+                and <strong>accept</strong> on one that asks. A deck you said no to is never
+                asked about again either way.
+              </p>
+            )}
           </div>
         </section>
       </div>

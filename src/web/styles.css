@@ -6632,7 +6632,12 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
      equidistant from the title it does not belong to and the switch it does. */
   gap: 6px;
 }
-.ap-lan .ap-auto-state { margin-left: 0; }
+/* THE HEADER'S SWITCH, AND ONLY THAT ONE. Written `.ap-lan .ap-auto-state` it
+   also reached the two switches in the dialog this section renders — a dialog
+   is a child of the section in the DOM, not a portal — and undid the
+   `margin-left: auto` that puts them on the block's right edge. They sat
+   hugging their labels at two different x instead. */
+.ap-lan > .ap-auto-head .ap-auto-state { margin-left: 0; }
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -9384,6 +9389,35 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   line-height: 1.5;
   color: var(--text-dim);
 }
+/* THE TWO HALVES OF ONE QUESTION, drawn as one shape. Who this deck reaches and
+   who reaches it are the same decision seen from two ends, so they are two rows
+   of one block rather than two sections — and the switch is the panel's own,
+   because a second kind of on is a second thing to learn. `.ap-auto-state`
+   carries `margin-left: auto`, which is what puts both of them on one right
+   edge with no rule here. */
+.lan-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lan-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* --text-dim rather than --muted: this is the sentence the switch is about, not
+   a label beside a figure — the same distinction `.lan-note` is written to. */
+.lan-switch-what {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+/* `.lan-warn` carries a bottom margin because everywhere else it introduces the
+   control it is about. Here it FOLLOWS one, so the space it needs is above. */
+.lan-switches + .lan-warn { margin: 9px 0 0; }
+
 /* The one paragraph in the dialog that is a warning rather than an explanation,
    above the only control that cannot be undone. It takes --warn, which is what
    this panel already means by "this is the part that bites". */
