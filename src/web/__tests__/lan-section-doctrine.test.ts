@@ -291,6 +291,55 @@ describe("the three rules the panel above it already keeps", () => {
   });
 });
 
+describe("switching on says what switching on does", () => {
+  /** The one callback this rule is about, with the file's comments already
+   *  gone: a paragraph promising to open the dialog is not the dialog. */
+  const TOGGLE = /const toggle = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/.exec(CODE)?.[1] ?? "";
+
+  it("opens the setup dialog on the press that put this deck on the network", () => {
+    // THE DEFECT: a deck could start beaconing its name to every machine on the
+    // network, offering whichever logins the share list happened to hold, and
+    // the person who pressed the switch had been shown neither. Both facts sat
+    // one press deeper behind `name & shared logins`, so the ordinary way to
+    // turn this on was to turn it on and never look.
+    expect(TOGGLE).not.toBe("");
+    // On EVERY enable, not on the first: what is shared changes between one
+    // switch-on and the next, so a dialog shown once is a dialog about a list
+    // that has since moved. Nothing here remembers having shown it.
+    expect(TOGGLE).toMatch(/if \(!on\) setSetupOpen\(true\)/);
+    expect(TOGGLE).not.toMatch(/setupShown|seenSetup|firstTime|once/);
+    // And only where the write landed: after the `ok`, before the `else` that
+    // reports a refusal. A dialog over a switch that did not move would be the
+    // panel telling somebody about a network they are not on.
+    const ok = TOGGLE.indexOf("if (out?.ok)");
+    const failed = TOGGLE.indexOf("setFailure(writeFailure(");
+    const opens = TOGGLE.indexOf("setSetupOpen(true)");
+    expect(ok).toBeGreaterThan(-1);
+    expect(opens).toBeGreaterThan(ok);
+    expect(opens).toBeLessThan(failed);
+    // Once, so the `catch` — the deck did not answer at all — opens nothing
+    // either.
+    expect([...TOGGLE.matchAll(/setSetupOpen\(/g)]).toHaveLength(1);
+  });
+
+  it("opens it from the press and never from the flag", () => {
+    // `status.enabled` is polled every five seconds and is not a record of
+    // anybody pressing anything: it goes true on a reload, on the first poll of
+    // a deck that was already on, and when the server switches it on by itself.
+    // An effect watching it would therefore put a dialog in front of a reader
+    // who is three sections up looking at a quota — which is the same defect
+    // the fold and the live regions were written around.
+    for (const [effect] of CODE.matchAll(/useEffect\([\s\S]*?\n  \}, \[[^\]]*\]\);/g)) {
+      expect(effect).not.toMatch(/setSetupOpen/);
+      expect(effect).not.toMatch(/enabled/);
+    }
+    // Two presses open it and nothing else does: the switch on its way on, and
+    // the word that has always opened it.
+    expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(2);
+    expect(CODE).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
+  });
+});
+
 describe("the pairing that replaced the passphrase", () => {
   it("asks a person about a named machine, not about a string nobody can see", () => {
     // THE DEFECT THE WHOLE REDESIGN CAME OUT OF. A passphrase differing by one

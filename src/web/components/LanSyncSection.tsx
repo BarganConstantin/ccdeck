@@ -742,8 +742,25 @@ export default function LanSyncSection({ accounts, onChanged }: {
     try {
       const out = await post("/api/prefs", { lan: { enabled: !on } });
       if (!alive.current) return;
-      if (out?.ok) setFailure(null);
-      else setFailure(writeFailure(on ? "turn this off" : "turn this on", out));
+      if (out?.ok) {
+        setFailure(null);
+        // NOBODY GOES ON THE NETWORK WITHOUT HAVING SEEN WHAT GOES WITH THEM.
+        // Switching on puts this deck's name in a beacon every other machine
+        // hears and offers whichever logins the share list already holds — two
+        // facts that lived one press deeper, behind `name & shared logins`, so
+        // the ordinary way to turn this on was to turn it on and never look.
+        // Every time and not only the first: what is shared changes between one
+        // switch-on and the next, and a dialog shown once is a dialog about a
+        // list that has since moved.
+        //
+        // OFF→ON ONLY, AND FROM THE PRESS RATHER THAN FROM `status.enabled`.
+        // Reading the flag instead would pop this in front of somebody who
+        // pressed nothing — on a reload, on the first poll of a deck that was
+        // already on, or when the server switched it on by itself.
+        if (!on) setSetupOpen(true);
+      } else {
+        setFailure(writeFailure(on ? "turn this off" : "turn this on", out));
+      }
       await load();
     } catch {
       if (alive.current) setFailure(writeFailure(on ? "turn this off" : "turn this on", null));
