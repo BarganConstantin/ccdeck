@@ -77,6 +77,17 @@ const ADDED: [token: string, argv: string[], parsed: Record<string, unknown>][] 
   ["--version", ["--version"], { version: true }],
 ];
 
+// ── the one the second-deck attach added ────────────────────────────────────
+//
+// `--new` is the escape hatch for the person who really does want two decks on
+// one machine: without it a bare `ccdeck` beside a running deck opens that
+// deck's tab instead of building a rival on a random port. It is in its own
+// table rather than folded into KEPT because KEPT means "already worked", and
+// the sweep below has to keep meaning what it says.
+const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][] = [
+  ["--new", ["--new"], { new: true }],
+];
+
 describe("the flag list is swept whole, not sampled", () => {
   it("covers every token the parser matches on, and no token it does not", () => {
     // The parser's own source is the authority on what the list is. Every
@@ -88,7 +99,7 @@ describe("the flag list is swept whole, not sampled", () => {
     expect(inSource.length, "a token is matched twice in args.mjs")
       .toBe(new Set(inSource).size);
     expect([...inSource].sort())
-      .toEqual([...KEPT.map(r => r[0]), ...ADDED.map(r => r[0])].sort());
+      .toEqual([...KEPT, ...ADDED, ...ATTACH].map(r => r[0]).sort());
   });
 });
 
@@ -132,7 +143,7 @@ describe("everything that parsed to something still parses to exactly that", () 
 describe("no flag the deck knows is ever reported as unknown", () => {
   // The other half of the sweep, and the half that is new: every one of the
   // seventeen tokens, plus the trailing-flag case, has to leave the list empty.
-  for (const [token, argv] of [...KEPT, ...ADDED]) {
+  for (const [token, argv] of [...KEPT, ...ADDED, ...ATTACH]) {
     it(`${token} leaves nothing in unknown`, () => {
       expect(parseArgs(argv).unknown).toEqual([]);
     });
@@ -148,7 +159,7 @@ describe("no flag the deck knows is ever reported as unknown", () => {
 });
 
 describe("--version and -v", () => {
-  for (const [token, argv, parsed] of ADDED) {
+  for (const [token, argv, parsed] of [...ADDED, ...ATTACH]) {
     it(`${token} sets the flag and nothing else`, () => {
       expect(parseArgs(argv)).toEqual({ ...parsed, unknown: [], incomplete: [] });
     });

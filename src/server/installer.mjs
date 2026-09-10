@@ -709,7 +709,7 @@ async function ensureDiscoveryDir() {
  * the target already had — a first registration, or one left by an earlier run
  * under a recycled pid, would otherwise keep whatever the umask handed it.
  */
-export async function writeDiscovery({ port, workspace, token, persist = null, codex = true }) {
+export async function writeDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "" }) {
   await ensureDiscoveryDir();
   const file = discoveryPath();
   const data = {
@@ -744,6 +744,19 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // doing the work must be left out of the election rather than win it. An
     // older deck has no such field, so it is excluded by construction.
     watch: true,
+    // Is the Claude side of this deck switched on? Same shape as `codex` above
+    // and there for a second reader: a bare `ccdeck` that finds this deck
+    // running attaches to it instead of starting a rival, and it may only do
+    // that when the deck on the port is the deck it would itself have built. A
+    // `--no-claude` deck has no hooks, no accounts panel and no switcher, and
+    // until this field existed it was indistinguishable from one that has all
+    // three. An older deck has no such field, so it is excluded by
+    // construction — see runningDeck.
+    claude: claude !== false,
+    // What this deck IS, so a launcher that attaches can say whether the deck
+    // it found is the version the user just asked for. Never a decision: a
+    // rival deck on a random port is worse than an older deck said out loud.
+    version: typeof version === "string" ? version : "",
     startedAt: new Date().toISOString(),
   };
   await writeFileAtomic(file, JSON.stringify(data, null, 2) + "\n");
@@ -771,13 +784,14 @@ export function discoveryPath() {
  * is cheap (one small read), so the deck checks rather than assumes.
  *
  * A file this process wrote is left alone, mode included. Anything else — no
- * file, unreadable, another pid, a stale port, token, events log or Codex
- * setting — is replaced. Every field another deck decides by is compared, the
+ * file, unreadable, another pid, a stale port, token, events log, Codex or
+ * Claude setting, or a version left by the deck this process replaced — is
+ * replaced. Every field another deck decides by is compared, the
  * log path included: leave one out and a record missing it would pass as ours
  * forever, which for the log path means no deck can tell which of them share a
  * file and they all write their own copy of every event again.
  */
-export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true }) {
+export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "" }) {
   const file = discoveryPath();
   try {
     const d = JSON.parse(stripBom(await readFile(file, "utf8")));
@@ -787,11 +801,13 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
       && (d.workspace ?? "") === (workspace ?? "")
       && (d.token ?? "") === (token ?? "")
       && (d.persist ?? null) === persistField(persist)
-      && d.codex === (codex !== false)) {
+      && d.codex === (codex !== false)
+      && d.claude === (claude !== false)
+      && (d.version ?? "") === (typeof version === "string" ? version : "")) {
       return { file, rewritten: false };
     }
   } catch { /* missing, unreadable or corrupt — rewritten below */ }
-  await writeDiscovery({ port, workspace, token, persist, codex });
+  await writeDiscovery({ port, workspace, token, persist, codex, claude, version });
   return { file, rewritten: true };
 }
 
@@ -822,7 +838,7 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
  * `run()` never rejects (every failure is a state), so awaiting this cannot
  * throw and cannot outlast one bounded check.
  */
-export function keepDiscovery({ port, workspace, token, persist = null, codex = true, intervalMs = 5000, onState = null } = {}) {
+export function keepDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", intervalMs = 5000, onState = null } = {}) {
   // null until the first outcome, which therefore always differs and is always
   // reported — the caller learns where it stands before anything else happens.
   let healthy = null;
@@ -830,7 +846,7 @@ export function keepDiscovery({ port, workspace, token, persist = null, codex = 
   const run = async () => {
     let state;
     try {
-      const { rewritten } = await ensureDiscovery({ port, workspace, token, persist, codex });
+      const { rewritten } = await ensureDiscovery({ port, workspace, token, persist, codex, claude, version });
       state = { ok: true, rewritten, file: discoveryPath(), error: null };
     } catch (err) {
       state = { ok: false, rewritten: false, file: discoveryPath(), error: err };

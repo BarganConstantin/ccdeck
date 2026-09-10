@@ -165,11 +165,14 @@ ccdeck [options]
 
   -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400)
       --no-open            Don't open the browser automatically
+      --new                Start a second deck even if one is already running
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to the current working directory
       --all                Capture every session on this machine  (default)
       --history <path>     Override the events log file
-                           (default: ~/.claude/agent-dag/events.jsonl)
+                           (default: this platform's log directory —
+                           ~/Library/Logs/ccdeck on macOS, %LOCALAPPDATA%\ccdeck\Log
+                           on Windows, $XDG_STATE_HOME/ccdeck on Linux)
       --no-persist         RAM-only mode — don't write or replay the log
       --codex              Force Codex capture even if ~/.codex/ is missing
       --no-codex           Skip Codex capture (Claude only)
@@ -184,6 +187,18 @@ ccdeck [options]
 Anything else on the command line is reported as an unknown option and then
 ignored — the deck still starts, so a typo costs you a warning rather than a
 dashboard.
+
+Typing plain `ccdeck` beside a deck that is already running opens **that deck's
+tab** rather than building a second one. It used to build the second one: port
+4317 was busy, so the new deck took a random port out of 4318–4400 and stood
+there beside a perfectly healthy first one, and neither mentioned the other.
+The port fallback is still there — 4317 is also the standard OTLP collector
+port, and Windows reserves whole TCP ranges for Hyper-V, WSL2 and Docker — but
+it now runs only when the thing holding the port is *not* one of your decks. The
+deck on the port has to prove it is yours, with the same token handshake the
+hooks use, before its tab is opened. Any flag that changes what the deck **is**
+— a port, a workspace, a log, either `--codex` or `--claude` pair — still starts
+its own, and `--new` starts one unconditionally.
 
 ccdeck looks for each CLI before it does anything on that CLI's behalf. Claude
 Code counts as present when its binary is on `PATH` (or in one of the places its

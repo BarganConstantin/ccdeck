@@ -2114,7 +2114,7 @@ async function provesDeck(d) {
  * up. The nonce is fresh per call, so an answer overheard earlier is worth
  * nothing, and the token itself never leaves this process.
  */
-function challengeDeck(port, token) {
+export function challengeDeck(port, token) {
   return new Promise(resolve => {
     let settled = false;
     const finish = ok => { if (settled) return; settled = true; resolve(ok); };
@@ -5082,7 +5082,7 @@ function handleHookChallenge(_req, res, url) {
 // silent: the live deck's discovery file was unlinked on the next hook fire,
 // rewritten five seconds later by keepDiscovery, and its banner went on
 // claiming it was receiving events it had stopped receiving.
-function isProcessAlive(pid) {
+export function isProcessAlive(pid) {
   try { process.kill(pid, 0); return true; }
   catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
 }

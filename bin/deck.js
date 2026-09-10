@@ -17,6 +17,11 @@ import {
 import { PRODUCT } from "../src/server/brand.mjs";
 import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
 import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
+// A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
+// with the rest rather than fetched later. Deliberately NOT the other way
+// round: it takes the handshake as a parameter precisely so that it never has
+// to import the server. See the note at the top of that file.
+import { asksForOwnDeck, runningDeck, versionNote } from "../src/server/running-deck.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..");
@@ -227,8 +232,15 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled } =
 // the watcher tails, and the watcher lives in that module. Recomputing the path
 // here is how the banner came to print ~/.codex/sessions on machines whose
 // sessions are somewhere else entirely — see the row further down.
-const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
-  await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
+// challengeDeck and isProcessAlive come along for the "is one of ours already
+// running" question below. They live here rather than in running-deck.mjs
+// because that module must not import this one — importing the server is
+// arming its timers — so it takes both as parameters instead. See the note at
+// the top of src/server/running-deck.mjs.
+const {
+  startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace,
+  challengeDeck, isProcessAlive,
+} = await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 
 // Resolved here rather than left as typed, for the reason the events log above
 // is: the discovery file publishes this path, and the hook that reads it runs in
@@ -923,6 +935,72 @@ dieWithParent(() => shutdown(0));
 // whole report, and a bind that fails in there with nothing attached to it is an
 // unhandledRejection — which Node answers by killing the process over a port it
 // could have named.
+// ── is one of ours already up? ────────────────────────────────────────────────
+// A bare `ccdeck` typed beside a deck that is already running used to build a
+// second everything on a random port, and neither half mentioned the other.
+// src/server/running-deck.mjs carries the whole argument, the registry read and
+// the token handshake that makes the answer trustworthy; this is only where it
+// is asked.
+//
+// ASKED EXACTLY HERE, and the position is the point. Everything the answer
+// depends on is resolved above — the workspace, the canonical log path, which
+// of the two CLIs this deck would serve — and nothing below has run yet: no
+// port bound, no hooks installed, no tool probed, no banner painted, no
+// discovery file written. An attach therefore leaves the machine precisely as
+// it found it, which is what makes it safe to do without asking.
+//
+// A respawn is excluded on its own line rather than left to the flag check.
+// The supervisor relaunches us with `--port <bound>`, which is a shaping flag
+// and would be excluded anyway — but a restart is THIS deck coming back, and
+// having that read as "somebody typed ccdeck twice" is an accident waiting for
+// the day the supervisor stops passing the port.
+if (!RESPAWN && !asksForOwnDeck(flags)) {
+  const live = await runningDeck({
+    want: { workspace, persist, codex: wantCodex, claude: wantClaude },
+    alive: isProcessAlive,
+    prove: challengeDeck,
+  }).catch(() => null);
+  if (live) {
+    const liveUrl = `http://127.0.0.1:${live.port}`;
+    const note = versionNote(live.version, PKG_VERSION);
+    // Not the startup report's rows. That report has a label column because it
+    // has twelve lines to align; this has two, and borrowing the column would
+    // indent a three-line message behind a gutter sized for "Codex sessions".
+    //
+    // The version chunk is dropped rather than printed as "v?" when the running
+    // deck is too old to report one — see versionNote, which says nothing in the
+    // same case for the same reason.
+    const ident = [live.version ? `v${live.version}` : "", `pid ${live.pid}`]
+      .filter(Boolean).join(`  ${G.bullet}  `);
+    write(`\n  ${P.ok}${G.ok}${P.reset}  deck already running${P.muted}  ${G.bullet}  ${ident}${P.reset}\n`);
+    // Its own line, always. The URL is the one detail an ellipsis would destroy
+    // — half an address is not a shorter address — and this message has no
+    // report to hand it to. Same rule as statusLine's `keep`.
+    write(`     ${P.accent}${P.bold}${link(liveUrl, liveUrl, LINKS)}${P.reset}\n`);
+    if (note) write(`  ${P.warn}${G.warn}  ${note}${P.reset}\n`);
+    // The line that says a second deck was NOT started. Without it the command
+    // looks like it did nothing at all, which is the other way to be confusing
+    // about this — and it names the flag for the person who really did want two.
+    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${INVOKED_AS ?? PRODUCT} --new\` starts one${P.reset}\n`);
+    if (openBrowser) {
+      write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
+      try {
+        const { openUrl, LAUNCH_GRACE_MS } = await import(pathToFileURL(join(PKG_ROOT, "src/server/open-url.mjs")).href);
+        openUrl(liveUrl);
+        // Held for exactly as long as openUrl needs to fall through to its next
+        // launcher. Every child it spawns is unref'd, so an immediate exit ends
+        // this process before a missing xdg-open has been answered by gio — and
+        // then no browser opens and nothing says why. The boot path never had
+        // to think about this because it stays alive forever.
+        await sleep(LAUNCH_GRACE_MS);
+      } catch { /* the URL is on screen; it can be clicked or pasted */ }
+    } else {
+      write("\n");
+    }
+    process.exit(0);
+  }
+}
+
 const starting = startServer({
   port, persist, workspace, codex: wantCodex, claude: wantClaude,
   // Withheld when nothing is supervising us: without a parent, exiting is just
@@ -1010,6 +1088,12 @@ discovery = keepDiscovery({
   token: hookToken(),
   persist,
   codex: wantCodex,
+  // Both read by the next `ccdeck` on this machine, not by us: `claude` is half
+  // of the shape it compares before it will attach to us, and `version` is what
+  // it prints when the deck it found is not the one the user just launched. See
+  // src/server/running-deck.mjs.
+  claude: wantClaude,
+  version: PKG_VERSION,
   onState: (state) => {
     const first = registered === null;
     registered = state.ok;
@@ -1285,6 +1369,10 @@ Usage:
 Options:
   -p, --port <number>      Preferred port (default: 4317; falls back to random 4318–4400)
       --no-open            Don't open the browser automatically
+      --new                Start a second deck even if one is already running.
+                           Without it, a bare \`${PRODUCT}\` beside a deck that is
+                           already up opens that deck's tab instead of building
+                           a rival on another port
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
       --all                Capture every session (default)
