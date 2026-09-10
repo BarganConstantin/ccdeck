@@ -16,6 +16,21 @@
 // why the reach warning sits above both and points at the paste field. Typing
 // an address works the same way round: this deck dials out, and one outbound
 // connection is the whole of a round. See lan-reach.mjs.
+//
+// TWO METHODS AND THREE TASKS, which is the shape a critique found wrong here.
+// Minting was a full-width bordered button at the foot of the invite section,
+// directly under that section's field and its help — the strongest visual
+// weight in the dialog, in the position a form puts its submit, for the one
+// action that does not add a deck at all. It is the OTHER DIRECTION of the
+// invite method: they add this deck rather than this deck adding them. So it
+// moved onto the invite heading's own row, where a trailing quiet verb reads as
+// a second direction inside the method rather than as the field's commit.
+//
+// What is left below is two methods with identical rhythm — heading, field,
+// one sentence — because two things drawn the same way read as two of a kind,
+// and that is the whole of "there are two ways in". The one sentence each is
+// the difference that decides between them: an address waits on a person, an
+// invite does not.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressAccepted, pressState } from "../panel-press";
@@ -30,6 +45,37 @@ async function post(url: string, body: Record<string, unknown>) {
   });
   return res.json().catch(() => null);
 }
+
+/**
+ * What the engine's refusal MEANS, for the four it can give this dialog.
+ *
+ * `writeFailure` prints the code — "the deck refused it (expired)" — which is
+ * right for a reason nobody predicted and wrong for these, because each one has
+ * a next move and the code says none of them. A reason this map has never seen
+ * still falls through to the code, so a new one is reported rather than
+ * swallowed by a guess.
+ */
+const JOIN_FAULTS: Record<string, string> = {
+  not_an_invite: "That is not an invite — paste the whole line they sent you.",
+  expired: "That invite has run out. Ask them for a fresh one.",
+  not_running: "This deck is not on the network yet. Turn Local network on, then try again.",
+};
+
+const MINT_FAULTS: Record<string, string> = {
+  not_running: "This deck is not on the network yet. Turn Local network on, then make one.",
+};
+
+export function faultLine(
+  known: Record<string, string>,
+  out: { ok?: boolean; reason?: string } | null,
+  what: string,
+): string {
+  return (out?.reason && known[out.reason]) || writeFailure(what, out);
+}
+
+/** Which field a message is about, so the message can be tied to it for a
+ *  reader who is not looking at the top of the dialog. */
+type Failure = { text: string; field?: "addr" | "join" };
 
 export default function LanAddDeckModal({ status, manual, onClose, onChanged }: {
   status: LanStatus;
@@ -47,7 +93,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
   const dialogRef = useModalDismiss(onClose, { focusRef: addrRef });
   const [addrDraft, setAddrDraft] = useState("");
   const [joinDraft, setJoinDraft] = useState("");
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   /** Which addresses a failed join tried, and what each one said. An invite
@@ -80,33 +126,60 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
     const s = pressState(busy, tag);
     return { disabled: s.disabled, "aria-busy": s.busy };
   };
+  /** The one alert box, tied to whichever field put it there. */
+  const fieldProps = (field: "addr" | "join") => (failure?.field === field
+    ? { "aria-invalid": true, "aria-describedby": "lan-add-failure" }
+    : {});
+  /** Editing a field retires that field's complaint, and only that one: a
+   *  failed copy or a refused mint is not answered by typing an address, and
+   *  clearing it on any keystroke made the message look like a flicker. */
+  const clearFor = (field: "addr" | "join") =>
+    setFailure(f => (f && f.field === field ? null : f));
 
   const addAddress = useCallback(async () => {
     const parsed = parseAddress(addrDraft);
-    if (!parsed) { setFailure("That is not an address and a port — try 192.168.1.5:54340."); return; }
+    if (!parsed) {
+      setFailure({ text: addressFault(addrDraft), field: "addr" });
+      return;
+    }
+    const entry = `${parsed.addr}:${parsed.port}`;
+    // TWO WAYS THIS ALREADY EXISTS, and neither of them used to say so: the
+    // write succeeded, the dialog closed, and the list behind it looked exactly
+    // as it had. A person who typed the address of a deck they are already
+    // paired with had no way to tell that from a deck that has not answered
+    // yet.
+    const met = status.peers.find(p => p.addr === parsed.addr && p.port === parsed.port && p.paired);
+    if (met) {
+      setFailure({ text: `Already paired with ${met.name} at that address.`, field: "addr" });
+      return;
+    }
+    if (manual.includes(entry)) {
+      setFailure({ text: "This deck already calls that address.", field: "addr" });
+      return;
+    }
     if (!claim("add")) return;
     try {
-      const entry = `${parsed.addr}:${parsed.port}`;
-      const out = await post("/api/prefs", { lan: { manual: [...manual.filter(m => m !== entry), entry] } });
+      const out = await post("/api/prefs", { lan: { manual: [...manual, entry] } });
       if (!alive.current) return;
       if (out?.ok) { setFailure(null); setAddrDraft(""); onChanged(); onClose(); }
-      else setFailure(writeFailure("add that address", out));
+      else setFailure({ text: writeFailure("add that address", out), field: "addr" });
     } catch {
-      if (alive.current) setFailure(writeFailure("add that address", null));
+      if (alive.current) setFailure({ text: writeFailure("add that address", null), field: "addr" });
     } finally {
       release();
     }
-  }, [addrDraft, manual, onChanged, onClose, claim, release]);
+  }, [addrDraft, manual, status.peers, onChanged, onClose, claim, release]);
 
   const invite = useCallback(async (action: "make" | "withdraw") => {
     if (!claim(`invite:${action}`)) return;
+    const what = action === "make" ? "make an invite" : "cancel that invite";
     try {
       const out = await post("/api/lan/invite", { action });
       if (!alive.current) return;
       if (out?.ok) { setFailure(null); setCopied(null); onChanged(); }
-      else setFailure(writeFailure(action === "make" ? "make an invite" : "cancel that invite", out));
+      else setFailure({ text: faultLine(MINT_FAULTS, out, what) });
     } catch {
-      if (alive.current) setFailure(writeFailure(action === "make" ? "make an invite" : "cancel that invite", null));
+      if (alive.current) setFailure({ text: writeFailure(what, null) });
     } finally {
       release();
     }
@@ -120,12 +193,17 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
       const out = await post("/api/lan/invite", { action: "join", token });
       if (!alive.current) return;
       if (out?.ok) { setJoinDraft(""); setFailure(null); onChanged(); onClose(); }
-      else {
-        setTried(Array.isArray(out?.tried) ? out.tried : null);
-        setFailure(writeFailure("use that invite", out));
+      else if (out?.reason === "unreachable" && Array.isArray(out.tried) && out.tried.length) {
+        // The list IS the message here, and printing both put the same finding
+        // in two places with the dialog's top pushed down between them.
+        setTried(out.tried);
+        setFailure(null);
+      } else {
+        setTried(null);
+        setFailure({ text: faultLine(JOIN_FAULTS, out, "use that invite"), field: "join" });
       }
     } catch {
-      if (alive.current) setFailure(writeFailure("use that invite", null));
+      if (alive.current) setFailure({ text: writeFailure("use that invite", null), field: "join" });
     } finally {
       release();
     }
@@ -137,7 +215,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
       setCopied(tag);
       window.setTimeout(() => { if (alive.current) setCopied(c => (c === tag ? null : c)); }, 1_600);
     } catch {
-      setFailure("Could not copy it — select the text and copy it by hand.");
+      setFailure({ text: "Could not copy it — select the text and copy it by hand." });
     }
   }, []);
 
@@ -160,7 +238,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
         <section className="modal-body">
           {failure && (
             <div className="ap-failure" role="alert">
-              <span className="ap-failure-text">{failure}</span>
+              <span id="lan-add-failure" className="ap-failure-text">{failure.text}</span>
               <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
                 aria-label="Dismiss this message" title="Dismiss">×</button>
             </div>
@@ -177,10 +255,8 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
             <div className="ap-lan-reach">
               <p className="lan-warn">{status.reach.text}</p>
               <p className="lan-note">
-                Nothing here is stuck: a deck that dials out first needs none of this.
-                {" "}<strong>Ask them for an invite and paste it below</strong> — an invite is dialled
-                by whoever pastes it, so on this machine it has to be pasted rather than made.
-                Typing their address works the same way.
+                Nothing here is stuck: whoever pastes an invite is the one dialling out.
+                Ask them for one and paste it below, or type their address.
               </p>
               {steps.length > 0 && (
                 <details className="ap-lan-reach-fix">
@@ -203,6 +279,10 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
             </div>
           )}
 
+          {/* Both methods are heading, field, one sentence, and the sentence is
+              the same question answered two ways: does anybody have to say yes.
+              Nothing else about the network is here — a reader choosing between
+              two ways in cannot use a subnet. */}
           <div className="modal-section">
             <h3 className="lan-h">By address</h3>
             <div className="ap-lan-row">
@@ -213,28 +293,40 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 value={addrDraft}
                 placeholder="192.168.1.5:54340"
                 spellCheck={false}
-                onChange={e => setAddrDraft(e.target.value)}
+                {...fieldProps("addr")}
+                onChange={e => { setAddrDraft(e.target.value); clearFor("addr"); }}
                 onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
               />
               {/* The verb arrives with something to commit, rather than sitting
                   there disabled: #620's rule is that a press never disables the
                   control it came from, and `disabled` here would have to mean
-                  two different things at once. */}
+                  two different things at once. Its width is NOT held open for
+                  it: an empty 70px gutter is a permanent raggedness against the
+                  edge the heading's own verb sits on, paid every time the dialog
+                  opens, to spare one field's right border moving once. */}
               {addrDraft.trim() !== "" && (
                 <button type="button" className="ap-manage-btn" {...pressProps("add")}
                   onClick={() => void addAddress()}
-                  title="Try this address every minute, starting now.">add</button>
+                  title="Add it to the decks this one calls, starting now.">add</button>
               )}
             </div>
-            <p className="lan-note">
-              This deck dials that one and asks to pair; somebody there has to accept.
-              Use it when a deck has not turned up on its own — another subnet, a VPN,
-              or a firewall in the way.
-            </p>
+            <p className="lan-note">This deck calls that address until somebody there accepts.</p>
           </div>
 
           <div className="modal-section">
-            <h3 className="lan-h">With an invite</h3>
+            {/* The other direction, on the heading's own row. Below the heading
+                is the one field this method has; beside it is the way to be on
+                the other end of somebody else's. */}
+            <h3 className="lan-h">
+              With an invite
+              {!live && (
+                <button type="button" className="ap-lan-word lan-h-act" {...pressProps("invite:make")}
+                  onClick={() => void invite("make")}
+                  title="One piece of text you send them. They paste it, and the two decks pair — nobody has to press anything here.">
+                  {busy === "invite:make" ? "making…" : "make one to send"}
+                </button>
+              )}
+            </h3>
             <div className="ap-lan-row">
               <input
                 className="ap-manage-input ap-lan-input"
@@ -242,7 +334,8 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 value={joinDraft}
                 placeholder="paste one you were sent"
                 spellCheck={false}
-                onChange={e => { setJoinDraft(e.target.value); setTried(null); }}
+                {...fieldProps("join")}
+                onChange={e => { setJoinDraft(e.target.value); setTried(null); clearFor("join"); }}
                 onKeyDown={e => { if (e.key === "Enter") void join(); }}
               />
               {joinDraft.trim() !== "" && (
@@ -253,15 +346,13 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 </button>
               )}
             </div>
-            <p className="lan-note">
-              Pasting one pairs the two decks on the spot — nothing to press on either side.
-            </p>
+            <p className="lan-note">Pasting one pairs both decks on the spot — nobody has to accept.</p>
 
             {tried && (
               <div className="ap-lan-tried">
                 <span className="lan-note">
                   Nothing answered at any address in that invite. Check that deck is running
-                  and that its Local network switch is on.
+                  with its Local network switch on.
                 </span>
                 {tried.map(t => (
                   <span key={t.addr} className="ap-lan-tried-row">
@@ -272,7 +363,7 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
               </div>
             )}
 
-            {live ? (
+            {live && (
               <div className="ap-lan-invite">
                 <div className="ap-lan-invite-head">
                   <span className="ap-lan-invite-title">Send this to them</span>
@@ -291,24 +382,40 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                     cancel
                   </button>
                 </div>
-                <p className="lan-note">
-                  It carries every address this deck has, so they do not have to know which
-                  one works.
-                </p>
                 <p className="lan-warn">
-                  Anyone who gets hold of this text can pair with this deck until it runs out.
+                  Anyone who gets this text can pair with this deck until it runs out.
                 </p>
               </div>
-            ) : (
-              <button type="button" className="ap-manage-btn lan-add-mint" {...pressProps("invite:make")}
-                onClick={() => void invite("make")}
-                title="One piece of text you send them. They paste it and the two decks pair.">
-                make an invite for them
-              </button>
             )}
           </div>
         </section>
       </div>
     </div>
   );
+}
+
+/**
+ * Why an address was refused, in the terms of the thing that is wrong with it.
+ *
+ * One sentence for every case used to be "that is not an address and a port",
+ * which is true of a missing port, of a typo, and of an IPv6 address somebody
+ * wrote without brackets — three mistakes with three different corrections. The
+ * shape is shown rather than described, because a person fixing a typed address
+ * copies the example.
+ */
+export function addressFault(raw: string): string {
+  const s = (raw ?? "").trim();
+  if (s === "") return "Type an address and a port, like 192.168.1.5:54340.";
+  // An unbracketed IPv6 address splits on the wrong colon, so it is refused
+  // rather than dialled at whatever the last group happens to look like. The
+  // message promises nothing about IPv6, because nothing here delivers it: it
+  // names the two forms this deck does dial.
+  if (!s.startsWith("[") && (s.match(/:/g) ?? []).length > 1) {
+    return "Too many colons to split. Use that deck's IPv4 address or its name, like 192.168.1.5:54340.";
+  }
+  if (!s.includes(":")) return `Add the port too, like ${s}:54340.`;
+  const port = s.slice(s.lastIndexOf(":") + 1).trim();
+  if (port === "") return "That is missing its port — try 192.168.1.5:54340.";
+  if (!/^\d+$/.test(port)) return `A port is a number, and this one is "${port}".`;
+  return `A port runs from 1 to 65535, and this one is ${port}.`;
 }

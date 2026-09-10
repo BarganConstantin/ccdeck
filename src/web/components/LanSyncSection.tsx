@@ -261,6 +261,12 @@ export function parseAddress(raw: string): { addr: string; port: number } | null
   const addr = s.slice(0, at).trim();
   const port = Number(s.slice(at + 1).trim());
   if (!addr || !Number.isInteger(port) || port < 1 || port > 65_535) return null;
+  // AN UNBRACKETED IPv6 ADDRESS SPLITS ON THE WRONG COLON. `fe80::1` parsed as
+  // the host `fe80:` on port 1 — a well-formed entry pointing at nothing, which
+  // the list then reports as a failure every minute and no correction can fix,
+  // because there is nothing visibly wrong with what was typed. Refused here so
+  // the dialog can say which of the two forms this deck dials.
+  if (addr.includes(":") && !(addr.startsWith("[") && addr.endsWith("]"))) return null;
   return { addr, port };
 }
 

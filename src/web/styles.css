@@ -9636,9 +9636,30 @@ input, textarea { caret-color: var(--accent); }
    the firewall block is a paragraph plus a shell command. Unfolded, the section
    stopped being a list of machines and became a form with a list on top. */
 .modal.lan-add { width: min(520px, 92vw); }
-.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 20px; }
+/* TWO OF A KIND, DRAWN THE SAME WAY. Each method is heading, field, one
+   sentence — identical rhythm twice, which is what says "there are two ways in"
+   without a card, a rule or a word spent on saying it. The gap between them is
+   the only thing larger than the gaps inside them, so the eye groups on
+   distance alone; at 20px it was barely over the 14px a heading and its field
+   already sit apart, and the two methods ran together. */
+.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 26px; }
 /* The field is the row: one input and the verb that commits it, with nothing
    to the left, because the section heading above already says which of the two
    ways in this is. */
 .lan-add .ap-lan-row { gap: 8px; }
-.lan-add-mint { width: 100%; justify-content: center; }
+/* Both heading rows are one height, because one of them carries a verb and the
+   other does not — and a rhythm that is only identical in the section without
+   an action is not a rhythm. */
+.lan-add .lan-h { min-height: 24px; margin-bottom: 6px; }
+/* THE OTHER DIRECTION OF THE INVITE, and the reason it is up here. It was a
+   full-width bordered button under the paste field's help: the heaviest mark in
+   the dialog, in the position a form puts its submit, for the one action that
+   does not add a deck. On the heading's own row it reads as what it is — the
+   second thing this method can do — and it takes no border to say so.
+   The heading's own case and tracking are undone: it is a verb, not a label. */
+.lan-h-act {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
