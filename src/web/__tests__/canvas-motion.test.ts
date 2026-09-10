@@ -389,6 +389,13 @@ const EXEMPT: string[] = [
   // the words out from under the pointer to say a second time what the switch
   // beside them has already said.
   ".bw-switch",
+  // The LAN dialog's "or let them find this deck on their own" — a <summary>,
+  // which is a disclosure triangle rather than a box. Same argument as
+  // `.bw-why` above and the same cost if it were ignored: it is a run of 10px
+  // text inside a paragraph, and scaling it would shift the words around it to
+  // report something the triangle has already turned to say. It discloses a
+  // command and changes nothing else.
+  ".ap-lan-reach-fix > summary",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

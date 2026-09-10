@@ -74,6 +74,22 @@ export interface LanStatus {
   /** Filled in by the section from prefs, so the modal can list what this deck
    *  dials without asking for prefs a second time. */
   manualRows?: string[];
+  /** Whether other decks can reach this one, when the machine could be asked.
+   *  Null on every platform this cannot measure and on the first poll after a
+   *  start, and both mean the same thing: say nothing. See lan-reach.mjs. */
+  reach?: LanReach | null;
+}
+
+/** What lan-reach.mjs concluded, and the command it would have somebody paste.
+ *  `steps` is text and only text — nothing here runs, for the reason
+ *  relay-guard.mjs wrote down. */
+export interface LanReach {
+  blocked: boolean;
+  why: string;
+  category: string;
+  alias: string;
+  text?: string;
+  steps?: string[];
 }
 
 /** The accounts this deck holds, in the shape the panel already has them. */

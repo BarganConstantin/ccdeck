@@ -9496,3 +9496,44 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   gap: 8px;
 }
 .lan-good { color: var(--ok); }
+
+/* ── why nothing can reach this deck ────────────────────────────────────────
+   Set apart from the pairing controls it sits above, because it is a finding
+   about the machine rather than a thing to press. The rule down its left is
+   the same device the failure rows use: it says "read this first" without
+   taking a colour that would make it look like an error, which it is not —
+   every control below it still works. */
+.ap-lan-reach {
+  margin: 0 0 10px;
+  padding: 8px 0 8px 10px;
+  border-left: 2px solid var(--warn);
+}
+.ap-lan-reach .lan-warn { margin: 0; }
+/* Folded away by default. The way out is the paragraph above it and needs no
+   administrator at all; this is the other answer, for somebody who wants the
+   discovery half working rather than a deck that dials. A reader who does not
+   need it should not have to read past a block of shell to reach the field
+   they came for. */
+.ap-lan-reach-fix { margin: 8px 0 0; }
+.ap-lan-reach-fix > summary {
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: revert;
+}
+.ap-lan-reach-fix > summary:hover { color: var(--text); }
+/* A command is read before it is run, and one that wraps mid-flag is one
+   nobody can check. It scrolls in its own box rather than widening the
+   dialog. */
+.ap-lan-cmd {
+  margin: 6px 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  white-space: pre;
+}

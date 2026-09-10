@@ -86,11 +86,15 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
         body: JSON.stringify({ lan }),
       });
       const out = await res.json().catch(() => null);
-      if (!alive.current) return;
+      if (!alive.current) return false;
       if (out?.ok) setFailure(null); else setFailure(writeFailure(what, out));
       onChanged();
+      // Whether it landed, for the one caller that has something to do next.
+      // Everybody else spells the call `void write(...)` and is unaffected.
+      return !!out?.ok;
     } catch {
       if (alive.current) setFailure(writeFailure(what, null));
+      return false;
     } finally {
       busyRef.current = false;
       if (alive.current) setBusy(false);
@@ -203,7 +207,7 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     catch { setFailure("Could not reach the clipboard — select the text and copy it."); }
   }, []);
 
-  const addAddress = () => {
+  const addAddress = async () => {
     const typed = addrDraft.trim();
     if (!typed) return;
     const parsed = parseAddress(typed);
@@ -216,7 +220,14 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
     const entry = `${parsed.addr}:${parsed.port}`;
     setAddrDraft("");
     setFailure(null);
-    if (!manual.includes(entry)) void write({ manual: [...manual, entry] }, "add that address");
+    if (manual.includes(entry)) return;
+    // KNOCK NOW RATHER THAN WITHIN THE MINUTE. Somebody types an address
+    // because the deck was not found on its own, so the question they are
+    // asking is "can this one be reached" — and a row that sits there saying
+    // nothing for up to SYNC_MS is that question unanswered. The write puts it
+    // in the dial list; this makes the first dial happen while they are still
+    // looking at it.
+    if (await write({ manual: [...manual, entry] }, "add that address")) await checkNow();
   };
 
   // ONLY THE ONES SOMEBODY ACTUALLY PAIRED WITH. An address in the dial list
@@ -373,6 +384,49 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
           <div className="modal-section">
             <h3 className="lan-h">Pair with another deck</h3>
 
+            {/* WHY THE LIST IS EMPTY, WHEN THE MACHINE CAN BE ASKED. "Nothing
+                here yet" and "nothing can get in" look identical and are not:
+                the first is answered by waiting and the second never is. The
+                reported shape was "he sees me and I see nobody", which is one
+                machine dropping unsolicited inbound while its own beacon
+                leaves freely — so both people read the same feature as working
+                and as broken.
+
+                THE ORDER OF THE TWO ANSWERS IS THE POINT. What comes first is
+                the way out that needs no firewall rule at all, because a round
+                is one OUTBOUND connection: this deck dialling is enough for the
+                whole of it. The command comes second, is optional, and is text
+                — nothing here runs it, for the reason relay-guard.mjs gives. */}
+            {status.reach?.blocked && (
+              <div className="ap-lan-reach">
+                <p className="lan-warn">{status.reach.text}</p>
+                <p className="lan-note">
+                  Nothing here is stuck: a deck that dials out first needs none of this.
+                  {" "}<strong>Ask them to make the invite and paste it below</strong> — an invite is
+                  dialled by whoever pastes it, so on this machine it has to be pasted rather
+                  than made. Typing their address below works the same way.
+                </p>
+                {(status.reach.steps ?? []).length > 0 && (
+                  <details className="ap-lan-reach-fix">
+                    <summary>or let them find this deck on their own</summary>
+                    <p className="lan-note">
+                      Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.
+                      {status.reach.category === "Public" && (
+                        <> The first line marks this network as a home or office one — leave it
+                        out on a network you do not trust.</>
+                      )}
+                    </p>
+                    <pre className="ap-lan-cmd"><code>{(status.reach.steps ?? []).join("\n")}</code></pre>
+                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                      onClick={() => void copy((status.reach?.steps ?? []).join("\n"))}
+                      title="Copy these lines, then paste them into an elevated PowerShell">
+                      {copied === (status.reach.steps ?? []).join("\n") ? "copied" : "copy command"}
+                    </button>
+                  </details>
+                )}
+              </div>
+            )}
+
             {status.invite && status.invite.expiresAt > now ? (
               <div className="ap-lan-invite">
                 <div className="ap-lan-invite-head">
@@ -487,23 +541,36 @@ export default function LanSetupModal({ status, accounts, manual, onClose, onCha
                     </div>
                   ))}
                 </div>
-                <div className="ap-lan-row">
-                  <span className="ap-lan-label">by address</span>
-                  <input
-                    className="ap-manage-input ap-lan-input"
-                    aria-label="Another deck's address"
-                    value={addrDraft}
-                    placeholder="192.168.1.5:54340"
-                    onChange={e => setAddrDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") addAddress(); }}
-                  />
-                  {addrDraft.trim() !== "" && (
-                    <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
-                      onClick={() => { if (selfPressAccepted(busyRef.current)) addAddress(); }}
-                      title="Try this address every minute. Use it when a deck cannot be found on its own.">add</button>
-                  )}
-                </div>
               </>
+            )}
+
+            {/* THE FIELD IS NOT PART OF THE LIST ABOVE, and it used to be —
+                inside the same `manualRows.length > 0` block it fills. So the
+                only way to reach the box that adds the FIRST address was to
+                already have one, which is the state it exists to leave. From a
+                clean install this control could not be reached at all.
+                Reported as "there is no way to just type an IP". */}
+            <div className="ap-lan-row">
+              <span className="ap-lan-label">by address</span>
+              <input
+                className="ap-manage-input ap-lan-input"
+                aria-label="Another deck's address"
+                value={addrDraft}
+                placeholder="192.168.1.5:54340"
+                onChange={e => setAddrDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
+              />
+              {addrDraft.trim() !== "" && (
+                <button type="button" className="ap-manage-btn" {...selfPressProps(busy)}
+                  onClick={() => { if (selfPressAccepted(busyRef.current)) void addAddress(); }}
+                  title="Try this address every minute, starting now. Use it when a deck cannot be found on its own.">add</button>
+              )}
+            </div>
+            {(status.manualRows ?? []).length === 0 && (
+              <p className="lan-note">
+                Decks on one network find each other without this. Type an address when that
+                has not happened — another subnet, a VPN, or a firewall in the way.
+              </p>
             )}
           </div>
 

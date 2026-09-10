@@ -7,7 +7,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
 import { existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
 import { extname, join, resolve, sep, dirname as pdirname } from "node:path";
-import { homedir } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
@@ -18,6 +18,8 @@ import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
+import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs";
+import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
@@ -3322,10 +3324,57 @@ async function applyLanPrefs() {
   }
 }
 
+// ── can other decks reach this one ──────────────────────────────────────────
+//
+// NEVER IN THE REQUEST. The panel polls this route, and the probe is a
+// PowerShell start-up — the better part of a second on a warm machine and
+// worse on a cold one. So the route answers with whatever the last probe said
+// and starts the next one behind it. The first poll after a deck starts
+// carries no verdict, which is correct rather than merely tolerable: at that
+// point the deck has not been listening long enough for an empty list to mean
+// anything either.
+//
+// STALE IS THE RIGHT DEFAULT HERE. What this measures — a network's category, a
+// firewall rule — changes when somebody changes it, which is a thing they do
+// while looking at the instructions this produced. Five minutes is far tighter
+// than that, and the panel's own reload picks up the change on the next poll.
+let reachSaid = null;
+let reachAt = 0;
+let reachBusy = false;
+const REACH_MS = 5 * 60_000;
+
+function refreshReach() {
+  if (reachBusy || process.platform !== "win32") return;
+  if (reachAt && Date.now() - reachAt < REACH_MS) return;
+  reachBusy = true;
+  run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PROBE_PS], {
+    // The program path goes through the environment rather than into the
+    // script, so a path with a quote in it cannot close the string it sits in.
+    env: { ...process.env, CCDECK_EXE: process.execPath },
+    timeout: 25_000,
+  }).then(r => {
+    reachSaid = reachability({
+      platform: process.platform,
+      probe: r?.ok ? readProbe(r.stdout) : null,
+      aliases: localAliases(networkInterfaces()),
+      exePath: process.execPath,
+    });
+  }).catch(() => {
+    // A probe that did not run says nothing, which is the same answer as a
+    // machine this cannot speak about. It is never an error the panel shows:
+    // nobody asked for it.
+    reachSaid = null;
+  }).finally(() => {
+    reachAt = Date.now();
+    reachBusy = false;
+  });
+}
+
 /** What the panel draws: the switch, this deck's own name and address, and who
  *  else is in the group. No passphrase, for the reason prefsPayload gives. */
 function handleLanStatus(req, res) {
-  return send(res, 200, { ok: true, ...lanEngine.status() });
+  refreshReach();
+  return send(res, 200, { ok: true, ...lanEngine.status(), reach: reachSaid });
 }
 
 /**
