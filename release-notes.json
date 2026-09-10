@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.17.0": [
+    {
+      "title": "🔔 Pairing is two presses",
+      "body": "When another deck asks to pair, the question now arrives **over the deck** rather than in a row three sections down a panel: its name, its address, the fingerprint to compare, **Accept** or **Decline**. Escape means later — the request stays in the panel until you answer it.\n\nThe rest is one list. Every deck you are paired with, every deck on the network, and every one you turned away, each a row with its state under the name and one verb at the end — and a deck that cannot be reached now reads differently from one that is fine. Saying no also reaches the other machine now, instead of leaving it waiting forever; you can take it back.\n\nThe dialog behind **setup** is down to the two things it is really about: what this deck is called, and which logins it offers."
+    }
+  ],
   "3.15.0": [
     {
       "title": "🔗 Decks on one network heal each other's dead logins",
