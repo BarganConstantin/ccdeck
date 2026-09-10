@@ -433,6 +433,22 @@ export function sectionState(
   return { text: offline.length ? `${ready} · ${offline.length} away` : ready, tone: "ok" };
 }
 
+/**
+ * WHEN THE LAST ROUND RAN, in a phrase rather than in a timestamp.
+ *
+ * `seenLabel` answers "now" inside its first ninety seconds, which is right
+ * everywhere it is used as a column and wrong the moment a verb is put in front
+ * of it: `checked now` reads for half a beat as an instruction rather than as a
+ * report. Only that one value needs the extra word — `checked 3m ago` is
+ * already a sentence.
+ */
+export function checkedLabel(at: number | null | undefined, now: number, busy: boolean): string {
+  if (busy) return "checking…";
+  if (at == null) return "not checked yet";
+  const when = seenLabel(at, now);
+  return when === "now" ? "checked just now" : `checked ${when}`;
+}
+
 /** How long a request has been waiting. Coarser than the peer clock on purpose:
  *  the answer is a press, and "4m ago" changes nothing about whether to make
  *  it. */
@@ -456,6 +472,11 @@ export interface DeckRow {
   tone: RoundLine["tone"] | "wait";
   /** Drawn as live: the emitter rather than the still dot. */
   here: boolean;
+  /** Nothing to report: online, and the last round found nothing to repair.
+   *  The sentence still exists — a screen reader is read it, and it is what
+   *  `.vis-hidden` is for — it is simply not drawn, because a line every
+   *  healthy row carries identically is a line that cannot be scanned. */
+  quiet?: boolean;
   /** The whole of it, for the hover and the accessible name — a row is 190px
    *  wide and a sentence that fits there cannot also explain a direction. */
   hint: string;
@@ -596,12 +617,21 @@ export function deckRows(
     // as a network problem. The tone follows what a reader can do about it:
     // nothing here, something over there.
     const answered = p.last?.error ? WIRE_ANSWERS[p.last.error] : null;
+    // THE STEADY STATE IS SILENCE. Every healthy row said `online · all logins
+    // fine` — the same twenty-four characters under every name, in a list whose
+    // whole job is to make the odd row findable. The dot already says online and
+    // says it in a shape as well as a colour; what is left is a round that found
+    // nothing to do, which is the state a reader learns by there being nothing
+    // to read. A round that MOVED something still says so, and so does every
+    // failure, every wait and every machine that is not there.
+    const quiet = !called && present && !p.last?.error && !(p.last?.done ?? []).length;
     paired.push({
       fp,
       name: p.manual && !p.met ? where : (p.name || fp),
       addr: p.addr ?? "",
       kind: "paired",
       state: said,
+      quiet,
       tone: answered ? (answered.tone === "bad" ? "bad" : "wait")
         : line ? line.tone
         : present ? "ok" : "idle",
@@ -644,6 +674,21 @@ export function deckRows(
     });
   }
   rows.push(...declined.sort(byName));
+
+  // TWO MACHINES WITH ONE NAME ARE TWO ROWS A READER CANNOT TELL APART, and the
+  // name is a string somebody typed — two colleagues who never renamed their
+  // deck have the same one, and so does one person's laptop before and after a
+  // reinstall. The address is what differs, so it is drawn under the name of
+  // exactly the rows that need it, and of no others: a list where every row
+  // carries an address to guard against a collision that usually is not there
+  // has paid for all of them.
+  const times = new Map<string, number>();
+  for (const r of rows) times.set(r.name, (times.get(r.name) ?? 0) + 1);
+  for (const r of rows) {
+    if ((times.get(r.name) ?? 0) < 2 || !r.addr) continue;
+    r.state = r.quiet || !r.state ? r.addr : `${r.addr} · ${r.state}`;
+    r.quiet = false;
+  }
 
   return rows;
 }
@@ -896,7 +941,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
           already say `login expired`, so this says expired too — "heal" and
           "dead" were two more words for the same state and a reader scanning
           three of them has to work out that they are one. */}
-      <p className="ap-auto-note">Decks you pair with repair each other&apos;s expired logins.</p>
+      <p className="ap-auto-note">Paired decks repair each other&apos;s expired logins.</p>
 
       {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
           by reading the whole thing and working it out. This is the panel's own
@@ -913,11 +958,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
           tell them apart was to press the button and watch — which is what the
           button was being pressed for. */}
       {on && paired > 0 && (
-        <p className="ap-lan-checked">
-          {busy === "check" ? "checking…"
-            : status?.checkedAt ? `checked ${seenLabel(status.checkedAt, now)}`
-            : "not checked yet"}
-        </p>
+        <p className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</p>
       )}
 
       {failure && (
@@ -996,7 +1037,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       anyway. They are two lines now, and the second one is
                       allowed to be long. */}
                   <span className="ap-lan-who-name">{p.name}</span>
-                  <span className="ap-lan-who-when">{p.state}</span>
+                  {/* One node, two presentations. A row with nothing to report
+                      keeps its sentence for anybody being read the list and
+                      spends no line on it — `.vis-hidden` is out of flow, so the
+                      grid's second track collapses and the row is one line. */}
+                  <span className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
                   {p.kind === "nearby" && (
                     <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                       onClick={() => void answer("accept", p.fp, "reach that deck")}
@@ -1083,15 +1128,20 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
           {/* The two things you do once, at the size of things you do once. */}
           <div className="ap-lan-foot">
-            <button type="button" className="ap-lan-word"
+            {/* The one thing anybody comes down here to do, and it read at the
+                same weight as the settings beside it. */}
+            <button type="button" className="ap-lan-word ap-lan-add"
               onClick={() => setAddOpen(true)}
               title="Reach a deck that has not turned up on its own — by address, or with an invite">
               + add a deck
             </button>
+            {/* `name & shared logins` listed the dialog's two fields and never
+                said whose they are, which is the whole of what it had to say:
+                everything else in this section is about OTHER machines. */}
             <button type="button" className="ap-lan-word" {...pressProps("setup")}
               onClick={() => setSetupOpen(true)}
               title="This deck's name on the network, and which of its logins it offers">
-              name &amp; shared logins
+              name &amp; sharing
             </button>
           </div>
 

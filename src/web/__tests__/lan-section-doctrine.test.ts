@@ -12,8 +12,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  askedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel, rosterSplit, sameKeys,
-  sectionState, writeFailure, ONLINE_MS,
+  askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
+  rosterSplit, sameKeys, sectionState, writeFailure, ONLINE_MS,
 } from "../components/LanSyncSection";
 
 const SRC = readFileSync(
@@ -286,8 +286,136 @@ describe("the three rules the panel above it already keeps", () => {
     // The round is a glyph beside the switch now, so its word is in the
     // accessible name and in the line under the title.
     expect(CODE).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
-    expect(CODE).toMatch(/busy === "check" \? "checking…"/);
+    // The word moved into `checkedLabel`, which is the same slot: the line
+    // under the title says `checking…` while the round is out and what it found
+    // when it lands.
+    expect(CODE).toMatch(/checkedLabel\(status\?\.checkedAt, now, busy === "check"\)/);
+    expect(checkedLabel(NOW, NOW, true)).toBe("checking…");
     expect(ADD).toMatch(/"joining…"\s*:\s*"join"/);
+  });
+});
+
+describe("the list is quiet until it is not", () => {
+  const CSS = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+  /** The body of the first rule with this exact selector, comments stripped. */
+  function rule(selector: string): string {
+    const at = CSS.indexOf(selector + " {");
+    if (at < 0) throw new Error(`no rule for ${selector}`);
+    return CSS.slice(at, CSS.indexOf("}", at)).replace(/\/\*[\s\S]*?\*\//g, " ");
+  }
+  const peer = (over: Record<string, unknown>) => ({
+    fp: "aa", peerFp: "aa", name: "Deck", addr: "10.0.0.2", port: 5, paired: true,
+    lastSeen: NOW - 1_000, ...over,
+  });
+
+  it("says nothing under a deck that is on with nothing to repair", () => {
+    // THE DEFECT. Every healthy row carried `online · all logins fine` — the
+    // same twenty-four characters under every name, in a list whose whole job
+    // is to make the odd row findable. Two of them and the eye has nothing to
+    // catch on; five and the section is a wall.
+    const [row] = deckRows({ peers: [peer({ last: { at: NOW - 1_000, done: [] } })] }, NOW);
+    expect(row.quiet).toBe(true);
+    // The sentence is still THERE. It is what a screen reader is read, which is
+    // the whole reason the row does not simply drop it — see `.vis-hidden`.
+    expect(row.state).toBe("online · all logins fine");
+    expect(row.here).toBe(true);
+  });
+
+  it("still says everything that is not the steady state", () => {
+    // A round that MOVED something is news, a fault is news, and a machine that
+    // is not there is the row somebody is looking for. None of them go quiet.
+    const moved = deckRows({ peers: [peer({
+      last: { at: NOW - 1_000, done: [{ email: "a@b", action: "sent", ok: true }] },
+    })] }, NOW)[0];
+    expect(moved.quiet).toBe(false);
+    expect(moved.state).toMatch(/1 login arrived/);
+
+    const broken = deckRows({ peers: [peer({ last: { at: NOW - 1_000, error: "ECONNREFUSED" } })] }, NOW)[0];
+    expect(broken.quiet).toBe(false);
+    expect(broken.tone).toBe("bad");
+
+    const away = deckRows({ peers: [peer({ lastSeen: NOW - 3_600_000, last: null })] }, NOW)[0];
+    expect(away.quiet).toBe(false);
+    expect(away.state).toMatch(/last online/);
+
+    // And a deck this one holds no address for keeps its sentence even while it
+    // is answering: `one-way` is the half a green dot cannot say.
+    const oneWay = deckRows({ peers: [peer({ waiting: true, last: null })] }, NOW)[0];
+    expect(oneWay.quiet).toBe(false);
+    expect(oneWay.state).toMatch(/one-way/);
+  });
+
+  it("draws the address under two machines that share a name, and under no others", () => {
+    // The name is a string somebody typed. Two colleagues who never renamed
+    // their deck have the same one, and two identical rows are two rows a
+    // reader cannot tell apart — while giving EVERY row an address would pay
+    // for a collision that usually is not there.
+    const twins = deckRows({ peers: [
+      peer({ fp: "a", peerFp: "a", addr: "10.0.0.2", last: { at: NOW, done: [] } }),
+      peer({ fp: "b", peerFp: "b", addr: "10.0.0.3", last: { at: NOW, done: [] } }),
+    ] }, NOW);
+    expect(twins.map(r => r.quiet)).toEqual([false, false]);
+    expect(twins[0].state).toMatch(/^10\.0\.0\.2/);
+    expect(twins[1].state).toMatch(/^10\.0\.0\.3/);
+    const alone = deckRows({ peers: [peer({ last: { at: NOW, done: [] } })] }, NOW);
+    expect(alone[0].state).not.toMatch(/10\.0\.0\.2/);
+  });
+
+  it("keeps the sentence in the accessibility tree when it takes it off the screen", () => {
+    // `.vis-hidden` is the class this app already has for exactly this: a state
+    // word the dot beside it cannot say, kept for anybody being read the list.
+    // Dropping the node instead would have made the colour of a 5px dot the
+    // only evidence that a deck is fine.
+    expect(CODE).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
+    expect(CSS).toContain(".vis-hidden");
+  });
+
+  it("keeps unpair off the row until the row is pointed at", () => {
+    // Unpairing is done about twice in a deck's life and cannot be undone from
+    // this section, and it drew on every paired row at once — a column of
+    // identical destructive verbs down the right edge of the thing a reader
+    // scans for a machine's name. The panel's own account rows already put
+    // `remove` two presses inside the manage block.
+    // Every rule with that selector, because the reduced-motion block declares
+    // one too and it comes first in the sheet.
+    const danger = [...CSS.matchAll(/\.ap-lan-who \.ap-lan-do\.danger \{([^}]*)\}/g)].map(m => m[1]);
+    expect(danger.some(b => /opacity:\s*0\b/.test(b))).toBe(true);
+    const shown = CSS.slice(CSS.indexOf(".ap-lan-who:hover .ap-lan-do.danger"));
+    expect(shown.slice(0, 200)).toMatch(/:focus-within/);
+    expect(shown.slice(0, 200)).toMatch(/\.armed/);
+    // Its WIDTH is never given up, or the name's column would resize under the
+    // cursor and every row would jump as the pointer crossed it.
+    expect(danger.some(b => /display:\s*none/.test(b))).toBe(false);
+    // And the three verbs that are the REASON their row is on the list stay
+    // where they are: a deck nearby exists to be asked.
+    for (const verb of ["ask", "allow", "stop"]) {
+      expect(CODE, verb).toMatch(new RegExp(`>\\s*${verb}\\s*</button>`));
+    }
+    expect(CSS).not.toMatch(/\.ap-lan-who \.ap-lan-do \{[^}]*opacity:\s*0/);
+  });
+
+  it("spends its space on the boundaries between groups, not inside them", () => {
+    // Five gaps within two pixels of each other say there are five things here.
+    // There are three: what the network is, who is on it, and the two errands
+    // at the bottom.
+    const gap = (sel: string, prop: string) => Number(new RegExp(prop + ":\\s*(\\d+)px").exec(rule(sel))?.[1]);
+    const between = gap(".ap-lan-here", "gap");
+    expect(between).toBeLessThan(gap(".ap-lan-here", "margin"));      // list edge above
+    expect(gap(".ap-lan-more", "margin-top")).toBeLessThanOrEqual(between);
+    expect(gap(".ap-lan-foot", "margin-top")).toBeGreaterThan(between * 2);
+    // 24px verbs 5px apart put their centres 29px apart, which is what SC 2.5.8
+    // asks of a target that is not itself 24px away from the next one.
+    expect(between + 24).toBeGreaterThanOrEqual(24);
+  });
+
+  it("names the errand at the foot, and says which of the two is the errand", () => {
+    // `name & shared logins` listed the dialog's two fields and never said
+    // whose they are — which is the whole of what it had to say, because
+    // everything else in this section is about other machines.
+    expect(CODE).toContain("+ add a deck");
+    expect(CODE).toContain("name &amp; sharing");
+    expect(CODE).not.toContain("shared logins");
+    expect(rule(".ap-lan-add")).toMatch(/color:\s*var\(--text-dim\)/);
   });
 });
 
@@ -669,8 +797,13 @@ describe("who is here, which is what the panel is for now", () => {
     // indistinguishable from one that has stopped, and the only way to tell
     // them apart was to press the button and watch — which is what the button
     // was being pressed for.
-    expect(CODE).toMatch(/checked \$\{seenLabel\(status\.checkedAt, now\)\}/);
-    expect(CODE).toContain("not checked yet");
+    expect(CODE).toMatch(/checkedLabel\(status\?\.checkedAt, now/);
+    expect(checkedLabel(null, NOW2, false)).toBe("not checked yet");
+    expect(checkedLabel(NOW2 - 180_000, NOW2, false)).toBe("checked 3m ago");
+    // `checked now` reads for half a beat as an instruction rather than as a
+    // report, and it is the one value of `seenLabel` that does: every other
+    // answer already ends in `ago`.
+    expect(checkedLabel(NOW2 - 5_000, NOW2, false)).toBe("checked just now");
     // And it comes from the engine's own clock rather than from a render, so a
     // panel opened an hour later reads the round rather than the visit.
     expect(SERVER_ENGINE).toMatch(/roundAt = now\(\)/);

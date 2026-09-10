@@ -6727,7 +6727,7 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    tell "nobody yet" from "it broke", and those are the two a reader most needs
    told apart. */
 .ap-lan-status {
-  margin: 8px 0 0;
+  margin: 11px 0 0;
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
@@ -6740,13 +6740,23 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    unfinished — a stack of 10px labels with no rhythm and nothing that read as
    important. This is one list of one kind of thing, at one size, with a live
    dot: a roster, which is what a person opens this to see. */
+/* SPACING IS THE ONLY GROUPING THIS SECTION HAS, and every gap in it was
+   within a pixel or two of every other: 8 under the description, 10 under the
+   freshness, 9 between rows, 8 under the list, 10 above the foot. Five equal
+   distances say there are five things; there are three — what the network is,
+   who is on it, and the two errands at the bottom. So the gaps INSIDE the list
+   dropped and the ones at its edges grew, which is the whole of the rhythm.
+
+   5px between rows is what the rows can afford now that a healthy one is a
+   single line, and it still clears SC 2.5.8: the verbs are 24px tall, so their
+   centres stay 29px apart and no 24px circle around one reaches another. */
 .ap-lan-here {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 5px;
 }
 /* TWO LINES, BY STRUCTURE. One row used to be one line of three flex items —
    a dot, the machine's name, and the sentence about it — and the sentence was
@@ -9522,6 +9532,30 @@ input, textarea { caret-color: var(--accent); }
   padding: 3px 7px;
   font-size: 10px;
 }
+/* UNPAIR IS NOT PART OF READING THE LIST. It is the one act in this section
+   that cannot be undone from this section, it is done about twice in a deck's
+   life, and it drew on every paired row at once — a column of identical
+   destructive verbs down the right edge of the thing a reader scans for a
+   machine's name. The panel's own doctrine already puts a row's destructive
+   verb behind something: an account's `remove` is two presses inside the
+   manage block, not on the row.
+
+   So it arrives with the pointer or with focus, and it holds its width at rest
+   — `opacity`, never `display` — so the name's column does not resize under
+   the cursor and the row does not jump. Armed, it stays whatever the pointer
+   does: a control that asks `sure?` and then vanishes when the mouse slips is
+   a control that cannot be answered.
+
+   The other three verbs are NOT hidden. `ask`, `allow` and `stop` are the
+   reason their rows are on the list at all — a deck nearby exists to be asked —
+   and hiding the point of a row is not the same act as hiding its management. */
+.ap-lan-who .ap-lan-do.danger {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.ap-lan-who:hover .ap-lan-do.danger,
+.ap-lan-who:focus-within .ap-lan-do.danger,
+.ap-lan-who .ap-lan-do.danger.armed { opacity: 1; }
 .ap-lan-who .ap-manage-btn {
   color: var(--muted);
   border-color: transparent;
@@ -9569,7 +9603,19 @@ input, textarea { caret-color: var(--accent); }
   transform: translateY(0.5px);
 }
 .ap-lan-check:hover:not(:disabled) { color: var(--text); }
-.ap-lan-check[aria-busy="true"] { color: var(--accent); }
+/* A ROUND IS A NETWORK ROUND, and it takes as long as the slowest deck. The
+   only sign it had started was a word three lines below the glyph that was
+   pressed, which is not where the eye is. It turns while it works, at the one
+   speed in this app that means "still going" rather than "something happened". */
+.ap-lan-check[aria-busy="true"] { color: var(--accent); animation: lan-round 900ms linear infinite; }
+/* The half-pixel is in both keyframes on purpose: the glyph's resting
+   `translateY(0.5px)` is what centres it against the switch, and a keyframe
+   list that names only the rotation would interpolate from that transform to a
+   bare one and wobble the mark it is meant to spin. */
+@keyframes lan-round {
+  from { transform: translateY(0.5px) rotate(0deg); }
+  to   { transform: translateY(0.5px) rotate(360deg); }
+}
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
    tight under the line above, which it belongs to. */
@@ -9586,7 +9632,8 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
-  margin-top: 10px;
+  /* The one real boundary below the list: these are errands, not decks. */
+  margin-top: 16px;
 }
 .ap-lan-word {
   appearance: none;
@@ -9601,6 +9648,9 @@ input, textarea { caret-color: var(--accent); }
   transition: color 120ms ease, transform 120ms ease;
 }
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
+/* Reaching a deck is what this section is for; naming this one is done twice.
+   They sat in one ink at one size, so the foot offered two equal errands. */
+.ap-lan-add { color: var(--text-dim); }
 /* The fold under the list: how many decks are not on, and whether any of them
    is a problem. It sits at the list's own left edge rather than at the foot's,
    because it belongs to the list — the row above it is the last thing it
@@ -9609,7 +9659,8 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 8px;
+  /* Tight to the list: it is the rest of that list, not the next thing. */
+  margin-top: 4px;
 }
 /* A chevron that turns, which is the whole of the animation budget here: it
    says "this opens downward" before the press and "it is open" after, and it
@@ -9630,6 +9681,23 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
 .ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
+/* BOTH OF THESE ANSWER A RULE BELOW THEM IN THE SHEET, WHICH IS WHY THEY ARE
+   HERE. The panel's reduced-motion block is 1700 lines further up, and both of
+   these selectors carry the same specificity as the rule they switch off — put
+   there, the later declaration would have won and the motion would have stayed
+   on for exactly the readers who asked for it off. reduced-motion-reach.test.ts
+   is the sweep that says so. */
+@media (prefers-reduced-motion: reduce) {
+  /* The round's glyph stops turning and keeps its colour: what the spin says is
+     "still going", and the accent it takes with `aria-busy` says the same thing
+     without moving. The word under the title says it a third time. */
+  .ap-lan-check[aria-busy="true"] { animation: none; }
+  /* The unpair that arrives with the pointer arrives at once. It is a reveal,
+     not an entrance — the control has to be there the instant the row is
+     hovered, and 120ms of fade is the only part of that anybody can lose. */
+  .ap-lan-who .ap-lan-do.danger { transition: none; }
+}
+
 /* ── the dialog that reaches a deck the network could not offer ─────────────
    It was a drawer in the 288px column and everything in it is the wrong shape
    for that: an address is monospace, an invite is a 140-character token, and
