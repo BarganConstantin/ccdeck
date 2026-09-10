@@ -6625,7 +6625,14 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
 .ap-lan .ap-auto-head {
   flex-direction: row;
   align-items: center;
+  /* The two controls up here are ONE group and have to read as one: the round
+     and the switch are both about "is this deck talking to the network right
+     now". They each carried `margin-left: auto`, and two auto margins split the
+     free space between them — which parked the glyph in the middle of the row,
+     equidistant from the title it does not belong to and the switch it does. */
+  gap: 6px;
 }
+.ap-lan .ap-auto-state { margin-left: 0; }
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -9549,10 +9556,19 @@ input, textarea { caret-color: var(--accent); }
    has carried a `↻` since it was written. The line under the title says when
    the last round ran, so most readers never press this at all. */
 .ap-lan-check {
+  /* The one auto margin in the row, so the pair travels to the right edge
+     together rather than apart. */
   margin-left: auto;
   font-size: 12px;
   line-height: 1;
+  /* Level with the switch's own label rather than with the 11px title, and
+     dimmer than both at rest: it is a thing you may press, not a thing you
+     read. The glyph rises about half a pixel above its own box at this size —
+     the same nudge `.ap-header-right`'s glyphs take. */
+  color: var(--muted);
+  transform: translateY(0.5px);
 }
+.ap-lan-check:hover:not(:disabled) { color: var(--text); }
 .ap-lan-check[aria-busy="true"] { color: var(--accent); }
 /* When the last round ran, under the state it dates. Dim, because it is a
    figure somebody glances at rather than a sentence they read — and it sits
