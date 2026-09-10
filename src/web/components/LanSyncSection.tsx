@@ -941,11 +941,19 @@ export default function LanSyncSection({ accounts, onChanged }: {
         </button>
       </div>
 
-      {/* One verb for one thing, everywhere. The account rows in this panel
+      {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
+          question — should I turn this on — and a deck that is already on has
+          answered it. Left in place it was a line of explanation over a working
+          list, on the surface whose whole complaint was that it looked like a
+          settings page.
+
+          One verb for one thing, everywhere. The account rows in this panel
           already say `login expired`, so this says expired too — "heal" and
           "dead" were two more words for the same state and a reader scanning
           three of them has to work out that they are one. */}
-      <p className="ap-auto-note">Paired decks repair each other&apos;s expired logins.</p>
+      {!on && (
+        <p className="ap-auto-note">Paired decks repair each other&apos;s expired logins.</p>
+      )}
 
       {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
           by reading the whole thing and working it out. This is the panel's own
@@ -956,14 +964,22 @@ export default function LanSyncSection({ accounts, onChanged }: {
           sections up, and a screen reader was told nothing at all. `polite`
           rather than `alert` — the request box beside it is the assertive one,
           and two live regions shouting about one event is one too many. */}
-      <p className={`ap-lan-status ${state.tone}`} role="status">{state.text}</p>
+      {/* ONE LINE, TWO INKS. The state and how fresh it is were a sentence and a
+          line under it, and they are one fact read together: what the network is
+          doing, and when that was last true of it. Two elements rather than one
+          string because only the first is announced — a live region that
+          re-read itself every time a clock ticked over would be a live region
+          people switch off. */}
+      <p className="ap-lan-line">
+        <span className={`ap-lan-status ${state.tone}`} role="status">{state.text}</span>
       {/* WHEN IT LAST ASKED, which nothing said. A list that refreshes itself
           is indistinguishable from a list that has stopped, and the only way to
           tell them apart was to press the button and watch — which is what the
           button was being pressed for. */}
-      {on && paired > 0 && (
-        <p className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</p>
-      )}
+        {on && paired > 0 && (
+          <span className="ap-lan-checked">{checkedLabel(status?.checkedAt, now, busy === "check")}</span>
+        )}
+      </p>
 
       {failure && (
         <div className="ap-failure" role="alert">

@@ -321,16 +321,21 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     expect(SERVER).toMatch(/autoAccept: lan\.autoAccept !== false/);
   });
 
-  it("turns the paragraph yellow for the one of the two that gives something away", () => {
-    // Asking gives nothing away — the machine on the other end still answers.
-    // Saying yes hands somebody a copy of every ticked login, and a switch
-    // cannot say that its ON is the permissive one.
-    const warn = /\{says \? \(\s*<p className="lan-warn">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
-    expect(warn).toMatch(/without anybody being asked/);
-    expect(warn).toMatch(/its own copy of each login/);
-    expect(warn).toMatch(/network you do not trust/);
-    // And the other branch is a note rather than a warning, because it is not one.
-    expect(MODAL).toMatch(/\) : asks \? \(\s*<p className="lan-note">/);
+  it("says nothing in the state it ships in, and says what a switch turned off costs", () => {
+    // The two labels describe the two switches in full, so a paragraph under
+    // them repeating it is a paragraph nobody reads twice — the same rule the
+    // roster is built on. What earns a line is a switch somebody has turned
+    // OFF, because the deck is then behaving differently from its default and
+    // that difference is what a reader opened this to check.
+    expect(MODAL).toMatch(/\{says \? null : asks \? \(\s*<p className="lan-note">/);
+    // No yellow anywhere in this dialog now. It had two paragraphs of it, both
+    // under controls whose own labels said the same thing, and a surface that
+    // shouts about its resting state is a surface people stop reading.
+    expect(MODAL).not.toContain("lan-warn");
+    // The note that IS drawn never claims the incoming half still waits for
+    // somebody, which would be a lie the moment the second switch is on.
+    const note = /\{says \? null : asks \? \(\s*<p className="lan-note">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
+    expect(note).toMatch(/still has to say yes/);
   });
 
   it("never lets the switch undo a no", () => {
@@ -1003,16 +1008,16 @@ describe("what did not change", () => {
     }
   });
 
-  it("still says the thing that cannot be softened, where the decision is", () => {
-    // It moved with the checkboxes, and a clarify pass changed the words. What
-    // is pinned is the MEANING, in the two halves that have to survive any
-    // rewrite: another machine keeps its own copy, and untick does not take
-    // that copy back. Pinning the sentence verbatim would have made honest
-    // rewording look like a regression.
-    const warn = /<p className="lan-warn">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
-    expect(warn).toMatch(/keeps its own copy/);
-    expect(warn).toMatch(/does not take back/);
-    expect(MODAL.indexOf("lan-warn")).toBeLessThan(MODAL.indexOf('type="checkbox"'));
+  it("still says the thing that cannot be softened, on the row it is about", () => {
+    // THE PARAGRAPH WENT, THE FACT DID NOT. It was a yellow block above the
+    // list, and the two halves of it that no rewrite may drop are: another
+    // machine keeps its own copy, and unticking does not take that copy back.
+    // They live on each tickable row now — hover, and on the row the decision
+    // is actually made on, rather than in a wall of warning ink over all of
+    // them. Pinned by MEANING, so an honest rewording is not a regression.
+    const row = /className="ap-lan-pick" title=\{a\.alive\s*\?\s*"([^"]*)"/.exec(MODAL)?.[1] ?? "";
+    expect(row).toMatch(/keeps its own copy|heal from yours/);
+    expect(row).toMatch(/does not take back/);
   });
 
   it("still says the deck's name is public, where the field is", () => {

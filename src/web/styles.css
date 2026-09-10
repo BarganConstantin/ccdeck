@@ -6731,8 +6731,19 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, color 12
    every account row for a year. It carries the tone because a stylesheet cannot
    tell "nobody yet" from "it broke", and those are the two a reader most needs
    told apart. */
-.ap-lan-status {
+/* The state and its freshness read together, so they sit together. Wrapping is
+   allowed and is the point: `this deck cannot reach any of its 3 decks` plus a
+   clock does not fit 250px, and a line that refuses to wrap would clip the half
+   that matters. */
+.ap-lan-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
   margin: 11px 0 0;
+}
+.ap-lan-status {
+  margin: 0;
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
@@ -9654,11 +9665,15 @@ input, textarea { caret-color: var(--accent); }
    figure somebody glances at rather than a sentence they read — and it sits
    tight under the line above, which it belongs to. */
 .ap-lan-checked {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 10px;
   line-height: 1.45;
   color: var(--muted);
 }
+/* The separator belongs to the second half rather than to the string, so it
+   disappears with it — a deck with nothing paired shows the state and no
+   dangling dot. */
+.ap-lan-checked::before { content: "·"; margin-right: 6px; }
 /* And the two things somebody does twice, at the size of things somebody does
    twice: words on the section's own ground, no border, no fill, no pill. They
    are still 24px of target and still take the focus ring. */

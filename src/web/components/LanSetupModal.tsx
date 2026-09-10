@@ -27,7 +27,10 @@
 //
 // BOTH ON BY DEFAULT, and the two are not the same risk. Asking gives nothing
 // away: the machine on the other end still answers. Saying yes is the one that
-// hands somebody a copy, so it is the one the paragraph turns yellow for.
+// hands somebody a copy — which is said by the switch's own label rather than by
+// a paragraph under it, because the default state is not where a reader needs
+// prose. A switch somebody has turned OFF is: that deck is no longer doing what
+// it says on the box, and the line under it says what that costs.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
@@ -166,11 +169,6 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
 
           <div className="modal-section">
             <h3 className="lan-h">Share these accounts</h3>
-            <p className="lan-warn">
-              A login you tick here is a working one, and another deck keeps its own copy.
-              Unticking stops it being offered from now on — it does not take back a copy
-              somebody already has.
-            </p>
             <div className="ap-lan-picks">
               {accounts.length === 0 && (
                 <span className="ap-lan-empty">
@@ -179,7 +177,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
               )}
               {accounts.map(a => (
                 <label key={a.key} className="ap-lan-pick" title={a.alive
-                  ? "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours"
+                  ? "Offer this account to the decks you have paired with, so one whose copy has died can heal from yours. Unticking stops it being offered from now on; it does not take back a copy somebody already has."
                   : "This deck cannot use this login, so it has nothing to offer — a deck that can will heal it"}>
                   <input
                     type="checkbox"
@@ -256,15 +254,15 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </button>
               </div>
             </div>
-            {/* THE PARAGRAPH IS THE SIGNAL, because a switch cannot say that its
-                ON is the permissive one — and here exactly one of the two is. */}
-            {says ? (
-              <p className="lan-warn">
-                Any deck on this network that asks is paired without anybody being asked
-                here, and it can take its own copy of each login ticked above. Nobody reads
-                its fingerprint first. Turn this off on a network you do not trust.
-              </p>
-            ) : asks ? (
+            {/* NOTHING TO SAY WHEN BOTH ARE ON, which is the state this ships in
+                and the state the two labels above already describe in full. A
+                paragraph under a switch that is doing what its own label says is
+                a paragraph nobody reads twice — and the roster in the panel is
+                built on the same rule: say something when there is something to
+                say. What IS worth a line is a switch somebody has turned off,
+                because then the deck behaves differently from its default and
+                the difference is what a reader came here to check. */}
+            {says ? null : asks ? (
               <p className="lan-note">
                 This deck asks; somebody on the other machine still has to say yes. A
                 request coming the other way waits in the panel for you.
