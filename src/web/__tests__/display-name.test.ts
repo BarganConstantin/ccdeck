@@ -141,7 +141,15 @@ describe("the boundary the rename must not cross", () => {
     expect(read("hook", "hook.js")).toContain(`path.join(CLAUDE_DIR, "agent-dag")`);
     expect(read("src", "server", "installer.mjs")).toContain(`join(CLAUDE_DIR, "agent-dag")`);
     expect(read("src", "server", "index.mjs")).toContain(`join(claudeConfigDir(), "agent-dag")`);
-    expect(read("bin", "deck.js")).toContain(`join(claudeConfigDir(), "agent-dag", "events.jsonl")`);
+    // THE LOG IS THE ONE THING THAT LEFT, and the discovery directory above is
+    // why it could. The hook does not write events.jsonl — it POSTs to a deck
+    // and the deck writes — so what it needs from that directory is the
+    // discovery records, which have not moved. Each deck reports its own log
+    // path in its own record and the hook groups by whatever it is told, so a
+    // deck of this version and one of the last elect a writer each and neither
+    // loses an event. See deck-home.mjs for where it went and why.
+    expect(read("bin", "deck.js")).toContain(`join(deckLogDir(), "events.jsonl")`);
+    expect(read("src", "server", "deck-home.mjs")).toContain(`"Library", "Logs"`);
 
     // ~/.agents-deck holds the update markers, the ccusage install and the
     // cswap state. A new root re-triggers every install and re-arms every

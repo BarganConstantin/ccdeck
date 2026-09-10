@@ -173,6 +173,36 @@ const openBrowser = flags.noOpen !== true;
 // config dir rather than assuming ~/.claude — see src/server/claude-dir.mjs.
 const { claudeConfigDir, hasClaudeInstalled } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
+
+// ── the deck's own files, brought to their own directory ────────────────────
+//
+// BEFORE ANYTHING READS THEM, which is why it is here and not in the server:
+// index.mjs reads the preferences at module load, so a migration inside it
+// would run after the file it is meant to find had already been looked for in
+// the wrong place. deck-home.mjs owns the reasoning; the shape of it is that
+// nothing is deleted and a destination that exists is never touched, so this is
+// safe to run on every start and does nothing at all on all but the first.
+//
+// A failure here is reported and then ignored. A read-only home or a missing
+// permission is not a reason for the deck not to start — the old paths are
+// still there, and the worst case is a deck that keeps using them.
+const { deckDataDir, deckLogDir, legacyDeckDir, migrateDeckFiles, sweepTempFiles } =
+  await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+{
+  const fsp = await import("node:fs/promises");
+  const legacy = legacyDeckDir();
+  const data = deckDataDir();
+  const log = deckLogDir();
+  const { moved } = await migrateDeckFiles({
+    from: legacy, data, log, fs: fsp,
+    onError: (name, err) => console.error(`${PRODUCT}: could not move ${name}:`, err?.message ?? err),
+  });
+  if (moved.length) console.error(`${PRODUCT}: moved ${moved.join(", ")} to ${data}`);
+  // The litter an atomic write leaves when its process is killed between the
+  // write and the rename. Nothing has ever swept it, because the code that
+  // makes it is not running any more when it is made.
+  await sweepTempFiles({ dirs: [legacy, data, log], fs: fsp }).catch(() => 0);
+}
 // CANONICALISED here rather than left as typed: the discovery file publishes
 // this path so the hook can tell which decks share one log and elect a single
 // writer for it, and two spellings of one file would read as two files.
@@ -184,7 +214,12 @@ const { claudeConfigDir, hasClaudeInstalled } =
 const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
 const persist = flags.noPersist
   ? null
-  : canonicalLogPath(flags.history ?? join(claudeConfigDir(), "agent-dag", "events.jsonl"));
+  // The log follows the deck rather than Claude Code now — a hundred megabytes
+  // of rotating events was never configuration, and it was living in another
+  // application's configuration directory. `--history` still wins, and the
+  // canonical form is still what the discovery file publishes, so decks that
+  // share a path still elect one writer for it.
+  : canonicalLogPath(flags.history ?? join(deckLogDir(), "events.jsonl"));
 
 const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
@@ -1253,7 +1288,7 @@ Options:
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
       --all                Capture every session (default)
-      --history <path>     Override events log file (default: ~/.claude/agent-dag/events.jsonl)
+      --history <path>     Override events log file (default: this platform's log directory)
       --no-persist         Don't write or replay events log (RAM-only)
       --codex              Force-enable Codex capture even if ~/.codex/ missing
       --no-codex           Skip Codex capture (Claude only)

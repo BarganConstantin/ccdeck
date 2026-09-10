@@ -31,15 +31,21 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 // this call. See the note over the write below (#786).
 import { renameWithRetry } from "./installer.mjs";
 import { join } from "node:path";
-import { claudeConfigDir } from "./claude-dir.mjs";
+import { deckDataDir } from "./deck-home.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
  *  AGENTS_DECK_NO_INSTALL, and unchanged in meaning by this file. */
 export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
 
-const prefsDir = (home = claudeConfigDir()) => join(home, "agent-dag");
-export const prefsPath = (home = claudeConfigDir()) => join(prefsDir(home), "prefs.json");
+/* WHERE THIS FILE LIVES, AND WHY IT MOVED. It sat in ~/.claude/agent-dag — the
+   directory Claude Code owns — which meant a person clearing Claude Code's
+   configuration cleared this deck's private key, and every machine that had
+   pinned it had to be told to trust this one again. deck-home.mjs owns the new
+   answer and the reasons; what matters here is that the parameter is still a
+   DIRECTORY, so every caller that passes one is unchanged. */
+const prefsDir = (home = deckDataDir()) => home;
+export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.json");
 
 /**
  * Every preference the deck keeps, with the answer it gives when there is no
@@ -145,7 +151,7 @@ export function normalise(raw) {
 
 /** What is on disk, or the defaults. A corrupt or absent file is not an error
  *  the user can act on mid-session, so it reads as "nothing chosen yet". */
-export async function readPrefs(home = claudeConfigDir(), deps = {}) {
+export async function readPrefs(home = deckDataDir(), deps = {}) {
   const read = deps.readFile ?? readFile;
   try { return normalise(JSON.parse(await read(prefsPath(home), "utf8"))); }
   catch { return { ...DEFAULTS }; }
@@ -166,7 +172,7 @@ let _chain = Promise.resolve();
  * Serialized for the same reason the other store is: two pages toggling two
  * different switches in the same second must not lose one of them.
  */
-export async function writePrefs(patch, home = claudeConfigDir(), deps = {}) {
+export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
   const job = async () => {
     const mk = deps.mkdir ?? mkdir;
     const write = deps.writeFile ?? writeFile;
@@ -183,7 +189,7 @@ export async function writePrefs(patch, home = claudeConfigDir(), deps = {}) {
     // nothing has to send a secret it was never given.
     const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) } };
     const next = normalise(merged);
-    await mk(prefsDir(home), { recursive: true });
+    await mk(prefsDir(home), { recursive: true, mode: 0o700 });
     const tmp = `${prefsPath(home)}.${process.pid}.tmp`;
     await write(tmp, JSON.stringify(next, null, 2) + "\n", { encoding: "utf8", mode: PREFS_MODE });
     await mv(tmp, prefsPath(home));
