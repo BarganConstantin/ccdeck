@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.18.3": [
+    {
+      "title": "🟢 The list shows what is on, and folds the rest",
+      "body": "A machine that is off, or nearby and unpaired, or one you said no to, is context rather than an answer to \"who can I use right now\" — so the decks that are **on** lead the list and everything else is one line: `2 more`. Nothing worrying is hidden by it: a deck that cannot be reached is counted in that line, in the warning colour, so the fold says whether it is worth opening.\n\nThe round moved to a **↻ beside the switch**, where the accounts header has kept the same act since it was written, and the line under the state now says when it last ran — `checked 2m ago`, or `not checked yet`. A list that refreshes itself and a list that has stopped used to look identical, and pressing the button to find out was the only way to tell."
+    }
+  ],
   "3.18.1": [
     {
       "title": "🔁 A deck stops asking to pair over and over",

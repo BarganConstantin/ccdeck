@@ -163,6 +163,11 @@ export function createEngine({
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
+  /** When the last round FINISHED, whatever it did or failed to do. The panel's
+   *  `↻` fires one on demand and the loop fires one on its own; a reader who
+   *  pressed it wants to know it happened, and a reader who did not wants to
+   *  know the list is not a photograph of an hour ago. */
+  let roundAt = null;
   /**
    * Why this deck is not listening, when it is switched on and is not.
    *
@@ -385,6 +390,7 @@ export function createEngine({
       // max+1 without a lock of its own.
       all.push(...await roundWith(peer));
     }
+    roundAt = now();
     return all;
   };
 
@@ -702,6 +708,9 @@ export function createEngine({
         // Said only while it is true, and it is only ever true of a deck that
         // is switched on and has no listener.
         stalled: cfg.enabled && !beacon ? stalled : null,
+        // When every paired deck was last asked. Null until the first round,
+        // which on a deck that has just started is the honest answer.
+        checkedAt: roundAt,
         name: cfg.name,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other

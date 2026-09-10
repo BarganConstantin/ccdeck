@@ -24,6 +24,10 @@ const SERVER = readFileSync(
   fileURLToPath(new URL("../../server/index.mjs", import.meta.url)),
   "utf8",
 );
+const SERVER_ENGINE = readFileSync(
+  fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)),
+  "utf8",
+);
 const MODAL = readFileSync(
   fileURLToPath(new URL("../components/LanSetupModal.tsx", import.meta.url)),
   "utf8",
@@ -277,9 +281,12 @@ describe("the three rules the panel above it already keeps", () => {
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {
     // `check now` looked identical pressed and unpressed: selfPressProps sets
     // aria-busy, and aria-busy has no rule anywhere in the stylesheet.
-    // Each one lives with the control it is about: `check now` is the panel's
-    // one press, `join` is in the dialog that takes the token.
-    expect(CODE).toMatch(/"checking…"\s*:\s*"check now"/);
+    // Each one lives with the control it is about, and says which state it is
+    // in with a WORD rather than only with `aria-busy`, which paints nothing.
+    // The round is a glyph beside the switch now, so its word is in the
+    // accessible name and in the line under the title.
+    expect(CODE).toMatch(/aria-label=\{busy === "check" \? "Checking every paired deck"/);
+    expect(CODE).toMatch(/busy === "check" \? "checking…"/);
     expect(ADD).toMatch(/"joining…"\s*:\s*"join"/);
   });
 });
@@ -606,6 +613,19 @@ describe("who is here, which is what the panel is for now", () => {
     expect(deckRows(null, NOW2)).toEqual([]);
     expect(deckRows({}, NOW2)).toEqual([]);
     expect(deckRows({ pending: [null, { name: "no fp" }] as never }, NOW2)).toEqual([]);
+  });
+
+  it("says when it last asked, because a live list and a stopped one look alike", () => {
+    // Nothing said it. A section that refreshes itself every minute is
+    // indistinguishable from one that has stopped, and the only way to tell
+    // them apart was to press the button and watch — which is what the button
+    // was being pressed for.
+    expect(CODE).toMatch(/checked \$\{seenLabel\(status\.checkedAt, now\)\}/);
+    expect(CODE).toContain("not checked yet");
+    // And it comes from the engine's own clock rather than from a render, so a
+    // panel opened an hour later reads the round rather than the visit.
+    expect(SERVER_ENGINE).toMatch(/roundAt = now\(\)/);
+    expect(SERVER_ENGINE).toMatch(/checkedAt: roundAt/);
   });
 
   it("counts an invite down in minutes and seconds, which is how it is read out", () => {

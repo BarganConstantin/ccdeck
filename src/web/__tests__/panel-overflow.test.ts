@@ -261,11 +261,6 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
-      // The one press the LAN section is for: fetch now what an expired login
-      // here needs from the deck beside it. Full width because it is the
-      // section's primary act — it took the column `setup…` used to hold,
-      // which opened a dialog with a name field in it.
-      "ap-lan-check",
       "bw-ep-head", "bw-radar", "cost-bar",
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check

@@ -70,6 +70,9 @@ export interface LanStranger { fp: string; name: string; addr: string; port?: nu
 export interface LanStatus {
   enabled: boolean;
   running: boolean;
+  /** When every paired deck was last asked, from the engine. Null until the
+   *  first round. */
+  checkedAt?: number | null;
   /** Why there is no listener, on a deck that is switched on. Null every other
    *  time — including while it is still coming up. */
   stalled?: string | null;
@@ -675,6 +678,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  paragraph and a shell command — unfolded in 288px they turned a list of
    *  machines into a form with a list on top of it. */
   const [addOpen, setAddOpen] = useState(false);
+  /** Whether the decks that are not on are showing. Shut by default and kept
+   *  for the session only: which decks are off changes while you watch, and a
+   *  remembered fold would be about a list that no longer exists. */
+  const [foldOpen, setFoldOpen] = useState(false);
   /** The one thing this section could not say. See writeFailure. */
   const [failure, setFailure] = useState<string | null>(null);
   /** Read by the press guard rather than the state, because `busy` is a render
@@ -807,6 +814,22 @@ export default function LanSyncSection({ accounts, onChanged }: {
   const rows = deckRows(status, now);
   const asks = rows.filter(r => r.kind === "asks");
   const rest = rows.filter(r => r.kind !== "asks");
+  // WHAT IS ON, AND THEN EVERYTHING ELSE. The list answers "who can I use right
+  // now", and a machine that is off, or nearby and unpaired, or one somebody
+  // said no to, is not an answer to that — it is context, and context does not
+  // belong at the same size as the thing itself.
+  //
+  // WHAT IS NOT HIDDEN IS A PROBLEM. A deck that cannot be reached is exactly
+  // the row a reader is scanning for, so folding it away silently would undo
+  // the whole point of the tone: the fold COUNTS them, in the warning ink, and
+  // one press opens it. A count in the right colour is a smaller lie than no
+  // count at all — it is not a lie at all.
+  const live = rest.filter(r => r.here);
+  const folded = rest.filter(r => !r.here);
+  const troubled = folded.filter(r => r.tone === "bad").length;
+  // Nothing to lead with means nothing to fold behind: an empty list over a
+  // `3 more` is a list that has hidden all of itself.
+  const showFolded = foldOpen || live.length === 0;
   const state = sectionState(status, now);
   const paired = rest.filter(r => r.kind === "paired").length;
 
@@ -814,6 +837,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
     <div className="ap-auto ap-lan">
       <div className="ap-auto-head">
         <h3 className="ap-auto-title">Local network</h3>
+        {/* THE ROUND, BESIDE THE SWITCH. It was a full-width button at the foot
+            of the section, under the list it refreshes and under a tooltip that
+            covered it — and it is the panel's own idiom for exactly this act:
+            the accounts header has carried a `↻` since it was written. A glyph
+            up here is also the honest size for it, now that the line under the
+            title says when the last one ran and most readers will never need to
+            press it at all. */}
+        {on && paired > 0 && (
+          <button type="button" className="glyph-btn ap-lan-check" {...pressProps("check")}
+            onClick={() => void checkNow()}
+            aria-label={busy === "check" ? "Checking every paired deck" : "Check every paired deck now"}
+            title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next round">
+            ↻
+          </button>
+        )}
         <button
           type="button"
           className={`ap-auto-state${on ? " live" : ""}`}
@@ -847,6 +885,17 @@ export default function LanSyncSection({ accounts, onChanged }: {
           rather than `alert` — the request box beside it is the assertive one,
           and two live regions shouting about one event is one too many. */}
       <p className={`ap-lan-status ${state.tone}`} role="status">{state.text}</p>
+      {/* WHEN IT LAST ASKED, which nothing said. A list that refreshes itself
+          is indistinguishable from a list that has stopped, and the only way to
+          tell them apart was to press the button and watch — which is what the
+          button was being pressed for. */}
+      {on && paired > 0 && (
+        <p className="ap-lan-checked">
+          {busy === "check" ? "checking…"
+            : status?.checkedAt ? `checked ${seenLabel(status.checkedAt, now)}`
+            : "not checked yet"}
+        </p>
+      )}
 
       {failure && (
         <div className="ap-failure" role="alert">
@@ -907,9 +956,13 @@ export default function LanSyncSection({ accounts, onChanged }: {
               what is happening and the one control that changes it. They were
               three lists in two surfaces, and the question a reader has is one
               question. See deckRows. */}
-          {rest.length > 0 && (
+          {(showFolded ? [...live, ...folded] : live).length > 0 && (
             <ul className="ap-lan-here">
-              {rest.map(p => (
+              {/* The ones that are on stay at the top when the fold opens.
+                  Sorting the whole list by presence would move a row between
+                  two five-second polls on a lost beacon; sorting the two GROUPS
+                  moves a row only when the thing it reports actually changed. */}
+              {(showFolded ? [...live, ...folded] : live).map(p => (
                 <li key={`${p.kind}:${p.fp}`} className="ap-lan-who" data-tone={p.tone} title={p.hint}>
                   <i className={p.here ? "ap-pulse" : "ap-dot"} aria-hidden />
                   {/* THE NAME OWNS THE ROW'S WIDTH, and it did not. The state
@@ -975,26 +1028,34 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </ul>
           )}
 
+          {/* The count of what is not on, in the ink that says whether any of it
+              matters. A chevron rather than a plus: this is one list with a
+              part of it folded, not a second thing to open. */}
+          {live.length > 0 && folded.length > 0 && (
+            <button type="button" className="ap-lan-word ap-lan-more" aria-expanded={foldOpen}
+              onClick={() => setFoldOpen(v => !v)}
+              title={foldOpen
+                ? "Show only the decks that are on"
+                : `Show the ${folded.length} deck${folded.length === 1 ? "" : "s"} that are not answering right now`}>
+              <span className={`ap-lan-chev${foldOpen ? " open" : ""}`} aria-hidden>›</span>
+              {/* Open, the control offers the reverse of what it did — `2 more`
+                  over two rows that are already showing is a label describing
+                  the press before last. */}
+              {foldOpen ? "fewer" : `${folded.length} more`}
+              {!foldOpen && troubled > 0 && (
+                <span className="ap-lan-more-bad">
+                  {" · "}{troubled} not answering
+                </span>
+              )}
+            </button>
+          )}
+
           {rest.length === 0 && asks.length === 0 && (
             <p className="ap-lan-fine">
               No other deck yet. Decks on one network usually find each other on their own;
               when that has not happened, <strong>+ add a deck</strong> reaches one by address
               or by invite.
             </p>
-          )}
-
-          {/* ONE PRESS THAT IS LOUDER THAN THE REST, and it is the one somebody
-              came here for: a login expired on this machine and the deck next
-              to it has a working copy. It was half a row wide, beside a control
-              that opens a drawer, under a full-width button that opens a dialog
-              holding a name field. The weight is the other way round now, and
-              nothing was added to do it — two controls gave theirs up. */}
-          {paired > 0 && (
-            <button type="button" className="ap-manage-btn ap-lan-check" {...pressProps("check")}
-              onClick={() => void checkNow()}
-              title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next minute">
-              {busy === "check" ? "checking…" : "check now"}
-            </button>
           )}
 
           {/* The two things you do once, at the size of things you do once. */}
