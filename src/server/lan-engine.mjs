@@ -148,6 +148,19 @@ export function createEngine({
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
+  /**
+   * Why this deck is not listening, when it is switched on and is not.
+   *
+   * A second deck on one machine takes the first one's port and the bind fails;
+   * the switch stays on, the beacon never starts, and the panel drew
+   * `starting…` for as long as the process lived. A state that cannot resolve
+   * and does not say why is the worst thing an instrument can show — the reader
+   * waits, and waiting is the one thing that never fixes it.
+   *
+   * Only the failures that stop the service reach this. A round that could not
+   * reach one peer is that peer's row, not the deck's.
+   */
+  let stalled = null;
 
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
@@ -392,7 +405,16 @@ export function createEngine({
           if (!had) onChange?.();
         },
       });
-      const port = await server.start();
+      let port;
+      try {
+        port = await server.start();
+      } catch (err) {
+        // Kept, so the panel can say it. Rethrown, because the caller's own
+        // catch is what leaves the engine stopped rather than half-started.
+        stalled = err?.message ?? String(err);
+        throw err;
+      }
+      stalled = null;
       if (port !== cfg.port) onPort?.(port);
       beacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
@@ -621,6 +643,9 @@ export function createEngine({
       return {
         enabled: !!cfg.enabled,
         running: !!beacon,
+        // Said only while it is true, and it is only ever true of a deck that
+        // is switched on and has no listener.
+        stalled: cfg.enabled && !beacon ? stalled : null,
         name: cfg.name,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
@@ -710,6 +735,8 @@ export function createEngine({
     },
     stop() {
       if (timer) clearInterval(timer);
+      // A deliberate stop is not a fault, and the next start says its own.
+      if (!cfg.enabled) stalled = null;
       timer = null;
       beacon?.stop();
       server?.stop();

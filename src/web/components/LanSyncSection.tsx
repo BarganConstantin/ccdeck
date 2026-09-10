@@ -69,6 +69,9 @@ export interface LanStranger { fp: string; name: string; addr: string; port?: nu
 export interface LanStatus {
   enabled: boolean;
   running: boolean;
+  /** Why there is no listener, on a deck that is switched on. Null every other
+   *  time — including while it is still coming up. */
+  stalled?: string | null;
   name: string;
   fp: string | null;
   port: number | null;
@@ -307,10 +310,19 @@ export function rosterSplit(peers: Peer[], now: number): { online: Peer[]; offli
  * reader most needs told apart.
  */
 export function sectionState(
-  s: { enabled?: boolean; running?: boolean; peers?: Peer[]; pending?: LanStranger[] } | null,
+  s: { enabled?: boolean; running?: boolean; stalled?: string | null; peers?: Peer[]; pending?: LanStranger[] } | null,
   now: number,
 ): { text: string; tone: "bad" | "idle" | "ok" | "wait" } {
-  if (!s?.enabled) return { text: "off — this deck is not on the network", tone: "idle" };
+  // NOT "off". Nothing has been asked yet, and a line that says the feature is
+  // switched off before the first answer arrives is a wrong answer given
+  // confidently — the switch beside it is drawn from the same missing data.
+  if (!s) return { text: "checking…", tone: "idle" };
+  if (!s.enabled) return { text: "off — this deck is not on the network", tone: "idle" };
+  // A DEAD END HAS TO SAY SO. `starting…` was drawn for as long as the process
+  // lived when the bind failed — a second deck on one machine takes the first
+  // one's port — and a state that cannot resolve and will not say why leaves
+  // the reader waiting for the one thing that never comes.
+  if (s.stalled) return { text: `could not start — ${s.stalled}`, tone: "bad" };
   if (!s.running) return { text: "starting…", tone: "wait" };
   const asking = (s.pending ?? []).length;
   if (asking) {

@@ -323,8 +323,15 @@ describe("who is here, which is what the panel is for now", () => {
   });
 
   it("says what is happening in one line, in the words a person would use", () => {
-    expect(sectionState(null, NOW2).text).toMatch(/^off/);
+    // Nothing asked yet is not the same as switched off, and saying `off`
+    // before the first answer lands is a wrong answer given confidently.
+    expect(sectionState(null, NOW2)).toEqual({ text: "checking…", tone: "idle" });
+    expect(sectionState({ enabled: false }, NOW2).text).toMatch(/^off/);
     expect(sectionState({ enabled: true, running: false }, NOW2).text).toBe("starting…");
+    // And a start that failed says why rather than saying `starting…` until the
+    // process dies. A second deck on one machine takes the first one's port.
+    expect(sectionState({ enabled: true, running: false, stalled: "listen EADDRINUSE: address already in use 0.0.0.0:62259" }, NOW2))
+      .toEqual({ text: "could not start — listen EADDRINUSE: address already in use 0.0.0.0:62259", tone: "bad" });
     expect(sectionState({ enabled: true, running: true, peers: [] }, NOW2))
       .toEqual({ text: "no deck paired yet", tone: "idle" });
     expect(sectionState({ enabled: true, running: true, peers: [peer({ lastSeen: NOW2 })] as never }, NOW2))

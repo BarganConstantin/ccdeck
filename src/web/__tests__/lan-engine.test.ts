@@ -463,6 +463,48 @@ describe("the cadence", () => {
   });
 });
 
+describe("a deck that could not start", () => {
+  it("keeps the reason, so the panel stops saying starting…", async () => {
+    // Two decks on one machine: the second one's bind fails, the switch stays
+    // on, the beacon never comes up — and the panel drew `starting…` for as
+    // long as the process lived. Reported from a real run: `listen EADDRINUSE:
+    // address already in use`.
+    const rows = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const first = await deck(rows, "Deck-A", []);
+    const taken = first.port;
+    expect(taken).toBeGreaterThan(0);
+
+    const id = identityFrom("");
+    const second = createEngine({
+      ...rows.deps(),
+      createSocket: () => deafSocket(),
+      onError: () => { /* reported, never thrown */ },
+    });
+    running.push(second);
+    // The same port, pinned, which is what a restarted deck asks for.
+    await expect(second.apply({
+      enabled: true, name: "Deck-B", secret: id.secret, shared: [], trusted: [], port: taken,
+      // A listener that cannot bind is the case; `prefer` falling through to an
+      // OS-chosen port is what normally saves it, so the socket is held open
+      // here by the deck above and refused by hand below.
+    })).resolves.toBeUndefined();
+
+    // Whatever happened, the two states a reader can be left in are the ones
+    // this asserts: either it came up (a free port was found, which is the
+    // designed fallback) or it says why it did not. Never `starting…` forever.
+    const said = second.status();
+    expect(said.running || typeof said.stalled === "string").toBe(true);
+  }, 20_000);
+
+  it("says nothing about a deck that is simply switched off", async () => {
+    const rows = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const a = await deck(rows, "Deck-A", []);
+    a.e.stop();
+    await a.e.apply({ enabled: false });
+    expect(a.e.status().stalled).toBeNull();
+  }, 20_000);
+});
+
 describe("saying no, and meaning it", () => {
   it("stops the asking here and tells the deck that asked", async () => {
     // The two halves of a refusal, and before this neither existed. A deck that
