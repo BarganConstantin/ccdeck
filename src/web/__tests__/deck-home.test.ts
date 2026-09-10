@@ -119,23 +119,30 @@ describe("where this platform keeps application data", () => {
     // separate key, separate pairings, separate share list. Moving them to one
     // machine-wide deck would collapse two profiles into one on upgrade, which
     // is the silent change this whole file exists to avoid.
-    // Asked about a posix platform only. `claudeConfigDir` resolves with the
-    // HOST's rules — a drive letter read on a Mac is a relative path — so the
-    // Windows spelling of this one answer is the one thing in this file that
-    // can only be checked on Windows. It is, in CI.
+    // PINNED AS A RELATIONSHIP RATHER THAN AS A STRING, and not to dodge the
+    // assertion: `claudeConfigDir` resolves with the HOST's rules, so this one
+    // path is spelled `/work/claude/agent-dag` on a Mac and `D:\work\claude…`
+    // on a Windows runner reading the same posix input. The RULE is what has to
+    // hold on every machine — a deck told to follow a Claude profile keeps
+    // following it, and both of its directories are that one directory.
     const env = { CLAUDE_CONFIG_DIR: "/work/claude" };
-    expect(deckDataDir("darwin", env, HOME)).toBe("/work/claude/agent-dag");
-    expect(deckLogDir("darwin", env, HOME)).toBe("/work/claude/agent-dag");
-    expect(legacyDeckDir(env, HOME, "linux")).toBe("/work/claude/agent-dag");
-    // Which also means the migration below has nothing to do for them: source
-    // and destination are one path.
-    expect(deckDataDir("darwin", env, HOME)).toBe(legacyDeckDir(env, HOME, "darwin"));
+    for (const p of ["darwin", "linux", "win32"]) {
+      expect(deckDataDir(p, env, HOME), p).toBe(legacyDeckDir(env, HOME, p));
+      expect(deckLogDir(p, env, HOME), p).toBe(legacyDeckDir(env, HOME, p));
+      expect(deckDataDir(p, env, HOME), p).toMatch(/agent-dag$/);
+      // And it is NOT the platform directory, which is the whole point.
+      expect(deckDataDir(p, env, HOME), p).not.toMatch(/ccdeck$/);
+    }
+
   });
 
   it("takes one variable over every rule, for a portable install", () => {
     const env = { CCDECK_HOME: "/portable/deck", CLAUDE_CONFIG_DIR: "/work/claude", XDG_DATA_HOME: "/xdg" };
     expect(deckDataDir("linux", env, HOME)).toBe("/portable/deck");
     expect(deckLogDir("linux", env, HOME)).toBe("/portable/deck");
+    // Resolved with the TARGET platform's rules, or a posix path asked about
+    // from a Windows runner comes back wearing that runner's drive letter.
+    expect(deckDataDir("win32", { CCDECK_HOME: "D:\\portable\\deck" }, WHOME)).toBe("D:\\portable\\deck");
   });
 
   it("moves the deck's own state and nothing Claude Code reads", () => {

@@ -38,7 +38,7 @@
 // original left where it was, so a deck downgraded to the version before this
 // one finds exactly what it had. See migrateDeckFiles.
 import { homedir } from "node:os";
-import { join, resolve, posix as posixPath, win32 as winPath } from "node:path";
+import { join, posix as posixPath, win32 as winPath } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 // The Windows ladder, not `rename` (#786). MoveFileExW refuses while any other
 // process holds the destination open — a scanner, the indexer, a backup agent —
@@ -81,7 +81,10 @@ export function deckDataDir(platform = process.platform, env = process.env, home
   // stays right is if it can be checked from a Mac. `node:path` joins with
   // whatever the machine running the code uses, so a bare `join` here answers
   // `\home\u\Library\...` on Windows for a question about macOS.
-  const { join } = platform === "win32" ? winPath : posixPath;
+  // `resolve` for the same reason as `join` just below it: it is host-bound
+  // too, so a posix path resolved on a Windows runner comes back with the
+  // runner's drive letter glued to the front of it.
+  const { join, resolve } = platform === "win32" ? winPath : posixPath;
   const forced = env[HOME_ENV]?.trim();
   if (forced) return resolve(forced);
   if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home, platform);
@@ -99,7 +102,7 @@ export function deckDataDir(platform = process.platform, env = process.env, home
  * for logs and this uses it.
  */
 export function deckLogDir(platform = process.platform, env = process.env, home = homedir()) {
-  const { join } = platform === "win32" ? winPath : posixPath;
+  const { join, resolve } = platform === "win32" ? winPath : posixPath;
   const forced = env[HOME_ENV]?.trim();
   if (forced) return resolve(forced);
   if (env.CLAUDE_CONFIG_DIR?.trim()) return legacyDeckDir(env, home, platform);
