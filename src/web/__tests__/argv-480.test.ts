@@ -89,6 +89,7 @@ const ADDED: [token: string, argv: string[], parsed: Record<string, unknown>][] 
 // meaning what it says.
 const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][] = [
   ["--new", ["--new"], { new: true }],
+  ["--foreground", ["--foreground"], { foreground: true }],
   ["--stop", ["--stop"], { stop: true }],
   ["--status", ["--status"], { status: true }],
   ["--logs", ["--logs"], { logs: true }],

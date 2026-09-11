@@ -201,6 +201,13 @@ if (flags.stop || flags.status || flags.logs || flags.installService || flags.un
         : `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`);
       process.exit(out.ok ? 0 : 1);
     }
+    if (isGitCheckout(PKG_ROOT)) {
+      // Not refused outright — somebody running from a checkout may genuinely
+      // want this — but not done silently either: the item would name a working
+      // tree, and that is worth knowing before it is written.
+      say(`\n  ${tone.warn}${gWarn}  this is a checkout, so the login item would name ${PKG_ROOT}${tone.reset}`);
+      say(`     ${tone.muted}a renamed, moved or deleted working tree leaves a login item pointing at nothing${tone.reset}\n`);
+    }
     if (isNpxInstall(PKG_ROOT)) {
       // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
       // whenever it feels like it — a login item pointing at nothing, forever,
@@ -1363,6 +1370,31 @@ if (openBrowser && !RESPAWN) {
   } catch {}
 }
 
+// ── the deck from before this version that is still running ──────────────────
+//
+// UPGRADE DAY, and without this it is a mystery. A deck older than the attach
+// publishes no `claude` and no `version` in its discovery record, so sameShape
+// cannot match it — deliberately, because a record that cannot be compared is
+// not one to attach to. The consequence is that the first `ccdeck` after an
+// upgrade starts a SECOND deck beside the one already running, opens a tab on
+// it, and says nothing; and `ccdeck --stop` will not find the old one either,
+// because it has the same shape problem.
+//
+// So it is named, once, with the command that actually clears it. Only for
+// decks with no version: a deck started with `--new`, or one scoped to another
+// workspace, is somebody's deliberate second deck and needs no explaining.
+if (!RESPAWN) {
+  try {
+    const { liveDecks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
+    const older = (await liveDecks()).filter(d => !d.version);
+    if (older.length) {
+      const where = older.map(d => d.port).join(", ");
+      write(`  ${P.warn}${G.warn}${P.reset}  ${P.muted}${older.length === 1 ? "a deck" : `${older.length} decks`} from an older ${PRODUCT} ${older.length === 1 ? "is" : "are"} still running on ${where}${P.reset}\n`);
+      write(`     ${P.muted}too old to be recognised, so this one started beside ${older.length === 1 ? "it" : "them"} ${G.dash} \`${INVOKED_AS ?? PRODUCT} --stop --all\` clears the lot${P.reset}\n\n`);
+    }
+  } catch { /* a question about other decks is never a reason to fail a boot */ }
+}
+
 // ── starting at login ─────────────────────────────────────────────────────────
 //
 // ONCE PER MACHINE, EVER. The record in the deck's own data directory is what
@@ -1380,8 +1412,12 @@ if (openBrowser && !RESPAWN) {
 if (!RESPAWN) {
   try {
     const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
-    if (svc.shouldOfferService({ record: svc.readServiceRecord(deckDataDir()), npx: isNpxInstall(PKG_ROOT) })) {
+    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    if (svc.shouldOfferService({
+      record: svc.readServiceRecord(deckDataDir()),
+      npx: isNpxInstall(PKG_ROOT),
+      checkout: isGitCheckout(PKG_ROOT),
+    })) {
       const out = svc.installService({
         script: join(PKG_ROOT, "bin", "agent-dag.js"),
         logPath: join(deckLogDir(), "deck.log"),
@@ -1659,6 +1695,8 @@ Usage:
 Options:
   -p, --port <number>      Preferred port (default: 4317; falls back to random 4318–4400)
       --no-open            Don't open the browser automatically
+      --foreground         Hold the terminal, the way every version before 3.20
+                           did. Ctrl+C stops the deck again
       --new                Start a second deck even if one is already running.
                            Without it, a bare \`${PRODUCT}\` beside a deck that is
                            already up opens that deck's tab instead of building

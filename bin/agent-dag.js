@@ -104,7 +104,16 @@ const DETACHED = process.env[DETACHED_ENV] === "1";
 // into our own process group is precisely the wrong answer to being supervised.
 // The suite's spawnSupervised is the caller that does this today.
 const LEASHED = typeof process.send === "function";
-if (!DETACHED && !LEASHED && !isOneShot(parseArgs(process.argv.slice(2)))) {
+// And the way to ask for the old behaviour out loud.
+//
+// Every version before this one held the terminal, and something out there
+// depends on that: a wrapper script, a CI step, a supervisor of somebody else's
+// that starts `ccdeck` and waits on it, a `ccdeck && open …`. Handing all of
+// those an immediate exit and no way to say otherwise would be a breaking change
+// with no escape hatch — and the marker above is an internal one, not something
+// to tell a user to export.
+const FLAGS = parseArgs(process.argv.slice(2));
+if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
   const { deckLogDir } = await import("../src/server/deck-home.mjs");
   const { registeredDecks } = await import("../src/server/running-deck.mjs");
   const isTTY = Boolean(process.stdout.isTTY);

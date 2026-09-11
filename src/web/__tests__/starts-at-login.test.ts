@@ -194,6 +194,19 @@ describe("offering it exactly once", () => {
     expect(shouldOfferService({ record: { failed: "EPERM" } })).toBe(false);
   });
 
+  it("never offers from a checkout, which is somebody's working tree", () => {
+    // FOUND BY RUNNING IT. A test boot from the repo on the author's own machine
+    // wrote a LaunchAgent naming ~/Desktop/agents-deck/bin/agent-dag.js. That
+    // directory gets renamed, moved, branch-switched and deleted, and none of
+    // those are events a login item survives — and nobody working in a checkout
+    // asked to be given one.
+    expect(shouldOfferService({ record: null, checkout: true })).toBe(false);
+    expect(shouldOfferService({ record: null, checkout: false })).toBe(true);
+    // The explicit command still writes one — someone may genuinely want it —
+    // but says what it is about to name first.
+    expect(DECK).toContain("this is a checkout, so the login item would name");
+  });
+
   it("never offers from an npx run", () => {
     // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
     // whenever it feels like it: a login item pointing at nothing, forever, on

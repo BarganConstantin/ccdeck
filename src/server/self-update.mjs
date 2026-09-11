@@ -211,7 +211,10 @@ export function isNpxInstall(pkgRoot) {
  *  ahead of npm, and telling someone to `npm i -g` over their working copy is
  *  actively wrong, so the registry side of the check is skipped there.
  *
- *  Not exported (#383). It gates three answers and each of the three is already
+ *  Exported for one caller outside this file: the login item, which must not be
+ *  installed from a checkout for the same reason it must not be installed from
+ *  an npx run — the path is not one anybody promised to keep. Everything else it
+ *  gates stays internal, and each of those is already
  *  asserted against a directory with a real `.git` in it — `upgradeCommand`
  *  returning "git pull && npm run build", `upgradeName` refusing to move a
  *  checkout onto a published alias, and `startUpgrade` refusing with
@@ -226,7 +229,7 @@ export function isNpxInstall(pkgRoot) {
  *  carries a drive letter and backslashes. Both shapes are covered in
  *  worktree-git-file-587.test.ts and beside every checkout fixture in the
  *  suite — narrowing this to `.isDirectory()` fails them. */
-function isGitCheckout(pkgRoot) {
+export function isGitCheckout(pkgRoot) {
   try { return existsSync(join(pkgRoot, ".git")); } catch { return false; }
 }
 

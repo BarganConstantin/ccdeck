@@ -76,6 +76,28 @@ describe("the child's output is a file, never a pipe", () => {
   });
 });
 
+describe("the deck from before this version that is still running", () => {
+  it("is named, with the command that actually clears it", () => {
+    // UPGRADE DAY, and without this it is a mystery. A deck older than the
+    // attach publishes no `claude` and no `version`, so sameShape cannot match
+    // it — deliberately, because a record that cannot be compared is not one to
+    // attach to. The consequence is that the first `ccdeck` after an upgrade
+    // starts a SECOND deck beside the one already running, and `--stop` will
+    // not find the old one either. Measured against two real decks: "2 decks
+    // from an older ccdeck are still running on 4317, 4363".
+    expect(DECK).toContain("from an older ${PRODUCT}");
+    expect(DECK).toContain("--stop --all");
+    expect(DECK).toContain("(await liveDecks()).filter(d => !d.version)");
+  });
+
+  it("says nothing about a deliberate second deck", () => {
+    // One started with `--new`, or scoped to another workspace, publishes a
+    // version like any other and needs no explaining.
+    expect(DECK).toMatch(/filter\(d => !d\.version\)/);
+    expect(DECK).not.toMatch(/filter\(d => !sameShape/);
+  });
+});
+
 describe("what the launcher waits for", () => {
   it("waits for `booted`, not for `listening`", () => {
     // The port is bound well before the report is finished: the server-ready
@@ -121,7 +143,7 @@ describe("the leash, which must not be attached to the launcher", () => {
     expect(DETACHED_ENV).toBe("AGENTS_DECK_DETACHED");
     expect(detachEnv()[DETACHED_ENV]).toBe("1");
     expect(SUPERVISOR).toContain("const DETACHED = process.env[DETACHED_ENV] === \"1\";");
-    expect(SUPERVISOR).toContain("if (!DETACHED && !LEASHED && !isOneShot(");
+    expect(SUPERVISOR).toContain("if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS))");
   });
 
   it("stays put when somebody is already holding its lifecycle", () => {
@@ -158,6 +180,20 @@ describe("a command line that is not a start", () => {
     for (const argv of [[], ["--no-open"], ["--port", "4500"], ["--new"], ["--workspace", "/x"]]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ") || "(bare)").toBe(false);
     }
+  });
+
+  it("leaves the old behaviour reachable, by a flag rather than a marker", () => {
+    // Every version before this one held the terminal, and something out there
+    // depends on it: a wrapper script, a CI step, a supervisor of somebody
+    // else's that starts `ccdeck` and waits on it. Handing all of those an
+    // immediate exit with no way to say otherwise is a breaking change with no
+    // escape hatch — and AGENTS_DECK_DETACHED is an internal marker, not
+    // something to tell a user to export.
+    expect(parseArgs(["--foreground"]).foreground).toBe(true);
+    // A start, not a one-shot: it still boots a deck, it just does not leave.
+    expect(isOneShot(parseArgs(["--foreground"]))).toBe(false);
+    expect(SUPERVISOR).toContain("FLAGS.foreground !== true");
+    expect(DECK).toContain("--foreground");
   });
 });
 

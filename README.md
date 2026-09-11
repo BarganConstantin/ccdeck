@@ -165,6 +165,8 @@ ccdeck [options]
 
   -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400)
       --no-open            Don't open the browser automatically
+      --foreground         Hold the terminal, the way every version before 3.20
+                           did (Ctrl+C stops the deck again)
       --new                Start a second deck even if one is already running
       --stop               Stop the deck a bare `ccdeck` would open
                            (--port <n> stops that one; --all stops every deck)
@@ -193,6 +195,13 @@ ccdeck [options]
 Anything else on the command line is reported as an unknown option and then
 ignored — the deck still starts, so a typo costs you a warning rather than a
 dashboard.
+
+`--foreground` is there for anything that was relying on the old behaviour — a
+wrapper script, a CI step, a supervisor of your own that starts the deck and
+waits on it. On the first run after upgrading you may also see a line about a
+deck from an older version still running: those publish nothing this one can
+check, so it starts beside them rather than attaching to something it cannot
+identify, and `ccdeck --stop --all` clears them.
 
 `ccdeck` runs in the background. The boot report prints in your terminal exactly
 as it always has — the hooks, the port, the URL — and then the prompt comes back

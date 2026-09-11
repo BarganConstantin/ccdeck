@@ -38,10 +38,17 @@ async function exportsOf(spec: string): Promise<string[]> {
 
 // ── the ten in-file-only exports ────────────────────────────────────────────
 
+// ONE CAME BACK, and this is the note that stops it being put back in the list.
+// `isGitCheckout` was un-exported because everything it gated was internal and
+// already asserted through the three answers it produced. That stopped being
+// true when the login item needed it: a checkout must not be given one, for the
+// same reason an npx run must not, and `isNpxInstall` — the sibling question
+// about how this copy got here — has always been public. The pair belongs on
+// the same surface. See shouldOfferService.
+//
 // file, symbol, and a fragment proving the declaration survived the un-export.
 const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegExp][] = [
   [SERVER, "npx.mjs",         "PREFETCH_TIMEOUT_MS",     /^const PREFETCH_TIMEOUT_MS = /m],
-  [SERVER, "self-update.mjs", "isGitCheckout",           /^function isGitCheckout\(pkgRoot\) \{/m],
   [SERVER, "claude-dir.mjs",  "claudeCliOnDisk",         /^function claudeCliOnDisk\(\{/m],
   [SERVER, "installer.mjs",   "CLAUDE_EVENTS",           /^const CLAUDE_EVENTS = \[/m],
   [WEB,    "codex-approval.ts", "ASKING_APPROVAL_POLICIES", /^const ASKING_APPROVAL_POLICIES: /m],

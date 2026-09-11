@@ -227,18 +227,27 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
  * uninstall would be undone by the next start, which is not an uninstall — it is
  * a tool arguing with its user.
  *
- * `npx` is excluded, and not as a preference: the service would name a path
- * inside ~/.npm/_npx/<hash>/, which npm deletes whenever it feels like it. That
- * is a login item pointing at nothing, forever, on a machine where the user
- * never installed anything.
+ * TWO KINDS OF INSTALL ARE EXCLUDED, and neither as a preference — in both the
+ * login item would name a path nobody promised to keep:
+ *
+ *   `npx` runs out of ~/.npm/_npx/<hash>/, which npm deletes whenever it feels
+ *   like it. A login item pointing at nothing, forever, on a machine where the
+ *   user never installed anything.
+ *
+ *   A CHECKOUT is somebody's working tree. Found by running this: a test boot
+ *   from the repo on the author's own machine wrote a LaunchAgent naming
+ *   ~/Desktop/agents-deck/bin/agent-dag.js. That directory gets renamed, moved,
+ *   branch-switched and deleted, and none of those are events a login item
+ *   survives — and nobody working in a checkout asked to be given one.
+ *
  *
  * AGENTS_DECK_NO_INSTALL is honoured the same way claude-swap and ccusage honour
  * it. A CI runner that quietly acquires login items is a CI runner nobody can
  * explain.
  */
-export function shouldOfferService({ record = null, npx = false, env = process.env } = {}) {
+export function shouldOfferService({ record = null, npx = false, checkout = false, env = process.env } = {}) {
   if (env.AGENTS_DECK_NO_INSTALL === "1") return false;
-  if (npx) return false;
+  if (npx || checkout) return false;
   return record === null;
 }
 
