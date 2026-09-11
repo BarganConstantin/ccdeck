@@ -247,10 +247,21 @@ describe("whether a systemd session survives logging out", () => {
     // and `loginctl show-user ""` answers "Failed to look up user : No such
     // process", which this read as "unknown" and said nothing about. A uid is
     // always there on the platform this runs on.
-    let asked: string[] = [];
-    lingerState({ platform: "linux", run: (_f: string, args: string[]) => { asked = args; return { status: 0, stdout: "Linger=no" }; } });
-    expect(asked[1]).toMatch(/^\d+$/);
-    expect(SRC).toContain("function currentUser()");
+    //
+    // ASSERTED THROUGH THE PURE HELPER, because the first version of this read
+    // `process.getuid` — which does not exist on Windows — and so went red on
+    // the runner rather than on the platform the rule is about. The preference
+    // between two values is the rule; where the values come from is not.
+    const { preferredUser } = svc as { preferredUser: (o?: { uid?: number; user?: string }) => string };
+    expect(preferredUser({ uid: 1000, user: "deck" })).toBe("1000");
+    expect(preferredUser({ uid: 0, user: "deck" })).toBe("0");
+    expect(preferredUser({ uid: undefined, user: "deck" })).toBe("deck");
+    expect(preferredUser({ uid: undefined, user: undefined })).toBe("");
+    // And an empty answer never becomes a loginctl call.
+    let called = false;
+    expect(lingerState({ platform: "linux", user: "", run: () => { called = true; return { status: 0, stdout: "" }; } }))
+      .toBe("unknown");
+    expect(called).toBe(false);
   });
 
   it("is not a question on macOS or Windows", () => {

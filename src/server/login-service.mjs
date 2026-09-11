@@ -454,12 +454,19 @@ const logPathDir = (p) => dirOf(String(p ?? ""));
  * that is not an interactive login shell, which includes the cron job, the
  * systemd unit and the `docker exec` this was caught in. A uid is always there
  * on the platform this function runs on, and loginctl takes one.
+ *
+ * Pure, and both inputs are parameters, because the rule is about a preference
+ * between two values and asserting it through `process` makes the assertion
+ * true only on the machine that has them. The first version of that test read
+ * `process.getuid`, which does not exist on Windows, and went red on the runner
+ * rather than on the platform it was about.
  */
-function currentUser() {
-  const uid = process.getuid?.();
+export function preferredUser({ uid, user } = {}) {
   if (Number.isInteger(uid)) return String(uid);
-  return process.env.USER?.trim() || "";
+  return String(user ?? "").trim();
 }
+
+const currentUser = () => preferredUser({ uid: process.getuid?.(), user: process.env.USER });
 
 /** First line, trimmed — a refusal from schtasks is a paragraph and a row is a
  *  row. */
