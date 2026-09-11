@@ -353,3 +353,31 @@ describe("what claude-swap says, in its own words", () => {
     expect(collectorText("something_new")?.text).toBe("something_new");
   });
 });
+
+describe("which half of the row is allowed to be loud", () => {
+  const panel = src("../components/AccountsPanel.tsx");
+  const css = src("../styles.css");
+
+  it("draws a broken account at the rank of the other faults, not below them", () => {
+    // `staleCopy` and `stopped` were wearing one class, and that class is quiet
+    // on purpose: #721 means the collector cannot read an account the user IS
+    // signed in as — nothing to fix, and a badge would send them to re-log in
+    // for a problem they do not have. `stopped` is the opposite state: the
+    // account cannot be used from this deck at all.
+    expect(css).toContain(".ap-stopped { color: var(--warn); }");
+    expect(css).toContain(".ap-stale-copy { font-size: 10px; color: var(--text-dim); }");
+    // And the panel uses the new one for it.
+    expect(panel).toMatch(/<span className="ap-stopped" title=/);
+    // `.ap-stopped` takes no font-size, so it matches the row it is on rather
+    // than shrinking the way the quiet one deliberately does.
+    expect(css).not.toMatch(/\.ap-stopped \{[^}]*font-size/);
+  });
+
+  it("stops painting the symptom when the cause is already on the row", () => {
+    // An account that cannot be collected has numbers that are old BECAUSE of
+    // that. Two ambers on one row gave the louder half to the consequence:
+    // "no stored login" in the dimmest tone the panel has, beside "collected
+    // 22h ago · due" in the warning one.
+    expect(panel).toContain('`ap-age${a.stale && !a.stopped && !a.error ? " ap-stale" : ""}`');
+  });
+});

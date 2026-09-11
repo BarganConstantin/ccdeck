@@ -8011,7 +8011,23 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    signed in as. Not an error colour: there is nothing for them to fix, and the
    red badge this replaces was offering to sign them out of a live session. It
    sits in the annotation tier with the other freshness notes. */
+/* `staleCopy` and `stopped` are two different sentences and were wearing one
+   class, which is how the second came to be drawn in the dimmest tone the panel
+   has beside a warning-coloured timestamp.
+
+   `.ap-stale-copy` is quiet ON PURPOSE (#721): it means the collector cannot
+   read this account while the user IS signed in as it — nothing for them to
+   fix, and a red badge would send them to re-log in for a problem they do not
+   have.
+
+   `.ap-stopped` is the opposite state. Nothing has been collected for half a
+   day and claude-swap says why: no stored login, a login that expired, a
+   keychain it cannot open. The account cannot be used from this deck, which is
+   the same rank as `.ap-err` beside it — so it takes the same tone and the same
+   size, and the row's one attention colour sits on the cause rather than on the
+   age of numbers that stopped mattering with it. */
 .ap-stale-copy { font-size: 10px; color: var(--text-dim); }
+.ap-stopped { color: var(--warn); }
 
 /* ── Browser watch ────────────────────────────────────────────────────────
    The topbar control is an outline like the five beside it and gains nothing

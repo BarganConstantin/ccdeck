@@ -923,7 +923,7 @@ export default function AccountsPanel({ onClose }: Props) {
                   // up, which is the first few minutes of every boot.
                   const v = collectorText(a.collector ?? null);
                   return (
-                    <span className="ap-stale-copy" title={v?.hint ?? (
+                    <span className="ap-stopped" title={v?.hint ?? (
                       "claude-swap has collected nothing for this account in over half a day and has not said why. "
                       + "A paired deck holding a working copy of this account will replace it on its own. "
                       + "To do it by hand, sign in as this account from + Add."
@@ -987,7 +987,16 @@ export default function AccountsPanel({ onClose }: Props) {
                     verb is the whole content of the line. */}
                 {a.fetchedAt
                   ? <span
-                      className={`ap-age${a.stale ? " ap-stale" : ""}`}
+                      // ONE ATTENTION COLOUR PER ROW, ON THE CAUSE.
+                      //
+                      // An account that cannot be collected at all has numbers
+                      // that are old BECAUSE of that, so the age is a
+                      // consequence rather than a second thing to worry about.
+                      // Painting both `--warn` put two ambers on one row and
+                      // gave the louder half to the symptom: `no stored login`
+                      // in the dimmest tone the panel has, beside `collected
+                      // 22h ago · due` in the warning one.
+                      className={`ap-age${a.stale && !a.stopped && !a.error ? " ap-stale" : ""}`}
                       title={"When claude-swap last read this account's usage, and when it plans to read it again. "
                            + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
                            + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
