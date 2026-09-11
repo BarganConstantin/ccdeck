@@ -126,6 +126,21 @@ describe("where the guides open from", () => {
     expect(lan).toMatch(/finish=\{on \? undefined : \{ label: "Turn it on", act: \(\) => \{ setGuideOpen\(false\); void toggle\(\); \} \}\}/);
   });
 
+  it("keeps two doors to the tour that are there whatever is on the canvas", () => {
+    // The empty canvas is a door nobody with agents running ever sees. The
+    // version chip's dialog and the `?` sheet are always reachable, and each
+    // closes itself as it opens the tour, so no two dialogs stand at once.
+    const notes = bare(read("components/ReleaseNotesModal.tsx"));
+    const keys = bare(read("components/KeyboardHelp.tsx"));
+    for (const src of [notes, keys]) {
+      expect(src).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>Take the tour<\/button>/);
+      // Inside the body, after the header — the × stays the first stop.
+      expect(src.indexOf("guide-door")).toBeGreaterThan(src.indexOf('aria-label="Close (Esc)"'));
+    }
+    expect(app).toMatch(/onTour=\{\(\) => \{ setReleaseNotes\(null\); setTourOpen\(true\); \}\}/);
+    expect(app).toMatch(/onTour=\{\(\) => \{ setKeyHelpOpen\(false\); setTourOpen\(true\); \}\}/);
+  });
+
   it("gives the empty canvas its way back, and only while the server is there", () => {
     expect(app).toMatch(/\{!offline && \(\s*<button type="button" className="btn empty-tour" onClick=\{onTour\}>Take the tour<\/button>/);
     // The hero is pointer-transparent so a drag starting on it pans; the one

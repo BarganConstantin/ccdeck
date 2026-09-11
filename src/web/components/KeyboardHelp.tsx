@@ -34,9 +34,12 @@ import { useModalDismiss } from "./use-modal-dismiss";
 
 interface Props {
   onClose: () => void;
+  /** Close this and open the tour — `?` is the help key, and the tour is the
+   *  other half of help. */
+  onTour?: () => void;
 }
 
-export default function KeyboardHelp({ onClose }: Props) {
+export default function KeyboardHelp({ onClose, onTour }: Props) {
   const dialogRef = useModalDismiss(onClose);
 
   return (
@@ -73,6 +76,15 @@ export default function KeyboardHelp({ onClose }: Props) {
 
         <section className="modal-body">
           <p className="modal-note">{KEY_HELP_NOTE}</p>
+          {/* The tour's permanent door, beside the other kind of help. Under
+              the note and above the grid, so it is found before the reader
+              starts scanning keys; after the ×, so the × stays the first stop. */}
+          {onTour && (
+            <div className="guide-door">
+              <span>Eight pictures of what the deck shows.</span>
+              <button type="button" className="btn" onClick={onTour}>Take the tour</button>
+            </div>
+          )}
           {/* One grid for the whole sheet rather than one per group, and the
               captions span it. A grid each would have measured its own key
               column, so `Shift + Enter` would have pushed one group's caps

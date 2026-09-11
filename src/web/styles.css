@@ -10296,6 +10296,17 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-intro-go { font-size: 10px; color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
 
+/* The tour's two permanent doors, in the shortcuts sheet and the release
+   notes: one line saying what is behind it, and the button, on one row. */
+.guide-door {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */

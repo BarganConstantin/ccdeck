@@ -4725,6 +4725,7 @@ function Inner() {
              about which release the reader is on. */
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
+          onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those
@@ -4754,7 +4755,7 @@ function Inner() {
           />
         );
       })()}
-      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
+      {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} onTour={() => { setKeyHelpOpen(false); setTourOpen(true); }} />}
       {tourOpen && (
         <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={() => {
           setTourOpen(false);
