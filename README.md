@@ -1,6 +1,6 @@
 <div align="center">
 
-# ccdeck
+# ccdeck — a live dashboard for Claude Code and Codex
 
 **Know which agent is waiting on you, and for how long.**
 
@@ -22,7 +22,7 @@ npx ccdeck
 
 who is blocked on you · tool calls · one canvas · cost · quota · local · no telemetry
 
-[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options)
+[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options) · [FAQ](#questions-people-ask)
 
 
 </div>
@@ -61,7 +61,12 @@ One canvas. No tabs. No kanban.
 npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
 ```
 
-Opens **http://127.0.0.1:4317** and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live. `Ctrl+C` stops it.
+Opens **http://127.0.0.1:4317** and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
+
+The deck keeps running after you close the terminal, and starts again when you
+log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start that
+is still printing. `ccdeck --status` says what is running, and `--foreground`
+holds the terminal the way every version before 3.20 did.
 
 No config file. No account. No telemetry — nothing about your sessions is reported anywhere.
 
@@ -287,7 +292,7 @@ Being told to restart after an upgrade is local only — no network involved —
 npx ccdeck --uninstall
 ```
 
-Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/.codex/hooks.json` if present.
+Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/.codex/hooks.json` if present — and the login item, if this machine had one. That one exception to the narrowness below is deliberate: a login item left behind would keep starting a deck whose hooks had just been removed.
 
 It removes the hook entries and nothing else. The forwarder script
 (`~/.claude/agent-dag/hook.js`), the discovery directory around it, the events
@@ -315,7 +320,7 @@ Nothing is ever installed unless you click, the argument vector is fixed in the 
 
 ### Restarting
 
-ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Ctrl+C, stdout and exit codes behave exactly as before — same terminal, same process group.
+ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Both live in their own process group since 3.20, so stdout goes to `deck.log` rather than to the terminal you started from — `ccdeck --logs` reads it back. The supervisor also puts the deck back after a crash, five times in ten minutes with the wait doubling, and then stops and says why rather than spinning.
 
 It restarts on its own only after 30 seconds with nothing running, because hook events are fire-and-forget and anything fired during the gap is lost. The toggle in the banner turns that off; the preference is per-browser. Under `--no-persist` a restart is refused outright — with no event log there is nothing to replay, and the canvas would be gone.
 
@@ -348,6 +353,40 @@ It is now the same build as the other two.
 
 The repository was previously named `agents-deck`; the old URL redirects here,
 so existing clones, links and bookmarks keep working.
+
+## Questions people ask
+
+**Does it work with Codex, or only Claude Code?**
+Both, on one canvas. Claude Code arrives through a hook, Codex through its
+rollout log, and the model chip tells them apart. The *blocked on you* queue is
+Claude Code only — Codex emits no signal for it.
+
+**Does anything leave my machine?**
+Your sessions, never. The deck binds `127.0.0.1` and has no telemetry. The only
+outbound requests are a ~20-byte version check to the npm registry at most once
+an hour, and whatever the usage panels ask Anthropic and OpenAI for about your
+own quota. [What it touches](#what-it-touches) lists all of it.
+
+**Can it interfere with what my agent does?**
+No. The hook it installs is a one-way forwarder: it POSTs the event, exits `0`,
+and writes nothing to stdout — the two channels Claude Code's hook protocol
+gives a hook for allowing, denying or rewriting a tool call. It uses neither, so
+it has no way to answer at all, and a test pins both halves.
+
+**Does it need an account, an API key or a config file?**
+None of the three. `npx ccdeck` and it runs.
+
+**macOS, Linux, Windows?**
+All three, and each release is tested on all three.
+
+**What is the difference between `ccdeck`, `agents-deck` and `agent-dag`?**
+One deck, three names on npm. `ccdeck` is the one to use; the other two are the
+names it shipped under before, kept working so nobody's command breaks. See
+[Names](#names).
+
+**Do I have to keep a terminal open?**
+No. Since 3.20 the deck runs in the background, survives the terminal closing,
+and starts again when you log in. `ccdeck --stop` ends it.
 
 ## License
 
