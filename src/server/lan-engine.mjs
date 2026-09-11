@@ -344,8 +344,13 @@ export function createEngine({
         if (reply?.t !== "have" || !reply.sealed) { done.push({ ...step, ok: false, why: reply?.why ?? "refused" }); continue; }
         const blob = open(conn.key, reply.sealed, `${conn.peerFp}->${identity.fp}|${step.key}`);
         if (!blob) { done.push({ ...step, ok: false, why: "could not open" }); continue; }
-        const ok = await importAccount(blob);
-        done.push({ ...step, ok: !!ok, why: ok ? null : "import failed" });
+        // A verdict rather than a boolean, because "refused" and "kept the
+        // slot it already has" are different things to tell somebody and the
+        // second one used to be reported as success. A bare `true` is still
+        // accepted: the suite drives this with one.
+        const got = await importAccount(blob);
+        const ok = got === true || got?.ok === true;
+        done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }
       lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
       if (done.length) onChange?.();

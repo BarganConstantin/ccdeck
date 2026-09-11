@@ -684,3 +684,47 @@ describe("the suite must not shout on somebody's network", () => {
     expect(deaf, "an engine was built without a deaf socket").toBe(builds);
   });
 });
+
+describe("a heal that healed nothing", () => {
+  // `cswap import` exits ZERO when it declines an account it already holds —
+  // cswap-admin's importAccount says so itself and reports `added: false`. The
+  // engine read `ok` alone, so a round that changed nothing was counted as a
+  // successful repair and the panel said the account had been fixed. Whoever
+  // read that then waited for numbers that were never going to move.
+  //
+  // The decline is narrow and documented on claude-swap's side: a plain import
+  // replaces a slot only when its usage row is quarantined as
+  // refresh-token-dead, and is "never triggered by the live store's
+  // `no credentials` state". So `login expired` heals over the network and
+  // `no stored login` does not.
+  const src = readFileSync(
+    fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8",
+  );
+  const engine = readFileSync(
+    fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8",
+  );
+
+  it("requires the account to have actually arrived", () => {
+    expect(src).toContain('if (out.added !== true) return { ok: false, why: "claude-swap kept the slot it already has" };');
+    // And `ok` alone is no longer the whole answer.
+    expect(src).not.toContain("return !!out?.ok;");
+  });
+
+  it("carries a reason, because refused and skipped are different sentences", () => {
+    expect(engine).toContain("const got = await importAccount(blob);");
+    expect(engine).toContain('why: ok ? null : (got?.why ?? "import failed")');
+  });
+
+  it("still takes a plain true, which is what the suite hands it", () => {
+    expect(engine).toContain("const ok = got === true || got?.ok === true;");
+  });
+
+  it("does not reach for --force to get around the decline", () => {
+    // The promise that a peer cannot overwrite a working credential of this
+    // deck's is kept by that flag never being passed. Reporting the decline
+    // honestly is the fix; widening the flag is a different decision.
+    expect(src).toContain("NO `force`, ever");
+    const at = src.indexOf("importAccount: async blob =>");
+    expect(src.slice(at, at + 1600)).not.toMatch(/force:\s*true/);
+  });
+});

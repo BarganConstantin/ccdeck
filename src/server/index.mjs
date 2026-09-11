@@ -3209,7 +3209,22 @@ const lanEngine = createEngine({
     // So a peer cannot overwrite a working credential of this deck's even by
     // lying about its own, because the flag that would allow it is not passed.
     const out = await importAccount(blob);
-    return !!out?.ok;
+    if (!out?.ok) return { ok: false, why: out?.reason ?? "import refused" };
+    // A SKIP IS NOT A HEAL, and reading `ok` alone said it was. `cswap import`
+    // exits ZERO when it declines an account it already holds — importAccount's
+    // own comment says so and reports it as `added: false` — so a round that
+    // changed nothing was counted as a successful repair and the panel said the
+    // account had been fixed. Whoever read that then waited for numbers that
+    // were never going to move.
+    //
+    // The decline is narrow and documented on claude-swap's side: a plain
+    // import replaces a slot only when its usage row is quarantined as
+    // refresh-token-dead, and is "never triggered by the live store's
+    // `no credentials` state". So an account whose login expired heals over the
+    // network, and one that has NO stored login does not — which is a true
+    // sentence the panel can now print instead of a false one.
+    if (out.added !== true) return { ok: false, why: "claude-swap kept the slot it already has" };
+    return { ok: true };
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the
