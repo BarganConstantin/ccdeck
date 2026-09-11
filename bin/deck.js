@@ -121,7 +121,10 @@ if (flags.uninstall) {
       // removing a login item this deck never had is the same lie the explicit
       // command used to tell, in the place a reader is least able to check it.
       if (!gone.ok) {
-        console.error(`${PRODUCT}: could NOT remove the login item — ${gone.reason} (${gone.path})`);
+        // `gDash`, not an em dash: this block runs at module top level, on a
+        // console that may be the legacy Windows one, and #797 is the rule that
+        // a printed string never carries punctuation the terminal may not have.
+        console.error(`${PRODUCT}: could NOT remove the login item ${gDash} ${gone.reason} (${gone.path})`);
       } else if (gone.existed) {
         console.log(`${PRODUCT}: no longer starts at login`);
       }
