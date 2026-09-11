@@ -90,6 +90,85 @@ describe("an account the collector cannot read", () => {
   });
 });
 
+describe("a collector that has simply stopped", () => {
+  // THE CASE THE COUNTER CANNOT SEE. `consecutiveFailures` counts REJECTIONS,
+  // and the failure on the machine that reported this was not one: `cswap list`
+  // answered `usageStatus: keychain_unavailable` — claude-swap unable to OPEN
+  // the credential rather than having it refused — for three accounts whose
+  // counters all read zero, last collected 21 hours, 40 hours and 28 days ago.
+  //
+  // The cost was not a missing badge. `alive` is `trouble == null`, and that one
+  // flag drives three things: what the panel says, whether LAN pairing may heal
+  // the account, and what this deck PUBLISHES about it to every paired machine.
+  // At `alive: true` the panel was silent, the heal never fired — syncAction
+  // only heals a copy this deck calls dead — and the manifest advertised a
+  // credential nobody here could read as one a peer could have.
+  const QUIET = { consecutiveFailures: 0, lastError: null };
+  const HOURS = 60 * 60_000;
+
+  it("is trouble after half a day, whatever the counter says", () => {
+    const out = authTrouble(QUIET, {
+      matches: true, isActive: false, email: "claude2@sapec.md",
+      fetchedAt: 0, now: 21 * HOURS,
+    });
+    expect(out?.kind).toBe("stopped");
+    // NOT an error. All that is known is the silence; the reason lives in
+    // claude-swap and may be a dead login, a keychain it cannot open, or a
+    // machine that was off. `invalid_grant` here would be inventing evidence.
+    expect(out?.error).toBeNull();
+  });
+
+  it("leaves a cadence alone, including a laptop closed overnight", () => {
+    for (const hours of [0, 1, 9, 11]) {
+      expect(authTrouble(QUIET, {
+        matches: true, isActive: false, email: "x@y", fetchedAt: 0, now: hours * HOURS,
+      }), `${hours}h`).toBeNull();
+    }
+  });
+
+  it("says nothing about an account nobody has ever collected", () => {
+    // Usually one added a minute ago. The panel already has a word for it
+    // ("never collected"), and calling a new account broken is a worse first
+    // impression than saying nothing.
+    expect(authTrouble(QUIET, {
+      matches: true, isActive: false, email: "x@y", fetchedAt: null, now: 99 * HOURS,
+    })).toBeNull();
+  });
+
+  it("still defers to the CLI for the active account", () => {
+    // #721's rule survives: if the user is signed in as this account, a
+    // collector that stopped is `stale-copy` — quiet, and no offer to sign them
+    // in again — rather than a silence of unknown cause.
+    const out = authTrouble(QUIET, {
+      matches: true, isActive: true, identity: HERE, email: "claude3@sapec.md",
+      fetchedAt: 0, now: 21 * HOURS,
+    });
+    expect(out?.kind).toBe("stale-copy");
+  });
+
+  it("does not outrank a failure that was actually reported", () => {
+    // A row with both an old fetch and a real rejection is the rejection: it
+    // names a cause, and a cause beats a silence.
+    const out = authTrouble({ consecutiveFailures: 1, lastError: "invalid_grant" }, {
+      matches: true, isActive: false, email: "x@y", fetchedAt: 0, now: 21 * HOURS,
+    });
+    expect(out?.kind).toBe("auth");
+    expect(out?.error).toBe("invalid_grant");
+  });
+
+  it("makes the account healable and stops it being advertised", () => {
+    // The two consequences that matter more than the label. `alive` is
+    // `trouble == null` in the row the panel and the LAN both read.
+    const server = src("../../server/claude-accounts.mjs");
+    expect(server).toContain("alive:    trouble == null,");
+    const lan = src("../../server/lan-sync.mjs");
+    // A peer heals only what this deck calls dead …
+    expect(lan).toContain("return mine.alive ? null : \"heal\";");
+    // … and publishes only what it calls alive.
+    expect(lan).toContain("alive: !!a.alive");
+  });
+});
+
 describe("what the panel is allowed to offer", () => {
   const panel = src("../components/AccountsPanel.tsx");
 
@@ -112,6 +191,23 @@ describe("what the panel is allowed to offer", () => {
     // And nothing else in a row reaches it.
     const rowOpeners = (panel.match(/className="ap-fix" onClick=\{\(\) => setAddOpen\(true\)\}/g) ?? []).length;
     expect(rowOpeners, "a second row control opens the sign-in dialog").toBe(1);
+  });
+
+  it("offers nothing at all for a silence it will not explain", () => {
+    // `stopped` is the third trouble state: claude-swap has collected nothing
+    // for half a day and says nothing about why — the failure that reached this
+    // was `keychain_unavailable`, which never touches consecutiveFailures, so
+    // the row's counter reads zero while the account is unusable.
+    //
+    // It says so and stops there. A `sign in again` under it would be the panel
+    // guessing at a cause one line beneath a sentence saying it will not, and
+    // the guess has a cost: that button is a full interactive re-login. The
+    // repair that fits needs no button — the account is published as NOT alive,
+    // so a paired deck with a working copy replaces it on its next round.
+    expect(panel).toMatch(/\{a\.stopped && \(/);
+    const block = panel.slice(panel.indexOf("{a.stopped && ("), panel.indexOf("{a.error && (()"));
+    expect(block).toContain("not collecting");
+    expect(block).not.toContain("<button");
   });
 
   it("offers the repair that Refresh cannot be", () => {

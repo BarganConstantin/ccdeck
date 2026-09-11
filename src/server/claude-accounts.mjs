@@ -151,6 +151,27 @@ function heldReading(now) {
 // without a marker would misrepresent them (its own trust ceiling is 3600s).
 const STALE_AFTER_MS = 15 * 60_000;
 
+/**
+ * How long a collector may produce nothing before that is a fault rather than a
+ * cadence.
+ *
+ * TWELVE HOURS, and the number is chosen from what the failure actually looks
+ * like rather than from taste. Measured on the machine that reported this: three
+ * accounts last collected 21 hours, 40 hours and 28 days ago, every one of them
+ * with `consecutiveFailures: 0` — because the thing stopping them was
+ * `keychain_unavailable`, which is claude-swap failing to OPEN the credential
+ * rather than having it rejected, and which never touches that counter.
+ *
+ * Long enough that a laptop closed overnight does not trip it. Short enough that
+ * an account nobody can read stops being advertised to the group as one they
+ * can. And the cost of being wrong is deliberately lopsided: a false "not
+ * collecting" asks a peer for a blob that `cswap import` then declines, because
+ * a plain import skips an account that is present and healthy — while the false
+ * negative this replaces is an account that is never repaired by anything, ever,
+ * and is published to every paired deck as good.
+ */
+const COLLECTION_STOPPED_AFTER_MS = 12 * 60 * 60_000;
+
 // Nudging the collector.
 //
 // Two throttles, because the cost of asking is not the cost of fetching. When
@@ -449,7 +470,9 @@ async function readRoster(now, gen) {
 
     const fetchedAtMs = matches && typeof row.fetchedAt === "number" ? row.fetchedAt * 1000 : null;
     const isActive = String(seq.activeAccountNumber) === num;
-    const trouble = authTrouble(row, { matches, isActive, identity, email: acct.email });
+    const trouble = authTrouble(row, {
+      matches, isActive, identity, email: acct.email, fetchedAt: fetchedAtMs, now,
+    });
 
     const lanes = [
       lane("five_hour", "5h", good?.five_hour),
@@ -502,6 +525,12 @@ async function readRoster(now, gen) {
       // in as it anyway. The panel says so quietly instead of offering to log
       // them in again.
       staleCopy: trouble?.kind === "stale-copy",
+      // Nothing has been collected for this account in half a day, and nothing
+      // says why. Its own word because the two existing ones would both be
+      // wrong: `error` claims a rejection that was never reported, and
+      // `staleCopy` promises the user is signed in as it, which is only
+      // knowable for the active account.
+      stopped:   trouble?.kind === "stopped",
     });
   }
 
@@ -541,8 +570,24 @@ async function readRoster(now, gen) {
  * evidence of anything, so the stored verdict stands: refusing to show a real
  * expiry because a subprocess failed is the opposite mistake.
  */
-export function authTrouble(row, { matches, isActive, identity, email } = {}) {
-  if (!matches || !((row?.consecutiveFailures ?? 0) > 0)) return null;
+export function authTrouble(row, {
+  matches, isActive, identity, email,
+  fetchedAt = null, now = Date.now(), stoppedAfterMs = COLLECTION_STOPPED_AFTER_MS,
+} = {}) {
+  if (!matches) return null;
+  const failing = (row?.consecutiveFailures ?? 0) > 0;
+  // A COLLECTOR THAT HAS PRODUCED NOTHING IN HALF A DAY IS FAILING, whatever
+  // its counter says — see COLLECTION_STOPPED_AFTER_MS. `consecutiveFailures`
+  // counts rejections, and the failure found on the reporting machine was not a
+  // rejection: `cswap list` answered `usageStatus: keychain_unavailable` for
+  // three accounts whose counters all read zero.
+  //
+  // `fetchedAt == null` is deliberately NOT this. That is an account nobody has
+  // ever collected — usually one added a minute ago — and the panel already has
+  // a word for it. Calling a new account broken is a worse first impression than
+  // saying nothing.
+  const stopped = !failing && fetchedAt != null && now - fetchedAt > stoppedAfterMs;
+  if (!failing && !stopped) return null;
 
   const signedInHere = isActive
     && identity
@@ -555,6 +600,12 @@ export function authTrouble(row, { matches, isActive, identity, email } = {}) {
     // fix under a red badge, and it must not offer to sign them in again.
     return { kind: "stale-copy", error: null };
   }
+  // A SILENCE, NOT A DIAGNOSIS. All that is known is that nothing has been
+  // collected for half a day; the reason lives in claude-swap and may be a dead
+  // login, a keychain it cannot open, or a machine that was off. Putting
+  // `invalid_grant` on it would be inventing evidence, and the panel would then
+  // offer "sign in again" for a problem that may not be a sign-in at all.
+  if (stopped) return { kind: "stopped", error: null };
   return { kind: "auth", error: row.lastError ?? "error" };
 }
 

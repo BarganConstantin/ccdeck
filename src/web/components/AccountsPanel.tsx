@@ -50,6 +50,7 @@ interface Account {
   stale: boolean;
   error: string | null;
   staleCopy?: boolean;
+  stopped?: boolean;
   /** The other half of an account's identity. A slot number is not one:
    *  claude-swap assigns them max+1 per store, so the account that is 4 here
    *  is 2 on another machine. LAN sync matches on this pair. */
@@ -839,6 +840,34 @@ export default function AccountsPanel({ onClose }: Props) {
                       title="Re-capture this account's stored credentials from the login you already have. No sign-in, no switch.">
                       {busy === "recapture" ? "resuming…" : "resume"}
                     </button>
+                  </>
+                )}
+                {/* Nothing collected for half a day, and nothing saying why.
+                    Its own line, because the two beside it would each claim
+                    something not in evidence: `error` a rejection claude-swap
+                    never reported, `staleCopy` a live session only knowable for
+                    the active account. What IS known is the silence and its
+                    length, so that is what it says.
+                    AND NO BUTTON, which is the same rule `staleCopy` is under
+                    for a different reason. `sign in again` is a full
+                    interactive re-login, and offering it here would be the
+                    panel guessing at a cause one line under a sentence saying
+                    it will not. The repair that fits this state needs no button
+                    at all: an account in it is published as NOT alive, so a
+                    paired deck holding a working copy replaces it on its next
+                    round — which is the whole of what LAN pairing is for, and
+                    what `alive: true` was quietly preventing. `+ Add` in the
+                    header is still there for somebody who wants to do it by
+                    hand, and that is their decision rather than the deck's
+                    instruction. */}
+                {a.stopped && (
+                  <>
+                    <span className="ap-stale-copy" title={
+                      "claude-swap has collected nothing for this account in over half a day. It does not say why "
+                      + "here — a login that has run out and a keychain it cannot open look the same from outside — "
+                      + "so the deck does not guess. A paired deck holding a working copy of this account will "
+                      + "replace it on its own. To do it by hand, sign in as this account from + Add."
+                    }>not collecting</span>
                   </>
                 )}
                 {a.error && (() => {
