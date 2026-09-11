@@ -32,13 +32,14 @@ const MODALS = readdirSync(dir)
   .filter(f => backdropTag(read(f)) !== null);
 
 describe("the deck's modals", () => {
-  it("has found all fifteen of them, so a new one cannot skip this file", () => {
+  it("has found all sixteen of them, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes, nine until #723 added the share picker, ten until #738
     // added the section history and eleven until it added the process list. The
     // count is not an allowlist: raising it is how a dialog enters the sweep,
     // and every assertion below then applies to it unchanged.
-    expect(MODALS.length).toBe(15);
+    // The sixteenth is the guide — the two picture tours share one dialog.
+    expect(MODALS.length).toBe(16);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

@@ -296,6 +296,9 @@ const PRESSES: Press[] = [
   // have the column, and a control with no box still owes an answer to a press.
   // 0.97 like every other labelled control.
   [".ap-lan-word:active:not(:disabled)", "0.97", "transform"],
+  // The Local network intro card: a button the size of a section, pressed
+  // like the labelled buttons it sits among.
+  [".ap-lan-intro:active:not(:disabled)", "0.97", "transform"],
   [".ap-fix:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
   ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],

@@ -32,6 +32,8 @@ import { copyText } from "./copy-text";
 import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
+import GuideModal from "./components/GuideModal";
+import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -820,6 +822,9 @@ function Inner() {
    *  reference someone reaches for and closes again, and a deck that reopened
    *  it on every refresh would be answering a question nobody asked twice. */
   const [keyHelpOpen, setKeyHelpOpen] = useState(false);
+  /** The four pictures a deck shows the first time it runs in a browser, and
+   *  again from the empty canvas's `Take the tour`. */
+  const [tourOpen, setTourOpen] = useState(false);
   /** Sessions whose recap has already been closed once. A `useState`
    *  initialiser and not `useRef(loadDismissedSummaries())`, because `useRef`
    *  evaluates its argument on EVERY render and keeps only the first result
@@ -1122,8 +1127,23 @@ function Inner() {
     // install it "was last caught up at" a version it has never run: on this
     // route `stored` is null for a first run and for nothing else, and the
     // sentence for that has to be its own rather than the browse route's.
+    // A FIRST RUN GETS THE TOUR, NOT THE CHANGELOG. #717 had a new install
+    // read the running release's notes, and what a person who has never seen
+    // the deck needs is not what changed since a version they never ran — it
+    // is what the thing in front of them is for. Four pictures say that; the
+    // notes stay one click away on the version chip. Both first-run reasons
+    // take this route, so a release with nothing in the changelog still
+    // welcomes: the tour is about the deck, not about the release.
+    if (decision.reason === "welcome" || decision.reason === "first-run") {
+      setTourOpen(true);
+      return;
+    }
+    // `firstRun: false` is now the only value this route can carry: the
+    // welcome left for the tour above, so a dialog opened here is always about
+    // an upgrade. The welcome sentence in releaseNotesIntro stays for the day a
+    // caller wants it back.
     if (decision.show.length) {
-      setReleaseNotes({ entries: decision.show, since: stored, firstRun: decision.reason === "welcome" });
+      setReleaseNotes({ entries: decision.show, since: stored, firstRun: false });
     }
   }, [version?.running]);
   // Everything this build has to say, for the version chip — which is the way
@@ -2609,6 +2629,9 @@ function Inner() {
   // focused control keeps its own keys — but a click on the sheet's own prose
   // drops focus to <body>, and from there a stray "c" would reach Clear.
   modalOpenRef.current = openedTool != null || usageHistoryOpen || contextFor != null
+    // The tour, for the same reason as the shortcuts sheet: a click on its
+    // caption drops focus to <body>, and from there a stray "c" reaches Clear.
+    || tourOpen
     || summaryFor != null || browserWatchOpen || keyHelpOpen || releaseNotes != null;
 
   /** The single door to Clear. Both the toolbar button and the "c" shortcut
@@ -4151,7 +4174,7 @@ function Inner() {
         onPointerUpCapture={markCanvasInput}
         onWheelCapture={markCanvasInput}
       >
-        {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} />}
+        {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={() => setTourOpen(true)} />}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,
@@ -4642,6 +4665,9 @@ function Inner() {
         );
       })()}
       {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
+      {tourOpen && (
+        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={() => setTourOpen(false)} />
+      )}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening
           over a modal, but a modal can still arrive over it. */}
@@ -4656,8 +4682,9 @@ function Inner() {
   );
 }
 
-function EmptyHero({ live, everConnected, providers, workspace }: {
+function EmptyHero({ live, everConnected, providers, workspace, onTour }: {
   live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
+  onTour: () => void;
 }) {
   const offline = !live;
   return (
@@ -4678,6 +4705,15 @@ function EmptyHero({ live, everConnected, providers, workspace }: {
           </p>
         </>
       ) : agentNoneCopy(providers, workspace)}
+      {/* THE WAY BACK TO THE TOUR, on the one screen a person who has not yet
+          seen anything is looking at. It is a control on a hero that is
+          pointer-transparent by design (a drag starting here still pans), so
+          the sheet gives this one element its pointer back. Offline, the hero
+          is about the server, and the tour would be a promise about a canvas
+          that cannot fill. */}
+      {!offline && (
+        <button type="button" className="btn empty-tour" onClick={onTour}>Take the tour</button>
+      )}
     </div>
   );
 }

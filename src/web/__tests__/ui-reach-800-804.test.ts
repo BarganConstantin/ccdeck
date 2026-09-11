@@ -240,7 +240,7 @@ describe("#802 — the empty hero and the scope it was started with", () => {
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
-    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} />");
+    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={() => setTourOpen(true)} />");
     expect(app).toContain("function agentNoneCopy(providers: Providers, workspace: string | null) {");
   });
 });

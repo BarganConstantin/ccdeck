@@ -542,6 +542,10 @@ const CONTROLS: Control[] = [
   { at: ".ap-auto-state", states: ["button.ap-auto-state:hover:not(:disabled)", ".ap-auto-state.live"],
     beds: ["--panel"] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  // The Local network intro card, while the section is off: a drawing and two
+  // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
+  // every labelled control wears. Its bed is the panel it sits at the foot of.
+  { at: ".ap-lan-intro", states: [".ap-lan-intro:hover:not(:disabled)"], beds: ["--panel"] },
   // browser watch
   { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
   // The watch switch. Its ON state fills with --accent rather than the control

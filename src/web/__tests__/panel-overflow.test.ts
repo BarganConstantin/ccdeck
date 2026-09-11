@@ -262,6 +262,11 @@ describe("a percentage width under a horizontal margin", () => {
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
       "bw-ep-head", "bw-radar", "cost-bar",
+      // The guides' drawings: an SVG with a viewBox and no width of its own,
+      // which the browser would otherwise size to its 300x150 default. Named
+      // here so it enters the margin check below, which is what the list is
+      // for; no rule in the sheet gives it a margin.
+      "guide-art",
       // The thermal chart, which is an SVG sized by its container and reading
       // its own width back through a ResizeObserver. It enters the margin check
       // below by being named here, which is the point of the list.

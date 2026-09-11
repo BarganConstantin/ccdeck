@@ -150,6 +150,10 @@ describe("what was migrated to the secondary tier", () => {
     // browsers are unwatched, why the first read is slow, and the reader's own
     // error text.
     expect(users.sort()).toEqual([
+      // The Local network card while the section is off: the one sentence
+      // that says what the section is for, read once before deciding to turn
+      // it on. Prose, in a card whose other line is a verb in the accent.
+      ".ap-lan-intro-text",
       ".bw-access dd",
       ".bw-empty-note",
       ".bw-key dd",

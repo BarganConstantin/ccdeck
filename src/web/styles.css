@@ -7869,7 +7869,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
-  .ap-lan-pick:active, .ap-lan-word:active:not(:disabled),
+  .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
@@ -9831,3 +9831,170 @@ input, textarea { caret-color: var(--accent); }
   letter-spacing: normal;
   font-weight: 400;
 }
+
+/* ---------------- guides ----------------
+   Pictures, one at a time, with one line under each — see GuideModal.tsx for
+   why the deck explains itself this way now. The shell is the shared `.modal`;
+   what is new is the stage the drawing sits on and the row that moves through
+   them. */
+.modal.guide { width: min(560px, 92vw); }
+.guide .modal-body { gap: 12px; }
+/* The ground the drawing is on: the page's own, one step below the dialog, so
+   a machine drawn on it reads as a surface the way a panel does on the canvas. */
+.guide-stage {
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  animation: fadeIn 180ms ease-out;
+}
+.guide-line {
+  margin: 4px 2px 0;
+  min-height: 2.9em;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.guide-tip {
+  margin: -4px 2px 0;
+  min-height: 1.5em;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.guide-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.guide-dots { display: flex; margin-right: auto; }
+/* A dot in a 24px target: the shared glyph button supplies the target, the
+   ring and the ink, and the dot is drawn in that ink so hover and the current
+   step are the same two rules every other glyph obeys. */
+.guide-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.guide-dot[aria-current="step"] { color: var(--accent); }
+.guide-aside { margin-right: 4px; }
+
+/* The drawings. Every fill and stroke is a token, so they are right in both
+   themes; every size is on the type ladder, in the drawing's own units. */
+.guide-art { display: block; width: 100%; height: auto; overflow: visible; }
+.ga-screen { fill: var(--panel); stroke: color-mix(in srgb, var(--text) 16%, transparent); }
+.ga-canvas { fill: none; stroke: color-mix(in srgb, var(--text) 16%, transparent); stroke-dasharray: 3 5; }
+.ga-line { stroke: color-mix(in srgb, var(--text) 12%, transparent); }
+.ga-track { fill: color-mix(in srgb, var(--text) 12%, transparent); }
+.ga-bed-warn { fill: color-mix(in srgb, var(--warn) 10%, transparent); }
+.ga-t { font-size: 11px; fill: var(--text); }
+.ga-s { font-size: 10px; fill: var(--muted); }
+.ga-cap { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
+.ga-big { font-size: 26px; font-weight: 600; fill: var(--text); }
+.ga-strong { font-weight: 600; }
+.ga-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* The four states, after the text rules so a coloured line wins the tie. */
+.ga-ok { fill: var(--ok); }
+.ga-warn { fill: var(--warn); }
+.ga-accent { fill: var(--accent); }
+.ga-flight { fill: var(--inflight); }
+.ga-dim { fill: var(--muted-dim); }
+.ga-switch { fill: var(--ctl-fill); stroke: var(--ctl-edge); }
+.ga-switch-on { fill: var(--accent); }
+.ga-knob { fill: var(--muted); }
+.ga-knob-on { fill: var(--bg); }
+.ga-box { fill: none; stroke: var(--muted); }
+.ga-tick { fill: none; stroke: var(--bg); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ga-pointer { fill: var(--text); stroke: var(--bg); stroke-width: 1; stroke-linejoin: round; }
+.ga-pill-warn { fill: none; stroke: var(--warn); }
+.ga-off { stroke: var(--muted-dim); stroke-width: 1.2; stroke-dasharray: 2 5; }
+.ga-arc { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-dasharray: 3 4; }
+.ga-arrow { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.ga-edge { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+.ga-edge-done { fill: none; stroke: var(--muted-dim); stroke-width: 1.2; }
+.ga-chip { fill: none; stroke: color-mix(in srgb, var(--text) 22%, transparent); }
+.ga-chip-live { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); }
+.ga-ring { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+.ga-ring-warn { fill: none; stroke: var(--warn); stroke-width: 1.2; }
+.ga-key-bed { fill: var(--accent); }
+.ga-key { fill: none; stroke: var(--bg); stroke-width: 1.5; stroke-linecap: round; }
+.ga-caret { fill: var(--text); }
+
+/* THE MOTION, and every piece of it says one thing. The rings are a machine
+   being heard; the dashes run along an edge that is in flight; the key is a
+   login crossing from the machine that has it to the one that lost it, and the
+   row it lands on changes state as it arrives — the two share one five-second
+   clock so they cannot drift apart. */
+.ga-ping { transform-box: fill-box; transform-origin: center; animation: ga-ping 2.4s ease-out infinite; }
+.ga-ping-2 { animation-delay: 1.2s; }
+@keyframes ga-ping {
+  from { transform: scale(0.5); opacity: 0.9; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+.ga-flow { stroke-dasharray: 4 4; animation: ga-flow 0.9s linear infinite; }
+@keyframes ga-flow { to { stroke-dashoffset: -8; } }
+.ga-blink { animation: ga-blink 1.1s steps(1) infinite; }
+@keyframes ga-blink { 50% { opacity: 0; } }
+.ga-pop { transform-box: fill-box; transform-origin: center; animation: ga-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) 500ms both; }
+@keyframes ga-pop { from { transform: scale(0.8); opacity: 0; } }
+.ga-travel { animation: ga-travel 5s ease-in-out infinite; }
+@keyframes ga-travel {
+  0%, 30% { transform: translate(246px, 96px); opacity: 0; }
+  34% { opacity: 1; }
+  39% { transform: translate(234.5px, 73.5px); }
+  47.5% { transform: translate(220px, 66px); }
+  56% { transform: translate(205.5px, 73.5px); }
+  61% { opacity: 1; }
+  65%, 100% { transform: translate(194px, 96px); opacity: 0; }
+}
+.ga-swap-out { animation: ga-swap-out 5s ease infinite; }
+.ga-swap-in { opacity: 0; animation: ga-swap-in 5s ease infinite; }
+@keyframes ga-swap-out { 0%, 64% { opacity: 1; } 70%, 94% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes ga-swap-in { 0%, 64% { opacity: 0; } 70%, 94% { opacity: 1; } 100% { opacity: 0; } }
+/* Still, the drawings keep their END state: the key where it crosses, the row
+   already repaired, the node already there. A reader who asked for less motion
+   still gets the picture; they only lose the film of it. */
+@media (prefers-reduced-motion: reduce) {
+  .ga-ping { animation: none; opacity: 0; }
+  .ga-flow { animation: none; }
+  .ga-blink { animation: none; }
+  .ga-pop { animation: none; }
+  .ga-travel { animation: none; }
+  .ga-swap-out { animation: none; opacity: 0; }
+  .ga-swap-in { animation: none; opacity: 1; }
+}
+
+/* Local network while it is off: the whole section is this card, and the card
+   is a door to the guide. The drawing is the panel-sized version of the
+   guide's first and last pictures — a login that died, one that works, the
+   arc between — so the section says what it is for before anybody reads it. */
+.ap-lan-intro {
+  /* A block-level flex box fills the column on its own: no `width: 100%`,
+     which panel-overflow.test.ts would rightly ask a margin question about. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 10px 9px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 8px;
+  background: var(--ctl-fill);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-intro:hover:not(:disabled) { border-color: var(--accent); }
+.ap-lan-intro:active:not(:disabled) { transform: scale(0.97); }
+.ap-lan-intro-text { font-size: 11px; line-height: 1.45; color: var(--text-secondary); }
+.ap-lan-intro-go { font-size: 10px; color: var(--accent); }
+.ap-lan-how { color: var(--accent); }
+
+/* The welcome's way back, on the empty canvas: the hero is pointer-transparent
+   so a drag starting on it still pans, and this is the one thing on it a
+   pointer is meant to land on. */
+.empty-hero .empty-tour { pointer-events: auto; margin-top: 18px; }

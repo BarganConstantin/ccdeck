@@ -37,6 +37,8 @@
 // every machine at once.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pressAccepted, pressState } from "../panel-press";
+import GuideModal from "./GuideModal";
+import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
 import LanSetupModal from "./LanSetupModal";
 
@@ -753,6 +755,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  paragraph and a shell command — unfolded in 288px they turned a list of
    *  machines into a form with a list on top of it. */
   const [addOpen, setAddOpen] = useState(false);
+  /** The four pictures that say what this section is for and what to do on
+   *  each machine. Opened from a press only — the card while the section is
+   *  off, and the word under an empty list — never from a flag. */
+  const [guideOpen, setGuideOpen] = useState(false);
   /** Whether the decks that are not on are showing. Shut by default and kept
    *  for the session only: which decks are off changes while you watch, and a
    *  remembered fold would be about a list that no longer exists. */
@@ -1052,8 +1058,18 @@ export default function LanSyncSection({ accounts, onChanged }: {
           already say `login expired`, so this says expired too — "heal" and
           "dead" were two more words for the same state and a reader scanning
           three of them has to work out that they are one. */}
+      {/* AND NOW IT IS A PICTURE AS WELL, and a door. The sentence was the only
+          thing a reader deciding whether to turn this on was given, and the
+          report was that nobody could tell from it what would happen or what
+          to do on the other machine. The drawing says the first half at a
+          glance; the press opens the guide that says the rest. */}
       {!on && (
-        <p className="ap-auto-note">Paired decks repair each other&apos;s expired logins.</p>
+        <button type="button" className="ap-lan-intro" onClick={() => setGuideOpen(true)}
+          title="Four pictures: what this does, and what to do on each machine">
+          <LanIntroArt />
+          <span className="ap-lan-intro-text">Paired machines repair each other&apos;s expired logins.</span>
+          <span className="ap-lan-intro-go">See how it works</span>
+        </button>
       )}
 
       {/* WHO IS HERE, IN ONE LINE. Every state this section had was legible only
@@ -1253,11 +1269,19 @@ export default function LanSyncSection({ accounts, onChanged }: {
           )}
 
           {rest.length === 0 && asks.length === 0 && (
-            <p className="ap-lan-fine">
-              No other deck yet. Decks on one network usually find each other on their own;
-              when that has not happened, <strong>+</strong> at the top of this section
-              reaches one by address or by invite.
-            </p>
+            <>
+              <p className="ap-lan-fine">
+                No other deck yet. Decks on one network usually find each other on their own;
+                when that has not happened, <strong>+</strong> at the top of this section
+                reaches one by address or by invite.
+              </p>
+              {/* The moment somebody has switched this on and is waiting for a
+                  first machine is the moment they most want to know what the
+                  other machine has to do. */}
+              <button type="button" className="ap-lan-word ap-lan-how" onClick={() => setGuideOpen(true)}>
+                How it works
+              </button>
+            </>
           )}
 
         </>
@@ -1269,6 +1293,18 @@ export default function LanSyncSection({ accounts, onChanged }: {
           manual={manual}
           onClose={() => setAddOpen(false)}
           onChanged={() => { void load(); onChanged(); }}
+        />
+      )}
+
+      {guideOpen && (
+        <GuideModal
+          title="How Local network works"
+          steps={LAN_STEPS}
+          // The guide ends on the act it was describing, while there is one to
+          // do. It goes through the same toggle the switch does, so the setup
+          // dialog still opens on the press that puts this deck on the network.
+          finish={on ? undefined : { label: "Turn it on", act: () => { setGuideOpen(false); void toggle(); } }}
+          onClose={() => setGuideOpen(false)}
         />
       )}
 

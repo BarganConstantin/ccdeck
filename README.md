@@ -22,7 +22,7 @@ npx ccdeck
 
 who is blocked on you · tool calls · one canvas · cost · quota · local · no telemetry
 
-[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Options](#options) · [FAQ](#questions-people-ask)
+[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
 
 
 </div>
@@ -43,6 +43,27 @@ ccdeck draws the tree instead. It is local and needs no configuration: it regist
 
 One canvas. No tabs. No kanban.
 
+The deck opens on these four pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
+
+<table>
+<tr>
+<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you rise to the top, longest wait first."></td>
+<td><img src="assets/guide/welcome-2.svg" width="440" alt="Every agent and subagent is a node. Tool calls light up as they run."></td>
+</tr>
+<tr>
+<td align="center"><sub>Sessions waiting on you rise to the top, longest wait first.</sub></td>
+<td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/guide/welcome-3.svg" width="440" alt="What each session costs, and how much quota is left."></td>
+<td><img src="assets/guide/welcome-4.svg" width="440" alt="Run claude or codex in any folder. It shows up here on its own."></td>
+</tr>
+<tr>
+<td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
+<td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
+</tr>
+</table>
+
 | | |
 |---|---|
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — Codex emits no such signal. |
@@ -52,6 +73,7 @@ One canvas. No tabs. No kanban.
 | **Click to inspect** | Any node opens its prompt, tool calls, token usage and timing. |
 | **Survives restarts** | Events are appended to `~/.claude/agent-dag/events.jsonl` and replayed on open. |
 | **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
+| **Logins that repair each other** | A Claude login that expires on one of your machines is copied back from another machine on the same network that still has it — see [Local network](#local-network). |
 | **Knows when it is stale** | Node caches modules at startup, so an upgraded-while-running deck keeps executing old code. This one says so, and can restart itself when nothing is running. |
 | **Workspace scoping** | `--scope` for the current directory, `--workspace <path>` for any subtree — for Claude Code and Codex alike. |
 
@@ -61,7 +83,7 @@ One canvas. No tabs. No kanban.
 npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
 ```
 
-Opens **http://127.0.0.1:4317** and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
+Opens **http://127.0.0.1:4317**, shows a four-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
 
 The deck keeps running after you close the terminal, and starts again when you
 log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start that
@@ -162,6 +184,37 @@ An import adds what is missing and leaves a working account exactly as it is. Th
 > A share carries the **live login of every account in it, in the clear** — claude-swap's export format has no encryption, and five ticked boxes is five passwords on your clipboard. It expires ten minutes after it is made and imports refuse it after that. While it lives, treat it as those passwords: anything that can read your clipboard can read the accounts.
 
 Renaming, reordering and removing are on the same row menu. Removal takes two clicks and cannot be undone.
+
+## Local network
+
+A Claude login expires on the machine that has not used it for a while, and stays alive on the one that has. With two or three machines that is a `claude login` a week, each time on the machine you are not sitting at. **Local network** is the last section of the Claude accounts panel, and it is that chore done for you: decks on one network find each other, pair, and a login that has expired on one is copied back from another that still has it.
+
+Four pictures, which are also the guide the section opens from `See how it works`:
+
+<table>
+<tr>
+<td><img src="assets/guide/lan-1.svg" width="440" alt="A login can expire on one machine while it still works on another."></td>
+<td><img src="assets/guide/lan-2.svg" width="440" alt="Turn this on, on both machines. They find each other and pair."></td>
+</tr>
+<tr>
+<td align="center"><sub><b>1.</b> A login can expire on one machine while it still works on another.</sub></td>
+<td align="center"><sub><b>2.</b> Turn this on, on both machines. They find each other and pair.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/guide/lan-3.svg" width="440" alt="Tick which logins this machine may hand out. Nothing is shared until you do."></td>
+<td><img src="assets/guide/lan-4.svg" width="440" alt="An expired login is copied from a paired machine within a minute."></td>
+</tr>
+<tr>
+<td align="center"><sub><b>3.</b> Tick which logins this machine may hand out. Nothing is shared until you do.</sub></td>
+<td align="center"><sub><b>4.</b> An expired login is copied from a paired machine within a minute.</sub></td>
+</tr>
+</table>
+
+**On each machine, in order:** open the Claude accounts panel (`A`), switch **Local network** on, and in the dialog that opens tick the logins this machine may hand out. That is all — the two decks find each other over a UDP beacon on port 45317, pair on their own, and from then on every paired deck is asked once a minute for anything this deck's expired logins need.
+
+**When they do not find each other** — a VPN, a guest network, two subnets — `+` at the top of the section reaches a deck by address, or with an invite the other deck minted. An invite is the route when the machine that cannot be seen is this one.
+
+**What is shared, and with whom.** Nothing until you tick a login, and then only that login, and only with decks somebody at this machine accepted — the deck asks the machines it finds and says yes to the ones that ask, and both switches are in the same dialog if you would rather press `accept` yourself. A paired deck can fill an *expired* slot of this deck's and nothing else: it cannot overwrite a login that still works here. What crosses the wire is the same live credential a share carries, sealed to the deck it is addressed to, so treat the pairing decision as the moment that matters. Unpairing stops future rounds; a login already copied stays where it went.
 
 ## Options
 

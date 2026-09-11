@@ -261,14 +261,15 @@ describe("which overlay holds Tab", () => {
 // ── what each of the seven overlays does with it ────────────────────────────
 
 describe("the deck's ten overlays", () => {
-  it("has found all fifteen, so a new one cannot skip this file", () => {
+  it("has found all sixteen, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes, nine until #723 added the share picker, ten until #738
     // added the section history and eleven until it added the process list.
     // Raising the number is how a dialog joins the sweep, not how one is
     // excused from it: every assertion below is asked of the newcomer
     // unchanged.
-    expect(MODALS.length).toBe(15);
+    // The sixteenth is the guide — the two picture tours share one dialog.
+    expect(MODALS.length).toBe(16);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -304,6 +305,10 @@ describe("the deck's ten overlays", () => {
     const named = MODALS.filter(f => /useModalDismiss\([^)]*focusRef/s.test(read(f)));
     expect(named.sort()).toEqual([
       "AddAccountDialog.tsx", "ClearConfirm.tsx", "ContextModal.tsx",
+      // A guide names Next, because it is read forwards: a reader who opened
+      // it with Enter can keep pressing Enter to the end, and the × is still
+      // one Shift+Tab away and Escape closes it from any step.
+      "GuideModal.tsx",
       // The add-a-deck dialog names the address field, because the reader
       // pressed `+ add a deck` holding either an address or a token and only
       // one of the two is a field they can start typing into.

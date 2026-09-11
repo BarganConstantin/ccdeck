@@ -174,6 +174,9 @@ describe("the modals themselves", () => {
       // Browser Watch, named here for the same reason as the two below.
       "BrowserWatchModal.tsx",
       "ClearConfirm.tsx", "ContextModal.tsx",
+      // The guides — pictures a step at a time — named here for the same
+      // reason as the rest: this is how they join the loop below.
+      "GuideModal.tsx",
       // #511's shortcuts sheet. Naming it here is how it enters the rule below
       // rather than how it escapes one: the loop that follows asks the same
       // question of every file in this list.

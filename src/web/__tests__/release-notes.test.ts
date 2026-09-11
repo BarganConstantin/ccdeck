@@ -798,8 +798,28 @@ describe("how App.tsx wires it up", () => {
     // A first run and a browse both arrive with nothing stored. Passing the
     // same flag for both would give a new install the browse sentence, which
     // promises "everything before it" under a list of exactly one release.
-    expect(app).toMatch(/firstRun: decision\.reason === "welcome"/);
+    // Since the tour took the welcome, no route here raises the dialog as a
+    // first run any more — so the flag is false on both, and the dialog is
+    // still told which one it is rather than left to guess from `since`.
+    expect(app).toMatch(/firstRun: false/);
+    expect(app).not.toMatch(/firstRun: decision\.reason/);
     expect(app).toMatch(/firstRun=\{releaseNotes\.firstRun\}/);
+  });
+
+  it("sends a first run to the tour and not to the changelog", () => {
+    // What a person who has never seen the deck needs is not what changed
+    // since a version they never ran; it is what the thing in front of them
+    // is for. Both first-run reasons go there — a release with nothing in the
+    // changelog still welcomes — and the decision is still recorded first, so
+    // the NEXT load is an upgrade rather than a second first run.
+    const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
+    expect(effect).toMatch(/if \(decision\.reason === "welcome" \|\| decision\.reason === "first-run"\) \{\s*setTourOpen\(true\);\s*return;/);
+    expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
+    // And the tour is a dialog like the rest: the canvas shortcuts are gated
+    // while it is up, and the empty canvas is the way back to it.
+    expect(app).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);
+    expect(app).toMatch(/<GuideModal title="What the deck shows you" steps=\{WELCOME_STEPS\}/);
+    expect(app).toMatch(/className="btn empty-tour" onClick=\{onTour\}/);
   });
 
   it("does not gate the way back on the run being non-empty (#715)", () => {
