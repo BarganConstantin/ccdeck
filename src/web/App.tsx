@@ -1194,7 +1194,12 @@ function Inner() {
     // caller wants it back.
     const plan = decideWelcome({ tourSeen: readTourSeen(store), decision });
     const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
-    if (plan.tour) { writeTourSeen(store); setTourOpen(true); }
+    // Opened here, and marked seen only when a person CLOSES it — see the
+    // tour's onClose. Marking it on open was the defect: the deck reloads its
+    // own tab when the bundle changes, and updates itself while nobody is
+    // looking, so the tour opened in tabs nobody was watching, was recorded
+    // as seen, and the people it was for never saw it.
+    if (plan.tour) setTourOpen(true);
     if (plan.notes === "now") setReleaseNotes(notes);
     else if (plan.notes === "after") notesAfterTour.current = notes;
   }, [version?.running]);
@@ -4759,6 +4764,9 @@ function Inner() {
       {tourOpen && (
         <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={() => {
           setTourOpen(false);
+          // Seen means a person closed it — Done, ×, Escape or the scrim. A tab
+          // that reloaded with it open never got here, so it opens again.
+          writeTourSeen(seenStore());
           // The changelog an upgrade was holding back, now that the pictures
           // have been seen. Taken out of the ref first, so a tour opened by
           // hand later never replays it.

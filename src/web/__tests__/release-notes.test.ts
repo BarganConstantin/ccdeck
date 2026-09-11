@@ -863,7 +863,14 @@ describe("how App.tsx wires it up", () => {
     // effect owes is to ask it and to obey every one of its three answers.
     const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
     expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen: readTourSeen\(store\), decision \}\);/);
-    expect(effect).toMatch(/if \(plan\.tour\) \{ writeTourSeen\(store\); setTourOpen\(true\); \}/);
+    expect(effect).toMatch(/if \(plan\.tour\) setTourOpen\(true\);/);
+    // NOT marked on open. The deck reloads its own tab when the bundle
+    // changes and updates itself while nobody is looking, so a tour marked on
+    // open was a tour recorded as seen in a tab nobody was watching — the
+    // defect reported the day 3.21.3 shipped. It is marked when closed.
+    expect(effect).not.toMatch(/writeTourSeen/);
+    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(seenStore\(\)\);/);
+    expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
     expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
     // And the held notes open when the tour closes — taken out of the ref
