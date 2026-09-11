@@ -153,6 +153,19 @@ describe("the Windows task", () => {
 });
 
 describe("where each platform keeps it", () => {
+  it("answers for the platform ASKED ABOUT, not the one running the test", () => {
+    // CAUGHT RED IN CI, on the first push. `node:path`'s `join` is bound to the
+    // HOST: a bare one answers `\\Users\\x\\Library\\LaunchAgents\\...` when a
+    // Windows runner is asked where a macOS login item lives. The only way a
+    // Windows answer stays right is if it can be checked from a Mac — which is
+    // exactly what this assertion does, on every runner, in both directions.
+    // Third time this class of bug has been caught in this repo.
+    expect(servicePath("darwin", "/Users/x")).not.toMatch(/\\/);
+    expect(servicePath("linux", "/home/x", {})).not.toMatch(/\\/);
+    expect(servicePath("darwin", "/Users/x").split("/")).toContain("LaunchAgents");
+    expect(servicePath("linux", "/home/x", {}).split("/")).toContain("systemd");
+  });
+
   it("uses the per-user location, never a machine-wide one", () => {
     // A LaunchDaemon, a system unit or a task under SYSTEM would all need root
     // and would start a deck for an account that may not be logged in.

@@ -34,7 +34,16 @@
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+// BOTH SPELLINGS, NOT `node:path`'s. `join` is bound to the HOST: a bare one
+// answers `\Users\x\Library\LaunchAgents\...` when a Windows runner is asked
+// where a macOS login item lives, which is how this landed red in CI on the
+// first push. The only way a Windows answer stays right is if it can be checked
+// from a Mac — the same reason deck-home.mjs and claudeCliCandidates do it, and
+// the third time this class of bug has been caught here.
+import { posix as posixPath, win32 as winPath } from "node:path";
+
+/** The joiner for the platform being ASKED ABOUT, which is not always this one. */
+const joinFor = (platform) => (platform === "win32" ? winPath.join : posixPath.join);
 
 /**
  * What the service is called.
@@ -53,6 +62,7 @@ export const SERVICE_RECORD = "service.json";
 
 /** Where this platform keeps a per-user login item. */
 export function servicePath(platform = process.platform, home = homedir(), env = process.env) {
+  const join = joinFor(platform);
   if (platform === "darwin") return join(home, "Library", "LaunchAgents", `${SERVICE_LABEL}.plist`);
   if (platform === "win32") return `\\${SERVICE_LABEL}`; // a Task Scheduler path, not a file
   const config = env.XDG_CONFIG_HOME?.trim() || join(home, ".config");
@@ -235,7 +245,9 @@ export function shouldOfferService({ record = null, npx = false, env = process.e
 /** Read what we did last time, or null when we have never touched this machine. */
 export function readServiceRecord(dataDir, { fs = { readFileSync } } = {}) {
   try {
-    const d = JSON.parse(fs.readFileSync(join(dataDir, SERVICE_RECORD), "utf8"));
+    // The HOST's join, deliberately: this reads a file on the machine running
+    // it, so there is no other platform to be right for.
+    const d = JSON.parse(fs.readFileSync(joinFor(process.platform)(dataDir, SERVICE_RECORD), "utf8"));
     return d && typeof d === "object" ? d : null;
   } catch { return null; }
 }
@@ -245,7 +257,7 @@ export function readServiceRecord(dataDir, { fs = { readFileSync } } = {}) {
 export function writeServiceRecord(dataDir, record, { fs = { mkdirSync, writeFileSync } } = {}) {
   try {
     fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(join(dataDir, SERVICE_RECORD), JSON.stringify(record, null, 2) + "\n");
+    fs.writeFileSync(joinFor(process.platform)(dataDir, SERVICE_RECORD), JSON.stringify(record, null, 2) + "\n");
     return true;
   } catch { return false; }
 }
@@ -334,7 +346,7 @@ export function installService({
       // %TEMP%: schtasks reads it once and this way a machine that refuses the
       // import still has the file that was refused, next to everything else
       // this deck owns.
-      const xmlPath = join(logPathDir(logPath), `${SERVICE_LABEL}-task.xml`);
+      const xmlPath = joinFor(platform)(logPathDir(logPath), `${SERVICE_LABEL}-task.xml`);
       // UTF-16LE with a BOM: schtasks rejects UTF-8 with an unhelpful error.
       fs.writeFileSync(xmlPath, "\uFEFF" + taskXmlFor({ execPath, script, args, product }), "utf16le");
       const cmd = registerCommand(platform, xmlPath);
