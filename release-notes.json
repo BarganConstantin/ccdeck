@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.20.0": [
+    {
+      "title": "🟢 The deck keeps running after you close the terminal",
+      "body": "`ccdeck` prints the same boot report and gives you the prompt back. The deck stays up, and starts again when you log in.\n\n🛑 **`ccdeck --stop` is the off switch now** — Ctrl+C only cancels a start that is still printing. `--status` says what is running, `--logs` shows what the deck wrote while you were away, and `--foreground` holds the terminal the way every version before this one did.\n\n🔁 Typing `ccdeck` beside a deck that is already up opens **that deck's tab** instead of building a second one. `ccdeck --stop --all` clears any older deck still running from before this version. An `npx` run cannot start at login — `npx ccdeck --install` puts it on your PATH and sets that up.\n\n🔑 An account that will not collect now says which of three things is wrong: **no stored login**, a **login that expired**, or a **keychain the deck cannot open** — with the fix beside it. One with no stored login is filled over the local network by a paired deck that has it.\n\n📡 And decks find each other again on a machine with a VPN up: the beacon was going to an address that never left the machine, so this deck could hear colleagues and none of them could hear it."
+    }
+  ],
   "3.19.0": [
     {
       "title": "🟢 Local network: fixes and improvements",
