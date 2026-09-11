@@ -26,6 +26,9 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
+import { createActivity } from "./activity.mjs";
+import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
+import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
@@ -48,6 +51,13 @@ const RUNNING_VERSION = (() => {
   try { return JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8"))?.version ?? null; }
   catch { return null; }
 })();
+
+// The two facts the away-update waits on (awayUpdateTick): whether a turn is
+// running, fed from pushEvent, and whether a tab is being looked at, fed from
+// POST /api/presence. Up here rather than beside the tick because pushEvent
+// can run before the module below it has finished evaluating.
+const activity = createActivity();
+const presence = createPresence();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -3187,6 +3197,77 @@ async function handlePrefsWrite(req, res) {
   return send(res, 200, prefsPayload());
 }
 
+// ── updating while nobody is looking ────────────────────────────────────────
+//
+// auto-update.mjs has the why and the rules; this is the timer and the three
+// effects — install, restart, npx relaunch — each through the code a press
+// uses.
+let _awayTry = null;
+let _awayTimer = null;
+let _bootedAt = Date.now();
+// Until when a report that found nothing newer stands — see AWAY_RECHECK_MS.
+let _awayNothingUntil = 0;
+
+/**
+ * One tick of the away-update. Returns what it did, or null.
+ *
+ * Exported so a test can drive it without waiting out the boot grace — the one
+ * input that is a policy rather than a fact, and so the only one it may pass.
+ * Every clock is the real one: presence and activity are stamped with it.
+ */
+export async function awayUpdateTick({ graceMs = AWAY_BOOT_GRACE_MS } = {}) {
+  const now = Date.now();
+  if (!awayGate({
+    enabled: _prefs?.autoUpdate !== false,
+    supervised: _onRestart != null && _canRestart,
+    restarting: _restarting,
+    sinceBootMs: now - _bootedAt,
+    looking: presence.looking(now),
+    busy: activity.busy(now),
+    quietMs: activity.quietMs(now),
+    graceMs,
+  })) return null;
+  // A standing "nothing newer", unless the clock has moved back past it.
+  if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;
+  const su = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+  const report = await su.versionReport({ running: RUNNING_VERSION, pkgRoot: PKG_ROOT });
+  if (!report.notice) {
+    _awayNothingUntil = now + AWAY_RECHECK_MS;
+    return null;
+  }
+  const step = awayUpdateStep({
+    notice: report.notice, mode: report.upgradeMode,
+    installing: report.upgrade?.state === "running", lastTry: _awayTry, now,
+  });
+  if (!step.act) return null;
+  // Asked again, because the lookup above can take seconds on a slow line and
+  // somebody may have sat down, or started a turn, in them.
+  const again = Date.now();
+  if (presence.looking(again) || activity.busy(again) || _restarting) return null;
+  _awayTry = { target: step.target, at: again };
+  if (step.act === "install") {
+    su.startUpgrade({ pkgRoot: PKG_ROOT });
+    return step.act;
+  }
+  // handleRestart's own check for the npx path, for the same reason: the mode
+  // comes from the install on disk, and a spec it cannot name is no relaunch.
+  if (step.act === "npx" && !su.npxRestartSpec(PKG_ROOT)) return null;
+  _restarting = true;
+  handOffRestart(step.act === "npx" ? "npx" : null);
+  return step.act;
+}
+
+/** POST {tab, looking} — a tab saying whether it is being looked at. See
+ *  presence.mjs, and src/web/presence.ts for the sender. */
+async function handlePresence(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
+  const ok = presence.report(body.tab, body.looking === true, Date.now());
+  return send(res, ok ? 200 : 400, { ok });
+}
+
 // ── LAN sync ────────────────────────────────────────────────────────────────
 //
 // The engine is built once and told the settings; it opens and closes its own
@@ -3659,6 +3740,10 @@ function pushEvent(raw, source, opts = {}) {
   // owns the case where none does; the two never both fire, and neither has to
   // know the other exists. block-notify.mjs holds the gates and the cooldown.
   blockNotifier.consider(raw, { clients: sseClients.size, replay: !!opts.replay });
+
+  // Whether a turn is running, for the away-update. Not from a replay: the log
+  // is history, and a turn it shows open is one that ended in another process.
+  if (!opts.replay) activity.note(raw, evt.receivedAt);
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line
@@ -4431,6 +4516,16 @@ async function handleRestart(req, res) {
   if (_deckReady) send(res, 200, { ok: true, mode });
   else send(res, 202, { ok: true, mode, booting: true, detail: "the deck is still starting up; the restart runs as soon as it has finished booting" });
   // Let the response flush before the listener goes away.
+  handOffRestart(mode);
+}
+
+/**
+ * Hand a restart the latch has already admitted to the launcher — from a press
+ * (handleRestart, once its answer is on its way) or from the away-update
+ * (awayUpdateTick). The delay is the press's: its response has to leave before
+ * the listener does.
+ */
+function handOffRestart(mode) {
   setTimeout(() => {
     try { _onRestart(mode); }
     catch (err) {
@@ -5684,6 +5779,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // `!== false` rather than a cast: a caller that omits the field means "yes",
   // which is how every embedder that predates this option keeps working.
   _providers = { claude: claude !== false, codex: codex !== false };
+  // The away-update's clock. The boot grace counts from here, and the timer is
+  // unref'd so it never keeps a process alive on its own. It does nothing until
+  // the launcher has handed down a restart — see awayGate's `supervised`.
+  _bootedAt = Date.now();
+  clearInterval(_awayTimer);
+  _awayTimer = setInterval(() => { awayUpdateTick().catch(() => {}); }, AWAY_TICK_MS);
+  _awayTimer.unref?.();
   // The repair a paused Claude account used to wait on a `resume` press for:
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see repairStaleCopyWith.
@@ -5770,6 +5872,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);

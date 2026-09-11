@@ -35,6 +35,7 @@ import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
+import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
@@ -1083,6 +1084,50 @@ function Inner() {
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
+
+  // ── who is looking ────────────────────────────────────────────────────────
+  // The server updates the deck on its own while nobody is looking at it
+  // (auto-update.mjs), and only a page can say whether somebody is. So each tab
+  // says so on every focus change, and again every PRESENCE_BEAT_MS while it
+  // holds focus, because the claim expires on the server rather than being
+  // trusted forever. A tab that closes takes its claim back on the way out;
+  // one that cannot is forgotten when its last beat runs out.
+  useEffect(() => {
+    const tab = newTabId();
+    let last: boolean | null = null;
+    const say = (looking: boolean) => {
+      fetch("/api/presence", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tab, looking }),
+        // keepalive, so the goodbye sent from `pagehide` still leaves.
+        keepalive: true,
+      }).catch(() => {});
+    };
+    const tick = () => {
+      const looking = tabLooking(document);
+      if (presenceShouldSend(last, looking)) say(looking);
+      last = looking;
+    };
+    const bye = () => {
+      if (last) say(false);
+      last = false;
+    };
+    tick();
+    const iv = window.setInterval(tick, PRESENCE_BEAT_MS);
+    window.addEventListener("focus", tick);
+    window.addEventListener("blur", tick);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("pagehide", bye);
+    return () => {
+      window.clearInterval(iv);
+      window.removeEventListener("focus", tick);
+      window.removeEventListener("blur", tick);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("pagehide", bye);
+      bye();
+    };
+  }, []);
   const notice = version?.notice ?? null;
 
   // ── what changed since you last looked (#712) ─────────────────────────────
@@ -1504,13 +1549,28 @@ function Inner() {
     if (typeof window === "undefined") return true;
     try { return window.localStorage.getItem(AUTO_RESTART_KEY) !== "0"; } catch { return true; }
   });
+  /** Whether this page has pressed the switch. A press is newer than anything
+   *  the prefs load can bring back, so that load leaves the switch alone. */
+  const autoTouchedRef = useRef(false);
+  // ON THE SERVER NOW, as `autoUpdate` in prefs.json: the deck also updates
+  // itself while nobody is looking at it — with no page open at all — and that
+  // needs the same answer (auto-update.mjs). The initialiser above still reads
+  // the old key so a switch turned off before the move renders off at once; the
+  // prefs load further down carries it over and removes it. Optimistic like the
+  // notifications switch, and corrected by the server's answer.
   const toggleAutoRestart = useCallback(() => {
-    setAutoRestart(v => {
-      const next = !v;
-      try { window.localStorage.setItem(AUTO_RESTART_KEY, next ? "1" : "0"); } catch { /* private mode */ }
-      return next;
-    });
-  }, []);
+    const next = !autoRestart;
+    autoTouchedRef.current = true;
+    try { window.localStorage.removeItem(AUTO_RESTART_KEY); } catch { /* private mode */ }
+    setAutoRestart(next);
+    fetch("/api/prefs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ autoUpdate: next }),
+    }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (d?.ok) setAutoRestart(d.prefs?.autoUpdate !== false);
+    }).catch(() => {});
+  }, [autoRestart]);
   const [restarting, setRestarting] = useState(false);
   // "npx" gets its own word everywhere, because it is a download and not a
   // process restart: it takes tens of seconds, and a banner that says
@@ -3042,6 +3102,27 @@ function Inner() {
     let alive = true;
     fetch("/api/prefs").then(r => (r.ok ? r.json() : null)).then(d => {
       if (!alive || !d?.ok) return;
+      // The auto-update switch, which lives here now (see toggleAutoRestart).
+      // One that was turned off while it was a localStorage key is carried
+      // over once, and then the key is gone. Not over a press made while this
+      // answer was on its way — see autoTouchedRef.
+      if (!autoTouchedRef.current) {
+        let legacyOff = false;
+        try {
+          legacyOff = window.localStorage.getItem(AUTO_RESTART_KEY) === "0";
+          window.localStorage.removeItem(AUTO_RESTART_KEY);
+        } catch { /* private mode */ }
+        if (legacyOff && d.prefs?.autoUpdate !== false) {
+          setAutoRestart(false);
+          fetch("/api/prefs", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ autoUpdate: false }),
+          }).catch(() => {});
+        } else {
+          setAutoRestart(d.prefs?.autoUpdate !== false);
+        }
+      }
       setNotifyOn(d.prefs?.notifications !== false);
       setNotifyVetoed(d.notificationsVetoed === true);
     }).catch(() => {});
@@ -3956,8 +4037,8 @@ function Inner() {
                     role="switch" aria-checked={autoRestart} onClick={toggleAutoRestart}
                     aria-label="Auto-restart when idle"
                     title={autoRestart
-                      ? "Restarts on its own once nothing has been running for 30 seconds. Click to require a click instead."
-                      : "Only restarts when you click. Click to let it restart itself while idle."}>
+                      ? "Updates on its own. While you are here it restarts once nothing has been running for 30 seconds; while you are away it also installs the new version first. Click to require a click instead."
+                      : "Only updates when you click. Click to let it update itself when idle or while you are away."}>
                     <i aria-hidden />
                     <span aria-hidden>{autoRestartLabel(autoRestart, restartFuseMs)}</span>
                   </button>

@@ -58,6 +58,12 @@ export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.j
  */
 export const DEFAULTS = Object.freeze({
   notifications: true,
+  // Whether the deck may update itself: restart into code already on disk once
+  // it is idle, and — while nobody is looking — install a newer release and
+  // restart into that (auto-update.mjs). ON, because this is the banner's
+  // `auto when idle`, which defaulted on as a localStorage key; it moved here so
+  // the server can read it with no page open.
+  autoUpdate: true,
   // LAN sync, off until somebody turns it on. `passphrase` is the only secret
   // this file has ever held, which is why the write below now names a mode.
   lan: Object.freeze({
@@ -188,6 +194,7 @@ export function normalise(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
     notifications: typeof src.notifications === "boolean" ? src.notifications : DEFAULTS.notifications,
+    autoUpdate: typeof src.autoUpdate === "boolean" ? src.autoUpdate : DEFAULTS.autoUpdate,
     lan: normaliseLan(src.lan),
   };
 }
