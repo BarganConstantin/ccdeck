@@ -301,9 +301,16 @@ export function visibleWidth(s) {
 /** How wide the terminal is, or 80 when it will not say — a pipe, a CI runner,
  *  a terminal that never sent SIGWINCH. 80 is the assumption every one of them
  *  is already built around, and the layout below never needs more than 40. */
-export function termColumns(stream = process.stdout) {
+export function termColumns(stream = process.stdout, env = process.env) {
   const c = stream?.columns;
-  return Number.isInteger(c) && c > 0 ? c : 80;
+  if (Number.isInteger(c) && c > 0) return c;
+  // COLUMNS, the POSIX spelling of this question, and the only answer a DETACHED
+  // deck has. Its stdout is the log file, so the stream knows nothing about a
+  // width — but the launcher is watching that file from a real terminal and
+  // passes its own width down, so the boot report is laid out for the terminal
+  // a person is actually reading it in rather than for the 80 below.
+  const n = Number.parseInt(String(env?.COLUMNS ?? "").trim(), 10);
+  return Number.isInteger(n) && n > 0 ? n : 80;
 }
 
 /** The status column, computed from the labels rather than counted into each

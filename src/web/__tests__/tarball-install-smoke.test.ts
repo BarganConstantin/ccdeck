@@ -161,6 +161,10 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
   let deck: ChildProcess | undefined;
   let out = { text: "" };
   let port = 0;
+  // Held past beforeAll so the teardown can run the shim's own `--stop` against
+  // the same install and the same sandboxed home — see afterAll.
+  let shimPath = "";
+  let deckEnv: NodeJS.ProcessEnv = {};
 
   beforeAll(async () => {
     mkdirSync(APP, { recursive: true });
@@ -189,8 +193,16 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     //    what `npx ccdeck` and a global install both go through and it is the
     //    piece that differs per platform.
     port = await freePort();
-    const shim = join(APP, "node_modules", ".bin", process.platform === "win32" ? "ccdeck.cmd" : "ccdeck");
-    deck = spawn(shim, [
+    shimPath = join(APP, "node_modules", ".bin", process.platform === "win32" ? "ccdeck.cmd" : "ccdeck");
+    deckEnv = {
+      ...process.env,
+      HOME, USERPROFILE: HOME,
+      CLAUDE_CONFIG_DIR: join(HOME, ".claude"),
+      CODEX_HOME: join(HOME, ".codex"),
+      XDG_CONFIG_HOME: join(HOME, ".config"),
+      NO_COLOR: "1",
+    };
+    deck = spawn(shimPath, [
       "--port", String(port),
       "--no-open",
       "--workspace", WORKSPACE,
@@ -202,24 +214,33 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
       // argument vector here is ours rather than a user's, so the shell adds no
       // surface. Windows is also the platform where this shim has broken before.
       shell: process.platform === "win32",
-      env: {
-        ...process.env,
-        HOME, USERPROFILE: HOME,
-        CLAUDE_CONFIG_DIR: join(HOME, ".claude"),
-        CODEX_HOME: join(HOME, ".codex"),
-        XDG_CONFIG_HOME: join(HOME, ".config"),
-        NO_COLOR: "1",
-      },
+      env: deckEnv,
     });
     out = { text: "" };
     deck.stdout!.on("data", d => { out.text += String(d); });
     deck.stderr!.on("data", d => { out.text += String(d); });
     await until(() => out.text.includes("server ready"), 90_000,
       `the installed deck to say it was ready — it said:\n${out.text}`);
+    // And then it LEAVES. The shim is a launcher now: it puts the deck in its
+    // own process group, tails the boot into this pipe, and exits — so the deck
+    // this test goes on to assert about is no longer a child of anything here.
+    await until(() => deck!.exitCode !== null, 30_000,
+      `the launcher to hand the terminal back — it said:\n${out.text}`);
   }, 300_000);
 
   afterAll(() => {
-    if (deck) killTree(deck, "SIGKILL");
+    // NOT killTree. The deck is detached and reparented; killing the launcher
+    // would kill a process that exited minutes ago and leave a real deck
+    // running out of a temp HOME — the exact litter this release is about. The
+    // shim's own `--stop` is the way out, and pointed at the port because this
+    // deck was started with shaping flags and does not have the default shape.
+    if (deck) {
+      spawnSync(shimPath, ["--stop", "--port", String(port)], {
+        cwd: APP, stdio: "ignore", shell: process.platform === "win32", env: deckEnv,
+      });
+      // Belt and braces: a stop that could not run must not leave the process.
+      killTree(deck, "SIGKILL");
+    }
     rmTempDir(DIR);
   });
 
@@ -370,6 +391,10 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     // Nothing crashed on the way. `NO_COLOR` is set, so this is reading plain
     // text rather than hunting escape codes.
     expect(out.text, "the boot printed a stack trace").not.toMatch(/^\s+at .+\(.+\)$/m);
-    expect(deck!.exitCode, "the deck exited during the run").toBe(null);
+    // The LAUNCHER exited, cleanly, which is now the whole point: the terminal
+    // comes back and the deck stays up. A non-zero code here would mean the
+    // boot failed after printing a URL, which is the case this smoke test was
+    // always really watching for.
+    expect(deck!.exitCode, "the launcher did not hand the terminal back cleanly").toBe(0);
   });
 });

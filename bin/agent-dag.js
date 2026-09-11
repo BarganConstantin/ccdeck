@@ -37,13 +37,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { killTree } from "../src/server/exec.mjs";
 import { invokedAs } from "../src/server/invoked-as.mjs";
+import { isOneShot, parseArgs } from "../src/server/args.mjs";
 import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
   bareSpecName, claimRestartFailureKey, clearRestartFailure, installedName, installedVersion,
-  lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure, successorRoot,
+  isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
+  successorRoot,
 } from "../src/server/self-update.mjs";
 import { dieOfSignal, dieWithParent, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
-import { colorProfile, glyphs, palette, unicodeOK } from "../src/server/term.mjs";
+import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
+import { DETACHED_ENV, detachAndWatch, stopCommand } from "../src/server/detach.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 
 const BIN_DIR = dirname(fileURLToPath(import.meta.url));
@@ -77,6 +80,55 @@ const G = glyphs(unicodeOK());
 // update reported someone else's failed npx as its own. Our pid is unique among
 // the decks alive on the machine, and putting it in our own environment is what
 // carries it to the worker: launch() spawns with a copy of it.
+// ── the terminal stops being the deck's leash ────────────────────────────────
+//
+// Everything about why is in src/server/detach.mjs. Here is only the decision,
+// and it has exactly two ways out:
+//
+//   ALREADY DETACHED — we ARE the background copy. Carry on as this file always
+//   has: spawn the worker, supervise it, never come back here.
+//
+//   A ONE-SHOT — `--version`, `--stop`, `--status`, `--help`, `--uninstall`.
+//   Those answer and leave, and a one-shot that detached would print its answer
+//   into a log file and hand the terminal back empty. They run in the
+//   foreground exactly as they always have.
+//
+// Anything else is a start, and a start goes to the background.
+const DETACHED = process.env[DETACHED_ENV] === "1";
+// A parent already holding our lifecycle. `process.send` exists only when
+// somebody spawned us with an IPC channel, and that somebody has armed
+// dieWithParent below and is waiting on our exit code — running away from them
+// into our own process group is precisely the wrong answer to being supervised.
+// The suite's spawnSupervised is the caller that does this today.
+const LEASHED = typeof process.send === "function";
+if (!DETACHED && !LEASHED && !isOneShot(parseArgs(process.argv.slice(2)))) {
+  const { deckLogDir } = await import("../src/server/deck-home.mjs");
+  const { registeredDecks } = await import("../src/server/running-deck.mjs");
+  const isTTY = Boolean(process.stdout.isTTY);
+  const profile = colorProfile({ isTTY });
+  const tone = palette(profile);
+  const stop = stopCommand({
+    npx: isNpxInstall(PKG_ROOT), invokedAs: INVOKED_AS, product: PRODUCT,
+  });
+  const outcome = await detachAndWatch({
+    file: fileURLToPath(import.meta.url),
+    argv: process.argv.slice(2),
+    logDir: deckLogDir(),
+    // Only the count, and only to decide whether deck.log is anybody's — see
+    // logMode. No handshake: this is a directory listing and a signal-0 each.
+    liveCount: (await registeredDecks().catch(() => [])).length,
+    isTTY,
+    profile,
+    columns: termColumns(process.stdout),
+    backgroundLine: `  ${tone.muted}${G.dash}  running in the background ${G.bullet} \`${stop}\` ends it${tone.reset}\n\n`,
+  });
+  // detachAndWatch never returns on the paths that worked. Reaching this line
+  // means the log could not be opened at all — a read-only home, a full disk —
+  // and a deck that will not start over a LOG is a worse answer than one that
+  // stays in the terminal, which is what every version before this did anyway.
+  console.error(`${PRODUCT}: could not open ${PRODUCT}'s log (${outcome.reason}) ${G.dash} staying in the foreground.`);
+}
+
 claimRestartFailureKey();
 
 // The port the worker actually bound, which is not necessarily the one it was
@@ -146,6 +198,12 @@ function launch(respawn) {
   worker.on("message", (m) => {
     if (!m || typeof m !== "object") return;
     if (m.type === "listening" && typeof m.port === "number") boundPort = m.port;
+    // The worker saying its boot is finished — every row printed, the browser
+    // launched. Forwarded to whoever detached us, who has been tailing the log
+    // into the user's terminal and is waiting for exactly this to stop. Wrapped
+    // because that launcher has usually already gone by the second boot: a
+    // restart sends this again, down a channel nobody is holding any more.
+    else if (m.type === "booted") { try { process.send?.({ type: "booted" }); } catch { /* the launcher left */ } }
     // The worker asking to be replaced, while it is still serving. Answered by
     // prefetchUpgrade, which is the whole of this file's new shape: the fetch
     // happens here, and only then does that worker exit — see UPGRADE_CODE.
@@ -492,7 +550,10 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 // worker's exit is not read as a request to bring it back; the kill is the
 // signal on POSIX and, through killTree, `taskkill /T /F` on Windows, which has
 // neither SIGTERM nor a process group to aim at.
-dieWithParent(() => {
+// NOT IN THE DETACHED COPY. There the parent is the launcher, which disconnects
+// and exits the moment the deck is up — by design — and arming this would have
+// the deck kill itself a second after every successful start.
+if (!DETACHED) dieWithParent(() => {
   stopping = true;
   if (fetching) { killTree(fetching, "SIGTERM"); fetching = null; }
   if (child) killTree(child, "SIGTERM");

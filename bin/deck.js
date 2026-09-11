@@ -158,7 +158,7 @@ if (flags.uninstall) {
 // on the machine. (`--all` is the legacy capture flag, a no-op since it became
 // the default; beside `--stop` it can only mean this, and it is the word a
 // person reaches for.)
-if (flags.stop || flags.status) {
+if (flags.stop || flags.status || flags.logs) {
   const { dash, ok: gOk, warn: gWarn, bullet, arrow } = glyphs(unicodeOK());
   const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
   const say = (line) => process.stdout.write(`${line}\n`);
@@ -180,6 +180,36 @@ if (flags.stop || flags.status) {
     codex: hasCodexInstalled(),
     claude: hasClaudeInstalled(),
   };
+
+  // ── --logs ────────────────────────────────────────────────────────────────
+  // What the deck wrote where a terminal would have shown it. Printed RAW,
+  // escapes and all: the launcher passes its own colour tier down to a detached
+  // deck, so this file is a mirror of the terminal the deck was started from
+  // and re-rendering it is the whole point. The path goes last, because that is
+  // the line somebody copies into `tail -f`.
+  if (flags.logs) {
+    const { readFileSync: readLog, statSync: statLog } = await import("node:fs");
+    const logPath = join(deckLogDir(), "deck.log");
+    let text = null;
+    try { text = readLog(logPath, "utf8"); } catch { /* never started, or swept */ }
+    if (text === null) {
+      say(`\n  ${tone.muted}${dash}  nothing logged yet ${dash} ${logPath}${tone.reset}\n`);
+      process.exit(0);
+    }
+    // The tail, not the file. It is truncated at the first start on an idle
+    // machine, so it is normally small — but an attach appends to a running
+    // deck's log every time, and a long-lived deck's log is somebody's week.
+    const lines = text.split("\n");
+    const shown = lines.slice(Math.max(0, lines.length - 200));
+    if (shown.length < lines.length) {
+      say(`  ${tone.muted}${dash}  showing the last ${shown.length} of ${lines.length} lines${tone.reset}`);
+    }
+    process.stdout.write(shown.join("\n"));
+    if (!text.endsWith("\n")) say("");
+    const size = (() => { try { return statLog(logPath).size; } catch { return 0; } })();
+    say(`  ${tone.muted}${dash}  ${logPath} ${bullet} ${size} bytes${tone.reset}\n`);
+    process.exit(0);
+  }
 
   const decks = await liveDecks().catch(() => []);
   const age = (d) => sinceLabel(Date.now() - Date.parse(d.startedAt ?? ""));
@@ -1352,6 +1382,13 @@ if (MOTION) {
 // the window opened at the top of this file closes; see requestRestart.
 booted = true;
 markDeckReady();
+// And said out loud, one link up. A launcher that put this deck in the
+// background has been tailing its log into the user's terminal since the spawn
+// and is waiting for exactly this to stop and hand the prompt back — NOT for
+// `listening`, which is sent before the server-ready row, the log row and the
+// browser line are written, and would cut the last three lines off every boot.
+// Inert when nothing is supervising us.
+try { process.send?.({ type: "booted" }); } catch { /* no channel; nothing waiting */ }
 runHeldRestart();
 
 /**
@@ -1520,6 +1557,8 @@ Options:
                            With --port <n>, stop that one; with --all, stop every
                            deck on this machine
       --status             What is running on this machine, and on which ports
+      --logs               What the deck wrote where a terminal would have shown
+                           it, and where that file is
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
       --all                Capture every session (default). Beside --stop it

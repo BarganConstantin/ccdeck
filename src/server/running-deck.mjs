@@ -134,8 +134,10 @@ function usable(d) {
 /**
  * Every registered deck whose pid is still there, ordered.
  *
- * NOT PROVED — this is the cheap half, and the two callers want different
- * things from it. Ordered by port with pid breaking the tie, which is the rule
+ * NOT PROVED — this is the cheap half, a directory listing and a signal-0 each,
+ * and its three callers want different things from it. `detach.mjs` wants only
+ * the count, to decide whether deck.log belongs to a deck that is still running
+ * or to nobody; a round trip per record to answer that would be absurd. Ordered by port with pid breaking the tie, which is the rule
  * electWriters uses for the log and is here for the same reason: several decks
  * can qualify, and the answer has to be the same one every time it is asked
  * rather than whatever `readdir` happened to return first.
@@ -144,7 +146,12 @@ function usable(d) {
  * boot path of a program whose job is to start, and there is no reading of that
  * directory whose failure is worth refusing to start over.
  */
-async function registered({ dir, fs, self, alive }) {
+export async function registeredDecks({
+  dir = deckRegistryDir(),
+  fs = { readdir, readFile },
+  self = process.pid,
+  alive = isProcessAlive,
+} = {}) {
   let names;
   try { names = await fs.readdir(dir); } catch { return []; }
   const out = [];
@@ -177,7 +184,7 @@ export async function runningDeck({
   alive = isProcessAlive,
   prove = challengeDeck,
 } = {}) {
-  for (const d of await registered({ dir, fs, self, alive })) {
+  for (const d of await registeredDecks({ dir, fs, self, alive })) {
     if (!sameShape(d, want)) continue;
     if (await prove(d.port, d.token)) return d;
   }
@@ -201,7 +208,7 @@ export async function liveDecks({
   alive = isProcessAlive,
   prove = challengeDeck,
 } = {}) {
-  const all = await registered({ dir, fs, self, alive });
+  const all = await registeredDecks({ dir, fs, self, alive });
   const proved = await Promise.all(all.map(d => prove(d.port, d.token).then(ok => (ok ? d : null))));
   return proved.filter(Boolean);
 }

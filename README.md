@@ -169,6 +169,8 @@ ccdeck [options]
       --stop               Stop the deck a bare `ccdeck` would open
                            (--port <n> stops that one; --all stops every deck)
       --status             What is running on this machine, and on which ports
+      --logs               What a backgrounded deck wrote where a terminal would
+                           have shown it
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to the current working directory
       --all                Capture every session on this machine  (default)
@@ -191,6 +193,14 @@ ccdeck [options]
 Anything else on the command line is reported as an unknown option and then
 ignored — the deck still starts, so a typo costs you a warning rather than a
 dashboard.
+
+`ccdeck` runs in the background. The boot report prints in your terminal exactly
+as it always has — the hooks, the port, the URL — and then the prompt comes back
+and the deck stays up: closing the window does not take it with you any more,
+because it is in its own process group and the terminal's hangup never reaches
+it. `ccdeck --stop` ends it, `ccdeck --status` says what is running, and
+`ccdeck --logs` shows what it wrote after you stopped watching. Ctrl+C while the
+boot is still printing cancels the start, which is the one thing it still means.
 
 Typing plain `ccdeck` beside a deck that is already running opens **that deck's
 tab** rather than building a second one. It used to build the second one: port

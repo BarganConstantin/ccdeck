@@ -105,7 +105,7 @@ function plant(dir: string, { manifest, npxMeta }: { manifest: object; npxMeta?:
 
   // The server modules the supervisor imports, re-exported from the repo rather
   // than copied, so what runs here is what ships…
-  for (const mod of ["brand.mjs", "exec.mjs", "invoked-as.mjs", "self-update.mjs", "supervisor.mjs", "term.mjs"]) {
+  for (const mod of ["args.mjs", "brand.mjs", "detach.mjs", "exec.mjs", "invoked-as.mjs", "self-update.mjs", "supervisor.mjs", "term.mjs"]) {
     const real = new URL(`../../server/${mod}`, import.meta.url).href;
     writeFileSync(join(server, mod), `export * from ${JSON.stringify(real)};\n`);
   }
@@ -170,7 +170,11 @@ const runDeck = (dir: string, env: Record<string, string> = {}) =>
     }
     const child = spawn(process.execPath, [join(dir, "bin", "agent-dag.js"), "--no-persist"], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, STUB_LOG: logFile, STUB_PORT: "47719", ...env },
+      // AGENTS_DECK_DETACHED, because this file is about the SUPERVISOR and a
+      // supervisor is what it spawns. Without it bin/agent-dag.js puts a copy
+      // of itself in the background and leaves, which is right for a person
+      // typing `ccdeck` and useless to a test holding the handle.
+      env: { ...process.env, AGENTS_DECK_DETACHED: "1", STUB_LOG: logFile, STUB_PORT: "47719", ...env },
     });
     let out = "";
     child.stdout.on("data", d => { out += String(d); });

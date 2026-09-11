@@ -281,7 +281,10 @@ describe("which deck --stop ends", () => {
     // `--stop --no-codex` is not a request to end a Codex-less deck; it is a
     // flag that means nothing here. Reading it as a selector would make --stop
     // miss the deck it was pointed at and report that nothing is running.
-    const mine = DECK.slice(DECK.indexOf("const mine = {"), DECK.indexOf("const decks = await liveDecks"));
+    // The object itself, not everything between it and the next statement --
+    // `--logs` now sits in that gap and mentions flags of its own.
+    const at = DECK.indexOf("const mine = {");
+    const mine = DECK.slice(at, DECK.indexOf("\n  };", at));
     expect(mine).toContain('workspace: "",');
     expect(mine).toContain("codex: hasCodexInstalled(),");
     expect(mine).toContain("claude: hasClaudeInstalled(),");
@@ -301,7 +304,7 @@ describe("which deck --stop ends", () => {
   it("runs above the migration, and never starts a server", () => {
     // A command that ends a deck has no business moving that deck's files on
     // the way past, and asking a server to stop must not require starting one.
-    const gate = DECK.indexOf("if (flags.stop || flags.status) {");
+    const gate = DECK.indexOf("if (flags.stop || flags.status || flags.logs) {");
     const migrate = DECK.indexOf("migrateDeckFiles({");
     const indexImport = DECK.indexOf('"src/server/index.mjs"');
     expect(gate).toBeGreaterThan(0);

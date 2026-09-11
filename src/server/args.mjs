@@ -110,6 +110,22 @@ export function isPortValue(raw) {
  * C:\Users\John Smith\proj` reaches the parser as two arguments, and the second
  * one used to be dropped in silence (see launchNpx in bin/agent-dag.js).
  */
+/**
+ * The flags that do a thing and exit, rather than starting a deck.
+ *
+ * bin/agent-dag.js reads this before it decides whether to detach, and that is
+ * the whole reason it exists as a list rather than as a condition written out
+ * at the call site: a one-shot that detached would print its answer into a log
+ * file and hand the terminal back empty. `ccdeck --version` detaching itself is
+ * the shape of the bug this prevents.
+ */
+export const ONE_SHOT = Object.freeze(["help", "version", "uninstall", "stop", "status", "logs"]);
+
+/** Is this a command line that answers and leaves? */
+export function isOneShot(flags = {}) {
+  return ONE_SHOT.some((k) => flags[k] === true);
+}
+
 export function parseArgs(args) {
   const out = { unknown: [], incomplete: [] };
   for (let i = 0; i < args.length; i++) {
@@ -143,6 +159,7 @@ export function parseArgs(args) {
     else if (a === "--new") out.new = true;
     else if (a === "--stop") out.stop = true;
     else if (a === "--status") out.status = true;
+    else if (a === "--logs") out.logs = true;
     else if (a === "--uninstall") out.uninstall = true;
     else if (a === "--workspace") set("workspace", "a path");
     else if (a === "--scope") out.scope = true;
