@@ -53,6 +53,96 @@ export function workerExitAction(code, stopping) {
   return { relaunch: null, code: ours ? 0 : code ?? 0 };
 }
 
+// ── putting a crashed deck back ──────────────────────────────────────────────
+//
+// Before the deck ran in the background, a crash was self-reporting: the
+// terminal came back, the stack was on screen, and you knew within a second.
+// Detached, nothing says anything. The deck stops receiving hook events, stops
+// answering the LAN beacon, stops watching the quota — and the first sign is
+// noticing, hours later, that a day of work was never recorded.
+//
+// So the supervisor puts it back. WITH A CEILING, because the other failure is
+// worse than the one being fixed: a deck that dies on its own boot, respawned
+// forever, is a process spinning on a machine nobody is watching, writing the
+// same stack into the same log a thousand times an hour.
+//
+// The window is what makes the ceiling mean "is this broken" rather than "how
+// long has this machine been up". Five crashes in ten minutes is a deck that
+// cannot run; five crashes over three weeks is a machine that went to sleep
+// oddly three times, and putting it back each time is exactly right.
+
+/** Five, then stop and say why. */
+export const CRASH_CEILING = 5;
+/** The window those five are counted in. */
+export const CRASH_WINDOW_MS = 10 * 60 * 1000;
+/** The first wait, doubling per crash inside the window. */
+export const CRASH_BACKOFF_MS = 1000;
+/** …and where the doubling stops. Past this the delay is no longer protecting
+ *  anything: five attempts at 30s already span most of the window. */
+export const CRASH_BACKOFF_MAX_MS = 30_000;
+
+/**
+ * Should this crash be answered with another deck, and after how long?
+ *
+ * `history` is the timestamps of the crashes already answered; the caller adds
+ * this one only if the answer is yes, so a refusal does not push the count
+ * further out of reach.
+ *
+ * The backoff doubles rather than waiting a fixed beat, because the two shapes
+ * of crash want opposite things. A deck that falls over once an hour should
+ * come back immediately — a second of downtime is a second of unrecorded work.
+ * A deck that dies in its own first instruction should be tried slowly enough
+ * that the log is readable and the CPU is idle between attempts.
+ */
+export function crashPolicy(history = [], {
+  now = Date.now(),
+  ceiling = CRASH_CEILING,
+  windowMs = CRASH_WINDOW_MS,
+  backoffMs = CRASH_BACKOFF_MS,
+  maxMs = CRASH_BACKOFF_MAX_MS,
+} = {}) {
+  const recent = history.filter(t => now - t < windowMs);
+  if (recent.length >= ceiling) {
+    return { restart: false, delayMs: 0, recent: recent.length, history: recent };
+  }
+  return {
+    restart: true,
+    delayMs: Math.min(backoffMs * 2 ** recent.length, maxMs),
+    recent: recent.length + 1,
+    // The pruned list, so a caller that keeps it does not carry crashes from
+    // last Tuesday into this decision forever.
+    history: [...recent, now],
+  };
+}
+
+/**
+ * Was this a deck falling over, as opposed to one leaving?
+ *
+ * THREE THINGS HAVE TO BE TRUE, and each one removes a way this could respawn
+ * something nobody asked for:
+ *
+ *   It was UP. `served` is the supervisor having seen the worker bind a port. A
+ *   worker that never got that far did not crash, it failed to start — a port
+ *   the OS will not give us, a `dist/` that was never built — and retrying that
+ *   five times prints the same refusal six times and fixes nothing.
+ *
+ *   We are not STOPPING. Ctrl+C, a SIGTERM, and `--stop`'s fallback ladder all
+ *   set it, and every one of them is somebody asking for this deck to be gone.
+ *
+ *   It did not exit ZERO. That is the deck ending itself — the shutdown that
+ *   /api/shutdown runs, which is what `ccdeck --stop` asks for. Answering a
+ *   clean stop with a restart would make the off switch a no-op.
+ *
+ * A signal counts as a crash. `kill -9` on the worker alone is an OOM killer or
+ * a stray hand, not a request to end the deck: `--stop` ends the supervisor
+ * FIRST precisely so that this rule and that ladder do not fight.
+ */
+export function isCrash({ code, signal, served, stopping } = {}) {
+  if (!served || stopping) return false;
+  if (signal) return true;
+  return code !== 0 && code !== null && code !== undefined;
+}
+
 /**
  * How to report a worker that did not exit at all but was killed by a signal.
  *

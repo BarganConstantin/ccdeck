@@ -202,6 +202,12 @@ it. `ccdeck --stop` ends it, `ccdeck --status` says what is running, and
 `ccdeck --logs` shows what it wrote after you stopped watching. Ctrl+C while the
 boot is still printing cancels the start, which is the one thing it still means.
 
+If the deck falls over on its own, it comes back — five times in ten minutes,
+with the wait doubling each time, and then it stops and says so in the log rather
+than spinning on a machine nobody is watching. A clean `--stop` is never answered
+with a restart, and neither is a deck that failed to start in the first place:
+retrying a port the OS will not give you just prints the same refusal six times.
+
 Typing plain `ccdeck` beside a deck that is already running opens **that deck's
 tab** rather than building a second one. It used to build the second one: port
 4317 was busy, so the new deck took a random port out of 4318–4400 and stood

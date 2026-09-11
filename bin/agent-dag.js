@@ -44,7 +44,10 @@ import {
   isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
   successorRoot,
 } from "../src/server/self-update.mjs";
-import { dieOfSignal, dieWithParent, replacedNote, upgradeAttempt, upgradeRefusalText, workerExitAction } from "../src/server/supervisor.mjs";
+import {
+  CRASH_CEILING, CRASH_WINDOW_MS, crashPolicy, dieOfSignal, dieWithParent, isCrash, replacedNote,
+  upgradeAttempt, upgradeRefusalText, workerExitAction,
+} from "../src/server/supervisor.mjs";
 import { colorProfile, glyphs, palette, termColumns, unicodeOK } from "../src/server/term.mjs";
 import { DETACHED_ENV, detachAndWatch, stopCommand } from "../src/server/detach.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
@@ -152,6 +155,11 @@ let attempting = null;
 // worker that was already exiting 75 or 76 when the signal landed reads as a
 // restart request — both resurrect the deck the user just stopped.
 let stopping = false;
+// When this supervisor has put a crashed worker back, pruned to the window the
+// ceiling is counted in. See crashPolicy: a deck that dies once an hour comes
+// back every time; one that dies five times in ten minutes is broken, and the
+// answer to broken is to stop and say so rather than to spin.
+let crashes = [];
 
 function launch(respawn) {
   // Asked on every spawn rather than once at boot: the deletion this catches
@@ -200,10 +208,19 @@ function launch(respawn) {
     if (m.type === "listening" && typeof m.port === "number") boundPort = m.port;
     // The worker saying its boot is finished — every row printed, the browser
     // launched. Forwarded to whoever detached us, who has been tailing the log
-    // into the user's terminal and is waiting for exactly this to stop. Wrapped
-    // because that launcher has usually already gone by the second boot: a
-    // restart sends this again, down a channel nobody is holding any more.
-    else if (m.type === "booted") { try { process.send?.({ type: "booted" }); } catch { /* the launcher left */ } }
+    // into the user's terminal and is waiting for exactly this to stop.
+    //
+    // GUARDED BY `process.connected`, AND GIVEN A CALLBACK, and it took a real
+    // crash restart to find out why: the launcher disconnects the moment the
+    // first boot finishes, so every LATER boot forwards this down a dead
+    // channel — and `process.send` on a closed channel does not throw where the
+    // call is, it emits 'error' on `process` a tick later. Unhandled, that ends
+    // the supervisor. So a try/catch here was decoration: the guard is the
+    // check, and the callback is what turns the remaining race (disconnect
+    // between the check and the send) into a value nobody has to catch.
+    else if (m.type === "booted" && process.connected) {
+      try { process.send({ type: "booted" }, () => {}); } catch { /* the launcher left */ }
+    }
     // The worker asking to be replaced, while it is still serving. Answered by
     // prefetchUpgrade, which is the whole of this file's new shape: the fetch
     // happens here, and only then does that worker exit — see UPGRADE_CODE.
@@ -231,6 +248,32 @@ function launch(respawn) {
       launchNpx();
       return;
     }
+    // THE DECK FELL OVER, and nobody is watching it any more.
+    //
+    // Before this ran in the background a crash was self-reporting: the terminal
+    // came back with the stack on it. Detached, the first sign is noticing hours
+    // later that a day of work was never recorded — so it goes back up. The
+    // whole of which crashes qualify is in isCrash, and the ceiling that stops
+    // this becoming a spin loop is in crashPolicy.
+    if (isCrash({ code, signal, served: boundPort != null, stopping })) {
+      const verdict = crashPolicy(crashes);
+      if (verdict.restart) {
+        crashes = verdict.history;
+        const how = signal ? `killed by ${signal}` : `exit ${code}`;
+        console.error(`${PRODUCT}: the deck stopped on its own (${how}) ${G.dash} starting it again in ${Math.round(verdict.delayMs / 1000)}s (${verdict.recent}/${CRASH_CEILING}).`);
+        restarts++;
+        // Unref'd would be wrong here: this timer IS the supervisor's reason to
+        // stay alive, and without it the event loop empties and the process
+        // exits before the deck it promised to bring back.
+        setTimeout(() => { if (!stopping) launch(true); }, verdict.delayMs);
+        return;
+      }
+      // Said once, with the two numbers that make it actionable, and then this
+      // process really does end — a supervisor that keeps trying forever is the
+      // failure the ceiling exists to prevent.
+      console.error(`${PRODUCT}: the deck has stopped ${CRASH_CEILING} times in ${Math.round(CRASH_WINDOW_MS / 60000)} minutes ${G.dash} not starting it again. Run \`${INVOKED_AS ?? PRODUCT}\` when you have looked at the log above.`);
+    }
+
     // Anything else is the worker's own verdict and belongs to whoever started
     // us — including the ccdeck wrapper, which exits with our code in turn. A
     // worker killed by a signal is reported by dying of the same one; doing
