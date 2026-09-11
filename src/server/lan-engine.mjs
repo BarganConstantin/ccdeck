@@ -348,7 +348,10 @@ export function createEngine({
         // slot it already has" are different things to tell somebody and the
         // second one used to be reported as success. A bare `true` is still
         // accepted: the suite drives this with one.
-        const got = await importAccount(blob);
+        // The step goes down with the blob: the wiring has to know WHICH account
+        // it is placing before it may treat a decline as an empty slot rather
+        // than as a healthy one.
+        const got = await importAccount(blob, step);
         const ok = got === true || got?.ok === true;
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }

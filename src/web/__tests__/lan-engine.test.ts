@@ -705,14 +705,46 @@ describe("a heal that healed nothing", () => {
   );
 
   it("requires the account to have actually arrived", () => {
-    expect(src).toContain('if (out.added !== true) return { ok: false, why: "claude-swap kept the slot it already has" };');
-    // And `ok` alone is no longer the whole answer.
+    // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
+    expect(src).toContain("if (out.added === true) return { ok: true };");
+    expect(src).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
   it("carries a reason, because refused and skipped are different sentences", () => {
-    expect(engine).toContain("const got = await importAccount(blob);");
+    expect(engine).toContain("const got = await importAccount(blob, step);");
     expect(engine).toContain('why: ok ? null : (got?.why ?? "import failed")');
+  });
+
+  it("fills an empty slot, and only after asking this machine whether it is", () => {
+    // The one case pairing exists for, and the one a plain import will never
+    // touch: claude-swap replaces a slot "iff its usage row is quarantined as
+    // refresh-token-dead" and is "never triggered by the live store's
+    // `no credentials` state".
+    expect(src).toContain('if (now !== "no_credentials") return { ok: false,');
+    expect(src).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
+    // ASKED NOW rather than read from the ten-minute cache: somebody who signed
+    // in two minutes ago still reads as `no_credentials` there, and acting on
+    // that would replace the login they had just created.
+    expect(src).toContain("const now = await verdictNow(email, org ?? \"\");");
+  });
+
+  it("keeps the promise the flag was never passed for", () => {
+    // A peer cannot reach the forced path: the verdict comes from THIS
+    // machine's claude-swap, about THIS machine's store, and nothing a peer
+    // sends can make a slot report that it holds nothing. `only` narrows it to
+    // the one account, so a bundle carrying several cannot ride in behind it.
+    expect(src).toContain("NO `force`, ever");
+    expect(src).toMatch(/nothing a peer sends can make a slot report that it holds\s*\n\s*\/\/ nothing/);
+    // Sliced to the end of the property rather than by a character count: the
+    // reasoning above the forced call is long, and a window that stopped short
+    // of it would assert the flag is absent from a block that does not contain
+    // it either way.
+    const at = src.indexOf("importAccount: async (blob, step)");
+    const block = src.slice(at, src.indexOf("return { ok: true, filled: true };", at));
+    // Exactly one forced call, and it carries `only`.
+    expect((block.match(/force: true/g) ?? []).length).toBe(1);
+    expect(block).toMatch(/force: true, only: \{ email, org/);
   });
 
   it("still takes a plain true, which is what the suite hands it", () => {

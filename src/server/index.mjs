@@ -3201,8 +3201,8 @@ const lanEngine = createEngine({
     const out = await shareAccounts([String(num)]);
     return out?.ok ? out.blob : null;
   },
-  importAccount: async blob => {
-    const { importAccount } = await import("./cswap-admin.mjs");
+  importAccount: async (blob, step) => {
+    const { importAccount, landed } = await import("./cswap-admin.mjs");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
     // claude-swap has quarantined; it SKIPS one that is present and healthy.
@@ -3223,8 +3223,45 @@ const lanEngine = createEngine({
     // `no credentials` state". So an account whose login expired heals over the
     // network, and one that has NO stored login does not — which is a true
     // sentence the panel can now print instead of a false one.
-    if (out.added !== true) return { ok: false, why: "claude-swap kept the slot it already has" };
-    return { ok: true };
+    if (out.added === true) return { ok: true };
+
+    // THE DECLINE, AND WHY IT MATTERS WHICH ONE IT IS.
+    //
+    // `cswap import` without --force declines for two opposite reasons and says
+    // the same thing about both: the slot is present and HEALTHY, which is the
+    // promise above working exactly as intended — or the slot is EMPTY, which
+    // is the one case pairing exists for and the one a plain import will never
+    // touch. claude-swap is explicit about the second: a plain import replaces
+    // a slot "iff its usage row is quarantined as refresh-token-dead", and is
+    // "never triggered by the live store's `no credentials` state".
+    //
+    // So `login expired` healed over the network and `no stored login` did not,
+    // and the account somebody most needed repaired was the one the feature
+    // could not repair.
+    //
+    // ASKED NOW, NOT READ FROM THE CACHE. The cached verdicts are up to ten
+    // minutes old, which is right for a label and wrong for a decision that
+    // writes a credential: somebody who signed in two minutes ago still reads
+    // as `no_credentials` there, and acting on that would replace the login
+    // they had just created.
+    const { verdictNow } = await import("./claude-accounts.mjs");
+    const [email, org] = String(step?.key ?? "").split("@@");
+    const now = await verdictNow(email, org ?? "");
+    if (now !== "no_credentials") return { ok: false, why: "claude-swap kept the slot it already has" };
+
+    // FILLING AN EMPTY SLOT, WHICH IS NOT OVERWRITING A WORKING ONE — and the
+    // promise above survives word for word. A peer cannot reach this: the
+    // verdict comes from THIS machine's claude-swap, about THIS machine's
+    // store, and nothing a peer sends can make a slot report that it holds
+    // nothing. Narrowed to the one account with `only`, so a bundle carrying
+    // several cannot ride in behind it.
+    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });
+    if (!forced?.ok) return { ok: false, why: forced?.reason ?? "import refused" };
+    // `added` counts `imported` alone, and a forced replace is `healed` — see
+    // landed, which is the difference between a repair and a repair reported as
+    // a failure.
+    if (!landed(forced.results)) return { ok: false, why: "claude-swap kept the slot it already has" };
+    return { ok: true, filled: true };
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the

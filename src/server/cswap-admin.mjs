@@ -988,6 +988,23 @@ export async function shareAccounts(nums) {
 
 
 /**
+ * Did anything actually arrive in the store?
+ *
+ * THREE STATES MEAN YES AND THEY ARE NOT INTERCHANGEABLE. `imported` is a slot
+ * that did not exist; `healed` and `updated` are one that did and was rewritten,
+ * which is what a forced import produces and what `added` — counting `imported`
+ * alone — reports as nothing having happened. A caller that asked for a replace
+ * and read `added` would conclude its own success had failed.
+ *
+ * `present` is the decline: claude-swap kept what it had. `failed` is the
+ * refusal. Neither is an arrival.
+ */
+export function landed(results) {
+  return (Array.isArray(results) ? results : [])
+    .some(r => r?.state === "imported" || r?.state === "healed" || r?.state === "updated");
+}
+
+/**
  * The identities a bundle carries, or `[]` when it cannot be read.
  *
  * The payload is the credential, so this takes the two fields it needs and

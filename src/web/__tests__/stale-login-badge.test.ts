@@ -20,6 +20,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+const accounts = await import("../../server/claude-accounts.mjs");
 import { collectorText } from "../components/AccountsPanel";
 
 const src = (rel: string) =>
@@ -392,5 +394,51 @@ describe("which half of the row is allowed to be loud", () => {
     // "no stored login" in the dimmest tone the panel has, beside "collected
     // 22h ago · due" in the warning one.
     expect(panel).toContain('`ap-age${a.stale && !a.stopped && !a.error ? " ap-stale" : ""}`');
+  });
+});
+
+describe("asking claude-swap about one account, now", () => {
+  // The cached verdicts are up to ten minutes old, which is right for a label
+  // and wrong for a decision that writes a credential: somebody who signed in
+  // two minutes ago still reads as `no_credentials` there.
+  const { verdictNow } = accounts as {
+    verdictNow: (email: string, org: string, o?: Record<string, unknown>) => Promise<string | null>;
+  };
+  const LIST = JSON.stringify({
+    accounts: [
+      { number: 2, email: "claude1@sapec.md", organizationUuid: "bfaf", usageStatus: "ok" },
+      { number: 5, email: "claude2@sapec.md", organizationUuid: "d8a2", usageStatus: "no_credentials" },
+    ],
+  });
+  const answering = (out: Record<string, unknown>) => ({
+    runner: async () => out, bin: async () => "cswap",
+  });
+
+  it("matches on identity, not on a slot number", () => {
+    // A number is a position in one machine's store; the caller is holding an
+    // account. The same email under two organisations is two accounts.
+    return Promise.all([
+      expect(verdictNow("claude2@sapec.md", "d8a2", answering({ ok: true, stdout: LIST })))
+        .resolves.toBe("no_credentials"),
+      expect(verdictNow("CLAUDE2@SAPEC.MD", "d8a2", answering({ ok: true, stdout: LIST })))
+        .resolves.toBe("no_credentials"),
+      expect(verdictNow("claude2@sapec.md", "wrong-org", answering({ ok: true, stdout: LIST })))
+        .resolves.toBeNull(),
+    ]);
+  });
+
+  it("answers null rather than guessing, and null is not `no_credentials`", async () => {
+    // No claude-swap, a refusal, an account it does not know. The one caller
+    // treats null as "do not act", which is the safe direction: the forced
+    // import happens only on a definite answer.
+    await expect(verdictNow("x@y", "", answering({ ok: false }))).resolves.toBeNull();
+    await expect(verdictNow("x@y", "", answering({ ok: true, stdout: "not json" }))).resolves.toBeNull();
+    await expect(verdictNow("", "", answering({ ok: true, stdout: LIST }))).resolves.toBeNull();
+    await expect(verdictNow("nobody@here", "", answering({ ok: true, stdout: LIST }))).resolves.toBeNull();
+  });
+
+  it("never throws on a path that is about to write a credential", async () => {
+    const boom = { runner: async () => { throw new Error("no cswap"); }, bin: async () => "cswap" };
+    await expect(verdictNow("x@y", "", boom)).resolves.toBeNull();
   });
 });

@@ -340,6 +340,41 @@ const VERDICT_TTL_MS = 10 * 60_000;
  *  network, and a nudge landing inside one must not start a second. */
 let _verdictInFlight = false;
 
+/**
+ * Ask claude-swap about one account RIGHT NOW, rather than reading the cache.
+ *
+ * The cached verdicts are ten minutes old at worst, which is right for a label
+ * and wrong for a decision that writes a credential: somebody who signed in two
+ * minutes ago still reads as `no_credentials` there, and acting on that would
+ * replace the login they just created with a peer's.
+ *
+ * Matched on IDENTITY rather than on the slot number, because a number is a
+ * position in one machine's store and the caller is holding an account.
+ *
+ * Returns null when the question cannot be answered — no claude-swap, a refusal,
+ * an account it does not know. Null is not `no_credentials`, and the one caller
+ * treats it as "do not act".
+ */
+export async function verdictNow(email, org, { runner = run, bin = cswapBin } = {}) {
+  const want = String(email ?? "").trim().toLowerCase();
+  if (!want) return null;
+  try {
+    const out = await runner(await bin(), ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS });
+    if (!out?.ok) return null;
+    const d = JSON.parse(out.stdout);
+    // The same freshly-read answer feeds the cache the panel draws from, since
+    // it cost a subprocess either way.
+    const byNum = readVerdicts(out.stdout);
+    if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
+    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
+      if (String(a?.email ?? "").trim().toLowerCase() !== want) continue;
+      if ((a?.organizationUuid ?? "") !== (org ?? "")) continue;
+      return typeof a?.usageStatus === "string" ? a.usageStatus : null;
+    }
+    return null;
+  } catch { return null; }
+}
+
 /** claude-swap's verdict for a slot, or null when there is none fresh enough. */
 function verdictFor(num, now) {
   if (now - _verdicts.at > VERDICT_TTL_MS) return null;
