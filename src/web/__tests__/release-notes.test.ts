@@ -44,6 +44,10 @@ import {
   releaseNotesIntro,
   versionRangeLabel,
   decideReleaseNotes,
+  decideWelcome,
+  readTourSeen,
+  writeTourSeen,
+  TOUR_SEEN_KEY,
   isVersion,
   notesBetween,
   notesForVersion,
@@ -151,6 +155,49 @@ describe("what counts as a version at all", () => {
     for (const v of ["1.45.0", "0.0.1", "1.46.0-rc.1", "10.0.100"]) {
       expect(isVersion(v), v).toBe(true);
     }
+  });
+});
+
+describe("the tour is shown once to everyone, and the notes after it", () => {
+  const d = (reason: string, show: string[] = []) => ({ reason, show: show.map(version => ({ version, notes: [] })) }) as any;
+
+  it("gives a first run the tour and no changelog", () => {
+    expect(decideWelcome({ tourSeen: false, decision: d("welcome", ["3.21.0"]) })).toEqual({ tour: true, notes: "none" });
+    expect(decideWelcome({ tourSeen: false, decision: d("first-run") })).toEqual({ tour: true, notes: "none" });
+  });
+
+  it("gives an upgrade that has never seen the tour the tour first, then the notes", () => {
+    // The defect: 3.21.0 introduced the tour, and everyone who upgraded into
+    // it had a version stored, so the decision said "new notes" and opened the
+    // changelog — the people the tour was made for never saw it.
+    expect(decideWelcome({ tourSeen: false, decision: d("new-notes", ["3.21.0"]) })).toEqual({ tour: true, notes: "after" });
+    // And with nothing to say about the release, the tour alone.
+    expect(decideWelcome({ tourSeen: false, decision: d("nothing-new") })).toEqual({ tour: true, notes: "none" });
+  });
+
+  it("gives every later upgrade the notes alone", () => {
+    expect(decideWelcome({ tourSeen: true, decision: d("new-notes", ["3.22.0"]) })).toEqual({ tour: false, notes: "now" });
+    expect(decideWelcome({ tourSeen: true, decision: d("seen") })).toEqual({ tour: false, notes: "none" });
+    expect(decideWelcome({ tourSeen: true, decision: d("welcome", ["3.21.0"]) })).toEqual({ tour: false, notes: "none" });
+  });
+
+  it("opens nothing on its own for a profile that cannot remember, or before the version is known", () => {
+    // A tour that cannot be recorded is one that comes back on every load —
+    // remembersSeen's reasoning, applied to the second marker.
+    expect(decideWelcome({ tourSeen: false, decision: d("cannot-remember") })).toEqual({ tour: false, notes: "none" });
+    expect(decideWelcome({ tourSeen: false, decision: d("no-version") })).toEqual({ tour: false, notes: "none" });
+  });
+
+  it("keeps the two markers apart, so one cannot answer for the other", () => {
+    const store = new Map<string, string>();
+    const s = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } };
+    expect(readTourSeen(s)).toBe(false);
+    writeSeen(s, "3.21.0");
+    expect(readTourSeen(s)).toBe(false);
+    expect(writeTourSeen(s)).toBe(true);
+    expect(readTourSeen(s)).toBe(true);
+    expect(readSeen(s)).toBe("3.21.0");
+    expect(TOUR_SEEN_KEY).not.toBe(RELEASE_NOTES_SEEN_KEY);
   });
 });
 
@@ -811,10 +858,17 @@ describe("how App.tsx wires it up", () => {
     // since a version they never ran; it is what the thing in front of them
     // is for. Both first-run reasons go there — a release with nothing in the
     // changelog still welcomes — and the decision is still recorded first, so
-    // the NEXT load is an upgrade rather than a second first run.
+    // the NEXT load is an upgrade rather than a second first run. The routing
+    // itself is decideWelcome's, pinned as a pure function below; what the
+    // effect owes is to ask it and to obey every one of its three answers.
     const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
-    expect(effect).toMatch(/if \(decision\.reason === "welcome" \|\| decision\.reason === "first-run"\) \{\s*setTourOpen\(true\);\s*return;/);
+    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen: readTourSeen\(store\), decision \}\);/);
+    expect(effect).toMatch(/if \(plan\.tour\) \{ writeTourSeen\(store\); setTourOpen\(true\); \}/);
+    expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
+    // And the held notes open when the tour closes — taken out of the ref
+    // first, so a tour opened by hand from the empty canvas never replays them.
+    expect(app).toMatch(/const held = notesAfterTour\.current;\s*notesAfterTour\.current = null;\s*if \(held\) setReleaseNotes\(held\);/);
     // And the tour is a dialog like the rest: the canvas shortcuts are gated
     // while it is up, and the empty canvas is the way back to it.
     expect(app).toMatch(/modalOpenRef\.current = openedTool != null[\s\S]{0,400}\|\| tourOpen\n/);

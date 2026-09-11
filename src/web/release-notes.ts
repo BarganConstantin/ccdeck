@@ -433,6 +433,51 @@ export function writeSeen(store: Storeish | null | undefined, version: string): 
   try { store.setItem(RELEASE_NOTES_SEEN_KEY, version); return true; } catch { return false; }
 }
 
+/** Whether this profile has been shown the tour. Its own key, because the
+ *  tour is about the deck and the notes are about a release: a person who
+ *  upgraded into the version that introduced the tour has a version stored
+ *  and has never seen a picture. */
+export const TOUR_SEEN_KEY = "agent-dag.tourSeen";
+
+export function readTourSeen(store: Storeish | null | undefined): boolean {
+  if (!store) return false;
+  try { return store.getItem(TOUR_SEEN_KEY) === "1"; } catch { return false; }
+}
+
+export function writeTourSeen(store: Storeish | null | undefined): boolean {
+  if (!store) return false;
+  try { store.setItem(TOUR_SEEN_KEY, "1"); return true; } catch { return false; }
+}
+
+/**
+ * What to open on this load, and in what order: the tour, the notes, both or
+ * neither.
+ *
+ * THE TOUR IS SHOWN ONCE TO EVERYONE, not only to a first run. The version it
+ * shipped in reached people who had a version stored, and for them the release
+ * decision answered "new notes" and opened the changelog — so the people the
+ * tour was made for were exactly the ones who never saw it. Reported the day
+ * it shipped.
+ *
+ * A first run still gets the tour and no changelog (#717's reasoning: what
+ * changed since a version they never ran is nothing to them). An upgrade that
+ * has not seen the tour gets the tour first and the notes AFTER it closes —
+ * two dialogs, once, in the order a person wants them — and every later
+ * upgrade gets the notes alone. A profile that cannot remember gets nothing
+ * automatic, for the reason remembersSeen gives: a tour that cannot be
+ * recorded comes back on every load.
+ */
+export function decideWelcome({ tourSeen, decision }: {
+  tourSeen: boolean;
+  decision: Pick<ReleaseNotesDecision, "reason" | "show">;
+}): { tour: boolean; notes: "now" | "after" | "none" } {
+  if (decision.reason === "no-version" || decision.reason === "cannot-remember") return { tour: false, notes: "none" };
+  if (decision.reason === "welcome" || decision.reason === "first-run") return { tour: !tourSeen, notes: "none" };
+  const notes = decision.show.length > 0;
+  if (!tourSeen) return { tour: true, notes: notes ? "after" : "none" };
+  return { tour: false, notes: notes ? "now" : "none" };
+}
+
 // ── the decision ─────────────────────────────────────────────────────────────
 
 /** Why the deck did what it did, named rather than inferred. Every branch below

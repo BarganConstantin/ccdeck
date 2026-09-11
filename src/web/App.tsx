@@ -84,6 +84,9 @@ import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./versio
 // has never run this see on the release they just installed?".
 import {
   decideReleaseNotes,
+  decideWelcome,
+  readTourSeen,
+  writeTourSeen,
   notesBetween,
   readSeen,
   RELEASE_NOTES,
@@ -826,6 +829,11 @@ function Inner() {
   /** The four pictures a deck shows the first time it runs in a browser, and
    *  again from the empty canvas's `Take the tour`. */
   const [tourOpen, setTourOpen] = useState(false);
+  /** Notes held back while the tour is up, shown when it closes: an upgrade
+   *  into the version that introduced the tour gets the pictures first and the
+   *  changelog after, once. Null every other time, including a tour opened by
+   *  hand from the empty canvas. */
+  const notesAfterTour = useRef<{ entries: VersionNotes[]; since: string | null; firstRun: boolean } | null>(null);
   /** Sessions whose recap has already been closed once. A `useState`
    *  initialiser and not `useRef(loadDismissedSummaries())`, because `useRef`
    *  evaluates its argument on EVERY render and keeps only the first result
@@ -1172,24 +1180,23 @@ function Inner() {
     // install it "was last caught up at" a version it has never run: on this
     // route `stored` is null for a first run and for nothing else, and the
     // sentence for that has to be its own rather than the browse route's.
-    // A FIRST RUN GETS THE TOUR, NOT THE CHANGELOG. #717 had a new install
-    // read the running release's notes, and what a person who has never seen
-    // the deck needs is not what changed since a version they never ran — it
-    // is what the thing in front of them is for. Four pictures say that; the
-    // notes stay one click away on the version chip. Both first-run reasons
-    // take this route, so a release with nothing in the changelog still
-    // welcomes: the tour is about the deck, not about the release.
-    if (decision.reason === "welcome" || decision.reason === "first-run") {
-      setTourOpen(true);
-      return;
-    }
-    // `firstRun: false` is now the only value this route can carry: the
-    // welcome left for the tour above, so a dialog opened here is always about
-    // an upgrade. The welcome sentence in releaseNotesIntro stays for the day a
+    // THE TOUR, TO EVERYONE ONCE, AND THE NOTES AFTER IT. A first run gets the
+    // pictures and no changelog — #717's reasoning: what changed since a
+    // version they never ran is nothing to them, and the notes stay one click
+    // away on the version chip. An upgrade that has never seen the tour gets
+    // the tour first and the notes when it closes; every later upgrade gets
+    // the notes alone. The order and the once are decideWelcome's, and it is
+    // pure, so the cases are pinned without a browser.
+    //
+    // `firstRun: false` is the only value the dialog can carry from here: the
+    // welcome left for the tour, so a changelog opened here is always about an
+    // upgrade. The welcome sentence in releaseNotesIntro stays for the day a
     // caller wants it back.
-    if (decision.show.length) {
-      setReleaseNotes({ entries: decision.show, since: stored, firstRun: false });
-    }
+    const plan = decideWelcome({ tourSeen: readTourSeen(store), decision });
+    const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
+    if (plan.tour) { writeTourSeen(store); setTourOpen(true); }
+    if (plan.notes === "now") setReleaseNotes(notes);
+    else if (plan.notes === "after") notesAfterTour.current = notes;
   }, [version?.running]);
   // Everything this build has to say, for the version chip — which is the way
   // back after the dialog is dismissed, and the only recovery for a profile
@@ -4749,7 +4756,15 @@ function Inner() {
       })()}
       {keyHelpOpen && <KeyboardHelp onClose={() => setKeyHelpOpen(false)} />}
       {tourOpen && (
-        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={() => setTourOpen(false)} />
+        <GuideModal title="What the deck shows you" steps={WELCOME_STEPS} onClose={() => {
+          setTourOpen(false);
+          // The changelog an upgrade was holding back, now that the pictures
+          // have been seen. Taken out of the ref first, so a tour opened by
+          // hand later never replays it.
+          const held = notesAfterTour.current;
+          notesAfterTour.current = null;
+          if (held) setReleaseNotes(held);
+        }} />
       )}
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening
