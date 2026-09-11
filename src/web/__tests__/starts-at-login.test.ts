@@ -152,6 +152,67 @@ describe("the Windows task", () => {
   });
 });
 
+describe("removing one that is not there", () => {
+  const { uninstallService } = svc as { uninstallService: (o?: Record<string, unknown>) => Record<string, unknown> };
+
+  it("is not a failure, on any of the three", () => {
+    // THE THREE PLATFORMS DISAGREED, and Windows was the one that said it out
+    // loud: `rmSync` with `force` succeeds on a missing file, so macOS and Linux
+    // reported "removed" either way, while `schtasks /Delete` on a task that is
+    // not there exits non-zero — so `ccdeck --uninstall-service` on a machine
+    // that never had one answered `could not remove it — ERROR: The system
+    // cannot find the file specified` and exited 1.
+    const posix = uninstallService({
+      platform: "darwin", home: "/Users/x",
+      fs: { existsSync: () => false, rmSync: () => {} },
+      run: () => ({ status: 0 }),
+    });
+    expect(posix).toMatchObject({ ok: true, existed: false });
+
+    const win = uninstallService({
+      platform: "win32", home: "C:\\Users\\x",
+      run: (_f: string, args: string[]) => ({ status: args[0] === "/Query" ? 1 : 0 }),
+    });
+    expect(win).toMatchObject({ ok: true, existed: false });
+  });
+
+  it("asks whether the task is there rather than reading the refusal", () => {
+    // schtasks exits 1 for a missing task and for a permission it does not
+    // have, and the two are told apart only by an English sentence that is not
+    // English on a localised Windows — the trap looksMissing already documents.
+    const calls: string[][] = [];
+    uninstallService({
+      platform: "win32", home: "C:\\Users\\x",
+      run: (_f: string, args: string[]) => { calls.push(args); return { status: args[0] === "/Query" ? 1 : 0 }; },
+    });
+    expect(calls.map(c => c[0])).toEqual(["/Query"]);
+    // And no /Delete at all when there was nothing to delete.
+    expect(calls.some(c => c[0] === "/Delete")).toBe(false);
+  });
+
+  it("still reports a real refusal as one", () => {
+    const win = uninstallService({
+      platform: "win32", home: "C:\\Users\\x",
+      run: (_f: string, args: string[]) => args[0] === "/Query"
+        ? { status: 0 }
+        : { status: 1, stderr: "ERROR: Access is denied.\nsecond line" },
+    });
+    expect(win).toMatchObject({ ok: false, existed: true, reason: "ERROR: Access is denied." });
+  });
+
+  it("does not unregister a unit that was never registered", () => {
+    // `launchctl unload` and `systemctl --user disable` on something that was
+    // never there are noise, and on some systemd versions an error.
+    const calls: string[][] = [];
+    uninstallService({
+      platform: "linux", home: "/home/x",
+      fs: { existsSync: () => false, rmSync: () => {} },
+      run: (_f: string, args: string[]) => { calls.push(args); return { status: 0 }; },
+    });
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("whether a systemd session survives logging out", () => {
   // The one place the three platforms genuinely differ in what "starts at
   // login" buys you. Without lingering, the user's systemd instance is torn

@@ -33,7 +33,7 @@
 // suggestion the machine overrules a second later.
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 // BOTH SPELLINGS, NOT `node:path`'s. `join` is bound to the HOST: a bare one
 // answers `\Users\x\Library\LaunchAgents\...` when a Windows runner is asked
 // where a macOS login item lives, which is how this landed red in CI on the
@@ -386,28 +386,59 @@ export function installService({
   }
 }
 
-/** Take it away. Same contract: a verdict, never a throw. */
+/**
+ * Take it away. Same contract: a verdict, never a throw.
+ *
+ * `existed` is the half that took three platforms to get right. "Removed it" and
+ * "there was nothing to remove" are different answers, and the three platforms
+ * disagreed about which one they were giving: `rmSync` with `force` succeeds on
+ * a missing file, so macOS and Linux said "removed" either way, while
+ * `schtasks /Delete` on a task that is not there exits non-zero and Windows
+ * reported it as a FAILURE — `could not remove it — ERROR: The system cannot
+ * find the file specified`, and an exit code of 1 from a command that had
+ * nothing to do.
+ *
+ * ASKED, NOT INFERRED FROM THE REFUSAL. schtasks exits 1 for a missing task and
+ * for a permission it does not have, and the two are told apart only by an
+ * English sentence that is not English on a localised Windows — the same trap
+ * `looksMissing` in exec.mjs documents. So the task is queried first, which is
+ * one extra call and an answer that does not depend on the machine's language.
+ */
 export function uninstallService({
   platform = process.platform,
   home = homedir(),
   env = process.env,
-  fs = { rmSync },
+  fs = { rmSync, existsSync },
   run = spawnSync,
 } = {}) {
   const path = servicePath(platform, home, env);
-  const cmd = unregisterCommand(platform, path);
-  let out = null;
-  try { out = run(cmd.file, cmd.args, { encoding: "utf8", windowsHide: true }); } catch { /* reported below */ }
+
   if (platform === "win32") {
-    if (out?.status === 0) return { ok: true, path: SERVICE_LABEL };
-    return { ok: false, path: SERVICE_LABEL, reason: oneLine(out?.stderr || out?.stdout) || "schtasks refused" };
+    let existed = false;
+    try {
+      existed = run("schtasks", ["/Query", "/TN", SERVICE_LABEL], { encoding: "utf8", windowsHide: true })?.status === 0;
+    } catch { /* no schtasks at all: nothing of ours can be registered */ }
+    if (!existed) return { ok: true, existed: false, path: SERVICE_LABEL };
+    const cmd = unregisterCommand(platform, path);
+    let out = null;
+    try { out = run(cmd.file, cmd.args, { encoding: "utf8", windowsHide: true }); } catch { /* reported below */ }
+    if (out?.status === 0) return { ok: true, existed: true, path: SERVICE_LABEL };
+    return { ok: false, existed: true, path: SERVICE_LABEL, reason: oneLine(out?.stderr || out?.stdout) || "schtasks refused" };
   }
+
+  let existed = true;
+  try { existed = fs.existsSync(path); } catch { /* assume it was there */ }
+  const cmd = unregisterCommand(platform, path);
+  // Only when there is something to unregister: `launchctl unload` and
+  // `systemctl --user disable` on a unit that was never there are noise, and on
+  // some systemd versions an error.
+  if (existed) { try { run(cmd.file, cmd.args, { encoding: "utf8" }); } catch { /* the file is the part that matters */ } }
   // The FILE is what makes it start at login, so removing it is the part that
   // actually uninstalls. The unregister above only stops the copy running now.
   try { fs.rmSync(path, { force: true }); } catch (err) {
-    return { ok: false, path, reason: err?.code ?? "could not remove" };
+    return { ok: false, existed, path, reason: err?.code ?? "could not remove" };
   }
-  return { ok: true, path };
+  return { ok: true, existed, path };
 }
 
 const GLYPH_ARROW = "\u2192";

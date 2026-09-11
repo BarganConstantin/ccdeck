@@ -117,9 +117,14 @@ if (flags.uninstall) {
     if (svc.readServiceRecord(dataDir()) !== null) {
       const gone = svc.uninstallService();
       svc.writeServiceRecord(dataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
-      console.log(gone.ok
-        ? `${PRODUCT}: no longer starts at login`
-        : `${PRODUCT}: could NOT remove the login item — ${gone.reason} (${gone.path})`);
+      // Silent when there was nothing on the machine: an uninstall that reports
+      // removing a login item this deck never had is the same lie the explicit
+      // command used to tell, in the place a reader is least able to check it.
+      if (!gone.ok) {
+        console.error(`${PRODUCT}: could NOT remove the login item — ${gone.reason} (${gone.path})`);
+      } else if (gone.existed) {
+        console.log(`${PRODUCT}: no longer starts at login`);
+      }
       if (!gone.ok) refused = true;
     }
   }
@@ -191,22 +196,18 @@ if (flags.stop || flags.status || flags.logs || flags.installService || flags.un
     const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
     const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
     if (flags.uninstallService) {
-      // ASKED FIRST, BEFORE ANYTHING IS WRITTEN. "Removed it" and "there was
-      // nothing to remove" are different answers, and saying the first for the
-      // second is how somebody comes to believe this took away a login item
-      // that some other tool had actually written. `rmSync` with `force`
-      // succeeds on a missing file, so the record is the only thing that tells
-      // them apart — and the write below replaces it, which is exactly the bug
-      // this line is above rather than below.
-      const had = svc.readServiceRecord(deckDataDir())?.installed != null;
       const out = svc.uninstallService();
       // Recorded either way. The record is what stops the next ordinary start
       // putting back what was just taken away, and a tool that argues with its
       // user about a login item is a tool that gets uninstalled entirely.
       svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
+      // `existed` rather than the record: the record says what THIS tool last
+      // did, and the machine is what actually has a login item on it. Somebody
+      // who removed the plist by hand should be told the truth about the
+      // machine, not about our bookkeeping.
       say(!out.ok
         ? `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`
-        : had
+        : out.existed
           ? `\n  ${tone.ok}${gOk}${tone.reset}  no longer starts at login${tone.muted}  ${bullet}  ${out.path}${tone.reset}\n`
           : `\n  ${tone.muted}${dash}  it was not starting at login${tone.reset}\n`);
       process.exit(out.ok ? 0 : 1);
