@@ -95,15 +95,32 @@ describe("only a bare command line may be answered by an existing deck", () => {
     }
   });
 
-  it("never attaches on a line the startup report would have complained about", () => {
-    // An attach prints no report, and these are the two messages the report
-    // exists to carry. `ccdeck --workpace ~/proj` would otherwise open the tab
-    // of an unscoped deck and never mention the typo that made it unscoped.
-    expect(asksForOwnDeck({ unknown: ["--workpace"], incomplete: [] })).toBe(true);
-    // `ccdeck --workspace $UNSET` reaches the parser as a bare `--workspace`:
-    // a shaping flag the user meant and did not manage to spell.
+  it("does not let a misspelling build the second deck", () => {
+    // THE REGRESSION THIS EXISTS FOR. These two answered `true` at first, so
+    // the startup report would run and print the warning that names the bad
+    // token — and that is how `ccdeck --stpo`, a typo in the flag that STOPS a
+    // deck, came to build one instead. The guard meant to protect against extra
+    // decks was the thing creating them.
+    expect(asksForOwnDeck({ unknown: ["--stpo"], incomplete: [] })).toBe(false);
+    expect(asksForOwnDeck({ unknown: ["--workpace"], incomplete: [] })).toBe(false);
+    // `ccdeck --workspace $UNSET` reaches the parser as a bare `--workspace`.
     expect(asksForOwnDeck({ unknown: [], incomplete: [{ flag: "--workspace", expects: "a path" }] }))
-      .toBe(true);
+      .toBe(false);
+  });
+
+  it("prints the warning on the attach path, which is what was actually needed", () => {
+    // The report was never the requirement — the message was. Both are printed
+    // beside the attach, in the same rows the startup report uses, so nothing a
+    // typo would have been told is lost and nothing extra is started.
+    const ask = DECK.indexOf("if (!RESPAWN && !asksForOwnDeck(flags))");
+    const unknown = DECK.indexOf("reportUnknownFlags(flags.unknown);", ask);
+    const incomplete = DECK.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
+    const bind = DECK.indexOf("const starting = startServer({");
+    expect(unknown).toBeGreaterThan(ask);
+    expect(incomplete).toBeGreaterThan(ask);
+    // Inside the attach block, not the boot path's own copies further down.
+    expect(unknown).toBeLessThan(bind);
+    expect(incomplete).toBeLessThan(bind);
   });
 
   it("is offered by the parser at all", () => {

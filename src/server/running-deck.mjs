@@ -82,27 +82,24 @@ export const SHAPING_FLAGS = Object.freeze([
 /**
  * Is this command line one that must build its own deck?
  *
- * Anything but a bare `ccdeck` is, and the two cases past the shaping flags are
- * what keep this honest rather than merely convenient:
+ * Only a shaping flag, and `--new` — the deliberate escape hatch for the person
+ * who really does want two.
  *
- *   `unknown` — the deck's oldest promise is that a typo is REPORTED and then
- *   ignored, and `reportUnknownFlags` is the last row of the startup report on
- *   purpose. An attach prints no report at all, so attaching on a line
- *   containing `--workpace` would swallow the one message that explains why the
- *   scope is not what the user asked for.
+ * A TYPO IS NOT ONE, and the first version of this had it the other way round.
+ * `unknown` and `incomplete` both forced a new deck, on the argument that an
+ * attach prints no startup report and would swallow the warning that names the
+ * bad token. The consequence of that argument was `ccdeck --stpo` — a typo in
+ * the flag that STOPS a deck — building a second one, which is the exact
+ * outcome this whole module exists to prevent, reached through the guard meant
+ * to protect it.
  *
- *   `incomplete` — `ccdeck --workspace $UNSET` reaches the parser as a bare
- *   `--workspace`, which is a shaping flag the user MEANT and did not manage to
- *   spell. Attaching would silently give them the unscoped deck they were
- *   trying to avoid, without the warning that says so.
- *
- * `--new` is the deliberate escape hatch, for the person who really does want
- * two.
+ * The warning was the real requirement, not the new process, so the attach path
+ * prints it instead: see the call to reportUnknownFlags beside the attach in
+ * bin/deck.js. Nothing is swallowed, and no misspelling can leave a rival deck
+ * on a random port behind it.
  */
 export function asksForOwnDeck(flags = {}) {
   if (flags.new === true) return true;
-  if (flags.unknown?.length) return true;
-  if (flags.incomplete?.length) return true;
   return SHAPING_FLAGS.some((k) => flags[k] !== undefined);
 }
 

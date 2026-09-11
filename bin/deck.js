@@ -978,6 +978,15 @@ if (!RESPAWN && !asksForOwnDeck(flags)) {
     // report to hand it to. Same rule as statusLine's `keep`.
     write(`     ${P.accent}${P.bold}${link(liveUrl, liveUrl, LINKS)}${P.reset}\n`);
     if (note) write(`  ${P.warn}${G.warn}  ${note}${P.reset}\n`);
+    // THE TYPO'S WARNING, on the path that has no startup report to carry it.
+    //
+    // asksForOwnDeck used to answer `true` for these two so the report would
+    // run and print them, and that is how `ccdeck --stpo` — a misspelling of
+    // the flag that STOPS a deck — came to build a second one. The warning was
+    // the requirement; the extra process never was. Printed here, in the same
+    // rows the report uses, so nothing is lost and nothing is started.
+    reportUnknownFlags(flags.unknown);
+    reportIncompleteFlags(flags.incomplete);
     // The line that says a second deck was NOT started. Without it the command
     // looks like it did nothing at all, which is the other way to be confusing
     // about this — and it names the flag for the person who really did want two.
