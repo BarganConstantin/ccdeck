@@ -43,7 +43,7 @@ ccdeck draws the tree instead. It is local and needs no configuration: it regist
 
 One canvas. No tabs. No kanban.
 
-The deck opens on these six pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
+The deck opens on these eight pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
 
 <table>
 <tr>
@@ -55,20 +55,28 @@ The deck opens on these six pictures the first time it runs — they are the who
 <td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-3.svg" width="440" alt="What each session costs, and how much quota is left."></td>
-<td><img src="assets/guide/welcome-4.svg" width="440" alt="Run claude or codex in any folder. It shows up here on its own."></td>
+<td><img src="assets/guide/welcome-3.svg" width="440" alt="Click any node: its prompt, every tool call, tokens and timing."></td>
+<td><img src="assets/guide/welcome-4.svg" width="440" alt="What each session costs, and how much quota is left."></td>
 </tr>
 <tr>
+<td align="center"><sub>Click any node: its prompt, every tool call, tokens and timing.</sub></td>
 <td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
-<td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-5.svg" width="440" alt="Several Claude accounts: switch, add one, share one to another machine."></td>
-<td><img src="assets/guide/welcome-6.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
+<td><img src="assets/guide/welcome-5.svg" width="440" alt="Cores, memory and heat while the agents run, and what is hogging them."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude accounts: switch, add one, share one to another machine."></td>
 </tr>
 <tr>
+<td align="center"><sub>Cores, memory and heat while the agents run, and what is hogging them.</sub></td>
 <td align="center"><sub>Several Claude accounts: switch, add one, share one to another machine.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/guide/welcome-7.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
+<td><img src="assets/guide/welcome-8.svg" width="440" alt="Run claude or codex in any folder. It shows up here on its own."></td>
+</tr>
+<tr>
 <td align="center"><sub>Your machines repair each other's expired logins over the local network.</sub></td>
+<td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
 </tr>
 </table>
 
@@ -91,7 +99,7 @@ The deck opens on these six pictures the first time it runs — they are the who
 npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
 ```
 
-Opens **http://127.0.0.1:4317**, shows a six-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
+Opens **http://127.0.0.1:4317**, shows an eight-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
 
 The deck keeps running after you close the terminal, and starts again when you
 log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start that

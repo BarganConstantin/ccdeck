@@ -226,6 +226,66 @@ function CostArt() {
   );
 }
 
+function InspectArt() {
+  return (
+    <Board>
+      <rect x={14} y={40} width={172} height={120} rx={10} className="ga-canvas" />
+      <Node x={30} y={80} w={140} title="tests" sub="Sonnet 5 · 6 tools" tone="flight" />
+      <Pointer x={156} y={106} />
+      <path d="M170 92C186 92 184 60 200 60" className="ga-arc" />
+      <path d="M195 56l5 4-5 4" className="ga-arrow" />
+
+      <Screen x={200} y={22} w={226} h={160} />
+      <text x={214} y={46} className="ga-t ga-strong">tests</text>
+      <text x={412} y={46} className="ga-s" textAnchor="end">Sonnet 5 · 38s</text>
+      <line x1={200} y1={56} x2={426} y2={56} className="ga-line" />
+      <text x={214} y={76} className="ga-cap">PROMPT</text>
+      <text x={214} y={92} className="ga-t">Run the suite and fix what fails</text>
+      <text x={214} y={116} className="ga-cap">TOOLS · 6</text>
+      <Chip x={214} y={122} label="Read" />
+      <Chip x={266} y={122} label="Edit" />
+      <Chip x={318} y={122} label="Bash" live />
+      <text x={214} y={164} className="ga-cap">TOKENS</text>
+      <text x={214} y={178} className="ga-s ga-mono">41k in · 2.1k out · $0.12</text>
+    </Board>
+  );
+}
+
+/** The machine panel at a distance: the cores, the memory, the heat, and the
+ *  two processes taking the most of it. */
+function MachineArt() {
+  const cores = [18, 24, 28, 14, 22, 26, 30, 16, 24, 28, 20, 26];
+  return (
+    <Board>
+      <Screen x={14} y={20} w={412} h={160} />
+      <text x={28} y={44} className="ga-t ga-strong">This machine</text>
+      <text x={412} y={44} className="ga-s" textAnchor="end">12 cores · up 10d</text>
+      <line x1={14} y1={56} x2={426} y2={56} className="ga-line" />
+
+      <text x={28} y={76} className="ga-cap">CORES</text>
+      {cores.map((h, i) => (
+        <g key={i}>
+          <rect x={28 + i * 15} y={82} width={10} height={30} rx={2} className="ga-track" />
+          <rect x={28 + i * 15} y={112 - h} width={10} height={h} rx={2} className="ga-accent" />
+        </g>
+      ))}
+      <text x={28} y={136} className="ga-cap">MEMORY</text>
+      <rect x={28} y={143} width={178} height={5} rx={2.5} className="ga-track" />
+      <rect x={28} y={143} width={105} height={5} rx={2.5} className="ga-accent" />
+      <text x={28} y={165} className="ga-s">18.9 GB of 32.0 GB</text>
+
+      <text x={240} y={76} className="ga-cap">THERMAL</text>
+      <text x={240} y={100} className="ga-big">66 °C</text>
+      <text x={240} y={118} className="ga-s ga-ok">running at full speed</text>
+      <text x={240} y={142} className="ga-cap">BUSIEST PROCESSES</text>
+      <text x={240} y={160} className="ga-s ga-mono">node · claude</text>
+      <text x={412} y={160} className="ga-s ga-mono" textAnchor="end">38%</text>
+      <text x={240} y={176} className="ga-s ga-mono">esbuild</text>
+      <text x={412} y={176} className="ga-s ga-mono" textAnchor="end">21%</text>
+    </Board>
+  );
+}
+
 function StartArt() {
   return (
     <Board>
@@ -299,17 +359,26 @@ function LanSyncArt() {
   );
 }
 
+// The order is the story: what the deck is for, what it shows, what it keeps
+// working — and last, how to get a first node on the canvas, because that is
+// the step a reader acts on when they press Done.
 export const WELCOME_STEPS: GuideStep[] = [
-  { art: <WaitingArt />, line: "Sessions waiting on you rise to the top, longest wait first." },
+  {
+    art: <WaitingArt />,
+    line: "Sessions waiting on you rise to the top, longest wait first.",
+    tip: "A tone and a system notification when one stops to ask. The bell in the topbar.",
+  },
   { art: <TreeArt />, line: "Every agent and subagent is a node. Tool calls light up as they run." },
+  { art: <InspectArt />, line: "Click any node: its prompt, every tool call, tokens and timing." },
   { art: <CostArt />, line: "What each session costs, and how much quota is left." },
-  { art: <StartArt />, line: "Run claude or codex in any folder. It shows up here on its own." },
+  { art: <MachineArt />, line: "Cores, memory and heat while the agents run, and what is hogging them." },
   { art: <AccountsArt />, line: "Several Claude accounts: switch, add one, share one to another machine." },
   {
     art: <LanSyncArt />,
     line: "Your machines repair each other's expired logins over the local network.",
     tip: "Local network is the last section of the Claude accounts panel.",
   },
+  { art: <StartArt />, line: "Run claude or codex in any folder. It shows up here on its own." },
 ];
 
 // ── local network ───────────────────────────────────────────────────────────

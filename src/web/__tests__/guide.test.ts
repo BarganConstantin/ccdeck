@@ -52,20 +52,24 @@ describe("a step is a picture with one line under it", () => {
     // And the welcome is the product: who is waiting, the tree, the cost,
     // how to get a first node on the canvas — then the accounts panel's three
     // verbs, and the network that keeps its logins working.
+    // Starting the first session is LAST: it is the one step a reader acts on
+    // when they press Done, so it is the step Done is under.
     expect(WELCOME_STEPS.map(s => s.line)).toEqual([
       expect.stringMatching(/waiting/),
       expect.stringMatching(/node/),
+      expect.stringMatching(/Click any node/),
       expect.stringMatching(/cost/),
-      expect.stringMatching(/claude/),
+      expect.stringMatching(/Cores, memory/),
       expect.stringMatching(/switch.*add.*share/),
       expect.stringMatching(/local network/),
+      expect.stringMatching(/^Run claude/),
     ]);
   });
 
   it("draws every step on one board, so the dialog never changes height between steps", () => {
     const boards = [...art.matchAll(/viewBox="([^"]+)"/g)].map(m => m[1]);
     const stage = boards.filter(b => b === "0 0 440 200");
-    // Ten steps, ten boards; the eleventh is the panel-sized intro.
+    // Twelve steps, twelve boards; the thirteenth is the panel-sized intro.
     expect(stage).toHaveLength(1);
     expect(art).toMatch(/function Board\(/);
     expect((art.match(/<Board>/g) ?? []).length).toBe(WELCOME_STEPS.length + LAN_STEPS.length);
@@ -151,7 +155,7 @@ describe("the README shows the same pictures", () => {
     }
   });
 
-  it("embeds all ten, each captioned with its line", () => {
+  it("embeds all twelve, each captioned with its line", () => {
     for (const [name, steps] of [["welcome", WELCOME_STEPS], ["lan", LAN_STEPS]] as const) {
       steps.forEach((step, i) => {
         expect(readme).toContain(`<img src="assets/guide/${name}-${i + 1}.svg" width="440" alt="${step.line}">`);
