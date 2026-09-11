@@ -31,6 +31,12 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.21.0": [
+    {
+      "title": "🖼️ The deck explains itself in pictures",
+      "body": "🎬 First run opens an eight-picture tour instead of the changelog — who is waiting on you, the tree, a node's inside, cost and quota, this machine, accounts, local network, how to start. `Take the tour` on an empty canvas brings it back.\n\n📡 **Local network** has a guide: a card while it is off, `How it works` under an empty list, four pictures ending on `Turn it on`. A machine's row opens its own dialog — address, version and system, the logins it offers, and a name of your own for it. Setup ends on Done.\n\n🔄 The deck updates itself when nobody is looking: no tab focused, no agent mid-turn, thirty seconds quiet. The banner's `auto when idle` switch governs it.\n\n🔑 An account whose numbers were paused resumes on its own, and the panel is titled **Claude accounts** — a Codex login is not in it."
+    }
+  ],
   "3.20.0": [
     {
       "title": "🟢 The deck keeps running after you close the terminal",
