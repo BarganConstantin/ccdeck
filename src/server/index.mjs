@@ -3138,10 +3138,14 @@ function redactDeckToken(raw) {
  * same freshness every other cross-deck setting has.
  */
 let _prefs = { ...PREF_DEFAULTS };
-// And LAN sync starts from the same read, so a deck that had it on comes back
-// with it on. `applyLanPrefs` is defined below — this runs after module
-// evaluation, which is what makes the forward reference fine.
-readPrefs().then(async p => { _prefs = p; await applyLanPrefs(); }).catch(() => {});
+// Read at import, so `consider` has its answer from the first event. LAN sync
+// used to start from this same read, and it must not: bin/deck.js imports this
+// module to ASK whether a deck is already up, and a launcher that then attaches
+// and exits had already bound the beacon and the sync port on the way in —
+// which is the `lan sync (listen): EADDRINUSE` line a second `ccdeck` printed
+// above `deck already running`. The engine starts from the listen that
+// succeeds, in startServer, which is the only process that may hold a port.
+const _prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
 
 const blockNotifier = createBlockNotifier({
   notify: osNotify,
@@ -5993,6 +5997,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       if (codex) startCodexWatcher(workspace);
       // Both timers are unref'd, so this never holds the process open.
       startSystemMetrics();
+      // LAN sync, from the prefs the import read — and only from here, so a
+      // deck that had it on comes back with it on, and a launcher that only
+      // asked the registry never binds a port it is about to walk away from.
+      _prefsRead.then(() => applyLanPrefs()).catch(() => {});
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise.
       cswapAutoModule().then(m => m.initCswapAuto()).catch(() => {});

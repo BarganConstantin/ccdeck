@@ -317,3 +317,25 @@ describe("an older deck on the port is said out loud, not routed around", () => 
     expect(DECK).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
   });
 });
+
+describe("what a launcher that only asks never does", () => {
+  const index = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
+  it("does not start LAN sync from the import, only from a listen that succeeded", () => {
+    // Reported from a terminal, the day 3.21.0 shipped: `npx ccdeck` beside a
+    // running deck printed `lan sync (listen): listen EADDRINUSE` and, under
+    // it, `deck already running`. bin/deck.js imports the server module to
+    // ask the registry, and the module bound the beacon and the sync listener
+    // on the way in — a port grabbed by a process about to exit, and a line
+    // about it in front of the one answer the person wanted.
+    expect(index).not.toMatch(/readPrefs\(\)\.then\([^)]*applyLanPrefs/);
+    expect(index).toMatch(/const _prefsRead = readPrefs\(\)\.then\(p => \{ _prefs = p; \}\)/);
+    // In the listen loop, after the bind that took, beside the other things a
+    // serving process starts and an asking one must not.
+    const loop = /for \(const candidate of candidates\) \{([\s\S]*?)\n  \}\n  throw listenFailure/.exec(index)?.[1] ?? "";
+    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\);[\s\S]*_prefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
+    // And once: a second call site would be a second boot.
+    expect([...index.matchAll(/_prefsRead\.then/g)]).toHaveLength(1);
+  });
+});
