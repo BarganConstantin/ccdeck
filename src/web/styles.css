@@ -9853,6 +9853,20 @@ input, textarea { caret-color: var(--accent); }
    the error colour without being pointed at — as the row's does. */
 .lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
 
+/* The setup dialog's foot: why there is no Save on the left, the one button
+   on the right, on the same ground and rule as a deck's own dialog so the two
+   read as one family. */
+.lan-setup-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.lan-foot-note { margin-right: auto; font-size: 10px; line-height: 1.45; color: var(--muted); }
+.lan-setup-foot .btn { min-width: 92px; justify-content: center; }
+
 /* ── the panel's one list of machines ───────────────────────────────────────
    Every deck on the network is a row now — paired, nearby, asking, or already
    answered — and what differs between them is the sentence on the right and the

@@ -108,6 +108,20 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     }
   }, [onChanged]);
 
+  /** The one way out that is also a decision. A name somebody typed and did
+   *  not save is saved on the way, because pressing Done over an unsaved field
+   *  is the reader saying they meant it — and the dialog stays open if that
+   *  write fails, so the failure line is read rather than closed on. Every box
+   *  and switch here was already saved the moment it changed. */
+  const done = useCallback(async () => {
+    if (nameDraft != null && nameDraft !== (status.name ?? "")) {
+      const ok = await write({ name: nameDraft }, "save the name", "name");
+      if (!ok) return;
+      if (alive.current) setNameDraft(null);
+    }
+    onClose();
+  }, [nameDraft, status.name, write, onClose]);
+
   const shared = new Set(pending.current ?? status.shared ?? []);
   // Absent means on: a deck that has not written prefs since this shipped is a
   // deck with the defaults, and reading a missing key as `off` would draw the
@@ -266,6 +280,19 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             )}
           </div>
         </section>
+
+        {/* A WAY OUT THAT IS A DECISION. This dialog opens by itself on the
+            press that puts this deck on the network, and one that arrives on
+            its own and offers only a × reads as unfinished — as if something
+            still had to be confirmed. Nothing does: every box and switch above
+            is saved the moment it changes, which the note says, and Done saves
+            the one field that is not. */}
+        <footer className="lan-setup-foot">
+          <span className="lan-foot-note">Changes are saved as you make them.</span>
+          <button type="button" className="btn primary" {...pressProps("name")} onClick={() => void done()}>
+            Done
+          </button>
+        </footer>
       </div>
     </div>
   );
