@@ -65,7 +65,11 @@ function Pencil() {
 export default function LanPeerModal({
   row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings,
 }: Props) {
-  const dialogRef = useModalDismiss(onClose);
+  // The keyboard lands on ×, as it does in the tool inspector: this dialog is
+  // opened to be read, and the first control in it — the pencil — would put a
+  // stray Enter into renaming the machine somebody only came to look at.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   /** The name being typed, or null while nobody is renaming. */
   const [draft, setDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -289,7 +293,8 @@ export default function LanPeerModal({
             </p>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)">×</button>
+            <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose}
+              aria-label="Close (Esc)" title="Close (Esc)">×</button>
           </div>
         </header>
 

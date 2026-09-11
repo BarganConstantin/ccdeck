@@ -1349,14 +1349,16 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       anyway. They are two lines now, and the second one is
                       allowed to be long.
 
-                      AND THE NAME IS THE DOOR. It is a button whose hit area
-                      stretches over the whole row, so a press anywhere on the
-                      row opens that machine's dialog — and the verb on the end,
-                      drawn above the stretch, still does only the verb. */}
+                      AND THE ROW IS THE DOOR. The button is laid over the whole
+                      row, under the verb, so a press anywhere on it opens that
+                      machine's dialog and the keyboard's ring goes round the
+                      row. The name drawn here is the same words the button
+                      says, so a screen reader is told them once, by the
+                      button. */}
+                  <span className="ap-lan-who-name" aria-hidden>{p.name}</span>
                   <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
                     onClick={() => setPeerOpen(p.fp)}>
-                    <span className="ap-lan-who-name">{p.name}</span>
-                    <span className="vis-hidden">, details</span>
+                    <span className="vis-hidden">{p.name}, details</span>
                   </button>
                   {/* One node, two presentations. A row with nothing to report
                       keeps its sentence for anybody being read the list and

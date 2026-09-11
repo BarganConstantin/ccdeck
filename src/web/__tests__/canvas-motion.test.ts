@@ -292,9 +292,12 @@ const PRESSES: Press[] = [
   // every other labelled control.
   [".ap-lan-pick:active", "0.97", "transform"],
   // A machine's row in the same section, which is a door to that machine's
-  // dialog: the name is the button and its hit area is the whole row. The
-  // name is what answers the press, at the number every labelled control uses.
-  [".ap-lan-who-open:active", "0.97", "transform"],
+  // dialog. The name is the button, but its hit area is the whole row, so the
+  // ROW answers the press, as `.ap-lan-pick` does — and not while the verb on
+  // its end is the thing being pressed, which answers with its own 0.97. A
+  // point less than a label's: the row is the width of the column, and three
+  // percent of that is a jump rather than a give.
+  [".ap-lan-who:active:not(:has(.ap-manage-btn:active))", "0.98", "transform"],
   // The LAN section's two foot words — `+ add a deck` and `name & shared
   // logins`. They gave up their pills so the one press the section is for could
   // have the column, and a control with no box still owes an answer to a press.

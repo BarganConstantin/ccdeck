@@ -319,6 +319,10 @@ describe("the deck's ten overlays", () => {
       // Cancel: a dialog that arrives on its own must not put the answer that
       // shares a login under whatever key is pressed next.
       "LanPairRequestModal.tsx",
+      // A deck's own dialog names its ×: it is opened to be read, and its
+      // first control is the pencil that renames the machine, which a stray
+      // Enter should not reach.
+      "LanPeerModal.tsx",
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.

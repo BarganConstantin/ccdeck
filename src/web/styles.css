@@ -6803,6 +6803,10 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
      inside the row rather than slipping under the panel. */
   position: relative;
   isolation: isolate;
+  /* The whole row is the door to that machine's dialog, so the whole row says
+     so, and the whole row gives on press — see the press below. */
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
   display: grid;
   grid-template-columns: 5px minmax(0, 1fr) auto;
   grid-template-areas:
@@ -6822,7 +6826,7 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    column rather than at whatever a sentence left it, and the row's `title`
    carries the whole of it. */
 .ap-lan-who-name {
-  display: block;
+  grid-area: name;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6830,39 +6834,32 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
   font-size: 12px;
   color: var(--text);
 }
-/* THE NAME IS THE DOOR, and the whole row is its handle. A row opens that
-   machine's dialog, and a row is two lines, a dot and sometimes a verb — so the
-   button is the name, as it was drawn before, and its `::after` stretches over
-   the row's full box. Clicking the sentence under the name opens it; clicking
-   the verb does the verb, because the verb sits above the stretch.
+/* THE ROW IS THE DOOR. A row opens that machine's dialog, and a row is two
+   lines, a dot and sometimes a verb — so the button is laid over all of it, on
+   exactly the box the hover bed draws, and the verb sits above the button. A
+   press anywhere on the row opens the dialog; a press on the verb does the
+   verb.
+
+   THE BOX IS THE ROW'S, SO THE RING IS TOO. It was the name's: the button was
+   the name, and the keyboard's ring went round one word of a row that lights
+   as a whole — two outlines for one focus, neither the shape of the thing.
+   Now the ring is drawn round the row, on the bed's own corners.
 
    A <button> and not a role on the <li>: the verb inside is a button too, and a
    button inside a button is not a thing HTML allows. */
 .ap-lan-who-open {
-  grid-area: name;
   appearance: none;
-  display: block;
-  justify-self: stretch;
-  min-width: 0;
+  position: absolute;
+  inset: -3px -4px;
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: 5px;
   background: none;
   font: inherit;
   color: inherit;
-  text-align: left;
-  cursor: pointer;
-  /* Pressed toward where the name starts, the way a label left-aligned in a
-     column should give — scaling from the centre would slide its first letter. */
-  transform-origin: left center;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.ap-lan-who-open:active { transform: scale(0.97); }
-.ap-lan-who-open::after {
-  content: "";
-  position: absolute;
-  inset: -3px -4px;
-  border-radius: 5px;
+  /* The row says pointer; a <button> would put the arrow back. */
+  cursor: inherit;
 }
 .ap-lan-who > .ap-manage-btn { position: relative; z-index: 1; }
 /* The hover bed, and the same bed while the keyboard is on the row. It is the
@@ -6884,6 +6881,21 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
 .ap-lan-who:hover::before,
 .ap-lan-who:has(.ap-lan-who-open:focus-visible)::before {
   background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+/* THE VERB IS NOT THE DOOR, and the bed said it was. With the pointer on
+   `unpair` the whole row still lit, which is the row promising that a press
+   there opens the dialog — and it does the verb instead. So the bed steps
+   aside while the verb is the thing under the pointer, and the verb's own
+   hover is the only answer on screen. */
+.ap-lan-who:has(> .ap-manage-btn:hover)::before { background: transparent; }
+/* THE PRESS. The row gives a little and its bed darkens, both at once and
+   with no fade in — a press that eases in reads as lag — and both ease back
+   on release through the transitions above. Not while the verb is the thing
+   pressed: that answers with its own 0.97. */
+.ap-lan-who:active:not(:has(.ap-manage-btn:active)) { transform: scale(0.98); transition-duration: 0s; }
+.ap-lan-who:active:not(:has(.ap-manage-btn:active))::before {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  transition-duration: 0s;
 }
 /* Secondary text on a hovered row is still text — the wash lifts the ground
    under it, and `--muted` clears 4.5:1 only against --panel. Mixed toward the
@@ -7936,7 +7948,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
   .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
-  .ap-lan-who-open:active,
+  .ap-lan-who:active:not(:has(.ap-manage-btn:active)),
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off

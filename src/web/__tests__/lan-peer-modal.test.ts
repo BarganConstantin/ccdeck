@@ -147,7 +147,10 @@ describe("the row is the door", () => {
 
   it("keeps the verb a verb: it sits above the row's stretched hit area", () => {
     expect(CSS).toMatch(/\.ap-lan-who > \.ap-manage-btn \{ position: relative; z-index: 1; \}/);
-    expect(CSS).toMatch(/\.ap-lan-who-open::after \{[^}]*position: absolute/);
+    // Laid over the row on the bed's own box, so the keyboard's ring is the
+    // row's shape rather than a ring round one word of it.
+    expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: -3px -4px;/);
+    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\{p\.name\}<\/span>/);
   });
 
   it("answers the pointer and the keyboard with the bed the panel's other rows use", () => {
