@@ -22,6 +22,57 @@
 // all — and it is why self-recognition is by fingerprint rather than by
 // address.
 import dgram from "node:dgram";
+import { networkInterfaces } from "node:os";
+
+/** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
+function quad(text) {
+  const parts = String(text ?? "").split(".");
+  if (parts.length !== 4) return null;
+  const out = parts.map(p => Number(p));
+  return out.every(n => Number.isInteger(n) && n >= 0 && n <= 255) ? out : null;
+}
+
+/**
+ * The address that reaches every host on one interface's own subnet.
+ *
+ * `address | ~netmask`, which is the definition. Null for a /32, because a
+ * point-to-point link — a VPN tunnel, `utun` on macOS — has a directed
+ * broadcast equal to its own address, and sending a beacon to ourselves down a
+ * tunnel is a packet nobody wanted.
+ */
+export function directedBroadcast(address, netmask) {
+  const a = quad(address);
+  const m = quad(netmask);
+  if (!a || !m) return null;
+  if (m.every(o => o === 255)) return null;
+  return a.map((o, i) => o | (~m[i] & 255)).join(".");
+}
+
+/**
+ * Where a beacon has to go to be heard on this machine's networks.
+ *
+ * The limited broadcast first, because it is the one that works where a router
+ * or an access point filters the directed form, and because it is what every
+ * deck before this version sent — a machine that was fine stays fine. Then one
+ * per interface, which is what a multi-homed host actually needs: see announce.
+ *
+ * Loopback and IPv6 are skipped. A deck on `lo0` can only hear itself, and this
+ * protocol is IPv4 broadcast by construction — there is no such thing as an
+ * IPv6 broadcast address.
+ */
+export function broadcastTargets(ifaces) {
+  const out = ["255.255.255.255"];
+  for (const list of Object.values(ifaces ?? {})) {
+    for (const ni of list ?? []) {
+      if (!ni || ni.internal) continue;
+      // Node 18 reports `family` as the string "IPv4"; older shapes used 4.
+      if (ni.family !== "IPv4" && ni.family !== 4) continue;
+      const to = directedBroadcast(ni.address, ni.netmask);
+      if (to && !out.includes(to)) out.push(to);
+    }
+  }
+  return out;
+}
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
@@ -84,6 +135,11 @@ export function createBeacon({
   // without saying so. The REAL socket is exercised by hand, two decks on one
   // machine, which works because a broadcast comes back to its own host.
   createSocket = opts => dgram.createSocket(opts),
+  // Injected for the same reason, and read PER ANNOUNCE rather than once: a
+  // laptop that joins a network, or brings a VPN up, grows an interface without
+  // restarting the deck, and a list captured at start would announce to the
+  // addresses it had at breakfast.
+  ifaces = () => networkInterfaces(),
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -104,20 +160,47 @@ export function createBeacon({
   let repliedAt = 0;
   const answered = new Set();
 
-  const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
+    const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
   const announce = () => {
     if (!sock) return;
-    // 255.255.255.255 rather than a multicast group, and rather than the
-    // subnet's own broadcast address. The subnet-directed form needs the
-    // netmask of whichever interface the packet leaves by, which changes when a
-    // VPN comes up; the limited broadcast needs nothing and is what Syncthing
-    // sends for the same reason.
-    sock.send(payload(), DISCOVERY_PORT, "255.255.255.255", err => {
-      // ENETUNREACH and EACCES are what a machine with no network, or a
-      // firewall, says. Both are states the panel reports rather than crashes.
-      if (err) onError?.("announce", err);
-    });
+    // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
+    //
+    // This used to send only to 255.255.255.255, on the argument that the
+    // limited broadcast "needs nothing" while a subnet-directed one needs the
+    // netmask of whichever interface the packet leaves by. The argument is
+    // sound and the machine disagreed with it. Measured on a Mac with Wi-Fi and
+    // a VPN tunnel up, from a bare node process with no deck involved:
+    //
+    //   send to 255.255.255.255  ->  EHOSTUNREACH
+    //   send to 192.168.1.255    ->  sent ok
+    //
+    // On a multi-homed host the limited broadcast has no single interface to
+    // leave by, and macOS refuses it rather than choosing. The deck went on
+    // announcing into nothing for as long as that machine was up: it could still
+    // HEAR colleagues, because receiving is per-port and not per-address, so the
+    // symptom was one-sided and looked like everybody else's problem.
+    //
+    // So the limited form stays — it is the one that works where a directed
+    // broadcast is filtered, and it is what Syncthing sends — and every
+    // interface's own directed broadcast goes out beside it. A duplicate packet
+    // costs one datagram; a missing one costs the whole feature.
+    const targets = broadcastTargets(ifaces());
+    let left = targets.length;
+    const failed = [];
+    for (const to of targets) {
+      sock.send(payload(), DISCOVERY_PORT, to, err => {
+        if (err) failed.push(`${to} (${err.code ?? err.message})`);
+        // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
+        // the ordinary state of a machine with a VPN up, and a panel that said
+        // so every thirty seconds would be crying wolf about a working deck.
+        // No address working at all is a deck nobody can discover, which is
+        // exactly what the panel is for.
+        if (--left === 0 && failed.length === targets.length) {
+          onError?.("announce", new Error(`no broadcast address worked — ${failed.join(", ")}`));
+        }
+      });
+    }
   };
 
   const start = () => new Promise(resolve => {

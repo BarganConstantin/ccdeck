@@ -41,8 +41,8 @@ import os from "node:os";
 import { fingerprint, hostId, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server modules, no types
 import {
-  connectToPeer, createBeacon, createSyncServer, frameReader, sendFrame,
-  DISCOVERY_PORT, HANDSHAKE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
+  broadcastTargets, connectToPeer, createBeacon, createSyncServer, directedBroadcast, frameReader,
+  sendFrame, DISCOVERY_PORT, HANDSHAKE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
 } from "../../server/lan-socket.mjs";
 
 /** One caller and one listener for the whole file. Identities are the point of
@@ -470,6 +470,13 @@ function fakeSocket() {
   };
 }
 
+/** A beacon on an injected socket.
+ *
+ *  `ifaces` defaults to EMPTY, which leaves one target — the limited broadcast —
+ *  and therefore one packet per announce. Every test in this file that counts
+ *  packets is counting announces, and a real interface map would make each
+ *  announce two or three of them on a laptop and one on a CI runner. The tests
+ *  that ARE about addresses hand in a map of their own. */
 function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unknown> = {}) {
   const fp = fingerprint(randomBytes(32));
   const seen: Array<Record<string, unknown>> = [];
@@ -482,6 +489,7 @@ function beaconOn(sock: ReturnType<typeof fakeSocket>, over: Record<string, unkn
     onPeer: (n: Record<string, unknown>) => seen.push(n),
     onError: (what: string) => errors.push(what),
     createSocket: () => sock,
+    ifaces: () => ({}),
     ...over,
   });
   return { b, fp, seen, strangers, errors };
@@ -646,5 +654,127 @@ describe("shouting, and hearing", () => {
     b.announce();
     expect(sock.sent).toHaveLength(2);
     b.stop();
+  });
+});
+
+describe("where a beacon is sent", () => {
+  // THE ONE-SIDED FAILURE. This used to send only to 255.255.255.255, on the
+  // argument that the limited broadcast "needs nothing" while a subnet-directed
+  // one needs the netmask of whichever interface the packet leaves by. Sound,
+  // and the machine disagreed. Measured on a Mac with Wi-Fi and a VPN tunnel up,
+  // from a bare node process with no deck in it:
+  //
+  //   send to 255.255.255.255  ->  EHOSTUNREACH
+  //   send to 192.168.1.255    ->  sent ok
+  //
+  // On a multi-homed host the limited broadcast has no single interface to leave
+  // by, and macOS refuses it rather than choosing. The deck went on announcing
+  // into nothing for as long as that machine was up — and could still HEAR
+  // colleagues, because receiving is per-port and not per-address, so the
+  // symptom was one-sided and read as everybody else's problem.
+  const IFACES = {
+    lo0: [{ address: "127.0.0.1", netmask: "255.0.0.0", family: "IPv4", internal: true }],
+    en1: [
+      { address: "192.168.1.82", netmask: "255.255.255.0", family: "IPv4", internal: false },
+      { address: "fe80::1", netmask: "ffff:ffff:ffff:ffff::", family: "IPv6", internal: false },
+    ],
+    utun4: [{ address: "100.67.32.58", netmask: "255.255.255.255", family: "IPv4", internal: false }],
+  };
+
+  it("computes an interface's own broadcast, and refuses a tunnel's", () => {
+    expect(directedBroadcast("192.168.1.82", "255.255.255.0")).toBe("192.168.1.255");
+    expect(directedBroadcast("10.1.2.3", "255.255.0.0")).toBe("10.1.255.255");
+    expect(directedBroadcast("172.16.5.9", "255.255.255.240")).toBe("172.16.5.15");
+    // A /32 is a point-to-point link — a VPN tunnel, `utun` on macOS — whose
+    // directed broadcast is its own address. Sending a beacon to ourselves down
+    // a tunnel is a packet nobody wanted.
+    expect(directedBroadcast("100.67.32.58", "255.255.255.255")).toBeNull();
+    expect(directedBroadcast("nonsense", "255.255.255.0")).toBeNull();
+    expect(directedBroadcast("192.168.1.82", undefined as never)).toBeNull();
+  });
+
+  it("keeps the limited broadcast first and adds one per interface", () => {
+    // First because it is what works where a router or an access point filters
+    // the directed form, and because it is what every deck before this version
+    // sent: a machine that was fine stays fine.
+    expect(broadcastTargets(IFACES)).toEqual(["255.255.255.255", "192.168.1.255"]);
+    // Loopback can only hear itself; IPv6 has no broadcast address at all.
+    expect(broadcastTargets(IFACES)).not.toContain("127.255.255.255");
+    expect(broadcastTargets({})).toEqual(["255.255.255.255"]);
+    expect(broadcastTargets(undefined as never)).toEqual(["255.255.255.255"]);
+  });
+
+  it("never sends the same address twice", () => {
+    // Two interfaces on one subnet — Wi-Fi and Ethernet on the same LAN, which
+    // is an ordinary desk — would otherwise double every announce.
+    const twice = {
+      en0: [{ address: "192.168.1.5", netmask: "255.255.255.0", family: "IPv4", internal: false }],
+      en1: [{ address: "192.168.1.82", netmask: "255.255.255.0", family: "IPv4", internal: false }],
+    };
+    expect(broadcastTargets(twice)).toEqual(["255.255.255.255", "192.168.1.255"]);
+  });
+
+  it("announces to every one of them", async () => {
+    const sock = fakeSocket();
+    const { b } = beaconOn(sock, { ifaces: () => IFACES });
+    await b.start();
+    const to = sock.sent.map(s => s.addr);
+    expect(to).toContain("255.255.255.255");
+    expect(to).toContain("192.168.1.255");
+    expect(sock.sent.every(s => s.port === DISCOVERY_PORT)).toBe(true);
+    b.stop();
+  });
+
+  it("reads the interfaces per announce, not once at start", async () => {
+    // A laptop that joins a network, or brings a VPN up, grows an interface
+    // without restarting the deck. A list captured at start would go on
+    // announcing to the addresses it had at breakfast.
+    let asked = 0;
+    const sock = fakeSocket();
+    const { b } = beaconOn(sock, { ifaces: () => { asked++; return IFACES; } });
+    await b.start();
+    const first = asked;
+    expect(first).toBeGreaterThan(0);
+    b.stop();
+  });
+
+  it("complains only when no address worked at all", async () => {
+    // One address being unreachable is the ordinary state of a machine with a
+    // VPN up, and a panel saying so every thirty seconds would be crying wolf
+    // about a working deck. No address working is a deck nobody can discover,
+    // which is exactly what the panel is for.
+    const errors: Array<[string, Error]> = [];
+    const partial = {
+      ...fakeSocket(),
+      send(msg: Buffer, port: number, addr: string, cb?: (e: Error | null) => void) {
+        cb?.(addr === "255.255.255.255" ? Object.assign(new Error("send EHOSTUNREACH"), { code: "EHOSTUNREACH" }) : null);
+      },
+    };
+    const { b } = beaconOn(partial as never, {
+      ifaces: () => IFACES,
+      onError: (what: string, err: Error) => errors.push([what, err]),
+    });
+    await b.start();
+    expect(errors.filter(e => e[0] === "announce")).toHaveLength(0);
+    b.stop();
+
+    const dead = {
+      ...fakeSocket(),
+      send(msg: Buffer, port: number, addr: string, cb?: (e: Error | null) => void) {
+        cb?.(Object.assign(new Error("send EHOSTUNREACH"), { code: "EHOSTUNREACH" }));
+      },
+    };
+    const second: Array<[string, Error]> = [];
+    const { b: b2 } = beaconOn(dead as never, {
+      ifaces: () => IFACES,
+      onError: (what: string, err: Error) => second.push([what, err]),
+    });
+    await b2.start();
+    const said = second.filter(e => e[0] === "announce");
+    expect(said).toHaveLength(1);
+    expect(said[0][1].message).toContain("no broadcast address worked");
+    expect(said[0][1].message).toContain("255.255.255.255");
+    expect(said[0][1].message).toContain("192.168.1.255");
+    b2.stop();
   });
 });
