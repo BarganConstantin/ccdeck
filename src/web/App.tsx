@@ -56,7 +56,7 @@ import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
 import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
-import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./components/LanSyncSection";
+import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
@@ -1388,7 +1388,9 @@ function Inner() {
         .then(r => (r.ok ? r.json() : null))
         .then(j => {
           if (!alive) return null;
-          if (j?.ok) setLanPending(Array.isArray(j.pending) ? j.pending : []);
+          // With the names somebody here gave those decks, so the dialog over
+          // the canvas says the same word the panel's row does.
+          if (j?.ok) setLanPending(withAliases(Array.isArray(j.pending) ? j.pending : [], j.aliases));
           return j;
         })
         .catch(() => null) // the deck is down; the connection banner already says so
@@ -1416,7 +1418,7 @@ function Inner() {
       // The route answers with the whole status, so the next request — if there
       // is one — is already in hand and the dialog does not blink out and back
       // in on the next poll.
-      if (out && Array.isArray(out.pending)) setLanPending(out.pending);
+      if (out && Array.isArray(out.pending)) setLanPending(withAliases(out.pending, out.aliases));
       else setLanPending(prev => prev.filter(p => p.fp !== fp));
     } catch {
       // Nothing was decided, so nothing is drawn as decided: the request stays

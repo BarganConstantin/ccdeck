@@ -183,6 +183,9 @@ describe("the modals themselves", () => {
       "KeyboardHelp.tsx",
       "LanAddDeckModal.tsx",
       "LanPairRequestModal.tsx",
+      // A deck's own dialog, opened from its row in the LAN section — named
+      // here for the same reason as the shortcuts sheet above.
+      "LanPeerModal.tsx",
       "LanSetupModal.tsx",
       // #712's release notes, named here for the same reason.
       // #738's whole-candidate process list, named here for the same reason as

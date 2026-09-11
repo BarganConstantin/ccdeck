@@ -558,10 +558,12 @@ describe("switching on says what switching on does", () => {
       expect(effect).not.toMatch(/setSetupOpen/);
       expect(effect).not.toMatch(/enabled/);
     }
-    // Two presses open it and nothing else does: the switch on its way on, and
-    // the word that has always opened it.
-    expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(2);
+    // Three presses open it and nothing else does: the switch on its way on,
+    // the control that has always opened it, and the line in a deck's own
+    // dialog that goes from "you offer" to where that list is changed.
+    expect([...CODE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
     expect(CODE).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
+    expect(CODE).toMatch(/onSettings=\{\(\) => \{ setPeerOpen\(null\); setSetupOpen\(true\); \}\}/);
   });
 });
 
@@ -1104,7 +1106,8 @@ describe("what an off network is allowed to cost", () => {
     expect(SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
     expect(SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
     // One pair of numbers, used by both pollers, rather than one each.
-    expect(app).toContain('import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./components/LanSyncSection";');
+    // Other names may ride the same import; the two constants must be on it.
+    expect(app).toMatch(/import \{ LAN_POLL_OFF_MS, LAN_POLL_ON_MS(, \w+)* \} from "\.\/components\/LanSyncSection";/);
     for (const src of [SRC, app]) {
       expect(src).toMatch(/enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS/);
     }

@@ -6798,6 +6798,11 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    under the name it is about, and the verb spans both and never moves. No box,
    no rule, no container — the second line is the whole of the device. */
 .ap-lan-who {
+  /* The box the name's stretched hit area and the hover bed are measured
+     from, and a stacking context of its own so the bed's z-index: -1 stays
+     inside the row rather than slipping under the panel. */
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: 5px minmax(0, 1fr) auto;
   grid-template-areas:
@@ -6817,13 +6822,74 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    column rather than at whatever a sentence left it, and the row's `title`
    carries the whole of it. */
 .ap-lan-who-name {
-  grid-area: name;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
   color: var(--text);
+}
+/* THE NAME IS THE DOOR, and the whole row is its handle. A row opens that
+   machine's dialog, and a row is two lines, a dot and sometimes a verb — so the
+   button is the name, as it was drawn before, and its `::after` stretches over
+   the row's full box. Clicking the sentence under the name opens it; clicking
+   the verb does the verb, because the verb sits above the stretch.
+
+   A <button> and not a role on the <li>: the verb inside is a button too, and a
+   button inside a button is not a thing HTML allows. */
+.ap-lan-who-open {
+  grid-area: name;
+  appearance: none;
+  display: block;
+  justify-self: stretch;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* Pressed toward where the name starts, the way a label left-aligned in a
+     column should give — scaling from the centre would slide its first letter. */
+  transform-origin: left center;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-who-open:active { transform: scale(0.97); }
+.ap-lan-who-open::after {
+  content: "";
+  position: absolute;
+  inset: -3px -4px;
+  border-radius: 5px;
+}
+.ap-lan-who > .ap-manage-btn { position: relative; z-index: 1; }
+/* The hover bed, and the same bed while the keyboard is on the row. It is the
+   one `.ap-lan-pick` already lays under an account in this panel — 6% of the
+   text colour, 4px past the column on each side, 5px corners — so a row that
+   answers the pointer here answers it the way every other row does. Drawn
+   behind the row's own content rather than over it: the wash would otherwise
+   sit on top of the name and take from its contrast. */
+.ap-lan-who::before {
+  content: "";
+  position: absolute;
+  inset: -3px -4px;
+  z-index: -1;
+  border-radius: 5px;
+  background: transparent;
+  transition: background 120ms ease;
+  pointer-events: none;
+}
+.ap-lan-who:hover::before,
+.ap-lan-who:has(.ap-lan-who-open:focus-visible)::before {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+/* Secondary text on a hovered row is still text — the wash lifts the ground
+   under it, and `--muted` clears 4.5:1 only against --panel. Mixed toward the
+   foreground, the rule `.ap-lan-pick` writes down for the same reason. */
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):hover .ap-lan-who-when {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 /* What it last did, under the name, in the panel's own freshness idiom.
    THE TONE IS THE ROW'S, and until now it painted nothing: `.ap-lan-bad` and
@@ -7870,6 +7936,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
   .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
+  .ap-lan-who-open:active,
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
@@ -9597,6 +9664,182 @@ input, textarea { caret-color: var(--accent); }
    machine. The accent on it says which one is the forward move, and that is
    all it says. */
 .lan-ask-acts .btn { min-width: 92px; justify-content: center; }
+
+/* ── one machine, opened from its row ───────────────────────────────────────
+   Everything the row's tooltip used to carry, the name this deck gives that
+   one, and the logins it offers. An inspector for one thing, so it is narrow —
+   the measure of a label and a value, not of a table — and it is built out of
+   the same parts as the section it opens from: the `.lan-h` captions, the
+   `.ap-lan-code` monospace for the two values that are data, the row's own
+   traffic-light mark. */
+.modal.lan-peer { width: min(480px, 92vw); }
+.lan-peer-head {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* The mark, a size up from the row's and centred on the NAME's line rather
+   than on the two-line block beside it. Same three colours, same reasons. */
+.lan-peer-head > .ap-pulse,
+.lan-peer-head > .ap-dot { flex: none; width: 7px; height: 7px; margin-top: 7px; }
+.lan-peer-head > .ap-pulse { color: var(--ok); }
+.lan-peer-head > .ap-dot { color: var(--muted); }
+.lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
+.lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
+.lan-peer-id { flex: 1 1 auto; min-width: 0; }
+.lan-peer-title { display: flex; align-items: center; gap: 2px; min-width: 0; }
+/* The machine's name, in the interface's own face: it is a name somebody
+   chose, not a value to be copied, and `.modal-tool-name`'s monospace is for
+   the tool calls that are. */
+.lan-peer-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+/* Right after the name rather than at the far edge: it edits THAT word, and a
+   control across the header from the thing it changes is one somebody has to
+   go looking for. Quiet until pointed at, like the section's three icons. */
+.lan-peer-rename { flex: none; color: var(--muted); }
+.lan-peer-rename:hover:not(:disabled) { color: var(--text); }
+.lan-peer-edit { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lan-peer-input { flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.lan-peer-sub {
+  margin: 1px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* The name it gives itself, a step brighter than the words around it: it is
+   the second answer to "who is this", not a caption. */
+.lan-peer-self { color: color-mix(in srgb, var(--muted) 45%, var(--text)); }
+.lan-peer-restore { margin-left: 8px; padding: 0; min-height: 0; }
+.lan-peer[data-tone="ok"] .lan-peer-state { color: var(--ok); }
+.lan-peer[data-tone="bad"] .lan-peer-state { color: var(--warn); }
+.lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
+
+.lan-peer-body { gap: 20px; }
+/* A label and a value, one line each where one line will do. `max-content`
+   sizes the label column by the longest label rather than by a guess, so every
+   value starts on one left edge. `display: contents` lets each dt/dd pair keep
+   its <div> — which is what a <dl> allows around a pair — while the pair's two
+   halves stay items of the grid. */
+.lan-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 7px;
+  margin: 0;
+}
+.lan-fact { display: contents; }
+.lan-fact dt { font-size: 10px; line-height: 1.6; color: var(--muted); }
+.lan-fact dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+/* What is not known, drawn as not known: the same size, the quieter ink. */
+.lan-fact[data-tone="quiet"] dd { color: var(--muted); }
+.lan-fact[data-tone="bad"] dd { color: var(--warn); }
+.lan-fp { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+/* Inline in a line of text, where SC 2.5.8 exempts a target from the 24px
+   floor — so the word does not push the row it sits in to twice its height. */
+.lan-fp .lan-copy { padding: 0; min-height: 0; }
+/* The sentence the row translated, whole and in the monospace it was written
+   in: `not listening` is what a row can fit, and the errno and the address
+   are what somebody fixing it needs. */
+.lan-fact-raw {
+  display: block;
+  margin-top: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+.lan-done {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.lan-done-what { color: var(--muted); }
+.lan-done li[data-ok="false"] .lan-done-what { color: var(--warn); }
+
+/* A caption's second half — when the list was asked, what the list is — set
+   in the sentence case of a note rather than the caption's capitals. */
+.lan-h-note {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.lan-offers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The address leads and what it would do follows, on one line while both fit.
+   At phone width the state wraps under the address instead of squeezing it to
+   an ellipsis — the address is the thing a reader is matching. */
+.lan-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 1px;
+  min-width: 0;
+  font-size: 11px;
+}
+.lan-offer-email {
+  flex: 1 1 14em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.lan-offer-state { flex: 0 1 auto; font-size: 10px; color: var(--muted); }
+.lan-offer[data-tone="ok"] .lan-offer-state { color: var(--text-dim); }
+.lan-offer[data-tone="wait"] .lan-offer-state { color: var(--accent); }
+.lan-offer[data-tone="bad"] .lan-offer-state { color: var(--warn); }
+.lan-empty { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.lan-peer-settings { margin-top: 4px; }
+
+/* The two acts, apart: `check now` on the left, the row's own verb on the far
+   right where every dialog on this deck keeps its answer — and where unpair,
+   the one that cannot be undone from here, is furthest from the press somebody
+   makes most. */
+.lan-peer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.lan-peer-foot > .btn:not(.lan-peer-verb) { margin-right: auto; }
+.lan-peer-foot .btn { min-width: 92px; justify-content: center; }
+/* Armed is the second press of the only irreversible act here, and it keeps
+   the error colour without being pointed at — as the row's does. */
+.lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
 
 /* ── the panel's one list of machines ───────────────────────────────────────
    Every deck on the network is a row now — paired, nearby, asking, or already

@@ -40,10 +40,20 @@ import { pressAccepted, pressState } from "../panel-press";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
+import LanPeerModal from "./LanPeerModal";
 import LanSetupModal from "./LanSetupModal";
 
+/** What a paired deck says about itself, sealed to paired decks only — see
+ *  lan-about.mjs. Any field can be missing, and all of them are from a deck
+ *  older than the one that started sending them. */
+export interface DeckAbout { version: string | null; os: string | null; arch: string | null; at?: number }
+
+/** One account a paired deck offers, as its last manifest listed it. `alive`
+ *  is that deck's verdict on its own copy, not this one's. */
+export interface OfferedAccount { key: string; email: string; alive: boolean }
+
 /** One deck this one dials, as the status route reports it. */
-interface Peer {
+export interface Peer {
   fp: string;
   /** The identity this row is really about: a heard deck's own fingerprint, or
    *  the one that answered at a typed address. Null while an address has never
@@ -63,6 +73,15 @@ interface Peer {
   waiting?: boolean;
   lastSeen?: number;
   last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean }> } | null;
+  /** What it said about itself. Null until it has, and forever for a deck
+   *  older than the one that started saying. */
+  about?: DeckAbout | null;
+  /** The accounts it offered in its last manifest, and when. Null for a deck
+   *  this one has never asked — which includes every deck that only calls in. */
+  offers?: { at: number; accounts: OfferedAccount[] } | null;
+  /** When somebody here accepted it. Null for a pairing made before this was
+   *  kept, and for a row that is not paired. */
+  pairedAt?: number | null;
 }
 
 /** A deck that finished a handshake, or was merely heard, and that nobody here
@@ -103,6 +122,11 @@ export interface LanStatus {
    *  Null on every platform this cannot measure and on the first poll after a
    *  start, and both mean the same thing: say nothing. See lan-reach.mjs. */
   reach?: LanReach | null;
+  /** This deck's own card, so a peer's version can be read against it. */
+  about?: DeckAbout | null;
+  /** What somebody here calls other decks, by fingerprint. Applied to every
+   *  name this section and the request dialog draw — see deckRows. */
+  aliases?: Record<string, string>;
 }
 
 /** What lan-reach.mjs concluded, and the command it would have somebody paste.
@@ -491,6 +515,10 @@ export type DeckKind = "asks" | "paired" | "dialling" | "nearby" | "declined";
 export interface DeckRow {
   fp: string;
   name: string;
+  /** The name that deck gives itself, present only when somebody here gave it
+   *  another one — so `name` is what to draw everywhere and this is what the
+   *  deck's own dialog says under it. */
+  self?: string;
   addr: string;
   kind: DeckKind;
   /** What this deck is doing, in the words a person would use. */
@@ -578,21 +606,34 @@ export function presenceLabel(p: Peer, here: boolean, now: number): string {
  * beacon, in a list somebody is scanning for one machine.
  */
 export function deckRows(
-  s: { peers?: Peer[]; pending?: LanStranger[]; strangers?: LanStranger[]; declined?: LanStranger[] } | null,
+  s: {
+    peers?: Peer[]; pending?: LanStranger[]; strangers?: LanStranger[]; declined?: LanStranger[];
+    aliases?: Record<string, string>;
+  } | null,
   now: number,
 ): DeckRow[] {
   if (!s) return [];
   const rows: DeckRow[] = [];
   const seen = new Set<string>();
   const byName = (a: DeckRow, b: DeckRow) => a.name.localeCompare(b.name, undefined, { numeric: true });
+  // WHAT SOMEBODY HERE CALLS IT, when they have said. Keyed by fingerprint, so
+  // it follows the machine rather than the name the machine gives itself — and
+  // that name is kept as `self`, for the one surface that says both. Sorting
+  // and the duplicate check below both read the name that is drawn.
+  const aliases = s.aliases ?? {};
+  const named = (fp: string | null | undefined, own: string): { name: string; self?: string } => {
+    const given = fp ? aliases[fp] : undefined;
+    return given && given !== own ? { name: given, self: own } : { name: own };
+  };
 
   for (const p of s.pending ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
+    const n = named(p.fp, p.name || p.fp);
     rows.push({
-      fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
+      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
-      hint: `${p.name || p.fp} at ${p.addr} is waiting for an answer.`,
+      hint: `${n.name} at ${p.addr} is waiting for an answer.`,
     });
   }
 
@@ -651,9 +692,12 @@ export function deckRows(
     // to read. A round that MOVED something still says so, and so does every
     // failure, every wait and every machine that is not there.
     const quiet = !called && present && !p.last?.error && !(p.last?.done ?? []).length;
+    // An address nothing has answered at has no identity to hang a name on.
+    const n = p.manual && !p.met ? { name: where } : named(fp, p.name || fp);
     paired.push({
       fp,
-      name: p.manual && !p.met ? where : (p.name || fp),
+      name: n.name,
+      ...(n.self ? { self: n.self } : {}),
       addr: p.addr ?? "",
       kind: "paired",
       state: said,
@@ -666,13 +710,13 @@ export function deckRows(
       // it live on that evidence is the panel inventing a fact.
       here: called ? called.here : here,
       hint: called
-        ? `${p.name || fp} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
+        ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
             p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
           } Add its address with the + at the top of this section to reach it either way.`
         // The whole sentence, verbatim, including the address and the code the
         // row is too narrow to carry. This is where somebody looks when the
         // short form is not enough.
-        : `${p.name || fp}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
+        : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
     });
   }
   rows.push(...paired.sort(byName), ...dialling.sort(byName));
@@ -681,10 +725,11 @@ export function deckRows(
   for (const p of s.strangers ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
+    const n = named(p.fp, p.name || p.fp);
     nearby.push({
-      fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
+      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "nearby", state: "not paired yet", tone: "idle", here: true,
-      hint: `${p.name || p.fp} at ${p.addr} is on this network and nothing is shared with it.`,
+      hint: `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
     });
   }
   rows.push(...nearby.sort(byName));
@@ -693,10 +738,11 @@ export function deckRows(
   for (const p of s.declined ?? []) {
     if (!p?.fp || seen.has(p.fp)) continue;
     seen.add(p.fp);
+    const n = named(p.fp, p.name || p.fp);
     declined.push({
-      fp: p.fp, name: p.name || p.fp, addr: p.addr ?? "",
+      fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "declined", state: "you said no", tone: "idle", here: false,
-      hint: `${p.name || p.fp} asked and was turned away. It is not asking any more.`,
+      hint: `${n.name} asked and was turned away. It is not asking any more.`,
     });
   }
   rows.push(...declined.sort(byName));
@@ -717,6 +763,72 @@ export function deckRows(
   }
 
   return rows;
+}
+
+/** A list of decks with the names somebody here gave them — deckRows' rule,
+ *  for the surfaces that are not a row: the request dialog over the canvas. */
+export function withAliases<T extends { fp: string; name: string }>(
+  list: T[],
+  aliases: Record<string, string> | null | undefined,
+): T[] {
+  if (!aliases) return list;
+  return list.map(p => (aliases[p.fp] ? { ...p, name: aliases[p.fp] } : p));
+}
+
+/** What one row was built from, for that deck's own dialog. */
+export interface RowSource { peer?: Peer | null; stranger?: LanStranger | null }
+
+/** The peer or stranger behind a row, out of the same status the row came
+ *  from and matched the way deckRows keyed it — so the dialog and the row can
+ *  never be about two different machines. */
+export function rowSource(s: LanStatus | null, row: DeckRow): RowSource {
+  if (!s) return {};
+  switch (row.kind) {
+    case "paired": return { peer: (s.peers ?? []).find(p => (p.peerFp ?? p.fp) === row.fp) ?? null };
+    case "dialling": return { peer: (s.peers ?? []).find(p => p.manual && !p.met && `${p.addr}:${p.port}` === row.fp) ?? null };
+    case "nearby": return { stranger: (s.strangers ?? []).find(p => p.fp === row.fp) ?? null };
+    case "declined": return { stranger: (s.declined ?? []).find(p => p.fp === row.fp) ?? null };
+    case "asks": return { stranger: (s.pending ?? []).find(p => p.fp === row.fp) ?? null };
+  }
+}
+
+/** Two versions against each other: negative when `a` is older, positive when
+ *  newer, 0 when they match — and null when either is not a version this can
+ *  read, so the dialog prints the number alone rather than guessing. Only the
+ *  three numbers count; a pre-release tag is not something a reader compares. */
+export function versionOrder(a: string, b: string): number | null {
+  const pa = /^(\d+)\.(\d+)\.(\d+)/.exec(a ?? "");
+  const pb = /^(\d+)\.(\d+)\.(\d+)/.exec(b ?? "");
+  if (!pa || !pb) return null;
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(pa[i]) - Number(pb[i]);
+    if (d) return Math.sign(d);
+  }
+  return 0;
+}
+
+/**
+ * One login another deck offers, and what it would do HERE.
+ *
+ * The engine's rules, said in words. A copy that does not work there moves
+ * nothing. One this deck lacks arrives on the next round, whatever this deck
+ * shares. One that is expired here is repaired only if this deck shares it
+ * too — a heal replaces a slot, so it needs this deck's own tick, and an add
+ * does not (see roundWith). The last case is the one worth the warning ink:
+ * it is the only one somebody here can fix, and the fix is a tick.
+ */
+export function offerLine(
+  theirs: OfferedAccount,
+  mine: LanAccount | null,
+  sharedHere: boolean,
+): { text: string; tone: "ok" | "wait" | "bad" | "idle" } {
+  const here = !mine ? "not on this deck" : mine.alive ? "works here" : "expired here";
+  if (!theirs.alive) return { text: `broken there · ${here}`, tone: mine && !mine.alive ? "bad" : "idle" };
+  if (!mine) return { text: "works there · arrives here next round", tone: "wait" };
+  if (mine.alive) return { text: "works there · works here", tone: "ok" };
+  return sharedHere
+    ? { text: "works there · expired here, repairs next round", tone: "wait" }
+    : { text: "works there · expired here — share it to repair", tone: "bad" };
 }
 
 async function post(url: string, body: Record<string, unknown>) {
@@ -867,26 +979,32 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
   /** Every verb the list has, through the one route that owns them. What each
    *  one MEANS is on the button; what they share is that the fingerprint comes
-   *  from what this deck met on the wire and never from the page. */
+   *  from what this deck met on the wire and never from the page.
+   *
+   *  Answers with the sentence it put in the failure line, or null — so a
+   *  deck's own dialog, which sits over that line, can say it where it is. */
   const answer = useCallback(async (
     action: "accept" | "dismiss" | "unpair" | "allow",
     fp: string,
     what: string,
-  ) => {
+  ): Promise<string | null> => {
     // Tagged per ROW rather than per section: two decks asking at once light
     // only the row that was actually pressed.
-    if (!claim(`${action}:${fp}`)) return;
+    if (!claim(`${action}:${fp}`)) return null;
+    let said: string | null = null;
     try {
       const out = await post("/api/lan/peer", { action, fp });
-      if (!alive.current) return;
+      if (!alive.current) return null;
       if (out?.ok) { setStatus(out); setFailure(null); }
-      else setFailure(writeFailure(what, out));
+      else { said = writeFailure(what, out); setFailure(said); }
       await load();
     } catch {
-      if (alive.current) setFailure(writeFailure(what, null));
+      said = writeFailure(what, null);
+      if (alive.current) setFailure(said);
     } finally {
       release();
     }
+    return said;
   }, [load, claim, release]);
 
   /** Stop dialling an address that never answered.
@@ -896,20 +1014,65 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  placeholder built out of the address. `setPeers` replaces the dial list
    *  wholesale on every prefs write, so filtering the entry out is the whole of
    *  the removal. */
-  const dropAddress = useCallback(async (entry: string) => {
-    if (!claim(`drop:${entry}`)) return;
+  const dropAddress = useCallback(async (entry: string): Promise<string | null> => {
+    if (!claim(`drop:${entry}`)) return null;
+    let said: string | null = null;
     try {
       const out = await post("/api/prefs", { lan: { manual: manual.filter(m => m !== entry) } });
-      if (!alive.current) return;
+      if (!alive.current) return null;
       if (out?.ok) { setFailure(null); onChanged(); }
-      else setFailure(writeFailure("stop dialling that address", out));
+      else { said = writeFailure("stop dialling that address", out); setFailure(said); }
       await load();
     } catch {
-      if (alive.current) setFailure(writeFailure("stop dialling that address", null));
+      said = writeFailure("stop dialling that address", null);
+      if (alive.current) setFailure(said);
     } finally {
       release();
     }
+    return said;
   }, [manual, load, onChanged, claim, release]);
+
+  /** Which deck's own dialog is open, by the fingerprint its row is keyed on.
+   *  A key rather than a row, so the dialog redraws from every poll — and a
+   *  deck that changes kind under it, asked and then paired, stays open on the
+   *  same machine. */
+  const [peerOpen, setPeerOpen] = useState<string | null>(null);
+
+  /** Give a deck a name of this deck's own, or take it back with "". Its own
+   *  dialog is the only caller, so the answer is the sentence to show there
+   *  rather than a line in the section behind it. */
+  const rename = useCallback(async (fp: string, name: string): Promise<string | null> => {
+    if (!claim(`alias:${fp}`)) return "Something else is still being saved. Try again in a moment.";
+    try {
+      const out = await post("/api/lan/peer", { action: "alias", fp, name });
+      if (!alive.current) return null;
+      if (out?.ok) { setStatus(out); return null; }
+      return writeFailure("rename that deck", out);
+    } catch {
+      return writeFailure("rename that deck", null);
+    } finally {
+      release();
+    }
+  }, [claim, release]);
+
+  /** One deck, now, from its own dialog. A deck that only calls in has no
+   *  address here, and the route says so rather than reporting a round that
+   *  asked nobody. */
+  const checkOne = useCallback(async (fp: string): Promise<string | null> => {
+    if (!claim(`check:${fp}`)) return null;
+    try {
+      const out = await post("/api/lan/sync", { fp });
+      if (!alive.current) return null;
+      if (out?.ok) { setStatus(out); onChanged(); return null; }
+      return out?.reason === "no_address"
+        ? "There is no address here to call it on. It calls this deck, and it is up to date each time it does."
+        : writeFailure("check that deck", out);
+    } catch {
+      return writeFailure("check that deck", null);
+    } finally {
+      release();
+    }
+  }, [claim, release, onChanged]);
 
   /** Ask every paired deck now rather than at the next tick — for somebody who
    *  has just fixed a login on the other machine and does not want to wait a
@@ -931,6 +1094,14 @@ export default function LanSyncSection({ accounts, onChanged }: {
 
   const on = status?.enabled === true;
   const rows = deckRows(status, now);
+  // The deck whose dialog is open, found again in every poll's rows. When it
+  // is gone — unpaired and not heard since, or an address whose answer just
+  // gave it an identity — the dialog closes rather than drawing a machine that
+  // is no longer on the list.
+  const openRow = peerOpen ? rows.find(r => r.fp === peerOpen) ?? null : null;
+  useEffect(() => {
+    if (peerOpen && status && !openRow) setPeerOpen(null);
+  }, [peerOpen, status, openRow]);
   const asks = rows.filter(r => r.kind === "asks");
   const rest = rows.filter(r => r.kind !== "asks");
   // WHAT IS ON, AND THEN EVERYTHING ELSE. The list answers "who can I use right
@@ -1164,7 +1335,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   two five-second polls on a lost beacon; sorting the two GROUPS
                   moves a row only when the thing it reports actually changed. */}
               {(showFolded ? [...live, ...folded] : live).map(p => (
-                <li key={`${p.kind}:${p.fp}`} className="ap-lan-who" data-tone={p.tone} title={p.hint}>
+                // NO TOOLTIP. The long sentence it carried — the address, the
+                // raw error, why a one-way deck cannot be repaired from — is in
+                // the deck's own dialog now: one press away and read to a screen
+                // reader, instead of a second late and over the rows below.
+                <li key={`${p.kind}:${p.fp}`} className="ap-lan-who" data-tone={p.tone}>
                   <i className={p.here ? "ap-pulse" : "ap-dot"} aria-hidden />
                   {/* THE NAME OWNS THE ROW'S WIDTH, and it did not. The state
                       was the flex item that grew and the name the one that
@@ -1172,8 +1347,17 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       looking for — collapsed to `192.168.1….` while a sentence
                       that changes every minute took the space and wrapped
                       anyway. They are two lines now, and the second one is
-                      allowed to be long. */}
-                  <span className="ap-lan-who-name">{p.name}</span>
+                      allowed to be long.
+
+                      AND THE NAME IS THE DOOR. It is a button whose hit area
+                      stretches over the whole row, so a press anywhere on the
+                      row opens that machine's dialog — and the verb on the end,
+                      drawn above the stretch, still does only the verb. */}
+                  <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
+                    onClick={() => setPeerOpen(p.fp)}>
+                    <span className="ap-lan-who-name">{p.name}</span>
+                    <span className="vis-hidden">, details</span>
+                  </button>
                   {/* One node, two presentations. A row with nothing to report
                       keeps its sentence for anybody being read the list and
                       spends no line on it — `.vis-hidden` is out of flow, so the
@@ -1315,6 +1499,33 @@ export default function LanSyncSection({ accounts, onChanged }: {
           manual={manual}
           onClose={() => setSetupOpen(false)}
           onChanged={() => { void load(); onChanged(); }}
+        />
+      )}
+
+      {openRow && status && (
+        <LanPeerModal
+          row={openRow}
+          source={rowSource(status, openRow)}
+          status={status}
+          accounts={accounts}
+          now={now}
+          busy={busy}
+          onClose={() => setPeerOpen(null)}
+          onRename={name => rename(openRow.fp, name)}
+          onCheck={() => checkOne(openRow.fp)}
+          // The row's own verb, through the row's own call — see the row.
+          onVerb={() => {
+            switch (openRow.kind) {
+              case "paired": return answer("unpair", openRow.fp, "unpair that deck");
+              case "nearby": return answer("accept", openRow.fp, "reach that deck");
+              case "declined": return answer("allow", openRow.fp, "let that deck ask again");
+              case "dialling": return dropAddress(openRow.fp);
+              default: return Promise.resolve(null);
+            }
+          }}
+          // What this deck offers is this deck's setting, not that deck's —
+          // so the door to it closes this dialog on the way through.
+          onSettings={() => { setPeerOpen(null); setSetupOpen(true); }}
         />
       )}
     </div>

@@ -291,6 +291,10 @@ const PRESSES: Press[] = [
   // the whole sentence and the sentence is what answers the press. 0.97 like
   // every other labelled control.
   [".ap-lan-pick:active", "0.97", "transform"],
+  // A machine's row in the same section, which is a door to that machine's
+  // dialog: the name is the button and its hit area is the whole row. The
+  // name is what answers the press, at the number every labelled control uses.
+  [".ap-lan-who-open:active", "0.97", "transform"],
   // The LAN section's two foot words — `+ add a deck` and `name & shared
   // logins`. They gave up their pills so the one press the section is for could
   // have the column, and a control with no box still owes an answer to a press.
