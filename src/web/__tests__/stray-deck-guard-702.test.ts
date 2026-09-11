@@ -17,7 +17,10 @@ import { rmTempDir } from "./rm-temp-dir";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isOrphan, isStrayDeck, norm, parseListing, strayMessage, tempRoots, type Proc } from "./no-stray-decks";
+import {
+  isOrphan, isStrayDeck, isStrayService, norm, parseListing, registeredServiceTarget, strayMessage,
+  tempRoots, type Proc,
+} from "./no-stray-decks";
 import { dieWithParent } from "../../server/supervisor.mjs";
 
 // The command line off the reporting machine, verbatim. macOS spells the
@@ -245,4 +248,49 @@ describe("a child that is told to die with its parent", () => {
     await until(() => !alive(kid), 15_000, "the grandchild to notice and leave");
     expect(alive(kid)).toBe(false);
   }, 40_000);
+});
+
+describe("the login item a suite must not leave behind", () => {
+  // Worse than a stray process, because it outlives the reboot that clears one:
+  // a launchd agent, a systemd unit or a logon task that starts a deck out of a
+  // directory the suite deleted on its way out, forever, on the machine of
+  // whoever ran `vitest`.
+  const ROOTS = tempRoots(MAC_TMP, "darwin");
+
+  it("is ours when it points under the temp directory", () => {
+    expect(isStrayService(`${MAC_TMP}/ccdeck-tarball-smoke-YkAY6c/home/Library/LaunchAgents/ccdeck.plist`, ROOTS, "darwin")).toBe(true);
+    // The Windows form is the task's Arguments, which is the script path.
+    expect(isStrayService(`${MAC_TMP}/ccdeck-x/pkg/bin/agent-dag.js --no-open`, ROOTS, "darwin")).toBe(true);
+  });
+
+  it("is never the user's own", () => {
+    // A real login item names a global npm prefix, an npx cache or a checkout.
+    expect(isStrayService("/Users/x/Library/LaunchAgents/ccdeck.plist", ROOTS, "darwin")).toBe(false);
+    expect(isStrayService("/home/x/.config/systemd/user/ccdeck.service", ROOTS, "darwin")).toBe(false);
+    expect(isStrayService("/opt/homebrew/lib/node_modules/ccdeck/bin/agent-dag.js", ROOTS, "darwin")).toBe(false);
+    expect(isStrayService(null, ROOTS, "darwin")).toBe(false);
+    expect(isStrayService("", ROOTS, "darwin")).toBe(false);
+  });
+
+  it("reads nothing as nothing, on a machine with no such tool", () => {
+    // `launchctl print` on an unregistered label exits non-zero, and a Linux
+    // box without systemd has no `systemctl` at all. Both are "nothing here",
+    // not an error worth failing a test run over.
+    const throwing = () => { throw new Error("Could not find service"); };
+    expect(registeredServiceTarget("darwin", throwing)).toBeNull();
+    expect(registeredServiceTarget("linux", throwing)).toBeNull();
+    expect(registeredServiceTarget("win32", throwing)).toBeNull();
+    // And an empty FragmentPath is a unit systemd knows the name of and has no
+    // file for, which is the state a `disable` leaves behind.
+    expect(registeredServiceTarget("linux", () => "FragmentPath=\n")).toBeNull();
+  });
+
+  it("finds the path each platform reports it under", () => {
+    expect(registeredServiceTarget("darwin", () => "\tpath = /tmp/x/ccdeck.plist\n\tstate = not running\n"))
+      .toBe("/tmp/x/ccdeck.plist");
+    expect(registeredServiceTarget("linux", () => "FragmentPath=/home/x/.config/systemd/user/ccdeck.service\n"))
+      .toBe("/home/x/.config/systemd/user/ccdeck.service");
+    expect(registeredServiceTarget("win32", () => "<Command>node</Command><Arguments>C:\\x\\agent-dag.js --no-open</Arguments>"))
+      .toBe("C:\\x\\agent-dag.js --no-open");
+  });
 });

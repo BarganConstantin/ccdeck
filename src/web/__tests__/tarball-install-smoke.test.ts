@@ -201,6 +201,15 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
       CODEX_HOME: join(HOME, ".codex"),
       XDG_CONFIG_HOME: join(HOME, ".config"),
       NO_COLOR: "1",
+      // NOT decoration, and not the same as the sandboxed HOME above. On its
+      // first run on a machine the deck sets itself to start at login — and a
+      // launchd agent, a systemd --user unit and a Task Scheduler task are all
+      // per-USER registries that do not read $HOME. So the plist lands inside
+      // this temp directory and the REGISTRATION escapes it, outliving both the
+      // directory and the reboot. Found on a developer's machine by a
+      // `launchctl list` after a green run, naming a plist in a
+      // ccdeck-tarball-smoke-* directory that no longer existed.
+      AGENTS_DECK_NO_INSTALL: "1",
     };
     deck = spawn(shimPath, [
       "--port", String(port),

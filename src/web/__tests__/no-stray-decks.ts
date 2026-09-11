@@ -204,11 +204,81 @@ export function strayMessage(leaked: Proc[]): string {
   ].join("\n");
 }
 
+// ── the other thing a suite must not leave behind ───────────────────────────
+//
+// A LOGIN ITEM. This one is worse than a stray process, because it outlives the
+// reboot that clears one: a launchd agent, a systemd --user unit or a Task
+// Scheduler logon task that starts a deck out of a directory the suite deleted
+// on its way out, forever, on the machine of whoever ran `vitest`.
+//
+// AND SANDBOXING HOME DOES NOT PREVENT IT. Every other thing the deck writes is
+// under CLAUDE_CONFIG_DIR or CCDECK_HOME, and a test that points both at a temp
+// directory is fully contained. A login item is not: `launchctl`, `systemctl
+// --user` and `schtasks` are per-USER registries, and they do not care what
+// $HOME said. The plist is written inside the sandbox and the REGISTRATION
+// escapes it.
+//
+// Found exactly that way — by a `launchctl list` after a green run, naming a
+// plist inside a `ccdeck-tarball-smoke-*` directory that no longer existed. The
+// smoke test boots the real shipped deck, and the first run on a machine is the
+// run that installs the login item. AGENTS_DECK_NO_INSTALL is the fix in that
+// file; this is the guard that makes the next one loud instead of invisible.
+//
+// Same rule as a stray deck: it is this suite's only if it points UNDER THE OS
+// TEMP DIRECTORY. A user's own login item names a global npm prefix or a
+// checkout, and is never touched.
+const SERVICE_LABEL = "ccdeck";
+
+/** Where the registered login item says its deck lives, or null when there is
+ *  no such item and null when the question cannot be asked here. */
+export function registeredServiceTarget(
+  platform: NodeJS.Platform = process.platform,
+  run: (file: string, args: string[]) => string = (file, args) =>
+    execFileSync(file, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }),
+): string | null {
+  try {
+    if (platform === "darwin") {
+      const out = run("launchctl", ["print", `gui/${process.getuid?.() ?? 0}/${SERVICE_LABEL}`]);
+      return /^\s*path\s*=\s*(.+)$/m.exec(out)?.[1]?.trim() ?? null;
+    }
+    if (platform === "win32") {
+      const out = run("schtasks", ["/Query", "/TN", SERVICE_LABEL, "/XML"]);
+      // The arguments hold the script path; the command is just node.
+      return /<Arguments>([^<]*)<\/Arguments>/.exec(out)?.[1]?.trim() ?? null;
+    }
+    const out = run("systemctl", ["--user", "show", `${SERVICE_LABEL}.service`, "-p", "FragmentPath"]);
+    const path = /FragmentPath=(.*)/.exec(out)?.[1]?.trim();
+    return path ? path : null;
+  } catch {
+    // No such item, or no such tool — both are "nothing registered here".
+    return null;
+  }
+}
+
+/** Is that target one of ours, rather than the user's own deck? */
+export function isStrayService(target: string | null, roots: string[], platform: NodeJS.Platform = process.platform): boolean {
+  if (!target) return false;
+  return isStrayDeck(target, roots, platform) || roots.some(r => r && norm(target, platform).startsWith(`${r}/`));
+}
+
+/** Unregister it. Best effort: the throw below is what the reader acts on. */
+function removeService(platform: NodeJS.Platform = process.platform): void {
+  const cmd: [string, string[]] = platform === "darwin"
+    ? ["launchctl", ["bootout", `gui/${process.getuid?.() ?? 0}/${SERVICE_LABEL}`]]
+    : platform === "win32"
+      ? ["schtasks", ["/Delete", "/TN", SERVICE_LABEL, "/F"]]
+      : ["systemctl", ["--user", "disable", "--now", `${SERVICE_LABEL}.service`]];
+  try { execFileSync(cmd[0], cmd[1], { stdio: "ignore" }); } catch { /* said below */ }
+}
+
 /** Pids that were already running when the suite started; not this run's doing
  *  and not this run's failure. */
 let before = new Set<number>();
+/** And the login item that was already registered, for the same reason. */
+let serviceBefore: string | null = null;
 
 export function setup(): void {
+  serviceBefore = registeredServiceTarget();
   const found = strayDecks();
   if (found === null) {
     console.warn("[stray-deck guard] the process table could not be read here; the suite is unguarded this run.");
@@ -224,6 +294,20 @@ export function setup(): void {
 }
 
 export function teardown(): void {
+  // The login item first: it is the one that survives a reboot, and it has to be
+  // reported even on a run that leaked no process at all.
+  const target = registeredServiceTarget();
+  if (target && target !== serviceBefore && isStrayService(target, tempRoots())) {
+    removeService();
+    throw new Error(
+      `[stray-deck guard] this run registered a login item pointing at ${target}.\n`
+      + "  It has been unregistered. A test that boots a real deck must set\n"
+      + "  AGENTS_DECK_NO_INSTALL=1 in the child's environment: sandboxing HOME does\n"
+      + "  not contain this, because launchctl / systemctl --user / schtasks are\n"
+      + "  per-user registries that do not read $HOME.",
+    );
+  }
+
   const found = strayDecks();
   if (found === null) return;
   const leaked = found.filter(p => !before.has(p.pid));
