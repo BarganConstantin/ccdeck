@@ -646,8 +646,22 @@ export default function AccountsPanel({ onClose }: Props) {
     // which is complementary content by any reading.
     <aside className="accounts-panel" id="accounts-panel" aria-label="Claude accounts">
       <div className="ap-header">
-        {/* h2, under the topbar's h1 — the level every panel title sits at. */}
-        <h2>Accounts</h2>
+        {/* h2, under the topbar's h1 — the level every panel title sits at.
+
+            CLAUDE ACCOUNTS, BECAUSE THAT IS WHAT IS IN IT. `Accounts` was
+            written when Claude was the only thing this deck watched. The deck
+            has drawn Codex sessions on the same canvas for months, and a Codex
+            login is NOT in this list and cannot be — claude-swap manages Claude
+            credentials, and nothing here reads or switches a Codex one. So a
+            panel titled `Accounts` beside a canvas holding both promises a
+            place to manage the other one and then never mentions it.
+
+            Sentence case, like `Local network` below and every other caption in
+            this sheet, and now identical to the landmark name this panel has
+            carried since #381 — a region whose heading and whose accessible
+            name are the same string is one thing to a screen reader rather than
+            two. */}
+        <h2>Claude accounts</h2>
         <div className="ap-header-right">
           {/* The `+` is one glyph, so `title` was its whole accessible name.
               A last-resort name source that a touch user never sees and that

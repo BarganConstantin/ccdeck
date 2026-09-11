@@ -258,7 +258,9 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
 
   it("heads every persistent region with an <h2>", () => {
     expect(code(usage)).toMatch(/<h2>Usage<\/h2>/);
-    expect(code(accounts)).toMatch(/<h2>Accounts<\/h2>/);
+    // `Claude accounts`, and the same string as the landmark name below: this
+    // panel holds Claude logins only, on a deck that also draws Codex.
+    expect(code(accounts)).toMatch(/<h2>Claude accounts<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>Sessions <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
