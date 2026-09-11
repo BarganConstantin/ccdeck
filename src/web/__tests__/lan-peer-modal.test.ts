@@ -145,18 +145,43 @@ describe("the row is the door", () => {
     expect(SECTION).not.toMatch(/className="ap-lan-who"[^>]*title=/);
   });
 
-  it("keeps the verb a verb: it sits above the row's stretched hit area", () => {
+  it("keeps the verb a verb: it sits above the row's hit area", () => {
     expect(CSS).toMatch(/\.ap-lan-who > \.ap-manage-btn \{ position: relative; z-index: 1; \}/);
-    // Laid over the row on the bed's own box, so the keyboard's ring is the
+    // Laid over the row on the tone's own box, so the keyboard's ring is the
     // row's shape rather than a ring round one word of it.
-    expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: -3px -4px;/);
+    expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
     expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\{p\.name\}<\/span>/);
   });
 
-  it("answers the pointer and the keyboard with the bed the panel's other rows use", () => {
+  it("answers the pointer with a tone the size of the row, and nothing more", () => {
+    const tone = /\.ap-lan-who::before \{([^}]*)\}/.exec(CSS)?.[1] ?? "";
+    // The row's own box, not past its top and bottom, where it read as a card.
+    expect(tone).toMatch(/inset: 0 -4px;/);
+    expect(tone).toMatch(/border-radius: 4px;/);
+    // On at once and off at once: a fade left a trail behind a sweeping pointer.
+    expect(tone).not.toMatch(/transition/);
+    expect(CSS).toMatch(/\.ap-lan-who:hover::before \{ background: color-mix\(in srgb, var\(--text\) 4%, transparent\); \}/);
+  });
+
+  it("keeps hover and keyboard focus apart: a tone for one, a ring for the other", () => {
+    // Focus used to paint the hover tone under its ring as well.
+    expect(CSS).not.toContain(".ap-lan-who:has(.ap-lan-who-open:focus-visible)::before");
+  });
+
+  it("presses without moving anything", () => {
+    expect(CSS).not.toMatch(/\.ap-lan-who:active[^{]*\{[^}]*transform/);
     expect(CSS).toMatch(
-      /\.ap-lan-who:hover::before,\s*\.ap-lan-who:has\(\.ap-lan-who-open:focus-visible\)::before \{\s*background: color-mix\(in srgb, var\(--text\) 6%, transparent\);/,
+      /\.ap-lan-who:active:not\(:has\(\.ap-manage-btn:active\)\)::before \{\s*background: color-mix\(in srgb, var\(--text\) 7%, transparent\);/,
     );
+  });
+
+  it("gives a healthy row one grid track, so its box is one line high", () => {
+    expect(CSS).toMatch(/\.ap-lan-who:has\(> \.vis-hidden\) \{ grid-template-areas: "dot name verb"; \}/);
+  });
+
+  it("tells a keyboard reader what is happening to the machine, not only its name", () => {
+    expect(SECTION).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
+    expect(SECTION).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
   });
 
   it("does in the dialog exactly what the row's verb does, under the same busy tag", () => {
@@ -165,7 +190,14 @@ describe("the row is the door", () => {
     }
   });
 
-  it("asks twice before it unpairs, as the row does", () => {
-    expect(MODAL).toMatch(/if \(!armed\) \{ setArmed\(true\); return; \}/);
+  it("asks twice before it unpairs, and a double-click is not two answers", () => {
+    // Arming records when. A second press sooner than CONFIRM_GAP_MS lands
+    // before anybody could have read `sure?`, so it confirms nothing — on the
+    // row, and in the dialog.
+    expect(MODAL).toMatch(/if \(!armed\) \{ setArmed\(true\); armedAt\.current = Date\.now\(\); return; \}/);
+    for (const src of [MODAL, SECTION]) {
+      expect(src).toMatch(/if \(Date\.now\(\) - armedAt\.current < CONFIRM_GAP_MS\) return;/);
+    }
+    expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });
 });

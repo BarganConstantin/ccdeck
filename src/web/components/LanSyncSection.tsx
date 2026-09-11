@@ -299,6 +299,12 @@ export const LAN_POLL_ON_MS = 5_000;
  *  late to speed up is a minute late for nothing. */
 export const LAN_POLL_OFF_MS = 60_000;
 
+/** The shortest gap between arming `unpair` and confirming it that counts as
+ *  two decisions. A double-click on the right end of a row armed the verb and
+ *  confirmed it in one gesture, and its second press lands before anybody
+ *  could have read `sure?` — so a press sooner than this is not an answer. */
+export const CONFIRM_GAP_MS = 400;
+
 export function parseAddress(raw: string): { addr: string; port: number } | null {
   const s = (raw ?? "").trim();
   const at = s.lastIndexOf(":");
@@ -861,6 +867,9 @@ export default function LanSyncSection({ accounts, onChanged }: {
    *  press cost a second deliberate one since the panel was written; this row
    *  is the same act against a different noun. */
   const [armed, setArmed] = useState<string | null>(null);
+  /** When `armed` was set, so a double-click cannot be its own confirmation —
+   *  see CONFIRM_GAP_MS. */
+  const armedAt = useRef(0);
   /** The dialog that holds the two ways of reaching a deck the network could
    *  not offer. A DIALOG RATHER THAN A DRAWER IN THIS COLUMN: an address is
    *  monospace, an invite is 140 characters and the firewall block is a
@@ -1334,7 +1343,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
                   Sorting the whole list by presence would move a row between
                   two five-second polls on a lost beacon; sorting the two GROUPS
                   moves a row only when the thing it reports actually changed. */}
-              {(showFolded ? [...live, ...folded] : live).map(p => (
+              {(showFolded ? [...live, ...folded] : live).map((p, i) => (
                 // NO TOOLTIP. The long sentence it carried — the address, the
                 // raw error, why a one-way deck cannot be repaired from — is in
                 // the deck's own dialog now: one press away and read to a screen
@@ -1356,15 +1365,19 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       says, so a screen reader is told them once, by the
                       button. */}
                   <span className="ap-lan-who-name" aria-hidden>{p.name}</span>
+                  {/* Described by the row's own sentence, which sits outside the
+                      button: a row reached with Tab is announced with what is
+                      happening to that machine, not with its name alone. */}
                   <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
+                    aria-describedby={`lan-who-state-${i}`}
                     onClick={() => setPeerOpen(p.fp)}>
                     <span className="vis-hidden">{p.name}, details</span>
                   </button>
                   {/* One node, two presentations. A row with nothing to report
                       keeps its sentence for anybody being read the list and
-                      spends no line on it — `.vis-hidden` is out of flow, so the
-                      grid's second track collapses and the row is one line. */}
-                  <span className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
+                      spends no line on it — `.vis-hidden` is out of flow, and
+                      the stylesheet gives such a row a single grid track. */}
+                  <span id={`lan-who-state-${i}`} className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
                   {p.kind === "nearby" && (
                     <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
                       onClick={() => void answer("accept", p.fp, "reach that deck")}
@@ -1385,9 +1398,13 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       onClick={() => {
                         if (armed !== p.fp) {
                           setArmed(p.fp);
+                          armedAt.current = Date.now();
                           window.setTimeout(() => setArmed(a => (a === p.fp ? null : a)), 4_000);
                           return;
                         }
+                        // A double-click is one decision, not two: its second
+                        // press lands before anybody could have read `sure?`.
+                        if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
                         setArmed(null);
                         void answer("unpair", p.fp, "unpair that deck");
                       }}

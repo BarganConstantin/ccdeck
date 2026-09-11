@@ -6798,15 +6798,14 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    under the name it is about, and the verb spans both and never moves. No box,
    no rule, no container — the second line is the whole of the device. */
 .ap-lan-who {
-  /* The box the name's stretched hit area and the hover bed are measured
-     from, and a stacking context of its own so the bed's z-index: -1 stays
-     inside the row rather than slipping under the panel. */
+  /* The box the overlay button and the hover tone are drawn on, and a
+     stacking context of its own so the tone's z-index: -1 stays inside the
+     row rather than slipping under the panel. */
   position: relative;
   isolation: isolate;
-  /* The whole row is the door to that machine's dialog, so the whole row says
-     so, and the whole row gives on press — see the press below. */
+  /* The whole row is the door to that machine's dialog, so the whole row
+     says so. */
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
   display: grid;
   grid-template-columns: 5px minmax(0, 1fr) auto;
   grid-template-areas:
@@ -6817,14 +6816,22 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
   align-items: center;
   min-width: 0;
 }
+/* A ROW WITH NOTHING TO REPORT IS ONE LINE, AND NOW ITS BOX IS ONE LINE. Its
+   sentence is out of flow (`.vis-hidden`), but the grid kept a second track,
+   and the 24px verb spanning both left an empty 9px under every healthy row:
+   a 27.4px box round a 14px name, the name at the top of it and `unpair`
+   five pixels below the name. One track puts the dot, the name and the verb
+   on one centre line, in the 24px the spacing rule below was written for —
+   its own comment has their centres 29px apart. */
+.ap-lan-who:has(> .vis-hidden) { grid-template-areas: "dot name verb"; }
 .ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot { grid-area: dot; }
 .ap-lan-who > .ap-manage-btn { grid-area: verb; align-self: center; }
 /* The name is the row. It takes --text at 12px against the panel's 10px
    labels, because a machine somebody is talking to is a thing and the words
    around it are about that thing. It still ellipsises — a 30-character
    hostname has to end somewhere — but now it does so at the full width of the
-   column rather than at whatever a sentence left it, and the row's `title`
-   carries the whole of it. */
+   column rather than at whatever a sentence left it, and the deck's own
+   dialog carries the whole of it. */
 .ap-lan-who-name {
   grid-area: name;
   min-width: 0;
@@ -6836,25 +6843,25 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
 }
 /* THE ROW IS THE DOOR. A row opens that machine's dialog, and a row is two
    lines, a dot and sometimes a verb — so the button is laid over all of it, on
-   exactly the box the hover bed draws, and the verb sits above the button. A
+   exactly the box the hover tone paints, and the verb sits above the button. A
    press anywhere on the row opens the dialog; a press on the verb does the
    verb.
 
-   THE BOX IS THE ROW'S, SO THE RING IS TOO. It was the name's: the button was
-   the name, and the keyboard's ring went round one word of a row that lights
-   as a whole — two outlines for one focus, neither the shape of the thing.
-   Now the ring is drawn round the row, on the bed's own corners.
+   THE BOX IS THE ROW'S, SO THE RING IS TOO, AND THE RING IS ALL FOCUS DRAWS.
+   The keyboard's ring goes round the row on the tone's own corners. Hover is a
+   tone and focus is a ring — they used to share the tone, so a reader could
+   not tell which of the two they were looking at.
 
    A <button> and not a role on the <li>: the verb inside is a button too, and a
    button inside a button is not a thing HTML allows. */
 .ap-lan-who-open {
   appearance: none;
   position: absolute;
-  inset: -3px -4px;
+  inset: 0 -4px;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   background: none;
   font: inherit;
   color: inherit;
@@ -6862,45 +6869,42 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
   cursor: inherit;
 }
 .ap-lan-who > .ap-manage-btn { position: relative; z-index: 1; }
-/* The hover bed, and the same bed while the keyboard is on the row. It is the
-   one `.ap-lan-pick` already lays under an account in this panel — 6% of the
-   text colour, 4px past the column on each side, 5px corners — so a row that
-   answers the pointer here answers it the way every other row does. Drawn
-   behind the row's own content rather than over it: the wash would otherwise
-   sit on top of the name and take from its contrast. */
+/* THE HOVER IS A TONE, NOT A CARD. It was 6% of the text colour, 3px past the
+   row's top and bottom and 5px round — on a healthy row a 33px rounded block
+   round a 14px name, which reads as a card arriving rather than a row
+   answering. It is the row's own box now and no more: 4px past the column on
+   each side so the name is not flush to its edge, 4px corners, and 4% — the
+   same step as --panel to --bg-soft, there when you look at the row and gone
+   from across the room.
+
+   ON AT ONCE AND OFF AT ONCE. A fade out left a trail behind a pointer
+   sweeping down the list, three rows lit at three strengths, and what a
+   precise list owes the pointer is the row it is on and no other. Drawn
+   behind the row's content, never over it: the wash would sit on the name and
+   take from its contrast. */
 .ap-lan-who::before {
   content: "";
   position: absolute;
-  inset: -3px -4px;
+  inset: 0 -4px;
   z-index: -1;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
-  transition: background 120ms ease;
   pointer-events: none;
 }
-.ap-lan-who:hover::before,
-.ap-lan-who:has(.ap-lan-who-open:focus-visible)::before {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-/* THE VERB IS NOT THE DOOR, and the bed said it was. With the pointer on
-   `unpair` the whole row still lit, which is the row promising that a press
-   there opens the dialog — and it does the verb instead. So the bed steps
-   aside while the verb is the thing under the pointer, and the verb's own
-   hover is the only answer on screen. */
-.ap-lan-who:has(> .ap-manage-btn:hover)::before { background: transparent; }
-/* THE PRESS. The row gives a little and its bed darkens, both at once and
-   with no fade in — a press that eases in reads as lag — and both ease back
-   on release through the transitions above. Not while the verb is the thing
-   pressed: that answers with its own 0.97. */
-.ap-lan-who:active:not(:has(.ap-manage-btn:active)) { transform: scale(0.98); transition-duration: 0s; }
+.ap-lan-who:hover::before { background: color-mix(in srgb, var(--text) 4%, transparent); }
+/* THE PRESS IS THE SAME TONE A STEP DEEPER, AND NOTHING MOVES. The row used to
+   scale to 0.98 and ease back under the dialog it had just opened — a name
+   sliding two pixels in a list whose job is to stand still. Not while the
+   verb is the thing pressed: that answers with its own 0.97. */
 .ap-lan-who:active:not(:has(.ap-manage-btn:active))::before {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  transition-duration: 0s;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
-/* Secondary text on a hovered row is still text — the wash lifts the ground
-   under it, and `--muted` clears 4.5:1 only against --panel. Mixed toward the
-   foreground, the rule `.ap-lan-pick` writes down for the same reason. */
-.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):hover .ap-lan-who-when {
+/* Secondary text on a lit row is still text — the tone lifts the ground under
+   it, and `--muted` clears 4.5:1 only against --panel. On a lit or
+   keyboard-focused row it is mixed toward the foreground, the rule
+   `.ap-lan-pick` writes down for the same reason: 6.2:1 there, and still a
+   step under the name. */
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):is(:hover, :has(:focus-visible)) .ap-lan-who-when {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 /* What it last did, under the name, in the panel's own freshness idiom.
@@ -7948,7 +7952,6 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      adopt it quietly reintroduces the motion. */
   button.btn:active:not(:disabled), .ap-manage-btn:active:not(:disabled), .ap-more:active,
   .ap-lan-pick:active, .ap-lan-word:active:not(:disabled), .ap-lan-intro:active:not(:disabled),
-  .ap-lan-who:active:not(:has(.ap-manage-btn:active)),
   /* One entry where there were five. `.sd-close`, `.detail-close`,
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
@@ -9906,17 +9909,29 @@ input, textarea { caret-color: var(--accent); }
    The other three verbs are NOT hidden. `ask`, `allow` and `stop` are the
    reason their rows are on the list at all — a deck nearby exists to be asked —
    and hiding the point of a row is not the same act as hiding its management. */
+/* At once, like the tone it arrives with: a fade out was the other half of the
+   trail a sweeping pointer left, a half-lit `unpair` on the row just passed.
+   And on KEYBOARD focus only — `:focus-within` held it up after a mouse closed
+   the deck's dialog and focus came back to the row, a destructive verb left
+   showing where nobody was pointing. */
 .ap-lan-who .ap-lan-do.danger {
   opacity: 0;
-  transition: opacity 120ms ease;
 }
 .ap-lan-who:hover .ap-lan-do.danger,
-.ap-lan-who:focus-within .ap-lan-do.danger,
+.ap-lan-who:has(:focus-visible) .ap-lan-do.danger,
 .ap-lan-who .ap-lan-do.danger.armed { opacity: 1; }
 .ap-lan-who .ap-manage-btn {
   color: var(--muted);
   border-color: transparent;
   background: none;
+  /* The tone's corners rather than a pill's — one radius in the row. */
+  border-radius: 4px;
+}
+/* A lit row lifts the ground under its verbs as it does under its sentence,
+   so they are mixed toward the foreground there too: a step under the name,
+   which stays the brightest thing in the row, and clear of 4.5:1 on the tone. */
+.ap-lan-who:is(:hover, :has(:focus-visible)) .ap-manage-btn {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 .ap-lan-who .ap-manage-btn:hover:not(:disabled),
 .ap-lan-who .ap-manage-btn:focus-visible {
@@ -9932,7 +9947,10 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-who .ap-manage-btn.danger:focus-visible {
   color: var(--err);
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
-  background: color-mix(in srgb, var(--err) 12%, transparent);
+  /* The word and a hairline, no fill: the verb's own answer when it is the
+     thing pointed at, and small enough that the row around it does not read
+     as destructive. */
+  background: none;
 }
 /* Armed is the one state that keeps the colour without being pointed at: the
    press has already happened once and the next one is the irreversible half. */

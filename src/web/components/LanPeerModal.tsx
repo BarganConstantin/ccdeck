@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel, offerLine, roundLabel, seenLabel, versionOrder } from "./LanSyncSection";
+import { askedLabel, CONFIRM_GAP_MS, offerLine, roundLabel, seenLabel, versionOrder } from "./LanSyncSection";
 import type { DeckRow, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
 
 interface Props {
@@ -75,6 +75,8 @@ export default function LanPeerModal({
   const [failure, setFailure] = useState<string | null>(null);
   /** Unpair costs two presses here as it does on the row. */
   const [armed, setArmed] = useState(false);
+  /** When it was armed, so a double-click cannot be its own confirmation. */
+  const armedAt = useRef(0);
   const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
@@ -396,7 +398,9 @@ export default function LanPeerModal({
             <button type="button" className={`btn danger lan-peer-verb${armed ? " armed" : ""}`}
               {...press(`unpair:${row.fp}`)}
               onClick={() => {
-                if (!armed) { setArmed(true); return; }
+                if (!armed) { setArmed(true); armedAt.current = Date.now(); return; }
+                // A double-click is one decision, not two — the row's rule.
+                if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
                 setArmed(false);
                 void run(onVerb);
               }}

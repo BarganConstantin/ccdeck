@@ -437,7 +437,11 @@ describe("the list is quiet until it is not", () => {
     const danger = [...CSS.matchAll(/\.ap-lan-who \.ap-lan-do\.danger \{([^}]*)\}/g)].map(m => m[1]);
     expect(danger.some(b => /opacity:\s*0\b/.test(b))).toBe(true);
     const shown = CSS.slice(CSS.indexOf(".ap-lan-who:hover .ap-lan-do.danger"));
-    expect(shown.slice(0, 200)).toMatch(/:focus-within/);
+    // KEYBOARD focus, and only that. `:focus-within` held it up after a mouse
+    // closed the deck's dialog and focus came back to the row — a destructive
+    // verb left showing on a row nobody was pointing at, with no ring to say
+    // why.
+    expect(shown.slice(0, 200)).toMatch(/:has\(:focus-visible\)/);
     expect(shown.slice(0, 200)).toMatch(/\.armed/);
     // Its WIDTH is never given up, or the name's column would resize under the
     // cursor and every row would jump as the pointer crossed it.

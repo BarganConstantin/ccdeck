@@ -291,13 +291,6 @@ const PRESSES: Press[] = [
   // the whole sentence and the sentence is what answers the press. 0.97 like
   // every other labelled control.
   [".ap-lan-pick:active", "0.97", "transform"],
-  // A machine's row in the same section, which is a door to that machine's
-  // dialog. The name is the button, but its hit area is the whole row, so the
-  // ROW answers the press, as `.ap-lan-pick` does — and not while the verb on
-  // its end is the thing being pressed, which answers with its own 0.97. A
-  // point less than a label's: the row is the width of the column, and three
-  // percent of that is a jump rather than a give.
-  [".ap-lan-who:active:not(:has(.ap-manage-btn:active))", "0.98", "transform"],
   // The LAN section's two foot words — `+ add a deck` and `name & shared
   // logins`. They gave up their pills so the one press the section is for could
   // have the column, and a control with no box still owes an answer to a press.
@@ -410,6 +403,12 @@ const EXEMPT: string[] = [
   // report something the triangle has already turned to say. It discloses a
   // command and changes nothing else.
   ".ap-lan-reach-fix > summary",
+  // A machine's row in the LAN list. The whole row is the door to that deck's
+  // dialog, and a dense list of machines answers a press the way a desktop list
+  // does: its tone deepens and nothing moves. A row that scaled slid the name
+  // two pixels under the pointer and eased back under the dialog it had just
+  // opened. The verb on the end of the row keeps its own 0.97.
+  ".ap-lan-who",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
