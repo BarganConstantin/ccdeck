@@ -248,21 +248,24 @@ function StartArt() {
 function AccountsArt() {
   return (
     <Board>
-      <Screen x={14} y={20} w={232} h={160} />
-      <text x={28} y={44} className="ga-t ga-strong">Claude accounts</text>
-      <Glyph x={196} y={37} d="M7 2.2v9.6M2.2 7h9.6" />
-      <Glyph x={220} y={37} d="M3.3 10.7L10.7 3.3M5.2 3.3h5.5v5.5" />
-      <line x1={14} y1={56} x2={246} y2={56} className="ga-line" />
-      <Account x={28} y={78} email="work@team.dev" state="working" tone="ok" bars={[24, 61]} />
-      <rect x={190} y={66} width={44} height={18} rx={9} className="ga-accent" />
-      <text x={212} y={78} className="ga-s ga-on-accent" textAnchor="middle">active</text>
-      <line x1={14} y1={144} x2={246} y2={144} className="ga-line" />
-      <Account x={28} y={166} email="personal@me.dev" state="signed in" tone="ok" />
-      <rect x={188} y={154} width={46} height={18} rx={9} className="ga-chip" />
-      <text x={211} y={166} className="ga-s" textAnchor="middle">switch</text>
-      <Pointer x={214} y={166} />
+      {/* Sized to hold the second row's state line — the panel used to end at
+          180 with that line drawn at 182, and the word poked out under the
+          card. Reported from a screenshot. */}
+      <Screen x={14} y={16} w={232} h={170} />
+      <text x={28} y={40} className="ga-t ga-strong">Claude accounts</text>
+      <Glyph x={196} y={33} d="M7 2.2v9.6M2.2 7h9.6" />
+      <Glyph x={220} y={33} d="M3.3 10.7L10.7 3.3M5.2 3.3h5.5v5.5" />
+      <line x1={14} y1={52} x2={246} y2={52} className="ga-line" />
+      <Account x={28} y={74} email="work@team.dev" state="working" tone="ok" bars={[24, 61]} />
+      <rect x={190} y={62} width={44} height={18} rx={9} className="ga-accent" />
+      <text x={212} y={74} className="ga-s ga-on-accent" textAnchor="middle">active</text>
+      <line x1={14} y1={140} x2={246} y2={140} className="ga-line" />
+      <Account x={28} y={160} email="personal@me.dev" state="signed in" tone="ok" />
+      <rect x={188} y={148} width={46} height={18} rx={9} className="ga-chip" />
+      <text x={211} y={160} className="ga-s" textAnchor="middle">switch</text>
+      <Pointer x={221} y={161} />
 
-      <path d="M250 44C270 44 262 78 282 78" className="ga-arc" />
+      <path d="M250 40C270 40 262 78 282 78" className="ga-arc" />
       <path d="M277 74l5 4-5 4" className="ga-arrow" />
       <Screen x={282} y={62} w={144} h={64} label="ANOTHER MACHINE" />
       <g className="ga-pop">
@@ -301,7 +304,7 @@ export const WELCOME_STEPS: GuideStep[] = [
   { art: <TreeArt />, line: "Every agent and subagent is a node. Tool calls light up as they run." },
   { art: <CostArt />, line: "What each session costs, and how much quota is left." },
   { art: <StartArt />, line: "Run claude or codex in any folder. It shows up here on its own." },
-  { art: <AccountsArt />, line: "Several Claude accounts: switch between them, add one, share one to another machine." },
+  { art: <AccountsArt />, line: "Several Claude accounts: switch, add one, share one to another machine." },
   {
     art: <LanSyncArt />,
     line: "Your machines repair each other's expired logins over the local network.",

@@ -63,11 +63,11 @@ The deck opens on these six pictures the first time it runs — they are the who
 <td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-5.svg" width="440" alt="Several Claude accounts: switch between them, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-5.svg" width="440" alt="Several Claude accounts: switch, add one, share one to another machine."></td>
 <td><img src="assets/guide/welcome-6.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
 </tr>
 <tr>
-<td align="center"><sub>Several Claude accounts: switch between them, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Several Claude accounts: switch, add one, share one to another machine.</sub></td>
 <td align="center"><sub>Your machines repair each other's expired logins over the local network.</sub></td>
 </tr>
 </table>
