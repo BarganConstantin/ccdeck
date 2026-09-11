@@ -26,6 +26,17 @@
 // asked to disturb — and the case that reaches here with a deck already up is
 // the attach, which has six lines to say and no business erasing anything.
 //
+// ONE PLATFORM WHERE THIS IS NOT ENOUGH, and it is worth knowing before someone
+// reports it as a bug. Windows OpenSSH puts a session's processes in a job
+// object it terminates when the session ends, and breaking out of one needs
+// CREATE_BREAKAWAY_FROM_JOB, which Node does not expose — `detached` there is
+// DETACHED_PROCESS and CREATE_NEW_PROCESS_GROUP, neither of which is a
+// breakaway. So a deck started over ssh on Windows dies with that ssh session.
+// Measured, and then measured the other way: the same deck started by the login
+// task, outside any such job, was still serving from a later ssh session. An
+// ordinary Windows terminal is the console-control-event mechanism rather than
+// a job object, and a detached process has no console to receive one.
+//
 // COLOUR IS PASSED DOWN, MOTION IS NOT. Writing to a file makes `isTTY` false in
 // the child, which switches off both — so FORCE_COLOR and COLUMNS are handed
 // over to bring the colour and the layout back, and the pulse line stays off

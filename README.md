@@ -202,6 +202,12 @@ it. `ccdeck --stop` ends it, `ccdeck --status` says what is running, and
 `ccdeck --logs` shows what it wrote after you stopped watching. Ctrl+C while the
 boot is still printing cancels the start, which is the one thing it still means.
 
+One Windows exception, and it is `ssh`'s rather than the deck's: OpenSSH puts a
+session's processes in a job object that it kills when the session ends, and
+nothing started from inside one survives it. A deck started from an ordinary
+Windows terminal, or by the login task below, keeps running — measured on a real
+machine, from a second SSH session, still serving.
+
 It also starts when you log in, so a reboot does not cost you the morning's
 events. That is set up once, on the first run, and said out loud when it happens;
 `ccdeck --uninstall-service` undoes it and `ccdeck --uninstall` takes it with the
