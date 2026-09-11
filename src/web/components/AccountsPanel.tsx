@@ -199,20 +199,24 @@ export function errorText(code: string): { text: string; hint: string; fixable: 
  * difference between a person re-adding an account they already have and a
  * person starting the deck differently.
  */
-export function collectorText(code: string | null): { text: string; hint: string } | null {
+export function collectorText(code: string | null): { text: string; hint: string; fix?: string } | null {
   switch (code) {
     case "no_credentials":
       return {
         text: "no stored login",
         hint: "claude-swap holds no credentials for this account, so there is nothing to read its usage with "
-            + "and nothing to switch to. A paired deck that has them sends them on its own; otherwise sign in "
-            + "as this account from + Add.",
+            + "and nothing to switch to. A paired deck that has them sends them on its own; signing in as "
+            + "this account puts them there by hand.",
+        // NOT "again". There is nothing there to replace — this is the first
+        // login claude-swap will hold for this slot.
+        fix: "sign in",
       };
     case "relogin_required":
       return {
         text: "login expired",
         hint: "claude-swap's stored login for this account was rejected and cannot be refreshed. "
             + "Signing in again replaces it — the account keeps its slot, its alias and its history.",
+        fix: "sign in again",
       };
     case "keychain_unavailable":
       return {
@@ -220,6 +224,10 @@ export function collectorText(code: string | null): { text: string; hint: string
         hint: "This is about the deck, not the account: claude-swap could not open your keychain, so it cannot "
             + "read any account's stored login. A deck started from a background session cannot reach the "
             + "keychain at all — start it from a terminal, or let it start at login, and this clears.",
+        // NO `fix`, and this is the case that makes the field worth having
+        // rather than always offering a button: nothing is wrong with the
+        // account, and a sign-in here would have somebody replace a working
+        // login to repair a deck that was started in the wrong place.
       };
     case "token_expired":
       return { text: "token expired", hint: "The access token ran out and the refresh was deferred. The next collection retries." };
@@ -928,6 +936,28 @@ export default function AccountsPanel({ onClose }: Props) {
                       + "A paired deck holding a working copy of this account will replace it on its own. "
                       + "To do it by hand, sign in as this account from + Add."
                     )}>{v?.text ?? "not collecting"}</span>
+                  );
+                })()}
+                {/* THE OFFER, WHEN THE VERDICT NAMES ONE — and only then.
+                    This branch had no button at all when it had no reason
+                    either: a full interactive re-login under a sentence saying
+                    the deck would not guess WAS the deck guessing. Now
+                    claude-swap says which of three states it is, two of them are
+                    fixed by signing in as this account, and the third is not
+                    about the account at all.
+
+                    #721's rule survives by construction rather than by care: an
+                    account the CLI says the user is signed in as is `staleCopy`,
+                    never `stopped`, so this can never be offered to somebody who
+                    is already signed in. */}
+                {a.stopped && (() => {
+                  const fix = collectorText(a.collector ?? null)?.fix;
+                  if (!fix) return null;
+                  return (
+                    <button type="button" className="ap-fix" onClick={() => setAddOpen(true)}
+                      title="Open the sign-in dialog. Signing in as this account puts its login in this slot.">
+                      {fix}
+                    </button>
                   );
                 })()}
                 {a.error && (() => {

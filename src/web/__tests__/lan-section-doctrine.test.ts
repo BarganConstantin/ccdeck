@@ -652,7 +652,14 @@ describe("who is here, which is what the panel is for now", () => {
     // Nothing asked yet is not the same as switched off, and saying `off`
     // before the first answer lands is a wrong answer given confidently.
     expect(sectionState(null, NOW2)).toEqual({ text: "checking…", tone: "idle" });
-    expect(sectionState({ enabled: false }, NOW2).text).toMatch(/^off/);
+    // NOTHING WHILE IT IS OFF. The switch beside it already says so, in the one
+    // place a person looks to change it, and the subtitle under the heading
+    // says what the feature is for. A sentence that only restates a control the
+    // eye has already read is a line of type charging rent for nothing — and
+    // this one sat under a switch it could not disagree with.
+    expect(sectionState({ enabled: false }, NOW2)).toEqual({ text: "", tone: "idle" });
+    // `checking…` above is the one that still speaks, and it has to: it is the
+    // difference between "not asked yet" and "asked, and the answer is off".
     expect(sectionState({ enabled: true, running: false }, NOW2).text).toBe("starting…");
     // And a start that failed says why rather than saying `starting…` until the
     // process dies. A second deck on one machine takes the first one's port.

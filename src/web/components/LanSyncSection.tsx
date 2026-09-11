@@ -384,7 +384,12 @@ export function sectionState(
   // switched off before the first answer arrives is a wrong answer given
   // confidently — the switch beside it is drawn from the same missing data.
   if (!s) return { text: "checking…", tone: "idle" };
-  if (!s.enabled) return { text: "off — this deck is not on the network", tone: "idle" };
+  // NOTHING, WHILE IT IS OFF. The switch beside it already says so, in the one
+  // place a person looks to change it, and the subtitle under the heading says
+  // what the feature is for. A sentence that only restates a control the eye has
+  // already read is a line of type charging rent for nothing — and this one sat
+  // under a switch it could not disagree with.
+  if (!s.enabled) return { text: "", tone: "idle" };
   // A DEAD END HAS TO SAY SO. `starting…` was drawn for as long as the process
   // lived when the bind failed — a second deck on one machine takes the first
   // one's port — and a state that cannot resolve and will not say why leaves

@@ -190,25 +190,38 @@ describe("what the panel is allowed to offer", () => {
     expect(panel).toMatch(rowButton);
     expect(panel).toMatch(/\{a\.error && \(\(\) => \{/);
     // And nothing else in a row reaches it.
+    // TWO ROW CONTROLS REACH IT NOW, and the rule is no longer a count. The
+    // second is `stopped`, and it is gated on claude-swap naming a state that a
+    // sign-in actually fixes — see collectorText's `fix`, which is absent for
+    // `keychain_unavailable` precisely because nothing is wrong with the
+    // account there.
+    //
+    // #721's harm cannot be reached through either: an account the CLI says the
+    // user is signed in as is `staleCopy`, which has neither branch.
     const rowOpeners = (panel.match(/className="ap-fix" onClick=\{\(\) => setAddOpen\(true\)\}/g) ?? []).length;
-    expect(rowOpeners, "a second row control opens the sign-in dialog").toBe(1);
+    expect(rowOpeners, "a row control opens the sign-in dialog outside the two gated branches").toBe(2);
+    expect(panel).toMatch(/\{a\.stopped && \(\(\) => \{\s*\n\s*const fix = collectorText/);
   });
 
-  it("offers nothing at all for a silence it will not explain", () => {
-    // `stopped` is the third trouble state: claude-swap has collected nothing
-    // for half a day and says nothing about why — the failure that reached this
-    // was `keychain_unavailable`, which never touches consecutiveFailures, so
-    // the row's counter reads zero while the account is unusable.
+  it("offers nothing for a silence it will not explain, and the fix when it will", () => {
+    // This branch HAD no button, and the reasoning was right at the time: a
+    // full interactive re-login under a sentence saying the deck would not
+    // guess WAS the deck guessing. Then claude-swap started saying which of
+    // three states it is, and two of them are fixed by exactly that.
     //
-    // It says so and stops there. A `sign in again` under it would be the panel
-    // guessing at a cause one line beneath a sentence saying it will not, and
-    // the guess has a cost: that button is a full interactive re-login. The
-    // repair that fits needs no button — the account is published as NOT alive,
-    // so a paired deck with a working copy replaces it on its next round.
-    expect(panel).toMatch(/\{a\.stopped && \(/);
-    const block = panel.slice(panel.indexOf("{a.stopped && ("), panel.indexOf("{a.error && (()"));
-    expect(block).toContain("not collecting");
-    expect(block).not.toContain("<button");
+    // So the offer is gated on the verdict rather than on the branch.
+    expect(collectorText("no_credentials")?.fix).toBe("sign in");
+    expect(collectorText("relogin_required")?.fix).toBe("sign in again");
+    // The one that must never offer it: nothing is wrong with the account, and
+    // a sign-in here would have somebody replace a working login to repair a
+    // deck that was started in the wrong place.
+    expect(collectorText("keychain_unavailable")?.fix).toBeUndefined();
+    // And no verdict at all is still no button.
+    expect(collectorText(null)).toBeNull();
+    expect(collectorText("something_new")?.fix).toBeUndefined();
+    // The panel asks `fix` rather than deciding for itself.
+    expect(panel).toContain("const fix = collectorText(a.collector ?? null)?.fix;");
+    expect(panel).toContain("if (!fix) return null;");
   });
 
   it("offers the repair that Refresh cannot be", () => {
