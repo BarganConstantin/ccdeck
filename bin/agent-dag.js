@@ -119,9 +119,17 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
   const isTTY = Boolean(process.stdout.isTTY);
   const profile = colorProfile({ isTTY });
   const tone = palette(profile);
-  const stop = stopCommand({
-    npx: isNpxInstall(PKG_ROOT), invokedAs: INVOKED_AS, product: PRODUCT,
-  });
+  const npx = isNpxInstall(PKG_ROOT);
+  const stop = stopCommand({ npx, invokedAs: INVOKED_AS, product: PRODUCT });
+  // THE ONE THING AN NPX RUN CANNOT HAVE, said where it is missing. A login item
+  // must name a path that will still be there tomorrow, and npx runs out of a
+  // cache npm deletes whenever it likes — so an npx deck runs in the background
+  // and cannot come back after a reboot. One line, no disk written, offered
+  // rather than done: `npx` means "run without installing", and a tool that
+  // installs itself anyway is the one people uninstall.
+  const offer = npx
+    ? `     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --install\` also starts it at login${tone.reset}\n`
+    : "";
   const outcome = await detachAndWatch({
     file: fileURLToPath(import.meta.url),
     argv: process.argv.slice(2),
@@ -132,7 +140,7 @@ if (!DETACHED && !LEASHED && FLAGS.foreground !== true && !isOneShot(FLAGS)) {
     isTTY,
     profile,
     columns: termColumns(process.stdout),
-    backgroundLine: `  ${tone.muted}${G.dash}  running in the background ${G.bullet} \`${stop}\` ends it${tone.reset}\n\n`,
+    backgroundLine: `  ${tone.muted}${G.dash}  running in the background ${G.bullet} \`${stop}\` ends it${tone.reset}\n${offer}\n`,
   });
   // detachAndWatch never returns on the paths that worked. Reaching this line
   // means the log could not be opened at all — a read-only home, a full disk —

@@ -17,6 +17,8 @@ import { fileURLToPath } from "node:url";
 
 // @ts-expect-error — plain .mjs module, no types
 const svc = await import("../../server/login-service.mjs");
+// @ts-expect-error — plain .mjs module, no types
+const globalInstall = await import("../../server/global-install.mjs");
 const {
   SERVICE_LABEL, SERVICE_RECORD, installService, plistFor, readServiceRecord, registerCommand,
   servicePath, shouldOfferService, taskXmlFor, unitFor, unregisterCommand, xmlEscape,
@@ -420,5 +422,84 @@ describe("installing it, and saying so", () => {
     const retire = DECK.indexOf("retireSoundHook", at);
     expect(gone).toBeGreaterThan(at);
     expect(gone).toBeLessThan(retire);
+  });
+});
+
+describe("putting the deck on PATH, when somebody asks in words", () => {
+  // The one thing an npx run cannot have. A login item must name a path that
+  // will still be there tomorrow, and npx runs out of ~/.npm/_npx/<hash>/,
+  // which npm deletes whenever it likes — so an npx deck runs in the background
+  // and cannot come back after a reboot.
+  const gi = globalInstall as {
+    globalScript: (root: string, pkg: string, platform?: string) => string | null;
+    readGlobalRoot: (out: unknown) => string | null;
+    installFailure: (out: unknown, o?: { pkg?: string }) => string;
+    INSTALL_TIMEOUT_MS: number;
+  };
+
+  it("builds the script path for the platform asked about", () => {
+    // The joiner comes from the TARGET platform, not the host. Three times red
+    // on windows-latest for exactly this.
+    expect(gi.globalScript("/usr/local/lib/node_modules", "ccdeck", "darwin"))
+      .toBe("/usr/local/lib/node_modules/ccdeck/bin/agent-dag.js");
+    // Built rather than written out: a Windows path in a TS literal needs its
+    // backslashes doubled, and doubling them twice is how the first version of
+    // this asserted something no machine would ever produce.
+    const winRoot = ["C:", "Users", "x", "AppData", "Roaming", "npm", "node_modules"].join("\\");
+    expect(gi.globalScript(winRoot, "ccdeck", "win32"))
+      .toBe([winRoot, "ccdeck", "bin", "agent-dag.js"].join("\\"));
+    expect(gi.globalScript("/usr/lib/node_modules", "ccdeck", "linux")).not.toMatch(/\\\\/);
+    expect(gi.globalScript("", "ccdeck", "linux")).toBeNull();
+    expect(gi.globalScript("/x", "", "linux")).toBeNull();
+  });
+
+  it("takes npm's answer only when it is one", () => {
+    // `npm root -g` prints one line on success. A warning npm decided to print
+    // first is not a path, and guessing would put the login item where nothing
+    // lives.
+    expect(gi.readGlobalRoot({ ok: true, stdout: "/usr/local/lib/node_modules\n" }))
+      .toBe("/usr/local/lib/node_modules");
+    expect(gi.readGlobalRoot({ ok: true, stdout: "npm warn something\n/usr/lib/node_modules\n" }))
+      .toBe("/usr/lib/node_modules");
+    expect(gi.readGlobalRoot({ ok: true, stdout: "npm warn only\n" })).toBeNull();
+    expect(gi.readGlobalRoot({ ok: true, stdout: "" })).toBeNull();
+    expect(gi.readGlobalRoot({ ok: false, stdout: "/usr/lib" })).toBeNull();
+  });
+
+  it("names the remedy for the failure people actually hit", () => {
+    // A root-owned global prefix. "Permission denied" alone sends people to
+    // sudo when a prefix of their own is the better answer.
+    const eacces = gi.installFailure({ ok: false, stderr: "npm ERR! Error: EACCES: permission denied" }, { pkg: "ccdeck" });
+    expect(eacces).toMatch(/sudo npm i -g ccdeck/);
+    expect(eacces).toMatch(/npm config set prefix/);
+    expect(gi.installFailure({ ok: false, code: "ENOENT" })).toMatch(/npm is not on PATH/);
+    expect(gi.installFailure({ ok: false, timedOut: true })).toMatch(/took too long/);
+    expect(gi.installFailure({ ok: false, status: 1, stderr: "npm ERR! boom\nmore" })).toBe("npm ERR! boom");
+  });
+
+  it("installs the name that was typed, not ours", () => {
+    // Three packages publish this deck. Installing `ccdeck` for somebody who
+    // ran `npx agent-dag` hands them a command they did not ask for and leaves
+    // the one they used pointing at a cache directory.
+    expect(DECK).toContain("const pkg = installedName(PKG_ROOT, PRODUCT);");
+    expect(DECK).toContain('run("npm", ["i", "-g", pkg]');
+  });
+
+  it("points the login item at the global install, not at the cache", () => {
+    const at = DECK.indexOf("if (flags.install) {");
+    const block = DECK.slice(at, DECK.indexOf("--install-service / --uninstall-service", at));
+    expect(block).toContain("gi.globalScript(root, pkg)");
+    expect(block).toContain("svc.installService({ script,");
+    // And it asks npm where that is rather than assuming a prefix.
+    expect(block).toContain('run("npm", ["root", "-g"]');
+  });
+
+  it("still reports an install that worked with a login item that did not", () => {
+    // Two different outcomes, and collapsing them would tell somebody their
+    // deck starts at login when it does not.
+    const at = DECK.indexOf("if (flags.install) {");
+    const block = DECK.slice(at, DECK.indexOf("--install-service / --uninstall-service", at));
+    expect(block).toContain("installed, but it will not start at login");
+    expect(block).toContain("installed, but npm did not say where");
   });
 });

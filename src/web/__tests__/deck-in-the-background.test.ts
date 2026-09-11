@@ -161,14 +161,16 @@ describe("a command line that is not a start", () => {
     // `ccdeck --version` detaching itself is the shape of the bug: the number
     // lands in deck.log and the terminal comes back empty.
     expect([...ONE_SHOT].sort()).toEqual([
-      "help", "installService", "logs", "status", "stop", "uninstall", "uninstallService", "version",
+      "help", "install", "installService", "logs", "status", "stop", "uninstall", "uninstallService",
+      "version",
     ]);
     for (const flag of ONE_SHOT) expect(isOneShot({ [flag]: true }), flag).toBe(true);
     // And each of those really is what the parser produces for the flag.
     for (const [argv, key] of [
       [["--version"], "version"], [["-v"], "version"], [["-h"], "help"], [["--help"], "help"],
       [["--uninstall"], "uninstall"], [["--stop"], "stop"], [["--status"], "status"],
-      [["--logs"], "logs"], [["--install-service"], "installService"],
+      [["--logs"], "logs"], [["--install"], "install"],
+      [["--install-service"], "installService"],
       [["--uninstall-service"], "uninstallService"],
     ] as [string[], string][]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ")).toBe(true);
@@ -274,5 +276,28 @@ describe("tailing a file that is still being written", () => {
   it("says nothing about a file that is not there yet", () => {
     const t = tailFile("/nope/not/a/file.log", { write: () => { throw new Error("wrote"); } }, { everyMs: 5 });
     expect(() => { t.pump(); t.stop(); }).not.toThrow();
+  });
+});
+
+describe("what an npx run is told it is missing", () => {
+  const SRC_SUP = SUPERVISOR;
+
+  it("offers the install rather than performing it", () => {
+    // `npx` means "run without installing". A tool that installs itself anyway
+    // is the tool people uninstall — and the global prefix is root-owned on
+    // plenty of machines, so it would be a sudo prompt out of a command that
+    // was only supposed to start a deck.
+    // The backtick is escaped in the source: the line lives inside a template
+    // literal and the flag is quoted for the shell in the message itself.
+    expect(SRC_SUP).toContain("--install\\` also starts it at login");
+    expect(SRC_SUP).toContain('const npx = isNpxInstall(PKG_ROOT);');
+    // Offered only where it is true: a global install already starts at login
+    // on its first run, so the line would be noise there.
+    expect(SRC_SUP).toMatch(/const offer = npx\s*\n?\s*\?/);
+  });
+
+  it("says nothing extra when the deck was installed normally", () => {
+    const at = SRC_SUP.indexOf("const offer = npx");
+    expect(SRC_SUP.slice(at, at + 400)).toContain(': "";');
   });
 });

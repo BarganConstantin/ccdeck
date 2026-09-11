@@ -184,12 +184,63 @@ if (flags.uninstall) {
 // on the machine. (`--all` is the legacy capture flag, a no-op since it became
 // the default; beside `--stop` it can only mean this, and it is the word a
 // person reaches for.)
-if (flags.stop || flags.status || flags.logs || flags.installService || flags.uninstallService) {
-  const { dash, ok: gOk, warn: gWarn, bullet, arrow } = glyphs(unicodeOK());
+if (flags.stop || flags.status || flags.logs || flags.install || flags.installService || flags.uninstallService) {
+  const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = glyphs(unicodeOK());
   const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
   const say = (line) => process.stdout.write(`${line}\n`);
 
   const { deckDataDir, deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+
+  // ── --install ─────────────────────────────────────────────────────────────
+  //
+  // The one command that turns an npx run into a deck that comes back after a
+  // reboot. `npx ccdeck` cannot start at login — a login item must name a path
+  // that will still be there tomorrow, and npx runs out of a cache npm deletes
+  // whenever it likes — so this puts the package on PATH and points the service
+  // at THAT.
+  //
+  // BEHIND A FLAG, because `npx` means "run without installing" and a tool that
+  // installs itself anyway is the tool people uninstall. Somebody typed this.
+  if (flags.install) {
+    const gi = await import(pathToFileURL(join(PKG_ROOT, "src/server/global-install.mjs")).href);
+    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
+    const { installedName } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    const { run } = await import(pathToFileURL(join(PKG_ROOT, "src/server/exec.mjs")).href);
+    // The name they typed, not ours. Three packages publish this deck, and
+    // installing `ccdeck` for somebody who ran `npx agent-dag` hands them a
+    // command they did not ask for.
+    const pkg = installedName(PKG_ROOT, PRODUCT);
+
+    say(`\n  ${tone.muted}${dash}  installing ${pkg} globally${gEllipsis}${tone.reset}`);
+    const got = await run("npm", ["i", "-g", pkg], { timeout: gi.INSTALL_TIMEOUT_MS });
+    if (!got?.ok) {
+      say(`  ${tone.err}${gWarn}  ${gi.installFailure(got, { pkg })}${tone.reset}\n`);
+      process.exit(1);
+    }
+    say(`  ${tone.ok}${gOk}${tone.reset}  ${pkg} is on your PATH${tone.muted}  ${bullet}  type \`${pkg}\` to start it${tone.reset}`);
+
+    // WHERE npm PUT IT, asked rather than assumed: a prefix the user set
+    // themselves is common and nothing here can guess it.
+    const root = gi.readGlobalRoot(await run("npm", ["root", "-g"], { timeout: 30_000 }));
+    const script = gi.globalScript(root, pkg);
+    if (!script) {
+      say(`  ${tone.warn}${gWarn}  installed, but npm did not say where ${dash} run \`${pkg} --install-service\` to start it at login${tone.reset}\n`);
+      process.exit(0);
+    }
+    const out = svc.installService({ script, logPath: join(deckLogDir(), "deck.log"), product: PRODUCT });
+    if (!out.ok) {
+      say(`  ${tone.warn}${gWarn}  installed, but it will not start at login ${dash} ${out.reason}${tone.reset}\n`);
+      process.exit(0);
+    }
+    svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
+    say(`  ${tone.ok}${gOk}${tone.reset}  and starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+    if (svc.lingerState() === "off") {
+      say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
+      say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
+    }
+    say(`     ${tone.muted}\`${pkg} --uninstall-service\` undoes the login part${tone.reset}\n`);
+    process.exit(0);
+  }
 
   // ── --install-service / --uninstall-service ───────────────────────────────
   // Answered before the registry is read: neither one is about a deck that is
@@ -1721,6 +1772,8 @@ Options:
       --status             What is running on this machine, and on which ports
       --logs               What the deck wrote where a terminal would have shown
                            it, and where that file is
+      --install            Put the deck on your PATH and start it at login.
+                           What an \`npx\` run needs to survive a reboot
       --install-service    Start the deck when you log in. Set up on first run;
                            this is only for putting it back
       --uninstall-service  Stop starting at login. \`--uninstall\` does this too
