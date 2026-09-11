@@ -189,16 +189,26 @@ if (flags.stop || flags.status || flags.logs || flags.installService || flags.un
   // with three.
   if (flags.installService || flags.uninstallService) {
     const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
-    const { isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    const { isGitCheckout, isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
     if (flags.uninstallService) {
+      // ASKED FIRST, BEFORE ANYTHING IS WRITTEN. "Removed it" and "there was
+      // nothing to remove" are different answers, and saying the first for the
+      // second is how somebody comes to believe this took away a login item
+      // that some other tool had actually written. `rmSync` with `force`
+      // succeeds on a missing file, so the record is the only thing that tells
+      // them apart — and the write below replaces it, which is exactly the bug
+      // this line is above rather than below.
+      const had = svc.readServiceRecord(deckDataDir())?.installed != null;
       const out = svc.uninstallService();
       // Recorded either way. The record is what stops the next ordinary start
       // putting back what was just taken away, and a tool that argues with its
       // user about a login item is a tool that gets uninstalled entirely.
       svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
-      say(out.ok
-        ? `\n  ${tone.ok}${gOk}${tone.reset}  no longer starts at login${tone.muted}  ${bullet}  ${out.path}${tone.reset}\n`
-        : `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`);
+      say(!out.ok
+        ? `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`
+        : had
+          ? `\n  ${tone.ok}${gOk}${tone.reset}  no longer starts at login${tone.muted}  ${bullet}  ${out.path}${tone.reset}\n`
+          : `\n  ${tone.muted}${dash}  it was not starting at login${tone.reset}\n`);
       process.exit(out.ok ? 0 : 1);
     }
     if (isGitCheckout(PKG_ROOT)) {

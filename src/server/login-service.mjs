@@ -304,10 +304,11 @@ export function unregisterCommand(platform, path) {
  * `loginctl enable-linger` changes how the machine treats an account, and that
  * is not ours to decide on somebody's behalf.
  */
-export function lingerState({ platform = process.platform, run = spawnSync, user = process.env.USER } = {}) {
+export function lingerState({ platform = process.platform, run = spawnSync, user = currentUser() } = {}) {
   if (platform !== "linux") return "n/a";
+  if (!user) return "unknown";
   try {
-    const out = run("loginctl", ["show-user", String(user ?? ""), "--property=Linger"], { encoding: "utf8" });
+    const out = run("loginctl", ["show-user", String(user), "--property=Linger"], { encoding: "utf8" });
     if (out?.status !== 0) return "unknown";
     return /Linger=yes/i.test(String(out.stdout ?? "")) ? "on" : "off";
   } catch { return "unknown"; }
@@ -412,6 +413,23 @@ export function uninstallService({
 const GLYPH_ARROW = "\u2192";
 const dirOf = (p) => p.slice(0, Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")));
 const logPathDir = (p) => dirOf(String(p ?? ""));
+/**
+ * Who to ask loginctl about.
+ *
+ * THE UID FIRST, and `$USER` only as a fallback — which is the way round it took
+ * a container to find out. `loginctl show-user "" --property=Linger` answers
+ * "Failed to look up user : No such process", which lingerState read as
+ * "unknown" and said nothing about; and `$USER` is unset in every environment
+ * that is not an interactive login shell, which includes the cron job, the
+ * systemd unit and the `docker exec` this was caught in. A uid is always there
+ * on the platform this function runs on, and loginctl takes one.
+ */
+function currentUser() {
+  const uid = process.getuid?.();
+  if (Number.isInteger(uid)) return String(uid);
+  return process.env.USER?.trim() || "";
+}
+
 /** First line, trimmed — a refusal from schtasks is a paragraph and a row is a
  *  row. */
 const oneLine = (s) => String(s ?? "").split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0] ?? "";

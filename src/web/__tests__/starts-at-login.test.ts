@@ -152,6 +152,54 @@ describe("the Windows task", () => {
   });
 });
 
+describe("whether a systemd session survives logging out", () => {
+  // The one place the three platforms genuinely differ in what "starts at
+  // login" buys you. Without lingering, the user's systemd instance is torn
+  // down at logout and the deck goes with it — fine on a laptop somebody stays
+  // logged into, wrong on a box they ssh out of.
+  const { lingerState } = svc as { lingerState: (o?: Record<string, unknown>) => string };
+
+  it("reads the two states loginctl can report", () => {
+    // MEASURED on real systemd in a container: `Linger=yes` for an enabled
+    // user. The `no` spelling is the same property and is pinned here, because
+    // it is only reachable for a user who is LOGGED IN without lingering — which
+    // is the ordinary desktop case and the one a container has no way to make.
+    const answers = (out: string) => lingerState({
+      platform: "linux", user: "1000", run: () => ({ status: 0, stdout: out }),
+    });
+    expect(answers("Linger=yes\n")).toBe("on");
+    expect(answers("Linger=no\n")).toBe("off");
+  });
+
+  it("says `unknown` rather than guessing, when loginctl cannot answer", () => {
+    // MEASURED: `loginctl show-user 0 --property=Linger` on a user with neither
+    // a session nor lingering answers "User ID 0 is not logged in or lingering"
+    // and exits non-zero. Reading that as "off" would print a warning about
+    // logging out to somebody who is not logged in.
+    expect(lingerState({ platform: "linux", user: "0", run: () => ({ status: 1, stdout: "" }) })).toBe("unknown");
+    expect(lingerState({ platform: "linux", user: "0", run: () => { throw new Error("no loginctl"); } })).toBe("unknown");
+  });
+
+  it("asks about a uid, not about $USER", () => {
+    // FOUND IN A CONTAINER. `$USER` is unset in every environment that is not an
+    // interactive login shell — the cron job, the systemd unit, `docker exec` —
+    // and `loginctl show-user ""` answers "Failed to look up user : No such
+    // process", which this read as "unknown" and said nothing about. A uid is
+    // always there on the platform this runs on.
+    let asked: string[] = [];
+    lingerState({ platform: "linux", run: (_f: string, args: string[]) => { asked = args; return { status: 0, stdout: "Linger=no" }; } });
+    expect(asked[1]).toMatch(/^\d+$/);
+    expect(SRC).toContain("function currentUser()");
+  });
+
+  it("is not a question on macOS or Windows", () => {
+    expect(lingerState({ platform: "darwin" })).toBe("n/a");
+    expect(lingerState({ platform: "win32" })).toBe("n/a");
+    // And the warning is only printed for a definite "off".
+    expect(DECK).toContain('svc.lingerState() === "off"');
+  });
+});
+
 describe("where each platform keeps it", () => {
   it("answers for the platform ASKED ABOUT, not the one running the test", () => {
     // CAUGHT RED IN CI, on the first push. `node:path`'s `join` is bound to the
