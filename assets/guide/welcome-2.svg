@@ -35,6 +35,8 @@
 .ga-key-bed { fill: var(--accent); }
 .ga-key { fill: none; stroke: var(--bg); stroke-width: 1.5; stroke-linecap: round; }
 .ga-caret { fill: var(--text); }
+.ga-on-accent { fill: var(--bg); }
+.ga-glyph { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .ga-ping { transform-box: fill-box; transform-origin: center; animation: ga-ping 2.4s ease-out infinite; }
 .ga-ping-2 { animation-delay: 1.2s; }
 @keyframes ga-ping {
@@ -57,6 +59,16 @@
   61% { opacity: 1; }
   65%, 100% { transform: translate(194px, 96px); opacity: 0; }
 }
+.ga-travel-low { animation: ga-travel-low 5s ease-in-out infinite; }
+@keyframes ga-travel-low {
+  0%, 30% { transform: translate(246px, 120px); opacity: 0; }
+  34% { opacity: 1; }
+  39% { transform: translate(234.5px, 97.5px); }
+  47.5% { transform: translate(220px, 90px); }
+  56% { transform: translate(205.5px, 97.5px); }
+  61% { opacity: 1; }
+  65%, 100% { transform: translate(194px, 120px); opacity: 0; }
+}
 .ga-swap-out { animation: ga-swap-out 5s ease infinite; }
 .ga-swap-in { opacity: 0; animation: ga-swap-in 5s ease infinite; }
 @keyframes ga-swap-out { 0%, 64% { opacity: 1; } 70%, 94% { opacity: 0; } 100% { opacity: 1; } }
@@ -66,7 +78,7 @@
   .ga-flow { animation: none; }
   .ga-blink { animation: none; }
   .ga-pop { animation: none; }
-  .ga-travel { animation: none; }
+  .ga-travel, .ga-travel-low { animation: none; }
   .ga-swap-out { animation: none; opacity: 0; }
   .ga-swap-in { animation: none; opacity: 1; }
 }</style><path d="M136 100C166 100 166 38 196 38" class="ga-edge ga-flow"></path><path d="M136 100H196" class="ga-edge ga-flow"></path><path d="M136 100C166 100 166 162 196 162" class="ga-edge-done"></path><path d="M308 38H326M308 100H326" class="ga-edge"></path><rect x="20" y="80" width="116" height="40" rx="8" class="ga-screen"></rect><rect x="26" y="90" width="3" height="20" rx="1.5" class="ga-accent"></rect><text x="36" y="97" class="ga-t ga-strong">main</text><text x="36" y="111" class="ga-s">Opus 5 · 9 tools</text><rect x="196" y="18" width="112" height="40" rx="8" class="ga-screen"></rect><rect x="202" y="28" width="3" height="20" rx="1.5" class="ga-flight"></rect><text x="212" y="35" class="ga-t ga-strong">explore</text><text x="212" y="49" class="ga-s">Haiku · 14 tools</text><rect x="196" y="80" width="112" height="40" rx="8" class="ga-screen"></rect><rect x="202" y="90" width="3" height="20" rx="1.5" class="ga-flight"></rect><text x="212" y="97" class="ga-t ga-strong">tests</text><text x="212" y="111" class="ga-s">Sonnet · 6 tools</text><rect x="196" y="142" width="112" height="40" rx="8" class="ga-screen"></rect><rect x="202" y="152" width="3" height="20" rx="1.5" class="ga-ok"></rect><text x="212" y="159" class="ga-t ga-strong">review</text><text x="212" y="173" class="ga-s">done · 38s</text><rect x="326" y="28" width="46" height="20" rx="10" class="ga-chip"></rect><text x="349" y="42" class="ga-s ga-mono" text-anchor="middle">Read</text><rect x="380" y="28" width="46" height="20" rx="10" class="ga-chip-live"></rect><text x="403" y="42" class="ga-s ga-mono" text-anchor="middle">Grep</text><rect x="326" y="90" width="46" height="20" rx="10" class="ga-chip-live"></rect><text x="349" y="104" class="ga-s ga-mono" text-anchor="middle">Bash</text></svg>

@@ -35,6 +35,8 @@
 .ga-key-bed { fill: var(--accent); }
 .ga-key { fill: none; stroke: var(--bg); stroke-width: 1.5; stroke-linecap: round; }
 .ga-caret { fill: var(--text); }
+.ga-on-accent { fill: var(--bg); }
+.ga-glyph { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .ga-ping { transform-box: fill-box; transform-origin: center; animation: ga-ping 2.4s ease-out infinite; }
 .ga-ping-2 { animation-delay: 1.2s; }
 @keyframes ga-ping {
@@ -57,6 +59,16 @@
   61% { opacity: 1; }
   65%, 100% { transform: translate(194px, 96px); opacity: 0; }
 }
+.ga-travel-low { animation: ga-travel-low 5s ease-in-out infinite; }
+@keyframes ga-travel-low {
+  0%, 30% { transform: translate(246px, 120px); opacity: 0; }
+  34% { opacity: 1; }
+  39% { transform: translate(234.5px, 97.5px); }
+  47.5% { transform: translate(220px, 90px); }
+  56% { transform: translate(205.5px, 97.5px); }
+  61% { opacity: 1; }
+  65%, 100% { transform: translate(194px, 120px); opacity: 0; }
+}
 .ga-swap-out { animation: ga-swap-out 5s ease infinite; }
 .ga-swap-in { opacity: 0; animation: ga-swap-in 5s ease infinite; }
 @keyframes ga-swap-out { 0%, 64% { opacity: 1; } 70%, 94% { opacity: 0; } 100% { opacity: 1; } }
@@ -66,7 +78,7 @@
   .ga-flow { animation: none; }
   .ga-blink { animation: none; }
   .ga-pop { animation: none; }
-  .ga-travel { animation: none; }
+  .ga-travel, .ga-travel-low { animation: none; }
   .ga-swap-out { animation: none; opacity: 0; }
   .ga-swap-in { animation: none; opacity: 1; }
 }</style><rect x="14" y="40" width="188" height="120" rx="10" class="ga-screen"></rect><text x="28" y="60" class="ga-cap">~/MY-PROJECT</text><line x1="14" y1="70" x2="202" y2="70" class="ga-line"></line><text x="28" y="100" class="ga-t ga-mono"><tspan class="ga-accent">$</tspan> claude</text><rect x="86" y="90" width="7" height="13" class="ga-caret ga-blink"></rect><text x="28" y="130" class="ga-s ga-mono">or: codex</text><path d="M210 100H238" class="ga-arc"></path><path d="M233 95l6 5-6 5" class="ga-arrow"></path><rect x="250" y="40" width="176" height="120" rx="10" class="ga-canvas"></rect><g class="ga-pop"><rect x="278" y="80" width="120" height="40" rx="8" class="ga-screen"></rect><rect x="284" y="90" width="3" height="20" rx="1.5" class="ga-accent"></rect><text x="294" y="97" class="ga-t ga-strong">my-project</text><text x="294" y="111" class="ga-s">Opus 5 · live</text></g></svg>

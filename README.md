@@ -43,7 +43,7 @@ ccdeck draws the tree instead. It is local and needs no configuration: it regist
 
 One canvas. No tabs. No kanban.
 
-The deck opens on these four pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
+The deck opens on these six pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
 
 <table>
 <tr>
@@ -61,6 +61,14 @@ The deck opens on these four pictures the first time it runs — they are the wh
 <tr>
 <td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
 <td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/guide/welcome-5.svg" width="440" alt="Several Claude accounts: switch between them, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
+</tr>
+<tr>
+<td align="center"><sub>Several Claude accounts: switch between them, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Your machines repair each other's expired logins over the local network.</sub></td>
 </tr>
 </table>
 
@@ -83,7 +91,7 @@ The deck opens on these four pictures the first time it runs — they are the wh
 npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
 ```
 
-Opens **http://127.0.0.1:4317**, shows a four-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
+Opens **http://127.0.0.1:4317**, shows a six-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
 
 The deck keeps running after you close the terminal, and starts again when you
 log in. **`ccdeck --stop` is the off switch**; `Ctrl+C` only cancels a start that

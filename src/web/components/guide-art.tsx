@@ -91,6 +91,11 @@ function Check({ x, y, on }: { x: number; y: number; on?: boolean }) {
   ) : <rect x={x + 0.5} y={y + 0.5} width={11} height={11} rx={3} className="ga-box" />;
 }
 
+/** One of the panel's own 13px header glyphs, at the drawing's scale. */
+function Glyph({ x, y, d }: { x: number; y: number; d: string }) {
+  return <path d={d} transform={`translate(${x} ${y})`} className="ga-glyph" />;
+}
+
 function Pointer({ x, y }: { x: number; y: number }) {
   return <path d={`M${x} ${y}l0 13 3.4-3 2.4 5.2 2-.9-2.4-5.1 4.6-.2z`} className="ga-pointer" />;
 }
@@ -128,6 +133,16 @@ function Chip({ x, y, label, live }: { x: number; y: number; label: string; live
     <>
       <rect x={x} y={y} width={46} height={20} rx={10} className={live ? "ga-chip-live" : "ga-chip"} />
       <text x={x + 23} y={y + 14} className="ga-s ga-mono" textAnchor="middle">{label}</text>
+    </>
+  );
+}
+
+/** The head of the Local network section: its caption and its switch. */
+function LanHead({ x, y }: { x: number; y: number }) {
+  return (
+    <>
+      <text x={x} y={y} className="ga-cap">LOCAL NETWORK</text>
+      <Switch x={x + 118} y={y - 13} on />
     </>
   );
 }
@@ -230,11 +245,68 @@ function StartArt() {
   );
 }
 
+function AccountsArt() {
+  return (
+    <Board>
+      <Screen x={14} y={20} w={232} h={160} />
+      <text x={28} y={44} className="ga-t ga-strong">Claude accounts</text>
+      <Glyph x={196} y={37} d="M7 2.2v9.6M2.2 7h9.6" />
+      <Glyph x={220} y={37} d="M3.3 10.7L10.7 3.3M5.2 3.3h5.5v5.5" />
+      <line x1={14} y1={56} x2={246} y2={56} className="ga-line" />
+      <Account x={28} y={78} email="work@team.dev" state="working" tone="ok" bars={[24, 61]} />
+      <rect x={190} y={66} width={44} height={18} rx={9} className="ga-accent" />
+      <text x={212} y={78} className="ga-s ga-on-accent" textAnchor="middle">active</text>
+      <line x1={14} y1={144} x2={246} y2={144} className="ga-line" />
+      <Account x={28} y={166} email="personal@me.dev" state="signed in" tone="ok" />
+      <rect x={188} y={154} width={46} height={18} rx={9} className="ga-chip" />
+      <text x={211} y={166} className="ga-s" textAnchor="middle">switch</text>
+      <Pointer x={214} y={166} />
+
+      <path d="M250 44C270 44 262 78 282 78" className="ga-arc" />
+      <path d="M277 74l5 4-5 4" className="ga-arrow" />
+      <Screen x={282} y={62} w={144} h={64} label="ANOTHER MACHINE" />
+      <g className="ga-pop">
+        <Account x={296} y={92} email="work@team.dev" state="shared here" tone="ok" />
+      </g>
+    </Board>
+  );
+}
+
+/** The last picture of the Local network guide, told as the welcome's sixth:
+ *  both switches on, and a login crossing to the machine that lost it. */
+function LanSyncArt() {
+  return (
+    <Board>
+      <Screen x={14} label="THIS MACHINE" />
+      <LanHead x={28} y={60} />
+      <g className="ga-swap-out">
+        <Account x={28} y={98} email="work@team.dev" state="login expired" tone="warn" />
+      </g>
+      <g className="ga-swap-in">
+        <Account x={28} y={98} email="work@team.dev" state="working again" tone="ok" bars={[24, 61]} />
+      </g>
+      <Screen x={250} label="ANOTHER MACHINE" />
+      <LanHead x={264} y={60} />
+      <Account x={264} y={98} email="work@team.dev" state="working" tone="ok" bars={[24, 61]} />
+      <path d="M246 120C234 80 206 80 194 120" className="ga-arc" />
+      <g className="ga-travel ga-travel-low" transform="translate(220 90)">
+        <KeyGlyph />
+      </g>
+    </Board>
+  );
+}
+
 export const WELCOME_STEPS: GuideStep[] = [
   { art: <WaitingArt />, line: "Sessions waiting on you rise to the top, longest wait first." },
   { art: <TreeArt />, line: "Every agent and subagent is a node. Tool calls light up as they run." },
   { art: <CostArt />, line: "What each session costs, and how much quota is left." },
   { art: <StartArt />, line: "Run claude or codex in any folder. It shows up here on its own." },
+  { art: <AccountsArt />, line: "Several Claude accounts: switch between them, add one, share one to another machine." },
+  {
+    art: <LanSyncArt />,
+    line: "Your machines repair each other's expired logins over the local network.",
+    tip: "Local network is the last section of the Claude accounts panel.",
+  },
 ];
 
 // ── local network ───────────────────────────────────────────────────────────
@@ -250,15 +322,6 @@ function LanProblemArt() {
       <Screen x={250} label="ANOTHER MACHINE" />
       <Account x={264} y={64} email="work@team.dev" state="working" tone="ok" bars={[24, 61]} />
     </Board>
-  );
-}
-
-function LanHead({ x, y }: { x: number; y: number }) {
-  return (
-    <>
-      <text x={x} y={y} className="ga-cap">LOCAL NETWORK</text>
-      <Switch x={x + 118} y={y - 13} on />
-    </>
   );
 }
 
