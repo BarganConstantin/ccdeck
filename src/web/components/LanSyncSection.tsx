@@ -258,6 +258,21 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
  *
  * The last colon splits, not the first, so `[fe80::1]:5000` keeps its address.
  */
+/** How often to ask the deck about the network while it IS on the network.
+ *  A pairing request arriving is the point of this section and of the dialog in
+ *  App, so both ask at the same cadence and it is a short one. */
+export const LAN_POLL_ON_MS = 5_000;
+
+/** …and while it is not.
+ *
+ *  Nothing can arrive: no beacon is running, nobody can dial in, `pending`
+ *  cannot become anything and the peer list cannot change. The only event this
+ *  cadence has to catch is somebody switching it on in another tab. Right after
+ *  a switch-on nothing can arrive instantly either — a peer has to hear the
+ *  beacon first, which is up to thirty seconds — so a poller that is a minute
+ *  late to speed up is a minute late for nothing. */
+export const LAN_POLL_OFF_MS = 60_000;
+
 export function parseAddress(raw: string): { addr: string; port: number } | null {
   const s = (raw ?? "").trim();
   const at = s.lastIndexOf(":");
@@ -763,6 +778,10 @@ export default function LanSyncSection({ accounts, onChanged }: {
   };
   const [now, setNow] = useState(() => Date.now());
   const alive = useRef(true);
+  /** The cadence to use next, decided by the answer that just came back. Held
+   *  in a ref rather than in state because it steers a timer rather than a
+   *  render, and a re-render per tick is what this whole change is against. */
+  const every = useRef<number>(LAN_POLL_ON_MS);
 
   const load = useCallback(async () => {
     try {
@@ -773,16 +792,33 @@ export default function LanSyncSection({ accounts, onChanged }: {
       if (!alive.current) return;
       if (lan?.ok) setStatus(lan);
       if (prefs?.ok) setManual(Array.isArray(prefs.prefs?.lan?.manual) ? prefs.prefs.lan.manual : []);
+      every.current = lan?.enabled === true ? LAN_POLL_ON_MS : LAN_POLL_OFF_MS;
     } catch { /* the deck is down; the connection banner already says so */ }
   }, []);
 
   useEffect(() => {
     alive.current = true;
-    void load();
-    // Same cadence the rest of this panel polls at. A request arriving is the
-    // point of the section, so it has to show up without a press.
-    const iv = window.setInterval(() => { setNow(Date.now()); void load(); }, 5_000);
-    return () => { alive.current = false; window.clearInterval(iv); };
+    // A TIMEOUT CHAIN, NOT AN INTERVAL, so the cadence can change without the
+    // effect being torn down and rebuilt.
+    //
+    // Five seconds while the network is ON: a pairing request arriving is the
+    // point of this section, and it has to show up without a press. A minute
+    // while it is OFF, where five seconds buys nothing at all — no beacon is
+    // running, nobody can dial in, `pending` cannot become anything, and the
+    // peer list cannot change. The only thing that can happen is somebody
+    // turning it on in ANOTHER tab, and a minute is soon enough to notice that.
+    //
+    // Measured before this: three requests every five seconds, forever, for a
+    // section reading "off — this deck is not on the network". Fifty-two
+    // thousand a day.
+    let timer = 0;
+    const tick = async () => {
+      setNow(Date.now());
+      await load();
+      if (alive.current) timer = window.setTimeout(tick, every.current);
+    };
+    void tick();
+    return () => { alive.current = false; window.clearTimeout(timer); };
   }, [load]);
 
   const toggle = useCallback(async () => {

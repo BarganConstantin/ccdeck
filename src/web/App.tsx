@@ -54,6 +54,7 @@ import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import UsageHistoryModal from "./components/UsageHistoryModal";
 import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
+import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
@@ -1351,18 +1352,32 @@ function Inner() {
 
   useEffect(() => {
     let alive = true;
+    let t = 0;
+    // A TIMEOUT CHAIN, NOT AN INTERVAL, so the cadence can follow the switch —
+    // five seconds while the network is on, a minute while it is off. With it
+    // off nothing can arrive: no beacon is running, nobody can dial in, and
+    // `pending` cannot become anything. This poll and the section's own were
+    // both asking anyway, so an off deck was making three requests every five
+    // seconds for as long as its tab was open.
+    //
+    // A minute is not too slow for the moment it comes back on, either: a peer
+    // has to hear the beacon before it can dial, which is up to thirty seconds,
+    // so there is nothing to be late for.
     const pull = () => {
       fetch("/api/lan")
         .then(r => (r.ok ? r.json() : null))
         .then(j => {
-          if (!alive || !j?.ok) return;
-          setLanPending(Array.isArray(j.pending) ? j.pending : []);
+          if (!alive) return null;
+          if (j?.ok) setLanPending(Array.isArray(j.pending) ? j.pending : []);
+          return j;
         })
-        .catch(() => { /* the deck is down; the connection banner already says so */ });
+        .catch(() => null) // the deck is down; the connection banner already says so
+        .then(j => {
+          if (alive) t = window.setTimeout(pull, j?.enabled === true ? LAN_POLL_ON_MS : LAN_POLL_OFF_MS);
+        });
     };
     pull();
-    const t = setInterval(pull, 5_000);
-    return () => { alive = false; clearInterval(t); };
+    return () => { alive = false; window.clearTimeout(t); };
   }, []);
 
   const answerLanPair = useCallback(async (action: "accept" | "dismiss", fp: string) => {

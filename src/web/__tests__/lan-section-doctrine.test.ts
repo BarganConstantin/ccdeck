@@ -1080,3 +1080,50 @@ describe("what did not change", () => {
     )).toMatch(/fingerprint/);
   });
 });
+
+describe("what an off network is allowed to cost", () => {
+  // Reported from the Network tab with LOCAL NETWORK switched off: `lan`, `lan`,
+  // `prefs`, every five seconds, forever. TWO independent pollers were asking —
+  // App's, so a pairing request appears without opening a panel, and the
+  // section's own — and neither looked at whether the network was on.
+  //
+  // With it off nothing can arrive. No beacon is running, nobody can dial in,
+  // `pending` cannot become anything and the peer list cannot change. Three
+  // requests every five seconds is fifty-two thousand a day for a section
+  // reading "off — this deck is not on the network".
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+
+  it("asks slowly while the switch is off, and quickly while it is on", () => {
+    expect(SRC).toContain("export const LAN_POLL_ON_MS = 5_000;");
+    expect(SRC).toContain("export const LAN_POLL_OFF_MS = 60_000;");
+    // One pair of numbers, used by both pollers, rather than one each.
+    expect(app).toContain('import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS } from "./components/LanSyncSection";');
+    for (const src of [SRC, app]) {
+      expect(src).toMatch(/enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS/);
+    }
+  });
+
+  it("chains timeouts rather than setting an interval", () => {
+    // An interval cannot change its own period without the effect being torn
+    // down and rebuilt, and rebuilding it on every answer would re-fire the
+    // request that produced the answer.
+    // The section decides the next delay when the answer lands and the chain
+    // reads it back; App decides it in the chain itself. Both are timeout
+    // chains, and neither drives this poll from an interval.
+    expect(SRC).toMatch(/timer = window\.setTimeout\(tick, every\.current\)/);
+    expect(SRC).not.toMatch(/setInterval\(\(\) => \{ setNow/);
+    // Scoped to the LAN poller: App has another `pull` on a five-minute
+    // interval — the version check — and this rule is not about that one.
+    const at = app.indexOf("const [lanPending, setLanPending]");
+    const lanBlock = app.slice(at, app.indexOf("const answerLanPair", at));
+    expect(lanBlock).toMatch(/setTimeout\(pull, j\?\.enabled === true \? LAN_POLL_ON_MS : LAN_POLL_OFF_MS\)/);
+    expect(lanBlock).not.toMatch(/setInterval\(/);
+  });
+
+  it("keeps the fast cadence for the thing it exists for", () => {
+    // A request arriving is the point of the section AND of the dialog in App,
+    // so when the network IS on both still ask every five seconds. The saving
+    // is meant to be invisible to anybody using the feature.
+    expect(SRC).toMatch(/A pairing request arriving is the point of this section/);
+  });
+});

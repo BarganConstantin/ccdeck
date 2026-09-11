@@ -51,6 +51,7 @@ interface Account {
   error: string | null;
   staleCopy?: boolean;
   stopped?: boolean;
+  collector?: string | null;
   /** The other half of an account's identity. A slot number is not one:
    *  claude-swap assigns them max+1 per store, so the account that is 4 here
    *  is 2 on another machine. LAN sync matches on this pair. */
@@ -174,6 +175,61 @@ export function errorText(code: string): { text: string; hint: string; fixable: 
       // Still shown, because a code we have not met is better than silence —
       // but labelled as one, so it does not read as a sentence.
       return { text: code, hint: `claude-swap reported "${code}" for this account.`, fixable: false };
+  }
+}
+
+/**
+ * claude-swap's verdict for a slot, said in the product's voice.
+ *
+ * THREE STATES, THREE DIFFERENT THINGS TO DO, and until this existed the panel
+ * collapsed all of them into one silence. Measured at one instant on the same
+ * account: `usage.json` said `consecutiveFailures: 0, lastError: null` while
+ * `cswap list` said `no_credentials`. The counter cannot tell them apart, and
+ * for two of the three it reads zero.
+ *
+ * The third one is the reason this is worth a sentence rather than a word:
+ * `keychain_unavailable` is not about the account at all. Measured on this
+ * machine — the same command, the same instant, two sessions:
+ *
+ *   from a background session  ->  keychain_unavailable, keychain_unavailable
+ *   from the GUI session       ->  no_credentials,       relogin_required
+ *
+ * A deck started where it cannot reach the keychain reports every account as
+ * broken and none of them are. Saying which of the two happened is the
+ * difference between a person re-adding an account they already have and a
+ * person starting the deck differently.
+ */
+export function collectorText(code: string | null): { text: string; hint: string } | null {
+  switch (code) {
+    case "no_credentials":
+      return {
+        text: "no stored login",
+        hint: "claude-swap holds no credentials for this account, so there is nothing to read its usage with "
+            + "and nothing to switch to. A paired deck that has them sends them on its own; otherwise sign in "
+            + "as this account from + Add.",
+      };
+    case "relogin_required":
+      return {
+        text: "login expired",
+        hint: "claude-swap's stored login for this account was rejected and cannot be refreshed. "
+            + "Signing in again replaces it — the account keeps its slot, its alias and its history.",
+      };
+    case "keychain_unavailable":
+      return {
+        text: "keychain unreadable",
+        hint: "This is about the deck, not the account: claude-swap could not open your keychain, so it cannot "
+            + "read any account's stored login. A deck started from a background session cannot reach the "
+            + "keychain at all — start it from a terminal, or let it start at login, and this clears.",
+      };
+    case "token_expired":
+      return { text: "token expired", hint: "The access token ran out and the refresh was deferred. The next collection retries." };
+    case "foreign_credential":
+      return { text: "wrong credential", hint: "The live credential belongs to a different account. Switching to this one repairs it." };
+    case null:
+    case undefined:
+      return null;
+    default:
+      return { text: code, hint: `claude-swap reported "${code}" for this account.` };
   }
 }
 
@@ -860,16 +916,20 @@ export default function AccountsPanel({ onClose }: Props) {
                     header is still there for somebody who wants to do it by
                     hand, and that is their decision rather than the deck's
                     instruction. */}
-                {a.stopped && (
-                  <>
-                    <span className="ap-stale-copy" title={
-                      "claude-swap has collected nothing for this account in over half a day. It does not say why "
-                      + "here — a login that has run out and a keychain it cannot open look the same from outside — "
-                      + "so the deck does not guess. A paired deck holding a working copy of this account will "
-                      + "replace it on its own. To do it by hand, sign in as this account from + Add."
-                    }>not collecting</span>
-                  </>
-                )}
+                {a.stopped && (() => {
+                  // The verdict when claude-swap has given one, and the honest
+                  // silence when it has not. `collector` is null on a machine
+                  // where the collector has not been asked since this deck came
+                  // up, which is the first few minutes of every boot.
+                  const v = collectorText(a.collector ?? null);
+                  return (
+                    <span className="ap-stale-copy" title={v?.hint ?? (
+                      "claude-swap has collected nothing for this account in over half a day and has not said why. "
+                      + "A paired deck holding a working copy of this account will replace it on its own. "
+                      + "To do it by hand, sign in as this account from + Add."
+                    )}>{v?.text ?? "not collecting"}</span>
+                  );
+                })()}
                 {a.error && (() => {
                   const e = errorText(a.error);
                   return (

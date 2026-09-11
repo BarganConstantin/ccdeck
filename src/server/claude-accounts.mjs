@@ -310,6 +310,59 @@ export function nextReadAt(row, matches, fetchedAtMs, isActive, now) {
  * Either way claude-swap decides whether a network call actually happens, and
  * this is throttled on top of that.
  */
+/**
+ * What claude-swap says about each slot, in its own words.
+ *
+ * `usage.json` records numbers and a failure COUNTER; `cswap list --json`
+ * records a per-slot VERDICT, and the two answer different questions. Measured
+ * on the machine this was written for, at one instant, for the same account:
+ *
+ *   usage.json  ->  consecutiveFailures: 0, lastError: null
+ *   cswap list  ->  usageStatus: "no_credentials"
+ *
+ * Three verdicts, three different things for a person to do — `no_credentials`
+ * is an account to receive or re-add, `relogin_required` is one to sign into,
+ * `keychain_unavailable` is not about the account at all but about the process
+ * asking. The counter can tell none of them apart, and for two of the three it
+ * reads zero.
+ *
+ * WHERE IT COMES FROM COSTS NOTHING EXTRA. nudgeCollector already spawns
+ * `cswap list` when a collection is due, and threw the output away. It now asks
+ * for `--json` and keeps the verdicts. Still not awaited by anyone — the nudge
+ * stays synchronous for its callers — and still one child at a time.
+ */
+let _verdicts = { at: 0, byNum: {} };
+/** Stale after this, because a verdict that outlives its cause is worse than no
+ *  verdict: "no credentials" under an account somebody has since signed into is
+ *  a sentence that sends them to fix what is already fixed. */
+const VERDICT_TTL_MS = 10 * 60_000;
+/** One `cswap list --json` at a time. A collection can take a while on a cold
+ *  network, and a nudge landing inside one must not start a second. */
+let _verdictInFlight = false;
+
+/** claude-swap's verdict for a slot, or null when there is none fresh enough. */
+function verdictFor(num, now) {
+  if (now - _verdicts.at > VERDICT_TTL_MS) return null;
+  const v = _verdicts.byNum[String(num)];
+  return typeof v === "string" && v !== "" ? v : null;
+}
+
+/** Read the verdicts out of a `cswap list --json` payload. Tolerant by
+ *  construction: this is another tool's output, and a shape we do not recognise
+ *  means no verdicts rather than a thrown boot. */
+export function readVerdicts(stdout) {
+  try {
+    const d = JSON.parse(stdout);
+    const out = {};
+    for (const a of Array.isArray(d?.accounts) ? d.accounts : []) {
+      if (typeof a?.number === "number" && typeof a?.usageStatus === "string") {
+        out[String(a.number)] = a.usageStatus;
+      }
+    }
+    return out;
+  } catch { return {}; }
+}
+
 function nudgeCollector(rows, slots, now, activeNum) {
   // Did the last ask accomplish anything? Cheap proxy: the newest collection
   // timestamp in the store.
@@ -328,11 +381,34 @@ function nudgeCollector(rows, slots, now, activeNum) {
   if (!due && !freshen) return;
 
   _lastNudge = now;
-  const args = due ? ["list"] : ["auto", "--once", "--dry-run", "--json"];
+  // The due path asks for JSON and KEEPS it — see _verdicts. The dry-run path
+  // stays detached: it is the engine's own collect pass, its JSON is a different
+  // shape, and nothing here reads it.
+  if (!due) {
+    cswapBin().then(bin => runDetached(bin, ["auto", "--once", "--dry-run", "--json"])).catch(() => {});
+    return;
+  }
+  if (_verdictInFlight) return;
+  _verdictInFlight = true;
   // Fire-and-forget: this function is deliberately synchronous so callers never
-  // wait on it, and resolving the binary is the only async part.
-  cswapBin().then(bin => runDetached(bin, args)).catch(() => {});
+  // wait on it, and resolving the binary is the only async part. `run` rather
+  // than `runDetached` only so the output can be read; the caller is no more
+  // aware of it than before.
+  cswapBin()
+    .then(bin => run(bin, ["list", "--json"], { timeout: VERDICT_TIMEOUT_MS }))
+    .then(out => {
+      const byNum = out?.ok ? readVerdicts(out.stdout) : {};
+      // Replaced whole rather than merged. A slot that has gone away must not
+      // keep the verdict it had when it was last seen.
+      if (Object.keys(byNum).length) _verdicts = { at: Date.now(), byNum };
+    })
+    .catch(() => {})
+    .finally(() => { _verdictInFlight = false; });
 }
+
+/** Long enough for a cold collection over a slow network, short enough that a
+ *  wedged claude-swap does not hold a child for the rest of the day. */
+const VERDICT_TIMEOUT_MS = 90_000;
 
 async function readJson(path) {
   try {
@@ -531,6 +607,11 @@ async function readRoster(now, gen) {
       // `staleCopy` promises the user is signed in as it, which is only
       // knowable for the active account.
       stopped:   trouble?.kind === "stopped",
+      // claude-swap's own verdict for this slot, when there is a fresh one:
+      // "no_credentials", "relogin_required", "keychain_unavailable", … It is
+      // what turns "not collecting" into a sentence with a next step in it, and
+      // it is null on every machine where the collector has not been asked yet.
+      collector: verdictFor(num, now),
     });
   }
 

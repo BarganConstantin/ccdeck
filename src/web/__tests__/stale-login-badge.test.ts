@@ -19,7 +19,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { authTrouble } from "../../server/claude-accounts.mjs";
+import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
+import { collectorText } from "../components/AccountsPanel";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -293,5 +294,62 @@ describe("what it costs to ask", () => {
 
   it("never lets that subprocess fail the whole read", () => {
     expect(server).toMatch(/currentIdentity\(\)\.catch\(\(\) => null\)/);
+  });
+});
+
+describe("what claude-swap says, in its own words", () => {
+  // `usage.json` records numbers and a failure COUNTER; `cswap list --json`
+  // records a per-slot VERDICT, and the two answer different questions.
+  // Measured at one instant, same account:
+  //
+  //   usage.json  ->  consecutiveFailures: 0, lastError: null
+  //   cswap list  ->  usageStatus: "no_credentials"
+  it("reads the verdicts out of claude-swap's own listing", () => {
+    const out = readVerdicts(JSON.stringify({
+      accounts: [
+        { number: 1, email: "a@b", usageStatus: "no_credentials" },
+        { number: 2, email: "c@d", usageStatus: "ok" },
+        { number: 4, email: "e@f", usageStatus: "relogin_required" },
+      ],
+    }));
+    expect(out).toEqual({ 1: "no_credentials", 2: "ok", 4: "relogin_required" });
+  });
+
+  it("treats a shape it does not know as no verdicts, never as a throw", () => {
+    // Another tool's output, on a boot path. A version that changes its JSON
+    // must cost the reason, not the deck.
+    expect(readVerdicts("not json at all")).toEqual({});
+    expect(readVerdicts("{}")).toEqual({});
+    expect(readVerdicts(JSON.stringify({ accounts: "no" }))).toEqual({});
+    expect(readVerdicts(JSON.stringify({ accounts: [{ number: "1", usageStatus: "ok" }] }))).toEqual({});
+    expect(readVerdicts(JSON.stringify({ accounts: [{ number: 1 }] }))).toEqual({});
+  });
+
+  it("gives each state the sentence its remedy needs", () => {
+    // Three states, three different things for a person to do. Until this
+    // existed the panel collapsed all of them into one silence.
+    expect(collectorText("no_credentials")?.text).toBe("no stored login");
+    expect(collectorText("no_credentials")?.hint).toMatch(/paired deck/);
+    expect(collectorText("relogin_required")?.text).toBe("login expired");
+    expect(collectorText("relogin_required")?.hint).toMatch(/[Ss]igning in again/);
+  });
+
+  it("says a keychain failure is about the DECK, not the account", () => {
+    // The one that would send a person to fix something that is not broken.
+    // Measured on one machine, one command, one instant, two sessions:
+    //
+    //   from a background session  ->  keychain_unavailable, keychain_unavailable
+    //   from the GUI session       ->  no_credentials,       relogin_required
+    const v = collectorText("keychain_unavailable");
+    expect(v?.text).toBe("keychain unreadable");
+    expect(v?.hint).toMatch(/about the deck, not the account/);
+    expect(v?.hint).toMatch(/background session/);
+  });
+
+  it("says nothing at all when there is no verdict yet", () => {
+    // The first minutes of every boot, before the collector has been asked.
+    expect(collectorText(null)).toBeNull();
+    // And an unknown code is shown as a code rather than dressed as a sentence.
+    expect(collectorText("something_new")?.text).toBe("something_new");
   });
 });
