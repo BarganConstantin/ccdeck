@@ -760,3 +760,85 @@ describe("a heal that healed nothing", () => {
     expect(src.slice(at, at + 1600)).not.toMatch(/force:\s*true/);
   });
 });
+
+/** One deck's row for another, as the panel is handed it. */
+function peerRow(d: { e: { status: () => { peers: unknown[] } } }, fp: string) {
+  return (d.e.status().peers as Array<Record<string, any>>).find(p => (p.peerFp ?? p.fp) === fp);
+}
+
+describe("what a paired deck says about itself", () => {
+  const MAC = { version: "3.21.0", os: "macOS 26.5", arch: "arm64" };
+  const WIN = { version: "3.20.9", os: "Windows 11", arch: "x64" };
+
+  it("trades cards both ways once the two are paired", async () => {
+    const a = await deck(store([]), "Deck-A", [], { about: MAC });
+    const b = await deck(store([]), "Deck-B", [], { about: WIN });
+    await point(a, b, b.port);
+    await a.e.round();
+    // The deck that dialled learned the other's from the answer…
+    expect(peerRow(a, b.id.fp)?.about).toMatchObject(WIN);
+    // …and the deck that answered learned the caller's from the question,
+    // which is the only way a deck that only calls in is ever known.
+    expect(peerRow(b, a.id.fp)?.about).toMatchObject(MAC);
+    // Each carries its own too, so a version can be read against it.
+    expect(a.e.status().about).toEqual(MAC);
+  }, 20_000);
+
+  it("says nothing for a deck built without one, which is every older deck", async () => {
+    const a = await deck(store([]), "Deck-A", [], { about: MAC });
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(peerRow(a, b.id.fp)?.about).toBeNull();
+    // And the round still went through: a card is extra, never required.
+    expect(peerRow(a, b.id.fp)?.last?.error).toBeUndefined();
+  }, 20_000);
+
+  it("keeps the logins the other deck offered, and only those", async () => {
+    const theirs = store([
+      { num: 5, email: "shared@x.md", orgUuid: "o1", alive: true },
+      { num: 6, email: "dead@x.md", orgUuid: "o2", alive: false },
+      { num: 7, email: "private@x.md", orgUuid: "o3", alive: true },
+    ]);
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(theirs, "Deck-B", [K("shared@x.md", "o1"), K("dead@x.md", "o2")]);
+    await point(a, b, b.port);
+    await a.e.round();
+    const offers = peerRow(a, b.id.fp)?.offers;
+    // The one nobody ticked is not listed — not even as withheld.
+    expect(offers?.accounts).toEqual([
+      { key: K("dead@x.md", "o2"), email: "dead@x.md", alive: false },
+      { key: K("shared@x.md", "o1"), email: "shared@x.md", alive: true },
+    ]);
+    expect(offers?.at).toBeTypeOf("number");
+  }, 20_000);
+
+  it("remembers when somebody said yes, on both sides", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(peerRow(a, b.id.fp)?.pairedAt).toBeTypeOf("number");
+    expect(peerRow(b, a.id.fp)?.pairedAt).toBeTypeOf("number");
+    // Written through to what the caller keeps, which is what survives a restart.
+    expect(a.trusted[0]?.at).toBeTypeOf("number");
+  }, 20_000);
+
+  it("checks one deck on demand, and says so about one it has no way to dial", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(await a.e.roundOne(b.id.fp)).toEqual([]);
+    expect(peerRow(a, b.id.fp)?.last?.error).toBeUndefined();
+    expect(await a.e.roundOne("nobody-at-all")).toBeNull();
+  }, 20_000);
+
+  it("hands the page the names somebody here gave other decks, without a restart", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const port = a.e.status().port;
+    await a.e.apply({ aliases: { "aaa-bbb-ccc-ddd": "Office" } });
+    expect(a.e.status().aliases).toEqual({ "aaa-bbb-ccc-ddd": "Office" });
+    expect(a.e.status().port).toBe(port);
+  });
+});

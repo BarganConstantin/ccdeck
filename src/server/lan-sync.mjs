@@ -592,7 +592,11 @@ export function addTrusted(trusted, entry) {
       added: false,
     };
   }
-  return { list: [...list, { fp: entry.fp, pub: entry.pub, name: entry.name ?? "" }], added: true };
+  // WHEN, for the panel's "paired since". Only a new pin gets one: a deck that
+  // was already trusted keeps whatever date it had, and one pinned before this
+  // field existed keeps having none rather than being given today's.
+  const at = Number.isFinite(entry.at) && entry.at > 0 ? { at: entry.at } : {};
+  return { list: [...list, { fp: entry.fp, pub: entry.pub, name: entry.name ?? "", ...at }], added: true };
 }
 
 /** Take one back out. Unpairing stops what has not happened yet and takes back

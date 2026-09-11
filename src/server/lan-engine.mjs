@@ -30,6 +30,7 @@
 import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
+import { openAbout, sealAbout } from "./lan-about.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -96,6 +97,20 @@ export function localAddresses(faces = networkInterfaces()) {
 }
 
 /**
+ * The accounts a peer's manifest listed, as the panel may keep them.
+ *
+ * It arrived from another machine, so it is read rather than trusted: strings
+ * where strings belong, a boolean for the verdict, and no more rows than a
+ * manifest may carry. What is kept is only what the deck's dialog draws.
+ */
+export function offered(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
+    .slice(0, 50)
+    .map(a => ({ key: a.key.slice(0, 320), email: a.email.slice(0, 254), alive: a.alive === true }));
+}
+
+/**
  * One deck's LAN sync, from settings to a healed account.
  *
  * `deps` is every side effect: reading accounts, exporting one, importing one.
@@ -118,10 +133,13 @@ export function createEngine({
    * with. Nothing secret leaves, and it is still a test shouting at an office.
    */
   createSocket,
+  /** This deck's own card — its version and its machine — handed to every
+   *  paired deck and to nobody else. See lan-about.mjs. */
+  about = null,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
-    autoAsk: true, autoAccept: true,
+    autoAsk: true, autoAccept: true, aliases: {},
   };
   let identity = null;
   let beacon = null;
@@ -166,6 +184,16 @@ export function createEngine({
   /** What the last round did, for the panel. Not a log: one line per peer, most
    *  recent only, because "what happened" is a question about now. */
   const lastRound = new Map();
+  /** What each paired deck said about itself — version, operating system,
+   *  architecture — keyed by fingerprint, most recent only. Filled from both
+   *  directions: the manifest a deck answers with, and the question a deck that
+   *  calls in asks. See lan-about.mjs. */
+  const aboutBy = new Map();
+  /** The accounts each paired deck offered in its last manifest, keyed by
+   *  fingerprint. Kept APART from lastRound on purpose: a round that fails
+   *  replaces that line, and the list a deck offered a minute ago is still the
+   *  best answer to "what does it share" while it is unreachable. */
+  const offersBy = new Map();
   /** When the last round FINISHED, whatever it did or failed to do. The panel's
    *  `↻` fires one on demand and the loop fires one on its own; a reader who
    *  pressed it wants to know it happened, and a reader who did not wants to
@@ -212,6 +240,15 @@ export function createEngine({
     }));
   };
 
+  /** This deck's card for one connection, as a frame field — or nothing, for a
+   *  deck built without one. Spread into the frame, so a deck from before this
+   *  existed receives exactly the frame it always did plus one key it never
+   *  reads. */
+  const cardFor = (key, toFp) => {
+    const sealed = sealAbout(key, about, identity.fp, toFp);
+    return sealed ? { about: sealed } : {};
+  };
+
   /** Frames from a deck that finished the handshake AND that somebody here has
    *  accepted. Nothing reaches this before both, which is the whole point of
    *  where the two checks sit. `ctx.key` is this connection's key and no other
@@ -222,8 +259,16 @@ export function createEngine({
     if (ctx?.peerFp) spokeAt.set(ctx.peerFp, now());
     try {
       if (msg.t === "manifest") {
+        // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
+        // that calls in ever says what it is: nothing here dials it, so nothing
+        // here ever asks. A seal that does not open is a deck that said nothing.
+        const card = openAbout(ctx.key, msg.about, ctx.peerFp, identity.fp);
+        if (card) aboutBy.set(ctx.peerFp, { ...card, at: now() });
         const accounts = await localAccounts();
-        return ctx.send({ t: "manifest", accounts: manifestFor(accounts, cfg.shared) });
+        return ctx.send({
+          t: "manifest", accounts: manifestFor(accounts, cfg.shared),
+          ...cardFor(ctx.key, ctx.peerFp),
+        });
       }
       if (msg.t === "want") {
         // A SECOND PROOF, for the one operation that moves a credential. The
@@ -313,13 +358,18 @@ export function createEngine({
 
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
         const { list, added } = addTrusted(cfg.trusted, {
-          fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName,
+          fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName, at: now(),
         });
         if (added) { cfg = { ...cfg, trusted: list }; onTrust?.(list); }
       }
 
-      const theirs = await ask({ t: "manifest" });
+      // Our card goes with the question and theirs comes back with the answer
+      // — see lan-about.mjs for why it is here and nowhere earlier.
+      const theirs = await ask({ t: "manifest", ...cardFor(conn.key, conn.peerFp) });
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
+      const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
+      if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });
+      offersBy.set(conn.peerFp, { at: now(), accounts: offered(theirs.accounts) });
       const mine = await localAccounts();
       // Only accounts I have also ticked. Sharing is mutual by construction:
       // a peer cannot push an account at me that I never agreed to hold.
@@ -449,7 +499,7 @@ export function createEngine({
         // Somebody used the token. They are pinned, and the token is retired —
         // one that pairs twice is one worth stealing twice.
         onInviteUsed: entry => {
-          const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name });
+          const { list } = addTrusted(cfg.trusted, { fp: entry.fp, pub: entry.pub, name: entry.name, at: now() });
           cfg = { ...cfg, trusted: list };
           invite = null;
           // AND DIAL IT BACK, KEPT. Accepting made it welcome and left this
@@ -612,7 +662,7 @@ export function createEngine({
             name: cfg.name, myPort: server.port(), code: inv.code,
           });
           const { list } = addTrusted(cfg.trusted, {
-            fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name,
+            fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
           });
           cfg = { ...cfg, trusted: list };
           this.addPeer(at.addr, at.port);
@@ -667,7 +717,7 @@ export function createEngine({
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
       }
-      const { list, added } = addTrusted(cfg.trusted, { fp, pub: seen.pub, name: seen.name });
+      const { list, added } = addTrusted(cfg.trusted, { fp, pub: seen.pub, name: seen.name, at: now() });
       cfg = { ...cfg, trusted: list };
       pending.delete(fp);
       strangers.delete(fp);
@@ -724,6 +774,24 @@ export function createEngine({
       return true;
     },
     round,
+    /**
+     * One deck, now — the `check now` in that deck's own dialog.
+     *
+     * Found the way the list found it: heard on the network under its own
+     * fingerprint, or dialled at an address whose answer was that fingerprint.
+     * Null when it is neither, which is a deck that only calls in — nothing
+     * here holds an address for it, so there is nobody to dial.
+     *
+     * `roundAt` is left alone: it says when EVERY paired deck was last asked,
+     * and asking one of them does not make that true.
+     */
+    async roundOne(fp) {
+      if (!beacon || typeof fp !== "string" || !fp) return null;
+      const heard = [...beacon.peers.values()].find(p => p.fp === fp && stillListed(p, now()));
+      const typed = [...manual.values()].find(p => learned.get(`${p.addr}:${p.port}`)?.fp === fp);
+      const peer = heard ?? typed;
+      return peer ? roundWith(peer) : null;
+    },
     /** Dial this address on every round from now on. Returns false for an
      *  address that is not one, rather than storing a row that can never
      *  connect and reports an error every minute forever. */
@@ -758,6 +826,11 @@ export function createEngine({
         // which on a deck that has just started is the honest answer.
         checkedAt: roundAt,
         name: cfg.name,
+        // This deck's own card, so the panel can read a peer's version against
+        // it; and the names somebody here gave other decks, which the panel
+        // and the request dialog draw in place of the ones those decks chose.
+        about: about ?? null,
+        aliases: { ...(cfg.aliases ?? {}) },
         // Whether this deck asks on its own, and whether a request that
         // arrives is answered here or answered for you.
         autoAsk: !!cfg.autoAsk,
@@ -820,6 +893,15 @@ export function createEngine({
             had.met = had.met || row.met;
             if (row.name && !had.name) had.name = row.name;
           };
+          // WHAT THE DECK'S OWN DIALOG DRAWS, by identity: the card it sent,
+          // the logins it offered last, and when somebody here said yes. All
+          // three are keyed by the fingerprint that proved itself, so both
+          // halves of a merged row read the same answer.
+          const card = id => ({
+            about: aboutBy.get(id) ?? null,
+            offers: offersBy.get(id) ?? null,
+            pairedAt: trustedPeer(cfg.trusted, id)?.at ?? null,
+          });
           for (const p of [...beacon.peers.values(), ...manual.values()]) {
             if (!stillListed(p, now())) continue;
             const met = p.manual ? learned.get(`${p.addr}:${p.port}`) : null;
@@ -834,6 +916,7 @@ export function createEngine({
               met: !!met,
               paired: !!trustedPeer(cfg.trusted, id),
               last: lastRound.get(p.fp) ?? null,
+              ...card(id),
             });
           }
           // A DECK WE ARE PAIRED WITH AND DO NOT DIAL. It called us, we accepted

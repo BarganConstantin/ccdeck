@@ -26,8 +26,9 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
-import { DEFAULTS as PREF_DEFAULTS, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
+import { aboutThisDeck } from "./lan-about.mjs";
 import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
@@ -3192,6 +3193,10 @@ async function handlePrefsWrite(req, res) {
 // sockets as those change. Nothing here touches a credential — see
 // lan-engine.mjs, which passes an opaque blob between two claude-swap commands.
 const lanEngine = createEngine({
+  // This deck's version and machine, for the decks it is paired with and
+  // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
+  // is read at import: it is what this process actually runs.
+  about: aboutThisDeck({ version: RUNNING_VERSION }),
   readAccounts: async () => {
     const { fetchClaudeAccounts } = await import("./claude-accounts.mjs");
     return fetchClaudeAccounts();
@@ -3324,6 +3329,9 @@ async function applyLanPrefs() {
       port: lan.port || 0,
       autoAsk: lan.autoAsk !== false,
       autoAccept: lan.autoAccept !== false,
+      // Names somebody here gave other decks. The engine only hands them to
+      // the page, so a change never restarts anything.
+      aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},
     });
     // Wholesale, so removing an address in the panel really stops it being
     // dialled rather than only taking the row away.
@@ -3461,6 +3469,21 @@ async function handleLanPeer(req, res) {
       return send(res, 200, { ok: lanEngine.allow(fp), ...lanEngine.status() });
     case "unpair":
       return send(res, 200, { ok: lanEngine.unpair(fp), ...lanEngine.status() });
+    // WHAT THIS DECK CALLS THAT ONE, and nobody else sees it. Keyed by the
+    // fingerprint, so it follows the machine across a new address or a new
+    // name of its own choosing. An empty name takes the alias away.
+    //
+    // The whole map is rebuilt from the one on disk rather than sent by the
+    // page, so two tabs renaming two decks cannot undo each other.
+    case "alias": {
+      if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
+      const name = cleanAlias(body.name);
+      const next = { ...(_prefs?.lan?.aliases ?? {}) };
+      if (name) next[fp] = name; else delete next[fp];
+      _prefs = await writePrefs({ lan: { aliases: next } });
+      await lanEngine.apply({ aliases: _prefs.lan.aliases });
+      return send(res, 200, { ok: true, ...lanEngine.status() });
+    }
     default:
       return send(res, 400, { ok: false, reason: "unknown_action" });
   }
@@ -3468,8 +3491,21 @@ async function handleLanPeer(req, res) {
 
 /** Ask every peer now rather than at the next tick — the button beside the
  *  list, for somebody who has just fixed a login on the other machine and does
- *  not want to wait a minute to see it arrive. */
+ *  not want to wait a minute to see it arrive.
+ *
+ *  Or ONE peer, when the body names it: the `check now` in a deck's own
+ *  dialog. A deck that only calls in has no address here, and says so rather
+ *  than reporting a round that asked nobody. */
 async function handleLanSync(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* the whole-list press sends nothing to read */ }
+  const fp = body && typeof body.fp === "string" ? body.fp : null;
+  if (fp) {
+    const done = await lanEngine.roundOne(fp);
+    if (done == null) return send(res, 409, { ok: false, reason: "no_address" });
+    return send(res, 200, { ok: true, done, ...lanEngine.status() });
+  }
   const done = await lanEngine.round();
   return send(res, 200, { ok: true, done, ...lanEngine.status() });
 }

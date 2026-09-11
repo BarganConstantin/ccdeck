@@ -8,7 +8,7 @@
 // key never reaches a page.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
-import { DEFAULTS, normalise, publicPrefs, PREFS_MODE, writePrefs } from "../../server/deck-prefs.mjs";
+import { ALIAS_MAX, DEFAULTS, cleanAlias, isAliasKey, normalise, publicPrefs, PREFS_MODE, writePrefs } from "../../server/deck-prefs.mjs";
 
 describe("where the passphrase is written", () => {
   it("creates the file readable by nobody else", () => {
@@ -86,7 +86,7 @@ describe("the shape on disk", () => {
     // while `shared` is empty — both of which a person has to change on purpose.
     expect(normalise({}).lan).toEqual({
       enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: true,
+      autoAsk: true, autoAccept: true, aliases: {},
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
@@ -107,7 +107,7 @@ describe("the shape on disk", () => {
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
     expect(saved!.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: true,
+      autoAsk: true, autoAccept: true, aliases: {},
     });
   });
 
@@ -149,5 +149,56 @@ describe("the shape on disk", () => {
     const p = normalise({ notifications: true, somethingNewer: 1, lan: { enabled: true, futureField: 2 } });
     expect(p).not.toHaveProperty("somethingNewer");
     expect(p.lan).not.toHaveProperty("futureField");
+  });
+
+  it("keeps when a deck was accepted, and invents no date for one that has none", () => {
+    const dated = { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "Desktop", at: 1_790_000_000_000 };
+    expect(normalise({ lan: { trusted: [dated] } }).lan.trusted).toEqual([dated]);
+    // Pinned before the date was kept: it stays undated rather than getting
+    // today's, which would be a lie about when somebody said yes.
+    const old = { fp: "aaa-bbb-ccc-ddd", pub: "PUB", name: "Desktop" };
+    expect(normalise({ lan: { trusted: [old] } }).lan.trusted).toEqual([old]);
+    for (const junk of ["yesterday", -5, 0, NaN, null]) {
+      expect(normalise({ lan: { trusted: [{ ...old, at: junk }] } }).lan.trusted, String(junk)).toEqual([old]);
+    }
+  });
+});
+
+describe("what somebody here calls another deck", () => {
+  it("keeps a name per fingerprint, cleaned", () => {
+    const p = normalise({ lan: { aliases: { "aaa-bbb-ccc-ddd": "  Dorin   Office  " } } });
+    expect(p.lan.aliases).toEqual({ "aaa-bbb-ccc-ddd": "Dorin Office" });
+  });
+
+  it("drops an empty name, which is how an alias is taken away", () => {
+    expect(normalise({ lan: { aliases: { "aaa-bbb-ccc-ddd": "   " } } }).lan.aliases).toEqual({});
+  });
+
+  it("never keys one by a typed address, which names no deck", () => {
+    // A row nothing has answered at carries `manual:host:port` as its
+    // fingerprint. An alias stored under that would follow an address, not a
+    // machine, and outlive whatever answers there next.
+    const p = normalise({ lan: { aliases: { "manual:192.168.1.5:5000": "Office", __proto__x: "x" } } });
+    expect(p.lan.aliases).toEqual({});
+    expect(isAliasKey("manual:192.168.1.5:5000")).toBe(false);
+    expect(isAliasKey("aaa-bbb-ccc-ddd")).toBe(true);
+  });
+
+  it("takes control characters out and stops at the length the column can hold", () => {
+    const esc = String.fromCharCode(27);
+    expect(cleanAlias(`Dorin${esc}[2J Office`)).toBe("Dorin [2J Office");
+    expect([...cleanAlias("x".repeat(200))]).toHaveLength(ALIAS_MAX);
+    for (const junk of [5, null, {}, []]) expect(cleanAlias(junk), String(junk)).toBe("");
+  });
+
+  it("refuses a map that is not a map", () => {
+    for (const junk of ["Office", 5, null, ["a"]]) {
+      expect(normalise({ lan: { aliases: junk } }).lan.aliases, JSON.stringify(junk)).toEqual({});
+    }
+  });
+
+  it("is sent to the page, because the page is what draws it", () => {
+    const p = normalise({ lan: { aliases: { "aaa-bbb-ccc-ddd": "Dorin Office" } } });
+    expect(publicPrefs(p).lan.aliases).toEqual({ "aaa-bbb-ccc-ddd": "Dorin Office" });
   });
 });

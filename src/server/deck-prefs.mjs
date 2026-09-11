@@ -74,6 +74,9 @@ export const DEFAULTS = Object.freeze({
     // the dialog that turns the feature on prints them.
     autoAsk: true,
     autoAccept: true,
+    // What somebody HERE calls another deck, keyed by its fingerprint. The name
+    // a deck gives itself is its owner's to choose; this is the other half.
+    aliases: Object.freeze({}),
   }),
 });
 
@@ -89,6 +92,40 @@ export const DEFAULTS = Object.freeze({
  *  argument at length: a write-then-chmod leaves the file readable for the
  *  window between the two, which is exactly when a secret is in it. */
 export const PREFS_MODE = 0o600;
+
+/** The longest name somebody here may give another deck. The same order as a
+ *  deck's own name, and short enough to stay one line in the panel's column. */
+export const ALIAS_MAX = 48;
+
+/** A name somebody typed for another deck, cleaned — or "" for one with
+ *  nothing left in it, which is how an alias is taken away. Control characters
+ *  go the way cleanName sends them: this string reaches a terminal as well as a
+ *  page. */
+export function cleanAlias(raw) {
+  if (typeof raw !== "string") return "";
+  const flat = raw.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+  return [...flat].slice(0, ALIAS_MAX).join("").trim();
+}
+
+/** A fingerprint an alias may be kept under. Real ones are `abc-def-012-345`;
+ *  what matters here is only that a typed address's placeholder — which has a
+ *  colon in it and names no deck — can never be one, and that nothing exotic
+ *  becomes a key in an object this file writes back to disk. */
+export function isAliasKey(fp) {
+  return typeof fp === "string" && /^[A-Za-z0-9-]{1,64}$/.test(fp);
+}
+
+/** The alias map, coerced. A page writes it; a hand-edited file can hold
+ *  anything. Capped, because nothing legitimate is anywhere near it. */
+function aliasesFrom(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [fp, name] of Object.entries(raw).slice(0, 256)) {
+    const clean = cleanAlias(name);
+    if (isAliasKey(fp) && clean) out[fp] = clean;
+  }
+  return out;
+}
 
 /** One LAN section, coerced. Unknown keys dropped like everything else here,
  *  and the two lists forced to arrays of strings — they arrive from a page and
@@ -113,7 +150,13 @@ function normaliseLan(raw) {
     // cannot be checked is worse than no entry at all.
     trusted: (Array.isArray(src.trusted) ? src.trusted : [])
       .filter(t => t && typeof t.fp === "string" && typeof t.pub === "string")
-      .map(t => ({ fp: t.fp, pub: t.pub, name: typeof t.name === "string" ? t.name : "" })),
+      .map(t => ({
+        fp: t.fp, pub: t.pub, name: typeof t.name === "string" ? t.name : "",
+        // When somebody here said yes. Absent on every pin made before this was
+        // kept, and absent is drawn as "before" rather than guessed.
+        ...(Number.isFinite(t.at) && t.at > 0 ? { at: t.at } : {}),
+      })),
+    aliases: aliasesFrom(src.aliases),
     // The port this deck listened on last time, so an address somebody typed on
     // the other machine still works after a restart. It asked the OS for a new
     // one every start, which is invisible while broadcast works and is exactly
