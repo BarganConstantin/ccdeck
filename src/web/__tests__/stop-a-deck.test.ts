@@ -304,7 +304,7 @@ describe("which deck --stop ends", () => {
   it("runs above the migration, and never starts a server", () => {
     // A command that ends a deck has no business moving that deck's files on
     // the way past, and asking a server to stop must not require starting one.
-    const gate = DECK.indexOf("if (flags.stop || flags.status || flags.logs) {");
+    const gate = DECK.indexOf("if (flags.stop || flags.status || flags.logs || flags.installService");
     const migrate = DECK.indexOf("migrateDeckFiles({");
     const indexImport = DECK.indexOf('"src/server/index.mjs"');
     expect(gate).toBeGreaterThan(0);

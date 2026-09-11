@@ -202,6 +202,18 @@ it. `ccdeck --stop` ends it, `ccdeck --status` says what is running, and
 `ccdeck --logs` shows what it wrote after you stopped watching. Ctrl+C while the
 boot is still printing cancels the start, which is the one thing it still means.
 
+It also starts when you log in, so a reboot does not cost you the morning's
+events. That is set up once, on the first run, and said out loud when it happens;
+`ccdeck --uninstall-service` undoes it and `ccdeck --uninstall` takes it with the
+hooks. A launchd agent on macOS, a `systemd --user` unit on Linux, a Task
+Scheduler logon task on Windows — none of them carrying a restart policy of its
+own, because the one that decides when a crashed deck stops coming back lives in
+ccdeck and two policies over one process is how a stop becomes a suggestion. An
+`npx` run never installs one: it would name a path inside npm's cache, which npm
+deletes without warning. On Linux, `systemd --user` is torn down at logout unless
+`loginctl enable-linger` is on for your account — the install says so rather than
+changing that for you.
+
 If the deck falls over on its own, it comes back — five times in ten minutes,
 with the wait doubling each time, and then it stops and says so in the log rather
 than spinning on a machine nobody is watching. A clean `--stop` is never answered

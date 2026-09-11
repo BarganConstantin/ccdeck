@@ -138,13 +138,16 @@ describe("a command line that is not a start", () => {
   it("never detaches, or its answer goes into a log file", () => {
     // `ccdeck --version` detaching itself is the shape of the bug: the number
     // lands in deck.log and the terminal comes back empty.
-    expect([...ONE_SHOT].sort()).toEqual(["help", "logs", "status", "stop", "uninstall", "version"]);
+    expect([...ONE_SHOT].sort()).toEqual([
+      "help", "installService", "logs", "status", "stop", "uninstall", "uninstallService", "version",
+    ]);
     for (const flag of ONE_SHOT) expect(isOneShot({ [flag]: true }), flag).toBe(true);
     // And each of those really is what the parser produces for the flag.
     for (const [argv, key] of [
       [["--version"], "version"], [["-v"], "version"], [["-h"], "help"], [["--help"], "help"],
       [["--uninstall"], "uninstall"], [["--stop"], "stop"], [["--status"], "status"],
-      [["--logs"], "logs"],
+      [["--logs"], "logs"], [["--install-service"], "installService"],
+      [["--uninstall-service"], "uninstallService"],
     ] as [string[], string][]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ")).toBe(true);
       expect(parseArgs(argv)[key]).toBe(true);

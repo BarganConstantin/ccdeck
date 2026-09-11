@@ -92,6 +92,8 @@ const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][]
   ["--stop", ["--stop"], { stop: true }],
   ["--status", ["--status"], { status: true }],
   ["--logs", ["--logs"], { logs: true }],
+  ["--install-service", ["--install-service"], { installService: true }],
+  ["--uninstall-service", ["--uninstall-service"], { uninstallService: true }],
 ];
 
 describe("the flag list is swept whole, not sampled", () => {

@@ -106,6 +106,24 @@ if (flags.uninstall) {
   // command's job. So is the other half: turning the sound on parked the user's
   // own afplay/PowerShell Stop hooks, and once the deck is uninstalled nothing
   // else on the machine knows where they went.
+  // The login item goes too, and this is the one place the uninstall's
+  // documented narrowness has to bend. "Hook entries only" is right for the
+  // event log and the port registry, which are data somebody may still want —
+  // but a login item left behind after an uninstall is not data, it is a
+  // machine that keeps starting a deck whose hooks were just removed.
+  {
+    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
+    const { deckDataDir: dataDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+    if (svc.readServiceRecord(dataDir()) !== null) {
+      const gone = svc.uninstallService();
+      svc.writeServiceRecord(dataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
+      console.log(gone.ok
+        ? `${PRODUCT}: no longer starts at login`
+        : `${PRODUCT}: could NOT remove the login item — ${gone.reason} (${gone.path})`);
+      if (!gone.ok) refused = true;
+    }
+  }
+
   const { retireSoundHook } = await import(pathToFileURL(join(PKG_ROOT, "src/server/retire-sound-hook.mjs")).href);
   const sound = await retireSoundHook();
   if (sound.removed) console.log(`${PRODUCT}: sound hook removed`);
@@ -158,12 +176,64 @@ if (flags.uninstall) {
 // on the machine. (`--all` is the legacy capture flag, a no-op since it became
 // the default; beside `--stop` it can only mean this, and it is the word a
 // person reaches for.)
-if (flags.stop || flags.status || flags.logs) {
+if (flags.stop || flags.status || flags.logs || flags.installService || flags.uninstallService) {
   const { dash, ok: gOk, warn: gWarn, bullet, arrow } = glyphs(unicodeOK());
   const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
   const say = (line) => process.stdout.write(`${line}\n`);
 
-  const { deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+  const { deckDataDir, deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+
+  // ── --install-service / --uninstall-service ───────────────────────────────
+  // Answered before the registry is read: neither one is about a deck that is
+  // running, and both are as meaningful on a machine with no deck up as on one
+  // with three.
+  if (flags.installService || flags.uninstallService) {
+    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
+    const { isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    if (flags.uninstallService) {
+      const out = svc.uninstallService();
+      // Recorded either way. The record is what stops the next ordinary start
+      // putting back what was just taken away, and a tool that argues with its
+      // user about a login item is a tool that gets uninstalled entirely.
+      svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: PKG_VERSION });
+      say(out.ok
+        ? `\n  ${tone.ok}${gOk}${tone.reset}  no longer starts at login${tone.muted}  ${bullet}  ${out.path}${tone.reset}\n`
+        : `\n  ${tone.err}${gWarn}  could not remove it ${dash} ${out.reason}${tone.reset}\n`);
+      process.exit(out.ok ? 0 : 1);
+    }
+    if (isNpxInstall(PKG_ROOT)) {
+      // The item would name a path inside ~/.npm/_npx/<hash>/, which npm deletes
+      // whenever it feels like it — a login item pointing at nothing, forever,
+      // on a machine where nothing was ever installed.
+      say(`\n  ${tone.warn}${gWarn}  an npx run cannot start at login ${dash} its files live in npm's cache and are deleted without warning.${tone.reset}`);
+      say(`     ${tone.muted}install it first: \`npm i -g ${INVOKED_AS ?? PRODUCT}\`${tone.reset}\n`);
+      process.exit(1);
+    }
+    const out = svc.installService({
+      script: join(PKG_ROOT, "bin", "agent-dag.js"),
+      logPath: join(deckLogDir(), "deck.log"),
+      product: PRODUCT,
+    });
+    if (!out.ok) {
+      say(`\n  ${tone.err}${gWarn}  could not set it up ${dash} ${out.reason}${tone.reset}\n`);
+      process.exit(1);
+    }
+    svc.writeServiceRecord(deckDataDir(), { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path });
+    say(`\n  ${tone.ok}${gOk}${tone.reset}  starts when you log in${tone.muted}  ${bullet}  ${out.path}${tone.reset}`);
+    if (out.how === "file-only") {
+      // The file is on disk and both launchd and systemd read their directories
+      // at the next login, so this works from then on. Said rather than hidden:
+      // "it will work tomorrow" is a different promise from "it works now".
+      say(`  ${tone.warn}${gWarn}  not started now ${dash} ${out.reason}. It will come up at your next login.${tone.reset}`);
+    }
+    // The one place the three platforms genuinely differ in what this buys you.
+    if (svc.lingerState() === "off") {
+      say(`  ${tone.warn}${gWarn}  systemd tears your session down at logout, so the deck goes with it.${tone.reset}`);
+      say(`     ${tone.muted}\`sudo loginctl enable-linger $USER\` keeps it running when you are logged out.${tone.reset}`);
+    }
+    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${tone.reset}\n`);
+    process.exit(0);
+  }
   const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
   const { hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
   const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
@@ -1293,6 +1363,46 @@ if (openBrowser && !RESPAWN) {
   } catch {}
 }
 
+// ── starting at login ─────────────────────────────────────────────────────────
+//
+// ONCE PER MACHINE, EVER. The record in the deck's own data directory is what
+// makes that true: without it, `--uninstall-service` would be undone by the next
+// start, which is not an uninstall — it is a tool arguing with its user.
+//
+// After the boot rather than during it, and deliberately: a deck that could not
+// come up has no business teaching the machine to start it at every login. By
+// here the port is bound, the hooks are registered and the browser is open.
+//
+// npx is excluded and AGENTS_DECK_NO_INSTALL is honoured — see
+// shouldOfferService, which owns both rules and says why. A failure is one line
+// and nothing else: the deck is already running, and the worst case is the
+// behaviour every version before this one had.
+if (!RESPAWN) {
+  try {
+    const svc = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-service.mjs")).href);
+    const { isNpxInstall } = await import(pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href);
+    if (svc.shouldOfferService({ record: svc.readServiceRecord(deckDataDir()), npx: isNpxInstall(PKG_ROOT) })) {
+      const out = svc.installService({
+        script: join(PKG_ROOT, "bin", "agent-dag.js"),
+        logPath: join(deckLogDir(), "deck.log"),
+        product: PRODUCT,
+      });
+      svc.writeServiceRecord(deckDataDir(), out.ok
+        ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }
+        : { failed: out.reason ?? "unknown", at: new Date().toISOString(), version: PKG_VERSION });
+      // Said once, on the one run that does it, and never again. A tool that
+      // adds itself to your login items and does not mention it is a tool you
+      // find later, in a settings pane, and stop trusting.
+      write(out.ok
+        ? `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall-service\` undoes it${P.reset}\n\n`
+        : `  ${P.muted}${G.dash}  could not set ${PRODUCT} to start at login (${out.reason}) ${G.dash} it still starts when you type it${P.reset}\n\n`);
+    }
+  } catch (err) {
+    // Never fatal. The deck is up; this is a convenience that did not happen.
+    console.error(`${PRODUCT}: could not check the login item:`, err?.message ?? err);
+  }
+}
+
 // ── Pulse indicator ───────────────────────────────────────────────────────────
 // The whole line is rewritten each beat rather than just the dot: anything else
 // on this deck that has something to say writes a newline first, and after that
@@ -1559,6 +1669,9 @@ Options:
       --status             What is running on this machine, and on which ports
       --logs               What the deck wrote where a terminal would have shown
                            it, and where that file is
+      --install-service    Start the deck when you log in. Set up on first run;
+                           this is only for putting it back
+      --uninstall-service  Stop starting at login. \`--uninstall\` does this too
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
       --all                Capture every session (default). Beside --stop it
