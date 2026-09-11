@@ -35,17 +35,18 @@
 // shape is compared field for field, and anything that does not match starts
 // its own deck exactly as before.
 //
-// WHAT THIS FILE DOES NOT IMPORT. The handshake and the liveness probe live in
-// src/server/index.mjs and are HANDED IN rather than imported: importing that
-// module is importing the whole server, which arms its timers the moment it is
-// loaded, and this module is read on the boot path and by tests that must stay
-// a millisecond long. One spelling of the crypto, owned by the module that
-// serves the other end of it, reached through a parameter — hook/hook.js's
-// duplicate exists only because a script installed outside the package cannot
-// import at all, and nothing here is under that constraint.
+// WHAT THIS FILE DOES NOT IMPORT: src/server/index.mjs. That module is the whole
+// server, and it arms its timers the moment it is loaded — but this one is read
+// on the boot path, and by `ccdeck --stop`, which is a command that talks to a
+// deck and exits. Starting a server to ask a server to stop is absurd on its
+// face and, on a cold start, slower than the thing it is asking for. The
+// handshake and the liveness probe therefore live in deck-probe.mjs, a leaf
+// that imports two node builtins; index.mjs takes them from the same place and
+// re-exports them, so there is still exactly one spelling in the package.
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
+import { challengeDeck, isProcessAlive } from "./deck-probe.mjs";
 
 /**
  * Where every deck on this machine registers itself.
@@ -131,38 +132,22 @@ function usable(d) {
 }
 
 /**
- * The deck already serving what this process was about to serve, or null.
+ * Every registered deck whose pid is still there, ordered.
  *
- * Ordered by port, pid breaking the tie — the same rule electWriters uses for
- * the log, and the same reason: several decks can match, and the answer has to
- * be the same one every time it is asked rather than whatever `readdir`
- * happened to return first.
+ * NOT PROVED — this is the cheap half, and the two callers want different
+ * things from it. Ordered by port with pid breaking the tie, which is the rule
+ * electWriters uses for the log and is here for the same reason: several decks
+ * can qualify, and the answer has to be the same one every time it is asked
+ * rather than whatever `readdir` happened to return first.
  *
- * Only records that already match the shape are challenged, and the walk stops
- * at the first that proves itself. On the ordinary machine that is one loopback
- * round trip; on a machine with no deck running it is a directory listing and
- * nothing else.
- *
- * A failure to read the directory is "no deck", not an error. This runs on the
+ * A failure to read the directory is "no decks", not an error. This runs on the
  * boot path of a program whose job is to start, and there is no reading of that
  * directory whose failure is worth refusing to start over.
- *
- * `alive` and `prove` are required, not defaulted — see the note at the top.
  */
-export async function runningDeck({
-  want = {},
-  dir = deckRegistryDir(),
-  fs = { readdir, readFile },
-  self = process.pid,
-  alive,
-  prove,
-} = {}) {
-  if (typeof alive !== "function" || typeof prove !== "function") {
-    throw new TypeError("runningDeck needs `alive` and `prove` — see the note at the top of this file");
-  }
+async function registered({ dir, fs, self, alive }) {
   let names;
-  try { names = await fs.readdir(dir); } catch { return null; }
-  const candidates = [];
+  try { names = await fs.readdir(dir); } catch { return []; }
+  const out = [];
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     let d;
@@ -170,14 +155,55 @@ export async function runningDeck({
     if (!usable(d)) continue;
     if (d.pid === self) continue;
     if (!alive(d.pid)) continue;
-    if (!sameShape(d, want)) continue;
-    candidates.push(d);
+    out.push(d);
   }
-  candidates.sort((a, b) => a.port - b.port || a.pid - b.pid);
-  for (const d of candidates) {
+  return out.sort((a, b) => a.port - b.port || a.pid - b.pid);
+}
+
+/**
+ * The deck already serving what this process was about to serve, or null.
+ *
+ * Only records that already match the shape are challenged, and the walk stops
+ * at the first that proves itself. On the ordinary machine that is one loopback
+ * round trip; on a machine with no deck running it is a directory listing and
+ * nothing else. That is why this is not `liveDecks().find(…)`: the boot path
+ * must not pay a round trip per deck to answer a question the first one settles.
+ */
+export async function runningDeck({
+  want = {},
+  dir = deckRegistryDir(),
+  fs = { readdir, readFile },
+  self = process.pid,
+  alive = isProcessAlive,
+  prove = challengeDeck,
+} = {}) {
+  for (const d of await registered({ dir, fs, self, alive })) {
+    if (!sameShape(d, want)) continue;
     if (await prove(d.port, d.token)) return d;
   }
   return null;
+}
+
+/**
+ * Every deck on this machine that answered a challenge, in port order.
+ *
+ * The list `--status` prints and the list `--stop` chooses from. Everything is
+ * challenged here, unlike runningDeck: a list that quietly omitted a deck it
+ * could not be bothered to ask about would be worse than no list, because the
+ * whole reason to run `--status` is to find the process you did not know was
+ * there. The round trips go out together — one deadline for the lot, not one
+ * after another — since they are independent and each is bounded at 400ms.
+ */
+export async function liveDecks({
+  dir = deckRegistryDir(),
+  fs = { readdir, readFile },
+  self = process.pid,
+  alive = isProcessAlive,
+  prove = challengeDeck,
+} = {}) {
+  const all = await registered({ dir, fs, self, alive });
+  const proved = await Promise.all(all.map(d => prove(d.port, d.token).then(ok => (ok ? d : null))));
+  return proved.filter(Boolean);
 }
 
 /**

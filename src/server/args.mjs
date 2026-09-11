@@ -141,6 +141,8 @@ export function parseArgs(args) {
     else if (a === "-p" || a === "--port") set("port", "a port number");
     else if (a === "--no-open") out.noOpen = true;
     else if (a === "--new") out.new = true;
+    else if (a === "--stop") out.stop = true;
+    else if (a === "--status") out.status = true;
     else if (a === "--uninstall") out.uninstall = true;
     else if (a === "--workspace") set("workspace", "a path");
     else if (a === "--scope") out.scope = true;

@@ -77,15 +77,20 @@ const ADDED: [token: string, argv: string[], parsed: Record<string, unknown>][] 
   ["--version", ["--version"], { version: true }],
 ];
 
-// ── the one the second-deck attach added ────────────────────────────────────
+// ── the three that came with the deck outliving its terminal ────────────────
 //
 // `--new` is the escape hatch for the person who really does want two decks on
 // one machine: without it a bare `ccdeck` beside a running deck opens that
-// deck's tab instead of building a rival on a random port. It is in its own
-// table rather than folded into KEPT because KEPT means "already worked", and
-// the sweep below has to keep meaning what it says.
+// deck's tab instead of building a rival on a random port. `--stop` and
+// `--status` are the other half of the same change — once the deck survives the
+// terminal, Ctrl+C is not an off switch any more and the off switch has to be
+// spelled somewhere. All three are in their own table rather than folded into
+// KEPT because KEPT means "already worked", and the sweep below has to keep
+// meaning what it says.
 const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][] = [
   ["--new", ["--new"], { new: true }],
+  ["--stop", ["--stop"], { stop: true }],
+  ["--status", ["--status"], { status: true }],
 ];
 
 describe("the flag list is swept whole, not sampled", () => {
@@ -255,7 +260,14 @@ function runDeck(args: string[], timeoutMs = 20_000) {
         // nothing it might otherwise probe is on this machine's real paths.
         // Neither matters on the --version path, which exits before any of that
         // is read — which is the point being asserted.
-        env: { ...process.env, NO_COLOR: "1", CI: "1" },
+        //
+        // FORCE_COLOR is DELETED rather than left to the ambient environment.
+        // Node prints "Warning: The 'NO_COLOR' env is ignored due to the
+        // 'FORCE_COLOR' env being set" to stderr when it sees both, and the
+        // assertion below is that stderr is empty — so a developer who happens
+        // to export FORCE_COLOR gets a red suite over a warning about the very
+        // variable this line sets.
+        env: { ...process.env, FORCE_COLOR: undefined, NO_COLOR: "1", CI: "1" },
       });
       let out = "";
       let err = "";

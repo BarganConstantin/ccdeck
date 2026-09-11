@@ -709,7 +709,7 @@ async function ensureDiscoveryDir() {
  * the target already had — a first registration, or one left by an earlier run
  * under a recycled pid, would otherwise keep whatever the umask handed it.
  */
-export async function writeDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "" }) {
+export async function writeDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null }) {
   await ensureDiscoveryDir();
   const file = discoveryPath();
   const data = {
@@ -757,6 +757,14 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // it found is the version the user just asked for. Never a decision: a
     // rival deck on a random port is worse than an older deck said out loud.
     version: typeof version === "string" ? version : "",
+    // The supervisor above this worker, or null when nothing is supervising.
+    //
+    // Only `ccdeck --stop` reads it, and only on the path where the polite
+    // request failed. A worker killed on its own leaves its supervisor alive,
+    // and a supervisor that puts crashed workers back would answer that kill by
+    // starting the deck again — so the ladder has to end the parent first and
+    // the child second, which it cannot do without being told who the parent is.
+    parent: Number.isInteger(parent) ? parent : null,
     startedAt: new Date().toISOString(),
   };
   await writeFileAtomic(file, JSON.stringify(data, null, 2) + "\n");
@@ -791,7 +799,7 @@ export function discoveryPath() {
  * forever, which for the log path means no deck can tell which of them share a
  * file and they all write their own copy of every event again.
  */
-export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "" }) {
+export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null }) {
   const file = discoveryPath();
   try {
     const d = JSON.parse(stripBom(await readFile(file, "utf8")));
@@ -803,11 +811,12 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
       && (d.persist ?? null) === persistField(persist)
       && d.codex === (codex !== false)
       && d.claude === (claude !== false)
-      && (d.version ?? "") === (typeof version === "string" ? version : "")) {
+      && (d.version ?? "") === (typeof version === "string" ? version : "")
+      && (d.parent ?? null) === (Number.isInteger(parent) ? parent : null)) {
       return { file, rewritten: false };
     }
   } catch { /* missing, unreadable or corrupt — rewritten below */ }
-  await writeDiscovery({ port, workspace, token, persist, codex, claude, version });
+  await writeDiscovery({ port, workspace, token, persist, codex, claude, version, parent });
   return { file, rewritten: true };
 }
 
@@ -838,7 +847,7 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
  * `run()` never rejects (every failure is a state), so awaiting this cannot
  * throw and cannot outlast one bounded check.
  */
-export function keepDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", intervalMs = 5000, onState = null } = {}) {
+export function keepDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null, intervalMs = 5000, onState = null } = {}) {
   // null until the first outcome, which therefore always differs and is always
   // reported — the caller learns where it stands before anything else happens.
   let healthy = null;
@@ -846,7 +855,7 @@ export function keepDiscovery({ port, workspace, token, persist = null, codex = 
   const run = async () => {
     let state;
     try {
-      const { rewritten } = await ensureDiscovery({ port, workspace, token, persist, codex, claude, version });
+      const { rewritten } = await ensureDiscovery({ port, workspace, token, persist, codex, claude, version, parent });
       state = { ok: true, rewritten, file: discoveryPath(), error: null };
     } catch (err) {
       state = { ok: false, rewritten: false, file: discoveryPath(), error: err };

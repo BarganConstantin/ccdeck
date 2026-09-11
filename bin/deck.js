@@ -12,7 +12,7 @@ import { isPortValue, parseArgs } from "../src/server/args.mjs";
 import {
   CURSOR_HIDE, CURSOR_SHOW, colorProfile, fit, glyphs, labelColumn, link, motionOK, oneLine,
   palette, pulseDot, pulseText, spinnerFrames, statusLine, supportsHyperlinks, termColumns,
-  elapsedSuffix, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
+  elapsedSuffix, sinceLabel, unicodeOK, unregisteredDetail, visibleWidth, wordmark,
 } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
@@ -140,6 +140,138 @@ if (flags.uninstall) {
   process.exit(refused ? 1 : 0);
 }
 
+// ── the two questions that are about another deck, not this one ──────────────
+//
+// One-shot commands in the shape `--uninstall` already established: do the
+// thing, print, exit, and never start a server. They sit ABOVE the migration
+// and well above the heavy imports, because a command that ends a deck has no
+// business moving that deck's files on the way past, and because asking a
+// server to stop should not require starting one.
+//
+// Their own glyphs and palette rather than `G`/`P`, for the reason the bad-port
+// block below gives (#797): those are declared two hundred lines further down
+// and this runs at module top level.
+//
+// WHICH DECK. The shape a bare `ccdeck` would have built — same `sameShape` the
+// attach uses, so `ccdeck` and `ccdeck --stop` name the same deck and there is
+// one model to hold. `--port <n>` names one directly; `--all` takes every deck
+// on the machine. (`--all` is the legacy capture flag, a no-op since it became
+// the default; beside `--stop` it can only mean this, and it is the word a
+// person reaches for.)
+if (flags.stop || flags.status) {
+  const { dash, ok: gOk, warn: gWarn, bullet, arrow } = glyphs(unicodeOK());
+  const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
+  const say = (line) => process.stdout.write(`${line}\n`);
+
+  const { deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
+  const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
+  const { hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
+  const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
+  const { liveDecks, sameShape } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
+
+  // The default shape, spelled the same way the boot below spells it. NOT the
+  // shape of the flags on THIS command line: `--stop --no-codex` is not a
+  // request to stop a Codex-less deck, it is a flag that means nothing here,
+  // and reading it as a selector would make `--stop` miss the deck it was
+  // pointed at and say "nothing is running".
+  const mine = {
+    workspace: "",
+    persist: canonicalLogPath(join(deckLogDir(), "events.jsonl")),
+    codex: hasCodexInstalled(),
+    claude: hasClaudeInstalled(),
+  };
+
+  const decks = await liveDecks().catch(() => []);
+  const age = (d) => sinceLabel(Date.now() - Date.parse(d.startedAt ?? ""));
+  const where = (d) => (d.workspace ? d.workspace : "(all)");
+  const url = (d) => `http://127.0.0.1:${d.port}`;
+
+  if (flags.status) {
+    if (!decks.length) {
+      say(`\n  ${tone.muted}${dash}  no deck is running ${dash} \`${INVOKED_AS ?? PRODUCT}\` starts one${tone.reset}\n`);
+      process.exit(0);
+    }
+    // The one a bare `ccdeck` would open is marked, because with two decks up
+    // that is the only question this command is really being asked.
+    const opens = decks.find(d => sameShape(d, mine)) ?? null;
+    say("");
+    for (const d of decks) {
+      // The version chunk is dropped rather than printed as "v?" for a deck too
+      // old to publish one — same rule as the attach line, and for the same
+      // reason: a question mark beside two real facts reads as a fault.
+      const head = [d.version ? `v${d.version}` : "", `pid ${d.pid}`, `up ${age(d)}`]
+        .filter(Boolean).join(`  ${bullet}  `);
+      const mark = d === opens ? `${tone.ok}${gOk}${tone.reset}` : `${tone.muted}${bullet}${tone.reset}`;
+      const tail = d === opens ? `${tone.muted}   ${arrow} \`${INVOKED_AS ?? PRODUCT}\` opens this one${tone.reset}` : "";
+      say(`  ${mark}  ${tone.muted}${head}${tone.reset}${tail}`);
+      say(`     ${tone.accent}${tone.bold}${url(d)}${tone.reset}`);
+      say(`     ${tone.muted}${where(d)} ${bullet} ${d.persist ?? "no log (--no-persist)"}${tone.reset}`);
+    }
+    say("");
+    process.exit(0);
+  }
+
+  // ── --stop ────────────────────────────────────────────────────────────────
+  const { stopDeck } = await import(pathToFileURL(join(PKG_ROOT, "src/server/stop-deck.mjs")).href);
+  // `flags.port`, not the `rawPort` computed below: that folds in
+  // AGENT_DAG_PORT, which is how somebody RUNS a deck rather than which deck
+  // they mean to stop — and a deck started on a custom port still has the
+  // default SHAPE, so the matcher finds it without help. It is also declared
+  // below this block, which would make reading it here a ReferenceError (#797).
+  const named = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
+  const wanted = flags.all
+    ? decks
+    : named !== null
+      ? decks.filter(d => d.port === named)
+      : decks.filter(d => sameShape(d, mine)).slice(0, 1);
+
+  if (!wanted.length) {
+    // Three different silences, and saying the wrong one sends the reader
+    // looking in the wrong place. A machine with no deck at all is not a
+    // machine whose deck is scoped differently.
+    const why = !decks.length
+      ? `no deck is running`
+      : named !== null
+        ? `no deck is listening on ${named} ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists them`
+        : `no deck of this shape is running ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists the ${decks.length} that ${decks.length === 1 ? "is" : "are"}`;
+    say(`\n  ${tone.muted}${dash}  ${why}${tone.reset}\n`);
+    process.exit(0);
+  }
+
+  say("");
+  let refused = false;
+  for (const d of wanted) {
+    const was = age(d);
+    const out = await stopDeck(d);
+    if (!out.ok) {
+      refused = true;
+      say(`  ${tone.err}${gWarn}  could not stop pid ${d.pid} on ${d.port} ${dash} ${out.reason}${tone.reset}`);
+      continue;
+    }
+    // HOW it went out, not just that it did. "asked" means the deck closed its
+    // listener, unlinked its registration and left the LAN cleanly; anything
+    // else means none of that happened and the next boot has litter to sweep.
+    const how = out.how === "asked"
+      ? ""
+      : out.old
+        ? `  ${tone.muted}(${out.how} ${dash} that deck predates \`--stop\`)${tone.reset}`
+        : `  ${tone.muted}(${out.how} ${dash} it did not answer)${tone.reset}`;
+    say(`  ${tone.ok}${gOk}${tone.reset}  stopped${tone.muted}  ${bullet}  pid ${d.pid}  ${bullet}  port ${d.port}  ${bullet}  was up ${was}${tone.reset}${how}`);
+  }
+
+  // What is still up, named. A command that ends one of three decks and says
+  // only "stopped" leaves the reader believing the machine is clear.
+  const left = decks.filter(d => !wanted.includes(d));
+  if (left.length) {
+    say("");
+    say(`  ${tone.muted}${dash}  ${left.length} other deck${left.length === 1 ? "" : "s"} still running:${tone.reset}`);
+    for (const d of left) say(`       ${tone.muted}pid ${d.pid} ${bullet} ${d.port} ${bullet} ${where(d)}${tone.reset}`);
+    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --stop --port <n>\` ends one ${bullet} \`--stop --all\` ends every deck${tone.reset}`);
+  }
+  say("");
+  process.exit(refused ? 1 : 0);
+}
+
 // The port, and the one piece of argv the deck really does refuse to boot over.
 //
 // It refused before too — `--port banana` and `--port --no-open` both became
@@ -232,15 +364,8 @@ const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled } =
 // the watcher tails, and the watcher lives in that module. Recomputing the path
 // here is how the banner came to print ~/.codex/sessions on machines whose
 // sessions are somewhere else entirely — see the row further down.
-// challengeDeck and isProcessAlive come along for the "is one of ours already
-// running" question below. They live here rather than in running-deck.mjs
-// because that module must not import this one — importing the server is
-// arming its timers — so it takes both as parameters instead. See the note at
-// the top of src/server/running-deck.mjs.
-const {
-  startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace,
-  challengeDeck, isProcessAlive,
-} = await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
+const { startServer, hookToken, releaseRestart, markDeckReady, CODEX_SESSIONS_DIR, canonicalWorkspace } =
+  await import(pathToFileURL(join(PKG_ROOT, "src/server/index.mjs")).href);
 
 // Resolved here rather than left as typed, for the reason the events log above
 // is: the discovery file publishes this path, and the hook that reads it runs in
@@ -957,8 +1082,6 @@ dieWithParent(() => shutdown(0));
 if (!RESPAWN && !asksForOwnDeck(flags)) {
   const live = await runningDeck({
     want: { workspace, persist, codex: wantCodex, claude: wantClaude },
-    alive: isProcessAlive,
-    prove: challengeDeck,
   }).catch(() => null);
   if (live) {
     const liveUrl = `http://127.0.0.1:${live.port}`;
@@ -1015,6 +1138,12 @@ const starting = startServer({
   // Withheld when nothing is supervising us: without a parent, exiting is just
   // exiting, and /api/restart answers 501 so the UI hides the control.
   onRestart: SUPERVISED ? requestRestart : null,
+  // NOT withheld, unlike the restart above. A restart needs a supervisor to
+  // bring the replacement up on the same port; ending is something any deck can
+  // do on its own, supervised or not, and `ccdeck --stop` must work on both.
+  // shutdown() is a hoisted declaration precisely so it is callable from the
+  // first instruction of this module — see the long note beside it (#448).
+  onStop: () => shutdown(0),
 }).then(s => ({ ok: true, s }), err => ({ ok: false, err }));
 
 // Once-per-session setup — hook install, tool probes, registry lookups, and the
@@ -1103,6 +1232,11 @@ discovery = keepDiscovery({
   // src/server/running-deck.mjs.
   claude: wantClaude,
   version: PKG_VERSION,
+  // The supervisor above us, for `ccdeck --stop`'s fallback ladder: a worker
+  // killed under a live supervisor is a worker the supervisor puts back, so the
+  // parent has to go first and cannot be found without being told. Null when
+  // nothing is supervising, which is the same question `onRestart` asks.
+  parent: SUPERVISED ? process.ppid : null,
   onState: (state) => {
     const first = registered === null;
     registered = state.ok;
@@ -1382,9 +1516,14 @@ Options:
                            Without it, a bare \`${PRODUCT}\` beside a deck that is
                            already up opens that deck's tab instead of building
                            a rival on another port
+      --stop               Stop the deck a bare \`${PRODUCT}\` would open.
+                           With --port <n>, stop that one; with --all, stop every
+                           deck on this machine
+      --status             What is running on this machine, and on which ports
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
-      --all                Capture every session (default)
+      --all                Capture every session (default). Beside --stop it
+                           means every deck rather than every session
       --history <path>     Override events log file (default: this platform's log directory)
       --no-persist         Don't write or replay events log (RAM-only)
       --codex              Force-enable Codex capture even if ~/.codex/ missing

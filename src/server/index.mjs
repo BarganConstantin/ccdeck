@@ -10,7 +10,17 @@ import { extname, join, resolve, sep, dirname as pdirname } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+// Moved out to a leaf so that a one-shot `ccdeck --stop`, the boot-path module
+// that finds a running deck, and the tests that pin the handshake against
+// hook/hook.js can all ask these questions without importing this file and
+// arming everything in it. Re-exported below under the names they have always
+// had — see src/server/deck-probe.mjs.
+import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs";
+// The three this file's own callers and tests already name. `sameProof` and the
+// challenge deadline stay private to the leaf: they were private here too, and
+// re-exporting them would be inventing API on the way out of a move.
+export { challengeDeck, challengeProof, isProcessAlive };
 import { promisify } from "node:util";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-dir.mjs";
@@ -2036,10 +2046,6 @@ let codexWorkspace = "";
 // believing a stale "yes" is at most a few unwritten lines, against a directory
 // listing plus an HTTP round trip on every tick of every deck forever.
 const DECK_PROOF_TTL_MS = 5000;
-// The same deadline hook.js gives a challenge, and for the same reason: a
-// bodyless GET to a loopback port is sub-millisecond when a deck is there and an
-// instant ECONNREFUSED when nothing is.
-const DECK_CHALLENGE_TIMEOUT_MS = 400;
 // `${pid}:${port}:${token}` -> { at, ok }. Keyed on the record's own identity so
 // a rewritten record — a deck that restarted onto the same port with a fresh
 // token — is a new question rather than an inherited answer.
@@ -2105,57 +2111,6 @@ async function provesDeck(d) {
   return ok;
 }
 
-/**
- * One challenge round trip, resolving true only on a correct proof.
- *
- * The compare is constant-time for the reason hook.js's sameProof is: whatever
- * is on that port may not be a deck, and it must not be able to walk the
- * expected proof out of us one byte at a time by timing how long we take to hang
- * up. The nonce is fresh per call, so an answer overheard earlier is worth
- * nothing, and the token itself never leaves this process.
- */
-export function challengeDeck(port, token) {
-  return new Promise(resolve => {
-    let settled = false;
-    const finish = ok => { if (settled) return; settled = true; resolve(ok); };
-    const nonce = randomBytes(16).toString("hex");
-    const want = challengeProof(token, nonce);
-    const req = httpRequest({
-      hostname: "127.0.0.1",
-      port,
-      path: `/api/hook-challenge?nonce=${nonce}`,
-      method: "GET",
-      timeout: DECK_CHALLENGE_TIMEOUT_MS,
-    }, res => {
-      if (res.statusCode !== 200) { res.resume(); return res.on("end", () => finish(false)); }
-      let answer = "";
-      res.setEncoding("utf8");
-      res.on("data", c => {
-        answer += c;
-        // A deck answers in ~100 bytes. Anything pouring data at us is not one,
-        // and must not be allowed to grow this buffer without bound.
-        if (answer.length > 4096) { req.destroy(); finish(false); }
-      });
-      res.on("end", () => {
-        if (settled) return;
-        let proof;
-        try { proof = JSON.parse(answer).proof; } catch { return finish(false); }
-        finish(sameProof(proof, want));
-      });
-    });
-    req.on("error", () => finish(false));
-    req.on("timeout", () => req.destroy());
-    req.end();
-  });
-}
-
-/** hook.js's sameProof, for the same reason it is constant-time there. */
-function sameProof(got, want) {
-  if (typeof got !== "string") return false;
-  const a = Buffer.from(got, "utf8");
-  const b = Buffer.from(want, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 /**
  * Every deck registered right now, as its own discovery record spells it — and
@@ -4431,6 +4386,50 @@ export function markDeckReady() {
   _deckReady = true;
 }
 
+/**
+ * POST /api/shutdown — end this deck, from `ccdeck --stop`.
+ *
+ * THE TOKEN AND NOTHING ELSE. Every other mutating route accepts either the
+ * token or the deck's own page (isAuthorizedMutation), and this one must not:
+ * there is no button for it, so a page asking to end the deck is a page doing
+ * something no part of this product asks it to do. Refusing the browser half
+ * costs nothing and removes the whole class.
+ *
+ * WHY A ROUTE AND NOT A SIGNAL. Windows has none. `process.kill(pid, "SIGTERM")`
+ * there is TerminateProcess: the deck stops mid-instruction, its discovery file
+ * is left for the next boot to sweep, and its LAN beacon never says goodbye — so
+ * every paired colleague watches it time out instead of seeing it leave. One
+ * loopback POST behaves identically on all three platforms and ends in the
+ * deck's own shutdown(), which closes the listener, unlinks the registration and
+ * stops the beacon. The pid ladder still exists in `--stop`, as the fallback for
+ * a deck too wedged to answer this.
+ *
+ * ANSWERED BEFORE ANYTHING IS TORN DOWN. shutdown() calls
+ * server.closeAllConnections(), which would cut this very socket — so the
+ * teardown is hung off the response having left rather than run beside it, and
+ * the caller gets a 200 instead of a dropped connection it has to interpret.
+ */
+async function handleStop(req, res) {
+  if (!presentsDeckToken(req?.headers ?? {})) return send(res, 401, { ok: false, reason: "unauthenticated" });
+  if (!_onStop) return send(res, 501, { ok: false, reason: "no_launcher" });
+  if (_stopping) return send(res, 200, { ok: true, pid: process.pid, already: true });
+  _stopping = true;
+  let left = false;
+  const leave = () => {
+    if (left) return;
+    left = true;
+    // A throw here must still end the process: the caller has already been told
+    // this deck is going, and a deck that answered "ok" and stayed up is worse
+    // than one that never answered.
+    try { _onStop(); } catch { process.exit(0); }
+  };
+  // 'finish' is the response handed to the OS; 'close' covers the caller that
+  // hung up before it got there. Either one means nothing is left to flush.
+  res.once("finish", leave);
+  res.once("close", leave);
+  send(res, 200, { ok: true, pid: process.pid });
+}
+
 async function handleQuota(req, res) {
   const { fetchClaudeQuota } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
@@ -5037,17 +5036,6 @@ const HOOK_TOKEN = randomBytes(32).toString("hex");
 /** The token this deck expects to be challenged on. Written by writeDiscovery. */
 export function hookToken() { return HOOK_TOKEN; }
 
-/**
- * The proof of knowing `token`, for a nonce the challenger chose.
- *
- * hook/hook.js spells this out a second time — it is installed outside the
- * package and cannot import from here — and a test pins the two against each
- * other. Changing one without the other silently blinds the deck.
- */
-export function challengeProof(token, nonce) {
-  return createHash("sha256").update(`${token}:${nonce}`).digest("hex");
-}
-
 // GET /api/hook-challenge?nonce=… — answer a hook's challenge.
 //
 // The nonce is the caller's, so the answer proves knowledge of the token
@@ -5070,21 +5058,6 @@ function handleHookChallenge(_req, res, url) {
   const nonce = url.searchParams.get("nonce") ?? "";
   if (!nonce || nonce.length > 256) return send(res, 400, { error: "bad nonce" });
   send(res, 200, { proof: challengeProof(HOOK_TOKEN, nonce) });
-}
-
-// Signal 0 delivers nothing; it asks whether the pid could be signalled.
-//
-// BOTH ERRNOS, and the second one is the Windows spelling. POSIX `kill(2)`
-// answers EPERM for a process this account may not signal. On Windows
-// `uv_kill` calls `OpenProcess`, a denial is ERROR_ACCESS_DENIED, and libuv
-// maps that to EACCES — so a deck started from an elevated terminal, or under
-// another account, read as DEAD to every probe in this repo. What followed was
-// silent: the live deck's discovery file was unlinked on the next hook fire,
-// rewritten five seconds later by keepDiscovery, and its banner went on
-// claiming it was receiving events it had stopped receiving.
-export function isProcessAlive(pid) {
-  try { process.kill(pid, 0); return true; }
-  catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
 }
 
 async function sweepStaleDiscovery() {
@@ -5592,6 +5565,15 @@ export function listenFailure(err, { host = "", port = 0, platform = process.pla
 // launcher), /api/restart answers 501 and the UI hides the control rather than
 // offering a button that does nothing.
 let _onRestart = null;
+// How this process ends itself, handed down by bin/deck.js for the same reason
+// _onRestart is: the server does not own the process lifecycle and must be told
+// how to leave. Absent when nothing handed one down — running the module
+// directly, or an embedder — and /api/shutdown then answers 501 rather than
+// pretending.
+let _onStop = null;
+// A stop is in flight. Two sockets asking at once must not both start one, and
+// the response's 'finish' and 'close' can both fire for the same request.
+let _stopping = false;
 // A restart is in flight. Several browser tabs watching the same deck will each
 // ask; the second ask must not re-enter the shutdown.
 let _restarting = false;
@@ -5601,8 +5583,10 @@ let _restarting = false;
 // is reachable in and cannot answer for on its own.
 let _deckReady = false;
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null } = {}) {
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null } = {}) {
   _onRestart = typeof onRestart === "function" ? onRestart : null;
+  _onStop = typeof onStop === "function" ? onStop : null;
+  _stopping = false;
   _canRestart = _onRestart != null && persist != null;
   // A new listener is a new boot, whatever a previous one had got as far as
   // reporting. Nothing but bin/deck.js ever sets this, and it does so once, at
@@ -5689,6 +5673,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/version")     return guard(handleVersion(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/upgrade")     return guard(handleUpgrade(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/restart")     return guard(handleRestart(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and

@@ -166,9 +166,13 @@ ccdeck [options]
   -p, --port <number>      Preferred port  (default: 4317; fallback: random 4318–4400)
       --no-open            Don't open the browser automatically
       --new                Start a second deck even if one is already running
+      --stop               Stop the deck a bare `ccdeck` would open
+                           (--port <n> stops that one; --all stops every deck)
+      --status             What is running on this machine, and on which ports
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to the current working directory
       --all                Capture every session on this machine  (default)
+                           (beside --stop: every deck, not every session)
       --history <path>     Override the events log file
                            (default: this platform's log directory —
                            ~/Library/Logs/ccdeck on macOS, %LOCALAPPDATA%\ccdeck\Log

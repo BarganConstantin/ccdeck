@@ -240,6 +240,32 @@ export function elapsedSuffix(ms, after = SPINNER_ELAPSED_AFTER_MS) {
   return ms < after ? "" : `  ${Math.floor(ms / 1000)}s`;
 }
 
+/**
+ * How long a deck has been up, in the two units that matter and no more.
+ *
+ * `--status` and `--stop` both print this, and the question behind it is always
+ * "is this the deck I started, or one I forgot about" — which "3h 12m" answers
+ * and "11543s" does not. Two units, because the second one stops being
+ * interesting as soon as the first is large: nobody reading "2d" wants the
+ * minutes.
+ *
+ * Seconds under a minute, because that is the unit a deck started moments ago
+ * is measured in and "up just now" is not an answer to "how long". A clock that
+ * went backwards, or a `startedAt` from a machine whose time has since been
+ * corrected, reads as `0s` rather than as a negative duration.
+ */
+export function sinceLabel(ms) {
+  const s = Math.floor(Number(ms) / 1000);
+  if (!Number.isFinite(s) || s < 0) return "0s";
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return h > 0 && m % 60 > 0 ? `${h}h ${m % 60}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return h % 24 > 0 ? `${d}d ${h % 24}h` : `${d}d`;
+}
+
 // ── motion ───────────────────────────────────────────────────────────────────
 
 /**

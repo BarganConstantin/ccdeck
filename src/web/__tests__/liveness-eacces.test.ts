@@ -21,9 +21,14 @@ import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
+// `deck-probe.mjs` in place of `index.mjs`: the probe moved there whole, comment
+// included, when `ccdeck --stop` needed to ask this question without importing
+// the entire server. index.mjs re-exports it and no longer spells it, so
+// sweeping index.mjs would now be sweeping a file with nothing in it to find —
+// which this file's whole `toBeGreaterThan(0)` guard exists to catch, and did.
 const SITES: Array<[string, string]> = [
   ["hook/hook.js", "../../../hook/hook.js"],
-  ["src/server/index.mjs", "../../server/index.mjs"],
+  ["src/server/deck-probe.mjs", "../../server/deck-probe.mjs"],
   ["src/server/self-update.mjs", "../../server/self-update.mjs"],
   ["src/server/browser-watch.mjs", "../../server/browser-watch.mjs"],
 ];

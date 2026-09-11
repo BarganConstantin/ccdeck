@@ -224,15 +224,25 @@ describe("a port has to prove itself before it is opened", () => {
     expect(found?.pid).toBe(2);
   });
 
-  it("refuses to guess the handshake it was not given", async () => {
+  it("keeps the handshake in a leaf, so nothing has to import the server to ask", () => {
     // The whole reason this module does not import the server: importing it
     // arms its timers. A default would have to come from somewhere, and every
     // somewhere is either that import or a second spelling of the crypto.
-    await expect(runningDeck({ want: WANT, fs: registry([]).fs })).rejects.toThrow(/alive.*prove/);
     expect(SRC).not.toMatch(/from "\.\/index\.mjs"/);
-    // The originals stay exported, so there is exactly one spelling of each.
-    expect(INDEX).toContain("export function challengeDeck(");
-    expect(INDEX).toContain("export function isProcessAlive(");
+    // They live in a leaf both sides can reach, and index.mjs re-exports them
+    // under the names its own callers and tests have always used, so there is
+    // still exactly one spelling of the handshake in the package.
+    const PROBE = readFileSync(
+      fileURLToPath(new URL("../../server/deck-probe.mjs", import.meta.url)), "utf8",
+    );
+    expect(PROBE).toContain("export function challengeDeck(");
+    expect(PROBE).toContain("export function isProcessAlive(");
+    expect(PROBE).toContain("export function challengeProof(");
+    expect(INDEX).toContain('from "./deck-probe.mjs"');
+    expect(INDEX).toContain("export { challengeDeck, challengeProof, isProcessAlive };");
+    // And the leaf really is a leaf: two node builtins, nothing of ours.
+    expect([...PROBE.matchAll(/^import .*from "(.+)";$/gm)].map(m => m[1]))
+      .toEqual(["node:crypto", "node:http"]);
   });
 });
 
