@@ -50,6 +50,8 @@ interface Account {
   stale: boolean;
   error: string | null;
   staleCopy?: boolean;
+  /** How the deck's own re-capture of a `staleCopy` row is going. */
+  repair?: Repair | null;
   stopped?: boolean;
   collector?: string | null;
   /** The other half of an account's identity. A slot number is not one:
@@ -138,6 +140,34 @@ function due(nextAt: number | null, nowSec: number): string {
   if (s <= 0)  return " · due";
   if (s < 60)  return ` · next in ${s}s`;
   return ` · next in ${Math.round(s / 60)}m`;
+}
+
+/** How the server's re-capture of a `staleCopy` row is going (autoRecapture). */
+type Repair = { state: "running" } | { state: "failed"; reason: string | null; retryAt: number };
+
+/**
+ * What a `staleCopy` row says (#721): the login works, claude-swap's stored copy
+ * of it does not, and the deck re-captures the copy on its own.
+ *
+ * `resuming…` while that runs, `numbers paused` once an attempt has not taken,
+ * with when the next one is. No state at all is a deck that is not repairing —
+ * so it says only what is true without promising anything. Exported for its
+ * test.
+ */
+export function staleCopyText(repair: Repair | null, nowSec: number): { text: string; hint: string } {
+  const why = "The deck can still see this account — its live usage is being read — but claude-swap's "
+    + "own stored copy of the login was rejected, so these numbers stopped updating.";
+  if (repair?.state === "running") {
+    return { text: "resuming…", hint: `${why} The deck is re-capturing it from the login you already have. No sign-in, no switch.` };
+  }
+  if (repair?.state === "failed") {
+    const mins = Math.max(1, Math.ceil((repair.retryAt / 1000 - nowSec) / 60));
+    const what = repair.reason
+      ? `Re-capturing it from the login you already have did not work (${repair.reason}).`
+      : "The deck re-captured it from the login you already have, and claude-swap still cannot read it.";
+    return { text: "numbers paused", hint: `${why} ${what} It tries again in ${mins}m. No sign-in, no switch.` };
+  }
+  return { text: "numbers paused", hint: why };
 }
 
 /** Plain-language version of claude-swap's error codes. */
@@ -896,30 +926,15 @@ export default function AccountsPanel({ onClose }: Props) {
                     user is signed in as it — so there is nothing for them to
                     fix and nothing red to say. What is true is smaller: these
                     numbers stopped moving, and re-capturing the slot is what
-                    starts them again. #721. */}
-                {a.staleCopy && (
-                  <>
-                    <span className="ap-stale-copy" title={
-                      "The deck can still see this account — its live usage is being read — but claude-swap's "
-                      + "own stored copy of the login was rejected, so these numbers stopped updating. "
-                      + "Resume re-captures the copy from the login you already have."
-                    }>numbers paused</span>
-                    {/* The button Refresh could never be. Refresh re-reads the
-                        store; this is what makes the store able to change —
-                        claude-swap stopped attempting the row, and re-capturing
-                        the credentials is what clears that. Nobody is signed in
-                        or out and the active account does not change. */}
-                    <button type="button" className="ap-fix"
-                      {...pressProps("recapture")}
-                      onClick={async () => {
-                        const out = await admin({ action: "recapture" }, "recapture");
-                        if (out?.ok) load(true);
-                      }}
-                      title="Re-capture this account's stored credentials from the login you already have. No sign-in, no switch.">
-                      {busy === "recapture" ? "resuming…" : "resume"}
-                    </button>
-                  </>
-                )}
+                    starts them again. #721.
+                    AND THE DECK DOES THAT ITSELF NOW. This was a `resume`
+                    button, and it asked a person to confirm the only repair
+                    there is; the server starts it the moment a read finds the
+                    state, so what is left here is a word about how it is going. */}
+                {a.staleCopy && (() => {
+                  const s = staleCopyText(a.repair ?? null, nowSec);
+                  return <span className="ap-stale-copy" title={s.hint}>{s.text}</span>;
+                })()}
                 {/* Nothing collected for half a day, and nothing saying why.
                     Its own line, because the two beside it would each claim
                     something not in evidence: `error` a rejection claude-swap

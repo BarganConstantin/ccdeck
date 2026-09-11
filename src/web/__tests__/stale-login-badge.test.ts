@@ -22,7 +22,8 @@ import { fileURLToPath } from "node:url";
 import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 const accounts = await import("../../server/claude-accounts.mjs");
-import { collectorText } from "../components/AccountsPanel";
+import { autoRecaptureState } from "../../server/cswap-admin.mjs";
+import { collectorText, staleCopyText } from "../components/AccountsPanel";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -226,27 +227,43 @@ describe("what the panel is allowed to offer", () => {
     expect(panel).toContain("if (!fix) return null;");
   });
 
-  it("offers the repair that Refresh cannot be", () => {
+  it("does the repair itself, so there is nothing to press", () => {
     // The user pressed Refresh and nothing moved, which is correct and useless:
     // Refresh re-reads the store, and claude-swap had stopped attempting the
-    // row, so the store could not change. `resume` is what ends that — it
-    // re-captures the credentials, which is what clears the quarantine.
-    expect(panel).toMatch(/action: "recapture"/);
-    expect(panel).toMatch(/resuming…/);
-    // Through the panel's own press convention, which does NOT disable the
-    // control it came from (#518/#620) — a button that removes itself on press
-    // takes the focus with it. `admin` refuses the second press instead.
-    expect(panel).toMatch(/\{\.\.\.pressProps\("recapture"\)\}/);
-    expect(panel).toMatch(/if \(out\?\.ok\) load\(true\)/);
+    // row. Re-capturing the credentials is what ends that, and there is one way
+    // to do it — so `resume` was a button asking a person to confirm the only
+    // answer there is. The server starts it now, and the row says how it went.
+    expect(panel).not.toMatch(/action: "recapture"/);
+    expect(panel).not.toMatch(/pressProps\("recapture"\)/);
+    expect(panel).toMatch(/const s = staleCopyText\(a\.repair \?\? null, nowSec\);/);
   });
 
   it("says the quieter true thing instead", () => {
     expect(panel).toMatch(/a\.staleCopy && \(/);
-    expect(panel).toMatch(/numbers paused/);
     // And names the remedy that actually applies, rather than the one that
     // would log the user out of a working session.
-    expect(panel).toMatch(/Resume re-captures/);
-    expect(panel).toMatch(/No sign-in, no switch/);
+    const running = staleCopyText({ state: "running" }, 0);
+    expect(running.text).toBe("resuming…");
+    expect(running.hint).toMatch(/re-capturing it from the login you already have/);
+    expect(running.hint).toMatch(/No sign-in, no switch/);
+  });
+
+  it("says when an attempt did not take, and when the next one is", () => {
+    const now = 1_000;
+    const held = staleCopyText({ state: "failed", reason: null, retryAt: (now + 7 * 60) * 1000 }, now);
+    expect(held.text).toBe("numbers paused");
+    expect(held.hint).toMatch(/still cannot read it/);
+    expect(held.hint).toMatch(/tries again in 7m/);
+    const refused = staleCopyText({ state: "failed", reason: "add_failed", retryAt: (now + 30) * 1000 }, now);
+    expect(refused.hint).toMatch(/did not work \(add_failed\)/);
+    // Never "in 0m": a retry that is due any moment reads as a minute away.
+    expect(refused.hint).toMatch(/tries again in 1m/);
+  });
+
+  it("promises nothing on a deck that is not repairing", () => {
+    const none = staleCopyText(null, 0);
+    expect(none.text).toBe("numbers paused");
+    expect(none.hint).not.toMatch(/re-captur|tries again/);
   });
 });
 
@@ -258,7 +275,7 @@ describe("the repair itself", () => {
     // credential refresh — registerSignedIn says so in its own words. It
     // captures what is signed in right now, which for the active slot is this
     // account, with the working credentials the user already has.
-    expect(adminSrc).toMatch(/export async function recaptureActive\(\)/);
+    expect(adminSrc).toMatch(/export async function recaptureActive\(/);
     const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
     const fn = body.slice(0, body.indexOf("\nexport "));
     expect(fn).toMatch(/\["add"\]/);
@@ -295,6 +312,73 @@ describe("the repair itself", () => {
   it("refuses when nobody is signed in, rather than capturing nothing", () => {
     const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
     expect(body.slice(0, 700)).toMatch(/not_signed_in/);
+  });
+
+  it("captures only the active slot's account, and the one it was asked for", () => {
+    // `cswap add` takes whatever is signed in. Started by the deck with nobody
+    // watching, a CLI signed in as another account would have had THAT account
+    // refreshed — or added — in place of the row that was paused.
+    const body = adminSrc.slice(adminSrc.indexOf("export async function recaptureActive"));
+    const fn = body.slice(0, body.indexOf("\nexport "));
+    expect(fn).toMatch(/export async function recaptureActive\(\{ expect = null \} = \{\}\)/);
+    expect(fn).toMatch(/who !== activeEmail/);
+    expect(fn.indexOf("not_active_account")).toBeGreaterThan(-1);
+    expect(fn.indexOf("not_active_account")).toBeLessThan(fn.indexOf('["add"]'));
+  });
+});
+
+describe("the repair runs itself", () => {
+  const server = src("../../server/claude-accounts.mjs");
+  const index = src("../../server/index.mjs");
+  const MIN = 60_000;
+
+  it("starts once, then waits, then tries again", () => {
+    expect(autoRecaptureState(undefined, 0)).toEqual({ state: "start" });
+    expect(autoRecaptureState({ at: 0, reason: null }, 0, { inFlight: true })).toEqual({ state: "running" });
+    // Inside the window the row is still paused, so that attempt did not take.
+    expect(autoRecaptureState({ at: 0, reason: "add_failed" }, 9 * MIN))
+      .toEqual({ state: "failed", reason: "add_failed", retryAt: 10 * MIN });
+    expect(autoRecaptureState({ at: 0, reason: null }, 9 * MIN))
+      .toEqual({ state: "failed", reason: null, retryAt: 10 * MIN });
+    expect(autoRecaptureState({ at: 0, reason: null }, 10 * MIN)).toEqual({ state: "start" });
+  });
+
+  it("is started by the read that finds a stale copy, and by nothing else", () => {
+    expect(server).toContain('repair: trouble?.kind === "stale-copy" ? repairFor(');
+    // The definition and that one call.
+    expect(server.match(/repairFor\(/g) ?? []).toHaveLength(2);
+  });
+
+  it("is handed in by the server when it starts, never imported by the read", () => {
+    // The read runs in dozens of tests against fixture stores, and none of
+    // them may be able to reach `cswap add`.
+    expect(server).not.toMatch(/import \{[^}]*autoRecapture[^}]*\} from/);
+    // Inside startServer rather than at module scope, which every test that
+    // imports index.mjs would evaluate.
+    const start = index.indexOf("export async function startServer(");
+    expect(start).toBeGreaterThan(-1);
+    expect(index.indexOf("repairStaleCopyWith(admin.autoRecapture)")).toBeGreaterThan(start);
+  });
+
+  it("lets the next read say how the attempt went", () => {
+    // Found by running the real server against a `cswap add` that fails: the
+    // roster had cached the row as `running`, a forced read is floored at a
+    // minute, and the panel said `resuming…` over a repair that had already
+    // failed. The attempt drops the cache on its way out, success or not.
+    const adminSrc = src("../../server/cswap-admin.mjs");
+    const fn = adminSrc.slice(adminSrc.indexOf("export function autoRecapture("));
+    expect(fn.slice(0, fn.indexOf("\n}\n")))
+      .toMatch(/\.finally\(\(\) => \{ _autoRunning\.delete\(key\); invalidateClaudeAccountsCache\(\); \}\);/);
+  });
+
+  it("keeps one account's attempt from standing in for another's", () => {
+    // Only the active account can be a stale copy, but the active account can
+    // change: after an auto-switch the new one may pause while the old one's
+    // attempt still waits on the store lock. A single in-flight flag drew the
+    // new row as `running` with nothing running for it.
+    const adminSrc = src("../../server/cswap-admin.mjs");
+    expect(adminSrc).toMatch(/\{ inFlight: _autoRunning\.has\(key\) \}/);
+    expect(adminSrc).not.toMatch(/_autoInFlight/);
   });
 });
 

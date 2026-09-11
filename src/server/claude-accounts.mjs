@@ -504,6 +504,34 @@ export async function fetchClaudeAccounts({ force = false } = {}) {
   return mine;
 }
 
+// ── the repair nobody should have to press ───────────────────────────────────
+//
+// A `stale-copy` row — claude-swap's stored copy of the signed-in account's
+// login was rejected, while the login itself works — has exactly one repair,
+// and it asks the user nothing: re-capture the copy from the login they already
+// have (cswap-admin's recaptureActive). It was a button, `resume`, which asked a
+// person to confirm the only answer there is. So the read that finds the state
+// starts the repair, and the row carries how it is going instead of a button.
+//
+// HANDED IN, NOT IMPORTED. The repair writes a credential into claude-swap's
+// store, and this module is read by dozens of tests against fixture stores. The
+// server hands it in when it starts listening (index.mjs) and nothing else does,
+// so no test run can reach `cswap add` through a read.
+let _repairStaleCopy = null;
+
+/** Called with `{ num, email, now }` for a `stale-copy` row, and returns that
+ *  row's `repair`. Null unregisters. */
+export function repairStaleCopyWith(fn) {
+  _repairStaleCopy = typeof fn === "function" ? fn : null;
+}
+
+/** The registered repair's state for one row. A repair that throws costs the
+ *  row its state, never the read. */
+function repairFor(num, email, now) {
+  if (!_repairStaleCopy) return null;
+  try { return _repairStaleCopy({ num, email, now }) ?? null; } catch { return null; }
+}
+
 /**
  * The read itself, split out from the admission control above it so the guard is
  * readable as the four lines it is.
@@ -636,6 +664,10 @@ async function readRoster(now, gen) {
       // in as it anyway. The panel says so quietly instead of offering to log
       // them in again.
       staleCopy: trouble?.kind === "stale-copy",
+      // How the deck's own repair of that is going — `{ state: "running" }` or
+      // `{ state: "failed", reason, retryAt }` — and null on every other row.
+      // Asking is what starts it; see repairStaleCopyWith.
+      repair: trouble?.kind === "stale-copy" ? repairFor(Number(num), acct.email ?? null, now) : null,
       // Nothing has been collected for this account in half a day, and nothing
       // says why. Its own word because the two existing ones would both be
       // wrong: `error` claims a rejection that was never reported, and

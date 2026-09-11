@@ -5648,6 +5648,15 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // `!== false` rather than a cast: a caller that omits the field means "yes",
   // which is how every embedder that predates this option keeps working.
   _providers = { claude: claude !== false, codex: codex !== false };
+  // The repair a paused Claude account used to wait on a `resume` press for:
+  // handed to the roster read here, by the server that is actually running,
+  // rather than wired at import — see repairStaleCopyWith.
+  if (_providers.claude) {
+    void Promise.all([
+      import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href),
+      cswapAdminModule(),
+    ]).then(([accounts, admin]) => accounts.repairStaleCopyWith(admin.autoRecapture), () => {});
+  }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
   if (persist) {
