@@ -489,31 +489,51 @@ describe("the manifest this all now reads", () => {
     expect(ALIAS_PACKAGES).toContain(JSON.parse(read("package.json")).name);
     expect(installedName(resolve(repo))).toBe("agents-deck");
     const publish = read(".github", "workflows", "publish.yml");
-    expect(publish).toContain("npm pkg set name=agent-dag");
-    expect(publish).toContain("npm pkg set name=agents-deck");
+    // The two retired names are published from their own built directories
+    // now, not by renaming this tarball — see legacy/shim.js.
+    expect(publish).toContain("build-legacy.mjs agent-dag");
+    expect(publish).toContain("build-legacy.mjs agents-deck");
     // ccdeck joined them in #340. It was the one name that was NOT a renamed
     // republish — a launcher package that depended on agents-deck and spawned
     // its bin — which is why its own package.json was the thing this rule used
     // to read. Now all three are the same tarball with `name` set, so all three
     // carry a manifest naming themselves and the rule below covers them alike.
     expect(publish).toContain("npm pkg set name=ccdeck");
+    // The other two are no longer this tarball under another name — see the
+    // rule below and legacy/shim.js.
+    expect(publish).not.toContain("npm pkg set name=agents-deck");
+    expect(publish).not.toContain("npm pkg set name=agent-dag");
   });
 
-  it("publishes every name it renames to, and renames to every name it publishes", () => {
-    // The two halves above are each true on their own and still leave a gap
-    // between them: publish.yml could rename to a fourth name, or stop renaming
-    // to one of the three, and nothing would notice until a release went out
-    // under a name whose tarball has no bin for it.
+  it("publishes every name it builds, and builds every name it does not rename", () => {
+    // The gap this closes: publish.yml could publish a fourth name, or stop
+    // publishing one of the three, and nothing would notice until a release
+    // went out under a name whose tarball has no bin for it.
     //
-    // Read out of the workflow rather than listed here, so the assertion is
-    // about what CI does and not about a copy of it. `bin` is the other side:
-    // a package published as `ccdeck` that does not provide a `ccdeck` command
-    // installs fine and then cannot be run.
+    // THE SHAPE CHANGED WHEN THE TWO OLD NAMES STOPPED BEING THE DECK. Only
+    // `ccdeck` is the deck now and only it is published by renaming this
+    // manifest; `agents-deck` and `agent-dag` are doors that depend on it, each
+    // built into its own directory by scripts/build-legacy.mjs. So the rule is
+    // still "every name CI publishes is accounted for", read out of the
+    // workflow rather than from a copy of the list — it is simply two rules
+    // now, because there are two kinds of package.
     const publish = read(".github", "workflows", "publish.yml");
-    const renamed = [...publish.matchAll(/npm pkg set name=([a-z0-9@/-]+)/g)].map(m => m[1]);
-    expect([...new Set(renamed)].sort()).toEqual([...ALIAS_PACKAGES].sort());
-    for (const name of renamed) {
-      expect(Object.keys(JSON.parse(read("package.json")).bin)).toContain(name);
+    const renamed = [...new Set([...publish.matchAll(/npm pkg set name=([a-z0-9@/-]+)/g)].map(m => m[1]))];
+    const built = [...new Set([...publish.matchAll(/build-legacy\.mjs ([a-z0-9@/-]+)/g)].map(m => m[1]))];
+
+    // The deck itself: renamed, and its tarball must carry a bin for the name,
+    // or it installs fine and then cannot be run.
+    expect(renamed).toEqual(["ccdeck"]);
+    expect(Object.keys(JSON.parse(read("package.json")).bin)).toContain("ccdeck");
+
+    // The doors: every one that is built is published from where it was built,
+    // and together they are exactly the retired names.
+    expect(built.sort()).toEqual([...ALIAS_PACKAGES].filter(n => n !== "ccdeck").sort());
+    for (const name of built) {
+      expect(publish).toContain(`npm publish dist/legacy/${name} --provenance --access public`);
     }
+
+    // And nothing is both, which would publish a door over the deck.
+    expect(renamed.filter(n => built.includes(n))).toEqual([]);
   });
 });

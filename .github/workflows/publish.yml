@@ -384,6 +384,16 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # ── The two retired names ────────────────────────────────────────────
+      # These no longer publish the deck. They publish a package that DEPENDS on
+      # ccdeck, prints the command to use next time, and hands over — see
+      # legacy/shim.js for why a dependency and not `npx ccdeck`. Publishing one
+      # product under three names is a cost paid on every release forever, and a
+      # reader who meets two commands for one tool has to work out that they are
+      # the same tool. Nothing anybody has typed stops working, and nobody is
+      # stranded on a version that quietly never updates again — which is what
+      # simply ceasing to publish would have done, silently, because the deck
+      # checks for updates under the name it was installed as.
       - name: Publish to npm (agents-deck)
         id: publish_agents_deck
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -393,8 +403,8 @@ jobs:
           if [ -n "$EXISTING" ]; then
             echo "agents-deck@$VERSION already published — skipping."
           else
-            npm pkg set name=agents-deck
-            npm publish --provenance --access public
+            node scripts/build-legacy.mjs agents-deck dist/legacy/agents-deck
+            npm publish dist/legacy/agents-deck --provenance --access public
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -408,8 +418,8 @@ jobs:
           if [ -n "$EXISTING" ]; then
             echo "agent-dag@$VERSION already published — skipping."
           else
-            npm pkg set name=agent-dag
-            npm publish --provenance --access public
+            node scripts/build-legacy.mjs agent-dag dist/legacy/agent-dag
+            npm publish dist/legacy/agent-dag --provenance --access public
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
