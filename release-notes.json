@@ -388,5 +388,11 @@
       "title": "⚠️ Both machines have to be on this version",
       "body": "The two decks no longer speak the old protocol, and there is no fallback: a 3.15 deck and a 3.16 deck cannot see each other at all. Update both.\n\nThe group passphrase is gone. If you had one set, that pairing is not carried over — make an invite and pair again. It was replaced because a passphrase that differs by one character produced a closed socket and no other symptom on either machine, and a secret is the one thing a panel must never print, so neither person could check theirs against the other's."
     }
+  ],
+  "3.22.1": [
+    {
+      "title": "🖥️ A first run now opens This machine too",
+      "body": "Accounts and usage already opened themselves the first time you ran the deck; the machine panel did not, and now does. It is the panel that answers \"is this box coping\" — cores, memory, load, temperature — and somebody meeting the deck for the first time cannot ask for a panel they do not know is there.\n\nIt only does this when you have never said otherwise. Close it once and it stays closed, on that browser, for good — the same rule the other two panels have always followed. Nothing reopens it behind you.\n\nWhile it is open it polls this machine once every few seconds, and it stops the moment you close it or switch tabs."
+    }
   ]
 }
