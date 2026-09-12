@@ -9702,15 +9702,26 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
 .lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
 .lan-peer-id { flex: 1 1 auto; min-width: 0; }
-.lan-peer-title { display: flex; align-items: center; gap: 2px; min-width: 0; }
+/* Baseline, not centre: a name that has wrapped to two lines would otherwise
+   hang the pencil halfway down the pair, pointing at neither line. */
+.lan-peer-title { display: flex; align-items: baseline; gap: 2px; min-width: 0; }
 /* The machine's name, in the interface's own face: it is a name somebody
    chose, not a value to be copied, and `.modal-tool-name`'s monospace is for
    the tool calls that are. */
+/* IT WRAPS RATHER THAN TRUNCATES. A hostname is what this whole dialog is
+   about, and when no alias is set this is the only place it appears — an
+   ellipsis put the end of a long one out of reach entirely, since the file's
+   own rule is that a tooltip is mouse-only and silent to a screen reader, so
+   there was nowhere to recover it from. Two lines is the ceiling: past that a
+   pasted string is not a name and must not push the dialog's body down. */
 .lan-peer-name {
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.45;
@@ -9762,8 +9773,16 @@ input, textarea { caret-color: var(--accent); }
   color: var(--text);
   overflow-wrap: anywhere;
 }
-/* What is not known, drawn as not known: the same size, the quieter ink. */
-.lan-fact[data-tone="quiet"] dd { color: var(--muted); }
+/* TWO REASONS TO BE QUIET, one tier. `quiet` is what is not known, drawn as
+   not known. `meta` is known and minor — a date, a version, an operating
+   system: the stamps and system lines that are what the annotation tier is
+   for, and that were drawing at 12.95:1 while the sentence saying a login is
+   broken drew at 4.70 two sections below. Nothing is hidden and nothing moves;
+   the three rows nobody opens this dialog to read stop shouting over the rows
+   they do. Address, fingerprint and the last round keep full strength — those
+   are read ACROSS machines, matched against what a terminal says. */
+.lan-fact[data-tone="quiet"] dd,
+.lan-fact[data-tone="meta"] dd { color: var(--muted); }
 .lan-fact[data-tone="bad"] dd { color: var(--warn); }
 .lan-fp { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
 /* Inline in a line of text, where SC 2.5.8 exempts a target from the 24px
@@ -9792,50 +9811,125 @@ input, textarea { caret-color: var(--accent); }
 .lan-done-what { color: var(--muted); }
 .lan-done li[data-ok="false"] .lan-done-what { color: var(--warn); }
 
-/* A caption's second half — when the list was asked, what the list is — set
-   in the sentence case of a note rather than the caption's capitals. */
-.lan-h-note {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--muted);
-}
+/* `.lan-h-note` was the caption's second half, and both of the things it
+   carried have gone to where they are load-bearing: when the list was last
+   told is now marked on the list, in the warning ink, and only when it
+   disagrees with the round above it; and who gets this deck's list is said
+   beside the button that changes it. Nothing reads it any more. */
+/* ONE LEFT EDGE UNDER `here`, which is the whole reason this is a grid and not
+   a stack of sentences. Each row used to be flex, so the state began wherever
+   that row's address happened to end and no two rows started at the same x —
+   there was nothing to run an eye down. `max-content` on the two state columns
+   sizes each by the longest word the vocabulary can produce (two values for
+   `there`, three for `here`), so the columns are as narrow as the words allow
+   and still identical on every row, in both lists.
+
+   `display: contents` on the row is what puts the cells on this grid; the
+   explicit roles in the markup are what keeps it a list while it does. */
 .lan-offers {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* The address leads and what it would do follows, on one line while both fit.
-   At phone width the state wraps under the address instead of squeezing it to
-   an ellipsis — the address is the thing a reader is matching. */
-.lan-offer {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  /* THE TWO STATE COLUMNS ARE FIXED, and they have to be. Sized by content,
+     they were not the same width twice: a note spans them, a spanning item
+     feeds its own width back into the tracks it crosses, and four lists on one
+     screen came out 58/71, 93/106, 118/175 and 54/57 — so `here` began at a
+     different x in every list and there was nothing to run an eye down, which
+     is the entire reason this is a grid. Both vocabularies are closed — two
+     words for `there`, three for `here` — and the widest of each measures
+     58.3px and 71.4px at this size. These carry roughly a tenth over that, for
+     the faces other platforms will render this in, and the cells wrap rather
+     than clip if some face ever needs more than the slack. The test that keeps
+     the two sets closed is what keeps these numbers honest. */
+  grid-template-columns: minmax(0, 1fr) 64px 78px;
   align-items: baseline;
-  column-gap: 12px;
-  row-gap: 1px;
+  column-gap: 14px;
+  row-gap: 6px;
+}
+.lan-offers + .lan-offers { margin-top: 6px; }
+.lan-offer { display: contents; }
+/* The address is the thing a reader is matching, so it wraps rather than
+   ellipsing: the old row hid the end of a long login behind a truncation whose
+   width changed from row to row, and there was no way to see it at all. */
+.lan-offer-email {
   min-width: 0;
   font-size: 11px;
-}
-.lan-offer-email {
-  flex: 1 1 14em;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
-.lan-offer-state { flex: 0 1 auto; font-size: 10px; color: var(--muted); }
-.lan-offer[data-tone="ok"] .lan-offer-state { color: var(--text-dim); }
-.lan-offer[data-tone="wait"] .lan-offer-state { color: var(--accent); }
-.lan-offer[data-tone="bad"] .lan-offer-state { color: var(--warn); }
+.lan-offer-there,
+.lan-offer-here {
+  font-size: 10px;
+  line-height: 1.6;
+}
+/* Nothing here can change what a login does on the other machine — a round
+   only ever pulls — so `there` is never lit, in any state. It is context for
+   the cell beside it, and context that changes colour is a second thing to
+   read. */
+.lan-offer-there { color: var(--muted); }
+/* `here` is the column somebody scans, so it carries the tone. The healthy
+   state recedes to the same tier as the rest of the dialog's body copy rather
+   than going green: a list where the ordinary rows are coloured has no ink
+   left for the one row that is not. */
+.lan-offer-here { color: var(--text-secondary); }
+.lan-offer[data-tone="bad"] .lan-offer-here { color: var(--warn); }
+.lan-offer[data-tone="wait"] .lan-offer-here { color: var(--accent); }
+/* WHAT HAPPENS NEXT, and only on the rows where the answer is not "nothing".
+   Set under the state columns rather than under the address, because it is the
+   state it belongs to, and the indent is what says so without a rule or a
+   glyph. */
+/* WHAT HAPPENS NEXT, and only on the rows where the answer is not "nothing".
+   It takes the row's whole width rather than the state columns' 156px, where
+   the two notes worth reading both wrapped; the indent is what makes it read
+   as belonging to the address above it rather than as the next row, and 12px
+   is enough for that when the thing below it is 6px away and the thing it
+   belongs to is directly above. */
+.lan-offer-note {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+  padding-left: 12px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.lan-offer[data-tone="bad"] .lan-offer-note { color: var(--warn); }
+.lan-offer[data-tone="wait"] .lan-offer-note { color: var(--accent); }
+/* The list is a fossil and says so above itself, in the warning ink, where the
+   rows it is about are the next thing read. */
+.lan-stale {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
 .lan-empty { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
-.lan-peer-settings { margin-top: 4px; }
+/* The count, and the door into what it counts. A word rather than a control,
+   because opening it is not an act with a consequence — every row it reveals
+   is one this deck already advertises. */
+.lan-more { display: inline-flex; align-items: baseline; gap: 6px; }
+/* The mark is a character somebody reads, not a tint, so it reads from the
+   annotation tier like every other word here — --muted-dim is 2.35:1 and has
+   no business carrying a glyph that says which way this opens. */
+.lan-more-mark { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* The consequence of the button under it, said where somebody is about to
+   press — not beside a caption, where it read as trivia about the caption. */
+.lan-scope {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-peer-settings { margin-top: 2px; }
+/* A bar with something to say instead of a bar with nothing in it. */
+.lan-foot-note {
+  margin: 0 auto 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 
 /* The two acts, apart: `check now` on the left, the row's own verb on the far
    right where every dialog on this deck keeps its answer — and where unpair,
@@ -9852,9 +9946,35 @@ input, textarea { caret-color: var(--accent); }
 }
 .lan-peer-foot > .btn:not(.lan-peer-verb) { margin-right: auto; }
 .lan-peer-foot .btn { min-width: 92px; justify-content: center; }
+/* TWO ACTS, TWO WEIGHTS. Both were pills of the same size, and the rare
+   irreversible one carried the louder ink — error text on an error edge —
+   while the safe one somebody presses every day was plain. The row two panels
+   away already disagrees: there, unpair is invisible until the row is pointed
+   at. This is the same verb, so it holds the same line. It keeps its word and
+   its place, loses the border it did not need to be found, and takes the
+   error colour only once it has been armed, which is the moment the colour is
+   actually about something. Never hidden: it is reachable by tab, reads its
+   own name to a screen reader, and answers hover and focus alike. */
+.lan-peer-foot .btn.danger:not(.armed) {
+  border-color: transparent;
+  color: var(--muted);
+}
+.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled),
+.lan-peer-foot .btn.danger:not(.armed):focus-visible {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
 /* Armed is the second press of the only irreversible act here, and it keeps
    the error colour without being pointed at — as the row's does. */
 .lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
+
+/* The alert carries a panel's own inset — 14px, sized for the 288px column it
+   was written for — and inside a dialog's 16px padding that put it 30px from
+   the edge while every sibling started at 16. It is the one thing on the
+   surface that must line up with what it is about. The top margin goes with
+   it: `.modal-body` is a flex column with its own gap, so the 8px was a
+   second helping of the same space. */
+.modal-body > .ap-failure { margin: 0; }
 
 /* The setup dialog's foot: why there is no Save on the left, the one button
    on the right, on the same ground and rule as a deck's own dialog so the two

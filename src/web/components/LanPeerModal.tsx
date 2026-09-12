@@ -43,6 +43,15 @@ interface Props {
   onSettings: () => void;
 }
 
+/** Two stamps this far apart came off the same round.
+ *
+ *  A round reads the other deck's manifest and then writes its own result, so
+ *  `offersBy` and `lastRound` land microseconds apart when it worked and drift
+ *  apart when it did not — see roundWith. A whole second is orders of
+ *  magnitude more than the gap it is there to swallow and orders of magnitude
+ *  less than the interval between rounds, so nothing that matters lands in it. */
+const SAME_ROUND_MS = 1_000;
+
 /** A date somebody reads, and how long ago in the panel's own words. */
 function sinceLabel(at: number, now: number): string {
   const day = new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -78,6 +87,10 @@ export default function LanPeerModal({
   /** When it was armed, so a double-click cannot be its own confirmation. */
   const armedAt = useRef(0);
   const [copied, setCopied] = useState(false);
+  /** Whether the outbound list is open. Shut by default and per dialog: it is
+   *  the same list in every one of them, and the rows worth seeing are drawn
+   *  whether it is open or not. */
+  const [shown, setShown] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
@@ -163,7 +176,10 @@ export default function LanPeerModal({
   const raw = peer?.last?.error && line && line.text !== peer.last.error ? peer.last.error : null;
   const done = peer?.last?.done ?? [];
 
-  const facts: Array<{ label: string; value: ReactNode; tone?: "bad" | "quiet" }> = [];
+  // `quiet` is what is not known. `meta` is known and minor — the stamps, the
+  // version and the operating system, which are what somebody comes looking
+  // for when something is wrong and are never what they came to read.
+  const facts: Array<{ label: string; value: ReactNode; tone?: "bad" | "quiet" | "meta" }> = [];
   facts.push({
     label: "Address",
     value: where ? <code className="ap-lan-code">{where}</code> : "none here — it calls this deck",
@@ -185,14 +201,14 @@ export default function LanPeerModal({
         ? (peer?.pairedAt ? sinceLabel(peer.pairedAt, now) : "before this deck kept the date")
         : row.kind === "declined" && stranger ? `no · you said no ${askedLabel(stranger.at, now)}`
         : "not yet",
-      tone: paired && !peer?.pairedAt ? "quiet" : undefined,
+      tone: paired && !peer?.pairedAt ? "quiet" : "meta",
     });
     if (about) {
-      facts.push({ label: "Deck", value: versionText ?? "not said", tone: versionText ? undefined : "quiet" });
+      facts.push({ label: "Deck", value: versionText ?? "not said", tone: versionText ? "meta" : "quiet" });
       facts.push({
         label: "System",
         value: about.os ? [about.os, about.arch].filter(Boolean).join(" · ") : "not said",
-        tone: about.os ? undefined : "quiet",
+        tone: about.os ? "meta" : "quiet",
       });
     } else {
       // One line for the two, when neither is known: the same reason twice in
@@ -243,10 +259,21 @@ export default function LanPeerModal({
   const byKey = new Map(accounts.map(a => [a.key, a]));
   const sharedHere = new Set(status.shared ?? []);
   const offering = (status.shared ?? []).map(k => byKey.get(k)).filter((a): a is LanAccount => !!a);
+  // A login this deck advertises and cannot honour is the one thing in the
+  // outbound list somebody here can fix, so it is the one thing that never
+  // collapses into the count. See the block that draws it.
+  const spent = offering.filter(a => !a.alive);
+  const working = offering.length - spent.length;
   const offers = peer?.offers ?? null;
-  const offersAt = offers ? seenLabel(offers.at, now) : null;
-
-  const checkPress = press(`check:${row.fp}`);
+  // WHEN IT LAST TOLD US, and only when that is not already answered above.
+  // A round sets `offersBy` and `lastRound` microseconds apart, so on every
+  // healthy deck this was a second printing of the clock in `Last round` —
+  // redundant often enough to train the eye to skip it, which is exactly the
+  // habit that hides it on the one round that failed and left the list a
+  // fossil. `offers.at` only falls behind when a round did not get through.
+  const stale = offers && peer?.last && peer.last.at - offers.at > SAME_ROUND_MS
+    ? seenLabel(offers.at, now)
+    : null;
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -278,6 +305,15 @@ export default function LanPeerModal({
                 )}
               </span>
             )}
+            {/* THE STEADY STATE IS SILENCE HERE TOO. `quiet` is the row's own
+                word for online with nothing to repair, and the list has obeyed
+                it since it was written — a line every healthy row carries
+                identically is a line that cannot be scanned. This dialog drew
+                it anyway, so a healthy deck said `online · all logins fine`
+                under its name and `all logins fine · just now` again seven
+                rows down. The sentence is still HERE, and still read aloud;
+                it simply stops competing with the one thing on the surface a
+                reader can act on. */}
             <p id="lan-peer-sub" className="lan-peer-sub">
               {row.self && (
                 <>
@@ -288,10 +324,14 @@ export default function LanPeerModal({
                       use this name
                     </button>
                   )}
-                  <span aria-hidden>{" · "}</span>
+                  {/* The pause belongs to the sentence, not to the glyph: read
+                      aloud, an aria-hidden `·` ran the name straight into the
+                      state as one breathless clause. */}
+                  <span className="vis-hidden">{". "}</span>
+                  {!row.quiet && <span aria-hidden>{" · "}</span>}
                 </>
               )}
-              <span className="lan-peer-state">{row.state}</span>
+              <span className={row.quiet ? "vis-hidden" : "lan-peer-state"}>{row.state}</span>
             </p>
           </div>
           <div className="modal-actions">
@@ -326,10 +366,23 @@ export default function LanPeerModal({
 
           {paired && (
             <div className="modal-section">
+              {/* WHOSE LOGINS THESE ARE, not which way the verb points. The
+                  two captions were `Offers you` and `You offer` — the same two
+                  words reordered, not even parallel constructions, carrying
+                  the one fact on a credential surface that must never be
+                  misread. The machine's own name says it without being
+                  parsed. */}
               <h3 className="lan-h">
-                Offers you
-                {offersAt && <span className="lan-h-note">asked {offersAt === "now" ? "just now" : offersAt}</span>}
+                From {row.name}
               </h3>
+              {/* Marked on the LIST, not beside the caption, because the list
+                  is the thing that is out of date. */}
+              {stale && (
+                <p className="lan-stale">
+                  Last told us {stale === "now" ? "just now" : stale} — the last round did not get through,
+                  so this may have changed.
+                </p>
+              )}
               {peer?.waiting ? (
                 <p className="lan-empty">
                   Not known. This deck never asks it — it calls in — so what it offers only shows once
@@ -340,15 +393,27 @@ export default function LanPeerModal({
                   {peer?.last?.error ? "Not known — the last attempt to ask it did not get through." : "Not asked yet. The next round asks it."}
                 </p>
               ) : offers.accounts.length === 0 ? (
-                <p className="lan-empty">Nothing. Nobody at that deck has ticked a login to share.</p>
+                // NOT "ticked", which names a checkbox on a machine this
+                // reader has never seen. The same word is fair one section
+                // down, where the control is a button away.
+                <p className="lan-empty">Nothing. Nobody at that deck has chosen a login to share.</p>
               ) : (
-                <ul className="lan-offers">
+                <ul className="lan-offers" role="list">
                   {offers.accounts.map(a => {
                     const said = offerLine(a, byKey.get(a.key) ?? null, sharedHere.has(a.key));
                     return (
-                      <li key={a.key} className="lan-offer" data-tone={said.tone}>
+                      // `role` survives `display: contents`, which is what
+                      // puts these cells on the list's own grid.
+                      <li key={a.key} role="listitem" className="lan-offer" data-tone={said.tone}>
                         <span className="lan-offer-email">{a.email}</span>
-                        <span className="lan-offer-state">{said.text}</span>
+                        {/* THERE IS NEVER THE ACTIONABLE HALF — a round only
+                            ever pulls, so nothing on this screen can change
+                            what a login does on the other machine. It stays
+                            unlit on every row, and `here` gets the one left
+                            edge worth running an eye down. */}
+                        <span className="lan-offer-there">{said.there}</span>
+                        <span className="lan-offer-here">{said.here}</span>
+                        {said.note && <span className="lan-offer-note">{said.note}</span>}
                       </li>
                     );
                   })}
@@ -359,22 +424,62 @@ export default function LanPeerModal({
 
           {paired && (
             <div className="modal-section">
-              <h3 className="lan-h">
-                You offer
-                <span className="lan-h-note">every paired deck gets this list</span>
-              </h3>
-              {offering.length ? (
-                <ul className="lan-offers">
-                  {offering.map(a => (
-                    <li key={a.key} className="lan-offer" data-tone={a.alive ? "ok" : "idle"}>
-                      <span className="lan-offer-email">{a.email}</span>
-                      <span className="lan-offer-state">{a.alive ? "works here" : "not working here · nothing to give"}</span>
-                    </li>
-                  ))}
-                </ul>
+              {/* NOT ABOUT THIS MACHINE, and the caption has always said so
+                  in small print. This list is the same in every paired deck's
+                  dialog, so drawn in full it spent a third of a per-machine
+                  inspector saying something no machine here changes. It is a
+                  count now, and the count opens.
+
+                  WHAT NEVER COLLAPSES is a login this deck advertises and
+                  cannot honour: every paired deck is being promised something
+                  that gives them nothing, the fix is one sign-in away, and it
+                  is the only thing in this section somebody here can act on.
+                  A summary that can hide the one actionable row is a summary
+                  that has to be opened every time, which is not a summary. */}
+              <h3 className="lan-h">From this deck</h3>
+              {offering.length === 0 ? (
+                <p className="lan-empty">Nothing. No login on this deck is chosen to share.</p>
               ) : (
-                <p className="lan-empty">Nothing. No login on this deck is ticked to share.</p>
+                <>
+                  {spent.length > 0 && (
+                    <ul className="lan-offers" role="list">
+                      {spent.map(a => (
+                        <li key={a.key} role="listitem" className="lan-offer" data-tone="bad">
+                          <span className="lan-offer-email">{a.email}</span>
+                          <span className="lan-offer-there" />
+                          <span className="lan-offer-here">expired here</span>
+                          <span className="lan-offer-note">offered to every paired deck and gives them nothing — sign in again</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {working > 0 && (
+                    <button type="button" className="ap-lan-word lan-more" aria-expanded={shown}
+                      onClick={() => setShown(v => !v)}>
+                      {working === 1 ? "1 login works here" : `${working} logins work here`}
+                      <span className="lan-more-mark" aria-hidden>{shown ? "−" : "+"}</span>
+                    </button>
+                  )}
+                  {shown && working > 0 && (
+                    <ul className="lan-offers" role="list">
+                      {offering.filter(a => a.alive).map(a => (
+                        <li key={a.key} role="listitem" className="lan-offer" data-tone="ok">
+                          <span className="lan-offer-email">{a.email}</span>
+                          <span className="lan-offer-there" />
+                          <span className="lan-offer-here">works here</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
+              {/* THE SCOPE, where the scope can be acted on. `every paired
+                  deck gets this list` sat beside the caption as metadata; it
+                  is the consequence of the button under it, so it is said
+                  where somebody is about to press. */}
+              <p className="lan-scope">
+                Every paired deck gets this list, the ones here now and any paired later.
+              </p>
               <button type="button" className="ap-lan-word lan-peer-settings" onClick={onSettings}>
                 Change what this deck offers
               </button>
@@ -382,7 +487,18 @@ export default function LanPeerModal({
           )}
         </section>
 
+        {/* A ROW CAN CHANGE KIND UNDER AN OPEN DIALOG. A nearby deck that
+            sends its request on the next poll comes back as `asks`, which has
+            no verb here — the request is answered in its own dialog, where the
+            fingerprint is shown and has to be read before anybody says yes, and
+            that is not a decision to duplicate onto a bar at the bottom of a
+            details panel. Before this, the bar drew itself empty: 51px of
+            border and nothing in it, in the one state where the reader most
+            needs telling what changed. */}
         <footer className="lan-peer-foot">
+          {row.kind === "asks" && (
+            <p className="lan-foot-note">This deck is now asking to pair. Answer it from the panel behind this.</p>
+          )}
           {/* Not drawn for a deck that only calls in, rather than drawn dead:
               there is no address here to call it on, the note above says so,
               and a button that can never be pressed is a question with no
@@ -397,6 +513,12 @@ export default function LanPeerModal({
           {row.kind === "paired" && (
             <button type="button" className={`btn danger lan-peer-verb${armed ? " armed" : ""}`}
               {...press(`unpair:${row.fp}`)}
+              // A HELD KEY IS ONE DECISION TOO. The clock below is the rule
+              // for a mouse, where the second press cannot arrive before the
+              // hand can mean it; a keyboard repeats at around half a second,
+              // which clears that bar while the finger has never come up. The
+              // repeat never reaches the click at all.
+              onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
               onClick={() => {
                 if (!armed) { setArmed(true); armedAt.current = Date.now(); return; }
                 // A double-click is one decision, not two — the row's rule.
@@ -404,6 +526,9 @@ export default function LanPeerModal({
                 setArmed(false);
                 void run(onVerb);
               }}
+              // The row's own unpair names the machine; this one said only
+              // "Unpair", and it is the same irreversible verb.
+              aria-label={armed ? `Confirm unpairing ${row.name}` : `Unpair ${row.name}`}
               title={armed
                 ? "Press again to stop talking to this deck. Logins it already has stay with it."
                 : "Stop talking to this deck from now on"}>

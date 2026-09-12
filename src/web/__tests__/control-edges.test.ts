@@ -583,6 +583,15 @@ const CONTROLS: Control[] = [
       // undone.
       ".ap-lan-who .ap-manage-btn.danger.armed",
     ], beds: ACCOUNTS },
+  // The same verb as the row's, holding the same line one panel in. Unpair is
+  // rare and cannot be undone from here, and it sat in the loudest ink on the
+  // surface beside the button somebody presses every day — so it keeps its
+  // word and its place and loses the edge until it is pointed at, exactly as
+  // the row above does. Measured at the state where the edge exists, on the
+  // foot's own ground rather than the body's.
+  { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+    fillFrom: "button.btn",
+    states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
   // add-account dialog
   { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },

@@ -115,24 +115,98 @@ describe("what one offered login would do here", () => {
   const mine = (alive: boolean) => ({ key: "a@x@@o", email: "a@x", alive });
 
   it("says a login this deck lacks arrives, whatever this deck shares", () => {
-    expect(offerLine(theirs(true), null, false)).toEqual({ text: "works there · arrives here next round", tone: "wait" });
+    expect(offerLine(theirs(true), null, false))
+      .toEqual({ there: "works there", here: "not on this deck", note: "arrives next round", tone: "wait" });
   });
 
   it("repairs an expired one only when this deck shares it too, and says the fix when not", () => {
     expect(offerLine(theirs(true), mine(false), true).tone).toBe("wait");
     const unshared = offerLine(theirs(true), mine(false), false);
     expect(unshared.tone).toBe("bad");
-    expect(unshared.text).toContain("share it to repair");
+    expect(unshared.note).toContain("share it to repair");
   });
 
   it("moves nothing from a copy that is broken there", () => {
-    expect(offerLine(theirs(false), mine(true), true)).toEqual({ text: "broken there · works here", tone: "idle" });
+    expect(offerLine(theirs(false), mine(true), true))
+      .toEqual({ there: "broken there", here: "works here", note: null, tone: "idle" });
     expect(offerLine(theirs(false), mine(false), true).tone).toBe("bad");
     expect(offerLine(theirs(false), null, true).tone).toBe("idle");
   });
 
   it("is plain about the steady state", () => {
-    expect(offerLine(theirs(true), mine(true), true)).toEqual({ text: "works there · works here", tone: "ok" });
+    expect(offerLine(theirs(true), mine(true), true))
+      .toEqual({ there: "works there", here: "works here", note: null, tone: "ok" });
+  });
+
+  // The half a reader scans is `here`, and it is only scannable if the words
+  // in it come from a closed set — three of them, whatever the other deck
+  // says. A fourth spelling of the same three states would put the column
+  // back to being read rather than scanned.
+  it("says what is true HERE in one of three words, and never more", () => {
+    const every = [true, false].flatMap(t =>
+      [null, mine(true), mine(false)].flatMap(m =>
+        [true, false].map(s => offerLine(theirs(t), m, s))));
+    expect(new Set(every.map(o => o.here)))
+      .toEqual(new Set(["works here", "expired here", "not on this deck"]));
+    expect(new Set(every.map(o => o.there))).toEqual(new Set(["works there", "broken there"]));
+  });
+
+  // The note is what HAPPENS NEXT, so a row that says nothing happens must
+  // carry none — that silence is what makes the rows that do have one worth
+  // looking at, and it is the only thing the warning ink is spent on.
+  it("carries a note on exactly the rows where something happens next", () => {
+    expect(offerLine(theirs(true), mine(true), true).note).toBeNull();
+    expect(offerLine(theirs(false), mine(true), true).note).toBeNull();
+    expect(offerLine(theirs(false), null, true).note).toBeNull();
+    // Both copies gone is the one state with no repair anywhere, and it used
+    // to wear the same words and the same ink as the state fixed with a tick.
+    const dead = offerLine(theirs(false), mine(false), true);
+    expect(dead.note).toContain("sign in again");
+    expect(dead.note).not.toContain("share it to repair");
+  });
+});
+
+describe("the dialog is as quiet as the row it opens from", () => {
+  // `quiet` is the panel's own word for online with nothing to repair, and the
+  // reason it exists is that a line every healthy row carries identically is a
+  // line that cannot be scanned. The list has obeyed it since it was written;
+  // this dialog drew the sentence anyway, and then printed the same fact again
+  // as `Last round` seven rows below.
+  it("does not draw the state a healthy deck shares with every other healthy deck", () => {
+    expect(MODAL).toMatch(/row\.quiet \? "vis-hidden" : "lan-peer-state"/);
+  });
+
+  // Not deleted — read aloud. The row keeps the sentence for anybody being
+  // read the list, and so must this.
+  it("still says it to a screen reader", () => {
+    expect(MODAL).toContain('className="vis-hidden"');
+  });
+
+  // The two state columns are the point of the grid: one left edge under
+  // `here`, on every row of both lists.
+  it("puts there and here in their own columns rather than one sentence", () => {
+    expect(MODAL).toContain("lan-offer-there");
+    expect(MODAL).toContain("lan-offer-here");
+    expect(MODAL).not.toContain("lan-offer-state");
+  });
+
+  // `display: contents` is what puts the cells on the list's grid, and it is
+  // what takes the list semantics away unless the roles are spelled out.
+  it("keeps a list a list while its rows are on the grid", () => {
+    expect(MODAL).toMatch(/className="lan-offers" role="list"/);
+    expect(MODAL).toMatch(/role="listitem"/);
+  });
+
+  // A held key clears the 400ms bar while the finger has never come up, so
+  // the clock alone cannot be the whole rule.
+  it("does not let a held key be its own second press", () => {
+    expect(MODAL).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
+  });
+
+  // A nearby deck can send its request while its dialog is open, and that kind
+  // has no verb here — the bar used to draw itself empty.
+  it("says something in the footer for a row that changed kind under it", () => {
+    expect(MODAL).toMatch(/row\.kind === "asks"/);
   });
 });
 

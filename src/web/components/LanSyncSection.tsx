@@ -822,19 +822,41 @@ export function versionOrder(a: string, b: string): number | null {
  * too — a heal replaces a slot, so it needs this deck's own tick, and an add
  * does not (see roundWith). The last case is the one worth the warning ink:
  * it is the only one somebody here can fix, and the fix is a tick.
+ *
+ * TWO CELLS, NOT A SENTENCE. This was one string — `works there · works here`,
+ * `broken there · not on this deck` — and a reader had to take it left to
+ * right and hold both halves to see which one they could act on. It is a 2×2
+ * fact (their copy × this deck's), so it is returned as two, and the dialog
+ * puts each in its own column. What that buys is a single left edge under
+ * `here`: the column somebody scans, because `here` is the only half anything
+ * on this screen can change — a round only ever pulls.
+ *
+ * `note` is what HAPPENS NEXT, and it is null for every state where the
+ * answer is "nothing". So the note exists on exactly the rows worth reading,
+ * and it is the note — not the state — that carries the ink.
  */
 export function offerLine(
   theirs: OfferedAccount,
   mine: LanAccount | null,
   sharedHere: boolean,
-): { text: string; tone: "ok" | "wait" | "bad" | "idle" } {
+): { there: string; here: string; note: string | null; tone: "ok" | "wait" | "bad" | "idle" } {
   const here = !mine ? "not on this deck" : mine.alive ? "works here" : "expired here";
-  if (!theirs.alive) return { text: `broken there · ${here}`, tone: mine && !mine.alive ? "bad" : "idle" };
-  if (!mine) return { text: "works there · arrives here next round", tone: "wait" };
-  if (mine.alive) return { text: "works there · works here", tone: "ok" };
+  if (!theirs.alive) {
+    // BOTH COPIES GONE is the one state with no repair anywhere, and it used
+    // to wear the same warning ink as the state that is fixed with one tick.
+    // Warn ink says act; this one says the act is not here, so it names the
+    // only thing that does work — the words the accounts panel already uses.
+    const note = mine && !mine.alive ? "neither copy works — sign in again here" : null;
+    return { there: "broken there", here, note, tone: note ? "bad" : "idle" };
+  }
+  // `here` stays what IS, and the note says what WILL BE. The old string put
+  // `arrives here next round` in the state slot, which left a reader unable to
+  // tell the present from the promise.
+  if (!mine) return { there: "works there", here, note: "arrives next round", tone: "wait" };
+  if (mine.alive) return { there: "works there", here, note: null, tone: "ok" };
   return sharedHere
-    ? { text: "works there · expired here, repairs next round", tone: "wait" }
-    : { text: "works there · expired here — share it to repair", tone: "bad" };
+    ? { there: "works there", here, note: "repairs next round", tone: "wait" }
+    : { there: "works there", here, note: "share it to repair", tone: "bad" };
 }
 
 async function post(url: string, body: Record<string, unknown>) {

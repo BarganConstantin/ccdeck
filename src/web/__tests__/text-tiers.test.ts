@@ -170,6 +170,18 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-rest",
       ".bw-row-detail",
       ".bw-settings-note",
+      // What an offered login does HERE — the one column in a deck's dialog a
+      // reader runs an eye down, and the reason that list is a grid at all.
+      // It is the row's CONTENT, not an annotation on it: the address beside
+      // it says which login, and this says the thing the reader opened the
+      // dialog to find out. It reads from the tier below the address rather
+      // than beside it so that the ordinary rows recede and the ink is still
+      // there to spend on the one that does not — `bad` and `wait` override
+      // it, and the resting state is the only one that lands here. The half
+      // this is paired with, `.lan-offer-there`, stays on --muted: nothing on
+      // this screen can change what a login does on the other machine, so it
+      // is context and is drawn as context.
+      ".lan-offer-here",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",
