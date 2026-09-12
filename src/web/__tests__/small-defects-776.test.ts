@@ -102,6 +102,12 @@ describe("the tool sparkline's tooltip", () => {
     const node = read("../components/AgentNode.tsx");
     expect(node).toContain("const observedPeak = Math.max(0, ...counts);");
     expect(node).toContain("const peakRate = observedPeak / (BUCKET_MS / 1000);");
-    expect(node).toContain('? "no tool calls in the last 60s"');
+    // The wording moved off "tool calls" when the chart stopped counting only
+    // those: it marks a completed block of the model's own output too, so a
+    // minute of thinking is no longer drawn as a flat line. What this test is
+    // about is unchanged — an empty window still reports no peak, because a
+    // floor talking is worse than a chart saying nothing.
+    expect(node).toContain('? "nothing in the last 60s"');
+    expect(node).not.toMatch(/peak[^"]*"\s*:\s*`?\$\{?0/);
   });
 });

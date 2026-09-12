@@ -227,6 +227,27 @@ export interface AgentNodeData {
   startedAt: number;
   endedAt?: number;
   tools: ToolCall[];
+  /** WHEN THE MODEL LAST FINISHED A BLOCK OF ITS OWN OUTPUT, and what kind.
+   *
+   *  The 16.5% of measured time the hooks cannot see: between a tool's result
+   *  and the next tool's call, the model is reading, reasoning and writing, and
+   *  every one of those minutes used to draw as an idle card. The server's
+   *  transcript watch supplies this — see output-watch.mjs for why it is a
+   *  stamp and a kind rather than a verdict.
+   *
+   *  `at` is the block's OWN timestamp, not when the deck heard about it, so a
+   *  block read late is not reported as having just happened. A reader decides
+   *  what counts as recent; the measured distribution is in the card. */
+  lastOutputAt?: number;
+  lastOutputKind?: "thinking" | "text" | "tool_use";
+  /** The stamps of the recent blocks, oldest first and bounded.
+   *
+   *  The activity spark counted tool calls alone, so a minute of thinking drew
+   *  as a flat line — the chart said "nothing is happening" on a card where
+   *  something was. This is the other half of what it counts. Bounded because
+   *  the chart only ever looks at the last sixty seconds and a session can run
+   *  for hours. */
+  outputs?: number[];
   cwd?: string;
   cwdBasename?: string;
   firstPrompt?: string;

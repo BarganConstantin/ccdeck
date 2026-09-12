@@ -1585,6 +1585,52 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // the roll-ups in SessionList / SessionSummary / UsagePanel add the root and
   // its subagents together, so a per-node share here would be the same tokens
   // counted twice. That is also why nothing else in this file writes tokens.
+  // WHAT THE MODEL IS PRODUCING, from the server's transcript watch. The one
+  // signal on this surface that does not come from a hook, because there is no
+  // hook for it: 16.5% of measured time is the model reading, reasoning and
+  // writing between tool calls, and all of it used to draw as an idle card.
+  if (name === "OutputObserved") {
+    const kind = p.kind === "thinking" || p.kind === "text" || p.kind === "tool_use" ? p.kind : null;
+    // The block's own stamp, falling back to arrival only when the record had
+    // none — a block read late must not claim to have just happened.
+    const at = typeof p.at === "number" && Number.isFinite(p.at) ? p.at : now;
+    if (!kind) return state;
+    const root = state.agents.get(rootAgentId(sessionId));
+    // Lookup, not create. A watch tick for a session the graph has never heard
+    // of would otherwise manifest a node out of a file on disk.
+    if (!root) return state;
+    // NEVER BACKWARDS. Ticks are ordered by the clock they are polled on, not
+    // by the stamps inside the files, so a slow read can deliver an older block
+    // after a newer one — and a card that moved its "last worked" backwards
+    // would report a live session as going stale.
+    if (root.lastOutputAt != null && at <= root.lastOutputAt) return state;
+    root.lastOutputAt = at;
+    root.lastOutputKind = kind;
+    // THE CHART'S OTHER INPUT, and deliberately not every block.
+    //
+    // A `tool_use` block IS the tool call — it is written at the moment the
+    // model makes it, within a second of the PreToolUse the card already marks.
+    // Measured on this session's own transcript: 378 tool calls and 378
+    // `tool_use` blocks, which is the same 378 events counted twice. Feeding
+    // them in would have drawn a chart at double height for the half of the
+    // work that was already visible, which is the opposite of the point.
+    //
+    // What goes in is what the card had NO mark for: the model reading,
+    // reasoning and writing. Bounded, because the chart looks at sixty seconds
+    // and a session runs for hours — dropped on the way in rather than
+    // accumulated and filtered on every render.
+    if (kind !== "tool_use") {
+      const keep = (root.outputs ?? []).filter(t => at - t < OUTPUT_WINDOW_MS);
+      keep.push(at);
+      root.outputs = keep.length > MAX_OUTPUTS ? keep.slice(-MAX_OUTPUTS) : keep;
+    }
+    // The revision is what makes the canvas re-read a mutated agent; the
+    // sibling observers above it are enrichment on an event that already
+    // bumped, and this one arrives on its own.
+    state.revision += 1;
+    return state;
+  }
+
   if (name === "UsageObserved") {
     const u = (p.usage ?? null) as Record<string, unknown> | null;
     if (u) {
@@ -2065,6 +2111,13 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
 }
 
 /** Deterministic per-session hue (0–360). Used to give each session a calm accent. */
+/** How far back the activity spark looks, and the most stamps worth keeping
+ *  for it. The chart is 24 buckets over 60s, so a bucket is 2.5s and 64 stamps
+ *  is more than a block ever lands in that window — the measured median gap
+ *  between blocks is 4.1s, which is 15 in a minute. */
+const OUTPUT_WINDOW_MS = 60_000;
+const MAX_OUTPUTS = 64;
+
 export function sessionHue(sessionId: string): number {
   let h = 5381;
   for (let i = 0; i < sessionId.length; i++) h = ((h << 5) + h) ^ sessionId.charCodeAt(i);

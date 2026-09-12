@@ -86,16 +86,28 @@ export function blockTimeOf(line) {
   return Number.isFinite(t) ? t : null;
 }
 
-/** The newest block in a chunk of whole-ish lines, or null if it has none.
- *  Walks backwards because the answer is almost always the last line, and a
- *  tail is read for exactly that. */
-export function latestBlock(chunk) {
-  const lines = chunk.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const kind = blockKindOf(lines[i]);
-    if (kind) return { kind, at: blockTimeOf(lines[i]) };
+/**
+ * EVERY block in a chunk of whole-ish lines, oldest first.
+ *
+ *  Not the newest one. This took only the last block and lost the interesting
+ *  half of nearly every turn: measured on this machine, consecutive blocks land
+ *  1.4s and 2.7s apart, so a `thinking` and the `tool_use` it produced arrive
+ *  inside one 1500ms tick more often than not — and reporting only the newest
+ *  meant the canvas saw `tool_use` forever and `thinking` never, which is the
+ *  one thing this whole watch exists to show. Confirmed on the live deck: two
+ *  ticks, two events, both `tool_use`, no thinking at all.
+ *
+ *  It also undercounted. Each block is a unit of work the model finished and
+ *  the activity chart marks one per block, so folding three into one drew a
+ *  third of the movement that happened.
+ */
+export function blocksIn(chunk) {
+  const out = [];
+  for (const line of chunk.split("\n")) {
+    const kind = blockKindOf(line);
+    if (kind) out.push({ kind, at: blockTimeOf(line) });
   }
-  return null;
+  return out;
 }
 
 /**
@@ -134,7 +146,8 @@ export function createOutputWatch(io = {}) {
 
   /**
    * One tick. Stats each named session's file, reads only what is new, and
-   * answers with the newest block per session that moved.
+   * answers with EVERY block that landed in it, oldest first — see blocksIn
+   * for why the newest alone was the wrong answer.
    *
    * Sessions the caller believes are live, and no others: a finished session's
    * file can still be appended to by a later turn, and the deck has its own
@@ -198,8 +211,9 @@ export function createOutputWatch(io = {}) {
         text = text.slice(0, lastNl);
       }
 
-      const block = latestBlock(text);
-      if (block?.kind) out.push({ sid, kind: block.kind, at: block.at });
+      // Oldest first, so a reader that refuses to move backwards accepts the
+      // whole run rather than only its last member.
+      for (const b of blocksIn(text)) out.push({ sid, kind: b.kind, at: b.at });
     }
     return out;
   }

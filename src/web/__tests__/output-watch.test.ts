@@ -13,7 +13,7 @@
 // split across two ticks. None of those are hypothetical — a transcript is
 // appended to by another process the whole time this runs.
 import { describe, it, expect } from "vitest";
-import { blockKindOf, blockTimeOf, latestBlock, createOutputWatch } from "../../server/output-watch.mjs";
+import { blockKindOf, blockTimeOf, blocksIn, createOutputWatch } from "../../server/output-watch.mjs";
 
 const T0 = Date.parse("2026-09-12T19:04:40.038Z");
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -97,14 +97,23 @@ describe("reading one transcript line", () => {
     expect(blockTimeOf("{")).toBeNull();
   });
 
-  it("takes the newest block out of a chunk of lines", () => {
+  it("takes EVERY block out of a chunk, oldest first", () => {
+    // Not the newest. Consecutive blocks land 1.4s and 2.7s apart on this
+    // machine, so a thinking block and the tool call it produced arrive inside
+    // one 1500ms tick more often than not — and keeping only the last meant the
+    // canvas saw `tool_use` forever and `thinking` never, which is the one
+    // thing this watch exists to show.
     const chunk = [rec("thinking", T0), rec("text", T0 + 1000), rec("tool_use", T0 + 3000)].join("\n");
-    expect(latestBlock(chunk)).toEqual({ kind: "tool_use", at: T0 + 3000 });
+    expect(blocksIn(chunk)).toEqual([
+      { kind: "thinking", at: T0 },
+      { kind: "text", at: T0 + 1000 },
+      { kind: "tool_use", at: T0 + 3000 },
+    ]);
   });
 
   it("finds nothing in a chunk that carries no production", () => {
-    expect(latestBlock('{"type":"user"}\n{"type":"user"}')).toBeNull();
-    expect(latestBlock("")).toBeNull();
+    expect(blocksIn('{"type":"user"}\n{"type":"user"}')).toEqual([]);
+    expect(blocksIn("")).toEqual([]);
   });
 });
 
@@ -127,6 +136,27 @@ describe("the watch across ticks", () => {
     await w.poll(["s1"]);
     fs.append("/t.jsonl", rec("thinking", T0 + 2000) + "\n");
     expect(await w.poll(["s1"])).toEqual([{ sid: "s1", kind: "thinking", at: T0 + 2000 }]);
+  });
+
+  it("reports every block a single tick picked up, oldest first", async () => {
+    // The regression this file was written after: blocks land 1.4s and 2.7s
+    // apart and the poll runs at 1500ms, so a thinking block and the tool call
+    // it produced arrive together more often than not. Keeping only the newest
+    // showed `tool_use` forever and `thinking` never — confirmed on the live
+    // deck before it was fixed — and marked one unit of work where three
+    // happened.
+    const fs = fakeFs();
+    fs.put("/t.jsonl", rec("text", T0) + "\n");
+    const w = createOutputWatch(fs.io);
+    w.note("s1", "/t.jsonl");
+    await w.poll(["s1"]);
+    fs.append("/t.jsonl",
+      rec("thinking", T0 + 1000) + "\n" + rec("text", T0 + 2400) + "\n" + rec("tool_use", T0 + 5100) + "\n");
+    expect(await w.poll(["s1"])).toEqual([
+      { sid: "s1", kind: "thinking", at: T0 + 1000 },
+      { sid: "s1", kind: "text", at: T0 + 2400 },
+      { sid: "s1", kind: "tool_use", at: T0 + 5100 },
+    ]);
   });
 
   it("stays quiet on a tick where nothing was written", async () => {
