@@ -101,10 +101,28 @@ function appColumnRules(): string[] {
 
 /** The pixels a column track list gives away to panels — everything that is
  *  not the `1fr` the canvas takes. */
+/** The accounts panel's width, which is declared on the panel and not in the
+ *  app's column rule.
+ *
+ *  It moved there so the panel could animate. A grid cannot be transitioned
+ *  from two tracks to three, and the closed state has no first track at all —
+ *  so the track is `auto` and follows the panel's own width, which is what the
+ *  open and close animate. The number is still declared exactly once and still
+ *  belongs in the table below; it is simply read from where it now lives. */
+function accountsPanelWidth(): number {
+  const m = /\.accounts-panel\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  expect(m, ".accounts-panel declares its own width").toBeTruthy();
+  return Number(m![1]);
+}
+
 function panelPixels(columns: string): number {
-  return columns.split(/\s+/)
+  const fixed = columns.split(/\s+/)
     .map(t => /^(\d+(?:\.\d+)?)px$/.exec(t))
     .reduce((sum, px) => sum + (px ? Number(px[1]) : 0), 0);
+  // An `auto` first track is the accounts panel sizing itself. Counting zero
+  // for it would report the accounts layouts as 288px roomier than they are,
+  // which is the exact class of error #615 was about.
+  return /^auto\b/.test(columns.trim()) ? fixed + accountsPanelWidth() : fixed;
 }
 
 const WINDOW_W = 1600;

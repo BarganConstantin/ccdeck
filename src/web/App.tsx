@@ -14,6 +14,9 @@ import ReactFlow, {
 } from "reactflow";
 import AgentNode, { waitingSentence } from "./components/AgentNode";
 import { shortModel, modelFamily } from "./model-label";
+// Keeps a side panel mounted long enough to animate out — see panel-exit.ts
+// for why `{open && <Panel/>}` cannot do that on its own.
+import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
@@ -890,6 +893,10 @@ function Inner() {
   useEffect(() => {
     try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
   }, [accountsPanelOpen]);
+  /** The panel outlives its own `false` by the length of its exit, so closing
+   *  it animates instead of cutting 288px out of the layout in one frame.
+   *  Must match `--side-exit` in the sheet. */
+  const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
 
   // The finish sound. Local to this tab since #704: the deck plays it itself,
   // so there is no server state to fetch and no settings.json to write. `null`
@@ -4252,8 +4259,8 @@ function Inner() {
           — which on a Codex-only machine dead-ends at "the claude CLI could not
           be run: not on PATH". The panel is also open by default, so that was
           the first thing such a user saw. */}
-      {accountsPanelOpen && providers.claude && (
-        <AccountsPanel onClose={() => setAccountsPanelOpen(false)} />
+      {isMounted(accountsPhase) && providers.claude && (
+        <AccountsPanel leaving={accountsPhase === "leaving"} onClose={() => setAccountsPanelOpen(false)} />
       )}
 
       {/* Mounted only while it is open, which is also what starts its poll: the

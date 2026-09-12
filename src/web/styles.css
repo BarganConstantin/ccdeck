@@ -484,8 +484,14 @@ button:focus-visible { outline-offset: 1px; }
 .app:has(.session-list) {
   grid-template-columns: 240px 1fr 360px;
 }
+/* AUTO, so the track follows the panel's own width rather than fixing it.
+   That is what lets the panel animate: a track cannot be transitioned from two
+   columns to three, and the closed state has no first column at all — but a
+   track sized to its content can start at nothing and grow with the thing in
+   it, and `:has()` has already moved the canvas to column 2 by the time the
+   first frame paints. */
 .app:has(.accounts-panel) {
-  grid-template-columns: 288px 1fr 360px;
+  grid-template-columns: auto 1fr 360px;
 }
 .app:has(.session-list) .canvas-wrap,
 .app:has(.accounts-panel) .canvas-wrap { grid-column: 2; }
@@ -2530,7 +2536,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    selected cost nothing extra. */
 .app:not(:has(.detail)) { grid-template-columns: 1fr; }
 .app:has(.session-list):not(:has(.detail)) { grid-template-columns: 240px 1fr; }
-.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: 288px 1fr; }
+.app:has(.accounts-panel):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
 /* The panel's captions, at both of the levels they now sit at (#381): the
    empty state's own title became this panel's h2 when the document gained an
@@ -6256,16 +6262,40 @@ button.tool.clickable:last-child { border-bottom: none; }
    usually something you do while watching your current spend. */
 /* Left sidebar, in the same slot as the session list — the two are alternate
    answers to "what should this column show", so they swap rather than stack. */
+/** How long the panel takes to leave. App.tsx holds it mounted for exactly
+    this — see panel-exit.ts — so the two must not drift apart. Out is faster
+    than in, as an exit should be: arriving is worth watching, leaving is not. */
+:root { --side-exit: 200ms; }
+
 .accounts-panel {
   grid-column: 1;
   grid-row: 2 / -1;
+  width: 288px;
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  /* CONTENT ANCHORED TO THE RIGHT EDGE, which is the whole trick. The panel's
+     width is what animates, and a flex column stretches its children to
+     whatever that is — so a narrowing panel re-wraps every email and re-measures
+     every bar, and the close reads as the text being crushed rather than as a
+     panel leaving. Measured before this: at 140px the content reflowed and the
+     panel's own height changed by 10px mid-animation.
+
+     With a fixed measure on the children and the cross axis aligned to the end,
+     the content keeps its 288px and slides out past the START edge instead —
+     which in a left-to-right document is unreachable overflow, so it is clipped
+     with no scrollbar and nothing to scroll to. The panel wipes open and shut
+     from its own left edge, and the text inside never moves. */
+  align-items: flex-end;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden auto;
+  animation: side-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+.accounts-panel > * { width: 288px; }
+.accounts-panel.leaving { animation: side-out var(--side-exit) cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes side-in { from { width: 0; } }
+@keyframes side-out { to { width: 0; } }
 
 .ap-header {
   display: flex;
@@ -7528,6 +7558,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .tool-burst.sub.status-err { animation: fadeIn 140ms ease both; }
   .tool-burst.fading,
   .tool-burst.sub.fading { animation: canvas-fade-out 600ms linear forwards; }
+  /* The panel arrives and leaves without travelling. Its width is a layout
+     property and the whole point of the animation is the 288px the canvas
+     moves, so reduced motion takes the movement and keeps the arrival: the
+     panel is simply there, and simply gone. */
+  .accounts-panel { animation: fadeIn 140ms ease both; }
+  .accounts-panel.leaving { animation: canvas-fade-out var(--side-exit) linear both; }
   .tool-burst .tb-spin,
   .tool-burst .tb-mark,
   .tool-burst.status-inflight .tb-emoji,

@@ -153,8 +153,13 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       ["SessionList.tsx", "session-list", "Sessions"],
     ];
     for (const [file, cls, label] of named) {
+      // The class may carry a state alongside its name — the accounts panel
+      // wears `leaving` while it animates out — so the className is allowed to
+      // be a template built on the class. What is NOT allowed to move is the
+      // rest of it: the tag, the id and the label are what the rotor reads.
+      const className = `(?:"${cls}"|\\{\`${cls}\\$\\{[^\`]*\\}\`\\})`;
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className="${cls}" id="${cls}" aria-label="${label}">`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label="${label}">`));
     }
     // The detail panel was already an <aside> and was the unnamed one.
     expect(code(app)).toMatch(/<aside className="detail" aria-label="Detail">/);

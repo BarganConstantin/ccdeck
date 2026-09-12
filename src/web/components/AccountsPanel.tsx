@@ -317,9 +317,14 @@ async function copyText(text: string): Promise<boolean> {
   return ok;
 }
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void;
+  /** Asked to close, still on screen for the length of its exit. The panel
+   *  keeps working while it leaves — nothing here reads this but the class. */
+  leaving?: boolean;
+}
 
-export default function AccountsPanel({ onClose }: Props) {
+export default function AccountsPanel({ onClose, leaving }: Props) {
   const [data, setData] = useState<AccountsData | null>(null);
   const [auto, setAuto] = useState<AutoStatus | null>(null);
   // The tag of the one request the panel has out, or null. A switch is one of
@@ -674,7 +679,7 @@ export default function AccountsPanel({ onClose }: Props) {
     // aria-label on a roleless <div> resolved to `generic` and the tree threw
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
-    <aside className="accounts-panel" id="accounts-panel" aria-label="Claude accounts">
+    <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label="Claude accounts">
       <div className="ap-header">
         {/* h2, under the topbar's h1 — the level every panel title sits at.
 

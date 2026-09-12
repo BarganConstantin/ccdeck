@@ -432,7 +432,7 @@ describe("which panels the UI draws for each machine", () => {
   it("mounts the accounts panel only where Claude Code is", () => {
     // It is open on first run, so on a Codex-only machine this was the first
     // thing on screen, and every route out of it ends at the claude CLI.
-    expect(leadUpTo(appSrc, "<AccountsPanel onClose=")).toContain("providers.claude");
+    expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain("providers.claude");
   });
 
   it("hides the topbar accounts button too, rather than opening onto nothing", () => {
