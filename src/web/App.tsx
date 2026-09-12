@@ -350,13 +350,23 @@ function saveUsagePanelOpen(open: boolean): void {
 /**
  * Whether the machine panel was open when this tab was last looked at.
  *
- * Defaults to CLOSED, unlike the usage panel's default. Usage is the panel you
- * keep up; this one answers a question you asked once, and a machine readout
- * that reopens itself on every refresh would be occupying the rail on behalf of
- * a decision nobody made.
+ * OPEN ON A FIRST RUN, and never reopened after that — the same shape the
+ * usage and accounts panels already use. This used to default to closed, on
+ * the argument that "a machine readout that reopens itself on every refresh
+ * would be occupying the rail on behalf of a decision nobody made". That
+ * argument is about REOPENING, and the null check is exactly what prevents it:
+ * a tab that has never expressed a preference gets the panel, and a tab that
+ * has closed it once has expressed one and keeps it closed for good.
+ *
+ * The two cases were worth separating because they answer different people. A
+ * first run is somebody who has not met the deck yet and cannot ask for a
+ * panel they do not know is there; every run after that is somebody who has,
+ * and whose answer is on record. Opening it starts the /api/system poll, which
+ * stops with the panel and while the tab is hidden.
  */
 function loadMachinePanelOpen(): boolean {
-  return readStored(MACHINE_PANEL_OPEN_KEY) === "1";
+  const stored = readStored(MACHINE_PANEL_OPEN_KEY);
+  return stored === null ? true : stored === "1";
 }
 function saveMachinePanelOpen(open: boolean): void {
   if (typeof window === "undefined") return;
