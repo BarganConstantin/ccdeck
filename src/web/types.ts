@@ -227,7 +227,7 @@ export interface AgentNodeData {
   startedAt: number;
   endedAt?: number;
   tools: ToolCall[];
-  /** WHEN THE MODEL LAST FINISHED A BLOCK OF ITS OWN OUTPUT, and what kind.
+  /** WHEN THE MODEL LAST FINISHED A BLOCK OF ITS OWN OUTPUT.
    *
    *  The 16.5% of measured time the hooks cannot see: between a tool's result
    *  and the next tool's call, the model is reading, reasoning and writing, and
@@ -235,11 +235,13 @@ export interface AgentNodeData {
    *  transcript watch supplies this — see output-watch.mjs for why it is a
    *  stamp and a kind rather than a verdict.
    *
-   *  `at` is the block's OWN timestamp, not when the deck heard about it, so a
-   *  block read late is not reported as having just happened. A reader decides
-   *  what counts as recent; the measured distribution is in the card. */
+   *  This is the block's OWN timestamp, not when the deck heard about it, so a
+   *  block read late is not reported as having just happened.
+   *
+   *  The KIND is deliberately not kept. It decides what reaches the chart —
+   *  a `tool_use` block is the tool call, which the card already marks — and
+   *  nothing else reads it, so storing it would be state with no reader. */
   lastOutputAt?: number;
-  lastOutputKind?: "thinking" | "text" | "tool_use";
   /** The stamps of the recent blocks, oldest first and bounded.
    *
    *  The activity spark counted tool calls alone, so a minute of thinking drew

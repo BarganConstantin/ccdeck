@@ -3305,14 +3305,16 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  /* 10px rather than 12. A busy card now carries five items — tools, errors,
+  /* 9px rather than 12. A busy card carries five items — tools, errors,
      in-flight, tokens, cost — and at 12 that measured 248px against 230 of
-     box, so the commonest interesting card in the deck wrapped. Ten brings it
-     to exactly the width available and leaves the wrap for the genuine
-     extremes it was added for. The row still reads as five groups because each
-     one is a bold figure against a muted word, which is a stronger boundary
-     than the two pixels given up. */
-  gap: 2px 10px;
+     box, so the commonest interesting card in the deck wrapped. Ten was not
+     quite enough either: a session past a million tokens measured 231 against
+     the same 230 and wrapped for ONE pixel, which reads as a defect rather
+     than as the graceful degradation it is. Nine clears it with room, and the
+     wrap still waits for the genuine extremes it was added for. The row reads
+     as five groups either way, because each is a bold figure against a muted
+     word — a stronger boundary than the three pixels given up. */
+  gap: 2px 9px;
 }
 .agent-node .meta > * { flex: 0 0 auto; }
 .agent-node .meta b { color: var(--text); font-weight: 600; }

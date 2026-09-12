@@ -1605,7 +1605,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     // would report a live session as going stale.
     if (root.lastOutputAt != null && at <= root.lastOutputAt) return state;
     root.lastOutputAt = at;
-    root.lastOutputKind = kind;
     // THE CHART'S OTHER INPUT, and deliberately not every block.
     //
     // A `tool_use` block IS the tool call — it is written at the moment the

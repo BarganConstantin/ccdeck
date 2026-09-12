@@ -55,7 +55,6 @@ describe("a block of the model's own output reaches the graph", () => {
   it("records when it landed and what it was", () => {
     const s = output(live(), T0);
     expect(root(s).lastOutputAt).toBe(T0);
-    expect(root(s).lastOutputKind).toBe("thinking");
     expect(root(s).outputs).toEqual([T0]);
   });
 
@@ -107,7 +106,7 @@ describe("a block of the model's own output reaches the graph", () => {
 
   it("takes the three kinds it knows and refuses anything else", () => {
     for (const kind of ["thinking", "text", "tool_use"]) {
-      expect(root(output(live(), T0, kind)).lastOutputKind).toBe(kind);
+      expect(root(output(live(), T0, kind)).lastOutputAt, kind).toBe(T0);
     }
     for (const junk of ["tool_result", "", "THINKING", "other"]) {
       expect(root(output(live(), T0, junk)).lastOutputAt, junk).toBeUndefined();

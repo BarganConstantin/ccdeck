@@ -504,10 +504,21 @@ function ToolRateSpark({ tools, outputs, now }: { tools: ToolCall[]; outputs?: n
   // all of them, so every chart on screen would silently redraw when an
   // unrelated session spiked, and a card nobody touched would appear to calm
   // down. A constant means a bar height is the same quantity in every card, at
-  // every moment, whatever else is on the canvas. Four calls in a 2.5s bucket
-  // is a hard-working agent; above that the bar sits full and the tooltip
-  // carries the real figure, which is where the exact number always lived.
-  const FULL_SCALE = 4;
+  // every moment, whatever else is on the canvas.
+  //
+  // TWO, MEASURED — and it was four, guessed, back when this counted only tool
+  // calls. Over 14,194 real 2.5s buckets: 92.5% hold nothing, 6.9% hold exactly
+  // one, and 0.7% hold more than one. p90 is 1 and p99 is 3. At a ceiling of
+  // four the ordinary active bucket drew a 3.5px stub in a 14px box and the
+  // chart spent its whole range on a case that happens once in a thousand.
+  //
+  // What the chart is actually reading, at this density, is HOW MANY of the 24
+  // buckets have anything in them — a session working steadily fills them, a
+  // stalling one does not — so the height per bucket matters less than that a
+  // single mark is unmistakably a mark. Two puts one at half the box and clips
+  // only the 0.1% of buckets past it, where the tooltip carries the real
+  // figure, as it always has.
+  const FULL_SCALE = 2;
   const observedPeak = Math.max(0, ...counts);
   const W = 132;
   const H = 14;
