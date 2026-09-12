@@ -9,7 +9,7 @@ Copyright © 2026 Bargan Constantin.
 
 Everything up to and including **3.21.4** was published under the MIT licence,
 under all three npm names (`ccdeck`, `agents-deck`, `agent-dag`). The AGPL
-applies from the **first release after 3.21.4** onward.
+applies from **3.22.0** onward, which is the first release cut under it.
 
 ## The old releases are still MIT
 
