@@ -41,9 +41,13 @@ functionality. The AGPL is chosen so that modifications to the covered software
 stay open — including modified versions that users interact with over a
 network, which is the case an ordinary GPL does not cover.
 
-The intent is to keep ccdeck open source while making it harder for a modified,
-closed-source version to be run as a competing hosted service without those
-modifications being shared back.
+The intent is to keep ccdeck open source while making it harder for a modified
+version to be run as a closed-source competing hosted service. Precisely: the
+AGPL requires whoever runs a modified version to make the corresponding source
+available **to the users interacting with that modified version over a
+network**. It does not require anyone to send changes to this repository, open
+a pull request, or contribute anything upstream — there is no obligation to
+this project, only to those users.
 
 ## What this means if you use ccdeck
 
@@ -53,8 +57,12 @@ software or **offering a modified version to users over a network**, not to
 using it.
 
 If you modify ccdeck and let other people interact with your modified version
-remotely, section 13 of the AGPL requires you to offer those users the
-corresponding source of your modified version.
+remotely, section 13 of the AGPL requires you to offer **those users** an
+opportunity to receive the corresponding source of your modified version, at
+no charge, through a network server. That obligation runs to your users, not
+to this project: you may keep your changes entirely out of ccdeck's repository
+and still comply, so long as the people using your modified version can get
+its source.
 
 ## Third-party code
 

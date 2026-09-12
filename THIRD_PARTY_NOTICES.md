@@ -25,8 +25,20 @@ Two things are deliberately **not** listed:
   nothing but Node built-ins, so they carry no third-party code at all.
 
 `package-lock.json` records the licences of the full dependency graph as npm
-resolved it. It describes dependencies and is not modified by ccdeck's
-relicensing.
+resolved it. Apart from the root `packages[""]` entry — which describes ccdeck
+itself and now reads `AGPL-3.0-only` to match `package.json` — every licence
+field in it belongs to a dependency and is left exactly as npm wrote it.
+
+### Software ccdeck fetches but does not distribute
+
+Three third-party tools are downloaded onto the user's own machine at runtime,
+on demand, and are **not** in the npm tarball: `macmon`
+(github.com/vladkens/macmon), `uv` (github.com/astral-sh/uv) and `ccusage`
+(installed from npm). ccdeck runs them as separate processes and reads their
+output; it does not link them, bundle them or redistribute them, so their
+licences are not reproduced here — each arrives with its own licence beside
+it. They are named for completeness, so that "what ccdeck ships" and "what
+ccdeck can run" are not confused.
 
 ## Bundled packages (27)
 

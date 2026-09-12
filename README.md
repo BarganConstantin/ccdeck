@@ -466,6 +466,12 @@ Copyright © 2026 [Bargan Constantin](https://github.com/BarganConstantin).
 
 See [LICENSE](./LICENSE) for the full text.
 
+Running the deck imposes nothing on you. The AGPL's obligations attach to
+distributing ccdeck or offering a **modified** version to users over a network
+— and what they require is that those users be offered the corresponding
+source of that modified version, not that anyone contribute changes back to
+this repository.
+
 Releases up to and including **3.21.4** were published under the MIT licence
 and remain available under MIT — this change is not retroactive and revokes
 nothing already granted. [LICENSING.md](./LICENSING.md) explains what applies
