@@ -459,24 +459,17 @@ and starts again when you log in. `ccdeck --stop` ends it.
 
 ## License
 
-ccdeck is licensed under the GNU Affero General Public License v3.0 only
-(AGPL-3.0-only).
+ccdeck is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
+
+The AGPL applies to the complete current ccdeck codebase and all features
+distributed as part of current and future releases — including code and
+features that existed before the relicensing.
 
 Copyright © 2026 [Bargan Constantin](https://github.com/BarganConstantin).
 
-See [LICENSE](./LICENSE) for the full text.
-
-Running the deck imposes nothing on you. The AGPL's obligations attach to
-distributing ccdeck or offering a **modified** version to users over a network
-— and what they require is that those users be offered the corresponding
-source of that modified version, not that anyone contribute changes back to
-this repository.
-
-Releases up to and including **3.21.4** were published under the MIT licence
-and remain available under MIT — this change is not retroactive and revokes
-nothing already granted. [LICENSING.md](./LICENSING.md) explains what applies
-to which version.
+See [LICENSE](./LICENSE) for the full license text and
+[LICENSING.md](./LICENSING.md) for licensing history and additional details.
 
 ccdeck bundles third-party code under permissive licences (MIT, ISC,
-BSD-3-Clause); their notices are preserved in
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+BSD-3-Clause). Those licences are theirs, not ccdeck's, and their notices are
+preserved in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
