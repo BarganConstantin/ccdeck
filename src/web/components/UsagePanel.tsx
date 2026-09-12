@@ -464,6 +464,8 @@ interface Props {
   now: number;
   /** Which CLIs this deck watches — see src/web/providers.ts. */
   providers: Providers;
+  /** Asked to close, still on screen for the length of its exit. */
+  leaving?: boolean;
   onClose: () => void;
 }
 
@@ -622,7 +624,7 @@ function useCountUp(value: number): number {
   return shown;
 }
 
-export default function UsagePanel({ state, now, providers, onClose }: Props) {
+export default function UsagePanel({ state, now, providers, leaving, onClose }: Props) {
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
   const { data: codexUsage } = useCodexUsage(providers.codex);
@@ -987,7 +989,7 @@ export default function UsagePanel({ state, now, providers, onClose }: Props) {
     // outside any sectioning content is a `complementary` landmark, which does
     // take a name, and complementary is what this panel is: spend beside the
     // canvas, openable and closable without changing what the canvas shows.
-    <aside className="usage-panel" id="usage-panel" aria-label="Usage">
+    <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label="Usage">
       <div className="up-header">
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3

@@ -221,15 +221,17 @@ function useSystem(): Snapshot | null {
  * lands — and a header copied into a second branch is how one × ends up saying
  * something the other does not.
  */
-function Shell({ usageOpen, sub, onClose, children }: {
+function Shell({ usageOpen, leaving, sub, onClose, children }: {
   usageOpen: boolean;
+  /** Asked to close, still on screen for the length of its exit. */
+  leaving?: boolean;
   /** The uptime and the core count, which only a measured panel has. */
   sub?: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <aside className={`sysdetail${usageOpen ? " shifted" : ""}`} id="system-panel" aria-label="Machine detail">
+    <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-label="Machine detail">
       <div className="sd-head">
         <span className="sd-title">This machine</span>
         {sub && <span className="sd-sub">{sub}</span>}
@@ -265,8 +267,10 @@ function Shell({ usageOpen, sub, onClose, children }: {
  * lost by stopping — the server samples on its own timers and keeps the
  * history, so a panel opened an hour from now still has the hour behind it.
  */
-export default function MachinePanel({ usageOpen, onClose }: {
+export default function MachinePanel({ usageOpen, leaving, onClose }: {
   usageOpen: boolean;
+  /** Asked to close, still on screen for the length of its exit. */
+  leaving?: boolean;
   onClose: () => void;
 }) {
   const sys = useSystem();
@@ -279,7 +283,7 @@ export default function MachinePanel({ usageOpen, onClose }: {
   // the same rule the sections below it keep.
   if (!sys || sys.cpu == null || !sys.memory) {
     return (
-      <Shell usageOpen={usageOpen} onClose={onClose}>
+      <Shell usageOpen={usageOpen} leaving={leaving} onClose={onClose}>
         <div className="sd-note">reading this machine…</div>
       </Shell>
     );
@@ -293,7 +297,7 @@ export default function MachinePanel({ usageOpen, onClose }: {
   const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
 
   return (
-    <Shell usageOpen={usageOpen} sub={`up ${uptime(uptimeSec)} · ${cores} cores`} onClose={onClose}>
+    <Shell usageOpen={usageOpen} leaving={leaving} sub={`up ${uptime(uptimeSec)} · ${cores} cores`} onClose={onClose}>
 
       {perCore && perCore.length > 0 && (
         <div className="sd-section" role="group" aria-label="Cores">

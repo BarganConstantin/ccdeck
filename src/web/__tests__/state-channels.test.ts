@@ -384,7 +384,10 @@ describe("the usage panel's dot reaches a rule at all", () => {
     expect(sessionList).toMatch(/className=\{`sl-dot state-\$\{r\.state\}`\}/);
     expect(usagePanel).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
     // …and the panels are siblings in App, not one inside the other.
-    expect(app).toMatch(/\{usagePanelOpen && \(\s*<UsagePanel/);
+    // The panel is mounted from its own flag, directly or through the presence
+    // that holds it on screen while it leaves — see panel-exit.ts. What this
+    // is about is that something mounts it at all.
+    expect(app).toMatch(/\{(?:usagePanelOpen|isMounted\(usagePhase\)) && \(\s*<UsagePanel/);
     expect(app).toMatch(/\{sessionListOpen && \(\s*<SessionList/);
   });
 });

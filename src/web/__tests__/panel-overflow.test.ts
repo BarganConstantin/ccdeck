@@ -214,7 +214,7 @@ describe("the cost bar inside the usage panel", () => {
     // #373 found every `.sl-dot` rule scoped to a panel its element was a
     // sibling of, so the rules matched nothing. The same class of mistake here
     // would put the width back where it was without touching this stylesheet.
-    expect(usage).toMatch(/className="usage-panel"/);
+    expect(usage).toMatch(/className=(?:"usage-panel"|\{`usage-panel\$\{[^`]*\}`\})/);
     // The role between the class and the label arrived with #381, which is what
     // makes that label reach the accessibility tree at all — a <div> with no
     // role resolves to `generic` and a generic element cannot be named.

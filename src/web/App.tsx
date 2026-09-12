@@ -897,6 +897,11 @@ function Inner() {
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
   const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
+  /** The rail's two panels leave the same way — see --rail-exit in the sheet.
+   *  Faster than the accounts panel because they travel less: 8px and a fade,
+   *  against 288px of layout. */
+  const usagePhase = usePanelPresence(usagePanelOpen, 130);
+  const machinePhase = usePanelPresence(machinePanelOpen, 130);
 
   // The finish sound. Local to this tab since #704: the deck plays it itself,
   // so there is no server state to fetch and no settings.json to write. `null`
@@ -4244,11 +4249,12 @@ function Inner() {
         </div>
       ) : null}
 
-      {usagePanelOpen && (
+      {isMounted(usagePhase) && (
         <UsagePanel
           state={stateRef.current}
           now={now}
           providers={providers}
+          leaving={usagePhase === "leaving"}
           onClose={() => setUsagePanelOpen(false)}
         />
       )}
@@ -4267,8 +4273,9 @@ function Inner() {
           topbar meter used to keep /api/system running for the life of the tab
           on behalf of a readout that is gone. `usageOpen` moves it one rail
           slot left when usage has the first one — see .sysdetail.shifted. */}
-      {machinePanelOpen && (
-        <MachinePanel usageOpen={usagePanelOpen} onClose={() => setMachinePanelOpen(false)} />
+      {isMounted(machinePhase) && (
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
+          onClose={() => setMachinePanelOpen(false)} />
       )}
 
       {sessionListOpen && (
