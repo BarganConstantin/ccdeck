@@ -3268,11 +3268,31 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   transition: fill 200ms;
 }
 .tool-spark-bar.active { fill: var(--accent); opacity: 0.72; }
+/* THE ONE MOMENT IN THIS CHART WORTH AUTHORING: a mark landing.
+   Everything else the chart does is the window sliding left, which is time
+   passing rather than anything happening — and animating that would be a fifth
+   resting animation on a canvas that just had three glows taken off it. This
+   fires on the event and on nothing else, so an idle card is still.
+
+   It rises FROM the baseline it already occupied rather than from nothing: the
+   1.5px rule is drawn for every empty bucket, so scaling from 0 would invent a
+   bar appearing where a line already was. 180ms is feedback, not choreography,
+   and the curve is the sheet's own confident-arrival ease-out.
+
+   The remount that plays it is keyed in AgentNode — see the note there for why
+   only the leading bar gets that treatment. */
 .tool-spark-bar.latest {
   fill: var(--inflight);
   /* A glow on a 5.5px rectangle. The fill is already the loudest of the three
      tiers; the tiers are what the reader is reading. */
   opacity: 1;
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: spark-land 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes spark-land {
+  from { transform: scaleY(0.14); }
+  to { transform: scaleY(1); }
 }
 .tool-spark-label {
   color: var(--muted);
@@ -7596,6 +7616,9 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      panel is simply there, and simply gone. */
   .accounts-panel { animation: fadeIn 140ms ease both; }
   .accounts-panel.leaving { animation: canvas-fade-out var(--side-exit) linear both; }
+  /* The bar is the feedback and it stays; only the rise goes. Reduced motion
+     means gentler, not blind. */
+  .tool-spark-bar.latest { animation: none; }
   .tool-burst .tb-spin,
   .tool-burst .tb-mark,
   .tool-burst.status-inflight .tb-emoji,

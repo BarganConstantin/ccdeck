@@ -545,7 +545,13 @@ function ToolRateSpark({ tools, outputs, now }: { tools: ToolCall[]; outputs?: n
           const cls = `tool-spark-bar${isActive ? " active" : ""}${isLatest ? " latest" : ""}`;
           return (
             <rect
-              key={i}
+              // THE LEADING BAR IS KEYED BY WHAT IT COUNTS, so React remounts
+              // it the moment that count changes and the rise below plays on
+              // exactly the event it is reporting. Everything behind it keeps
+              // its index: those buckets are time slices sliding leftwards, and
+              // remounting them would restart an animation for the passage of
+              // time rather than for anything that happened.
+              key={isLatest ? `landed:${c}` : i}
               x={i * barW + 0.4}
               y={H - h}
               width={Math.max(0.5, barW - 1)}
