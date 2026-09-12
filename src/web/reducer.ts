@@ -1961,6 +1961,57 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       const root = ensureRoot(state, sessionId, now, false);
       root.state = "done";
       root.endedAt = now;
+      // A TURN THAT ENDED CANNOT STILL BE HOLDING ITS OWN TOOL CALL.
+      //
+      // The hook POSTs are fire-and-forget, so a call whose PostToolUse fired
+      // while this deck was not listening — restarted, or killed by the very
+      // command being reported — loses its outcome for good. `sweepStaleTools`
+      // is the existing answer and it cannot reach this case: its clock is the
+      // SESSION's silence, and a session that carried on working after the lost
+      // event never goes silent. Measured on this machine's log, every one of
+      // those calls was a Bash, and all of them sat in-flight from the moment
+      // they were lost to the end of the log — pulsing on a card whose work
+      // finished hours earlier.
+      //
+      // `Stop` is the evidence the clock could not supply. It is the root's own
+      // turn boundary, so a call the ROOT made and is still holding cannot be
+      // running once it lands. Measured before writing this: 75 Stops, 6 root
+      // calls open across one, and 0 of the 6 ever answered afterwards — no
+      // false positive to trade against.
+      //
+      // ONLY the root's own calls, and that restriction is the whole of the
+      // safety. The note above this block records that background subagents
+      // outlive the turn that dispatched them, 65 times out of 65 — so their
+      // calls are still genuinely running here and are left exactly alone.
+      // They carry an agent id and live on their own node; this walks the root
+      // node and nothing else.
+      // CLAUDE ONLY, for the reason `sweepStaleTools` carries the same guard:
+      // on Codex a missing result means the call has NOT finished — it is
+      // parked on a human who has not approved it yet — rather than that its
+      // result was lost. Codex maps `task_complete` / `turn_aborted` onto this
+      // same `Stop`, so without this the deck would tell the user a command had
+      // errored while Codex was politely waiting for them to say yes. An event
+      // recorded before `provider` existed replays without one and keeps the
+      // Claude behaviour it was swept with, so only an explicit "codex" is
+      // exempt.
+      for (const t of root.provider === "codex" ? [] : root.tools) {
+        if (t.endedAt != null) continue;
+        t.endedAt = now;
+        t.ok = false;
+        // Says what was seen, and never why. The deck knows the turn ended
+        // without a result; it does not know whether the tool failed, or
+        // succeeded into a socket that had gone. Asserting the second is the
+        // expensive kind of wrong — see the sweep's own note on this.
+        t.errorPreview = t.outcomeGap
+          ? "no result reached the deck — events were dropped while the deck was paused"
+          : "the turn ended before this call returned";
+        // Out of the live index for the same reason the sweep drops it: the id
+        // is no longer held open. A late outcome still lands — the PostToolUse
+        // handler falls back to scanning the owner's tool list and resurrects
+        // the call, un-saying this.
+        state.toolIndex.delete(t.id);
+        state.toolOwner.delete(t.id);
+      }
       // ...and only `SessionEnd` says the SESSION is over (#445). `Stop` is a
       // turn boundary on both providers — Claude fires it when the main agent
       // finishes responding, and the Codex watcher maps `task_complete` /
