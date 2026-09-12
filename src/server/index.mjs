@@ -27,6 +27,9 @@ import { CODEX_HOME, CODEX_SESSIONS_DIR, STOP, walkRolloutDays } from "./codex-d
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { createActivity } from "./activity.mjs";
+// What a session is producing between its tool calls — the 16.5% of measured
+// time the hooks cannot see. See output-watch.mjs.
+import { createOutputWatch } from "./output-watch.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
@@ -2781,7 +2784,49 @@ export function eventsSince(seq) {
 const sessionTouchedAt = new Map();   // sid -> ms of the last event seen
 const MAX_TRACKED_SESSIONS = 256;
 
+/** The transcript watch, and how far back a session stays worth polling.
+ *
+ *  A session is polled while its last HOOK event is recent — and the window has
+ *  to be generous for exactly the reason this watch exists: a session that is
+ *  thinking has, by definition, not fired a hook. Measured on this machine's
+ *  log, the gaps with no event at all run to p99 53s and 155s at the longest,
+ *  so five minutes clears the whole measured distribution and still keeps the
+ *  polled set to the sessions somebody is actually running. */
+const outputWatch = createOutputWatch();
+const OUTPUT_WATCH_WINDOW_MS = 5 * 60_000;
+const OUTPUT_WATCH_MS = 1_500;
+let outputWatchTimer = null;
+
+/** One tick: stat the recent sessions' transcripts, read only what grew, and
+ *  say what landed. Everything expensive about this is guarded inside the watch
+ *  — a session that wrote nothing costs one `stat`. */
+async function outputWatchOnce() {
+  const cutoff = Date.now() - OUTPUT_WATCH_WINDOW_MS;
+  const live = [];
+  for (const [sid, at] of sessionTouchedAt) if (at >= cutoff) live.push(sid);
+  if (!live.length) return;
+  const found = await outputWatch.poll(live);
+  for (const f of found) {
+    pushEvent({
+      hook_event_name: "OutputObserved",
+      session_id: f.sid,
+      kind: f.kind,
+      at: f.at,
+    }, "internal");
+  }
+}
+
+function startOutputWatch() {
+  if (outputWatchTimer) return outputWatchTimer;
+  outputWatchTimer = setInterval(() => { outputWatchOnce().catch(() => {}); }, OUTPUT_WATCH_MS);
+  // Unref'd like the Codex watcher beside it: a poll must never be the reason
+  // the process stays up.
+  if (outputWatchTimer.unref) outputWatchTimer.unref();
+  return outputWatchTimer;
+}
+
 function forgetSession(sid) {
+  outputWatch.forget(sid);
   modelBySession.delete(sid);
   // The two the session-naming work added (#520/#522) and did not list here.
   // Both are keyed by session id and nothing else ever removed an entry, which
@@ -3792,6 +3837,10 @@ function pushEvent(raw, source, opts = {}) {
       maybeResolveUsage(raw);
       maybeResolveContext(raw);
       maybeResolveSessionName(raw);
+      // Where the transcript IS, learned from the one place it is free. The
+      // four scanners above read it on this event; the watch reads it between
+      // events, which is the whole of what it adds.
+      if (raw?.transcript_path) outputWatch.note(raw.session_id, raw.transcript_path);
     } else {
       noteRefusedTranscript(raw.transcript_path);
     }
@@ -5175,6 +5224,7 @@ async function handleClear(res) {
   // The rule, for the next cache that gates an emit: anything answering
   // "has this changed" has to appear in BOTH places that mean the client no
   // longer has it — here, and in forgetSession.
+  outputWatch.clear();
   nameBySession.clear();
   modelBySession.clear();
   // The read stamps go with them. Clearing only the signatures would leave
@@ -5995,6 +6045,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       await tryListen(server, candidate, host);
       // Codex has no working hooks on Windows — tail its rollout files instead.
       if (codex) startCodexWatcher(workspace);
+      // What a session is producing between its tool calls. Claude only — it
+      // reads `transcript_path`, which Codex hooks never send — and unref'd
+      // like its neighbours.
+      startOutputWatch();
       // Both timers are unref'd, so this never holds the process open.
       startSystemMetrics();
       // LAN sync, from the prefs the import read — and only from here, so a
