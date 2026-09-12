@@ -191,6 +191,24 @@ const BUBBLE_MS = 420;
 // Padding of the invisible session drag-handle node. Matches SessionClusters'
 // PAD so the handle lines up with the card's body (the card's header strip is
 // left uncovered so its label stays clickable).
+/** The three distances a card is read from.
+ *
+ *  `full` is where every tier on the card is legible. `mid` drops the 9-10px
+ *  annotations, which are the first to go illegible and the last anybody needs
+ *  at a distance. `far` keeps only what a graph is for at overview: which
+ *  session, what state, and the shape of the tree.
+ *
+ *  The thresholds are where the SMALLEST tier in each group stops resolving.
+ *  The sheet's floor is 9px, so at 0.55 that tier draws at 5px and at 0.35 the
+ *  11px body draws at under 4 — both past the point where the glyphs carry
+ *  anything, and both well inside React Flow's 0.2 minimum. */
+type ZoomDetail = "full" | "mid" | "far";
+function zoomDetail(zoom: number): ZoomDetail {
+  if (zoom < 0.35) return "far";
+  if (zoom < 0.55) return "mid";
+  return "full";
+}
+
 const GROUP_PAD = 18;
 
 const AGENT_CAP = 200;
@@ -2501,6 +2519,25 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
+  /** HOW MUCH OF A CARD IS WORTH DRAWING AT THIS DISTANCE.
+   *
+   *  The canvas zooms to 0.2 and nothing ever simplified: at that distance the
+   *  9px tier renders at 1.8px and the 10px tier at 2px, which is a smear that
+   *  still costs a layout and a paint. This is the one signal the sheet needs
+   *  to stop drawing what cannot be read.
+   *
+   *  It lives on the canvas element rather than in each node ON PURPOSE. A node
+   *  that subscribed to the viewport would re-render every card on every frame
+   *  of a pinch, on a surface that already runs a 200-iteration relaxation and
+   *  four resting animations; this is one attribute on one element, written
+   *  only when the tier actually changes, which is a handful of times per
+   *  gesture at most.
+   *
+   *  Nothing here changes a card's BOX. What it hides keeps its space, because
+   *  the measured height of a node is a layout input — shrinking a card at
+   *  distance would reflow the graph under the reader's hands. */
+  const [detail, setDetail] = useState<ZoomDetail>("full");
+  const detailRef = useRef<ZoomDetail>("full");
   const endBubble = useCallback(() => {
     if (bubbleTimerRef.current) { window.clearTimeout(bubbleTimerRef.current); bubbleTimerRef.current = null; }
     setBubbling(false);
@@ -4247,6 +4284,7 @@ function Inner() {
         id="canvas"
         tabIndex={-1}
         className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}`}
+        data-detail={detail}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
         /* The three that say a human is working this canvas right now. They
@@ -4379,6 +4417,8 @@ function Inner() {
             if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
             // Debounce viewport persistence — pan/zoom fires many times
             // per gesture, but we only need the final state.
+            const tier = zoomDetail(vp.zoom);
+            if (tier !== detailRef.current) { detailRef.current = tier; setDetail(tier); }
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
             vpSaveTimerRef.current = window.setTimeout(() => saveViewport(vp), 250);
           }}

@@ -260,7 +260,18 @@ export function clusterHeader(
   const id = collides ? shortId(sessionId) : undefined;
   const fields = [workspace, named || undefined, id].filter(Boolean) as string[];
   return {
-    label: workspace,
+    // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
+    // ruler as the name beside it. The note above records that a long
+    // workspace basename overhangs a one-card cluster by 21.2px and that this
+    // is neither new nor the name's doing — true, and it is also a measurement
+    // of the basenames on one machine rather than a bound on them. A checkout
+    // under a long directory has no ceiling at all, and the 240px gutter
+    // layout.ts leaves between columns is exactly what an uncapped field can
+    // cross. Capping it costs nothing that was working: every workspace
+    // measured here is far inside 32 columns, so this fires only where the
+    // header was going to reach the cluster next door. The whole of it stays
+    // in `fullLabel`, which is the tooltip.
+    label: truncateName(workspace),
     name: named ? truncateName(named) : undefined,
     shortId: id,
     fullLabel: fields.join(SEP),
@@ -430,9 +441,18 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
               title={`Fit view to ${c.fullLabel}\ndrag the wrapper to move the whole session`}
               onClick={() => focusSession(c.sessionId)}
             >
+              {/* THREE FIELDS, THREE RANKS. They were one run of identical
+                  uppercase hue text, so the workspace, the session's own name
+                  and the four-character address all asked for the eye equally
+                  and the caption ended up louder than the node it labels. The
+                  workspace keeps the hue and the capitals — it is the address,
+                  and the only field the session colour needs to mark. The other
+                  two step down to the annotation tier and to normal weight; the
+                  separators go with them, so the run reads as one strong word
+                  followed by its qualifiers rather than as three equals. */}
               {c.label}
               {c.name ? <>{SEP}<span className="cluster-label-name">{c.name}</span></> : null}
-              {c.shortId ? SEP + c.shortId : null}
+              {c.shortId ? <span className="cluster-label-id">{SEP + c.shortId}</span> : null}
             </button>
           </React.Fragment>
         );

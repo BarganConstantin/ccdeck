@@ -107,3 +107,39 @@ describe("collectBursts — React keys", () => {
     expect(bursts).toHaveLength(3 * 4 * 2);
   });
 });
+
+// ── a command name is an identifier, not whatever survived the metachars ────
+//
+// `parseShellCommand`'s final grab stops at whitespace and at most shell
+// punctuation, but not at `)` or a quote. When the wrappers at the top of it
+// fail to unwrap a `$( )` substitution, the leftovers came through as a command
+// name and the canvas drew a bubble labelled `+$s)"` — reported from a
+// screenshot of exactly that. Refusing is free: `skinForShellCall` already
+// degrades to a bare `⚡ Bash`, which is true.
+describe("a shell bubble refuses to name a command it did not find", () => {
+  const subsFor = (command: string) => burstsFor(
+    agent("a", [tool("t1", { input: { command }, inputPreview: command, endedAt: NOW - 10, ok: true })]),
+  ).filter(b => b.isSub);
+
+  it("sees a sub-bubble at all, so the refusals below can fail", () => {
+    // The guard this file's own doctrine asks for: a negative assertion over a
+    // fixture that produces nothing is not a test of anything.
+    expect(subsFor("git status")).toHaveLength(1);
+  });
+
+  it("draws no sub-bubble for parser leftovers", () => {
+    for (const junk of ['+$s)"', ')"', "}else{", "||true"]) {
+      expect(subsFor(junk), junk).toHaveLength(0);
+    }
+  });
+
+  it("still names a real command", () => {
+    for (const [cmd, want] of [["git status", "git"], ["npm run build", "npm"],
+                               ["./scripts/deploy.sh --now", "deploy.sh"],
+                               ["/usr/bin/python3 -c 'x'", "python3"],
+                               // A real command may begin with a digit.
+                               ["7z x archive.7z", "7z"], ["2to3 -w .", "2to3"]] as const) {
+      expect(subsFor(cmd)[0]?.name, cmd).toBe(want);
+    }
+  });
+});

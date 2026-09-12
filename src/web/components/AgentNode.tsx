@@ -109,6 +109,13 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
   ].filter(Boolean).join(" ");
 
   const inflight = data.tools.filter(t => !t.endedAt).length;
+  // WHAT WENT WRONG, KEPT. The only place a failed tool call was ever drawn is
+  // the burst bubble, and that layer holds four per agent and then drops the
+  // oldest — so a failure was visible for four more calls and then existed
+  // nowhere on the canvas. The card counts them instead, in the shape the
+  // in-flight count already uses, and the count does not expire. Silent at
+  // zero, like the in-flight one: a session with nothing wrong says nothing.
+  const failed = data.tools.filter(t => t.ok === false).length;
   const hue = sessionHue(data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
@@ -273,6 +280,11 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
 
       <div className="meta">
         <span><b>{data.toolCount}</b> tools</span>
+        {failed > 0 && (
+          <span className="failed-meta" title={`${failed} tool ${failed === 1 ? "call" : "calls"} returned an error`}>
+            <b>{failed}</b> err
+          </span>
+        )}
         {inflight > 0 && <span className="inflight-meta"><b>{inflight}</b> in-flight</span>}
         {(data.usage.inputTokens + data.usage.outputTokens) > 0 && (
           <span className="tokens-meta" title={`in:${data.usage.inputTokens}  out:${data.usage.outputTokens}  cache-r:${data.usage.cacheReadTokens}  cache-c:${data.usage.cacheCreateTokens}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  reasoning:${data.usage.reasoningOutputTokens}` : ""}`}>
@@ -313,10 +325,17 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
           const elapsedSec = Math.max(0, ((data.endedAt ?? now) - data.startedAt) / 1000);
           const rate = data.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
           const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
+          // THE BURN RATE IS IN THE TOOLTIP AND NOWHERE ELSE NOW. The row is
+          // flex, no-wrap, inside `overflow: hidden`, with 232px of content;
+          // five items at 11px measure about 290px, so the live card — the one
+          // case where a rate means anything — pushed its last item off the
+          // right edge and said nothing about it. The rate was that item. It is
+          // also derived from two figures printed 20px away, so of the five it
+          // is the one whose removal costs a reader the least: the row now fits
+          // in the state it used to break in, and the card loses a type size.
           return (
             <span className="cost-meta" title={tt}>
               <b>{fmtCost(c.total)}{unpricedTok > 0 ? "+" : ""}</b>
-              {rate && <span className="cost-rate">{rate}</span>}
             </span>
           );
         })()}
@@ -456,13 +475,22 @@ function ToolRateSpark({ tools, now }: { tools: ToolCall[]; now: number }) {
       total += 1;
     }
   }
-  // Two different numbers, and conflating them made the tooltip contradict
-  // itself. `max` is the DRAWING scale, floored at one so an empty spark is a
-  // row of baselines rather than a division by zero. The peak is a
-  // MEASUREMENT, and on a card whose last tool call was over a minute ago there
-  // is no peak — the spark read "0 tool calls in last 60s · peak 0.4/s", which
-  // is the floor talking.
-  const max = Math.max(1, ...counts);
+  // ONE SCALE FOR EVERY CARD ON THE CANVAS. This used to be
+  // `Math.max(1, ...counts)` — each card normalised to its own busiest bucket,
+  // so a session at one call per bucket and a session at twelve drew the
+  // IDENTICAL chart. Two charts that cannot be told apart are not comparing
+  // anything, and comparing sessions is the only reason a graph exists rather
+  // than a list.
+  //
+  // A fixed ceiling rather than the canvas maximum, which was the other way to
+  // make them comparable and is worse: the busiest card would set the scale for
+  // all of them, so every chart on screen would silently redraw when an
+  // unrelated session spiked, and a card nobody touched would appear to calm
+  // down. A constant means a bar height is the same quantity in every card, at
+  // every moment, whatever else is on the canvas. Four calls in a 2.5s bucket
+  // is a hard-working agent; above that the bar sits full and the tooltip
+  // carries the real figure, which is where the exact number always lived.
+  const FULL_SCALE = 4;
   const observedPeak = Math.max(0, ...counts);
   const W = 132;
   const H = 14;
@@ -475,7 +503,7 @@ function ToolRateSpark({ tools, now }: { tools: ToolCall[]; now: number }) {
     <div className="tool-spark-row" title={title}>
       <svg className="tool-spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
         {counts.map((c, i) => {
-          const h = c === 0 ? 1.5 : Math.max(1.5, (c / max) * H);
+          const h = c === 0 ? 1.5 : Math.max(1.5, Math.min(1, c / FULL_SCALE) * H);
           const isLatest = i === BUCKETS - 1 && c > 0;
           const isActive = c > 0;
           const cls = `tool-spark-bar${isActive ? " active" : ""}${isLatest ? " latest" : ""}`;

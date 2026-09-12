@@ -186,6 +186,15 @@ function parseShellCommand(input: string): string | null {
   const first = s.match(/^([^\s|;&<>(]+)/);
   if (!first) return null;
   let cmd = first[1];
+  // WHAT SURVIVED THE METACHARACTERS IS NOT AUTOMATICALLY A COMMAND. The grab
+  // above stops at whitespace and at most shell punctuation, but not at `)` or
+  // a quote — so when the wrappers at the top fail to unwrap a `$( )`
+  // substitution, the leftovers came through as a command name and the canvas
+  // drew a bubble labelled `+$s)"`. A real command is an identifier, possibly
+  // with dots or dashes; anything else is this parser failing, and saying so is
+  // free — `skinForShellCall` already degrades to a bare `⚡ Bash`, which is
+  // true, where this was drawing something that was not.
+  if (!/^[A-Za-z0-9_][\w.+-]*$/.test(cmd.replace(/^.*[/\\]/, ""))) return null;
 
   // Strip a leading path: /usr/bin/git → git, ./foo.sh → foo.sh
   cmd = cmd.replace(/^.*[/\\]/, "");
@@ -534,19 +543,46 @@ interface PrimaryDisplay { emoji: string; label: string; hue?: number }
 // hidden. Display-only — does not affect categorisation or Claude tools.
 const CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL;
 
-function primaryDisplayFor(toolName: string): PrimaryDisplay {
+/** The longest a bubble's word may be.
+ *
+ *  A known server is a short word somebody chose. An UNKNOWN one is whatever
+ *  the segment happened to be, and that is routinely a uuid — 36 characters,
+ *  which `primaryBubbleWidth` turns into a 304px pill because it scales the
+ *  reserved width off the same string. Nothing clipped it: `.tool-burst` is
+ *  `white-space: nowrap` with no max-width, so the pill simply ran, pushing its
+ *  own sub-bubble out of the 420px lane the layout budgets for the whole trail.
+ *
+ *  The cap is on the LABEL rather than on the width, so the space reserved and
+ *  the pill drawn are computed from the same bounded string and cannot drift
+ *  apart. Eighteen is the widest that still leaves the primary narrower than
+ *  the card it hangs off. What was cut stays in the tooltip. */
+const LABEL_MAX = 18;
+
+/** Cut on code points, so a surrogate pair is never split in half — the same
+ *  rule the cluster header's own truncation follows. */
+function cutLabel(label: string): string {
+  const cp = [...label];
+  return cp.length <= LABEL_MAX ? label : cp.slice(0, LABEL_MAX - 1).join("") + "…";
+}
+
+export function primaryDisplayFor(toolName: string): PrimaryDisplay {
   const mcp = parseMcpName(toolName);
   if (mcp) {
     const known = knownMcpServer(mcp.server);
     if (known) return { emoji: known.emoji, label: known.name };
-    // Unknown server — keep the literal segment, tint by hash.
-    return { emoji: "🔌", label: mcp.server, hue: hashHue(mcp.server) };
+    // Unknown server — keep the literal segment, tint by hash. The hue is
+    // hashed from the WHOLE segment and the label is what is drawn, so two
+    // servers that share their first characters still get different colours.
+    return { emoji: "🔌", label: cutLabel(mcp.server), hue: hashHue(mcp.server) };
   }
   // `hasOwn` (#474): the raw tool name is outside data, and an inherited member
   // is truthy, so `CODEX_PRIMARY_LABEL["toString"]` would put a function on the
   // bubble where the tool's own name belongs.
   const codexLabel = Object.hasOwn(CODEX_PRIMARY_LABEL, toolName) ? CODEX_PRIMARY_LABEL[toolName] : "";
   if (codexLabel) return { emoji: emojiFor(toolName), label: codexLabel };
+  // NOT cut. A tool name comes from the provider's own vocabulary and is
+  // bounded by it; only the MCP server segment above is arbitrary text that can
+  // arrive as a uuid. Cutting here truncated names the API actually publishes.
   return { emoji: emojiFor(toolName), label: toolName };
 }
 
@@ -864,7 +900,21 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
           const sy = b.anchorY * zoom + y;
           const tx = (b.worldX + 6) * zoom + x;
           const ty = (b.worldY + BUBBLE_HALF_H) * zoom + y;
-          const cx = sx + (tx - sx) * 0.55;
+          // FOUR CURVES THAT LEFT AS ONE. Every connector starts at the same
+          // point — the card's right edge, mid-height — and every one of them
+          // put its control point at that same height, so they ran the
+          // identical horizontal line out of the anchor and only came apart
+          // once their vertical legs did. Four coincident strokes for the first
+          // half of the run, told apart by colour alone.
+          //
+          // The bend now depends on how far the row has to travel: a bubble
+          // level with the card keeps the long flat lead it always had, and one
+          // several rows up or down breaks away sooner. Nothing moves — same
+          // anchor, same targets, same curve family — the strokes simply stop
+          // sharing their first half, so the eye can follow one of them back.
+          const run = Math.max(1, tx - sx);
+          const lean = Math.min(1, Math.abs(ty - sy) / run);
+          const cx = sx + run * (0.55 - 0.22 * lean);
           const isSpotOut = spotlight != null && !spotlight.has(b.agentId);
           const opacity = b.fade * (isSpotOut ? 0.14 : 1);
           return (

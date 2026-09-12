@@ -197,3 +197,29 @@ describe("the header reads the name off the session root", () => {
     expect(boxes.map(c => c.name)).toEqual([NAME, NAME]);
   });
 });
+
+// The workspace is the one field on the header that had no ceiling. The note in
+// SessionClusters records a measured 21.2px overhang for a long basename and
+// treats it as tolerable — which it is, for the basenames on one machine. It is
+// not a bound: a checkout under a long directory can cross the 240px gutter
+// layout.ts leaves between session columns, which is the exact failure the
+// name's own cap exists to prevent.
+describe("the workspace field is bounded by the same ruler as the name", () => {
+  it("cuts a workspace past the column budget, ellipsis included in the count", () => {
+    const long = "a-really-quite-long-monorepo-package-directory-name";
+    const h = clusterHeader(long, undefined, "sess-1", false);
+    expect([...h.label].length).toBeLessThanOrEqual(NAME_COLUMNS);
+    expect(h.label.endsWith("…")).toBe(true);
+  });
+
+  it("keeps the whole of it in the tooltip", () => {
+    const long = "a-really-quite-long-monorepo-package-directory-name";
+    expect(clusterHeader(long, undefined, "sess-1", false).fullLabel).toContain(long);
+  });
+
+  it("leaves every ordinary workspace exactly as it was", () => {
+    for (const w of ["vcrm-core", "ccdeck", "boom-next-gen", "web-core"]) {
+      expect(clusterHeader(w, undefined, "sess-1", false).label).toBe(w);
+    }
+  });
+});

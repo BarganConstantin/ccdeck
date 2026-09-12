@@ -2782,13 +2782,66 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   will-change: transform;
 }
 .agent-node:hover { box-shadow: var(--shadow-2); }
-.agent-node.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim), 0 10px 24px rgba(0,0,0,0.4); }
+
 .agent-node.state-active {
   border-color: var(--inflight);
-  box-shadow: 0 0 0 1px rgba(240,171,252,0.45), 0 8px 22px rgba(240,171,252,0.18);
+  /* THE BORDER ALREADY SAYS IT. This carried a 1px ring and a 22px coloured
+     glow on top of a full hue inversion of the card's outline — three of the
+     twelve channels that were all saying the one word `running`, and the two
+     that made the card a lamp. A hue swap from --line to --inflight on the
+     outline is not subtle; it does not need lighting. */
+  box-shadow: var(--shadow-1);
 }
 .agent-node.state-done { border-color: rgba(134,239,172,0.5); }
 .agent-node.state-err { border-color: rgba(252,165,165,0.6); }
+
+/* WHAT A CARD IS WORTH DRAWING AT A DISTANCE.
+   `data-detail` is written on the canvas by App.tsx — see zoomDetail — and
+   never by a node, so this costs no React render at all.
+
+   Everything hidden here keeps its space. `visibility` rather than `display`
+   is the whole of that: a node's measured height is an input to the layout, so
+   collapsing a card at overview zoom would reflow the graph while somebody was
+   looking at it. The card keeps its box and stops shouting through it.
+
+   What survives to the last tier is what a graph is for when you are far away
+   from it — which session, what state, and the shape of the tree. */
+.canvas-wrap[data-detail="mid"] .tool-spark-row,
+.canvas-wrap[data-detail="far"] .tool-spark-row {
+  visibility: hidden;
+}
+.canvas-wrap[data-detail="far"] .agent-node .meta,
+.canvas-wrap[data-detail="far"] .agent-node .sub,
+.canvas-wrap[data-detail="far"] .agent-node .session-name,
+.canvas-wrap[data-detail="far"] .ctx-donut,
+.canvas-wrap[data-detail="far"] .agent-node .time {
+  visibility: hidden;
+}
+/* The bubbles are a second view of the tool list and are the densest thing on
+   the canvas; at overview they are a field of 2px pills with nothing readable
+   in them. Their leader lines go with them — a line to a bubble that is not
+   drawn is worse than no line, and the tool trail is the layer this codebase
+   already calls decoration. The graph's real structure is the agent edges,
+   which are React Flow's own and are untouched here. */
+.canvas-wrap[data-detail="far"] .tool-burst,
+.canvas-wrap[data-detail="far"] .tool-conn {
+  visibility: hidden;
+}
+
+/* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
+   rules with the same specificity — so on every live node the state won both
+   the border and the shadow and clicking a card did nothing you could see, on
+   exactly the cards that are clicked most. It reads from `outline` now, which
+   is a channel no state uses: it sits outside the border box, so it composes
+   with whatever colour the state put there instead of overwriting it, costs no
+   layout, and survives a zoom level at which a 1px border swapping hue does
+   not. The ring is the session's own colour — it read --accent-dim, the global
+   sky blue, so a selected node in a magenta session drew a blue halo. */
+.agent-node.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-2);
+}
 
 .agent-node .accent-stripe {
   position: absolute;
@@ -3006,7 +3059,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--inflight);
-  box-shadow: 0 0 6px var(--inflight);
+  /* No halo. A 5px dot at 10.29:1 that is already pulsing is found. */
   margin-right: 5px;
   animation: pulse var(--pulse-live) infinite;
 }
@@ -3189,8 +3242,9 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .tool-spark-bar.active { fill: var(--accent); opacity: 0.72; }
 .tool-spark-bar.latest {
   fill: var(--inflight);
+  /* A glow on a 5.5px rectangle. The fill is already the loudest of the three
+     tiers; the tiers are what the reader is reading. */
   opacity: 1;
-  filter: drop-shadow(0 0 3px rgba(240, 171, 252, 0.55));
 }
 .tool-spark-label {
   color: var(--muted);
@@ -3209,33 +3263,74 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
 }
 
+/* IT WRAPS BEFORE IT OVERLAPS. A flex item shrinks below its content by
+   default, so at the top of the ranges this row carries — four figures and a
+   cost on one 232px line — every span was squeezed to about two thirds of its
+   own text and the five of them printed over one another, inside a card that
+   clips. Unreadable, and silently: the row kept its height while its contents
+   collided. Wrapping costs a second line on a card that has genuinely run out
+   of room and nothing at all on every other card, which is the right way round
+   for a failure this rare. */
 .agent-node .meta {
   color: var(--muted);
   font-size: 11px;
   margin-top: 8px;
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  /* 10px rather than 12. A busy card now carries five items — tools, errors,
+     in-flight, tokens, cost — and at 12 that measured 248px against 230 of
+     box, so the commonest interesting card in the deck wrapped. Ten brings it
+     to exactly the width available and leaves the wrap for the genuine
+     extremes it was added for. The row still reads as five groups because each
+     one is a bold figure against a muted word, which is a stronger boundary
+     than the two pixels given up. */
+  gap: 2px 10px;
 }
+.agent-node .meta > * { flex: 0 0 auto; }
 .agent-node .meta b { color: var(--text); font-weight: 600; }
 .agent-node .meta .inflight-meta { color: var(--inflight); }
 .agent-node .meta .inflight-meta b { color: var(--inflight); }
-.agent-node .meta .tokens-meta { color: var(--accent); margin-left: auto; }
-.agent-node .meta .tokens-meta b { color: var(--accent); }
-.agent-node .meta .cost-meta { color: var(--ok); display: inline-flex; align-items: baseline; gap: 4px; }
-.agent-node .meta .cost-meta b { color: var(--ok); }
-/* The card's version of the same marker. It deliberately does NOT carry
-   .cost-meta: that class is --ok on both itself and its <b>, and the point of
-   this element is that there is no figure to paint green. */
+/* TWO COLOURS IN THIS ROW, NOT FOUR — and the two that went were the two that
+   meant nothing.
+
+   The token count read var(--accent), which inside this card is the SESSION
+   HUE: hsl(h 70% 60%) where h is a hash of the session id. Across the hue
+   circle that measures 3.14:1 at its worst and 12.89:1 at its best, so the
+   same metric swung more than fourfold in loudness depending on a number
+   nobody chose — and at its worst it is under the 4.5:1 floor its own size
+   asks for. It was also the eighth site painting session identity, inside a
+   frame whose entire job is to say which session this is. A count is a value;
+   it reads from the value tier.
+
+   The cost read var(--ok), which is this app's word for DONE — the state pill,
+   the node border, the burst mark, the connector and the status dot all use it
+   to mean that. So a live card drew a green figure sixty pixels under a
+   magenta LIVE pill while four green ticks sat to its right meaning something
+   else. Its luminance is also --text's to three decimals, so it was tied for
+   the loudest text on the card. Money is important because it is money.
+
+   What keeps a colour: the in-flight count, because --inflight means `running`
+   in ten other places here and that count is literally about running, and it
+   is silent when it is zero. */
+.agent-node .meta .tokens-meta { margin-left: auto; }
+.agent-node .meta .cost-meta { display: inline-flex; align-items: baseline; gap: 4px; }
+/* The one thing in this row somebody has to act on, in the one semantic colour
+   it has never been allowed to use. Silent at zero. */
+.agent-node .meta .failed-meta { color: var(--err); }
+.agent-node .meta .failed-meta b { color: var(--err); }
+/* The card's version of the same marker: there is no figure to print, said in
+   the annotation tier because that is what it is. (It used to explain that it
+   avoided .cost-meta so as not to be painted green; .cost-meta no longer
+   paints anything green.) */
 .agent-node .meta .cost-unpriced {
   color: var(--muted);
   font-style: italic;
 }
-.agent-node .meta .cost-meta .cost-rate {
-  color: var(--muted);
-  font-size: 9px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.02em;
-}
+/* `.cost-rate` was the burn figure on the card's face. It was the fifth item in
+   a no-wrap row inside `overflow: hidden` that only fits four, so it was the
+   one that fell off the right edge of every live card — and it is derived from
+   two numbers printed twenty pixels away. It lives in the cost tooltip, where
+   it always did. */
 
 .tokens-grid {
   display: grid;
@@ -3426,10 +3521,14 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   text-transform: uppercase;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--bg);
+  /* NO PLATE. It filled itself with --bg — a colour DARKER than the canvas it
+     floats on — so a caption for a frame was punched out as a solid object in
+     front of it. A hue-bordered pill on a hue-washed card does not need to be
+     opaque to be found, and the shadow that went with it is gone for the same
+     reason: this labels the quietest object in the cluster. */
+  background: transparent;
   color: hsl(var(--session-hue, 200) 70% var(--session-label-l));
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   white-space: nowrap;
   line-height: 1;
   cursor: pointer;
@@ -3455,9 +3554,19 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    0.02em rather than the 0.08em above, because tracking that opens uppercase
    loosens lowercase, and it buys back 1.7px per ten characters of a field that
    is already the widest thing in the pill. */
+/* The two qualifiers, a tier down from the workspace beside them. Weight and
+   ink carry the rank; the capitals already separated the KINDS of field, and
+   now something separates their importance too. */
 .cluster-label-name {
   text-transform: none;
   letter-spacing: 0.02em;
+  font-weight: 400;
+  color: var(--muted);
+}
+.cluster-label-id {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 .cluster-label:hover {
   filter: brightness(1.25);
@@ -3526,7 +3635,11 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   animation: dashflow 0.7s linear infinite;
   filter: drop-shadow(0 0 4px rgba(240,171,252,0.45));
 }
-.tool-conn.status-done { stroke: rgba(134,239,172,0.85); }
+/* The ordinary outcome, drawn as the ordinary outcome. Four of these and one
+   error is the shape of a healthy minute, and at 0.85 the four successes were
+   as present as the failure between them. 5.46:1 on the canvas — quieter, and
+   still far clear of the 3:1 a line like this owes. */
+.tool-conn.status-done { stroke: rgba(134,239,172,0.60); }
 .tool-conn.status-err  { stroke: rgba(252,165,165,0.85); }
 .tool-conn.fading { stroke-dasharray: 4 6; }
 
@@ -3575,7 +3688,10 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .tool-burst .tb-emoji {
   font-size: 13px;
   line-height: 1;
-  filter: saturate(1.2);
+  /* No saturate(). Roughly 250 full-gamut raster glyphs are the one place a
+     six-token, contrast-swept palette is overridden by the whole of sRGB;
+     boosting them 20% on top was the canvas shouting in a colour it does not
+     own. */
   display: inline-block;
   /* tiny continuous wobble while inflight — see .status-inflight rule */
 }
@@ -3608,7 +3724,18 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .tool-burst.status-done {
   border-color: rgba(134, 239, 172, 0.55);
   background: linear-gradient(180deg, rgba(134,239,172,0.10), transparent), var(--panel);
-  box-shadow: 0 0 0 1px rgba(134,239,172,0.22), 0 4px 14px rgba(134,239,172,0.15);
+  /* SUCCESS IS FLAT, AND THAT IS WHAT MAKES FAILURE FINDABLE. A done bubble
+     and an err bubble used to differ by a border alpha of 0.05 and a ring
+     alpha of 0.13 — and the hues run the wrong way for the one thing that
+     matters, because --ok has a relative luminance of 0.698 and --err has
+     0.503, so the failed pill was literally DIMMER than the four successes
+     beside it. Adding weight to the failure was the wrong repair: four
+     successes is the ordinary case and the ordinary case should not glow at
+     all. So the success keeps its tint, its border and its tick, and gives up
+     the coloured ring and the coloured glow. It keeps the neutral elevation
+     every bubble has. The failure below keeps everything, which leaves it the
+     only bubble on the canvas lit in its own colour. */
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.25);
   /* No delay on the flash, and that is the whole of #354's first defect.
      The delay used to read 460ms and the comment here used to say "spawn THEN
      flash, so neither interrupts the other" — which would be true if this list
@@ -5053,7 +5180,8 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 :root[data-theme="light"] .agent-node.state-active {
   border-color: rgba(126,34,206,0.65);
-  box-shadow: 0 0 0 1px rgba(126,34,206,0.30), 0 8px 22px rgba(126,34,206,0.18);
+  /* The dark rule's reasoning, in the other theme. */
+  box-shadow: var(--shadow-1);
 }
 /* Opaque, not a wash. The alphas these two carried were transplanted from the
    dark rules, where 0.5 over #14161b still reads; over a white node they landed
