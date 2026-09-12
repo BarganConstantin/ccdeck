@@ -461,9 +461,9 @@ and starts again when you log in. `ccdeck --stop` ends it.
 
 ccdeck is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
 
-The AGPL applies to the complete current ccdeck codebase and all features
-distributed as part of current and future releases — including code and
-features that existed before the relicensing.
+The current release, as distributed by the project, is offered under the AGPL
+in full: the complete current ccdeck-owned codebase, including the code
+implementing features that existed before the relicensing.
 
 Copyright © 2026 [Bargan Constantin](https://github.com/BarganConstantin).
 

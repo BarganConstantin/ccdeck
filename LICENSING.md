@@ -5,47 +5,55 @@ ccdeck is licensed under the **GNU Affero General Public License v3.0 only**
 
 Copyright © 2026 Bargan Constantin.
 
-## The current licence covers the whole product
+## The current licence covers the whole codebase
 
-The **complete current ccdeck codebase** is licensed under `AGPL-3.0-only`.
-Not the recent commits — the whole work, every file in this repository, and
-every feature in a current release.
+The **complete current ccdeck-owned codebase** is offered under
+`AGPL-3.0-only`. Not merely the commits made after the change — the whole
+work, as the project distributes it today.
 
 This is worth stating plainly because relicensing is often misread as applying
-only to what came after it. It does not. The canvas, the session clusters, the
-tool-call timeline, the quota and usage panels, the LAN sync, the installer,
-the hook — features that existed long before the licence changed — are part of
-the current work, and the current work is distributed under the AGPL. A
-feature's age does not give it a different licence from the release it ships
-in.
+only to what came after it. It does not. The code implementing the canvas, the
+session clusters, the tool-call timeline, the quota and usage panels, the LAN
+sync, the installer and the hook was written before the licence changed, and
+it is part of the current work. When that code ships in a current release, the
+licence the project offers it under is the AGPL.
+
+A licence applies to software — to the code — rather than to a feature as an
+idea. So the accurate statement is not "the features are AGPL" but: the
+complete current ccdeck-owned codebase, including the code implementing
+features that existed before the relicensing, is distributed by the project
+under `AGPL-3.0-only`.
 
 The copyright holder is relicensing the complete current work, which is
 something a sole copyright holder may do with their own code. That some of
-this code also appeared in older MIT releases does **not** make the current
-repository or the current releases partly MIT.
+this code also appeared in older MIT releases does **not** mean the project
+offers the current repository or the current release under MIT.
 
 ## The version boundary
 
 ```text
-Current ccdeck / v3.22.0 and later:
-    AGPL-3.0-only — the entire codebase, all features.
+v3.22.0 and later:
+    Distributed by the project under AGPL-3.0-only — the complete current
+    ccdeck-owned codebase, including the code implementing features that
+    existed before the relicensing.
 
-Historical releases / v3.21.4 and earlier:
-    Were distributed under the MIT License, and retain only the rights
-    already granted for those historical copies.
+v3.21.4 and earlier:
+    Historically distributed under the MIT License. Previously granted MIT
+    rights in the material distributed in those releases remain valid.
 ```
 
-3.22.0 is the first release cut under the AGPL. Everything from it onward is
-AGPL-only.
+3.22.0 is the first release the project distributes under the AGPL.
 
-## ccdeck is not dual-licensed
+## ccdeck is not offered as "MIT OR AGPL"
 
-ccdeck is **not** offered as "MIT OR AGPL". There is no current MIT option, no
-MIT fallback, and no part of a current release that can be taken under MIT
-terms.
+The project does **not** currently offer ccdeck under a choice of licences.
+There is no MIT option and no MIT fallback on what the project distributes
+today: obtain the current release from the project, and the licence it is
+offered to you under is `AGPL-3.0-only`.
 
-If you are reading the current repository or a current release, exactly one
-licence applies to ccdeck's own code: `AGPL-3.0-only`.
+That is a statement about what the project offers now. It is not a statement
+about rights somebody was already granted — see
+[Historical releases](#historical-releases) for those.
 
 ## Historical releases
 
@@ -56,16 +64,17 @@ Those historical copies retain the rights granted under the license under which
 they were originally distributed. Those previously granted rights cannot be
 retroactively revoked.
 
-This does not mean that the current ccdeck codebase is dual-licensed or
-partially MIT. The current ccdeck codebase and current releases are licensed
-exclusively under `AGPL-3.0-only`.
+This does not mean that the project dual-licenses ccdeck, or offers part of the
+current work under MIT. The current ccdeck-owned codebase and current releases
+are offered by the project exclusively under `AGPL-3.0-only`.
 
 Concretely, and without overstating it:
 
-- **Old copies stay usable on their old terms.** Somebody who lawfully obtained
-  ccdeck 3.21.4 or earlier under MIT may go on using, modifying, redistributing
-  and building closed-source work on **that version**, under MIT. That is a
-  right they already have and this change does not touch it.
+- **Old releases stay usable on their old terms.** Somebody who lawfully
+  obtained ccdeck 3.21.4 or earlier under MIT keeps the MIT rights they were
+  granted in the material distributed in those releases — including the right
+  to use, modify, redistribute and build closed-source work on it. Those
+  rights are theirs already, and this change does not touch them.
 - **The old artifacts stay up.** Git tags through `v3.21.4`, the GitHub
   releases and the npm versions are not being deleted, unpublished or
   rewritten. The MIT text that shipped inside each of those artifacts is still
@@ -75,22 +84,29 @@ Concretely, and without overstating it:
   distributed under MIT and stays that way. Do not read this page as saying
   the old releases are now AGPL, because they are not.
 
-## What similarity does not buy you
+## What the historical MIT grants do and do not cover
 
-The distinction that actually matters in practice:
+Two things are true at once, and both matter:
 
-MIT rights attach to **the historical material in the copy someone actually
-received**, not to the current release and not to later AGPL-only work.
+- **The current ccdeck release, as distributed by the project, is licensed
+  under `AGPL-3.0-only`.** That is the licence on offer for what you obtain
+  from the project today.
+- **Previously granted MIT rights in material distributed in historical MIT
+  releases remain valid.** They were granted, they cannot be retroactively
+  revoked, and they do not disappear merely because identical or substantially
+  identical code also appears in a later AGPL release.
 
-So if a file in ccdeck 3.22.0 resembles one from 3.21.4, that resemblance does
-not place the 3.22.0 file under MIT, and it does not let anyone take the
-current release — or any later change to that file — under MIT terms. The MIT
-grant a recipient holds runs to the version they received. Later versions are
-distributed under the AGPL, and that is the licence on offer for them.
+What those historical grants do **not** do is reach forward. They do not cover
+new code, or modifications, first distributed under the AGPL. A later release
+is not placed under MIT because it contains material that also appeared in an
+MIT release: the new and changed code in it is offered by the project under
+the AGPL only.
 
-Put the other way around: the way to rely on MIT rights is to rely on the
-actual MIT-licensed release you received, with the code as it stood in it — not
-to treat the current AGPL release as though it were still MIT.
+Where the line falls between material already distributed under MIT and code
+first distributed under the AGPL is a question about specific code, and this
+page does not try to settle it for any particular file. What the project can
+state is what it offers, and what it offers for the current release is
+`AGPL-3.0-only`.
 
 ## Why AGPL
 
@@ -133,7 +149,7 @@ copy of ccdeck.
 
 Those MIT and ISC notices describe **dependencies**, not ccdeck. They are not a
 second licence on ccdeck's own code, and their presence in the tree does not
-make any part of the current product MIT-licensed.
+put ccdeck's own code under MIT.
 
 ccdeck claims copyright only over its own code, not over that third-party code.
 
