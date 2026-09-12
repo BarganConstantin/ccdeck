@@ -257,15 +257,26 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     // Read off the pack manifest rather than listed twice: `files` in
     // package.json is the claim, and this is npm's answer to it. What is
     // asserted here is the SHAPE — a top-level entry that is neither a runtime
-    // directory nor one of the three files the package promises is either a
+    // directory nor one of the five files the package promises is either a
     // leak (a .env, a scratch note, a test fixture) or a rename nobody
     // announced.
+    //
+    // Two of those five are licence paperwork rather than code, and they are
+    // in the tarball on purpose. The bundle in dist/web has React, React Flow,
+    // dagre and lodash compiled into it, and minification strips all but two
+    // of their copyright lines — so the notices those permissive licences
+    // require only reach a user if THIRD_PARTY_NOTICES.md travels with the
+    // package. LICENSING.md rides along because the MIT-to-AGPL change is the
+    // kind a user reads about at the version they actually installed.
     const tops = new Set(packed.map(p => p.split("/")[0]));
     for (const needed of ["bin", "hook", "src", "dist"]) {
       expect(tops, `${needed}/ is not in the tarball`).toContain(needed);
     }
     expect([...tops].sort()).toEqual(
-      ["LICENSE", "README.md", "bin", "dist", "hook", "package.json", "release-notes.json", "src"],
+      [
+        "LICENSE", "LICENSING.md", "README.md", "THIRD_PARTY_NOTICES.md",
+        "bin", "dist", "hook", "package.json", "release-notes.json", "src",
+      ],
     );
     // src/ is src/server/ and nothing else: the whole client is compiled into
     // dist/web, and shipping src/web would send every test in this suite to

@@ -8,7 +8,7 @@
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![agents-deck downloads](https://img.shields.io/npm/dm/agents-deck?color=blue&label=agents-deck%20downloads)](https://www.npmjs.com/package/agents-deck)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org)
 [![macOS · Linux · Windows](https://img.shields.io/badge/macOS%20·%20Linux%20·%20Windows-supported-6aa9f7)](#requirements)
 
@@ -459,4 +459,18 @@ and starts again when you log in. `ccdeck --stop` ends it.
 
 ## License
 
-MIT © [Bargan Constantin](https://github.com/BarganConstantin)
+ccdeck is licensed under the GNU Affero General Public License v3.0 only
+(AGPL-3.0-only).
+
+Copyright © 2026 [Bargan Constantin](https://github.com/BarganConstantin).
+
+See [LICENSE](./LICENSE) for the full text.
+
+Releases up to and including **3.21.4** were published under the MIT licence
+and remain available under MIT — this change is not retroactive and revokes
+nothing already granted. [LICENSING.md](./LICENSING.md) explains what applies
+to which version.
+
+ccdeck bundles third-party code under permissive licences (MIT, ISC,
+BSD-3-Clause); their notices are preserved in
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).

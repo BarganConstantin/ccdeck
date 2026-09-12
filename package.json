@@ -15,7 +15,9 @@
     "dist/web",
     "release-notes.json",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSING.md"
   ],
   "scripts": {
     "dev:web": "vite",
@@ -46,7 +48,7 @@
     "live"
   ],
   "author": "Bargan Constantin",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BarganConstantin/ccdeck.git"
