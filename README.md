@@ -457,6 +457,11 @@ names it shipped under before, kept working so nobody's command breaks. See
 No. Since 3.20 the deck runs in the background, survives the terminal closing,
 and starts again when you log in. `ccdeck --stop` ends it.
 
+## Community
+
+- 💬 **Questions & ideas** — [GitHub Discussions](https://github.com/BarganConstantin/ccdeck/discussions)
+- 🐛 **Bugs & feature requests** — [GitHub Issues](https://github.com/BarganConstantin/ccdeck/issues)
+
 ## License
 
 ccdeck is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
