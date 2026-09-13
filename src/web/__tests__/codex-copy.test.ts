@@ -278,8 +278,12 @@ describe("the README tagline, which is the npm page", () => {
     // theirs.
     const tagline = readme.split("\n").map(l => l.trim()).find(l => l.startsWith("**ccdeck keeps them in one queue**"));
     expect(tagline, "README.md no longer opens with the ccdeck tagline the three npm pages render").toBeTruthy();
+    // Pinned as the CLAIM rather than as its wording — see the twin case in
+    // readme-order.test.ts. "Codex emits no such signal" was true of Codex once
+    // and is now true only of the rollout log this deck reads it through, so the
+    // sentence moved and the disclosure did not.
     expect(tagline).toContain("Claude Code subagent");
-    expect(tagline).toContain("Codex emits no such signal");
+    expect(tagline).toContain("That queue is Claude Code's");
     // And neither line it replaced creeps back in beside it.
     expect(readme).not.toContain("**A live canvas for your AI agents.**");
     expect(readme).not.toContain("**ccdeck draws the tree**");

@@ -201,7 +201,14 @@ describe("the first two lines, which are the whole first impression (#461)", () 
     // is 70 lines on why synthesising one would be worse than staying silent. A
     // hero that leads on the queue has to say whose it is in the same breath, or
     // the first two lines of the page are the only untrue thing on it.
-    expect(hero).toContain("Codex emits no such signal");
+    //
+    // WHOSE THE QUEUE IS, not one sentence's spelling of it. This pinned the
+    // words "Codex emits no such signal" until those words stopped being true:
+    // Codex's `app-server` does report a waiting thread, and the deck does not
+    // read it — a limit of this deck, which is a different sentence from a limit
+    // of Codex, and the README now says the one it can defend. The disclosure is
+    // what must not go missing, so the disclosure is what is pinned.
+    expect(hero).toContain("That queue is Claude Code's");
   });
 
   it("keeps the tree, where it explains rather than sells", () => {

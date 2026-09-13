@@ -4,7 +4,7 @@
 
 **Know which agent is waiting on you, and for how long.**
 
-**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because Codex emits no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
+**ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
 [![agents-deck downloads](https://img.shields.io/npm/dm/agents-deck?color=blue&label=agents-deck%20downloads)](https://www.npmjs.com/package/agents-deck)
@@ -82,7 +82,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 
 | | |
 |---|---|
-| **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — Codex emits no such signal. |
+| **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the sidebar with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
 | **Live DAG** | Nodes are agents, edges are spawns and tool calls. In-flight edges animate, settled ones fade. |
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
@@ -428,7 +428,10 @@ so existing clones, links and bookmarks keep working.
 **Does it work with Codex, or only Claude Code?**
 Both, on one canvas. Claude Code arrives through a hook, Codex through its
 rollout log, and the model chip tells them apart. The *blocked on you* queue is
-Claude Code only — Codex emits no signal for it.
+Claude Code only, because a rollout log is a record of what happened and the
+queue needs to know what is happening now. Codex does report it — its
+`app-server` pushes a thread status carrying `waitingOnApproval` — and reading
+that is open work, not a wall.
 
 **Does anything leave my machine?**
 Your sessions, never. The deck binds `127.0.0.1` and has no telemetry. The only
