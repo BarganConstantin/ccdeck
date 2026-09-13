@@ -186,7 +186,15 @@ export function resetMacmonFetch() { _fetched = false; }
  */
 export function macmonAsset(release) {
   const tag = release?.tag_name;
-  const a = (release?.assets ?? []).find(x => typeof x?.name === "string" && x.name.endsWith(".tar.gz"));
+  // Named, not merely suffixed. Every macmon release back to v0.5.1 has
+  // published exactly ONE asset, so `.tar.gz` alone has always picked the right
+  // one — but it picks the FIRST match, and the day a release adds a second
+  // tarball beside the binary (a `source.tar.gz`, or per-arch builds) the wrong
+  // one is chosen silently: it downloads, it hashes against a digest that
+  // matches, and what lands is not an executable. The published name has been
+  // `macmon-v<X.Y.Z>.tar.gz` throughout, so requiring that shape costs nothing
+  // today and refuses to guess on the day it would otherwise guess wrong.
+  const a = (release?.assets ?? []).find(x => typeof x?.name === "string" && /^macmon-v[\d.]+\.tar\.gz$/.test(x.name));
   if (!a?.browser_download_url) return null;
   const m = /^sha256:([0-9a-f]{64})$/.exec(String(a.digest ?? ""));
   if (!m) return null;

@@ -240,6 +240,22 @@ describe("choosing what to download", () => {
     expect(macmonAsset({ tag_name: "v1", assets: [{ name: "a.tar.gz", browser_download_url: "u", digest: "md5:abc" }] })).toBeNull();
   });
 
+  it("takes the named binary, not whatever tarball is listed first", () => {
+    // Every macmon release so far has published exactly ONE asset, so matching
+    // on `.tar.gz` alone has always been right — and would stop being right
+    // silently. A release that adds a source tarball beside the binary would
+    // hand back a verified download of the wrong thing: the digest matches, the
+    // bytes are not an executable, and nothing here would have failed.
+    const decoyed = {
+      tag_name: "v0.9.0",
+      assets: [
+        { name: "source.tar.gz", browser_download_url: "u-src", digest: "sha256:" + "b".repeat(64) },
+        { name: "macmon-v0.9.0.tar.gz", browser_download_url: "u-bin", digest: "sha256:" + "c".repeat(64) },
+      ],
+    };
+    expect(macmonAsset(decoyed)?.url).toBe("u-bin");
+  });
+
   it("refuses a release with nothing to take", () => {
     for (const r of [null, {}, { assets: [] }, { assets: [{ name: "notes.txt", digest: "sha256:" + "a".repeat(64) }] }]) {
       expect(macmonAsset(r as never)).toBeNull();

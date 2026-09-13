@@ -36,7 +36,12 @@ const DOWNLOAD_BASE = "https://github.com/astral-sh/uv/releases/download";
 // Used when the releases API cannot be reached — rate limiting is per-IP and
 // unauthenticated, so this is a normal outcome rather than an error. Any
 // reasonably recent uv can install claude-swap; it self-updates later.
-const FALLBACK_VERSION = "0.12.3";
+//
+// Dated, because this constant rots silently: nothing fails when it falls
+// behind, it simply installs an older uv on the machines that reach it, so no
+// test and no user will ever report it. Checked against the releases API on the
+// date below; worth re-reading whenever this file is opened for another reason.
+const FALLBACK_VERSION = "0.12.13"; // latest as of 2026-09-13
 
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 
