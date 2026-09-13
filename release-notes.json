@@ -394,5 +394,11 @@
       "title": "🖥️ A first run now opens This machine too",
       "body": "Accounts and usage already opened themselves the first time you ran the deck; the machine panel did not, and now does. It is the panel that answers \"is this box coping\" — cores, memory, load, temperature — and somebody meeting the deck for the first time cannot ask for a panel they do not know is there.\n\nIt only does this when you have never said otherwise. Close it once and it stays closed, on that browser, for good — the same rule the other two panels have always followed. Nothing reopens it behind you.\n\nWhile it is open it polls this machine once every few seconds, and it stops the moment you close it or switch tabs."
     }
+  ],
+  "3.22.4": [
+    {
+      "title": "📈 A card stops looking idle while it is thinking",
+      "body": "The activity chart on each card counted tool calls and nothing else, so the time an agent spends reading, reasoning and writing drew as a flat line — measured on this machine, 16.5% of all working time, more than the time spent inside the tools themselves. A session that was busy looked exactly like one that had died, and the only way to tell them apart was to wait and see whether anything ever appeared.\n\nIt marks that work now. A chart with bars in it means the agent is doing something, whether or not it has called a tool in the last minute; a flat chart means it genuinely is not. Hover it for the split — how many tool calls and how many blocks of thinking and writing landed in the last 60 seconds.\n\nNothing was added to the card and nothing new is polled. The deck already reads each session's transcript for its token counts; this reads the same file for what the model has finished writing, and a session that is quiet costs one file check per second and a half."
+    }
   ]
 }
