@@ -6,12 +6,16 @@
 // of files — and `--sections daily,session` is ccusage's own answer to that:
 // one load, both reports in one JSON object.
 //
-// WHY THE SESSIONS ARE WORTH ASKING FOR. On a session row ccusage puts the
-// SESSION ID in `period` — the same uuid Claude Code writes into every hook
-// payload, and therefore the same key the canvas files its agents under. So
-// these rows join to the board by id, which is what lets a panel show ccusage's
-// money against the deck's own project names. Without the join a session row is
-// a uuid and a number.
+// WHY THE SESSIONS ARE WORTH ASKING FOR. A session row carries the id the
+// canvas files its agents under, which is what lets a panel show ccusage's
+// money against the deck's own project names. Without that join a session row
+// is a uuid and a number.
+//
+// It is not always `period` verbatim any more — ccusage v20 reports every CLI
+// on the machine in one section, and a Codex row's `period` is a rollout path
+// with the id on the end of it. Reading the id out of a row is the client's
+// job and is pinned in usage-from-ccusage.test.ts; what THIS file pins is that
+// the rows arrive at all.
 //
 // Two rules are asserted hardest here:
 //   * losing the sessions must never cost the totals — every way the session

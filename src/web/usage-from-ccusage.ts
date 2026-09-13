@@ -186,13 +186,44 @@ export function modelRows(range: UsageRange | null | undefined): ModelRow[] {
   return [...by.values()].sort((a, b) => b.cost - a.cost || b.tokens - a.tokens);
 }
 
+/** A session uuid, at the END of whatever it is written inside. */
+const TRAILING_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The board's session id behind a ccusage `session` row.
+ *
+ * `period` USED to be the answer on its own: ccusage reported Claude alone, and
+ * there it is the session uuid — the same one Claude Code writes into every
+ * hook payload, and therefore the key the canvas files its agents under.
+ *
+ * ccusage v20 reports every CLI it finds on the machine in ONE unified section
+ * — sixteen of them — so a row here is not necessarily Claude's and `period` is
+ * not necessarily a uuid. On a Codex row it is the rollout's path under the
+ * sessions tree, `YYYY/MM/DD/rollout-<ISO>-<uuid>`, and a bare `str(period)`
+ * put that whole path where an id belonged: the row never matched the board,
+ * and the panel printed `2026/09/` as a session's name.
+ *
+ * The uuid on the end of that path is the `session_id` Codex writes into its
+ * own `session_meta` header, which is the id THIS deck files a Codex agent
+ * under — so reducing the path to its tail does not merely stop the bad render,
+ * it makes the join work for Codex too. Both providers land on one rule: take
+ * the trailing uuid. A Claude row is already nothing but one, so it is
+ * unchanged by this.
+ *
+ * Anything of a third shape is returned as it came. It still keys its row and
+ * still shows its money; it simply will not match the board, which is the same
+ * thing that happens to a session from another machine.
+ */
+export function sessionIdFromPeriod(period: string): string {
+  return TRAILING_UUID.exec(period)?.[0] ?? period;
+}
+
 /**
  * BY SESSION, joined to whatever the board can name.
  *
- * `period` on a session row is the session id — the same uuid Claude Code puts
- * in every hook payload, and the key the canvas files its agents under. That is
- * the join, and it is why this list can say "agents-deck" where ccusage alone
- * would say "07ac7b2b".
+ * The join is on the session id `sessionIdFromPeriod` reads out of the row —
+ * see there for why `period` alone stopped being that id. It is why this list
+ * can say "agents-deck" where ccusage alone would say "07ac7b2b".
  *
  * `names` is a lookup rather than the graph itself so this stays pure and the
  * component decides where names come from.
@@ -204,8 +235,9 @@ export function sessionRows(
   const raw = Array.isArray(range?.sessions) ? (range.sessions as RawSession[]) : [];
   const rows: SessionCostRow[] = [];
   for (const s of raw) {
-    const sessionId = str(s?.period);
-    if (!sessionId) continue;
+    const period = str(s?.period);
+    if (!period) continue;
+    const sessionId = sessionIdFromPeriod(period);
     const meta = s?.metadata as { lastActivity?: unknown } | undefined;
     const last = typeof meta?.lastActivity === "string" ? Date.parse(meta.lastActivity) : NaN;
     rows.push({

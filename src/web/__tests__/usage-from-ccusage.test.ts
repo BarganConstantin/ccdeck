@@ -42,7 +42,13 @@ const RANGE = {
       metadata: { lastActivity: "2026-09-04T16:13:34.983Z" } },
     { period: "093cb8a9-0000-4000-8000-000000000000", agent: "claude", totalCost: 88.0,
       totalTokens: 120_000_000, modelsUsed: ["claude-opus-5"], metadata: {} },
-    { period: "11a28d21-0000-4000-8000-000000000000", agent: "codex", totalCost: 0.72,
+    // A CODEX ROW DOES NOT CARRY A UUID. This fixture used to spell it as one,
+    // which is the shape a reader assumes and not the shape ccusage sends: on a
+    // Codex row `period` is the rollout's path under the sessions tree. Taken
+    // from a live run on 2026-09-13, where exactly this reached the panel and
+    // was drawn as a session named `2026/09/`.
+    { period: "2026/09/04/rollout-2026-09-04T16-31-02-11a28d21-0000-4000-8000-000000000000",
+      agent: "codex", totalCost: 0.72,
       totalTokens: 1_000_000, modelsUsed: ["gpt-5.3-codex"] },
   ],
 };
@@ -127,14 +133,38 @@ describe("BY MODEL", () => {
 });
 
 describe("BY SESSION", () => {
-  it("takes the session id out of `period`, which is where ccusage puts it", () => {
-    // The join key. It is the same uuid Claude Code writes into every hook
-    // payload, and the key the canvas files its agents under.
+  it("takes the session id out of `period`, whichever CLI wrote the row", () => {
+    // The join key. On a Claude row `period` IS the uuid Claude Code writes
+    // into every hook payload. On a Codex row it is a rollout path, and the
+    // uuid on the end of it is the `session_id` Codex writes into its own
+    // `session_meta` header — the same id this deck files a Codex agent under.
+    // One rule covers both: take the trailing uuid.
     expect(sessionRows(RANGE).map(r => r.sessionId)).toEqual([
       "07ac7b2b-7ee2-4633-a3cf-c0b1c193a65c",
       "093cb8a9-0000-4000-8000-000000000000",
       "11a28d21-0000-4000-8000-000000000000",
     ]);
+  });
+
+  it("joins a Codex row to the board, rather than printing its path at a person", () => {
+    // THE DEFECT THIS PINS. ccusage v20 reports every CLI it finds in one
+    // unified section, so `period` stopped being a uuid — and a bare read of it
+    // put `2026/09/04/rollout-…` where an id belonged. The row matched nothing
+    // on the canvas and the panel drew the first eight characters of a date as
+    // a session's name.
+    const names = new Map([["11a28d21-0000-4000-8000-000000000000", "ccdeck"]]);
+    const codex = sessionRows(RANGE, names).find(r => r.agent === "codex");
+    expect(codex?.sessionId).toBe("11a28d21-0000-4000-8000-000000000000");
+    expect(codex?.label).toBe("ccdeck");
+  });
+
+  it("hands back a period of a third shape exactly as it came", () => {
+    // Sixteen CLIs and counting, and this deck has seen the `period` of two of
+    // them. An unrecognised shape must still key its row and still show its
+    // money — it simply will not match the board, which is what already happens
+    // to a session from another machine.
+    const rows = sessionRows({ sessions: [{ period: "opencode:2026-09-04#7", agent: "opencode", totalCost: 1 }] });
+    expect(rows.map(r => r.sessionId)).toEqual(["opencode:2026-09-04#7"]);
   });
 
   it("names a row the board knows, and leaves the rest unnamed", () => {
