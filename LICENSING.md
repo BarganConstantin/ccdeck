@@ -115,13 +115,13 @@ functionality. The AGPL is chosen so that modifications to the covered software
 stay open — including modified versions that users interact with over a
 network, which is the case an ordinary GPL does not cover.
 
-The intent is to keep ccdeck open source while making it harder for a modified
-version to be run as a closed-source competing hosted service. Precisely: the
-AGPL requires whoever runs a modified version to make the corresponding source
-available **to the users interacting with that modified version over a
-network**. It does not require anyone to send changes to this repository, open
-a pull request, or contribute anything upstream — there is no obligation to
-this project, only to those users.
+The intent is to keep ccdeck open source and ensure that users of modified
+network-hosted versions can also access the corresponding source code.
+Precisely: the AGPL requires whoever runs a modified version to make the
+corresponding source available **to the users interacting with that modified
+version over a network**. It does not require anyone to send changes to this
+repository, open a pull request, or contribute anything upstream — there is no
+obligation to this project, only to those users.
 
 ## What this means if you use ccdeck
 
