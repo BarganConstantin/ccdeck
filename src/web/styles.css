@@ -4709,6 +4709,9 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 }
 .cat-chip .cat-emoji { font-size: 12px; line-height: 1; }
 .cat-chip .cat-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The category's word, at rest (#841) — the key to the count beside it, in the
+   key tier, at the chip's own 11px. */
+.cat-chip .cat-name { color: var(--muted); }
 /* The server an MCP chip is counting, when every one of its calls went to the
    same one (#489). It is the half of that answer a colour cannot give: the tint
    beside it is per-server, and a reader who does not receive hue gets the whole
