@@ -7706,13 +7706,12 @@ button.ap-err::after {
   transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* The session box is a node too, so it travels with its cards rather than
-   snapping to the new bounding box a frame early. */
-.canvas-wrap.bubbling .react-flow__node.react-flow__node-sessionGroup {
-  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              width 420ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              height 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
+/* The session's drag handle is a node too, and the rule above carries it with
+   its cards. It used to ease its width and height here as well (#865): a layout
+   pass on every frame of every push, for an element that paints nothing — the
+   handle is transparent, and the box a reader sees is `.cluster-card`, which
+   follows on its own easing. The handle only has to be the right size to be
+   grabbed, so it takes its new size at once and travels on the transform. */
 
 @media (prefers-reduced-motion: reduce) {
   .canvas-wrap.bubbling .react-flow__node,

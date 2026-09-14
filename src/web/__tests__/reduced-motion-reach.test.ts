@@ -215,8 +215,9 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // If a rename ever slips the sheet past these regexes, this collapses first.
     expect(keyframes.size).toBeGreaterThan(15);
     expect([...keyframes.values()].filter(Boolean).length).toBeGreaterThan(10);
-    // Three fewer since #863 moved three panel readouts onto transforms.
-    expect(easesLayout.length).toBeGreaterThanOrEqual(3);
+    // Three fewer since #863 moved three panel readouts onto transforms, and one
+    // more since #865 stopped the session handle resizing through a push.
+    expect(easesLayout.length).toBeGreaterThanOrEqual(2);
     expect(animatesMovement.length).toBeGreaterThan(20);
     // The five #357 found, by name: four layout eases and one modal entrance.
     // #863 then moved three of the four onto transforms, so they ease no layout
