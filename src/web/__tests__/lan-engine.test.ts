@@ -716,6 +716,18 @@ describe("a heal that healed nothing", () => {
     expect(engine).toContain('why: ok ? null : (got?.why ?? "import failed")');
   });
 
+  it("narrows the plain import too, not only the forced one", () => {
+    // The AAD on the seal is `${peerFp}->${identity.fp}|${step.key}`: it binds
+    // the ENVELOPE to the key that was requested and says nothing about the
+    // contents. A share payload is `{ accounts: [...] }`, so a peer asked for A
+    // could seal, under A's AAD, a bundle carrying A plus B, C and D it never
+    // listed — and `syncAction` answers "add" for anything this deck lacks,
+    // without the owner's tick. Every one of them landed. `only` narrows
+    // without implying `force`, so the no-force promise is unchanged.
+    expect(src).toContain('const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });');
+    expect(src).not.toContain("const out = await importAccount(blob);");
+  });
+
   it("fills an empty slot, and only after asking this machine whether it is", () => {
     // The one case pairing exists for, and the one a plain import will never
     // touch: claude-swap replaces a slot "iff its usage row is quarantined as

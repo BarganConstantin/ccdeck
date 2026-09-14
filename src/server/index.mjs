@@ -3338,12 +3338,27 @@ const lanEngine = createEngine({
   },
   importAccount: async (blob, step) => {
     const { importAccount, landed } = await import("./cswap-admin.mjs");
+    const [want, wantOrg] = String(step?.key ?? "").split("@@");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
     // claude-swap has quarantined; it SKIPS one that is present and healthy.
     // So a peer cannot overwrite a working credential of this deck's even by
     // lying about its own, because the flag that would allow it is not passed.
-    const out = await importAccount(blob);
+    //
+    // NARROWED TO THE ONE ACCOUNT ASKED FOR, for the same reason the forced
+    // import below is, and this line did not have it. The seal's AAD is
+    // `${peerFp}->${identity.fp}|${step.key}` — it binds the ENVELOPE to the
+    // key that was requested and says nothing about the contents, and a share
+    // payload is `{ accounts: [...] }`, a bundle rather than one credential.
+    // So a peer asked for A could seal, under A's AAD, a bundle carrying A
+    // plus B, C and D it never listed in its manifest, and every one of them
+    // landed: `syncAction` answers "add" for anything this deck lacks, and an
+    // add does not need the owner's tick. The panel drew A and the store
+    // gained four. `only` narrows without implying `force` — `overwrite` is
+    // `force === true && narrowing` — so the promise above survives word for
+    // word, and a bundle that does not carry what was asked for is refused
+    // rather than unpacked.
+    const out = await importAccount(blob, { only: { email: want, org: wantOrg ?? "" } });
     if (!out?.ok) return { ok: false, why: out?.reason ?? "import refused" };
     // A SKIP IS NOT A HEAL, and reading `ok` alone said it was. `cswap import`
     // exits ZERO when it declines an account it already holds — importAccount's
@@ -3380,7 +3395,7 @@ const lanEngine = createEngine({
     // as `no_credentials` there, and acting on that would replace the login
     // they had just created.
     const { verdictNow } = await import("./claude-accounts.mjs");
-    const [email, org] = String(step?.key ?? "").split("@@");
+    const email = want, org = wantOrg;
     const now = await verdictNow(email, org ?? "");
     if (now !== "no_credentials") return { ok: false, why: "claude-swap kept the slot it already has" };
 
