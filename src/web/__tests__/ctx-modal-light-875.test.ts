@@ -18,16 +18,22 @@ function decl(selector: string, prop: string): string | null {
 
 const LIGHT = ':root[data-theme="light"] ';
 
+// #874 then put this dialog on the shared .modal shell, so the scrim and the
+// shadow are .modal-backdrop's and .modal's — one rule each rather than a copy.
+const ctx = readFileSync(fileURLToPath(new URL("../components/ContextModal.tsx", import.meta.url)), "utf8");
+
 describe("the context-breakdown dialog on the light theme (#875)", () => {
   it("dims the page with the scrim every other dialog uses there", () => {
     const scrim = decl(`${LIGHT}.modal-backdrop`, "background");
     expect(scrim).toBe("rgba(15,23,42,0.30)");
-    expect(decl(`${LIGHT}.uh-backdrop`, "background")).toBe(scrim);
-    expect(decl(`${LIGHT}.ctx-modal-backdrop`, "background")).toBe(scrim);
+    expect(ctx).toMatch(/className="modal-backdrop"/);
+    // No copy of the scrim left to drift from it.
+    expect(decl(`${LIGHT}.ctx-modal-backdrop`, "background")).toBeNull();
   });
 
   it("casts the shadow each theme tunes for its own canvas, as .modal does", () => {
     expect(decl(".modal", "box-shadow")).toMatch(/^var\(--shadow-2\)/);
-    expect(decl(".ctx-modal", "box-shadow")).toBe("var(--shadow-2)");
+    expect(ctx).toMatch(/className="modal ctx-modal"/);
+    expect(decl(".modal.ctx-modal", "box-shadow")).toBeNull();
   });
 });

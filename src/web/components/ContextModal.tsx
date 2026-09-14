@@ -131,8 +131,8 @@ export default function ContextModal({ agent, onClose }: Props) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <div className="ctx-modal-backdrop" onClick={onClose} role="presentation">
-      <div ref={dialogRef} className="ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Context breakdown">
         <header className="ctx-modal-head">
           <div>
             <div className="ctx-modal-title">Context · {agent.label}</div>

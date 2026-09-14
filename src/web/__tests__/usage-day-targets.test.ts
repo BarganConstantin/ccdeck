@@ -111,7 +111,7 @@ const px = (value: string | null) => {
 };
 
 /** The px term inside a `min()` — the cap, which is the width this modal has on
- *  any window wide enough to give it one. `min(760px, 100%)` is 760. */
+ *  any window wide enough to give it one. `min(760px, 92vw)` is 760. */
 const capPx = (value: string | null) => {
   const m = /min\(\s*(-?[\d.]+)px\s*,/.exec(value ?? "");
   return m ? +m[1] : px(value);
@@ -127,8 +127,10 @@ const capPx = (value: string | null) => {
 const FLOOR = 24;
 
 /** The modal's content box, derived the way the browser derives it. */
-const modalWidth = capPx(decl(".uh-modal", "width"));
-const modalPadding = decl(".uh-modal", "padding")!.split(/\s+/);
+// `.modal.uh-modal` since #874: the dialog composes the shared shell and this
+// rule keeps only what it differs in, its size and its own padding.
+const modalWidth = capPx(decl(".modal.uh-modal", "width"));
+const modalPadding = decl(".modal.uh-modal", "padding")!.split(/\s+/);
 /** `16px 18px 20px` — three values, so left and right are both the second. */
 const padSide = px(modalPadding[modalPadding.length === 1 ? 0 : 1]);
 const contentWidth = modalWidth - 2 * padSide;
@@ -262,7 +264,7 @@ describe("the chart is the box that scrolls, and only when it has to", () => {
     // have been the dialog's: header, totals strip and legend sliding out from
     // under the pointer on the way to the far end of a chart. Same lesson as
     // #369, one modal over.
-    expect(decl(".uh-modal", "overflow")).toBe("auto");
+    expect(decl(".modal.uh-modal", "overflow")).toBe("auto");
     expect(declIn(bodyOf(".uh-chart"), "overflow-x")).toBe("auto");
     // Only the presets that cannot fit actually draw a scrollbar; `auto` is
     // what makes that true, and the arithmetic says which ones they are.

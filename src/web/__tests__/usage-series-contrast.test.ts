@@ -254,7 +254,8 @@ const WAS: Record<string, string> = {
  *                that matters most: a partial fill's boundary against its track
  *                is how the length of a meter is read at all. */
 const BEDS = {
-  panel: tokenNameOf(decl(".uh-modal", "background")!)!,
+  // The shared shell's surface: the dialog composes `.modal` since #874.
+  panel: tokenNameOf(decl(".modal", "background")!)!,
   detail: tokenNameOf(decl(".uh-detail", "background")!)!,
   track: tokenNameOf(decl(".uh-model-bar", "background")!)!,
 };
