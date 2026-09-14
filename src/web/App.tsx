@@ -3167,6 +3167,15 @@ function Inner() {
       if (e.key === "m" || e.key === "M") {
         if (providersRef.current.claude && soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
       }
+      // #826: the three topbar panels that were pointer-only. S for this
+      // machine (the system's readings), B for Browser Watch, V for the sound
+      // menu — volume and tones, where M is the switch itself. V is guarded the
+      // way the speaker is drawn, exactly as M is.
+      if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
+      if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
+      if (e.key === "v" || e.key === "V") {
+        if (providersRef.current.claude && soundOnRef.current !== null) setSoundMenuOpen(o => !o);
+      }
       // The way in that does not depend on already knowing the way in. `?` is
       // the convention, it was unbound, and it is the one key on this list that
       // a user who knows nothing about the deck might still try. Everything it
@@ -4032,7 +4041,7 @@ function Inner() {
             <button
               className="btn icon-btn"
               onClick={() => setMachinePanelOpen(o => !o)}
-              title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature`}
+              title={`${machinePanelOpen ? "Hide" : "Show"} this machine — cores, memory, temperature (S)`}
               aria-label="Toggle machine detail"
               aria-expanded={machinePanelOpen}
               aria-controls={machinePanelOpen ? "system-panel" : undefined}
@@ -4079,8 +4088,8 @@ function Inner() {
               className={`btn icon-btn bw-btn${watchUnseen > 0 ? " has-findings" : watchOn ? " watching" : ""}`}
               onClick={() => setBrowserWatchOpen(o => !o)}
               title={watchOn
-                ? "Browser watch — watching; the deck is keeping its own copy"
-                : "Browser watch — not watching; reading the browser's history live"}
+                ? "Browser watch — watching; the deck is keeping its own copy (B)"
+                : "Browser watch — not watching; reading the browser's history live (B)"}
               aria-label={`Browser watch, ${watchOn ? "watching" : "not watching"}`
                 + (watchUnseen > 0 ? `, ${watchUnseen} unread` : "")}
               aria-haspopup="dialog"
