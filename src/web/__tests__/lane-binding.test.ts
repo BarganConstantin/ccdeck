@@ -307,12 +307,14 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("draws it in the tier the footer already speaks, not as a fourth control language", () => {
-    // 9px, no box, a dotted rule under the word — `.ap-rotate`'s language,
-    // because both are the reader stating a preference rather than acting on
-    // the account. --muted rather than --text-dim so it holds 4.5:1 on the
-    // active row as well as on the panel.
+    // The footer's size, no box, a dotted rule under the word — `.ap-rotate`'s
+    // language, because both are the reader stating a preference rather than
+    // acting on the account. --muted rather than --text-dim so it holds 4.5:1
+    // on the active row as well as on the panel. 11px since #857.
     const rule = /\.ap-lanes-more \{([^}]*)\}/.exec(bare)![1];
-    expect(rule).toMatch(/font-size:\s*9px/);
+    const rotate = /\.ap-rotate \{([^}]*)\}/.exec(bare)![1];
+    expect(rule).toMatch(/font-size:\s*11px/);
+    expect(/font-size:\s*(\d+px)/.exec(rule)![1]).toBe(/font-size:\s*(\d+px)/.exec(rotate)![1]);
     expect(rule).toMatch(/border:\s*none/);
     expect(rule).toMatch(/color:\s*var\(--muted\)/);
     expect(rule).toMatch(/text-decoration:\s*underline dotted/);

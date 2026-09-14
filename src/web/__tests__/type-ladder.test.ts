@@ -172,7 +172,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
 
   it("still finds the rules the collapse moved, so a pass is not vacuous", () => {
     // The four rules the report singled out, at the values they landed on.
-    expect(decl(".ap-email", "font-size")).toBe("10px");            // was 10.5
+    expect(decl(".ap-email", "font-size")).toBe("11px");            // was 10.5, then #857's floor
     expect(decl(".detail .row .v", "font-size")).toBe("11px");      // was 11.5
     expect(decl(".session-list .sl-label", "font-size")).toBe("12px"); // was 12.5
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5

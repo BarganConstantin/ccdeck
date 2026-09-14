@@ -6608,7 +6608,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   white-space: nowrap;
 }
 .ap-email {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6690,8 +6690,12 @@ button.tool.clickable:last-child { border-bottom: none; }
    Swapping costs nothing in dark — both tiers are #7e828c, so both readings stay
    4.70:1 — and in light it puts the stronger tier on the stronger line, which is
    the order the tokens were built to express. It also raises the label rather
-   than lowering the footnote, so nothing on this row gets quieter. */
-.ap-lane-label { grid-area: label; font-size: 10px; color: var(--muted); }
+   than lowering the footnote, so nothing on this row gets quieter.
+   #857 then raised the sizes. The key and its percentage are what an account
+   is chosen by, so they take the panel's 11px floor; the reset line takes 10px,
+   one ladder step under its key, because in dark the two tiers are one colour
+   and that step is still the only thing separating them there. */
+.ap-lane-label { grid-area: label; font-size: 11px; color: var(--muted); }
 .ap-lane-track {
   grid-area: track;
   height: 4px;
@@ -6700,8 +6704,8 @@ button.tool.clickable:last-child { border-bottom: none; }
   overflow: hidden;
 }
 .ap-lane-fill { height: 100%; border-radius: 2px; }
-.ap-lane-pct { grid-area: pct; font-size: 10px; text-align: right; }
-.ap-lane-reset { grid-area: reset; font-size: 9px; color: var(--text-dim); }
+.ap-lane-pct { grid-area: pct; font-size: 11px; text-align: right; }
+.ap-lane-reset { grid-area: reset; font-size: 10px; color: var(--text-dim); }
 .ap-lane-reset:empty { display: none; }
 
 /* The row footer, and the one line that grows: a failure and its fix, the
@@ -6721,7 +6725,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   align-items: baseline;
   gap: 4px 8px;
   margin-top: 5px;
-  font-size: 9px;
+  /* 11px, the panel's floor (#857): this line says why a login died and how
+     old the numbers are, and everything on it speaks at its size. */
+  font-size: 11px;
   color: var(--muted);
 }
 .ap-err { color: var(--warn); }
@@ -7563,11 +7569,12 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 /* Text-weight, because holding an account out of rotation is a preference to
    flip, not an action to fire. */
 .ap-rotate {
+  position: relative;
   background: none;
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   cursor: pointer;
   text-decoration: underline dotted;
@@ -7579,18 +7586,19 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-rotate:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* The row's other quota windows, opened from the footer the row already had.
-   Written in `.ap-rotate`'s language on purpose — 9px, no box, a dotted rule
-   under the word — because it belongs to the same tier: neither of these is an
-   action on the account, both are the reader saying how they want the row to
-   read. --muted rather than --text-dim so it holds 4.547:1 on the active row
-   as well as 4.70:1 on the panel, which is where every 9px tier in this footer
-   now sits. */
+   Written in `.ap-rotate`'s language on purpose — the footer's size, no box, a
+   dotted rule under the word — because it belongs to the same tier: neither of
+   these is an action on the account, both are the reader saying how they want
+   the row to read. --muted rather than --text-dim so it holds 4.547:1 on the
+   active row as well as 4.70:1 on the panel, which is where every tier in this
+   footer sits. 11px since #857, which measured it at 29x13 at 9px. */
 .ap-lanes-more {
+  position: relative;
   background: none;
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   cursor: pointer;
   text-decoration: underline dotted;
@@ -7599,13 +7607,26 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 }
 .ap-lanes-more:hover { color: var(--accent); }
 .ap-lanes-more:active { transform: scale(0.97); }
+/* The footer's two text-weight controls keep their look and get a 24px target
+   drawn around the word (#857): the transparent pseudo-element .ap-failure-x
+   uses, so nothing in the wrapping footer moves to make room for it. */
+.ap-rotate::after,
+.ap-lanes-more::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
 
 /* The roster's last line. The last row's own soft rule is the seam above it,
    so it draws none — it had one while it stood alone between two sections. */
 .ap-footnote {
   margin: 0;
   padding: 8px var(--panel-inset) 10px;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
   color: var(--muted);
   cursor: help;
@@ -8374,7 +8395,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   background: color-mix(in srgb, var(--warn) 12%, transparent);
   color: var(--warn);
   font: inherit;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   transition: background 120ms, border-color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
