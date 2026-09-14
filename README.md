@@ -47,11 +47,11 @@ The deck opens on these eight pictures the first time it runs — they are the w
 
 <table>
 <tr>
-<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you rise to the top, longest wait first."></td>
+<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you top the session list, longest wait first."></td>
 <td><img src="assets/guide/welcome-2.svg" width="440" alt="Every agent and subagent is a node. Tool calls light up as they run."></td>
 </tr>
 <tr>
-<td align="center"><sub>Sessions waiting on you rise to the top, longest wait first.</sub></td>
+<td align="center"><sub>Sessions waiting on you top the session list, longest wait first.</sub></td>
 <td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
 </tr>
 <tr>
