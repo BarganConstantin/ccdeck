@@ -115,17 +115,11 @@ interface WatchSnapshot {
  *  count what has appeared since. Per-browser by construction — it is this
  *  reader's own reading position, not a fact about the machine — which is why
  *  it lives in localStorage and not on the server. */
-export const SEEN_KEY = "agent-dag.browserWatch.seenMs";
+// In a module of their own since #883, so the topbar can count unseen episodes
+// without loading this dialog; re-exported for everything that reads them here.
+import { SEEN_KEY, unseenEpisodes } from "../browser-watch-seen";
+export { SEEN_KEY, unseenEpisodes };
 
-/** Episodes that began after the reader last looked.
- *
- *  Keyed on the episode's START rather than its end: an episode that is still
- *  being added to would otherwise flip back to unread every time its last visit
- *  moves, and a badge that reappears without anything new happening is a badge
- *  people learn to ignore. */
-export function unseenEpisodes(episodes: WatchEpisode[], seenMs: number): WatchEpisode[] {
-  return episodes.filter(e => e.startMs > seenMs);
-}
 
 /**
  * How long until a program opening a page would be reported — or null when it

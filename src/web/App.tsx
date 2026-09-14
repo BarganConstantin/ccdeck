@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -57,8 +57,14 @@ import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { blockKey, canAsk, nextRaised, noticesFor, seedRaised, shouldReseed } from "./notify";
 import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
-import UsageHistoryModal from "./components/UsageHistoryModal";
-import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "./components/BrowserWatchModal";
+import type { WatchEpisode } from "./components/BrowserWatchModal";
+import { SEEN_KEY, unseenEpisodes } from "./browser-watch-seen";
+// Loaded when they open (#883). Both are opened rarely and each is a large
+// file; imported here, they were in the one bundle every reload and every deck
+// opened from another machine had to fetch before drawing anything. The topbar
+// needs only Browser Watch's unseen count, which lives in browser-watch-seen.
+const UsageHistoryModal = lazy(() => import("./components/UsageHistoryModal"));
+const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
@@ -4928,8 +4934,13 @@ function Inner() {
           a gate: ccusage reads the logs on this machine rather than this deck's
           flags, so a deck started with --no-codex can still be shown Codex
           spend, and the subtitle follows the data when there is any. */}
-      {usageHistoryOpen && <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />}
+      {usageHistoryOpen && (
+        <Suspense fallback={null}>
+          <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />
+        </Suspense>
+      )}
       {browserWatchOpen && (
+        <Suspense fallback={null}>
         <BrowserWatchModal
           onClose={() => setBrowserWatchOpen(false)}
           onSeen={ms => {
@@ -4943,6 +4954,7 @@ function Inner() {
           onWatching={setWatchOn}
           palette={palette}
         />
+        </Suspense>
       )}
       {contextFor && (() => {
         const root = stateRef.current.agents.get(contextFor);
