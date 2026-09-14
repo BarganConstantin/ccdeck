@@ -3099,10 +3099,15 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   border: 1px solid var(--line);
   overflow: hidden;
 }
+/* Full width and scaled from the left, like the quota fills (#863). The
+   gradient scales with it, so it still runs accent to inflight across the
+   filled part and not across the track. */
 .ctx-window-fill {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   background: linear-gradient(90deg, var(--accent), var(--inflight));
-  transition: width 400ms ease;
+  transform-origin: left center;
+  transition: transform 400ms ease;
 }
 .ctx-window-meta {
   display: flex; justify-content: space-between;
@@ -6028,10 +6033,15 @@ button.tool.clickable:last-child { border-bottom: none; }
   background: var(--line);
   overflow: hidden;
 }
+/* Full width and scaled from the left (#863), the way the machine panel's
+   `.sd-fill` already draws its bars: a changing reading is a transform on the
+   compositor, where a `width` transition re-laid the row out every frame. */
 .qb-fill {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   border-radius: 3px;
-  transition: width 400ms ease;
+  transform-origin: left center;
+  transition: transform 400ms ease;
 }
 /* Pace "green line" — vertical marker at the expected-usage position.
    Separated from the fill with the surface, not with black. Deficit means
@@ -6048,16 +6058,28 @@ button.tool.clickable:last-child { border-bottom: none; }
    (overflow: hidden), which leaves exactly the two vertical edges that matter.
    "Where should I be by now" is the one number in this panel printed nowhere
    on screen — it lives in a title — so the marker is all there is. */
+/* The rail the marker rides (#863). As wide as the track, so translateX's
+   percentage — which is of the element's own width — lands the marker exactly
+   where `left` used to, and the slide is a transform rather than a layout pass
+   every frame. It paints nothing and takes no pointer; the marker keeps its
+   own title. */
+.qb-pace-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition: transform 400ms ease;
+}
 .qb-pace-marker {
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 0;
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
   box-shadow: 0 0 0 1px var(--panel);
-  transition: left 400ms ease;
-  z-index: 2;
+  pointer-events: auto;
 }
 .qb-reset-row {
   display: flex;
@@ -8485,7 +8507,7 @@ button.ap-err::after {
 @media (prefers-reduced-motion: reduce) {
   .ctx-window-fill,
   .qb-fill,
-  .qb-pace-marker,
+  .qb-pace-rail,
   .uh-bar { transition: none; }
 
   /* Every dialog, the context and usage-history ones included since #874

@@ -143,7 +143,7 @@ export default function ContextModal({ agent, onClose }: Props) {
 
         <section className="ctx-window-row">
           <div className="ctx-window-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
-            <div className="ctx-window-fill" style={{ width: `${pct}%` }} />
+            <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
           </div>
           <div className="ctx-window-meta">
             <span className="ctx-window-pct">{pct.toFixed(1)}%</span>

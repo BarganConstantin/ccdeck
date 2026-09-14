@@ -234,17 +234,22 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
         <span className="qb-pct" style={{ color }}>{pctLabel}</span>
       </div>
       <div className="qb-track">
-        <div className="qb-fill" style={{ width: `${fillW}%`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
+        <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}
         {pace && (
-          <div
-            aria-hidden
-            className="qb-pace-marker"
-            style={{ left: `${pace.expectedPct}%`, background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
-            title={`To last until reset, stay near ${Math.round(pace.expectedPct)}% by now`}
-          />
+          // A rail as wide as the track slides, carrying the marker at its
+          // left edge (#863): translateX's percentage is of the rail's own
+          // width, so this lands where `left` did, without a layout pass.
+          <div className="qb-pace-rail" style={{ transform: `translateX(${pace.expectedPct}%)` }}>
+            <div
+              aria-hidden
+              className="qb-pace-marker"
+              style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
+              title={`To last until reset, stay near ${Math.round(pace.expectedPct)}% by now`}
+            />
+          </div>
         )}
       </div>
       <div className="qb-reset-row">

@@ -215,11 +215,18 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // If a rename ever slips the sheet past these regexes, this collapses first.
     expect(keyframes.size).toBeGreaterThan(15);
     expect([...keyframes.values()].filter(Boolean).length).toBeGreaterThan(10);
-    expect(easesLayout.length).toBeGreaterThanOrEqual(6);
+    // Three fewer since #863 moved three panel readouts onto transforms.
+    expect(easesLayout.length).toBeGreaterThanOrEqual(3);
     expect(animatesMovement.length).toBeGreaterThan(20);
     // The five #357 found, by name: four layout eases and one modal entrance.
-    for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-marker", ".uh-bar"]) {
-      expect(easesLayout.some(m => m.sel === sel), sel).toBe(true);
+    // #863 then moved three of the four onto transforms, so they ease no layout
+    // property now; the next case still stops all four under reduced motion.
+    expect(easesLayout.some(m => m.sel === ".uh-bar"), ".uh-bar").toBe(true);
+    for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-rail"]) {
+      expect(easesLayout.some(m => m.sel === sel), `${sel} eases a layout property again`).toBe(false);
+      const rule = all.find(r => !r.reduced && r.selector === sel);
+      expect(rule, `${sel} is gone from the sheet`).toBeTruthy();
+      expect(decl(rule!.body, "transition"), sel).toMatch(/^transform /);
     }
     expect(animatesMovement.some(m => m.sel === ".modal"), ".modal").toBe(true);
   });
@@ -236,7 +243,8 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
   it("stops the four readouts dead rather than easing them more slowly", () => {
     // Half the travel is still travel arriving unannounced. The number is the
     // information; the journey to it is not.
-    for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-marker", ".uh-bar"]) {
+    // The marker's travel is its rail's since #863.
+    for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-rail", ".uh-bar"]) {
       const answer = (answers.get(sel) ?? []).at(-1)!;
       expect(decl(answer.body, "transition"), sel).toBe("none");
     }
