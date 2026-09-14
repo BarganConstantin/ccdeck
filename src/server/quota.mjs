@@ -640,7 +640,13 @@ async function _execOnce(bin) {
     _saidFailure = null;
   }
   const cliOk = /subscription/i.test(combined) || /claude code usage/i.test(combined);
-  return { cliOk, missing, parsed: parseUsageText(combined) };
+  // WHETHER THE RUN ITSELF SUCCEEDED, which `cliOk` does not answer. `cliOk` is
+  // a test of the OUTPUT — it means "we recognised what came back" — and a CLI
+  // that printed its banner and then failed satisfies it. That is the right
+  // rule for the parse above (see the note there: the quota lines can be on
+  // stdout and the exit non-zero), and the wrong one for the no-numbers
+  // fallback in _doFetch, which was publishing 0% for a run that errored.
+  return { cliOk, ran: r.ok, missing, parsed: parseUsageText(combined) };
 }
 
 async function _doFetch(now, force = false, gen = _generation) {
@@ -693,11 +699,13 @@ async function _doFetch(now, force = false, gen = _generation) {
   // refreshed). The real lines appear on a subsequent call. Retry a couple
   // times before giving up so the first paint already shows real values.
   let cliOk = false;
+  let cliRan = false;
   let parsed = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await sleep(1200);
     const r = await _execOnce(bin);
     cliOk = r.cliOk || cliOk;
+    cliRan = r.ran || cliRan;
     if (r.parsed) { parsed = r.parsed; break; }
     // The retry exists for a CLI that RAN and left the quota lines out of a cold
     // invocation. A CLI that is not installed will not be installed 1.2 seconds
@@ -734,11 +742,24 @@ async function _doFetch(now, force = false, gen = _generation) {
   //
   // A CLI that failed entirely is `ok: false` as it always was, and the reason
   // says which of the two the reader is looking at.
-  const subscribed = cliOk ? await hasSubscriptionCredential() : false;
-  const result = cliOk && subscribed
+  //
+  // `cliRan` IS WHAT MAKES THAT SENTENCE TRUE. It used to rest on `cliOk`
+  // alone, which is a regex over stdout+stderr and never looked at the exit
+  // status — so a CLI that printed its header and then failed (a network
+  // error, a rate limit, a timeout after the banner) took this branch and the
+  // panel drew two full-looking bars reading "5-hour window 0%". The deck
+  // logged `claude CLI failed` in the same second. Someone reading an empty
+  // window then starts a long run against one that is nearly spent.
+  //
+  // Only this branch is gated. The parse above still keeps its output on a
+  // non-zero exit, deliberately, because the quota lines can be printed and
+  // the exit still be non-zero — 0% is a claim made in the ABSENCE of numbers,
+  // and absence plus failure is not a measurement.
+  const subscribed = cliOk && cliRan ? await hasSubscriptionCredential() : false;
+  const result = cliOk && cliRan && subscribed
     ? { ok: true, session5hPct: 0, session5hWindowSec: 18000,
         week7dPct: 0, week7dWindowSec: 604800, fetchedAt: now }
-    : { ok: false, reason: cliOk ? "no_subscription" : "cli_failed", fetchedAt: now };
+    : { ok: false, reason: cliOk && cliRan ? "no_subscription" : "cli_failed", fetchedAt: now };
   return publish(gen, result, now - (CACHE_MS - 5_000));
 }
 
