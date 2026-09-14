@@ -176,6 +176,7 @@ describe("one login between two decks", () => {
   it("is one lane both ways when both decks offer it, and says nothing while both copies work", () => {
     expect(exchangeLanes([acct("a", true)], [acct("a", true)], ["a"])).toEqual([{
       key: "a", email: "a@x", here: "works", there: "works", in: "live", out: "live", caption: null, tone: "ok",
+      usedThere: false,
     }]);
   });
 

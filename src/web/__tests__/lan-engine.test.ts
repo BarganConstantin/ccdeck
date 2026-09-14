@@ -31,7 +31,7 @@ import { accountKey, identityFrom } from "../../server/lan-sync.mjs";
 
 const K = (email: string, org: string) => accountKey(email, org);
 
-interface Row { num: number; email: string; orgUuid: string; alive: boolean }
+interface Row { num: number; email: string; orgUuid: string; alive: boolean; active?: boolean }
 
 /** A store, and a record of everything the engine asked it to do. */
 function store(rows: Row[]) {
@@ -841,4 +841,60 @@ describe("what a paired deck says about itself", () => {
     expect(a.e.status().aliases).toEqual({ "aaa-bbb-ccc-ddd": "Office" });
     expect(a.e.status().port).toBe(port);
   });
+});
+
+// The account a deck is working on travels with the list it offers, in both
+// directions of a round — and only ever names an account in that list.
+describe("which account a paired deck is on", () => {
+  const ON = K("on@x.md", "o1");
+  const OFF = K("off@x.md", "o2");
+  const rows = (active: "on" | "off"): Row[] => [
+    { num: 1, email: "on@x.md", orgUuid: "o1", alive: true, active: active === "on" },
+    { num: 2, email: "off@x.md", orgUuid: "o2", alive: true, active: active === "off" },
+  ];
+
+  it("names the account it is on, when that is one it shares", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store(rows("on")), "Deck-B", [ON]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ key: ON });
+  }, 20_000);
+
+  it("says only that it is on another account, when that is one it does not share", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store(rows("off")), "Deck-B", [ON]);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ other: true });
+  }, 20_000);
+
+  it("says it is hidden when its owner switched that off", async () => {
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store(rows("on")), "Deck-B", [ON]);
+    await b.e.apply({ shareActive: false });
+    expect(b.e.status().shareActive).toBe(false);
+    await point(a, b, b.port);
+    await a.e.round();
+    expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ hidden: true });
+  }, 20_000);
+
+  it("is heard from a deck that only calls in, with its list and its card", async () => {
+    const MAC = { version: "3.23.0", os: "macOS 26.5", arch: "arm64" };
+    const a = await deck(store(rows("on")), "Deck-A", [ON, OFF], { about: MAC });
+    const b = await deck(store([]), "Deck-B", []);
+    await point(a, b, b.port);
+    // Accepting dials back at the port A's hello carried; a deck behind a
+    // firewall or a VPN is one where that address never answers, which is
+    // what taking it away here stands for. B now holds no way to reach A.
+    b.e.setPeers([]);
+    await a.e.round();
+    // So to B, A is a deck that calls in, and everything B knows about it
+    // came with A's question.
+    const row = peerRow(b, a.id.fp);
+    expect(row?.waiting).toBe(true);
+    expect(row?.about).toMatchObject(MAC);
+    expect(row?.offers?.accounts.map((x: { key: string }) => x.key)).toEqual([OFF, ON].sort());
+    expect(row?.offers?.current).toEqual({ key: ON });
+  }, 20_000);
 });

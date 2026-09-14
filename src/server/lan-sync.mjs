@@ -959,3 +959,26 @@ export function manifestFor(accounts, shared) {
     .map(a => ({ key: a.key, email: a.email, alive: !!a.alive }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }
+
+/**
+ * Which account this deck is on, as a frame field for the decks it is paired
+ * with — or nothing.
+ *
+ * ONLY ONE IT SHARES IS EVER NAMED. The account a deck works on is named only
+ * when it is also in the list the owner ticked, so the promise the share list
+ * makes — an unticked account is never told to anybody — holds for this too.
+ * On one it does not share, it says `other` and nothing more: a paired deck
+ * reads "on another account", which says this machine is working without
+ * saying on what.
+ *
+ * `hidden` is the owner's switch turned off, and that IS said, on purpose: a
+ * paired deck then reads "current account hidden" rather than nothing, so the
+ * person over there knows this machine is working and chose not to say where.
+ * A deck with no account at all says nothing.
+ */
+export function currentFor(accounts, shared, shareActive) {
+  if (shareActive === false) return { current: { hidden: true } };
+  const on = accounts.find(a => a.active);
+  if (!on) return {};
+  return new Set(shared).has(on.key) ? { current: { key: on.key } } : { current: { other: true } };
+}

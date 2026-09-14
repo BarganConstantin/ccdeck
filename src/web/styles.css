@@ -9848,6 +9848,8 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 /* `.lan-warn` carries a bottom margin because everywhere else it introduces the
    control it is about. Here it FOLLOWS one, so the space it needs is above. */
 .lan-switches + .lan-warn { margin: 9px 0 0; }
+/* The one switch that is about the list above it, set a step below its rows. */
+.ap-lan-picks + .lan-switch { margin-top: 10px; }
 
 /* The one paragraph in the dialog that is a warning rather than an explanation,
    above the only control that cannot be undone. It takes --warn, which is what
@@ -10230,6 +10232,37 @@ input, textarea { caret-color: var(--accent); }
 }
 /* A copy on its way is drawn waiting for it, in the ink the caption uses. */
 .lan-lane[data-tone="wait"] .lan-pip[data-state="missing"] { border-color: var(--accent); }
+
+/* THE ACCOUNT THAT MACHINE IS ON. Its address takes the accent, and the mark at
+   that machine's end carries the slow ring the machine rows already use for
+   "live" — so the colour says which login and the ring says whose. The ring
+   goes around the mark, never instead of it: an expired copy somebody is
+   working on is still an expired copy, and still says so.
+
+   ONLY THEIRS. This deck's own account is not marked: its owner sees it in
+   the accounts panel's switcher, and a second mark here was a second answer
+   to a question nobody opening this dialog asks.
+
+   `inset: 0` is the mark's inside, 5px across — the size of a row's dot — so
+   the ring grows to the same 16px the rows' does rather than past the lane. */
+.lan-lane[data-used-there] .lan-lane-email { color: var(--accent); }
+.lan-lane[data-used-there] .lan-pip[data-end="there"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+/* Less motion keeps the ring, still — the way `.ap-pulse` keeps its own. */
+@media (prefers-reduced-motion: reduce) {
+  .lan-lane[data-used-there] .lan-pip[data-end="there"]::after { animation: none; opacity: 0.35; transform: scale(2.2); }
+}
+/* What a machine said about the account it is on, under its name, when that is
+   not a lane to mark: "current account hidden" when its owner switched the
+   telling off, "on another account" when it is on one it does not share. The
+   annotation tier, like what it runs. */
+.lan-end-note { font-size: 10px; line-height: 1.5; color: var(--muted); }
 
 /* A dashed lane is a login with no copy that can move either way. */
 .lan-wire[data-flow="cut"] {

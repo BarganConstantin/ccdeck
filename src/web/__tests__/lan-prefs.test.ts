@@ -87,7 +87,7 @@ describe("the shape on disk", () => {
     // offered nothing until a person ticks a login.
     expect(normalise({}).lan).toEqual({
       enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: false, aliases: {},
+      autoAsk: true, autoAccept: false, aliases: {}, shareActive: true,
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
@@ -108,7 +108,7 @@ describe("the shape on disk", () => {
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
     expect(saved!.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: false, aliases: {},
+      autoAsk: true, autoAccept: false, aliases: {}, shareActive: true,
     });
   });
 

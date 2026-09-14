@@ -76,9 +76,17 @@ export interface Peer {
   /** What it said about itself. Null until it has, and forever for a deck
    *  older than the one that started saying. */
   about?: DeckAbout | null;
-  /** The accounts it offered in its last manifest, and when. Null for a deck
-   *  this one has never asked — which includes every deck that only calls in. */
-  offers?: { at: number; accounts: OfferedAccount[] } | null;
+  /** The accounts it offered in its last manifest, and when — from the answer
+   *  to this deck's question, or from the question a deck that calls in asks.
+   *  Null for a deck that has not said, which is every deck older than the one
+   *  that started saying. `current` is the one it is working on: the key of one
+   *  of these, `hidden` when its owner switched that off, and `other` when it
+   *  is on an account it does not share — which is never named. */
+  offers?: {
+    at: number;
+    accounts: OfferedAccount[];
+    current?: { key: string } | { hidden: true } | { other: true } | null;
+  } | null;
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
   pairedAt?: number | null;
@@ -102,6 +110,9 @@ export interface LanStatus {
    *  arrives is answered here or answered for you. */
   autoAsk?: boolean;
   autoAccept?: boolean;
+  /** Whether paired decks are told which shared account this one is on.
+   *  Absent is on, which is what the engine does with a missing setting. */
+  shareActive?: boolean;
   fp: string | null;
   port: number | null;
   addrs: string[];
@@ -948,12 +959,19 @@ export interface Lane {
   out: "live" | "cut" | null;
   caption: string | null;
   tone: "ok" | "wait" | "bad" | "idle";
+  /** That machine is working on this account right now, by what it said in its
+   *  last list. This deck's own is not marked — its owner sees it in the
+   *  accounts panel's switcher. */
+  usedThere: boolean;
 }
 
 export function exchangeLanes(
   offered: OfferedAccount[] | null,
   accounts: LanAccount[],
   shared: string[],
+  /** The key that deck said it is on, or null. The engine only keeps one that
+   *  is in the same list, so it can only ever land on a lane it offers. */
+  current: string | null = null,
 ): Lane[] {
   const byKey = new Map(accounts.map(a => [a.key, a]));
   const sharedHere = new Set(shared);
@@ -980,6 +998,7 @@ export function exchangeLanes(
       out: giving && mine ? (mine.alive ? "live" : "cut") : null,
       caption,
       tone: said.tone,
+      usedThere: current === theirs.key,
     });
   }
   // What only this deck offers, after, in the order this deck offers it.
@@ -996,6 +1015,8 @@ export function exchangeLanes(
       out: mine.alive ? "live" : "cut",
       caption: mine.alive ? null : "expired here",
       tone: mine.alive ? "ok" : "bad",
+      // That deck does not offer it, so it is never named as the one it is on.
+      usedThere: false,
     });
   }
   return lanes;

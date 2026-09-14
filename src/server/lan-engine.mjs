@@ -27,7 +27,7 @@
 // something in it, which is when an account is actually broken. A deck whose
 // accounts all work talks to its peers every minute and never asks for
 // anything.
-import { accountKey, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
+import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
 import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
@@ -111,6 +111,22 @@ export function offered(list) {
 }
 
 /**
+ * Which account a peer said it is on, as the panel may keep it: the key of one
+ * of the accounts it listed in the same frame, that its owner is hiding it, or
+ * that it is on one it does not share — and nothing for anything else. A key
+ * that is not in its own list is dropped rather than drawn: a deck only ever
+ * names an account it shares, and one that names another is saying something
+ * this deck will not show.
+ */
+export function heardCurrent(raw, list) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.hidden === true) return { hidden: true };
+  if (raw.other === true) return { other: true };
+  if (typeof raw.key !== "string") return null;
+  return list.some(a => a.key === raw.key) ? { key: raw.key } : null;
+}
+
+/**
  * One deck's LAN sync, from settings to a healed account.
  *
  * `deps` is every side effect: reading accounts, exporting one, importing one.
@@ -140,6 +156,8 @@ export function createEngine({
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
     autoAsk: true, autoAccept: true, aliases: {},
+    // Tell paired decks which shared account this one is on — see currentFor.
+    shareActive: true,
   };
   let identity = null;
   let beacon = null;
@@ -237,6 +255,8 @@ export function createEngine({
       email: a.email,
       alive: a.alive === true,
       num: a.num,
+      // The one this deck is on — claude-swap's own answer, one at most.
+      active: a.active === true,
     }));
   };
 
@@ -264,9 +284,19 @@ export function createEngine({
         // here ever asks. A seal that does not open is a deck that said nothing.
         const card = openAbout(ctx.key, msg.about, ctx.peerFp, identity.fp);
         if (card) aboutBy.set(ctx.peerFp, { ...card, at: now() });
+        // AND SO DOES ITS LIST, from a deck new enough to send one: what it
+        // offers, and which of those it is on. Kept only when it came — an
+        // older caller asks with its card alone, and a missing list is not an
+        // empty one. This is the only way a deck nothing here dials is ever
+        // known by what it offers.
+        if (Array.isArray(msg.accounts)) {
+          const list = offered(msg.accounts);
+          offersBy.set(ctx.peerFp, { at: now(), accounts: list, current: heardCurrent(msg.current, list) });
+        }
         const accounts = await localAccounts();
         return ctx.send({
           t: "manifest", accounts: manifestFor(accounts, cfg.shared),
+          ...currentFor(accounts, cfg.shared, cfg.shareActive),
           ...cardFor(ctx.key, ctx.peerFp),
         });
       }
@@ -365,12 +395,21 @@ export function createEngine({
 
       // Our card goes with the question and theirs comes back with the answer
       // — see lan-about.mjs for why it is here and nowhere earlier.
-      const theirs = await ask({ t: "manifest", ...cardFor(conn.key, conn.peerFp) });
+      // THE QUESTION CARRIES THIS DECK'S LIST TOO, and which of it this deck is
+      // on — so the deck being asked knows both without dialling back, which a
+      // deck with no address for this one never could. An older deck reads the
+      // question's `t` and card and nothing else, so it answers as it always did.
+      const mine = await localAccounts();
+      const theirs = await ask({
+        t: "manifest", accounts: manifestFor(mine, cfg.shared),
+        ...currentFor(mine, cfg.shared, cfg.shareActive),
+        ...cardFor(conn.key, conn.peerFp),
+      });
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const card = openAbout(conn.key, theirs.about, conn.peerFp, identity.fp);
       if (card) aboutBy.set(conn.peerFp, { ...card, at: now() });
-      offersBy.set(conn.peerFp, { at: now(), accounts: offered(theirs.accounts) });
-      const mine = await localAccounts();
+      const list = offered(theirs.accounts);
+      offersBy.set(conn.peerFp, { at: now(), accounts: list, current: heardCurrent(theirs.current, list) });
       // Only accounts I have also ticked. Sharing is mutual by construction:
       // a peer cannot push an account at me that I never agreed to hold.
       // A HEAL NEEDS MY TICK; AN ADD DOES NOT, and the asymmetry is deliberate.
@@ -835,6 +874,8 @@ export function createEngine({
         // arrives is answered here or answered for you.
         autoAsk: !!cfg.autoAsk,
         autoAccept: !!cfg.autoAccept,
+        // Whether paired decks are told which shared account this one is on.
+        shareActive: cfg.shareActive !== false,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the
@@ -932,6 +973,11 @@ export function createEngine({
               // and this is when. Undefined until it has, which is a row the
               // panel draws as unknown rather than as live.
               lastSeen: spokeAt.get(t.fp),
+              // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
+              // of those it is on. The card was kept and never handed over, so
+              // the dialog said "it runs an older version" about a deck that
+              // had just told it exactly which version it runs.
+              ...card(t.fp),
             });
           }
           return rows;

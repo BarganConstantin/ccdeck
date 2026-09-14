@@ -3462,6 +3462,8 @@ async function applyLanPrefs() {
       port: lan.port || 0,
       autoAsk: lan.autoAsk !== false,
       autoAccept: lan.autoAccept !== false,
+      // Whether paired decks are told which shared account this one is on.
+      shareActive: lan.shareActive !== false,
       // Names somebody here gave other decks. The engine only hands them to
       // the page, so a change never restarts anything.
       aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},

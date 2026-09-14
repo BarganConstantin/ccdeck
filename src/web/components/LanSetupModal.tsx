@@ -144,6 +144,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // switches against what the engine is actually doing.
   const asks = status.autoAsk !== false;
   const says = status.autoAccept !== false;
+  // The same rule for the third: absent is on, which is what the engine does.
+  const tells = status.shareActive !== false;
 
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
@@ -240,6 +242,31 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </label>
               ))}
             </div>
+            {/* WHICH OF THESE THIS DECK IS ON, told to the decks it is paired
+                with. Under the list rather than with the pairing switches,
+                because it only ever names an account ticked above — sitting
+                here, it says so without a sentence. */}
+            {accounts.length > 0 && (
+              <div className="lan-switch">
+                <span className="lan-switch-what">Show paired decks which of these this deck is using</span>
+                <button
+                  type="button"
+                  className={`ap-auto-state${tells ? " live" : ""}`}
+                  role="switch"
+                  aria-checked={tells}
+                  aria-label="Show paired decks which of these this deck is using"
+                  {...pressProps("current")}
+                  onClick={() => void write(
+                    { shareActive: !tells },
+                    tells ? "stop showing which account this deck is using" : "show which account this deck is using",
+                    "current",
+                  )}
+                  title={tells
+                    ? "Stop telling paired decks which account this one is on. They read “current account hidden” instead."
+                    : "Tell paired decks which of the ticked accounts this one is on. An unticked account is never named."}
+                />
+              </div>
+            )}
           </div>
 
           <div className="modal-section">

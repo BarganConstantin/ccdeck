@@ -124,7 +124,8 @@ const HERE_SAID = { works: "works here", expired: "expired here", missing: "not 
 const THERE_SAID = { works: "works there", broken: "broken there", unknown: "not offered by that deck" } as const;
 function laneSaid(l: Lane): string {
   const ways = l.in && l.out ? "offered both ways" : l.in ? "offered by that deck" : "offered by this deck";
-  return `${HERE_SAID[l.here]}, ${THERE_SAID[l.there]}, ${ways}.`;
+  // The accent and the ring say this to the eye; these words say it aloud.
+  return `${HERE_SAID[l.here]}, ${THERE_SAID[l.there]}, ${ways}${l.usedThere ? ", in use there" : ""}.`;
 }
 
 export default function LanPeerModal({
@@ -257,8 +258,18 @@ export default function LanPeerModal({
   const asking = busy === `check:${row.fp}`;
 
   const offers = peer?.offers ?? null;
+  // WHICH ACCOUNT IT IS ON, and only while it answers: "on this one right now"
+  // cannot be vouched for by a deck that has gone quiet, so the mark stops with
+  // the lights. `hidden` is its owner's switch, and `other` an account it does
+  // not share — both said under its name, since neither is a lane to mark.
+  const current = link === "up" ? offers?.current ?? null : null;
+  const theirKey = current && "key" in current ? current.key : null;
+  const hiddenThere = !!current && "hidden" in current;
+  const otherThere = !!current && "other" in current;
+  // A deck that calls in sends its list with every call now, so its lanes are
+  // drawn from what it said like anybody else's; an older one sends none.
   const lanes = paired
-    ? exchangeLanes(peer?.waiting ? null : offers?.accounts ?? null, accounts, status.shared ?? [])
+    ? exchangeLanes(offers?.accounts ?? null, accounts, status.shared ?? [], theirKey)
     : [];
   // A login this deck advertises and cannot honour, with nothing coming the
   // other way to repair it: every paired deck is promised something that
@@ -273,14 +284,16 @@ export default function LanPeerModal({
   // WHY THAT DECK'S HALF IS MISSING, when it is. This deck's half is drawn
   // either way — it is this deck's own list, and it is known.
   const unknown = !paired ? null
-    : peer?.waiting
-      ? "What that deck offers is not known. This deck never asks it — it calls in — so it only shows once this deck can reach it."
-      : !offers
-        ? (peer?.last?.error
+    : !offers
+      ? (peer?.waiting
+        // It says with every call now. One that has called and still said
+        // nothing runs a version from before it started saying.
+        ? "What that deck offers is not known yet. A deck that calls in says so each time it calls — one on an older version never does."
+        : peer?.last?.error
           ? "What that deck offers is not known — the last attempt to ask it did not get through."
           : "Nobody has asked that deck what it offers yet. The next round asks it.")
-        : offers.accounts.length === 0 ? "That deck offers nothing. Nobody there has chosen a login to share."
-        : null;
+      : offers.accounts.length === 0 ? "That deck offers nothing. Nobody there has chosen a login to share."
+      : null;
   // WHEN IT LAST TOLD US, and only when that is not already answered under
   // the network. A round sets `offersBy` and `lastRound` microseconds apart,
   // so on every healthy deck this was a second printing of the same clock —
@@ -402,6 +415,11 @@ export default function LanPeerModal({
               <p className="lan-end">
                 <span className="lan-end-name">This deck</span>
                 {hereRuns && <span className="lan-end-runs">{hereRuns}</span>}
+                {/* This deck's own switch, said where its owner looks: the
+                    decks it is paired with are reading this line about it. */}
+                {paired && status.shareActive === false && (
+                  <span className="lan-end-note">current account hidden</span>
+                )}
               </p>
               <p className="lan-end" data-side="there">
                 <span className="lan-end-name">{row.name}</span>
@@ -411,6 +429,11 @@ export default function LanPeerModal({
                     {order ? ` · ${order < 0 ? "older" : "newer"}` : null}
                   </span>
                 )}
+                {/* Working, and its owner chose not to say on which account —
+                    said, rather than drawn as nothing, so that is what it reads as. */}
+                {hiddenThere && <span className="lan-end-note">current account hidden</span>}
+                {/* Working on an account it does not share: said, never named. */}
+                {otherThere && <span className="lan-end-note">on another account</span>}
               </p>
             </div>
 
@@ -461,6 +484,7 @@ export default function LanPeerModal({
                   return (
                     <li key={l.key} role="listitem" className="lan-lane" data-tone={l.tone}
                       data-draw={l.in && l.out ? "both" : l.in ? "in" : "out"}
+                      data-used-there={l.usedThere || undefined}
                       style={{ "--i": i } as CSSProperties}>
                       <i className="lan-pip" data-end="here" data-state={l.here} aria-hidden />
                       <span className="lan-track">

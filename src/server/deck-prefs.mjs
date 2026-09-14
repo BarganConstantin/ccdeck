@@ -89,6 +89,11 @@ export const DEFAULTS = Object.freeze({
     // until somebody ticks a login: the gate that did not change.
     autoAsk: true,
     autoAccept: false,
+    // WHICH ACCOUNT THIS DECK IS ON, told to the decks it is paired with — and
+    // only ever one it shares, so an unticked account is never named. On, so two
+    // of one person's machines show each other where they are working; off, and
+    // paired decks read "current account hidden" instead.
+    shareActive: true,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -192,6 +197,9 @@ function normaliseLan(raw) {
     // overrides it, because a truthy string from a hand-edited file is not an
     // answer.
     autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : DEFAULTS.lan.autoAccept,
+    // Whether paired decks are told which shared account this one is on. Absent
+    // is on — the default above — and only a real boolean turns it off.
+    shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,
   };
 }
 
