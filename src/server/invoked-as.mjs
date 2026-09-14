@@ -59,8 +59,10 @@ import { bareSpecName, isNpxInstall, npxRestartSpec } from "./self-update.mjs";
  *  invoked-as.test.ts pins them against each other rather than assuming it. */
 export const PREFERRED = "ccdeck";
 
-/** Every command an install of this package provides, which is every name that
- *  can be typed. package.json's `bin` block is the other half of this list. */
+/** Every name somebody can have typed to reach this build. A global install
+ *  provides only `ccdeck` now — package.json's `bin` block — but `npx
+ *  agents-deck` and `npx agent-dag` still reach it through the old packages,
+ *  which depend on it, and those are the runs the notice below is for. */
 export const COMMANDS = [PREFERRED, "agents-deck", "agent-dag"];
 
 /** `value` when it is one of those three, and null for everything else — a shim

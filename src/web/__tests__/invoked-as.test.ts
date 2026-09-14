@@ -166,9 +166,13 @@ describe("knownCommand is the only thing that decides what counts as evidence", 
     }
   });
 
-  it("lists exactly the commands an install of this package provides", () => {
+  it("counts every command a global install provides, and that is only ccdeck", () => {
+    // The other two are still typeable — as `npx agents-deck` and `npx
+    // agent-dag`, which reach this build through the retired packages — so they
+    // stay in COMMANDS. What a global install puts on the PATH is ccdeck alone.
     const bin = Object.keys(JSON.parse(read("package.json")).bin);
-    expect([...COMMANDS].sort()).toEqual(bin.sort());
+    expect(bin).toEqual([PREFERRED]);
+    for (const name of bin) expect(COMMANDS).toContain(name);
   });
 });
 
@@ -491,16 +495,17 @@ describe("the name the deck asks people to type", () => {
     expect(PREFERRED).toBe(SERVER_PRODUCT);
   });
 
-  it("is not the package the upgrade installs, which is still agents-deck", () => {
-    // The line brand.ts draws: this one is a command a human types, and the
-    // registry query and `npm i -g` beside it name a package.
+  it("is also the package the upgrade installs, now that it is the only one published", () => {
+    // The line brand.ts draws still holds — this is a command a human types,
+    // and the registry query and `npm i -g` beside it name a package — but the
+    // two have been the same word since the old names stopped being published.
     //
     // The DEFAULT is the fact — it is what the update flow installs when
     // nothing overrides it — not the signature's line breaks (#378). Reflowing
     // the parameters across three lines used to fail this and display-name
     // .test.ts, which asserts the same default, at once.
     expect(read("src", "server", "self-update.mjs"), "the upgrade stopped defaulting to the published package")
-      .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*"agents-deck",?\s*\)/);
-    expect(JSON.parse(read("package.json")).name).toBe("agents-deck");
+      .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*PUBLISHED_NAME,?\s*\)/);
+    expect(JSON.parse(read("package.json")).name).toBe(PREFERRED);
   });
 });

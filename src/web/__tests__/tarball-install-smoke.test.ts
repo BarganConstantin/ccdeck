@@ -99,9 +99,9 @@ function npm(args: string[], cwd: string, timeout = 180_000) {
     : spawnSync("npm", args, { cwd, encoding: "utf8", timeout, shell: process.platform === "win32" });
 }
 
-/** The three names this one tarball is published under. bin/ carries a shim per
- *  name, and #340's rename dance means all three are the same package. */
-const NAMES = ["ccdeck", "agents-deck", "agent-dag"] as const;
+/** The one command this tarball provides. It went out under three names until
+ *  the old two stopped being published; package.json's `bin` is ccdeck alone. */
+const NAMES = ["ccdeck"] as const;
 
 let tarball = "";
 let packed: string[] = [];
@@ -300,7 +300,7 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
     }
   });
 
-  it("installs a working shim for all three names", () => {
+  it("installs a working shim for its command, and none for the retired names", () => {
     const binDir = join(APP, "node_modules", ".bin");
     const shims = new Set(readdirSync(binDir));
     for (const name of NAMES) {
@@ -310,6 +310,12 @@ describe.skipIf(!existsSync(dist))("the tarball a user installs", () => {
       if (process.platform === "win32") {
         expect(shims, `no ${name}.cmd — nothing on PATH would run`).toContain(`${name}.cmd`);
       }
+    }
+    // A bin claiming a retired name collides with the old package where it is
+    // still installed: `npm i -g ccdeck` beside a global agents-deck dies on
+    // EEXIST for the link both of them want.
+    for (const retired of ["agents-deck", "agent-dag"]) {
+      expect(shims, `the tarball still installs a ${retired} command`).not.toContain(retired);
     }
   });
 

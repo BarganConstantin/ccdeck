@@ -96,7 +96,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 ## Quick start
 
 ```bash
-npx ccdeck          # or: npx agents-deck · npx agent-dag — same deck
+npx ccdeck
 ```
 
 Opens **http://127.0.0.1:4317**, shows an eight-picture tour the first time, and registers the Claude Code hook on first run. If something else already holds 4317, the deck takes a port between 4318 and 4400 instead and prints the address it ended up on — that line in the terminal is the one to trust. Start any Claude Code or Codex session and the graph fills in live.
@@ -380,7 +380,7 @@ What the banner offers depends on how this copy was installed:
 
 | Installed as | Offer |
 |---|---|
-| global npm install | **Update now** — runs `npm install -g` on the name you installed (`ccdeck`, `agents-deck` or `agent-dag`), then restarts once nothing is running |
+| global npm install | **Update now** — runs `npm install -g` on the package you installed, then restarts once nothing is running |
 | `npx` | **Update & restart** — re-runs the spec through npx, which fetches a fresh copy and takes over the same port |
 | git checkout | the command, because your working copy leads npm: `git pull && npm run build` |
 | directory not writable | the command — a root-owned prefix is declined up front rather than failing inside npm |
@@ -403,23 +403,18 @@ It restarts on its own only after 30 seconds with nothing running, because hook 
 
 ## Names
 
-**ccdeck** is the name — of this repo and of the command. On npm it goes out
-under three, and `npx` runs the same deck from any of them.
+**ccdeck** is the name — of this repo, of the npm package and of the command.
+
+The deck used to be published as `agents-deck` and `agent-dag` as well. Neither
+is published any more; both stay on npm at their last version, 3.22.8. An
+install under one of them keeps running, but it may never update itself again,
+and the only command it puts on your `PATH` is the old one. To move to `ccdeck`:
 
 ```bash
-npx ccdeck        # this repo's name — the short one
-npx agents-deck   # the name it shipped under before the rename
-npx agent-dag     # the original name; existing installs and scripts keep working
+npm rm -g agents-deck agent-dag
+npm i -g ccdeck
+ccdeck --install-service   # only if the deck started when you logged in
 ```
-
-The three are one build published three times, so they behave identically:
-`npx` on any of them fetches a single package, and `npm i -g` on any of them
-puts all three commands on your `PATH`.
-
-`ccdeck` was the exception until recently — a thin package that depended on
-`agents-deck` and spawned its binary. It worked, but `npx ccdeck` downloaded two
-packages instead of one and a global `ccdeck` ran under the old package's name.
-It is now the same build as the other two.
 
 The repository was previously named `agents-deck`; the old URL redirects here,
 so existing clones, links and bookmarks keep working.

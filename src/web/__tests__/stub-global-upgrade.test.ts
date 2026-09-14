@@ -342,11 +342,17 @@ describe("a package that merely depends on the deck is not one of its names", ()
     // Read as a manifest so the two conditions can be separated. A host named
     // ccdeck that does not depend on the deck is not the stub — it is a
     // coincidence, or a directory somebody renamed by hand.
-    expect(hostNameFromMeta({ name: "ccdeck", dependencies: { "agents-deck": "1.33.147" } })).toBe("ccdeck");
+    // The stub from before #340, which depended on the deck while the deck was
+    // called agents-deck — so the name it must depend on is passed.
+    expect(hostNameFromMeta({ name: "ccdeck", dependencies: { "agents-deck": "1.33.147" } }, "agents-deck"))
+      .toBe("ccdeck");
+    // The retired packages from 3.22.3 on, which depend on ccdeck — the default.
+    expect(hostNameFromMeta({ name: "agents-deck", dependencies: { ccdeck: "^3" } })).toBe("agents-deck");
+    expect(hostNameFromMeta({ name: "agent-dag", dependencies: { ccdeck: "^3" } })).toBe("agent-dag");
     expect(hostNameFromMeta({ name: "ccdeck", dependencies: { lodash: "^4" } })).toBeNull();
     expect(hostNameFromMeta({ name: "ccdeck" })).toBeNull();
-    expect(hostNameFromMeta({ name: "my-app", dependencies: { "agents-deck": "^1.33.0" } })).toBeNull();
-    expect(hostNameFromMeta({ dependencies: { "agents-deck": "1.0.0" } })).toBeNull();
+    expect(hostNameFromMeta({ name: "my-app", dependencies: { ccdeck: "^3" } })).toBeNull();
+    expect(hostNameFromMeta({ dependencies: { ccdeck: "1.0.0" } })).toBeNull();
     expect(hostNameFromMeta(null)).toBeNull();
   });
 
@@ -403,19 +409,20 @@ describe("both layouts #351 taught the stub to find", () => {
 });
 
 describe("the three names, in the two lists that must not drift apart", () => {
-  it("holds exactly the names this repo publishes", () => {
-    // ALIAS_PACKAGES is what a `npm i -g` may name; COMMANDS is what a user may
-    // type. Two different questions with the same three answers, and nothing
-    // but this keeps them that way — a fourth alias added to one and not the
-    // other is either a name that cannot update itself or one the deck would
-    // install over somebody else's package.
+  it("holds exactly the names an install can be reached under", () => {
+    // ALIAS_PACKAGES is what an install may belong to; COMMANDS is what a user
+    // may have typed. Two different questions with the same three answers, and
+    // nothing but this keeps them that way — a fourth name added to one and not
+    // the other is either a name that cannot update itself or one the deck
+    // would install over somebody else's package.
     expect([...ALIAS_PACKAGES].sort()).toEqual([...COMMANDS].sort());
-    expect([...ALIAS_PACKAGES].sort()).toEqual(Object.keys(JSON.parse(read("package.json")).bin).sort());
+    // Only one of the three is published, and it is the only command a global
+    // install provides.
+    expect(Object.keys(JSON.parse(read("package.json")).bin)).toEqual(["ccdeck"]);
   });
 
   // The case that read `ccdeck/package.json` to confirm the stub CI published
   // still declared its dependency went with the stub itself (#340). What
   // replaced it is the assertion in global-alias-name.test.ts that publish.yml
-  // renames the manifest for all THREE names — which is the same guarantee for
-  // a package that no longer has anything nested inside it.
+  // publishes ccdeck and nothing else.
 });

@@ -1,8 +1,8 @@
 name: ci
 
 # Still .github/workflows/publish.yml: global-alias-name.test.ts reads this file
-# by that exact path to assert the npm rename dance is real — all three names,
-# since #340 — so the filename is load-bearing even though the workflow now does
+# by that exact path to assert that ccdeck, and nothing else, is what gets
+# published — so the filename is load-bearing even though the workflow now does
 # more than publish.
 #
 # Two jobs, one workflow, because the gate has to be a real one: `publish`
@@ -250,7 +250,7 @@ jobs:
           export CLAUDE_CONFIG_DIR="$HOME_DIR/claude" CODEX_HOME="$HOME_DIR/codex"
           export AGENTS_DECK_NO_INSTALL=1 AGENTS_DECK_NO_DOWNLOAD=1
 
-          node node_modules/agents-deck/bin/agent-dag.js --port 4351 --no-open > deck.log 2>&1 &
+          node node_modules/ccdeck/bin/agent-dag.js --port 4351 --no-open > deck.log 2>&1 &
           DECK=$!
           trap 'kill "$DECK" 2>/dev/null || true' EXIT
 
@@ -317,56 +317,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # `id:` so the publish steps below can name it. Their condition has to
-      # separate "a sibling publish failed" from "the job failed before we got
-      # here", and this step is the last one upstream of all three — it only
-      # runs if the tag guard and `npm ci` both passed, so its outcome stands
-      # for the whole preamble.
+      # `id:` so the Summary can name it. Its condition has to separate "the
+      # publish failed" from "the job failed before we got here", and this step
+      # is the last one upstream of the publish — it only runs if the tag guard
+      # and `npm ci` both passed, so its outcome stands for the whole preamble.
       - name: Build web bundle
         id: build
         run: npm run build
 
-      # Publish the SAME build under all three names, by renaming the manifest
-      # between publishes. That is what `agent-dag` has always been — not a stub
-      # but this tarball with `name` set to the name it first shipped as — and
-      # #340 is the same treatment finally reaching the name we promote.
+      # ONE NAME. The deck was also published as `agents-deck` and `agent-dag`:
+      # first as this tarball renamed, then (from 3.22.3) as small packages
+      # that depended on ccdeck. Neither is published any more — ccdeck is the
+      # only name, and the two old ones stay on the registry at their last
+      # version.
       #
-      # ccdeck used to be the odd one out: a nine-line launcher package that
-      # depended on `agents-deck` and spawned its bin. It worked, and it cost
-      # three things. `npx ccdeck` downloaded two packages instead of one, pinned
-      # to an exact version, so a half-propagated release could leave the outer
-      # one resolvable and the inner one not. `npm deprecate agents-deck` was
-      # unusable, because npm prints deprecation warnings for transitive
-      # dependencies and every `npx ccdeck` user would have seen a warning for a
-      # package they never chose. And the name the user typed was lost through
-      # the spawn, so a globally installed `ccdeck` reported argv[1] belonging to
-      # the old package.
+      # A deck running this code under an old name still updates: it asks npm
+      # about ccdeck whatever it was installed as (self-update.mjs,
+      # registryName); an install sitting inside one of the old packages
+      # updates by reinstalling it, and its `ccdeck@^3` dependency then resolves
+      # to the newest ccdeck; an `npx agents-deck` run restarts as `npx ccdeck`.
+      # A deck already on 3.22.8 under an old name runs the older check, which
+      # asks about the frozen name, and stays there until it is reinstalled as
+      # ccdeck — accepted, rather than publishing the old names once more.
       #
-      # The issue proposed inverting the arrow — ccdeck real, the other two
-      # stubs. That would have moved the launcher rather than removed it, and
-      # imported every bug the launcher has had (#351 global layout, #358 and
-      # #378 resolution, signal forwarding, the exit code) onto two more names.
-      # A third rename costs none of it.
-      #
-      # ccdeck goes FIRST: if a later step fails, the name every surface tells
-      # people to run is the one already on the registry, not the one left
-      # behind. Each step is independent and idempotent — it skips a version
-      # already published, so the workflow is safe to re-run after a token or
-      # registry problem without erroring on the names that made it through.
-      #
-      # The two aliases below carry `!cancelled() && steps.build.outcome ==
-      # 'success'` — #623. They want to be independent of EACH OTHER and
-      # dependent on everything upstream, and a bare `!cancelled()` says only
-      # the first half. A status function in an `if:` replaces the implicit
-      # `success()` rather than joining it, so `!cancelled()` on its own let
-      # these two run after ANY earlier failure in the job, not just after a
-      # failed sibling. That inverted the ordering this comment argues for: a
-      # mismatch caught by `Verify tag matches package.json` skipped `Publish
-      # (ccdeck)` and ran both aliases anyway, and a build that failed once and
-      # would have succeeded on a retry published the release under the alias
-      # names and not under the one the README and the CLI banner tell people
-      # to run. Naming the build's outcome keeps the sibling independence and
-      # puts the guard and the build gate back in front of all three.
+      # Idempotent — it skips a version already on the registry — so the job is
+      # safe to re-run after a token or registry problem.
       - name: Publish to npm (ccdeck)
         id: publish_ccdeck
         run: |
@@ -378,48 +353,7 @@ jobs:
           if [ -n "$EXISTING" ]; then
             echo "ccdeck@$VERSION already published — skipping."
           else
-            npm pkg set name=ccdeck
             npm publish --provenance --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # ── The two retired names ────────────────────────────────────────────
-      # These no longer publish the deck. They publish a package that DEPENDS on
-      # ccdeck, prints the command to use next time, and hands over — see
-      # legacy/shim.js for why a dependency and not `npx ccdeck`. Publishing one
-      # product under three names is a cost paid on every release forever, and a
-      # reader who meets two commands for one tool has to work out that they are
-      # the same tool. Nothing anybody has typed stops working, and nobody is
-      # stranded on a version that quietly never updates again — which is what
-      # simply ceasing to publish would have done, silently, because the deck
-      # checks for updates under the name it was installed as.
-      - name: Publish to npm (agents-deck)
-        id: publish_agents_deck
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          EXISTING=$(npm view "agents-deck@$VERSION" version 2>/dev/null || true)
-          if [ -n "$EXISTING" ]; then
-            echo "agents-deck@$VERSION already published — skipping."
-          else
-            node scripts/build-legacy.mjs agents-deck dist/legacy/agents-deck
-            npm publish dist/legacy/agents-deck --provenance --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish to npm (agent-dag, legacy alias)
-        id: publish_agent_dag
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          EXISTING=$(npm view "agent-dag@$VERSION" version 2>/dev/null || true)
-          if [ -n "$EXISTING" ]; then
-            echo "agent-dag@$VERSION already published — skipping."
-          else
-            node scripts/build-legacy.mjs agent-dag dist/legacy/agent-dag
-            npm publish dist/legacy/agent-dag --provenance --access public
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -427,36 +361,25 @@ jobs:
       # The run summary is the first thing anybody looks at after a release, and
       # it used to be the one step in this job that could not tell the truth: it
       # read nothing about what had happened and asserted nothing, so a run that
-      # aborted on a tag mismatch still wrote "### Published v1.44.0 🚀" and
-      # three npmjs links, two or three of which 404. It reads the three
-      # outcomes now and says which names actually landed. Gated on the build
-      # for the same reason the aliases are — with nothing published there is no
-      # release to report — and `!cancelled()` so a run where one name failed
-      # still gets its summary, which is the run that needs one most.
+      # aborted on a tag mismatch still wrote "### Published v1.44.0 🚀" over
+      # links that 404. It reads the publish step's outcome now. Gated on the
+      # build — with nothing built there is no release to report — and
+      # `!cancelled()` so a run whose publish failed still gets its summary,
+      # which is the run that needs one most.
       - name: Summary
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           CCDECK: ${{ steps.publish_ccdeck.outcome }}
-          AGENTS_DECK: ${{ steps.publish_agents_deck.outcome }}
-          AGENT_DAG: ${{ steps.publish_agent_dag.outcome }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          # A name is on the registry if its step succeeded; anything else —
-          # failure, or skipped because the job never reached it — is named as
-          # what it was rather than linked to a page that does not exist.
-          report() {
-            if [ "$2" = "success" ]; then
-              echo "- https://www.npmjs.com/package/$1/v/$VERSION$3" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- \`$1\`$3 — **$2**, not published at this version" >> $GITHUB_STEP_SUMMARY
-            fi
-          }
-          if [ "$CCDECK" = "success" ] && [ "$AGENTS_DECK" = "success" ] && [ "$AGENT_DAG" = "success" ]; then
+          if [ "$CCDECK" = "success" ]; then
             echo "### Published v$VERSION :rocket:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- https://www.npmjs.com/package/ccdeck/v/$VERSION" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### Partial release of v$VERSION :warning:" >> $GITHUB_STEP_SUMMARY
+            # Failed, or skipped because the job never reached it — named as
+            # what it was rather than linked to a page that does not exist.
+            echo "### v$VERSION was not published :warning:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ccdeck\` — **$CCDECK**, not published at this version" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          report ccdeck "$CCDECK" ""
-          report agents-deck "$AGENTS_DECK" " (alias)"
-          report agent-dag "$AGENT_DAG" " (legacy alias)"

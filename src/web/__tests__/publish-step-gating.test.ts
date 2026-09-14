@@ -4,25 +4,19 @@
 // when the expression mentions none of the four status functions. Write one —
 // `!cancelled()` — and the implicit `success()` is REPLACED rather than joined,
 // so the step runs after any earlier failure in the job. Three steps carried a
-// bare `!cancelled()`: both alias publishes and the summary.
+// bare `!cancelled()`: two alias publishes and the summary.
 //
-// The intent behind them is right and is stated in the workflow: the three
-// publishes want to be independent of EACH OTHER, so one failing token or one
-// registry hiccup does not leave the remaining names behind. What `!cancelled()`
-// cannot express is the other half — that all three depend on everything
-// UPSTREAM of them. The two read the same on a failed sibling and opposite on a
-// failed preamble, which is the case that mattered:
+// The aliases are gone — ccdeck is the only name published — but the summary
+// keeps its `!cancelled()`, and on purpose: a run whose publish failed is the
+// run that most needs one. What `!cancelled()` alone cannot express is that the
+// summary still depends on everything UPSTREAM of it:
 //
 //   · `Verify tag matches package.json` aborts on a 1.1.0 tag over a 1.0.x
-//     package.json — the guard the workflow header advertises. `Publish
-//     (ccdeck)` was skipped by its implicit success(); both aliases ran.
+//     package.json — the guard the workflow header advertises.
 //   · `Build web bundle` fails once for a reason that does not reproduce — a
-//     runner OOM, an ENOSPC. `ccdeck` was skipped; both aliases ran, rebuilt
-//     through `prepublishOnly`, and published. That is exactly the split the
-//     "ccdeck goes FIRST" ordering exists to prevent, arranged by the `if:`
-//     conditions whenever the failure is upstream rather than downstream.
-//   · `Summary` read nothing and asserted nothing, so it announced a release
-//     and three npmjs links on a run that published none of them.
+//     runner OOM, an ENOSPC.
+//   · `Summary` read nothing and asserted nothing, so it announced a release on
+//     a run that published nothing.
 //
 // Nothing in the suite read those conditions. `skip-gate-inventory.test.ts`
 // reads this same file and pins the audit step's `if:` — where `!cancelled()`
@@ -89,13 +83,9 @@ const conditionOf = (step: Step): string | null => {
 const gatedOnThePreamble = (condition: string | null) =>
   condition === null || /steps\.build\.outcome\s*==\s*'success'/.test(condition);
 
-// The three names, and the step id each publish step is expected to carry so
-// the summary can ask how it went.
-const NAMES: [step: string, id: string][] = [
-  ["Publish to npm (ccdeck)", "publish_ccdeck"],
-  ["Publish to npm (agents-deck)", "publish_agents_deck"],
-  ["Publish to npm (agent-dag", "publish_agent_dag"],
-];
+// The one publish step, and the id the summary reads its outcome by.
+const PUBLISH = "Publish to npm (ccdeck)";
+const PUBLISH_ID = "publish_ccdeck";
 
 describe("what the release job's trailing steps may run after", () => {
   it("gates nothing in the release on !cancelled() alone", () => {
@@ -115,55 +105,34 @@ describe("what the release job's trailing steps may run after", () => {
     }
   });
 
-  it("puts the tag guard and the build in front of all three names, not only the first", () => {
-    // `Publish (ccdeck)` was the only one of the three that kept the implicit
-    // success(), so the guard the workflow header advertises protected exactly
-    // one of the names it publishes. What stopped the other two from actually
-    // reaching the registry was that `npm ci` had been skipped as well and
-    // `prepublishOnly` died on `vite: command not found` — an accidental
-    // barrier, in another file, standing where the guard is supposed to be.
+  it("puts the tag guard and the build in front of the publish and the summary", () => {
     const build = stepNamed("Build web bundle");
     expect(
       build.body,
-      "the release's build step has no `id:`, so nothing downstream can name its outcome and the publish "
-        + "conditions have nothing to depend on",
+      "the release's build step has no `id:`, so nothing downstream can name its outcome and the summary's "
+        + "condition has nothing to depend on",
     ).toMatch(/\n {8}id: build\n/);
 
-    for (const [name] of NAMES) {
-      const step = stepNamed(name);
-      expect(
-        gatedOnThePreamble(conditionOf(step)),
-        `"${step.name}" can run when the build did not succeed. A build that fails once and would have `
-          + "succeeded on a retry then publishes the aliases and not ccdeck — the exact split the \"ccdeck goes "
-          + "FIRST\" ordering exists to prevent — and a tag/version mismatch stops being an abort.",
-      ).toBe(true);
-    }
-
-    const summary = stepNamed("Summary");
     expect(
-      gatedOnThePreamble(conditionOf(summary)),
+      gatedOnThePreamble(conditionOf(stepNamed(PUBLISH))),
+      "the publish step can run when the build did not succeed, so a tag/version mismatch stops being an abort",
+    ).toBe(true);
+
+    expect(
+      gatedOnThePreamble(conditionOf(stepNamed("Summary"))),
       "the Summary step can run when the build did not succeed, so a run that published nothing still writes a "
         + "release announcement into the run summary — the first thing anybody looks at",
     ).toBe(true);
   });
 
-  it("still lets one name fail without stopping the next", () => {
-    // The other half, and the reason the fix is a longer condition rather than
-    // deleting the `if:` outright. Each publish step is idempotent — it skips a
-    // version already on the registry — so a re-run after a token or registry
-    // problem must be able to reach the names that did not make it through.
-    for (const [name] of NAMES.slice(1)) {
-      const condition = conditionOf(stepNamed(name));
-      expect(
-        condition,
-        `"${name}" no longer carries !cancelled(), so a failed sibling publish now stops it and a partial `
-          + "release can no longer be finished by re-running the job",
-      ).toContain("!cancelled()");
-    }
+  it("still writes a summary for a run whose publish failed", () => {
+    // The reason the summary has a longer condition rather than none: without
+    // !cancelled() a failed publish would skip it, and that run is the one that
+    // needs a summary most.
     expect(
       conditionOf(stepNamed("Summary")),
-      "the Summary step no longer carries !cancelled(), so the run that most needs a summary — the one where a "
-        + "name failed — is the one that gets none",
+      "the Summary step no longer carries !cancelled(), so the run that most needs a summary — the one where the "
+        + "publish failed — is the one that gets none",
     ).toContain("!cancelled()");
   });
 
@@ -171,8 +140,8 @@ describe("what the release job's trailing steps may run after", () => {
     // The condition names one step, and that step's outcome is only worth
     // naming because everything the release has to be sure of happens before
     // it. Hoist `Install dependencies` above `Verify tag matches package.json`
-    // — a natural-looking tidy-up, since the publish steps call `npm view` and
-    // want npm set up anyway — and the guard stops being covered by anything.
+    // — a natural-looking tidy-up, since the publish step calls `npm view` and
+    // wants npm set up anyway — and the guard stops being covered by anything.
     const order = publishSteps().map((s) => s.name);
     const guard = order.indexOf("Verify tag matches package.json");
     const install = order.indexOf("Install dependencies");
@@ -185,47 +154,36 @@ describe("what the release job's trailing steps may run after", () => {
         + "having passed and a mismatched tag can publish again",
     ).toBeGreaterThan(guard);
     expect(build, "the build step is no longer after the install step").toBeGreaterThan(install);
-    for (const [name] of NAMES) {
-      expect(order.indexOf(stepNamed(name).name), `"${name}" now runs before the build it depends on`)
-        .toBeGreaterThan(build);
-    }
+    expect(order.indexOf(stepNamed(PUBLISH).name), "the publish now runs before the build it depends on")
+      .toBeGreaterThan(build);
   });
 });
 
 describe("what the release job reports", () => {
-  it("reads the outcome of each publish rather than announcing all three", () => {
+  it("reads the outcome of the publish rather than announcing it", () => {
     // The summary used to be the one step in this job that could not fail and
     // could not tell the truth: it re-read the version out of package.json and
-    // printed three npmjs links, whatever had happened above it. On the
-    // tag-mismatch run that is "### Published v1.44.0 🚀" with three links,
-    // none of which resolve, under a red job.
-    const summary = stepNamed("Summary");
-    for (const [name, id] of NAMES) {
-      expect(
-        summary.body,
-        `the Summary step does not read steps.${id}.outcome, so it cannot say whether ${name} landed`,
-      ).toContain(`steps.${id}.outcome`);
-      expect(
-        stepNamed(name).body,
-        `"${name}" has no \`id: ${id}\`, so the outcome the Summary reads for it is empty and every release `
-          + "reads as a partial one",
-      ).toMatch(new RegExp(`\\n {8}id: ${id}\\n`));
-    }
+    // printed npmjs links, whatever had happened above it. On the tag-mismatch
+    // run that is "### Published v1.44.0 🚀" over links that 404, under a red
+    // job.
+    expect(
+      stepNamed("Summary").body,
+      `the Summary step does not read steps.${PUBLISH_ID}.outcome, so it cannot say whether ccdeck landed`,
+    ).toContain(`steps.${PUBLISH_ID}.outcome`);
+    expect(
+      stepNamed(PUBLISH).body,
+      `the publish step has no \`id: ${PUBLISH_ID}\`, so the outcome the Summary reads is empty and every release `
+        + "reads as a failed one",
+    ).toMatch(new RegExp(`\\n {8}id: ${PUBLISH_ID}\\n`));
   });
 
-  it("says so when a name did not make it, instead of linking to a page that 404s", () => {
+  it("says so when the publish did not make it, instead of linking to a page that 404s", () => {
     const summary = stepNamed("Summary");
-    // The three names are still the three names, and each is still reachable
-    // from the summary — the fix is about what is claimed, not about dropping
-    // the links.
-    for (const pkg of ["ccdeck", "agents-deck", "agent-dag"]) {
-      expect(summary.body, `the Summary step no longer mentions ${pkg}`).toContain(pkg);
-    }
+    expect(summary.body).toMatch(/### Published v\$VERSION/);
     expect(
       summary.body,
-      "the Summary step has only one headline again, so a partial release is announced in the same words as a "
-        + "complete one",
-    ).toMatch(/### Partial release/);
-    expect(summary.body).toMatch(/### Published v\$VERSION/);
+      "the Summary step has only one headline again, so a failed release is announced in the same words as one "
+        + "that landed",
+    ).toMatch(/### v\$VERSION was not published/);
   });
 });

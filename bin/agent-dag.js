@@ -40,7 +40,7 @@ import { invokedAs } from "../src/server/invoked-as.mjs";
 import { isOneShot, parseArgs } from "../src/server/args.mjs";
 import { npxFailureHint, npxFailureSummary, npxLaunch, npxPrefetch } from "../src/server/npx.mjs";
 import {
-  bareSpecName, claimRestartFailureKey, clearRestartFailure, installedName, installedVersion,
+  bareSpecName, claimRestartFailureKey, clearRestartFailure, currentName, installedName, installedVersion,
   isNpxInstall, lastKnownLatest, npxRestartSpec, readRestartFailure, recordRestartFailure,
   successorRoot,
 } from "../src/server/self-update.mjs";
@@ -354,7 +354,13 @@ function withoutPortAndOpen(args) {
 function npxUpgrade() {
   const self = installedName(PKG_ROOT);
   const spec = npxRestartSpec(PKG_ROOT, self);
-  return spec ? { spec, pkgName: bareSpecName(spec) ?? self } : null;
+  if (!spec) return null;
+  // A retired name relaunches as ccdeck, which is how upgradeName answers it on
+  // the worker's side: `npx -y agents-deck@latest` resolves to the same
+  // last-published package every time, so npx would reuse its cached copy and
+  // the deck would never move.
+  const pkgName = currentName(bareSpecName(spec) ?? self);
+  return { spec: `${pkgName}@latest`, pkgName };
 }
 
 /** The note the browser reads, written by the only process that knows why an

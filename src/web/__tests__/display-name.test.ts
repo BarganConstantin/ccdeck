@@ -194,18 +194,19 @@ describe("the boundary the rename must not cross", () => {
     expect([...named].filter(v => /^CCDECK/.test(v))).toEqual([]);
   });
 
-  it("still asks npm about agents-deck, which is what the update installs", () => {
-    // The upgrade path is the one place the package name is the truth and the
-    // product name is wrong: a registry query or an `npm i -g` naming ccdeck
-    // resolves a different package than the one this build publishes as.
+  it("asks npm about ccdeck, the one name the deck is published under", () => {
+    // The upgrade path is where the package name is the truth. Since the old
+    // names stopped being published it is the same word as the product, and
+    // the default parameter is what says which package the update installs.
     const selfUpdate = read("src", "server", "self-update.mjs");
     // The default is the fact; the line breaks are not (#378). Both of these
     // were exact signatures, so reformatting the parameter list failed them
     // while the package the upgrade installs stayed exactly the same.
     expect(selfUpdate, "upgradeName stopped defaulting to the published package")
-      .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*"agents-deck",?\s*\)/);
+      .toMatch(/export function upgradeName\(\s*pkgRoot,\s*name\s*=\s*PUBLISHED_NAME,?\s*\)/);
     expect(selfUpdate, "upgradeCommand stopped defaulting to the published package")
-      .toMatch(/export function upgradeCommand\(\s*pkgRoot,\s*name\s*=\s*"agents-deck",?\s*\)/);
-    expect(JSON.parse(read("package.json")).name).toBe("agents-deck");
+      .toMatch(/export function upgradeCommand\(\s*pkgRoot,\s*name\s*=\s*PUBLISHED_NAME,?\s*\)/);
+    expect(selfUpdate).toMatch(/export const PUBLISHED_NAME = "ccdeck";/);
+    expect(JSON.parse(read("package.json")).name).toBe("ccdeck");
   });
 });

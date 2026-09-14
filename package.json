@@ -1,11 +1,9 @@
 {
-  "name": "agents-deck",
+  "name": "ccdeck",
   "version": "3.22.8",
   "description": "Live deck of Claude Code and Codex agents — watch tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
   "type": "module",
   "bin": {
-    "agents-deck": "bin/agent-dag.js",
-    "agent-dag": "bin/agent-dag.js",
     "ccdeck": "bin/agent-dag.js"
   },
   "files": [

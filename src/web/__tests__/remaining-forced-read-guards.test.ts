@@ -120,7 +120,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 // .mjs resolves its marker directory from homedir() once, at module load.
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-604-forced-reads-"));
 const STORE = join(DIR, "cswap-store");
-const PKG_ROOT = join(DIR, "lib", "node_modules", "agents-deck");
+const PKG_ROOT = join(DIR, "lib", "node_modules", "ccdeck");
 const prevEnv = { ...process.env };
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
@@ -177,7 +177,7 @@ const NEXT = "1.33.28";
 const registry = {
   calls: [] as string[],
   latest: NEXT,
-  published: new Set<string>([`agents-deck@${NEXT}`]),
+  published: new Set<string>([`ccdeck@${NEXT}`]),
   /** A registry that is down — the case `checkDue`'s retry window covers for an
    *  unforced poll and never covered for a forced one. */
   failing: false,
@@ -250,9 +250,9 @@ describe("a burst of forced version checks, the shape any open page can produce"
     registry.calls.length = 0;
     registry.failing = false;
     registry.latest = NEXT;
-    registry.published = new Set([`agents-deck@${NEXT}`]);
+    registry.published = new Set([`ccdeck@${NEXT}`]);
     writeFileSync(join(PKG_ROOT, "package.json"),
-                  JSON.stringify({ name: "agents-deck", version: INSTALLED }));
+                  JSON.stringify({ name: "ccdeck", version: INSTALLED }));
     // Each case starts past the floor of whatever the last one did, so a fresh
     // module's very first check is never the one being refused.
     advance(FLOOR_MS + 1_000);
@@ -318,9 +318,9 @@ describe("what a refused forced version check is handed", () => {
     registry.calls.length = 0;
     registry.failing = false;
     registry.latest = NEXT;
-    registry.published = new Set([`agents-deck@${NEXT}`]);
+    registry.published = new Set([`ccdeck@${NEXT}`]);
     writeFileSync(join(PKG_ROOT, "package.json"),
-                  JSON.stringify({ name: "agents-deck", version: INSTALLED }));
+                  JSON.stringify({ name: "ccdeck", version: INSTALLED }));
     advance(FLOOR_MS + 1_000);
   });
 
@@ -375,9 +375,9 @@ describe("the unforced version poll, which the guard must not break", () => {
     registry.calls.length = 0;
     registry.failing = false;
     registry.latest = NEXT;
-    registry.published = new Set([`agents-deck@${NEXT}`]);
+    registry.published = new Set([`ccdeck@${NEXT}`]);
     writeFileSync(join(PKG_ROOT, "package.json"),
-                  JSON.stringify({ name: "agents-deck", version: INSTALLED }));
+                  JSON.stringify({ name: "ccdeck", version: INSTALLED }));
     advance(FLOOR_MS + 1_000);
   });
 
@@ -405,7 +405,7 @@ describe("the unforced version poll, which the guard must not break", () => {
 
     advance(3600_000 + 1_000);
     registry.latest = "1.33.29";
-    registry.published.add("agents-deck@1.33.29");
+    registry.published.add("ccdeck@1.33.29");
     const polled = await report(mod);
     expect(tagCalls()).toHaveLength(2);
     expect(polled.latest).toBe("1.33.29");

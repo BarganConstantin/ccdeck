@@ -274,7 +274,7 @@ export function bareSpecName(spec) {
  *  the answer is null instead, which is what invoked-as.mjs needs: it asks which
  *  name the user typed, and there the package name is not a lesser answer, it is
  *  a wrong one. */
-export function npxSpecFromMeta(meta, fallback = "agents-deck") {
+export function npxSpecFromMeta(meta, fallback = PUBLISHED_NAME) {
   const list = meta && meta._npx && Array.isArray(meta._npx.packages) ? meta._npx.packages : [];
   for (const entry of list) {
     const name = bareSpecName(entry);
@@ -286,7 +286,7 @@ export function npxSpecFromMeta(meta, fallback = "agents-deck") {
 /** The same, answered against the filesystem. Null when this is not an npx run,
  *  and — for a caller that passed no fallback — when the metadata cannot be
  *  read. */
-export function npxRestartSpec(pkgRoot, name = "agents-deck") {
+export function npxRestartSpec(pkgRoot, name = PUBLISHED_NAME) {
   const root = npxRoot(pkgRoot);
   if (!root) return null;
   let meta = null;
@@ -331,17 +331,31 @@ export function npxRestartSpec(pkgRoot, name = "agents-deck") {
 // other. What both of them do carry is their own package.json, which npm's
 // rename made authoritative: see installedName.
 
-/** Every name this deck is published under.
+/** Every name an install of this deck can have been REACHED under.
  *
- *  `agents-deck` and `agent-dag` are one tarball published twice — see
- *  .github/workflows/publish.yml, which renames it between the two — and since
- *  #340 `ccdeck` is a third rename of the same tarball rather than a launcher
- *  package in front of it. The same three strings as
+ *  Only `ccdeck` is published now. `agents-deck` and `agent-dag` were this
+ *  tarball published twice more, then (from 3.22.3) small packages that
+ *  depended on ccdeck, and both stay on the registry at their last version — so
+ *  a deck can still be running inside one of them, or out of an npx run of one
+ *  of them, and this list is what lets it recognise that. It is not the list of
+ *  names to ask npm about: see PUBLISHED_NAME. The same three strings as
  *  invoked-as.mjs's COMMANDS, and deliberately not that list: this is the set
- *  of npm PACKAGES a `npm i -g` may name, that is the set of bin commands a
- *  user may type. They are equal only because the rename made them so, and a
- *  test pins them against each other rather than either side assuming it. */
+ *  of npm PACKAGES an install may belong to, that is the set of commands a user
+ *  may have typed. A test pins them against each other rather than either side
+ *  assuming it. */
 export const ALIAS_PACKAGES = ["agents-deck", "agent-dag", "ccdeck"];
+
+/** The one name the deck is published under, and so the only package whose
+ *  dist-tag still moves. */
+export const PUBLISHED_NAME = "ccdeck";
+
+/** The names it is no longer published under. */
+export const RETIRED_NAMES = ["agents-deck", "agent-dag"];
+
+/** The published name in place of a retired one; any other name unchanged. */
+export function currentName(name) {
+  return RETIRED_NAMES.includes(name) ? PUBLISHED_NAME : name;
+}
 
 /** Which of those three THIS build was published as, out of its own manifest.
  *
@@ -373,7 +387,7 @@ export const ALIAS_PACKAGES = ["agents-deck", "agent-dag", "ccdeck"];
  *  `fallback` is what to answer when the manifest is missing, unreadable, or
  *  names something that is not one of ours — the caller's own `name`, so every
  *  shape that cannot prove which alias it is keeps the behaviour it had. */
-export function installedName(pkgRoot, fallback = "agents-deck") {
+export function installedName(pkgRoot, fallback = PUBLISHED_NAME) {
   const self = readManifest(pkgRoot)?.name;
   return typeof self === "string" && ALIAS_PACKAGES.includes(self) ? self : fallback;
 }
@@ -405,7 +419,7 @@ export function hostRoot(pkgRoot) {
  *  `npm i -g their-app@latest`: a package it has no business installing, and on
  *  a private name one that does not exist. Confining the answer to the three
  *  published names leaves every such install with the fallback it has today. */
-export function hostNameFromMeta(meta, name = "agents-deck") {
+export function hostNameFromMeta(meta, name = PUBLISHED_NAME) {
   const host = typeof meta?.name === "string" ? meta.name : null;
   if (!host || !ALIAS_PACKAGES.includes(host)) return null;
   return typeof meta?.dependencies?.[name] === "string" ? host : null;
@@ -413,7 +427,7 @@ export function hostNameFromMeta(meta, name = "agents-deck") {
 
 /** The same, answered against the filesystem: `{ root, name }` for the alias
  *  package this copy was installed as a dependency of, or null. */
-export function hostPackage(pkgRoot, name = "agents-deck") {
+export function hostPackage(pkgRoot, name = PUBLISHED_NAME) {
   const root = hostRoot(pkgRoot);
   if (!root) return null;
   const host = hostNameFromMeta(readManifest(root), name);
@@ -457,8 +471,8 @@ export function successorRoot(pkgRoot) {
   return typeof name === "string" && ALIAS_PACKAGES.includes(name) ? root : null;
 }
 
-/** The package an upgrade would actually install here — the only package worth
- *  asking npm about.
+/** The package an upgrade would actually install here — and, but for a retired
+ *  name, the one worth asking npm about (see registryName).
  *
  *  The check used to ask about `agents-deck` no matter what the upgrade
  *  command installed, so a deck started with `npx ccdeck` compared its version
@@ -475,7 +489,7 @@ export function successorRoot(pkgRoot) {
  *  shape carries that answer somewhere different — npx in the spec it recorded,
  *  a stub install in the layout npm built, a plain global install in the
  *  manifest of the package it is. All three are read; none is assumed. */
-export function upgradeName(pkgRoot, name = "agents-deck") {
+export function upgradeName(pkgRoot, name = PUBLISHED_NAME) {
   // The published name this build actually carries, which outranks `name` in
   // every branch below because `name` is a default at every call site in the
   // deck and the manifest on disk is not a guess. It replaces the parameter
@@ -483,17 +497,20 @@ export function upgradeName(pkgRoot, name = "agents-deck") {
   // registry-shaped answers meet — the dist-tag that is fetched, the marker it
   // is cached in, the command the user is shown, and the argv npm is spawned
   // with — so resolving the name once here is what keeps those four naming one
-  // package, which is the property the whole function exists to hold.
+  // package. registryName is the one exception, for a retired name, and it
+  // starts from this answer.
   const self = installedName(pkgRoot, name);
   // A checkout installs nothing at all, so the published name is the only
   // sensible subject for the version question — and the only one whose
   // dist-tag says anything about the branch the maintainer is sitting on.
   if (isGitCheckout(pkgRoot)) return self;
   // npx recorded the spec the user typed, which is a better answer than the
-  // manifest: `npx ccdeck` unpacks a deck whose manifest says `agents-deck`,
-  // and re-running the name they did not type would move them off the stub.
-  // The manifest is what is left when that record cannot be read.
-  if (isNpxInstall(pkgRoot)) return bareSpecName(npxRestartSpec(pkgRoot, self)) ?? self;
+  // manifest — except that a retired name answers `ccdeck`. npx reinstalls only
+  // when a spec resolves to a different version, and `agents-deck@latest`
+  // resolves to the same last-published package forever, so re-running it
+  // would reuse the cached copy, and the ccdeck inside it, and never move. The
+  // manifest is what is left when the record cannot be read.
+  if (isNpxInstall(pkgRoot)) return currentName(bareSpecName(npxRestartSpec(pkgRoot, self)) ?? self);
   // Left: a global install, where the answer is whichever package owns the
   // directory npm would rewrite. That is the stub for `npm i -g ccdeck`, where
   // the deck is nested one level down inside a package it is not named after,
@@ -517,7 +534,7 @@ export function upgradeName(pkgRoot, name = "agents-deck") {
 }
 
 /** The exact line the user can paste, for the way THIS copy was installed. */
-export function upgradeCommand(pkgRoot, name = "agents-deck") {
+export function upgradeCommand(pkgRoot, name = PUBLISHED_NAME) {
   // A checkout is updated by pulling, and the bundle is built, not shipped —
   // so `npm run build` is part of the answer rather than an afterthought.
   if (isGitCheckout(pkgRoot)) return "git pull && npm run build";
@@ -527,6 +544,21 @@ export function upgradeCommand(pkgRoot, name = "agents-deck") {
   // offered, and one that names a package this install cannot be replaced by is
   // worse than none — it looks like it worked.
   return `npm i -g ${upgradeName(pkgRoot, name)}@latest`;
+}
+
+/** The package to ask npm about: the one an upgrade installs, except that a
+ *  retired name is asked about as `ccdeck`.
+ *
+ *  One install reaches that exception. A deck sitting inside the old
+ *  `agents-deck` or `agent-dag` package upgrades by reinstalling THAT package —
+ *  installing `ccdeck` would write a tree this process never reads, #358 again —
+ *  but that package's dist-tag stopped moving when it stopped being published.
+ *  The reinstall is still the right act: the old package depends on
+ *  `ccdeck@^3`, and npm resolves that to the newest ccdeck on every reinstall,
+ *  even of the same version. So the version asked about is ccdeck's and the
+ *  command names the old package — the one place the two differ, on purpose. */
+export function registryName(pkgRoot, name = PUBLISHED_NAME) {
+  return currentName(upgradeName(pkgRoot, name));
 }
 
 // ── what npm has ─────────────────────────────────────────────────────────────
@@ -597,7 +629,7 @@ async function isPublished(name, version) {
  *  common case reads plainly, and the tail is trimmed so a pathological name
  *  cannot produce a path the OS refuses. An unusable name falls back to the
  *  default rather than to the shared file this fix exists to get rid of. */
-export function markerFileName(name = "agents-deck") {
+export function markerFileName(name = PUBLISHED_NAME) {
   return `.self-update-check-${safeNamePart(name)}`;
 }
 
@@ -613,7 +645,7 @@ function safeNamePart(name) {
     // trailing dot from a file name, so a name that ends in one would write to
     // a path that is not the path we would later read.
     .replace(/^[-.]+|[-.]+$/g, "");
-  return safe || "agents-deck";
+  return safe || PUBLISHED_NAME;
 }
 
 function markerPath(name) {
@@ -664,7 +696,7 @@ function readMarker(name) {
  *  between a click and a fetch, and the reason the fetch is about to fail may
  *  well be that there is no network — and it has to be the same number the
  *  banner offered, which is precisely what the marker holds. */
-export function lastKnownLatest(name = "agents-deck") {
+export function lastKnownLatest(name = PUBLISHED_NAME) {
   const v = readMarker(name)?.version;
   return typeof v === "string" && v ? v : null;
 }
@@ -1026,7 +1058,7 @@ export function claimRestartFailureKey(env = process.env, pid = process.pid) {
 
 /** `ccdeck` under supervisor 4821 → `.restart-failed-ccdeck-4821`, or null when
  *  there is no supervisor, which is not a deck any note can be about. */
-export function restartFailureFileName(name = "agents-deck", key = restartFailureKey()) {
+export function restartFailureFileName(name = PUBLISHED_NAME, key = restartFailureKey()) {
   const owner = safeOwner(key);
   return owner ? `${NOTE_PREFIX}${safeNamePart(name)}-${owner}` : null;
 }
@@ -1041,7 +1073,7 @@ function restartFailurePath(name, key) {
  *  already failed here and is not being tried again. Best-effort: a read-only
  *  home costs the report, not the deck. */
 export function recordRestartFailure({
-  name = "agents-deck", command = null, error = null, version = null,
+  name = PUBLISHED_NAME, command = null, error = null, version = null,
   target = null, attempts = 1, at = Date.now(), failedAt = at, key = restartFailureKey(),
 } = {}) {
   const file = restartFailureFileName(name, key);
@@ -1072,13 +1104,13 @@ export function recordRestartFailure({
 
 /** Called before each attempt, so a retry is answered by its own outcome rather
  *  than by the last one's. */
-export function clearRestartFailure(name = "agents-deck", key = restartFailureKey()) {
+export function clearRestartFailure(name = PUBLISHED_NAME, key = restartFailureKey()) {
   const path = restartFailurePath(name, key);
   if (!path) return;
   try { rmSync(path, { force: true }); } catch { /* ignore */ }
 }
 
-export function readRestartFailure(name = "agents-deck", key = restartFailureKey()) {
+export function readRestartFailure(name = PUBLISHED_NAME, key = restartFailureKey()) {
   const path = restartFailurePath(name, key);
   if (!path) return null;
   try {
@@ -1162,7 +1194,7 @@ export function upgradeStatus() {
  * assembled from request input: the only thing that varies is which alias, and
  * that is read off the install on disk and confined to ALIAS_PACKAGES.
  */
-export function startUpgrade({ pkgRoot, name = "agents-deck" }) {
+export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   if (_upgrade.state === "running") return { ok: true, already: true, command: _upgrade.command };
   const blocked = upgradeBlock(pkgRoot);
   if (blocked) return { ok: false, reason: blocked, command: upgradeCommand(pkgRoot, name) };
@@ -1314,13 +1346,15 @@ export function lastMeaningfulLine(text) {
  *  yet — the installability probe (see runCheck), each carrying its own
  *  AbortSignal timeout. That second request costs its timeout at most once per
  *  release; a deck sitting on the current release stays inside one. */
-export async function versionReport({ running, pkgRoot, name = "agents-deck", now = Date.now(), force = false }) {
+export async function versionReport({ running, pkgRoot, name = PUBLISHED_NAME, now = Date.now(), force = false }) {
   const installed = installedVersion(pkgRoot);
   // Asked about the package the command installs, not about the one this build
-  // happens to be named after — see upgradeName. Everything registry-shaped in
-  // this report is about `target`: the version, the marker it is cached in, and
-  // the name the report gives for it.
+  // happens to be named after — see upgradeName — except that a retired name
+  // is asked about as ccdeck, the only dist-tag that still moves (registryName).
+  // `target` is what the command installs and what the failure note is filed
+  // under; `asked` is whose version this reports and the marker it is cached in.
   const target = upgradeName(pkgRoot, name);
+  const asked = registryName(pkgRoot, name);
   // Only an explicit opt-out silences the registry.
   //
   // A checkout used to be excluded here too, on the reasoning that its version
@@ -1334,8 +1368,8 @@ export async function versionReport({ running, pkgRoot, name = "agents-deck", no
   const skipRegistry =
     process.env.AGENTS_DECK_NO_UPDATE_CHECK === "1" ||
     process.env.AGENTS_DECK_NO_INSTALL === "1";
-  const latest = skipRegistry ? null : await latestOnNpm(target, now, force);
-  const marker = skipRegistry ? null : readMarker(target);
+  const latest = skipRegistry ? null : await latestOnNpm(asked, now, force);
+  const marker = skipRegistry ? null : readMarker(asked);
   const blocked = upgradeBlock(pkgRoot);
   // An install started in THIS process outranks the note on disk: it is newer
   // by construction, and a running one must not be reported as a past failure.

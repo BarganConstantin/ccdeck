@@ -130,9 +130,9 @@ describe("pickNotice", () => {
 
 describe("upgradeCommand", () => {
   it("tells npx users to re-run npx — there is no global install to upgrade", () => {
-    const npx = "/Users/x/.npm/_npx/9a1c/node_modules/agents-deck";
+    const npx = "/Users/x/.npm/_npx/9a1c/node_modules/ccdeck";
     expect(isNpxInstall(npx)).toBe(true);
-    expect(upgradeCommand(npx)).toBe("npx -y agents-deck@latest");
+    expect(upgradeCommand(npx)).toBe("npx -y ccdeck@latest");
   });
 
   it("recognises the Windows npx cache too", () => {
@@ -147,7 +147,7 @@ describe("upgradeCommand", () => {
   });
 
   it("defaults to the global install command", () => {
-    expect(upgradeCommand("/usr/local/lib/node_modules/agents-deck")).toBe("npm i -g agents-deck@latest");
+    expect(upgradeCommand("/usr/local/lib/node_modules/ccdeck")).toBe("npm i -g ccdeck@latest");
   });
 });
 
@@ -282,13 +282,13 @@ describe("upgradeCommand — the command must match how this copy was installed"
   it("still names npx for an npx cache", () => {
     // No metadata to read at that path, so it falls back to the package name
     // rather than inventing a spec.
-    expect(upgradeCommand("/Users/x/.npm/_npx/9a1c/node_modules/agents-deck"))
-      .toBe("npx -y agents-deck@latest");
+    expect(upgradeCommand("/Users/x/.npm/_npx/9a1c/node_modules/ccdeck"))
+      .toBe("npx -y ccdeck@latest");
   });
 
   it("still names the global install otherwise", () => {
-    expect(upgradeCommand("/usr/local/lib/node_modules/agents-deck"))
-      .toBe("npm i -g agents-deck@latest");
+    expect(upgradeCommand("/usr/local/lib/node_modules/ccdeck"))
+      .toBe("npm i -g ccdeck@latest");
   });
 });
 
@@ -343,9 +343,9 @@ describe("npxSpecFromMeta", () => {
   });
 
   it("falls back to the package name when the metadata is missing or unusable", () => {
-    expect(npxSpecFromMeta(null)).toBe("agents-deck@latest");
-    expect(npxSpecFromMeta({})).toBe("agents-deck@latest");
-    expect(npxSpecFromMeta({ _npx: { packages: ["file:../local"] } })).toBe("agents-deck@latest");
+    expect(npxSpecFromMeta(null)).toBe("ccdeck@latest");
+    expect(npxSpecFromMeta({})).toBe("ccdeck@latest");
+    expect(npxSpecFromMeta({ _npx: { packages: ["file:../local"] } })).toBe("ccdeck@latest");
   });
 });
 
@@ -356,19 +356,19 @@ describe("npxSpecFromMeta", () => {
 // publishes the three names one after another, they are routinely apart.
 describe("upgradeName", () => {
   it("keeps asking about the published name for a global install", () => {
-    expect(upgradeName("/usr/local/lib/node_modules/agents-deck")).toBe("agents-deck");
+    expect(upgradeName("/usr/local/lib/node_modules/ccdeck")).toBe("ccdeck");
   });
 
   it("falls back to the package name when the npx cache has no metadata to read", () => {
     // Which is also the name the command falls back to, so the two still agree.
-    const npx = "/Users/x/.npm/_npx/9a1c/node_modules/agents-deck";
-    expect(upgradeName(npx)).toBe("agents-deck");
+    const npx = "/Users/x/.npm/_npx/9a1c/node_modules/ccdeck";
+    expect(upgradeName(npx)).toBe("ccdeck");
     expect(upgradeCommand(npx)).toBe(`npx -y ${upgradeName(npx)}@latest`);
   });
 
   it("answers for a Windows npx cache too", () => {
     expect(upgradeName("C:\\Users\\x\\AppData\\Local\\npm-cache\\_npx\\9a1c\\node_modules\\ccdeck"))
-      .toBe("agents-deck");
+      .toBe("ccdeck");
   });
 });
 
@@ -470,7 +470,7 @@ describe("markerFileName", () => {
     // A name that sanitises away must not land back on the unsuffixed marker
     // this whole change exists to stop sharing.
     for (const bad of [undefined, null, "", "   ", "@", "///", 7]) {
-      expect(markerFileName(bad as never)).toBe(".self-update-check-agents-deck");
+      expect(markerFileName(bad as never)).toBe(".self-update-check-ccdeck");
     }
   });
 });
@@ -808,21 +808,34 @@ describe("the version check and the upgrade command must be about one package", 
     throw new Error(`test: unexpected registry request ${url}`);
   };
 
-  /** An npx cache exactly as npm lays it out: the package is `agents-deck`, and
-   *  the only record of what the user typed is `_npx.packages` one level up. */
+  /** An npx cache exactly as npm lays it out: the deck is `ccdeck` — typed, or
+   *  hoisted beside the retired package that depends on it — and the only record
+   *  of what the user typed is `_npx.packages` one level up. */
   const npxTree = (typed: string) => {
     const hash = join(home, "npm-cache", "_npx", "007bf1a1643dbf9a");
-    const root = join(hash, "node_modules", "agents-deck");
+    const root = join(hash, "node_modules", "ccdeck");
     mkdirSync(root, { recursive: true });
     writeFileSync(join(hash, "package.json"), JSON.stringify({ _npx: { packages: [typed] } }));
-    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "agents-deck", version: INSTALLED }));
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ccdeck", version: INSTALLED }));
     return root;
   };
 
   const globalTree = () => {
-    const root = join(home, "lib", "node_modules", "agents-deck");
+    const root = join(home, "lib", "node_modules", "ccdeck");
     mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "agents-deck", version: INSTALLED }));
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ccdeck", version: INSTALLED }));
+    return root;
+  };
+
+  /** A global install of a retired name from 3.22.3 on: the old package, with
+   *  the deck nested inside it as its one dependency. */
+  const retiredTree = (name: string) => {
+    const host = join(home, "lib", "node_modules", name);
+    const root = join(host, "node_modules", "ccdeck");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(host, "package.json"),
+                  JSON.stringify({ name, version: "3.22.7", dependencies: { ccdeck: "^1" } }));
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "ccdeck", version: INSTALLED }));
     return root;
   };
 
@@ -884,16 +897,47 @@ describe("the version check and the upgrade command must be about one package", 
     expect(existsSync(marker("agents-deck"))).toBe(false);
   });
 
-  it("still asks about agents-deck for the global install that installs it", async () => {
-    registry.tags = { "agents-deck": NEXT, ccdeck: "1.33.30" };
-    registry.published = new Set([`agents-deck@${NEXT}`]);
+  it("asks about ccdeck for the global install that installs it", async () => {
+    registry.tags = { ccdeck: NEXT, "agents-deck": "1.33.30" };
+    registry.published = new Set([`ccdeck@${NEXT}`]);
 
     const report = await mod.versionReport({ running: INSTALLED, pkgRoot: globalTree() });
 
-    expect(report.name).toBe("agents-deck");
-    expect(report.command).toBe("npm i -g agents-deck@latest");
+    expect(report.name).toBe("ccdeck");
+    expect(report.command).toBe("npm i -g ccdeck@latest");
     expect(report.latest).toBe(NEXT);
-    expect(calls.some(u => u.includes("ccdeck"))).toBe(false);
+    expect(calls.some(u => u.includes("agents-deck"))).toBe(false);
+  });
+
+  it("asks about ccdeck for a deck inside a retired package, and reinstalls that package", async () => {
+    // agents-deck's tag stopped at its last publish. Asking about it would keep
+    // this deck on its version forever; reinstalling it is still the upgrade,
+    // because its `ccdeck` dependency resolves to the newest one every time.
+    registry.tags = { ccdeck: NEXT, "agents-deck": INSTALLED };
+    registry.published = new Set([`ccdeck@${NEXT}`]);
+
+    const report = await mod.versionReport({ running: INSTALLED, pkgRoot: retiredTree("agents-deck") });
+
+    expect(report.latest).toBe(NEXT);
+    expect(report.notice).toEqual({ kind: "upgrade", from: INSTALLED, to: NEXT });
+    expect(report.command).toBe("npm i -g agents-deck@latest");
+    expect(calls).toContain("https://registry.npmjs.org/-/package/ccdeck/dist-tags");
+    expect(calls.some(u => u.includes("/agents-deck/"))).toBe(false);
+    expect(existsSync(marker("ccdeck"))).toBe(true);
+    expect(existsSync(marker("agents-deck"))).toBe(false);
+  });
+
+  it("relaunches an npx run of a retired name as ccdeck", async () => {
+    // npx would reuse its cached copy of `agents-deck@latest` — the same
+    // last-published package every time — and the ccdeck inside it.
+    registry.tags = { ccdeck: NEXT, "agents-deck": INSTALLED };
+    registry.published = new Set([`ccdeck@${NEXT}`]);
+
+    const report = await mod.versionReport({ running: INSTALLED, pkgRoot: npxTree("agents-deck") });
+
+    expect(report.command).toBe("npx -y ccdeck@latest");
+    expect(report.latest).toBe(NEXT);
+    expect(calls.some(u => u.includes("agents-deck"))).toBe(false);
   });
 
   it("says nothing about a dist-tag the install command cannot resolve yet", async () => {
