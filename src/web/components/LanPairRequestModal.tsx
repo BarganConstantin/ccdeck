@@ -104,10 +104,12 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
             machine — what it shares is an account, not a screen.
           </p>
 
-          {/* The one value worth comparing, printed rather than described. */}
+          {/* The one value worth comparing, printed rather than described — and
+              where the other machine prints its own (#815), because comparing
+              with a screen nobody can find is not a check. */}
           <p className="lan-ask-fp">
-            Its fingerprint is <code className="ap-lan-code">{request.fp}</code> — it should match
-            the one on their screen.
+            Its fingerprint is <code className="ap-lan-code">{request.fp}</code> — that machine
+            shows its own under This deck on the network; the two should match.
           </p>
 
           {waiting > 0 && (

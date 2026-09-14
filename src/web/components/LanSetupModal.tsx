@@ -17,14 +17,15 @@
 // Two fields, then, and both of them are about this machine. Everything that
 // takes an address, a token or another deck's name is in LanSyncSection.tsx.
 //
-// THE FINGERPRINT IS NOT DRAWN HERE ANY MORE. It was printed under the name
-// with a sentence telling the reader to read it out, and it is still printed at
-// both places where somebody actually decides on one: the request that arrives
-// in the panel, and the dialog that opens over the canvas to answer it. Where
-// it is NOT printed is the one surface whose whole job is to say what this deck
-// is, so a person who wants to read their own out has nowhere left to find it —
-// which is a real cost, taken on purpose, for a dialog that had grown three
-// paragraphs of prose around two controls.
+// THE FINGERPRINT IS BACK, WITHOUT THE PROSE (#815). It was taken out of here
+// once, with the sentence that told the reader to read it out, as the cost of
+// a dialog that had grown three paragraphs of prose around two controls. But
+// the request that arrives on the other machine asks its reader to compare the
+// value with this deck's, and this is the only surface that can show it — so
+// with it gone, the one check a person can make against a rogue deck on the
+// network could not be made. It is one row now, the way the paired-deck dialog
+// prints a peer's: the value and a copy word, no sentence. The owner's call,
+// 2026-09-14.
 //
 // AND TWO SWITCHES, which are the third thing this deck IS on the network: does
 // it ask the machines it finds, and is a request that arrives answered here or
@@ -45,6 +46,7 @@ import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
 import { sameKeys, writeFailure } from "./LanSyncSection";
+import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus } from "./LanSyncSection";
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
@@ -61,6 +63,8 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   const dialogRef = useModalDismiss(onClose);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  /** The fingerprint's copy word reads `copied` for a moment after it lands. */
+  const [copied, setCopied] = useState(false);
   /** WHICH control is working, not WHETHER one is. `pressState` is what tells
    *  "yours" from "somebody else's", and it needs a tag to do it: one boolean
    *  across the name field and every account tick would mark all of them as
@@ -123,6 +127,17 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     onClose();
   }, [nameDraft, status.name, write, onClose]);
 
+  /** Copied rather than read out: it is compared on another machine, and a
+   *  failed copy leaves the value on screen to select by hand. */
+  const copyFingerprint = async () => {
+    if (!status.fp) return;
+    const ok = await copyText(status.fp);
+    if (!alive.current) return;
+    if (!ok) { setFailure("Could not copy it — select the fingerprint and copy it by hand."); return; }
+    setCopied(true);
+    window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
+  };
+
   const shared = new Set(pending.current ?? status.shared ?? []);
   // Absent means on: a deck that has not written prefs since this shipped is a
   // deck with the defaults, and reading a missing key as `off` would draw the
@@ -174,6 +189,20 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 <button type="button" className="ap-manage-btn" {...pressProps("name")}
                   onClick={() => { void write({ name: nameDraft }, "save the name", "name"); setNameDraft(null); }}
                   title="Save it. This is the name other decks show for this one.">save</button>
+              )}
+            </div>
+            <div className="ap-lan-row">
+              <span className="ap-lan-label">fingerprint</span>
+              {status.fp ? (
+                <span className="lan-fp">
+                  <code className="ap-lan-code">{status.fp}</code>
+                  <button type="button" className="ap-lan-word lan-copy" onClick={() => void copyFingerprint()}
+                    aria-label={copied ? "Fingerprint copied" : "Copy this deck's fingerprint"}>
+                    {copied ? "copied" : "copy"}
+                  </button>
+                </span>
+              ) : (
+                <span className="ap-lan-label">not known yet</span>
               )}
             </div>
           </div>
