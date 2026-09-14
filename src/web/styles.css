@@ -2121,6 +2121,25 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   cursor: pointer;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+/* THE TARGET IS A RECTANGLE, NOT THE CIRCLE. The radius above does not only
+   round the ring: browsers hit-test against the rounded border edge, so the
+   24px square promised above was measured as a 24px circle — 12px of reach
+   straight out from a 13px glyph, 9px on the diagonal, and four dead corners.
+   People aiming at these said they had to find the exact pixel. An invisible
+   `::after` carries the target now: 4px more above and below, where no run of
+   these has a neighbour, and 2px more each side, which is half the 4px gap of
+   the tightest run (`.ap-header-right`, `.up-header-right`). Two neighbours'
+   targets meet at the middle of the gap and never overlap, which is the line
+   the comment above draws. Nothing moves and nothing is painted; the ring keeps
+   its circle, and the hover colour arrives wherever the pointer turns.
+   `position` goes on at zero specificity so a control pinned to a corner
+   (`.detail-close`) keeps its `absolute` wherever in the sheet it says so. */
+:where(.glyph-btn) { position: relative; }
+.glyph-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
 /* The shared ring sits 2px out, which is right for a rectangle it has to clear
    the corners of. A circle has no corners to clear and 2px leaves a visible gap,
    so this one hugs. */
@@ -10564,6 +10583,9 @@ input, textarea { caret-color: var(--accent); }
   background: currentColor;
 }
 .guide-dot[aria-current="step"] { color: var(--accent); }
+/* The dots sit edge to edge, so their targets already meet; the 2px each side
+   `.glyph-btn::after` adds would lay every dot over the next. */
+.guide-dot::after { inset-inline: 0; }
 .guide-aside { margin-right: 4px; }
 
 /* The drawings. Every fill and stroke is a token, so they are right in both
