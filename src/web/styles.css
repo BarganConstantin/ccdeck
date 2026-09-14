@@ -845,6 +845,12 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+/* The same two layers on white, in the light theme's slate and at its own
+   shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
+   third stayed black at a third on the white page (#876). */
+:root[data-theme="light"] .sound-menu {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
+}
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
@@ -6088,7 +6094,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  /* .modal's shadow, which each theme block tunes for its own canvas. A black
+     50% stayed black 50% on the white page (#876). */
+  box-shadow: var(--shadow-2);
   width: min(760px, 100%);
   max-height: 84vh;
   overflow: auto;
