@@ -89,10 +89,20 @@ export interface ClearPlan {
   ownerPort: number | null;
 }
 
-/** The dialog's two pieces of text for one plan. */
+/** The dialog's text for one plan.
+ *
+ *  Lines, not a sentence (#843). What this press destroys was computed honestly
+ *  and then rendered as one run-on paragraph of up to sixty words, which the
+ *  reader had to parse at the one moment they are deciding. The facts are the
+ *  ones this function always computed; they are sorted into what goes and what
+ *  stays, one fact to a line. */
 export interface ClearCopy {
-  /** The paragraph under the title. */
-  note: string;
+  /** Everything this press destroys, one fact to a line. */
+  goes: string[];
+  /** What survives it — empty when nothing does, which the dialog says. */
+  stays: string[];
+  /** The closing warning, or null when a restart brings the canvas back. */
+  final: string | null;
   /** The danger button's label, which stops promising "everything" when the
    *  shared log is staying put. */
   confirm: string;
@@ -133,13 +143,18 @@ function agentsOn(count: number): string | null {
  */
 export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy {
   const on = agentsOn(agentCount);
-  const canvas = on ? `removes ${on} on the canvas` : null;
-  const join = (log: string) => `This ${canvas ? `${canvas} and ${log}` : log}`;
+  // Every case loses the canvas and the view state; they differ in the log.
+  const goes = (...log: string[]) =>
+    [on ? `${on} on the canvas` : null, ...log, "layout, pins and selection"]
+      .filter((line): line is string => line !== null);
+  const FINAL = "This cannot be undone.";
 
   // The answer never came. Say the worst thing that may be true.
   if (!plan) {
     return {
-      note: `${join("deletes the event log on disk")} — the file a restarted deck replays to rebuild what you see, and the file every deck on this machine shares unless one was told otherwise. Layout, pins and selection go with it. This cannot be undone.`,
+      goes: goes("the event log on disk — the file a restarted deck replays to rebuild what you see, and the file every deck on this machine shares unless one was told otherwise"),
+      stays: [],
+      final: FINAL,
       confirm: "Clear everything",
     };
   }
@@ -147,7 +162,9 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
   // --no-persist: nothing of this deck outlives the process anyway.
   if (!plan.path) {
     return {
-      note: `${join("leaves nothing on disk — this deck keeps no event log")}. Layout, pins and selection go with it. This cannot be undone.`,
+      goes: goes(),
+      stays: [],
+      final: `This deck keeps no event log, so nothing on disk changes — and nothing can bring the canvas back. ${FINAL}`,
       confirm: "Clear everything",
     };
   }
@@ -161,7 +178,12 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
       : `the deck on port ${plan.ownerPort} owns that file`;
     const shared = plan.decks > 2 ? `, one of ${plan.decks} decks sharing it` : "";
     return {
-      note: `${join(`leaves the event log alone: ${owner}${shared}`)}. Clearing here empties this canvas only — restart this deck and the log replays back onto it. Layout, pins and selection go with it.`,
+      goes: goes(),
+      stays: [
+        `the event log — ${owner}${shared}`,
+        "restart this deck and the log replays back onto it",
+      ],
+      final: null,
       confirm: "Clear this canvas",
     };
   }
@@ -169,19 +191,22 @@ export function clearCopy(agentCount: number, plan: ClearPlan | null): ClearCopy
   // Ours, and ours alone: the deck the old copy was written for.
   if (plan.decks <= 1) {
     return {
-      note: `${join("deletes this deck's event log")} — the file a restarted deck replays to rebuild what you see. Layout, pins and selection go with it. This cannot be undone.`,
+      goes: goes("this deck's event log — the file a restarted deck replays to rebuild what you see"),
+      stays: [],
+      final: FINAL,
       confirm: "Clear everything",
     };
   }
 
-  // Ours, and shared. The scary sentence, and the whole point: the history that
+  // Ours, and shared. The scary line, and the whole point: the history that
   // goes is not only this deck's.
   const others = plan.decks - 1;
-  const theirs = others === 1
-    ? "That deck keeps what is on its canvas until it restarts, and then it is gone there too."
-    : "Those decks keep what is on their canvases until they restart, and then it is gone there too.";
   return {
-    note: `${join(`deletes the event log ${others === 1 ? "1 other running deck shares" : `${others} other running decks share`} with this one`)} — every session recorded in it, not just the ones drawn here. ${theirs} This cannot be undone.`,
+    goes: goes(`the event log ${others === 1 ? "1 other running deck shares" : `${others} other running decks share`} with this one — every session recorded in it, not just the ones drawn here`),
+    stays: [others === 1
+      ? "what that deck shows, until it restarts — then it is gone there too"
+      : "what those decks show, until they restart — then it is gone there too"],
+    final: FINAL,
     confirm: "Clear everything",
   };
 }

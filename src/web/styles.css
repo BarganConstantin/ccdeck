@@ -5002,6 +5002,29 @@ button.tool.clickable:last-child { border-bottom: none; }
 /* Cancel comes first in the DOM, so it is what focus and the first Tab find;
    the destructive answer is never the default one. */
 .clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* What goes and what stays, as two labelled groups rather than one sentence
+   (#843): the facts clearCopy always computed, sorted, one to a line. */
+.cc-plan {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cc-plan dt { color: var(--muted); font-weight: 600; }
+.cc-plan dd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  color: var(--text);
+}
+.cc-final { margin: 0; color: var(--text); font-size: 12px; font-weight: 500; }
 
 /* ---------------- keyboard shortcuts sheet ---------------- */
 
