@@ -45,9 +45,11 @@ describe("the topbar keeps its controls on screen (#849)", () => {
   });
 });
 
-describe("the rails column at phone widths (#849)", () => {
-  it("becomes a sheet across the window instead of leaving the canvas a sliver", () => {
-    expect(narrow).toMatch(/\.rails\s*\{[^}]*left:\s*8px[^}]*width:\s*auto/);
-    expect(narrow).toMatch(/\.app:has\(\.rails\) \.canvas-wrap\s*\{[^}]*padding-right:\s*0/);
+describe("the rail panels at phone widths (#849)", () => {
+  it("span the window instead of standing side by side past its left edge", () => {
+    // They stay side by side on a desktop (the owner's call after #847 stacked
+    // them); only below 640px, where the shifted machine panel sat at -199,
+    // does each of them take the window's width.
+    expect(narrow).toMatch(/\.app \.usage-panel,\s*\.app \.sysdetail\s*\{[^}]*left:\s*8px[^}]*right:\s*8px[^}]*width:\s*auto/);
   });
 });

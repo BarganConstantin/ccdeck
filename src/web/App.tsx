@@ -4787,36 +4787,24 @@ function Inner() {
           they sent a keyboard reader's focus topbar, right, left, right, centre;
           here it reads the way the page does: the left column, the canvas,
           these two, then the detail panel at the far right. */}
-      {/* ONE COLUMN FOR BOTH, AND THE CANVAS MAKES ROOM FOR IT (#847). The two
-          panels were separate fixed overlays side by side over the canvas —
-          at 768px they covered 76% of it, and at 200% zoom all of it — so the
-          panels about the agents hid the agents. They stack in one 280px
-          column now, usage above machine, and `.app:has(.rails)` pads the
-          canvas by that column so React Flow fits the graph into what is left.
-          Rendered only while one of them is mounted, which is what makes the
-          padding go when both are closed. */}
-      {(isMounted(usagePhase) || isMounted(machinePhase)) && (
-        <div className="rails">
-          {isMounted(usagePhase) && (
-            <UsagePanel
-              state={stateRef.current}
-              now={now}
-              providers={providers}
-              liveSince={liveSince}
-              leaving={usagePhase === "leaving"}
-              onClose={() => setUsagePanelOpen(false)}
-            />
-          )}
+      {isMounted(usagePhase) && (
+        <UsagePanel
+          state={stateRef.current}
+          now={now}
+          providers={providers}
+          liveSince={liveSince}
+          leaving={usagePhase === "leaving"}
+          onClose={() => setUsagePanelOpen(false)}
+        />
+      )}
 
-          {/* Mounted only while it is open, which is also what starts its poll:
-              the topbar meter used to keep /api/system running for the life of
-              the tab on behalf of a readout that is gone. It stacks under usage
-              in the rails column; `usageOpen` no longer moves it anywhere. */}
-          {isMounted(machinePhase) && (
-            <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
-              onClose={() => setMachinePanelOpen(false)} />
-          )}
-        </div>
+      {/* Mounted only while it is open, which is also what starts its poll: the
+          topbar meter used to keep /api/system running for the life of the tab
+          on behalf of a readout that is gone. `usageOpen` moves it one rail
+          slot left when usage has the first one — see .sysdetail.shifted. */}
+      {isMounted(machinePhase) && (
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
+          onClose={() => setMachinePanelOpen(false)} />
       )}
 
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
