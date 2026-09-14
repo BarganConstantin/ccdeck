@@ -1052,13 +1052,13 @@ export default function BrowserWatchModal({
                   role="switch"
                   aria-checked={snap.settings.enabled}
                   aria-labelledby="bw-enabled-label"
-                  className="bw-toggle"
+                  className="switch"
                   onClick={() => void save({ enabled: !snap.settings.enabled })}
                   title={snap.settings.enabled
                     ? "On — every episode it finds is written down, so the list outlives the browsing history being cleared"
                     : "Off — showing only what this deck has seen since it started. Anything an earlier run archived is hidden until you switch back on, and nothing new is kept"}
                 >
-                  <span className="bw-toggle-knob" />
+                  <span className="switch-knob" />
                 </button>
               </label>
             </footer>

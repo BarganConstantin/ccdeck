@@ -880,36 +880,58 @@ button:focus-visible { outline-offset: 1px; }
    costing the hierarchy under them. */
 .sm-switch-label { font-weight: 500; }
 
-/* The track, borrowed from `.bw-toggle` rather than invented beside it: the
-   deck already had one switch and a second spelling of it would be the drift
-   this sheet's comments spend their length preventing. Same geometry, same
-   knob travel, same accent fill when on. */
-.sm-toggle {
+/* ONE SWITCH (#886). There were four: `.ap-auto-state` (the accounts panel's
+   and the LAN dialog's five), `.sm-toggle` (the sound menu's two), `.bw-toggle`
+   (Browser Watch) and `.ver-auto` (the version banner's pill with a dot) — 35
+   rules between them, so every fix to a switch, its focus ring or its
+   reduced-motion answer had to land four times, and the geometry had drifted:
+   30x18 with a 12px knob in one, 30x17 with an 11px knob in two, the knob at
+   rest in --muted in two and --text in one.
+   One now. The element carrying `role="switch"` is the track and the
+   `.switch-knob` span inside it is the knob. The state is `aria-checked`, read
+   straight off the attribute, so the sheet and the accessibility tree cannot
+   disagree — the `.live` and `.on` classes that restated it are gone. 30x18
+   with a 12px knob leaves two pixels of air all round it, the proportion every
+   platform's own switch uses, and keeps the LAN dialog's switches 24px apart
+   centre to centre at their 6px gap, which is what SC 2.5.8 asks of a target
+   under 24px. */
+.switch {
   position: relative;
-  width: 30px;
-  height: 17px;
-  padding: 0;
-  border-radius: 9px;
-  border: 1px solid var(--ctl-edge);
-  background: var(--ctl-fill);
-  cursor: pointer;
+  display: inline-block;
   flex: none;
-  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: var(--ctl-fill);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.sm-toggle:hover { border-color: var(--accent); }
-.sm-toggle:active { transform: scale(0.97); }
-.sm-toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
-.sm-toggle-knob {
+.switch-knob {
   position: absolute;
-  top: 2px;
+  top: 50%;
   left: 2px;
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--muted);
-  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+  transform: translateY(-50%);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
 }
-.sm-toggle[aria-checked="true"] .sm-toggle-knob { transform: translateX(13px); background: var(--bg); }
+/* On: the track fills, and the knob goes dark on it rather than light — on
+   --accent a pale knob is a pale shape on a pale ground, and the one thing a
+   switch has to say at a glance is which end its knob is at. */
+.switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
+.switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateY(-50%) translateX(12px); }
+.switch:hover:not(:disabled) { border-color: var(--accent); }
+.switch:hover:not(:disabled) .switch-knob { background: var(--text); }
+.switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--bg); }
+.switch:active:not(:disabled) { transform: scale(0.97); }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.switch:disabled { cursor: default; opacity: var(--dim-off); }
 
 /* A setting and the line that says what it covers. 4px, not the group's 10px:
    the note belongs TO the switch above it, and the gap is the only thing left
@@ -2408,37 +2430,23 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .ver-banner .ver-sub.fail { color: var(--err); }
 
 /* Reads as a sentence continuing the button: "Restart now · auto when idle".
-   Off is the stated state, not an absence, so the dot is always drawn. */
+   The switch is the shared one (#886), where this was a pill with a dot in it,
+   and the word beside it still carries the state — `off` against `when idle` /
+   `in 18s` — which is what keeps the control that arms a process kill out of
+   1.4.1. The word is --text for the reason the pill gave: --muted and --warn
+   each measured under AA on this wash in one theme (4.32:1 dark, 4.20:1
+   light). A <label>, so pressing the word throws the switch. */
 .ver-banner .ver-auto {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: none;
-  /* One colour for both states, because the STATE IS THE WORD now — `off`
-     against `when idle` / `in 18s`. It was carried by hue alone (--muted to
-     --warn on the label, --muted-dim to --warn on the dot), which is 1.4.1 on
-     the control that arms a process kill, and both of those greys measured
-     under AA on the wash in one theme each: --muted at 4.32:1 in dark, --warn
-     at 4.20:1 in light. --text clears both by a distance, and the dot below
-     stays as reinforcement rather than as the whole signal. */
   color: var(--text);
-  font: inherit;
   font-size: 11px;
-  cursor: pointer;
-  transition: color 130ms, border-color 130ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ver-banner .ver-auto:hover { border-color: var(--ctl-edge); }
-.ver-banner .ver-auto:active { transform: scale(0.97); }
-.ver-banner .ver-auto i {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--muted-dim);
-  transition: background 130ms, box-shadow 130ms;
-}
-.ver-banner .ver-auto.on i { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+/* Armed means a restart is coming, so this switch fills with the banner's own
+   warning colour rather than the accent every other switch fills with. After
+   the shared hover rule, so an armed switch keeps it under the pointer. */
+.ver-banner .switch[aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
 
 /* A <button> now, so the element brings its own border and background to strip.
    24px is the floor SC 2.5.8 sets and this was 18: the exception for an
@@ -6995,65 +7003,11 @@ button.ap-err:active { transform: scale(0.97); }
   letter-spacing: 0.04em;
 }
 
-/* State reads as a status first and a control second: the dot carries it at a
-   glance, the word confirms it. Same shape whether it's ours or external, so
-   the eye doesn't have to relearn the corner. */
-/* A TRACK AND A KNOB, where this was a pill with a dot and the word `on` in it.
-   The pill reports a state well and asks for one badly: every switch wearing
-   this class is thrown by a person rather than watched, and a thing somebody
-   throws is the shape every application on this machine draws as a position.
-   The position IS the answer, so the word beside it was a caption for something
-   already legible — and the three of them together were three words of chrome
-   on a panel whose whole complaint was that it read as a settings page.
-
-   No text inside, so the accessible name is the whole of the name: each one
-   carries an aria-label, and `role="switch"` with `aria-checked` says which way
-   it is thrown. `.live` is the same fact in the sheet, because a stylesheet
-   cannot read an ARIA state and the two must not be able to disagree. */
-.ap-auto-state {
-  /* The far edge of the control line. Whether the loop is armed at all is a
-     different decision from where it trips, and the whole of the rest of the
-     row between them is what says so. */
-  margin-left: auto;
-  flex: none;
-  position: relative;
-  display: inline-block;
-  /* SMALLER THAN THE PILL IT REPLACED, on both axes: that was 39x21 of border
-     and word, and a control which now says everything by where its knob is
-     needs less room to say it than one that had to fit `off` inside. 18px of
-     height also keeps the two in the dialog 24px apart centre to centre at
-     their 6px gap, which is what SC 2.5.8 asks of a target under 24px. */
-  width: 30px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: var(--ctl-fill);
-  font: inherit;
-  line-height: 1;
-}
-/* The knob. 12px in an 18px track leaves two pixels of air all round it, which
-   is the proportion every platform's own switch uses — one that fills its track
-   reads as a bar rather than as something that moves. */
-.ap-auto-state::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--muted);
-  transform: translateY(-50%);
-  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
-}
-/* Dark on the lit track rather than light: on --accent a pale knob is a pale
-   shape on a pale ground, and the one thing this has to say at a glance is
-   which end the knob is at. */
-.ap-auto-state.live::after {
-  background: var(--bg);
-  transform: translateY(-50%) translateX(12px);
-}
+/* Where the accounts panel's and the LAN dialog's switches sit — the far edge
+   of the control line — and nothing about how they look, which is `.switch`'s
+   since #886. Whether the loop is armed at all is a different decision from
+   where it trips, and the whole of the rest of the row between them says so. */
+.ap-auto-state { margin-left: auto; }
 .ap-dot {
   width: 5px;
   height: 5px;
@@ -7062,7 +7016,6 @@ button.ap-err:active { transform: scale(0.97); }
   opacity: 0.55;
   flex-shrink: 0;
 }
-button.ap-auto-state { cursor: pointer; transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 
 /* ---------------- local network sync ----------------
    The last section of the Accounts panel, and the only one that is not about
@@ -7483,16 +7436,6 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
   min-width: 0;
 }
 
-button.ap-auto-state:hover:not(:disabled) { border-color: var(--accent); }
-button.ap-auto-state:hover:not(:disabled)::after { background: var(--text); }
-button.ap-auto-state.live:hover:not(:disabled)::after { background: var(--bg); }
-button.ap-auto-state:active:not(:disabled) { transform: scale(0.97); }
-button.ap-auto-state:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
-.ap-auto-state.live {
-  border-color: var(--accent);
-  background: var(--accent);
-}
 
 /* A ring leaving the dot on a slow interval. Emission reads as a process
    still running, where a fading dot only reads as a styled dot — and unlike a
@@ -8426,14 +8369,15 @@ button.ap-err::after {
   .glyph-btn:active:not(:disabled),
   .cat-filter:active, .uh-range-btn:active,
   .selected-ribbon .selected-close:active,
-  .ver-banner .ver-cmd:active, .ver-banner .ver-auto:active,
+  .ver-banner .ver-cmd:active,
   .ver-banner .ver-close:active,
   .topbar .brand button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
   .ctx-donut:active,
   .session-list .sl-row:active, button.tool.clickable:active,
   .uh-bar-col:active, .ap-failure-x:active,
-  button.ap-auto-state:active:not(:disabled),
+  /* Every switch in the deck, one control since #886. */
+  .switch:active:not(:disabled),
   .ap-field select:active:not(:disabled),
   .ap-rotate:active:not(:disabled),
   .ap-lanes-more:active,
@@ -8441,8 +8385,6 @@ button.ap-err::after {
   .aa-tab:active,
   .aa-result-fix:active,
   .bw-ep-head:active,
-  .bw-toggle:active,
-  .sm-toggle:active,
   /* The usage panel's one section that opens. Its chevron turns as well, and a
      rotation is the motion this block exists for — `transform: none` reaches
      both, because both are transforms on elements this list names. */
@@ -8802,39 +8744,10 @@ button.ap-err::after {
 .bw-why:hover { color: var(--text); }
 
 /* ── The watch switch ─────────────────────────────────────────────────────
-   A real switch rather than a button labelled with the action. "turn off"
-   asked the reader to infer the current state from the verb on offer; a track
-   and a knob show it, and role="switch" tells a screen reader the same thing.
-   Sits in the controls row because that is what it is: a setting. */
-.bw-toggle {
-  position: relative;
-  width: 30px;
-  height: 17px;
-  padding: 0;
-  border-radius: 9px;
-  border: 1px solid var(--ctl-edge);
-  background: var(--ctl-fill);
-  cursor: pointer;
-  flex: none;
-  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
-}
-.bw-toggle:hover { border-color: var(--accent); }
-.bw-toggle:active { transform: scale(0.97); }
-.bw-toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
-.bw-toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  /* Reads on both the resting fill and the accent: mixed from the foreground
-     the way --ctl-edge is, rather than borrowed from a surface that collapses
-     into one of the two states. */
-  background: var(--text);
-  transition: transform 140ms ease, background 140ms ease;
-}
-.bw-toggle[aria-checked="true"] .bw-toggle-knob { transform: translateX(13px); background: var(--bg); }
+   A real switch rather than a button labelled with the action: "turn off"
+   asked the reader to infer the current state from the verb on offer. It is
+   the shared `.switch` since #886, where its own track and knob used to be
+   written out a third time. */
 
 /* ── Browser watch: the two views ─────────────────────────────────────────
    The list answers what happened; the log answers whether anything is looking.

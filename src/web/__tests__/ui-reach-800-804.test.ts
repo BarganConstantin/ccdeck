@@ -208,8 +208,10 @@ describe("#801 — what the Notifications switch is saying", () => {
   });
 
   it("styles every class it renders", () => {
-    for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "sm-toggle",
-                       "sm-toggle-knob", "sm-setting", "sm-note", "sm-channel-state",
+    // `switch` and `switch-knob` are the shared switch's since #886, which
+    // retired the menu's own `sm-toggle` spelling of it.
+    for (const cls of ["sm-switches", "sm-switch", "sm-switch-label", "switch",
+                       "switch-knob", "sm-setting", "sm-note", "sm-channel-state",
                        "sm-channel", "sm-channel-head", "sm-channel-name", "sm-channel-action",
                        "sm-tones", "sm-tone", "sm-tone-head", "sm-tone-name", "sm-hear"]) {
       expect(css, `.${cls} is unstyled`).toContain(cls);

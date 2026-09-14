@@ -1373,7 +1373,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     pronounce are the words on the screen. */}
                 <button
                   type="button"
-                  className={`ap-auto-state${auto.enabled ? " live" : ""}`}
+                  className="switch ap-auto-state"
                   role="switch"
                   aria-checked={auto.enabled}
                   aria-label="Auto-switch"
@@ -1382,7 +1382,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   title={auto.enabled
                     ? "Stop switching accounts automatically"
                     : "Switch accounts automatically when the active one nears its limit"}
-                />
+                >
+                  <span className="switch-knob" />
+                </button>
               </div>
 
               <div className="ap-auto-ctl">

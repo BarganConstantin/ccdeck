@@ -524,7 +524,9 @@ const CONTROLS: Control[] = [
   // version banner
   { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
   { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
-  { at: ".ver-banner .ver-auto:hover", fillFrom: ".ver-banner .ver-auto", beds: BANNER },
+  // The auto-restart switch is the shared one since #886. Armed, it fills with
+  // the banner's warning colour, measured here on the banner's own beds.
+  { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
   // canvas, detail panel, modals
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
@@ -539,8 +541,13 @@ const CONTROLS: Control[] = [
   { at: ".session-list .sl-row:hover", fillFrom: ".session-list .sl-row:hover",
     states: [".session-list .sl-row.selected"], beds: ["--panel"] },
   // accounts panel
-  { at: ".ap-auto-state", states: ["button.ap-auto-state:hover:not(:disabled)", ".ap-auto-state.live"],
-    beds: ["--panel"] },
+  // Every switch in the deck, one control since #886. Its ON state fills with
+  // --accent rather than the control fill, which is the point of listing both:
+  // a switch whose two states are only told apart by a knob position needs each
+  // of them to hold its own boundary, not just the resting one. On the panels
+  // and on the version banner, the two kinds of surface a switch sits on.
+  { at: ".switch", states: [".switch:hover:not(:disabled)", '.switch[aria-checked="true"]'],
+    beds: ["--panel", ...BANNER] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
   // The Local network intro card, while the section is off: a drawing and two
   // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
@@ -548,12 +555,6 @@ const CONTROLS: Control[] = [
   { at: ".ap-lan-intro", states: [".ap-lan-intro:hover:not(:disabled)"], beds: ["--panel"] },
   // browser watch
   { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
-  // The watch switch. Its ON state fills with --accent rather than the control
-  // fill, which is the point of listing both here: a switch whose two states
-  // are only told apart by a knob position needs each of them to hold its own
-  // boundary, not just the resting one.
-  { at: ".bw-toggle", states: [".bw-toggle:hover", '.bw-toggle[aria-checked="true"]'], beds: ["--panel"] },
-  { at: ".sm-toggle", states: [".sm-toggle:hover", '.sm-toggle[aria-checked="true"]'], beds: ["--panel"] },
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
@@ -717,9 +718,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".react-flow__node:focus-visible .agent-node",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
+      ".switch:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       ":focus-visible",
-      "button.ap-auto-state:focus-visible",
     ]);
   });
 

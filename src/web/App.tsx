@@ -4227,15 +4227,20 @@ function Inner() {
                       button, because this banner is a role="status" — a label
                       that renamed itself every second would read the whole
                       banner out loud every second with it. */}
-                  <button type="button" className={`ver-auto${autoRestart ? " on" : ""}`}
+                  {/* The shared switch (#886) with the state's word beside it, in
+                      a label so pressing the word throws it too. The word stays
+                      aria-hidden and the name stable, for the reason above. */}
+                  <label className="ver-auto">
+                  <button type="button" className="switch"
                     role="switch" aria-checked={autoRestart} onClick={toggleAutoRestart}
                     aria-label="Auto-restart when idle"
                     title={autoRestart
                       ? "Updates on its own. While you are here it restarts once nothing has been running for 30 seconds; while you are away it also installs the new version first. Click to require a click instead."
                       : "Only updates when you click. Click to let it update itself when idle or while you are away."}>
-                    <i aria-hidden />
-                    <span aria-hidden>{autoRestartLabel(autoRestart, restartFuseMs)}</span>
+                    <span className="switch-knob" />
                   </button>
+                  <span aria-hidden>{autoRestartLabel(autoRestart, restartFuseMs)}</span>
+                  </label>
                 </>
               ) : (
                 <span

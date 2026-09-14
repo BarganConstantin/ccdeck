@@ -301,7 +301,11 @@ const PRESSES: Press[] = [
   [".ap-lan-intro:active:not(:disabled)", "0.97", "transform"],
   [".ap-fix:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
-  ["button.ap-auto-state:active:not(:disabled)", "0.97", "transform"],
+  // Every switch in the deck — one control since #886, where this list named
+  // four: the accounts panel's, Browser Watch's, the sound menu's and the
+  // version banner's. 0.97 rather than 0.94: the knob travels 12px inside a
+  // 30px track, and six percent of that reads as the knob slipping.
+  [".switch:active:not(:disabled)", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
@@ -310,12 +314,6 @@ const PRESSES: Press[] = [
   // block in it. 0.97 like every other labelled control — the target is the
   // whole 250px heading rather than the 9px chevron drawn on it.
   [".up-disclose:active", "0.97", "transform"],
-  // The watch switch. 0.97 like the selects it sits beside — one row, one tier.
-  [".bw-toggle:active", "0.97", "transform"],
-  // The sound menu's two switches, the same track as Browser Watch's and
-  // therefore the same press. 0.97 rather than 0.94: the knob travels 13px
-  // inside a 30px track, and six percent of that reads as the knob slipping.
-  [".sm-toggle:active", "0.97", "transform"],
   // The overview's help disclosure. 0.94 like the other small round controls
   // it is shaped as: a 16px circle is a box, and 0.97 of a box that size is
   // not visible.
@@ -347,7 +345,6 @@ const PRESSES: Press[] = [
   // selection would shrink the whole ribbon as if the view were being fitted.
   [".selected-ribbon:active:not(:has(.selected-close:active))", "0.97", "transform"],
   [".ver-banner .ver-cmd:active", "0.97", "transform"],
-  [".ver-banner .ver-auto:active", "0.97", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
@@ -396,7 +393,7 @@ const EXEMPT: string[] = [
   // The status bar's switch LABEL, which is a label and not a second control:
   // it carries `cursor: pointer` because clicking the words toggles the switch
   // via `htmlFor`, and the press it starts is already answered — by the knob
-  // travelling and by `.bw-toggle`'s own 0.97. Scaling the label too would move
+  // travelling and by the switch's own 0.97. Scaling the label too would move
   // the words out from under the pointer to say a second time what the switch
   // beside them has already said.
   ".bw-switch",

@@ -251,7 +251,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 <span className="lan-switch-what">Show paired decks which of these this deck is using</span>
                 <button
                   type="button"
-                  className={`ap-auto-state${tells ? " live" : ""}`}
+                  className="switch ap-auto-state"
                   role="switch"
                   aria-checked={tells}
                   aria-label="Show paired decks which of these this deck is using"
@@ -264,7 +264,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title={tells
                     ? "Stop telling paired decks which account this one is on. They read “current account hidden” instead."
                     : "Tell paired decks which of the ticked accounts this one is on. An unticked account is never named."}
-                />
+                >
+                  <span className="switch-knob" />
+                </button>
               </div>
             )}
           </div>
@@ -274,7 +276,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             {/* Two rows and one shape, because they are the two halves of one
                 question: who reaches whom without anybody pressing anything.
                 A TRACK AND A KNOB, which is what every switch in this app wears
-                now — see `.ap-auto-state`. It was a pill with a dot and the
+                now — see `.switch` (#886). It was a pill with a dot and the
                 word `on` in it, which reports a state well and asks for one
                 badly. */}
             <div className="lan-switches">
@@ -282,7 +284,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 <span className="lan-switch-what">Ask every deck this one finds</span>
                 <button
                   type="button"
-                  className={`ap-auto-state${asks ? " live" : ""}`}
+                  className="switch ap-auto-state"
                   role="switch"
                   aria-checked={asks}
                   aria-label="Ask every deck this one finds"
@@ -295,13 +297,15 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title={asks
                     ? "Stop sending requests on their own. You press ask on the row instead."
                     : "Send a pairing request to every deck heard on this network. Somebody over there still has to say yes."}
-                />
+                >
+                  <span className="switch-knob" />
+                </button>
               </div>
               <div className="lan-switch">
                 <span className="lan-switch-what">Say yes to every deck that asks</span>
                 <button
                   type="button"
-                  className={`ap-auto-state${says ? " live" : ""}`}
+                  className="switch ap-auto-state"
                   role="switch"
                   aria-checked={says}
                   aria-label="Say yes to every deck that asks"
@@ -314,7 +318,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   title={says
                     ? "Stop saying yes for you. A deck that asks waits in the panel again."
                     : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
-                />
+                >
+                  <span className="switch-knob" />
+                </button>
               </div>
             </div>
             {/* NOTHING TO SAY WHEN BOTH ARE ON, which the two labels above
