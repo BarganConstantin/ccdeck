@@ -171,8 +171,16 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
               onClick={() => data.onOpenContext!(data.sessionId)}
             />
           )}
-          <div className="time" title={`Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
-            {elapsed(data.startedAt, data.endedAt, now)}
+          {/* A floor, and marked as one, when the deck did not see this session
+              start (#822). `startedAt` is the first event THIS page applied, and
+              a page opened late is built from the bounded replay ring, so for a
+              long session the clock started partway in — one tab read 118m
+              beside another's 12m for the same session. `synthetic` is how the
+              reducer already knows; it is the "?" beside the name. */}
+          <div className="time" title={data.synthetic
+            ? `The deck joined this session after it began, so it has run at least this long — first seen ${new Date(data.startedAt).toLocaleTimeString()}`
+            : `Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
+            {data.synthetic ? "≥ " : ""}{elapsed(data.startedAt, data.endedAt, now)}
           </div>
         </div>
       </div>
@@ -325,7 +333,10 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
           }
           if (c.total <= 0) return null;
           const elapsedSec = Math.max(0, ((data.endedAt ?? now) - data.startedAt) / 1000);
-          const rate = data.state === "active" ? fmtCostRate(c.total, elapsedSec) : null;
+          // Not for a session the deck joined late (#822): its cost is the whole
+          // session's and its clock only the part this page saw, so the quotient
+          // would overstate the burn by however much of the session was missed.
+          const rate = data.state === "active" && !data.synthetic ? fmtCostRate(c.total, elapsedSec) : null;
           const tt = agentCostTooltip(data) + (rate ? `\nburn: ${rate}` : "");
           // THE BURN RATE IS IN THE TOOLTIP AND NOWHERE ELSE NOW. The row is
           // flex, no-wrap, inside `overflow: hidden`, with 232px of content;

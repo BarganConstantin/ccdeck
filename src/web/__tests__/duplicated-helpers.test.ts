@@ -255,7 +255,9 @@ describe("the elapsed clock", () => {
     expect(app).toMatch(/import \{ elapsed, toolDuration \} from "\.\/duration";/);
     expect(code(agentNode)).not.toMatch(/function elapsed\b/);
     expect(code(app)).not.toMatch(/const elapsedLabel = elapsedSec < 60/);
-    expect(code(app)).toMatch(/const elapsedLabel = elapsed\(agent\.startedAt, agent\.endedAt, now\);/);
+    // #822 marks a clock whose start the deck did not see as a floor ("≥ "); the
+    // clock itself is still this one function.
+    expect(code(app)).toMatch(/const elapsedLabel = `\$\{agent\.synthetic \? "≥ " : ""\}\$\{elapsed\(agent\.startedAt, agent\.endedAt, now\)\}`;/);
   });
 
   it("left the two genuinely different dialects where they are", () => {

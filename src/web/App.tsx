@@ -5076,7 +5076,8 @@ function Detail({
   // is the card's clock rather than a second one written out here (#374). The
   // only value that moves is a span under a second, which used to read "0s"
   // beside a card reading "437ms" for the same agent.
-  const elapsedLabel = elapsed(agent.startedAt, agent.endedAt, now);
+  // A floor when the deck did not see the session start, as on the card (#822).
+  const elapsedLabel = `${agent.synthetic ? "≥ " : ""}${elapsed(agent.startedAt, agent.endedAt, now)}`;
 
   const cost = agentCost(agent);
   const hasCost = cost.total > 0;
