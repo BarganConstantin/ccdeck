@@ -52,7 +52,7 @@ import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
 import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
-import { blockedSessions, runningSessionCount } from "./ambient-counts";
+import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { blockKey, canAsk, nextRaised, noticesFor, seedRaised, shouldReseed } from "./notify";
 import type { NotifyPermission } from "./notify";
@@ -2952,6 +2952,10 @@ function Inner() {
    *  closes over it. The frame of delay is for the same reason the session list
    *  has always needed one — the node has to be laid out before fitView can
    *  have anything to fit to. */
+  /** The blocked session W went to last (#825), so the next press moves on to
+   *  the one after it. The waiting button writes it too: the two are one way in. */
+  const waitingCursorRef = useRef<string | null>(null);
+
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
     window.setTimeout(() => {
@@ -3137,6 +3141,17 @@ function Inner() {
       if (e.key === "a" || e.key === "A") { if (providersRef.current.claude) toggleAccountsPanel(); }
       if (e.key === "j" || e.key === "J") stepAgent(1);
       if (e.key === "k" || e.key === "K") stepAgent(-1);
+      // #825: the most urgent move in the deck, on a key. J and K walk every
+      // agent in position order; W goes to the session blocked on the reader —
+      // the one the "N waiting" button goes to, oldest first — and each press
+      // after it to the next, wrapping. Nothing waiting, nothing happens.
+      if (e.key === "w" || e.key === "W") {
+        const next = nextWaiting(blockedSessions(stateRef.current.agents.values()), waitingCursorRef.current);
+        if (next) {
+          waitingCursorRef.current = next.id;
+          focusSession(next.id);
+        }
+      }
       if (e.key === "t" || e.key === "T") setTheme(t => (t === "dark" ? "light" : "dark"));
       // The last topbar control to get a key, and the only one that reads
       // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
@@ -3793,8 +3808,12 @@ function Inner() {
             <button
               type="button"
               className="waiting-stat"
-              onClick={() => focusSession(waitingSessions[0].id)}
-              title={`Blocked waiting for you — click to go to the one that has been stuck longest:\n${
+              onClick={() => {
+                // The same place W starts, so the next press moves on (#825).
+                waitingCursorRef.current = waitingSessions[0].id;
+                focusSession(waitingSessions[0].id);
+              }}
+              title={`Blocked waiting for you — click, or press W, to go to the one that has been stuck longest:\n${
                 waitingSessions.map(w => `  ${w.label}: ${waitingSentence(w.waiting)} (${shortAgo(now - w.waiting.since)})`).join("\n")
               }`}
               aria-label={`${waitingSessions.length} session${waitingSessions.length === 1 ? "" : "s"} waiting for you`}
