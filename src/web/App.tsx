@@ -5205,7 +5205,12 @@ function Detail({
                     style={hue != null ? { "--mcp-hue": hue } as React.CSSProperties : undefined}
                     title={one ? `${calls}, all to ${one.label}` : calls}
                   >
-                    <span className="cat-emoji">{DETAIL_CAT_EMOJI[c]}</span>
+                    {/* The category as a word at rest (#841): an emoji and a
+                        count said nothing without a hover, and a title never
+                        reaches a keyboard or touch reader. The word is the
+                        key, the count its value; the emoji is decoration now. */}
+                    <span className="cat-emoji" aria-hidden>{DETAIL_CAT_EMOJI[c]}</span>
+                    <span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>
                     <span className="cat-count">{n}</span>
                     {/* The words the tint cannot be trusted to carry alone. */}
                     {one && <span className="cat-server">{one.label}</span>}
