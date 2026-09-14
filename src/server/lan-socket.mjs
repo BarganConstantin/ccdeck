@@ -76,7 +76,7 @@ export function broadcastTargets(ifaces) {
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, handshakeTranscript, hostId, notePeer, proof, proofOk,
+  beaconPayload, beaconVerdict, cleanName, handshakeTranscript, hostId, notePeer, proof, proofOk,
   inviteProof, readBeacon, readPub, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
@@ -440,7 +440,18 @@ export function createSyncServer({
           theirChallenge = msg.challenge;
           peerFp = them.fp;
           peerPub = them.pub;
-          peerName = typeof msg.name === "string" ? msg.name : "";
+          // THROUGH cleanName, like the beacon and the invite. This path — the
+          // handshake — was the one that skipped it, and it is the one that
+          // feeds the pairing prompt and cfg.trusted, which index.mjs writes to
+          // prefs.json. So the only bound on the name an operator reads before
+          // pressing Accept was the 128 KB frame cap.
+          //
+          // cleanName caps at MAX_NAME (40) and collapses \s+, which includes
+          // U+00A0 — and 200 non-breaking spaces neither collapse in HTML nor
+          // offer a break opportunity, so a name of "Alice's laptop at
+          // 192.168.1.10 wants to pair" + padding pushed the REAL address out
+          // of a fixed 288px column and left a complete, plausible sentence.
+          peerName = cleanName(msg.name, "");
           peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
           key = sessionKey(secret, peerPub, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
           sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge });
@@ -674,7 +685,7 @@ export function connectToPeer({
       sock.removeAllListeners("close");
       resolve({
         sock, key,
-        peerFp: theirFp, peerPub: theirPub, peerName: msg.name,
+        peerFp: theirFp, peerPub: theirPub, peerName: cleanName(msg.name, ""),
         send: obj => sendFrame(sock, obj),
       });
     }, fail));

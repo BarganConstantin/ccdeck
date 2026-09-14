@@ -705,3 +705,52 @@ describe("one row per machine, not one per key it has held", () => {
       .toBe("stranger");
   });
 });
+
+// THE ROW WHERE THE OPERATOR DECIDES, AND THE STRINGS ON IT.
+//
+// LanSyncSection.tsx:1501 states the stakes: "The one security decision in this
+// feature is whether the machine asking is the one you think it is, and the
+// only value that cannot be chosen by whoever is asking is this [the
+// fingerprint]." Everything beside it IS chosen by whoever is asking.
+//
+// cleanName was applied on the beacon and the invite paths and not on the
+// handshake — which is the path that feeds the pairing prompt and cfg.trusted,
+// so the only bound on the name an operator reads before pressing Accept was
+// the 128 KB frame cap. And no sanitiser stripped \p{Cf}, the FORMAT class.
+describe("what a peer may put in a name", () => {
+  it("collapses the whitespace HTML does not, so a name cannot push the address out of the column", () => {
+    // U+00A0 neither collapses in HTML nor offers a break opportunity, and
+    // .ap-lan-peer-name has no max-width. 200 of them after a plausible
+    // sentence left the real "at <addr> wants to pair" off the end of a fixed
+    // 288px column.
+    const padded = "Alice laptop at 192.168.1.10 wants to pair" + "\u00a0".repeat(200);
+    const out = cleanName(padded);
+    expect(out).not.toContain("\u00a0");
+    expect([...out].length).toBeLessThanOrEqual(MAX_NAME);
+  });
+
+  it("strips the format characters that reorder the line they are drawn in", () => {
+    // U+202E's scope runs to the end of its inline formatting context, and the
+    // name shares one <span> with the address and the words "wants to pair" —
+    // no dir, no <bdi>, no unicode-bidi anywhere in the sheet. So an override
+    // in the name renders the address the operator is checking backwards.
+    for (const ch of ["\u202e", "\u2066", "\u2069", "\u200b", "\u00ad"]) {
+      const out = cleanName(`Alice${ch} deck`);
+      expect(out, `U+${ch.codePointAt(0)!.toString(16)} survived`).not.toContain(ch);
+    }
+  });
+
+  it("still keeps an ordinary name, including one that is not ASCII", () => {
+    // The filter must not eat legitimate names: this is a machine label, and
+    // people name machines in their own language.
+    expect(cleanName("Ана-ноутбук")).toBe("Ана-ноутбук");
+    expect(cleanName("MacBook Pro (16\u2033)")).toBe("MacBook Pro (16\u2033)");
+    expect(cleanName("  spaced   out  ")).toBe("spaced out");
+  });
+
+  it("falls back rather than returning an empty name", () => {
+    expect(cleanName("\u202e\u200b")).toBe("unnamed deck");
+    expect(cleanName(undefined as never)).toBe("unnamed deck");
+  });
+});
+

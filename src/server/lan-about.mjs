@@ -85,7 +85,10 @@ export function aboutThisDeck({
  *  `\p{Cc}` is the Unicode class for exactly those, C0 and C1 both. */
 function field(v, max, shape = null) {
   if (typeof v !== "string") return null;
-  const flat = v.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+  // `\p{Cf}` too — the FORMAT class the control class does not cover, holding
+  // U+202E and the directional isolates. `os` is free-form and 48 characters
+  // wide, so it is the longest peer-chosen string the panel draws.
+  const flat = v.replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
   const s = [...flat].slice(0, max).join("").trim();
   return s && (!shape || shape.test(s)) ? s : null;
 }

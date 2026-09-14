@@ -36,6 +36,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import net from "node:net";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import os from "node:os";
 // @ts-expect-error — plain .mjs server modules, no types
 import { fingerprint, hostId, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } from "../../server/lan-sync.mjs";
@@ -778,3 +780,29 @@ describe("where a beacon is sent", () => {
     b2.stop();
   });
 });
+
+// cleanName WAS APPLIED ON TWO OF THE THREE PATHS.
+//
+// The beacon reader and the invite reader both ran it; the handshake did not —
+// and the handshake is the one that feeds onPending (the pairing prompt) and
+// addTrusted (cfg.trusted, which index.mjs writes to prefs.json). So the only
+// bound on the name an operator reads before pressing Accept was the 128 KB
+// frame cap, and the only filter was none.
+//
+// Source assertions, because the value is set inside a socket handler several
+// frames into a handshake; lan-sync.test.ts owns what cleanName itself does.
+describe("the name a peer sends over the handshake", () => {
+  const src = readFileSync(
+    fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8");
+
+  it("is cleaned on the listener's side, where the pairing prompt reads it", () => {
+    expect(src).toContain('peerName = cleanName(msg.name, "");');
+    expect(src, "the raw form must not come back").not.toContain('peerName = typeof msg.name === "string" ? msg.name : "";');
+  });
+
+  it("and on the caller's side, where addTrusted reads it", () => {
+    expect(src).toContain('peerName: cleanName(msg.name, "")');
+    expect(src).not.toContain("peerName: msg.name,");
+  });
+});
+

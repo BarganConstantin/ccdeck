@@ -103,11 +103,30 @@ export function localAddresses(faces = networkInterfaces()) {
  * where strings belong, a boolean for the verdict, and no more rows than a
  * manifest may carry. What is kept is only what the deck's dialog draws.
  */
+/** One peer-supplied string as the panel may draw it: no control or format
+ *  characters, whitespace collapsed, bounded. The rule cleanName applies to a
+ *  deck's name and lan-about's `field` to a card, applied to the two strings
+ *  that sit next to the fingerprint in the import dialog. */
+function flatten(v, max) {
+  if (typeof v !== "string") return "";
+  const flat = v.replace(/\p{Cc}/gu, " ").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
+  return [...flat].slice(0, max).join("");
+}
+
 export function offered(list) {
   return (Array.isArray(list) ? list : [])
     .filter(a => a && typeof a.key === "string" && typeof a.email === "string")
     .slice(0, 50)
-    .map(a => ({ key: a.key.slice(0, 320), email: a.email.slice(0, 254), alive: a.alive === true }));
+    // Character-filtered, not merely cut. These two are drawn beside the
+    // fingerprint at the moment the operator picks which of a peer's logins to
+    // import (LanPeerModal.tsx:497), and a bare slice let a format character
+    // through — the same class cleanName strips from the name one frame over.
+    .map(a => ({
+      key: flatten(a.key, 320),
+      email: flatten(a.email, 254),
+      alive: a.alive === true,
+    }))
+    .filter(a => a.key && a.email);
 }
 
 /**
