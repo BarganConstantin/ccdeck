@@ -1,7 +1,7 @@
 // UsagePanel — floating panel showing aggregated token usage and cost
 // across all sessions, by model and by session. Toggled via $ button
 // in the topbar or the U keyboard shortcut.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
@@ -220,6 +220,9 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
 
   const countdown = resetAt ? resetCountdown(resetAt, nowSec) : null;
   const pace = (resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec) : null;
+  // The note opens the number it is measured against (#856).
+  const [why, setWhy] = useState(false);
+  const whyId = useId();
 
   return (
     <div className="qb-row">
@@ -251,15 +254,23 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
             ? <span className="qb-reset">resets {reset}</span>
             : null}
         {pace && (
-          <span className="qb-pace" style={{ color: pace.color }}>
+          <button
+            type="button"
+            className="qb-pace"
+            style={{ color: pace.color }}
+            aria-expanded={why}
+            aria-controls={why ? whyId : undefined}
+            onClick={() => setWhy(w => !w)}
+          >
             {/* The marker's own line, in the marker's own colour: a legend
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
             {pace.runsOutIn ? `runs out in ${pace.runsOutIn}` : pace.label}
-          </span>
+          </button>
         )}
       </div>
+      {why && pace && <div id={whyId} className="qb-why">To last until reset, stay near {Math.round(pace.expectedPct)}% by now.</div>}
     </div>
   );
 }

@@ -392,6 +392,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // lane-open.ts, which also says why a fifth ManageState field would not have
   // been enough.
   const [openLanes, setOpenLanes] = useState<string[]>([]);
+  // The rows showing why their collection failed (#856). The reason is read on
+  // request rather than hovered for, so it reaches a keyboard and a touch reader
+  // too. Keyed by slot, the way the lane ids are.
+  const [whyOpen, setWhyOpen] = useState<string[]>([]);
 
   // The same fact as `busy`, where a handler can read it without waiting for a
   // render. #518 leaves the working control enabled, so a second press reaches
@@ -1013,7 +1017,18 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   const e = errorText(a.error);
                   return (
                     <>
-                      <span className="ap-err" title={e.hint}>{e.text}</span>
+                      {/* A button, not a title (#856): why a login died is what
+                          decides whether to sign in again, and a title never
+                          reaches a keyboard or a touch reader. */}
+                      <button
+                        type="button"
+                        className="ap-err"
+                        aria-expanded={whyOpen.includes(String(a.num))}
+                        aria-controls={whyOpen.includes(String(a.num)) ? `ap-why-${a.num}` : undefined}
+                        onClick={() => setWhyOpen(open => open.includes(String(a.num))
+                          ? open.filter(n => n !== String(a.num))
+                          : [...open, String(a.num)])}
+                      >{e.text}</button>
                       {/* A dead login is the one failure here that no amount of
                           waiting fixes, so the fix is one click away rather
                           than a paragraph away. */}
@@ -1023,6 +1038,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                           sign in again
                         </button>
                       )}
+                      {whyOpen.includes(String(a.num)) && <span id={`ap-why-${a.num}`} className="ap-why">{e.hint}</span>}
                     </>
                   );
                 })()}

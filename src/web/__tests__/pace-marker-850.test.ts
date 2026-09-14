@@ -22,7 +22,8 @@ function decl(selector: string, prop: string): string | null {
 }
 
 const marker = /<div[^>]*?className="qb-pace-marker"[\s\S]*?\/>/.exec(panel)![0];
-const note = /<span className="qb-pace"[\s\S]*?<\/span>/.exec(panel)![0];
+// A button since #856, which made the note open the number it is measured against.
+const note = /className="qb-pace"[\s\S]*?<\/button>/.exec(panel)![0];
 const key = /<i className="qb-pace-key"[^>]*\/>/.exec(note)?.[0] ?? null;
 const background = (jsx: string) => /background:\s*([^,}]+?)\s*[,}]/.exec(jsx)![1].trim();
 
