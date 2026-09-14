@@ -2890,6 +2890,19 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   box-shadow: var(--shadow-2);
 }
 
+/* A CARD REACHED BY TAB draws the same ring (#869). Every card is a tab stop,
+   and none of them ever showed the global ring: React Flow's own sheet, which
+   main.tsx imports ahead of this one, removes it from the node wrapper —
+   `.react-flow__node.selectable:focus-visible { outline: none }` at (0,3,0),
+   beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
+   so `.selected` above never stood in for it. The ring goes on the card, like
+   selection's, because the card is the box with the radius and the session's
+   own --accent. Focus without selection still reads apart: no lift. */
+.react-flow__node:focus-visible .agent-node {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .agent-node .accent-stripe {
   position: absolute;
   left: 0; top: 0; bottom: 0;

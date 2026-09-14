@@ -704,7 +704,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // chart bar — the tenth is the LAN section's foot word, which is a control
     // with no box at all, so its ring is the whole of its boundary. The expanded machine meter was the tenth until the meter was
     // removed; the button that replaced it wears the icon-button ring, which is
-    // a border rather than a shadow and is swept as one.
+    // a border rather than a shadow and is swept as one. The canvas card's
+    // (#869) makes eleven: React Flow strips the global ring from the node
+    // wrapper, so the card draws its own and the ring is its keyboard boundary.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
       ".aa-field input:focus-visible",
       ".ap-field select:focus-visible",
@@ -712,6 +714,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ap-manage-input:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
+      ".react-flow__node:focus-visible .agent-node",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".uh-bar-col.sel .uh-bar",
