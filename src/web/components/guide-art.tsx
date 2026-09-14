@@ -366,7 +366,7 @@ export const WELCOME_STEPS: GuideStep[] = [
   {
     art: <WaitingArt />,
     line: "Sessions waiting on you rise to the top, longest wait first.",
-    tip: "A tone and a system notification when one stops to ask. The bell in the topbar.",
+    tip: "A tone and a system notification when one stops to ask. The speaker in the topbar.",
   },
   { art: <TreeArt />, line: "Every agent and subagent is a node. Tool calls light up as they run." },
   { art: <InspectArt />, line: "Click any node: its prompt, every tool call, tokens and timing." },
