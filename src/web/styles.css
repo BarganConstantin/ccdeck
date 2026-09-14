@@ -3045,11 +3045,15 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   padding: 24px;
   animation: fadeIn 140ms ease-out;
 }
+/* The scrim .modal-backdrop and .uh-backdrop turn to on the light theme. A
+   black 55% over a white page reads as the lights going out (#875). */
+:root[data-theme="light"] .ctx-modal-backdrop { background: rgba(15,23,42,0.30); }
 .ctx-modal {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  /* .modal's shadow, which each theme block tunes for its own canvas (#875). */
+  box-shadow: var(--shadow-2);
   width: min(560px, 100%);
   max-height: 80vh;
   overflow: auto;
