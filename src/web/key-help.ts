@@ -54,18 +54,17 @@ export interface KeyHelpGroup {
   rows: readonly KeyHelpRow[];
 }
 
-/** The sentence the sheet opens on.
+/** The one line under the keys (#852).
  *
- *  Not decoration. `KEY_OWNING_TAGS` in shortcuts.ts puts BUTTON on the list of
- *  elements that own their own keys, which is right — a bare "c" from a focused
- *  dropdown used to truncate the event log — and the consequence is that every
- *  single-key shortcut below is inert for as long as any control holds focus.
- *  That includes this sheet, which takes focus when it opens. Escape is the
- *  documented way back and it is the last row of the fourth group. */
-export const KEY_HELP_NOTE =
-  "One-key shortcuts run when nothing on the page has focus. A focused control " +
-  "keeps its own keys — this sheet included, which takes the keyboard while it " +
-  "is open — so Esc is the way back to the canvas.";
+ *  It used to open the sheet as a paragraph about focus internals, which put a
+ *  limitation ahead of the reference the reader came for. #851 removed most of
+ *  the cause: a control the pointer just pressed no longer keeps the letter
+ *  keys. What is left is a control the KEYBOARD put focus on, which still owns
+ *  its keys (a bare "c" from a focused dropdown used to truncate the event
+ *  log), and this sheet, which takes focus while it is open. Esc is the way out
+ *  of both, and it is the last row of the fourth group — so that is all the
+ *  line says. */
+export const KEY_HELP_NOTE = "Press Esc first if a key does nothing.";
 
 export const KEY_HELP: readonly KeyHelpGroup[] = [
   {
