@@ -32,7 +32,7 @@ import { createActivity } from "./activity.mjs";
 import { createOutputWatch } from "./output-watch.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs";
@@ -3451,7 +3451,10 @@ async function applyLanPrefs() {
   const lan = _prefs?.lan ?? {};
   try {
     await lanEngine.apply({
-      enabled: !!lan.enabled,
+      // The file's answer unless the machine said no: AGENTS_DECK_NO_LAN=1 is
+      // how a launch script — or this repo's own test suite — keeps a deck off
+      // the network now that the default is on.
+      enabled: lanEnabled(_prefs),
       name: lan.name || defaultName(),
       secret: lan.secret || "",
       shared: Array.isArray(lan.shared) ? lan.shared : [],

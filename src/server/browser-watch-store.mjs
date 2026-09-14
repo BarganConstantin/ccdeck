@@ -31,7 +31,10 @@ export const REACTIONS = ["notify", "close-tab", "quit-browser"];
 
 export const DEFAULTS = {
   v: 1,
-  enabled: false,
+  // ON unless somebody switches it off (since 3.22.7; off before). A saved
+  // `false` still wins — normalise() takes any real boolean — so an upgrade
+  // starts watching only on a deck that never saved this field.
+  enabled: true,
   reaction: "notify",
   quietMinutes: 15,
   gapMinutes: 15,
@@ -124,7 +127,7 @@ export function normalise(raw) {
     typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fallback;
   return {
     v: 1,
-    enabled: it.enabled === true,
+    enabled: typeof it.enabled === "boolean" ? it.enabled : DEFAULTS.enabled,
     reaction: REACTIONS.includes(it.reaction) ? it.reaction : DEFAULTS.reaction,
     quietMinutes: num(it.quietMinutes, DEFAULTS.quietMinutes, 1, 24 * 60),
     gapMinutes: num(it.gapMinutes, DEFAULTS.gapMinutes, 1, 24 * 60),

@@ -18,22 +18,23 @@ const episode = (host: string, startMs: number, over = {}) => ({
 });
 
 describe("settings as they will be used, whatever the file said", () => {
-  it("starts off, because the archive is a record of pages somebody visited", () => {
-    // The default that matters most. Everything else here is a threshold; this
-    // one decides whether the deck writes a user's browsing to disk at all, and
-    // a feature that does that without being asked has answered the wrong
-    // question about consent.
-    expect(normalise(undefined).enabled).toBe(false);
-    expect(normalise({}).enabled).toBe(false);
-    expect(DEFAULTS.enabled).toBe(false);
+  it("starts on where nothing was ever saved", () => {
+    // On since 3.22.7. The archive is still a record of pages somebody visited,
+    // which is why the rule below matters: a saved `false` is kept, so an
+    // upgrade never starts watching on a deck where somebody switched it off.
+    expect(normalise(undefined).enabled).toBe(true);
+    expect(normalise({}).enabled).toBe(true);
+    expect(DEFAULTS.enabled).toBe(true);
   });
 
-  it("takes only a real true for on", () => {
+  it("takes only a real boolean as an answer, and always keeps a real false", () => {
     // `enabled: "false"` out of a hand-edited file is truthy, and truthiness is
-    // the wrong test for the one switch that starts writing.
-    expect(normalise({ enabled: "true" }).enabled).toBe(false);
-    expect(normalise({ enabled: 1 }).enabled).toBe(false);
+    // the wrong test for the one switch that starts writing. Anything that is
+    // not a boolean reads as the default.
+    expect(normalise({ enabled: false }).enabled).toBe(false);
     expect(normalise({ enabled: true }).enabled).toBe(true);
+    expect(normalise({ enabled: "false" }).enabled).toBe(DEFAULTS.enabled);
+    expect(normalise({ enabled: 0 }).enabled).toBe(DEFAULTS.enabled);
   });
 
   it("refuses a threshold that would widen the gate to everything", () => {

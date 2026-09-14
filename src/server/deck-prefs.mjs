@@ -49,37 +49,46 @@ export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.j
 
 /**
  * Every preference the deck keeps, with the answer it gives when there is no
- * file — which is the answer for every existing install, so it has to be the
- * behaviour those installs already have.
+ * file. A saved choice always wins over these — normalise() takes any real
+ * boolean — so changing one here reaches only decks that never saved that
+ * field, and nobody's saved setting is flipped by an upgrade.
  *
- * `notifications` defaults ON because that is what 3.7.0 shipped and what the
- * release notes describe; a switch that quietly turned an existing feature off
- * on upgrade would be a worse surprise than the noise it is meant to stop.
+ * `notifications` defaults OFF since 3.22.7. The deck's own sounds are how it
+ * gets attention by default; a desktop notification is something a person
+ * turns on. It defaulted on from 3.7.0 until then, and a deck that saved that
+ * `true` keeps it.
  */
 export const DEFAULTS = Object.freeze({
-  notifications: true,
+  notifications: false,
   // Whether the deck may update itself: restart into code already on disk once
   // it is idle, and — while nobody is looking — install a newer release and
   // restart into that (auto-update.mjs). ON, because this is the banner's
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
-  // LAN sync, off until somebody turns it on. `passphrase` is the only secret
-  // this file has ever held, which is why the write below now names a mode.
+  // LAN sync, ON unless somebody turns it off (since 3.22.7; off before).
+  // `passphrase` is the only secret this file has ever held, which is why the
+  // write below names a mode. AGENTS_DECK_NO_LAN=1 keeps a deck off the network
+  // whatever this file says — see lanEnabled.
   lan: Object.freeze({
-    enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
-    // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Both on, so two
-    // decks on one network find each other and pair themselves — which is what
-    // a person with three of their own machines wants and had to do by hand
-    // six times.
+    enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+    // WHO PAIRS WITH WHOM, WITHOUT ANYBODY PRESSING ANYTHING. Asking is on, so
+    // two decks on one network find each other and send each other a request —
+    // which is what a person with three of their own machines wants and had to
+    // do by hand six times.
     //
-    // Read this next to the two switches that gate it. `enabled` above is off,
-    // so nothing here happens until somebody deliberately puts this deck on the
-    // network; `shared` is empty, so a deck that pairs is offered nothing until
-    // somebody ticks a login. These say what happens AFTER both of those, and
-    // the dialog that turns the feature on prints them.
+    // Saying yes is OFF, and that is the half that had to change when `enabled`
+    // did. Auto-accept is the accept button pressed in advance, and it was a
+    // fair trade while every deck on the network belonged to somebody who had
+    // switched this on deliberately. With the feature on for everybody, every
+    // ccdeck in an office would pair with every other one in silence — and a
+    // login ticked later goes to everything paired. So a pairing takes one
+    // press of accept on the machine that was asked.
+    //
+    // `shared` is empty either way, so a deck that pairs is offered nothing
+    // until somebody ticks a login: the gate that did not change.
     autoAsk: true,
-    autoAccept: true,
+    autoAccept: false,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -140,7 +149,7 @@ function normaliseLan(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
   return {
-    enabled: typeof src.enabled === "boolean" ? src.enabled : false,
+    enabled: typeof src.enabled === "boolean" ? src.enabled : DEFAULTS.lan.enabled,
     name: typeof src.name === "string" ? src.name : "",
     // THIS DECK'S PRIVATE KEY, and the only secret this file has ever held —
     // which is why the write below names a mode rather than taking the umask's.
@@ -175,12 +184,14 @@ function normaliseLan(raw) {
     // anybody pressing `ask` — the outbound half, which gives nothing away: the
     // machine on the other end still answers it, by hand or by the switch below.
     autoAsk: typeof src.autoAsk === "boolean" ? src.autoAsk : true,
-    // AND SAY YES. Every deck that finishes a handshake and is not already
-    // trusted is pinned without anybody being asked — the accept button pressed
-    // in advance, and it hands whoever asks a copy of every login this deck
-    // shares. Absent means the default above; only a real boolean overrides it,
-    // because a truthy string from a hand-edited file is not an answer.
-    autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : true,
+    // AND SAY YES, once somebody has turned this on. Every deck that finishes a
+    // handshake and is not already trusted is then pinned without anybody being
+    // asked — the accept button pressed in advance, and it hands whoever asks a
+    // copy of every login this deck shares. Absent means the default above,
+    // which is off since the feature itself started on; only a real boolean
+    // overrides it, because a truthy string from a hand-edited file is not an
+    // answer.
+    autoAccept: typeof src.autoAccept === "boolean" ? src.autoAccept : DEFAULTS.lan.autoAccept,
   };
 }
 
@@ -284,6 +295,20 @@ export function publicPrefs(prefs) {
 export function notificationsOn(prefs, env = process.env) {
   if (env[OFF_ENV] === "1") return false;
   return normalise(prefs).notifications;
+}
+
+/**
+ * Should the LAN engine run? The file's answer, unless the machine said no.
+ *
+ * AGENTS_DECK_NO_LAN=1 wins for the reason AGENTS_DECK_NO_NOTIFY does above:
+ * whoever launched the deck is making a claim about the machine, and a page
+ * posting to /api/prefs is not entitled to overrule it. It earns its keep twice
+ * over now that the feature is on by default — it is also how this repo's own
+ * suite keeps the decks it boots off the network it is being run on.
+ */
+export function lanEnabled(prefs, env = process.env) {
+  if (env.AGENTS_DECK_NO_LAN === "1") return false;
+  return normalise(prefs).lan.enabled;
 }
 
 /**

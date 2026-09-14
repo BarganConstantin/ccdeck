@@ -56,7 +56,9 @@ export default defineConfig({
     // every one that did not, and still fails a hook that has hung rather than
     // one that is merely slow on Windows.
     hookTimeout: 30_000,
-    setupFiles: ["./__tests__/budget.ts"],
+    // no-lan.ts keeps every deck a suite boots off the office network, now that
+    // Local network is on by default.
+    setupFiles: ["./__tests__/budget.ts", "./__tests__/no-lan.ts"],
     // #702. Several suites here start a real deck out of a temp install and one
     // of them stopped only half of it — a supervisor SIGKILLed, its worker
     // re-parented to init with the port still bound — for months, on every

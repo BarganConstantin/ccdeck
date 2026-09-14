@@ -261,14 +261,14 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 />
               </div>
             </div>
-            {/* NOTHING TO SAY WHEN BOTH ARE ON, which is the state this ships in
-                and the state the two labels above already describe in full. A
-                paragraph under a switch that is doing what its own label says is
-                a paragraph nobody reads twice — and the roster in the panel is
-                built on the same rule: say something when there is something to
-                say. What IS worth a line is a switch somebody has turned off,
-                because then the deck behaves differently from its default and
-                the difference is what a reader came here to check. */}
+            {/* NOTHING TO SAY WHEN BOTH ARE ON, which the two labels above
+                already describe in full. A paragraph under a switch that is
+                doing what its own label says is a paragraph nobody reads twice —
+                and the roster in the panel is built on the same rule: say
+                something when there is something to say. What IS worth a line is
+                a switch that is off, and since 3.22.7 the shipped state is one
+                of those: asking is on, saying yes is not, so a new deck shows
+                the first note below. */}
             {says ? null : asks ? (
               <p className="lan-note">
                 This deck asks; somebody on the other machine still has to say yes. A

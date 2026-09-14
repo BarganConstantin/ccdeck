@@ -121,6 +121,14 @@ describe("who asks for what", () => {
     // the suite was green while every request to /api/browser-watch answered
     // `500 {"error":"internal error"}` with a ReferenceError behind it. A
     // source assertion cannot tell one handler from another; a request can.
+    // OFF ON PURPOSE, which is the whole subject of this case. The watch ships
+    // ON since 3.22.7, so a sandboxed home with no state.json is a watch that
+    // is on — and the route would then read live for a reason that has nothing
+    // to do with what is being tested here.
+    const store = await import("../../server/browser-watch-store.mjs") as never;
+    await store.writeStore({
+      settings: { ...store.DEFAULTS, enabled: false }, episodes: [], dismissed: [],
+    });
     const { startServer } = await import("../../server/index.mjs") as never;
     const server = await startServer({ port: 0, persist: false, open: false, claude: false, codex: false });
     const { port } = server.address() as { port: number };

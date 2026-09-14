@@ -70,23 +70,24 @@ describe("what a page is allowed to see", () => {
     const out = publicPrefs(withSecret);
     expect(out.lan.enabled).toBe(true);
     expect(out.lan.name).toBe("MacBook");
-    expect(out.notifications).toBe(true);
+    expect(out.notifications).toBe(false);
   });
 });
 
 describe("the shape on disk", () => {
-  it("is off until somebody turns it on", () => {
-    expect(DEFAULTS.lan.enabled).toBe(false);
+  it("is on, and pairs only when the other machine says yes", () => {
+    expect(DEFAULTS.lan.enabled).toBe(true);
     // `port` is 0 until this deck has listened once. It is remembered so an
     // address typed on the other machine still reaches this one after a
     // restart — broadcast not arriving is the whole reason that field exists.
-    // The two pairing switches ship ON, and this is the line that says why
-    // that is not the same as a feature that is on. Nothing they describe can
-    // happen while `enabled` is false, and a deck that pairs is offered nothing
-    // while `shared` is empty — both of which a person has to change on purpose.
+    // Asking ships ON and saying yes ships OFF, which is what makes a feature
+    // that is on by default safe to leave on: a deck is found and asked without
+    // anybody pressing anything, and somebody at the other machine still
+    // presses accept. `shared` is empty either way, so a deck that pairs is
+    // offered nothing until a person ticks a login.
     expect(normalise({}).lan).toEqual({
-      enabled: false, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: true, aliases: {},
+      enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
+      autoAsk: true, autoAccept: false, aliases: {},
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
@@ -107,7 +108,7 @@ describe("the shape on disk", () => {
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
     expect(saved!.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: true, aliases: {},
+      autoAsk: true, autoAccept: false, aliases: {},
     });
   });
 

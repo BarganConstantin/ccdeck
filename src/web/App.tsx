@@ -3163,7 +3163,10 @@ function Inner() {
    *  so without this the only mute was in the browser's site settings. Held
    *  server-side (deck-prefs.mjs) rather than in localStorage, because the same
    *  switch governs the notifier that runs when no page exists at all. */
-  const [notifyOn, setNotifyOn] = useState(true);
+  /** Off until the first prefs read answers, which is also the stored default
+   *  since 3.22.7. A switch drawn `on` over a deck that is not notifying is the
+   *  one wrong guess this can make. */
+  const [notifyOn, setNotifyOn] = useState(false);
   /** Whether the MACHINE has vetoed this — AGENTS_DECK_NO_NOTIFY=1 at launch.
    *  Not the same question as "is the switch off", and the menu says a
    *  different sentence for each: one is the user's own press, the other is
@@ -3194,7 +3197,7 @@ function Inner() {
           setAutoRestart(d.prefs?.autoUpdate !== false);
         }
       }
-      setNotifyOn(d.prefs?.notifications !== false);
+      setNotifyOn(d.prefs?.notifications === true);
       setNotifyVetoed(d.notificationsVetoed === true);
     }).catch(() => {});
     return () => { alive = false; };
@@ -3227,7 +3230,7 @@ function Inner() {
       body: JSON.stringify({ notifications: want }),
     }).then(r => (r.ok ? r.json() : null)).then(d => {
       if (!d?.ok) return;
-      setNotifyOn(d.prefs?.notifications !== false);
+      setNotifyOn(d.prefs?.notifications === true);
       setNotifyVetoed(d.notificationsVetoed === true);
     }).catch(() => {});
   }, [notifyOn]);

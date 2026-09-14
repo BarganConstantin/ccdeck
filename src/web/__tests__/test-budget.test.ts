@@ -46,7 +46,11 @@ describe("the budgets the project states are the budgets the run uses", () => {
     expect(config).toMatch(/\btest:\s*\{/);
     expect(config).toMatch(/testTimeout:\s*20_000/);
     expect(config).toMatch(/hookTimeout:\s*30_000/);
-    expect(config).toMatch(/setupFiles:\s*\["\.\/__tests__\/budget\.ts"\]/);
+    // Both files, in order. no-lan.ts joined budget.ts when Local network
+    // started on by default: several suites boot a real deck out of a temp home
+    // with no prefs.json, and without it every run would put beacons on
+    // whatever network the machine is on.
+    expect(config).toMatch(/setupFiles:\s*\["\.\/__tests__\/budget\.ts", "\.\/__tests__\/no-lan\.ts"\]/);
   });
 
   it("is running with them, rather than with a default nobody chose", () => {

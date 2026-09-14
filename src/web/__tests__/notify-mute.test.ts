@@ -74,13 +74,13 @@ describe("the page-side notifier", () => {
 describe("the stored preference", () => {
   beforeEach(async () => { await prefs.writePrefs({ notifications: true }); });
 
-  it("defaults to on where no file has ever been written", async () => {
-    // Every existing install upgrades into this code with no prefs.json, and
-    // 3.7.0's behaviour is notifications ON. A switch that quietly turned an
-    // existing feature off on upgrade is a worse surprise than the noise.
+  it("defaults to off where no file has ever been written", async () => {
+    // Off since 3.22.7: the deck's own sounds are how it gets attention by
+    // default, and a desktop notification is something a person turns on. A
+    // deck that saved `true` before then keeps it — see the restart case below.
     const empty = mkdtempSync(join(DIR, "fresh-"));
     expect(existsSync(prefs.prefsPath(empty))).toBe(false);
-    expect((await prefs.readPrefs(empty)).notifications).toBe(true);
+    expect((await prefs.readPrefs(empty)).notifications).toBe(false);
   });
 
   it("survives a restart, which an environment variable cannot", async () => {
@@ -101,11 +101,12 @@ describe("the stored preference", () => {
   });
 
   it("reads a corrupt or truncated file as nothing chosen yet", async () => {
-    // Not an error the user can act on mid-session. It must not fail closed
-    // either: a broken file silencing the notifications would be the deck
-    // deciding something the user did not.
-    expect(prefs.normalise(null).notifications).toBe(true);
-    expect(prefs.normalise({ notifications: "yes" }).notifications).toBe(true);
+    // Not an error the user can act on mid-session: a broken file reads as the
+    // default, and only a real boolean is an answer — a truthy string out of a
+    // hand edit is not one in either direction.
+    expect(prefs.normalise(null).notifications).toBe(prefs.DEFAULTS.notifications);
+    expect(prefs.normalise({ notifications: "yes" }).notifications).toBe(prefs.DEFAULTS.notifications);
+    expect(prefs.normalise({ notifications: true }).notifications).toBe(true);
     expect(prefs.normalise({ notifications: false }).notifications).toBe(false);
   });
 });
