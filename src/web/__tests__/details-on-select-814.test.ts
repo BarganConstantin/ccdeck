@@ -52,7 +52,9 @@ describe("selecting an agent opens its details (#814)", () => {
 
   it("keeps the panel's × and D", () => {
     expect(appCode).toMatch(/onClick=\{\(\) => setDetailOpen\(false\)\}/);
-    expect(appCode).toMatch(/if \(e\.key === "d" \|\| e\.key === "D"\) setDetailOpen\(o => !o\);/);
+    // D toggles whenever something is selected; with nothing selected it now
+    // selects first (#845, d-without-selection-845.test.ts).
+    expect(appCode).toMatch(/if \(e\.key === "d" \|\| e\.key === "D"\) \{\s*if \(primarySelectedIdRef\.current\) setDetailOpen\(o => !o\);/);
   });
 
   it("makes the tour's inspect step true (#817)", () => {

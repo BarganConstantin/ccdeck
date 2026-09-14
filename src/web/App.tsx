@@ -3038,7 +3038,20 @@ function Inner() {
       // plain selection opens the panel — see selectAgent — so a panel closed
       // with its × comes back on the next card clicked instead of waiting for
       // somebody to find this key.
-      if (e.key === "d" || e.key === "D") setDetailOpen(o => !o);
+      //
+      // With nothing selected (#845) the toggle used to flip a flag that showed
+      // nothing — the panel only renders beside a selection — and the next
+      // click then opened it by surprise. So D first picks something for the
+      // panel to be about: the session that has waited longest, which is what
+      // somebody reaching for it with nothing selected most likely wants, or
+      // else the card j would land on. Selecting opens the panel by itself.
+      if (e.key === "d" || e.key === "D") {
+        if (primarySelectedIdRef.current) setDetailOpen(o => !o);
+        else {
+          const waiting = blockedSessions(stateRef.current.agents.values());
+          if (waiting.length > 0) focusSession(waiting[0].id); else stepAgent(1);
+        }
+      }
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);
       // Nothing to disclose on a deck with no Claude Code: the button is not
@@ -3071,7 +3084,7 @@ function Inner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, togglePause]);
+  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, togglePause]);
 
   /** Not a topbar readout any more — the "agents" counter went with the
    *  sessions and events ones. This is the emptiness test: zero agents is what
