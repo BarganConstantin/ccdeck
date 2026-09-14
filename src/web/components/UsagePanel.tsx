@@ -233,9 +233,11 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
       <div className="qb-track">
         <div className="qb-fill" style={{ width: `${fillW}%`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
         {/* Pace marker ("green line"): where usage should be now to last until
-            reset. Green when under or on pace, red when over it. */}
+            reset. Green when under or on pace, red when over it. Its legend is
+            the note under the bar (#850), so the tick itself is not announced. */}
         {pace && (
           <div
+            aria-hidden
             className="qb-pace-marker"
             style={{ left: `${pace.expectedPct}%`, background: pace.isDeficit ? "var(--err)" : "var(--ok)" }}
             title={`To last until reset, stay near ${Math.round(pace.expectedPct)}% by now`}
@@ -250,6 +252,10 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
             : null}
         {pace && (
           <span className="qb-pace" style={{ color: pace.color }}>
+            {/* The marker's own line, in the marker's own colour: a legend
+                that says the tick on the bar is the pace these words are
+                measured against (#850). */}
+            <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
             {pace.runsOutIn ? `runs out in ${pace.runsOutIn}` : pace.label}
           </span>
         )}
