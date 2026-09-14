@@ -350,8 +350,9 @@
    considered choice, not the lazy one. A token earns its keep when two rules
    MUST move together — --panel-inset exists because a header and the rows under
    it are one edge, --ctl-h because two button variants are one height. Nothing
-   here is like that. `.up-k` and `.ap-num` are both 10px and there is no reason
-   on earth they should have to change together; a --fs-small they both read
+   here is like that. `.up-k` and `.ap-num` were both 10px and there was no
+   reason on earth they should have to change together — #858 took the usage
+   panel to 11px and left `.ap-num` where it was; a --fs-small they both read
    would invent that coupling and then quietly enforce it. What the sheet
    actually needed was not indirection, it was a closed set, so the set is closed
    by type-ladder.test.ts and every rule keeps its own literal.
@@ -5726,8 +5727,10 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+/* 11px, the usage panel's floor for content (#858): this is a monitor read all
+   day, and --muted, not a smaller size, is what makes a key secondary. */
 .up-k {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   font-family: inherit;
 }
@@ -5739,7 +5742,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    `.up-tok` gives it the row's baseline and gap, this gives it the key's size
    and colour. Both themes answer for it through --muted, which each declares. */
 .up-scope {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   font-family: inherit;
 }
@@ -5827,7 +5830,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 
 .up-section-age {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
   color: var(--text-dim);
   text-transform: none;
@@ -5844,7 +5847,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   text-align: left;
   color: var(--muted);
   font-weight: 500;
-  font-size: 10px;
+  font-size: 11px;
   padding: 0 0 4px;
   border-bottom: 1px solid var(--line-soft);
 }
@@ -6016,18 +6019,18 @@ button.tool.clickable:last-child { border-bottom: none; }
   min-height: 14px;
 }
 .qb-reset {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dim);
 }
 .qb-pace {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   text-align: right;
   flex-shrink: 0;
 }
 .qb-limit-badge {
   margin-left: 4px;
-  font-size: 10px;
+  font-size: 11px;
 }
 /* Plan tier next to the section heading — the heading is uppercased, so the
    badge undoes that to keep "Pro 20x" readable as a product name. */
@@ -6036,7 +6039,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   padding: 1px 5px;
   border: 1px solid var(--line-soft);
   border-radius: 3px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-dim);
   text-transform: none;
@@ -6066,10 +6069,10 @@ button.tool.clickable:last-child { border-bottom: none; }
   color: var(--text);
   padding: 0 3px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .up-quota-loading { font-size: 11px; color: var(--text-dim); }
-.up-quota-sub { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+.up-quota-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }
@@ -6113,7 +6116,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .uh-sub { font-size: 10px; color: var(--text-dim); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .uh-range-btn {
-  font: inherit; font-size: 10px;
+  font: inherit; font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   padding: 2px 9px; border: none; border-radius: 999px;
   color: var(--muted); background: transparent; cursor: pointer;
