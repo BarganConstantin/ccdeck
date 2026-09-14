@@ -1405,11 +1405,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
             </svg>
           </button>
         )}
-        {/* A track and a knob, like every other switch in this app now — the
-            shape lives on `.ap-auto-state`, and the reasoning with it. */}
+        {/* A track and a knob, like every other switch in this app — the shape
+            lives on the shared `.switch` (#886), and the reasoning with it. */}
         <button
           type="button"
-          className={`ap-auto-state${on ? " live" : ""}`}
+          className="switch ap-auto-state"
           role="switch"
           aria-checked={on}
           aria-label="Local network sync"
@@ -1418,7 +1418,9 @@ export default function LanSyncSection({ accounts, onChanged }: {
           title={on
             ? "Stop talking to other decks. Nothing is shared while this is off."
             : "Let the decks you pair with repair this one's expired logins"}
-        />
+        >
+          <span className="switch-knob" />
+        </button>
       </div>
 
       {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one

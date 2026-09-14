@@ -96,10 +96,14 @@ describe("every class the markup hard-codes", () => {
     expect(orphans).toEqual([]);
   });
 
-  it("names the auto-switch button after itself and its state, the way .ver-auto does", () => {
+  it("draws the auto-switch with the shared switch, its state read off aria-checked (#886)", () => {
+    // It composed `ap-auto-state${…" live"}` and the banner `ver-auto${…" on"}`:
+    // a class restating an ARIA state the sheet can read for itself. Both are
+    // the one `.switch` now, and `ap-auto-state` is left saying where it sits.
     const panel = readFileSync(join(web, "components/AccountsPanel.tsx"), "utf8");
-    expect(panel).toContain('`ap-auto-state${auto.enabled ? " live" : ""}`');
-    expect(readFileSync(join(web, "App.tsx"), "utf8")).toContain('`ver-auto${autoRestart ? " on" : ""}`');
+    expect(panel).toContain('className="switch ap-auto-state"');
+    expect(panel).not.toMatch(/ap-auto-state\$\{/);
+    expect(readFileSync(join(web, "App.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
   });
 
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {

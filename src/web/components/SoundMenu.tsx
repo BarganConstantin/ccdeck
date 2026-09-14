@@ -159,7 +159,7 @@ export default function SoundMenu({
           size and the accent this deck gives figures it REPORTS, so the two
           controls at the top of the menu read as two more status lines. A track
           and a knob say "yours to move" before a word is read. It is
-          `.bw-toggle`'s shape, borrowed from Browser Watch rather than
+          the shared `.switch` (#886) — first borrowed from Browser Watch rather than
           respelled. */}
       <div className="sm-switches">
         <label className="sm-switch">
@@ -169,11 +169,11 @@ export default function SoundMenu({
             role="switch"
             aria-checked={soundOn}
             aria-labelledby="sm-sound-label"
-            className="sm-toggle"
+            className="switch"
             onClick={onToggleSound}
             title="A tone when a turn finishes, and when Claude asks for something"
           >
-            <span className="sm-toggle-knob" />
+            <span className="switch-knob" />
           </button>
         </label>
 
@@ -198,11 +198,11 @@ export default function SoundMenu({
               role="switch"
               aria-checked={notifyOn}
               aria-labelledby="sm-notify-label"
-              className="sm-toggle"
+              className="switch"
               onClick={onToggleNotify}
               title="A system notification when a session blocks on you"
             >
-              <span className="sm-toggle-knob" />
+              <span className="switch-knob" />
             </button>
           </label>
           <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}</p>

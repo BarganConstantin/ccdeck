@@ -190,7 +190,11 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
     // on. So the rule is stricter than it was, not looser.
     expect(toggle).not.toMatch(/\{auto\.enabled \? "on" : "off"\}/);
     expect(toggle).not.toMatch(/ap-pulse|ap-dot/);
-    expect(toggle.trimEnd().endsWith("/>"), "the switch has contents again").toBe(true);
+    // Its one child is the shared switch's knob (#886): a span with no text,
+    // so the contents still spell nothing and the aria-label stays the whole
+    // name. What this guards is words coming back inside it.
+    expect(accounts, "the switch has contents again").toMatch(
+      /: "Switch accounts automatically when the active one nears its limit"\}\s*>\s*<span className="switch-knob" \/>\s*<\/button>/);
     expect(/aria-label="[^"]+"/.test(toggle), NAMELESS).toBe(true);
   });
 
