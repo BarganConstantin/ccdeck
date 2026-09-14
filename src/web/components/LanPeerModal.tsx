@@ -162,12 +162,16 @@ export default function LanPeerModal({
       : peer?.offers ? "not said — it runs an older version"
       : "not reached yet";
 
-  const versionText = (() => {
-    if (!about?.version) return null;
-    const o = mine ? versionOrder(about.version, mine) : null;
-    if (o == null) return about.version;
-    if (o === 0) return `${about.version} · same as this deck`;
-    return `${about.version} · ${o < 0 ? "older" : "newer"} than this deck's ${mine}`;
+  // WHAT IT RUNS, as one line: the version, the system under it, and a word
+  // about this deck's only when the two differ. `same as this deck` was printed
+  // on every deck that is — the steady state, spelled out on every dialog.
+  const runs = (() => {
+    if (!about) return null;
+    const system = about.os ? [about.os, about.arch].filter(Boolean).join(" · ") : null;
+    const base = [about.version, system].filter(Boolean).join(" on ");
+    if (!base) return null;
+    const o = about.version && mine ? versionOrder(about.version, mine) : null;
+    return o ? `${base} · ${o < 0 ? "older" : "newer"} than this deck's ${mine}` : base;
   })();
 
   const line = peer ? roundLabel(peer.last, now) : null;
@@ -176,45 +180,72 @@ export default function LanPeerModal({
   // fixing it needs.
   const raw = peer?.last?.error && line && line.text !== peer.last.error ? peer.last.error : null;
   const done = peer?.last?.done ?? [];
+  // THE HEADER ALREADY SAID IT. A deck that did not answer reads `no answer ·
+  // last online 1h ago` under its name, and `Last round` said `no answer` again
+  // with the reason under it. When the header carries the verdict, the row
+  // carries what the header cannot: the reason, in the machine's own words.
+  const echoed = !!line && !!raw && !row.quiet && row.state.startsWith(line.text);
 
   // `quiet` is what is not known. `meta` is known and minor — the stamps, the
   // version and the operating system, which are what somebody comes looking
   // for when something is wrong and are never what they came to read.
+  //
+  // EACH FACT ONCE, IN THE ORDER IT IS NEEDED: where the deck is and whether
+  // the last round got through, then what it runs and how to know it is the
+  // same deck. `Reached` was a row whose answer on nearly every deck was
+  // `found on this network`, so it is now the aside after the address it
+  // explains; `Paired` is drawn when there is a date to draw, and not to say
+  // that there is none.
   const facts: Array<{ label: string; value: ReactNode; tone?: "bad" | "quiet" | "meta" }> = [];
+  const how = peer
+    ? peer.waiting ? null : peer.manual ? "added by address" : "on this network"
+    : row.kind === "nearby" ? "heard on this network"
+    : "asked this deck to pair";
   facts.push({
     label: "Address",
-    value: where ? <code className="ap-lan-code">{where}</code> : "none here — it calls this deck",
+    value: where
+      ? <><code className="ap-lan-code">{where}</code>{how && <span className="lan-fact-aside"> · {how}</span>}</>
+      : "none here — it calls this deck",
     tone: where ? undefined : "quiet",
   });
-  facts.push({
-    label: "Reached",
-    value: peer
-      ? peer.waiting ? "it calls this deck · one-way"
-        : peer.manual ? "by an address added here"
-        : "found on this network"
-      : row.kind === "nearby" ? "heard on this network"
-      : "asked this deck to pair",
-  });
-  if (row.kind !== "dialling") {
+  if (paired || row.kind === "dialling") {
     facts.push({
-      label: "Paired",
-      value: paired
-        ? (peer?.pairedAt ? sinceLabel(peer.pairedAt, now) : "before this deck kept the date")
-        : row.kind === "declined" && stranger ? `no · you said no ${askedLabel(stranger.at, now)}`
-        : "not yet",
-      tone: paired && !peer?.pairedAt ? "quiet" : "meta",
+      label: "Last round",
+      value: line
+        ? (
+          <>
+            {echoed
+              ? <code className="ap-lan-code">{raw}</code>
+              : (
+                <>
+                  {/* `now` is a column's word; after a clause it reads as an order. */}
+                  {line.text.replace(/ · now$/, " · just now")}
+                  {raw && <span className="lan-fact-raw">{raw}</span>}
+                </>
+              )}
+            {done.length > 0 && (
+              <ul className="lan-done">
+                {done.map(d => (
+                  <li key={`${d.email}:${d.action}`} data-ok={d.ok}>
+                    {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )
+        : "not asked yet",
+      // Echoed, the verdict is already in warning ink under the name, so the
+      // reason reads as the machine's words rather than as a second alarm.
+      tone: echoed ? undefined : line?.tone === "bad" ? "bad" : line ? undefined : "quiet",
     });
-    if (about) {
-      facts.push({ label: "Deck", value: versionText ?? "not said", tone: versionText ? "meta" : "quiet" });
-      facts.push({
-        label: "System",
-        value: about.os ? [about.os, about.arch].filter(Boolean).join(" · ") : "not said",
-        tone: about.os ? "meta" : "quiet",
-      });
-    } else {
-      // One line for the two, when neither is known: the same reason twice in
-      // a row is a sentence the reader has to read twice to see it is one.
-      facts.push({ label: "Version, OS", value: unsaid, tone: "quiet" });
+  }
+  if (row.kind !== "dialling") {
+    facts.push({ label: "Runs", value: runs ?? (about ? "not said" : unsaid), tone: runs ? "meta" : "quiet" });
+    if (paired && peer?.pairedAt) {
+      facts.push({ label: "Paired", value: sinceLabel(peer.pairedAt, now), tone: "meta" });
+    } else if (row.kind === "declined" && stranger) {
+      facts.push({ label: "Paired", value: `no · you said no ${askedLabel(stranger.at, now)}`, tone: "meta" });
     }
   }
   facts.push({
@@ -232,30 +263,6 @@ export default function LanPeerModal({
       : "not known — nothing has answered there",
     tone: fp ? undefined : "quiet",
   });
-  if (paired || row.kind === "dialling") {
-    facts.push({
-      label: "Last round",
-      value: line
-        ? (
-          <>
-            {/* `now` is a column's word; after a clause it reads as an order. */}
-            {line.text.replace(/ · now$/, " · just now")}
-            {raw && <span className="lan-fact-raw">{raw}</span>}
-            {done.length > 0 && (
-              <ul className="lan-done">
-                {done.map(d => (
-                  <li key={`${d.email}:${d.action}`} data-ok={d.ok}>
-                    {d.email} <span className="lan-done-what">{d.ok ? "arrived" : "did not arrive"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )
-        : "not asked yet",
-      tone: line?.tone === "bad" ? "bad" : line ? undefined : "quiet",
-    });
-  }
 
   const byKey = new Map(accounts.map(a => [a.key, a]));
   const sharedHere = new Set(status.shared ?? []);
@@ -381,10 +388,9 @@ export default function LanPeerModal({
               {/* Marked on the LIST, not beside the caption, because the list
                   is the thing that is out of date. */}
               {stale && (
-                <p className="lan-stale">
-                  Last told us {stale === "now" ? "just now" : stale} — the last round did not get through,
-                  so this may have changed.
-                </p>
+                // The when, once. The header already says this deck is not
+                // answering; all this line has to do is date the list under it.
+                <p className="lan-stale">As of {stale === "now" ? "just now" : stale}, when it last answered.</p>
               )}
               {peer?.waiting ? (
                 <p className="lan-empty">
@@ -439,22 +445,38 @@ export default function LanPeerModal({
                   is the only thing in this section somebody here can act on.
                   A summary that can hide the one actionable row is a summary
                   that has to be opened every time, which is not a summary. */}
-              <h3 className="lan-h">From this deck</h3>
+              <h3 className="lan-h">
+                From this deck
+                {/* The door to the list, on the list's own caption, as
+                    LanAddDeckModal's `make one to send` is. It was a line of
+                    its own at the foot, under a sentence about scope. */}
+                <button type="button" className="ap-lan-word lan-h-act" onClick={onSettings}
+                  aria-label="Change what this deck offers">
+                  change
+                </button>
+              </h3>
               {offering.length === 0 ? (
                 <p className="lan-empty">Nothing. No login on this deck is chosen to share.</p>
               ) : (
                 <>
                   {spent.length > 0 && (
-                    <ul className="lan-offers" role="list">
-                      {spent.map(a => (
-                        <li key={a.key} role="listitem" className="lan-offer" data-tone="bad">
-                          <span className="lan-offer-email">{a.email}</span>
-                          <span className="lan-offer-there" />
-                          <span className="lan-offer-here">expired here</span>
-                          <span className="lan-offer-note">offered to every paired deck and gives them nothing — sign in again</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="lan-offers" role="list">
+                        {spent.map(a => (
+                          <li key={a.key} role="listitem" className="lan-offer" data-tone="bad">
+                            <span className="lan-offer-email">{a.email}</span>
+                            <span className="lan-offer-there" />
+                            <span className="lan-offer-here">expired here</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {/* ONCE, for all of them. The same sentence stood under
+                          every expired row, and the fix is the same sign-in
+                          every time, so it is said where the rows end. */}
+                      <p className="lan-spent">
+                        Paired decks get nothing from {spent.length === 1 ? "it" : "these"} until you sign in again here.
+                      </p>
+                    </>
                   )}
                   {working > 0 && (
                     <button type="button" className="ap-lan-word lan-more" aria-expanded={shown}
@@ -476,16 +498,9 @@ export default function LanPeerModal({
                   )}
                 </>
               )}
-              {/* THE SCOPE, where the scope can be acted on. `every paired
-                  deck gets this list` sat beside the caption as metadata; it
-                  is the consequence of the button under it, so it is said
-                  where somebody is about to press. */}
-              <p className="lan-scope">
-                Every paired deck gets this list, the ones here now and any paired later.
-              </p>
-              <button type="button" className="ap-lan-word lan-peer-settings" onClick={onSettings}>
-                Change what this deck offers
-              </button>
+              {/* THE SCOPE, last and short. A dialog about one deck is the one
+                  place somebody could take this list to be that deck's alone. */}
+              <p className="lan-scope">Every paired deck gets the same list.</p>
             </div>
           )}
         </section>

@@ -10017,6 +10017,9 @@ input, textarea { caret-color: var(--accent); }
   font-size: 10px;
   color: var(--muted);
 }
+/* How the deck was found, after the address it explains — `on this network`,
+   `added by address`. It was a row of its own, and a row is something read. */
+.lan-fact-aside { color: var(--muted); }
 .lan-done {
   list-style: none;
   margin: 4px 0 0;
@@ -10116,13 +10119,14 @@ input, textarea { caret-color: var(--accent); }
 }
 .lan-offer[data-tone="bad"] .lan-offer-note { color: var(--warn); }
 .lan-offer[data-tone="wait"] .lan-offer-note { color: var(--accent); }
-/* The list is a fossil and says so above itself, in the warning ink, where the
-   rows it is about are the next thing read. */
+/* The list is a fossil and says so above itself, where the rows it is about
+   are the next thing read — in the muted ink, because the warning is already
+   under the deck's name, and an old list is not a second alarm. */
 .lan-stale {
   margin: 0 0 8px;
   font-size: 10px;
   line-height: 1.5;
-  color: var(--warn);
+  color: var(--muted);
 }
 .lan-empty { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 /* The count, and the door into what it counts. A word rather than a control,
@@ -10133,15 +10137,22 @@ input, textarea { caret-color: var(--accent); }
    annotation tier like every other word here — --muted-dim is 2.35:1 and has
    no business carrying a glyph that says which way this opens. */
 .lan-more-mark { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-/* The consequence of the button under it, said where somebody is about to
-   press — not beside a caption, where it read as trivia about the caption. */
+/* The fix for this deck's expired logins, said once under them. It was the
+   same sentence under every one of them, in the warning ink each time. */
+.lan-spent {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+/* The list's scope, last and short: the same list goes to every paired deck,
+   which is the one thing a dialog about one deck could make somebody doubt. */
 .lan-scope {
   margin: 8px 0 0;
   font-size: 10px;
   line-height: 1.5;
   color: var(--muted);
 }
-.lan-peer-settings { margin-top: 2px; }
 /* A bar with something to say instead of a bar with nothing in it. */
 .lan-foot-note {
   margin: 0 auto 0 0;

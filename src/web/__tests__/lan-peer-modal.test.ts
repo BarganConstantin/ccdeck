@@ -275,3 +275,30 @@ describe("the row is the door", () => {
     expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });
 });
+
+describe("the dialog says each thing once", () => {
+  // A deck that stopped answering printed `no answer` under its name and again
+  // as `Last round`, its last-online time under the name and again over the
+  // list, and one identical sentence under every expired login this deck
+  // offers — eight lines in warning ink. When everything is an alarm, nothing
+  // on the surface is.
+  it("draws no row whose answer is that there is no answer", () => {
+    expect(MODAL).not.toContain("before this deck kept the date");
+    expect(MODAL).not.toContain("same as this deck");
+    expect(MODAL).not.toMatch(/label: "(Reached|System|Deck|Version, OS)"/);
+  });
+
+  it("lets the header carry the verdict and the row carry the reason", () => {
+    expect(MODAL).toMatch(/const echoed = /);
+  });
+
+  it("says the fix for this deck's expired logins once, under them", () => {
+    expect(MODAL).not.toContain("gives them nothing");
+    expect(MODAL).toContain('className="lan-spent"');
+  });
+
+  it("dates an old list in muted ink, under a header that already warns", () => {
+    const stale = /\.lan-stale \{([^}]*)\}/.exec(CSS)?.[1] ?? "";
+    expect(stale).toMatch(/color: var\(--muted\)/);
+  });
+});
