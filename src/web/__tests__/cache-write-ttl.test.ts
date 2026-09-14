@@ -155,7 +155,7 @@ describe("usage that carries no TTL split keeps the numbers it already had", () 
 
   it("leaves codex alone, where no 1-hour tier exists", () => {
     const c = costForUsage(usage({ cacheCreateTokens: 1_000_000 }), "gpt-5.6");
-    expect(c.cacheWrite).toBeCloseTo(6.25, 10);
+    expect(c.cacheWrite).toBeCloseTo(5, 10);
     expect(ratesForModel("gpt-5.6")!.cacheWrite1h).toBeUndefined();
   });
 });

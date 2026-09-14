@@ -137,7 +137,7 @@ const FAMILIES: Array<{
     priced: [
       ["gpt-5", { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 }],
       ["gpt-5.1", { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 }],
-      ["gpt-5.6", { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 }],
+      ["gpt-5.6", { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 }],
     ],
     unrecognised: ["gpt-5.7", "gpt-5.10", "gpt-5.60", "gpt-6"],
   },

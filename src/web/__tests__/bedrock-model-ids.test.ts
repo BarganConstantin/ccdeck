@@ -95,11 +95,11 @@ const PINNED: Array<[string, ModelRates]> = [
   ["claude-sonnet-4@20250514",     A(3, 15, 0.3, 3.75, 6)],
   ["claude-haiku-4-5@20251001",    A(1, 5, 0.1, 1.25, 2)],
   // OpenAI / Codex — one per row, plus the aliases the rows name.
-  ["gpt-5.6-cyber",       O(12.5, 75, 1.25)],
+  ["gpt-5.6-cyber",       O(12.5, 75, 1.25, 15.625)],
   ["gpt-5.6-luna",        O(0.2, 1.2, 0.02, 0.25)],
   ["gpt-5.6-terra",       O(2, 12, 0.2, 2.5)],
-  ["gpt-5.6-sol",         O(5, 30, 0.5, 6.25)],
-  ["gpt-5.6",             O(5, 30, 0.5, 6.25)],
+  ["gpt-5.6-sol",         O(4, 20, 0.4, 5)],
+  ["gpt-5.6",             O(4, 20, 0.4, 5)],
   ["gpt-5.5-pro",         O(30, 180, 30)],
   ["gpt-5.5",             O(5, 30, 0.5)],
   ["gpt-5.4-pro",         O(30, 180, 3)],
@@ -290,13 +290,18 @@ describe("the context window follows the same id", () => {
   it("gives a Bedrock Opus 5 the 1M window its bare id gets", () => {
     expect(contextWindowForModel("us.anthropic.claude-opus-5")).toBe(1_000_000);
     expect(contextWindowForModel("apac.anthropic.claude-sonnet-5")).toBe(1_000_000);
-    expect(contextWindowForModel("us.anthropic.claude-opus-4-5-20251101-v1:0")).toBe(1_000_000);
+    expect(contextWindowForModel("us.anthropic.claude-opus-4-6")).toBe(1_000_000);
     expect(contextWindowForModel("anthropic.claude-mythos-5")).toBe(1_000_000);
   });
 
   it("keeps the 200K default for the Bedrock models that have it", () => {
     expect(contextWindowForModel("eu.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(200_000);
     expect(contextWindowForModel("us.anthropic.claude-opus-4-1-20250805-v1:0")).toBe(200_000);
+    // Opus 4.5 is NOT on the 1M list -- it sat there for five releases. The
+    // bare id and the Bedrock id have to answer the same way, which is the
+    // whole point of this file.
+    expect(contextWindowForModel("claude-opus-4-5-20251101")).toBe(200_000);
+    expect(contextWindowForModel("us.anthropic.claude-opus-4-5-20251101-v1:0")).toBe(200_000);
   });
 
   it("changes no window any id already had", () => {

@@ -56,8 +56,9 @@ describe("the input row prints the token count its own dollar column was billed 
   it("subtracts the cached prefix Codex folds into input_tokens", () => {
     const u = usage({ inputTokens: 1_000_000, cacheReadTokens: 900_000 });
     expect(billedInputTokens(u, "gpt-5.6")).toBe(100_000);
-    // 100,000 × $5/Mtok = $0.50, which is what the chip already showed.
-    expect(costForUsage(u, "gpt-5.6").input).toBeCloseTo(0.5, 10);
+    // 100,000 × $4/Mtok = $0.40. Was 50¢ until the sol row was corrected to
+    // the published sheet; the count this test is about did not move.
+    expect(costForUsage(u, "gpt-5.6").input).toBeCloseTo(0.4, 10);
   });
 
   it("leaves a Claude agent's count alone, where cache tokens are reported apart", () => {
@@ -72,12 +73,12 @@ describe("the input row prints the token count its own dollar column was billed 
     expect(costForUsage(u, "gpt-5.6").input).toBe(0);
   });
 
-  it("renders the audited gpt-5.6 row with operands that produce its 50¢", () => {
+  it("renders the audited gpt-5.6 row with operands that produce its 40¢", () => {
     const u = usage({ inputTokens: 1_000_000, cacheReadTokens: 900_000 });
     const [input] = rowsOf(costBreakdownTooltip(u, "gpt-5.6"));
     expect(input.tokens).toBe(100_000);
-    expect(input.rate).toBe(5);
-    expect(input.usd).toBe("50¢");
+    expect(input.rate).toBe(4);
+    expect(input.usd).toBe("40¢");
     expect(fmtCost(input.tokens * input.rate / 1e6)).toBe(input.usd);
     // Relabelled, because 900,000 of the reported input moved to the row below.
     expect(input.label).toBe("uncached");

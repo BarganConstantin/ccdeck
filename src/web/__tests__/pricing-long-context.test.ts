@@ -22,11 +22,11 @@ describe("codex cost is not surcharged by cumulative session input", () => {
       usage({ inputTokens: 300_000, cacheReadTokens: 250_000, outputTokens: 20_000 }),
       "gpt-5.6",
     );
-    // gpt-5.6: $5 input, $30 output, $0.50 cache read.
-    expect(c.input).toBeCloseTo(50_000 * 5 / 1e6, 10);
-    expect(c.output).toBeCloseTo(20_000 * 30 / 1e6, 10);
-    expect(c.cacheRead).toBeCloseTo(250_000 * 0.5 / 1e6, 10);
-    expect(c.total).toBeCloseTo(0.25 + 0.6 + 0.125, 10);
+    // gpt-5.6: $4 input, $20 output, $0.40 cache read.
+    expect(c.input).toBeCloseTo(50_000 * 4 / 1e6, 10);
+    expect(c.output).toBeCloseTo(20_000 * 20 / 1e6, 10);
+    expect(c.cacheRead).toBeCloseTo(250_000 * 0.4 / 1e6, 10);
+    expect(c.total).toBeCloseTo(0.2 + 0.4 + 0.1, 10);
   });
 
   it("scales linearly across the old threshold instead of jumping", () => {
