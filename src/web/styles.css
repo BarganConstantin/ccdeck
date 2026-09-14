@@ -1394,7 +1394,8 @@ button.btn.sm-hear {
 .usage-panel.leaving { animation: rail-out var(--rail-exit) linear both; }
 
 .sd-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
-.sd-title { font-size: 12px; font-weight: 600; }
+/* An <h2> since #879; the margin reset keeps the tag from moving the title. */
+.sd-title { margin: 0; font-size: 12px; font-weight: 600; }
 .sd-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The bare glyph the rest of the deck's header closes have come to — the whole
    of its appearance is `.glyph-btn` now, and what is left here is the one thing

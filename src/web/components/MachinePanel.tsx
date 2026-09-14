@@ -231,9 +231,14 @@ function Shell({ usageOpen, leaving, sub, onClose, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-label="Machine detail">
+    // Named by its own heading (#879). The title was a styled <span>, so this
+    // was the one panel a screen reader's heading list skipped: Usage and
+    // Claude accounts each open with an <h2>, and a reader moving by heading
+    // went from one to the other past it. The landmark takes its name from
+    // the heading so the region and its title cannot disagree.
+    <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-labelledby="sd-title">
       <div className="sd-head">
-        <span className="sd-title">This machine</span>
+        <h2 className="sd-title" id="sd-title">This machine</h2>
         {sub && <span className="sd-sub">{sub}</span>}
         <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
       </div>
