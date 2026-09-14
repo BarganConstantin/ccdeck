@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
+import { recordSpend, spendRate, type SpendSample } from "../spend-rate";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
   PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
@@ -626,7 +627,11 @@ function useCountUp(value: number): number {
   return shown;
 }
 
-export default function UsagePanel({ state, now, providers, leaving, onClose }: Props) {
+export default function UsagePanel({ state, now, providers, leaving, onClose, liveSince = null }: Props & {
+  /** When the stream's replay landed, or null while there is none — see App.tsx.
+   *  The $/min counts only from here (#821). */
+  liveSince?: number | null;
+}) {
   const { quota, loading: quotaLoading, refresh: refreshQuota } = useQuota(providers.claude);
   const { data: codexQuota, loading: codexLoading, refresh: refreshCodex } = useCodexQuota(providers.codex);
   const { data: codexUsage } = useCodexUsage(providers.codex);
@@ -637,6 +642,14 @@ export default function UsagePanel({ state, now, providers, leaving, onClose }: 
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
     return () => window.clearInterval(t);
   }, []);
+  /** The board total against the clock, for the header's $/min (#821). A ref,
+   *  because the samples are history the memo below reads and extends — not
+   *  state, which would re-render the panel for every sample it takes. */
+  const spendSamples = useRef<SpendSample[]>([]);
+  /** The replay the samples above were taken after. A new one — a reconnect —
+   *  starts them again, since it re-applies the ring the board was built from. */
+  const spendSince = useRef<number | null>(null);
+
   // Both memos below key on `state.revision`, not on `state.lastSeq`. The
   // `state` prop is `stateRef.current` and `applyEvent` mutates it in place, so
   // its identity never moves after mount and the second dep is the whole of
@@ -645,8 +658,9 @@ export default function UsagePanel({ state, now, providers, leaving, onClose }: 
   // in here changed": the four periodic sweeps mutate this same object every
   // 250ms tick and move only `revision` — see the note on GraphState.
   //
-  // This one carries `now` as well, because `burnRate` divides by wall-clock
-  // elapsed and has to keep counting while nothing arrives. That third dep is
+  // This one carries `now` as well, because `burnRate` samples the board total
+  // against the clock (spend-rate.ts, #821) and has to keep moving while nothing
+  // arrives. That third dep is
   // also what hid the wrong second one: `now` is a fresh Date.now() every tick,
   // so this recomputed four times a second whatever `lastSeq` said, and the
   // headline strip stayed honest through a prune by luck rather than by rule.
@@ -710,23 +724,26 @@ export default function UsagePanel({ state, now, providers, leaving, onClose }: 
       (b.cost.total - a.cost.total)
       || ((b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens)));
 
-    let liveCost = 0, liveSec = 0;
-    for (const a of state.agents.values()) {
-      if (a.state !== "active") continue;
-      const c = agentCost(a);
-      liveCost += c.total;
-      liveSec = Math.max(liveSec, ((a.endedAt ?? now) - a.startedAt) / 1000);
-    }
-    const burnRate = liveSec > 0 ? fmtCostRate(liveCost, liveSec) : null;
-
     const board = boardTotals(state.agents.values());
+    // How fast the board is spending: its total's rise over the last ten minutes
+    // (#821), not live agents' cost over the longest one's age — see
+    // spend-rate.ts for why that swung eightfold between two tabs of one deck.
+    // And only once the replay has landed: before that the board total is
+    // history arriving, not spending (see liveSince in App.tsx).
+    if (spendSince.current !== liveSince) {
+      spendSince.current = liveSince;
+      spendSamples.current = [];
+    }
+    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, board.cost.total);
+    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, board.cost.total);
+    const burnRate = rate ? { label: fmtCostRate(rate.spent, rate.spanSec), spanMin: rate.spanMin } : null;
     return {
       byModel,
       totalCost: board.cost,
       totalTokens: board,
       burnRate,
     };
-  }, [state, state.revision, now]);
+  }, [state, state.revision, now, liveSince]);
 
   // No clock in these deps, and none wanted — every figure in a row is a running
   // total, not an elapsed time. That made this the one memo in the panel with
@@ -997,7 +1014,13 @@ export default function UsagePanel({ state, now, providers, leaving, onClose }: 
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>Usage</h2>
-        {burnRate && <span className="up-rate">{burnRate}</span>}
+        {/* Says what it measured (#821): a rate with no span beside it read as a
+            fact about the account rather than about the last few minutes. */}
+        {burnRate && (
+          <span className="up-rate" title={`Spend on this board over the last ${burnRate.spanMin} min`}>
+            {burnRate.label}<span className="up-rate-span"> · {burnRate.spanMin} min</span>
+          </span>
+        )}
         <div className="up-header-right">
           {/* Named after what is actually below it, and gone when neither
               section is. On a Codex-only deck "Refresh Claude + Codex quota"
