@@ -6303,6 +6303,31 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
     if (req.method === "POST" && url.pathname === "/api/clear") return guard(handleClear(res), res);
 
+    // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
+    //
+    // serveStatic falls back to index.html for a path it cannot find, which is
+    // right for a client-side route and wrong for this namespace: nothing under
+    // dist/web is served from /api/, so the fallback could only ever answer a
+    // route that does not exist — with 200 and text/html.
+    //
+    // That made every status-code probe against this server vacuous. The Node
+    // 18 floor job asks four endpoints for a 200, and one of them (/api/state)
+    // has never been a route: the string appears exactly once in the repo, in
+    // that loop. It reported 200 anyway, and so would the other three if the
+    // whole route table were deleted, as long as index.html was in the tarball.
+    // Measured before this line existed:
+    //
+    //   /api/state                200  text/html; charset=utf-8
+    //   /api/definitely-not-a-route  200  text/html; charset=utf-8
+    //   /api/health/bogus         200  text/html; charset=utf-8
+    //
+    // The repo already builds machinery against checks that cannot fail —
+    // skip-gate-inventory.test.ts exists because "a probe can start answering
+    // the other way and take its case off ALL THREE legs at once". A probe that
+    // cannot answer the other way is the limiting case of the same thing.
+    if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
+      return send(res, 404, { error: "not found" });
+    }
     if (req.method === "GET") return serveStatic(req, res, url);
     send(res, 405, { error: "method not allowed" });
   };

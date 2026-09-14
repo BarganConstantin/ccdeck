@@ -157,22 +157,27 @@ describe("the endpoint the switch used to call", () => {
   }
 
   it("answers a GET the way it answers any path it has no route for", async () => {
-    // Which is the SPA's index.html, not a 404 — an unrouted GET falls through
-    // to the static handler so a deep link into the deck's own UI loads. The
-    // claim is therefore "same as a path that never existed" rather than a
-    // status typed out here, and the reply being HTML is what says no handler
-    // ran: the removed one answered `application/json` with the hook's state.
+    // Which is a JSON 404. An unrouted path under /api/ no longer falls through
+    // to the SPA shell — nothing in dist/web is served from that namespace, and
+    // the fallback made every status-code probe against this server vacuous.
+    // The claim here is unchanged and is still the structural one: "same as a
+    // path that never existed" rather than a status typed out below it. What
+    // says no handler ran is that the body is the router's own not-found — the
+    // removed handler answered `application/json` with the hook's STATE.
     const gone = await call("GET", "/api/sound-hook");
     expect(gone).toEqual(await call("GET", "/api/never-was-a-route"));
-    expect(gone.type).toContain("text/html");
+    expect(gone.status).toBe(404);
   });
 
-  it("answers a POST the same way, which is 405 and no handler", async () => {
+  it("answers a POST the same way, and reaches no handler", async () => {
     // The write half, and the one that matters: a router that still reached a
     // handler here would answer 400 (bad_request) or 200, and either one means
     // the deck can still be made to write a hook into somebody's settings.json.
+    // 404 rather than the old 405, because the /api/ guard runs ahead of the
+    // method check — and 405 on a path that does not exist was the less honest
+    // of the two answers anyway.
     const gone = await call("POST", "/api/sound-hook");
-    expect(gone.status).toBe(405);
+    expect(gone.status).toBe(404);
     expect(gone).toEqual(await call("POST", "/api/never-was-a-route"));
   });
 

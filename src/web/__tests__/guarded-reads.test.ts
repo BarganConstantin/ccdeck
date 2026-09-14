@@ -161,6 +161,31 @@ describe("the LAN routes carry the same class of secret as the roster", () => {
   });
 });
 
+// The floor job asks four endpoints for a 200 and one of them, /api/state, has
+// never been a route: the string appeared exactly once in the whole repo, in
+// that loop. It answered 200 because an unmatched GET fell through to the SPA
+// shell — and so would the other three if the route table were deleted. A
+// status code under /api/ has to be able to say no.
+describe("an unmatched /api path is a 404, not the SPA shell", () => {
+  it("does not answer a route that does not exist", async () => {
+    expect(await get("/api/state")).toBe(404);              // the CI probe's own ghost
+    expect(await get("/api/definitely-not-a-route")).toBe(404);
+    expect(await get("/api/health/bogus")).toBe(404);
+  });
+
+  it("refuses it the same way for a page as for a bare client", async () => {
+    // Not a guard: the path is absent for everyone, so the deck's own page
+    // must not get a 200 the SPA fallback would once have given it.
+    expect(await get("/api/definitely-not-a-route", uiHeaders())).toBe(404);
+  });
+
+  it("still serves the SPA for a client-side route outside /api/", async () => {
+    // The fallback is for deep links into the deck's own UI, and that is the
+    // half this must not break.
+    expect(await get("/some/client/side/route")).toBe(200);
+  });
+});
+
 describe("what stays open, and why", () => {
   it("leaves the hook's readiness probe and its handshake alone", async () => {
     // hook/hook.js is a plain Node http.request with no browser headers, and it
