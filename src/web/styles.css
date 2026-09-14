@@ -85,6 +85,16 @@
   --session-edge-l: 72%;       /* live parent→child edge — a 2px stroke, 3:1 */
   --session-edge-idle-l: 55%;  /* settled edge — 1.5px, same floor */
   --mcp-dot-l: 65%;            /* the unknown-server burst stripe + the MCP chip's edge */
+  /* The eight tool categories: a bubble's stripe, and at 40% its chip's edge.
+     Pastels on the dark canvas; the light block darkens every one (#877). */
+  --cat-file: #7dd3fc;
+  --cat-shell: #fcd34d;
+  --cat-web: #67e8f9;
+  --cat-agent: #f0abfc;
+  --cat-task: #86efac;
+  --cat-plan: #c4b5fd;
+  --cat-mcp: #5eead4;
+  --cat-other: #94a3b8;
   /* The usage-history chart's eight series colours (#583). Same boundary #330
      drew for the session hues, one class of colour further along: modelColor()
      and agentColor() know which family a band belongs to, the cascade knows
@@ -210,6 +220,18 @@
   --session-edge-l: 30%;       /* 3.25:1 worst hue on the canvas */
   --session-edge-idle-l: 36%;  /* 3.24:1 */
   --mcp-dot-l: 32%;            /* 3.38:1 */
+  /* The same hues a tier darker. The dark pastels drew a white bubble's stripe
+     at 1.34-2.18:1 (#877); these draw it at 3.56:1 (other) to 5.30:1 (plan) at
+     the stripe's own 0.85, and stay as far apart from each other as the dark
+     eight are. */
+  --cat-file: #0369a1;
+  --cat-shell: #b45309;
+  --cat-web: #0e7490;
+  --cat-agent: #a21caf;
+  --cat-task: #15803d;
+  --cat-plan: #6d28d9;
+  --cat-mcp: #0f766e;
+  --cat-other: #64748b;
   /* The same eight bands, re-tuned for white — the whole of #583's first half.
      Polarity inverts exactly as it does for the session tiers above: on this
      bed a series reads by being DARKER than the paper it is drawn on, so every
@@ -3965,14 +3987,14 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   background: var(--cat-accent, transparent);
   opacity: 0.85;
 }
-.tool-burst.cat-file  { --cat-accent: #7dd3fc; }
-.tool-burst.cat-shell { --cat-accent: #fcd34d; }
-.tool-burst.cat-web   { --cat-accent: #67e8f9; }
-.tool-burst.cat-agent { --cat-accent: #f0abfc; }
-.tool-burst.cat-task  { --cat-accent: #86efac; }
-.tool-burst.cat-plan  { --cat-accent: #c4b5fd; }
-.tool-burst.cat-mcp   { --cat-accent: #5eead4; }
-.tool-burst.cat-other { --cat-accent: #94a3b8; }
+.tool-burst.cat-file  { --cat-accent: var(--cat-file); }
+.tool-burst.cat-shell { --cat-accent: var(--cat-shell); }
+.tool-burst.cat-web   { --cat-accent: var(--cat-web); }
+.tool-burst.cat-agent { --cat-accent: var(--cat-agent); }
+.tool-burst.cat-task  { --cat-accent: var(--cat-task); }
+.tool-burst.cat-plan  { --cat-accent: var(--cat-plan); }
+.tool-burst.cat-mcp   { --cat-accent: var(--cat-mcp); }
+.tool-burst.cat-other { --cat-accent: var(--cat-other); }
 /* An MCP server with no entry in MCP_SERVERS still has to look like itself, so
    ToolBursts hashes its name to a hue and this pairs it with the tier the
    topbar's legend dot uses — the same server, the same colour, two places.
@@ -4694,20 +4716,20 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cat-chip.cat-file  { border-color: rgba(125,211,252,0.40); }
-.cat-chip.cat-shell { border-color: rgba(252,211,77,0.40); }
-.cat-chip.cat-web   { border-color: rgba(103,232,249,0.40); }
-.cat-chip.cat-agent { border-color: rgba(240,171,252,0.40); }
-.cat-chip.cat-task  { border-color: rgba(134,239,172,0.40); }
-.cat-chip.cat-plan  { border-color: rgba(196,181,253,0.40); }
-.cat-chip.cat-mcp   { border-color: rgba(94,234,212,0.40); }
+.cat-chip.cat-file  { border-color: color-mix(in srgb, var(--cat-file) 40%, transparent); }
+.cat-chip.cat-shell { border-color: color-mix(in srgb, var(--cat-shell) 40%, transparent); }
+.cat-chip.cat-web   { border-color: color-mix(in srgb, var(--cat-web) 40%, transparent); }
+.cat-chip.cat-agent { border-color: color-mix(in srgb, var(--cat-agent) 40%, transparent); }
+.cat-chip.cat-task  { border-color: color-mix(in srgb, var(--cat-task) 40%, transparent); }
+.cat-chip.cat-plan  { border-color: color-mix(in srgb, var(--cat-plan) 40%, transparent); }
+.cat-chip.cat-mcp   { border-color: color-mix(in srgb, var(--cat-mcp) 40%, transparent); }
 /* "other" is a category like the seven above it, not the absence of one, so it
-   is tinted like them — the same #94a3b8 its bubble paints in
+   is tinted like them — the same --cat-other its bubble paints in
    `.tool-burst.cat-other`, at the 40% every chip border carries. Without this
    rule the one bucket every unknown tool lands in was the one bucket whose chip
    fell back to the plain `--line` border, so the same category read as two
    different things depending on which surface you were looking at. */
-.cat-chip.cat-other { border-color: rgba(148,163,184,0.40); }
+.cat-chip.cat-other { border-color: color-mix(in srgb, var(--cat-other) 40%, transparent); }
 /* An MCP chip counting ONE server wears that server's own accent, the way its
    bubbles do (#489) — the same hue from the same hash, at the same 65% and the
    same --mcp-dot-l tier `.tool-burst.cat-mcp.mcp-hue` composes, taken down to

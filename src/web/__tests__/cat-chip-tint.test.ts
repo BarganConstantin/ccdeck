@@ -118,18 +118,23 @@ describe("every category is tinted on both surfaces it is drawn on", () => {
   });
 
   for (const cat of CATEGORIES) {
-    it(`.tool-burst.cat-${cat} declares an accent colour`, () => {
+    it(`.tool-burst.cat-${cat} reads its accent from a token both themes declare`, () => {
       const accent = decl(BURSTS.get(cat), "--cat-accent");
       // Asked before the match, so a missing RULE says so rather than failing
       // as "toMatch expected a string and got null".
       expect(accent, `no .tool-burst.cat-${cat} rule with a --cat-accent`).toBeTruthy();
-      expect(accent).toMatch(/^#[0-9a-f]{6}$/i);
+      // A token and not a literal (#877): a literal is one colour for two
+      // canvases, and the dark pastels all but vanished on the white one.
+      expect(accent).toBe(`var(--cat-${cat})`);
+      for (const theme of THEMES) {
+        expect(TOK[theme][`--cat-${cat}`], `${theme} --cat-${cat}`).toMatch(/^#[0-9a-f]{6}$/i);
+      }
     });
 
     it(`.cat-chip.cat-${cat} declares a border colour`, () => {
       const border = decl(CHIPS.get(cat), "border-color");
       expect(border, `no .cat-chip.cat-${cat} rule with a border-color`).toBeTruthy();
-      expect(border).toMatch(/^rgba\(/);
+      expect(border).toMatch(/^color-mix\(in srgb,/);
     });
 
     it(`the ${cat} chip borrows its bubble's accent rather than a colour of its own`, () => {
@@ -137,10 +142,9 @@ describe("every category is tinted on both surfaces it is drawn on", () => {
       const border = decl(CHIPS.get(cat), "border-color");
       expect(accent, `no --cat-accent for ${cat}`).toBeTruthy();
       expect(border, `no border-color for .cat-chip.cat-${cat}`).toBeTruthy();
-      const [r, g, b] = rgb(accent!);
-      // Whitespace-insensitive: the sheet writes these without spaces today,
-      // and a reformat should not be a failure.
-      expect(tight(border!)).toBe(`rgba(${r},${g},${b},0.40)`);
+      // One token read by both, so a theme cannot move one surface and leave
+      // the other. Whitespace-insensitive: a reformat should not be a failure.
+      expect(tight(border!)).toBe(`color-mix(insrgb,${tight(accent!)}40%,transparent)`);
     });
   }
 });
@@ -184,19 +188,17 @@ describe("the MCP chip's per-server tint, in the stylesheet", () => {
     const accent = decl(BURST_HUED, "--cat-accent")!;
     const border = decl(CHIP_HUED, "border-color")!;
     // The alpha comes off the generic MCP chip beside it, not out of this file.
-    const generic = tight(decl(CHIPS.get("mcp"), "border-color")!);
-    const alpha = /,([\d.]+)\)$/.exec(generic)![1];
-    expect(alpha).toBe("0.40");
-    expect(tight(border)).toBe(`${tight(accent).replace(/\)$/, "")}/${alpha})`);
+    expect(CHIP_ALPHA).toBe(0.4);
+    expect(tight(border)).toBe(`${tight(accent).replace(/\)$/, "")}/${CHIP_ALPHA.toFixed(2)})`);
   });
 
   it("stays out of the family maps, so the seven-literal sweep still means what it says", () => {
     // `rulesFor` requires the category name to run straight into the brace.
     // Both hued rules are compounds, so neither is mistaken for the base accent
     // it overrides — which is what keeps the loop above asserting `mcp` is
-    // rgba(94,234,212,0.40) rather than accidentally reading this rule.
-    expect(tight(CHIPS.get("mcp")!)).toContain("rgba(94,234,212,0.40)");
-    expect(decl(BURSTS.get("mcp"), "--cat-accent")).toBe("#5eead4");
+    // the teal token at 40% rather than accidentally reading this rule.
+    expect(tight(CHIPS.get("mcp")!)).toContain("var(--cat-mcp)40%");
+    expect(decl(BURSTS.get("mcp"), "--cat-accent")).toBe("var(--cat-mcp)");
   });
 
   it("outranks the generic teal rather than tying with it", () => {
@@ -506,7 +508,7 @@ function tierOf(theme: Theme): number {
 const CHIP_BED = (theme: Theme) => parseColor(TOK[theme][/^var\((--[\w-]+)\)$/.exec(decl(ruleFor(".cat-chip"), "background")!)![1]]);
 
 /** The alpha the whole family carries, taken off the generic MCP chip. */
-const CHIP_ALPHA = +/,([\d.]+)\)$/.exec(tight(decl(CHIPS.get("mcp"), "border-color")!))![1];
+const CHIP_ALPHA = +/([\d.]+)%,transparent\)$/.exec(tight(decl(CHIPS.get("mcp"), "border-color")!))![1] / 100;
 
 /** Worst and best of all 360 hues against one bed — the hue is a hash away from
  *  any of them, so a sweep is the only honest measurement. */
@@ -522,9 +524,15 @@ function sweep(l: number, bed: Rgba) {
   return { worst, worstHue, best, bestHue, separation };
 }
 
-/** Every literal chip border, composited on its own chip. */
-const literalEdges = (theme: Theme) => CATEGORIES.map(cat => {
-  const [r, g, b] = rgb(decl(BURSTS.get(cat), "--cat-accent")!);
+/** A category's accent in one theme, through the token its bubble's rule reads. */
+const accentOf = (cat: string, theme: Theme) =>
+  TOK[theme][/^var\((--[\w-]+)\)$/.exec(decl(BURSTS.get(cat), "--cat-accent")!)![1]];
+
+/** Every literal chip border, composited on its own chip. `source` names the
+ *  theme the accents come from, so the pre-#877 sheet (dark pastels on the
+ *  white chip) can still be measured. */
+const literalEdges = (theme: Theme, source: Theme = theme) => CATEGORIES.map(cat => {
+  const [r, g, b] = rgb(accentOf(cat, source));
   const bed = CHIP_BED(theme);
   return { cat, ratio: contrastRatio(over([r, g, b, CHIP_ALPHA], bed), bed) };
 });
@@ -537,17 +545,21 @@ describe("the per-server tint, measured on both canvases", () => {
     expect(tierOf("light")).toBe(32);
   });
 
-  it("reads on the white canvas better than any chip border already there", () => {
+  it("draws the eight category edges on the white canvas at the hued edge's own weight", () => {
     // #330 gave this tier its light value (32%) by sweeping every hue against
-    // the strictest surface it lands on; the eight literals are dark-theme
-    // pastels used unchanged on white, and they all but disappear there. The
-    // hued edge at its WORST hue still beats the strongest of them.
+    // the strictest surface it lands on. The eight literals were dark-theme
+    // pastels used unchanged on white, and the hued edge at its WORST hue beat
+    // the strongest of them. #877 gave them a light tier of their own, and they
+    // now sit inside the band the hued edge spans: one weight for the family.
     const light = sweep(tierOf("light"), CHIP_BED("light"));
     expect(light.worst).toBeCloseTo(1.60, 2);
     expect(light.best).toBeCloseTo(2.38, 2);
-    const strongestLiteral = Math.max(...literalEdges("light").map(e => e.ratio));
-    expect(strongestLiteral).toBeCloseTo(1.40, 2);
-    expect(light.worst).toBeGreaterThan(strongestLiteral);
+    const before = Math.max(...literalEdges("light", "dark").map(e => e.ratio));
+    expect(before, "the dark pastels on the white chip").toBeCloseTo(1.40, 2);
+    const now = literalEdges("light").map(e => e.ratio);
+    expect(Math.min(...now)).toBeGreaterThan(before);
+    expect(Math.min(...now)).toBeGreaterThanOrEqual(light.worst);
+    expect(Math.max(...now)).toBeLessThanOrEqual(light.best);
   });
 
   it("sits inside the family's own band on the dark one, and dips below it at cold hues", () => {
@@ -621,5 +633,67 @@ describe("the per-server tint, measured on both canvases", () => {
     // reach whatever colour it is — the reason none of them is asserted to 3:1.
     expect(contrastRatio(over([0, 0, 0, CHIP_ALPHA], CHIP_BED("light")), CHIP_BED("light"))).toBeLessThan(3);
     expect(contrastRatio(over([255, 255, 255, CHIP_ALPHA], CHIP_BED("dark")), CHIP_BED("dark"))).toBeLessThan(4);
+  });
+});
+
+// ── #877: the stripe on a white bubble ──────────────────────────────────────
+//
+// The bubble's stripe is the at-a-glance category cue, and it is not a 40%
+// wash: it is the accent itself at the stripe's own opacity, which CAN reach
+// 1.4.11's 3:1. The dark pastels drew it at 1.34-2.18:1 on the white bubble.
+
+describe("the category stripe on a tool bubble, in both themes (#877)", () => {
+  const stripe = ruleFor(".tool-burst::before")!;
+  const STRIPE_ALPHA = Number(decl(stripe, "opacity") ?? "1");
+  /** The bubble paints its own background under the stripe. */
+  const BUBBLE_BED = (theme: Theme) =>
+    parseColor(TOK[theme][/^var\((--[\w-]+)\)$/.exec(decl(ruleFor(".tool-burst"), "background")!)![1]]);
+  const stripeRatio = (hex: string, theme: Theme) => {
+    const [r, g, b] = rgb(hex);
+    const bed = BUBBLE_BED(theme);
+    return contrastRatio(over([r, g, b, STRIPE_ALPHA], bed), bed);
+  };
+
+  it("paints the stripe in the category's accent", () => {
+    expect(decl(stripe, "background")).toBe("var(--cat-accent, transparent)");
+  });
+
+  it("reproduces the audit's light table from the dark pastels", () => {
+    const audit: Record<string, number> = {
+      file: 1.54, shell: 1.37, web: 1.38, agent: 1.61, task: 1.34, plan: 1.67, mcp: 1.41, other: 2.18,
+    };
+    for (const cat of CATEGORIES) {
+      expect(stripeRatio(accentOf(cat, "dark"), "light"), cat).toBeCloseTo(audit[cat], 2);
+    }
+  });
+
+  it("gives light a tier of its own for every category", () => {
+    for (const cat of CATEGORIES) {
+      expect(TOK.light[`--cat-${cat}`], cat).not.toBe(TOK.dark[`--cat-${cat}`]);
+    }
+  });
+
+  it("draws every stripe at 3:1 on its bubble, in both themes", () => {
+    for (const theme of THEMES) {
+      for (const cat of CATEGORIES) {
+        const ratio = stripeRatio(accentOf(cat, theme), theme);
+        expect(ratio, `${theme} ${cat} stripe — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("keeps the eight telling themselves apart in light as well as in dark", () => {
+    // Darkening can pull hues together; the closest pair is 18.7 ΔE in dark
+    // and 18.2 in light as shipped.
+    const closest = (theme: Theme) => {
+      let min = Infinity;
+      for (let i = 0; i < CATEGORIES.length; i++) {
+        for (let j = i + 1; j < CATEGORIES.length; j++) {
+          min = Math.min(min, deltaE(parseColor(accentOf(CATEGORIES[i], theme)), parseColor(accentOf(CATEGORIES[j], theme))));
+        }
+      }
+      return min;
+    };
+    for (const theme of THEMES) expect(closest(theme), theme).toBeGreaterThan(15);
   });
 });
