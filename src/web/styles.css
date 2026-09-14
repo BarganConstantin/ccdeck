@@ -2487,7 +2487,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .react-flow__edge.rf-edge-selected .react-flow__edge-path {
   stroke-dasharray: 6 3;
   animation: dashflow 0.8s linear infinite;
-  filter: drop-shadow(0 0 4px var(--accent-dim));
+  /* No drop-shadow, for the reason at `.tool-conn.status-inflight` (#882). */
 }
 
 /* exit animation when a done subagent is being retired for a new turn.
@@ -2544,15 +2544,18 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   max-width: calc(100% - 28px);
   gap: 4px;
   padding: 4px;
-  background: rgba(20, 22, 27, 0.78);
+  /* A solid slab (#882). It was a 78% fill with an 8px backdrop blur, and
+     under it the canvas runs marching dashes, spinners and bubbles without
+     pause, so the blur re-rasterised on every one of their frames. Solid reads
+     at least as well — the chips' own contrast is measured against it — and
+     costs a paint. */
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 18px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 6px 18px rgba(0,0,0,0.30);
 }
 :root[data-theme="light"] .cat-filter-bar {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--panel);
   box-shadow: 0 6px 18px rgba(15,23,42,0.10);
 }
 .cat-filter {
@@ -3826,7 +3829,9 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .tool-conn.status-inflight {
   stroke: var(--inflight);
   animation: dashflow 0.7s linear infinite;
-  filter: drop-shadow(0 0 4px rgba(240,171,252,0.45));
+  /* No drop-shadow (#882): a filter on a path whose dashes move forever is
+     re-rasterised on every frame of the move. The colour and the travelling
+     dashes are what say "in flight". */
 }
 /* The ordinary outcome, drawn as the ordinary outcome. Four of these and one
    error is the shape of a healthy minute, and at 0.85 the four successes were
@@ -4213,7 +4218,6 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 }
 :root[data-theme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);
-  filter: drop-shadow(0 0 3px rgba(126,34,206,0.35));
 }
 :root[data-theme="light"] .tool-conn.status-done { stroke: rgba(21,128,61,0.85); }
 :root[data-theme="light"] .tool-conn.status-err  { stroke: rgba(185,28,28,0.85); }
@@ -4882,8 +4886,10 @@ button.tool.clickable:last-child { border-bottom: none; }
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  /* No backdrop blur (#882): the scrim is already 55% opaque, and the blur sat
+     over a canvas whose dashes and spinners never stop, re-rasterising under
+     every dialog for as long as it was open. */
   background: rgba(5,6,9,0.55);
-  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8302,7 +8308,7 @@ button.ap-err::after {
   -webkit-backdrop-filter: none;
 }
 /* Four class-weight compounds against the base light rule's three, so only the
-   fill has to be said twice — the border, shadow and blur above already outrank
+   fill has to be said twice — the border and shadow above already outrank
    it on both canvases. */
 :root[data-theme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
   background: rgba(255, 255, 255, 0.35);
