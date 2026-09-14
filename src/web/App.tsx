@@ -847,6 +847,11 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
+  /** Right detail panel visibility — persisted across refresh. Declared ahead
+   *  of the selection below, because a plain selection opens it (#814). */
+  const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
+  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
+
   // Selection model: a set of agent ids contributes to spotlight lineage.
   // The primary selection (last clicked) drives the right-hand detail
   // panel and the topbar ribbon — multi-select extends the spotlight but
@@ -869,6 +874,12 @@ function Inner() {
       if (prev === id) return prev;
       return id;
     });
+    // Selecting an agent IS inspecting it (#814). A card clicked, stepped to
+    // with j/k, picked from the session list or answered with Enter opens the
+    // detail panel; its × still closes it for now, and the next selection
+    // brings it back. Shift+click only widens the spotlight, so it leaves the
+    // panel as it was.
+    if (!additive) setDetailOpen(true);
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -909,9 +920,6 @@ function Inner() {
   /** Left sidebar (session list) visibility — persisted across refresh. */
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
   useEffect(() => { saveSessionListOpen(sessionListOpen); }, [sessionListOpen]);
-  /** Right detail panel visibility — persisted across refresh. */
-  const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
-  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
   /** Usage panel visibility — persisted across refresh. */
   const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
@@ -3024,14 +3032,12 @@ function Inner() {
       // landmark ("Sessions") that the rotor lists, and its close button is the
       // first control in it.
       if (e.key === "l" || e.key === "L") toggleSessionList();
-      // The detail panel's ONLY route, by the owner's decision after the
-      // trade-off was put to them: the reopen tab that used to sit on the
-      // canvas edge is gone and no topbar control replaced it. What makes that
-      // survivable rather than #800 again is that this key is in the shortcuts
-      // sheet, and the sheet has a visible control of its own in the canvas
-      // stack. The residual cost is real and worth writing down: `detailOpen`
-      // is persisted, so somebody who closes the panel with its × and never
-      // finds this key does not get it back on the next run either.
+      // The detail panel's keyboard toggle, and no longer its only route. The
+      // reopen tab that sat on the canvas edge stays gone, by the owner's
+      // decision; what changed (#814, the owner's call on 2026-09-14) is that a
+      // plain selection opens the panel — see selectAgent — so a panel closed
+      // with its × comes back on the next card clicked instead of waiting for
+      // somebody to find this key.
       if (e.key === "d" || e.key === "D") setDetailOpen(o => !o);
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);
