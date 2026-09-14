@@ -26,8 +26,8 @@
 // `ownsKeystroke()` hands every bare key to whichever control holds focus, and
 // this sheet takes focus when it opens — so while it is up, every letter in it
 // is inert. That is not a bug to route around: it is the rule that stops a
-// stray "c" from truncating the event log. The sheet says so in its own first
-// paragraph and Esc is the documented way back.
+// stray "c" from truncating the event log. The sheet says so in one line under
+// its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -75,10 +75,9 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
         </header>
 
         <section className="modal-body">
-          <p className="modal-note">{KEY_HELP_NOTE}</p>
-          {/* The tour's permanent door, beside the other kind of help. Under
-              the note and above the grid, so it is found before the reader
-              starts scanning keys; after the ×, so the × stays the first stop. */}
+          {/* The tour's permanent door, beside the other kind of help. Above
+              the grid, so it is found before the reader starts scanning keys;
+              after the ×, so the × stays the first stop. */}
           {onTour && (
             <div className="guide-door">
               <span>Eight pictures of what the deck shows.</span>
@@ -102,6 +101,9 @@ export default function KeyboardHelp({ onClose, onTour }: Props) {
               </Fragment>
             ))}
           </div>
+          {/* Under the keys, not over them (#852): the reference comes first,
+              and what to do when a key does nothing is a footnote to it. */}
+          <p className="kh-foot">{KEY_HELP_NOTE}</p>
         </section>
       </div>
     </div>

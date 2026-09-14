@@ -161,15 +161,14 @@ describe("the way in", () => {
     expect(sheet).toMatch(/aria-modal="true"/);
   });
 
-  it("says what a focused control does to the keys it is advertising", () => {
-    // The small lie this sheet had to avoid. `KEY_OWNING_TAGS` in shortcuts.ts
-    // puts BUTTON on the list of elements that own their own keys, so every
-    // letter in the sheet is inert for as long as any control holds focus — and
-    // the sheet itself takes focus when it opens. Printing "Re-layout (R)" in
-    // that state would be promising something the next keystroke will not do.
-    expect(KEY_HELP_NOTE).toMatch(/focus/i);
+  it("says what to do when a key does nothing, under the keys (#852)", () => {
+    // The small lie this sheet had to avoid: printing "Re-layout (R)" while a
+    // keyboard-focused control, or the sheet itself, owns the keys. It used to
+    // open on a paragraph about focus internals; #852 cut it to the one thing to
+    // do and moved it under the reference the reader opened the sheet for.
     expect(KEY_HELP_NOTE).toMatch(/Esc/);
-    expect(sheet).toContain("{KEY_HELP_NOTE}");
+    expect(KEY_HELP_NOTE.split(/\s+/).length).toBeLessThanOrEqual(10);
+    expect(sheet.indexOf("{KEY_HELP_NOTE}")).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
   });
 });
 
