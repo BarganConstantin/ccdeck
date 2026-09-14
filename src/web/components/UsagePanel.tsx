@@ -166,7 +166,7 @@ interface PaceInfo {
   runsOutIn?: string;   // set when deficit and ETA < window remaining
 }
 
-function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number): PaceInfo | null {
+export function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec: number): PaceInfo | null {
   const remainSec  = Math.max(0, resetAtSec - nowSec);
   const elapsedSec = Math.max(0, windowSec - remainSec);
   if (elapsedSec < 120) return null; // too early to judge
@@ -183,7 +183,9 @@ function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec:
     const ratePerSec = elapsedSec > 0 ? pct / elapsedSec : 0;
     const runsOutSec = ratePerSec > 0 ? remainPct / ratePerSec : Infinity;
     const info: PaceInfo = {
-      label: `${Math.round(delta)}% ahead`, color: "var(--warn)",
+      // "over pace", not "ahead" (#823): ahead reads as winning, and this is
+      // the warning — the amber line was taken for good news.
+      label: `${Math.round(delta)}% over pace`, color: "var(--warn)",
       expectedPct, isDeficit: true,
     };
     if (runsOutSec < remainSec && runsOutSec < 86400) {
@@ -194,7 +196,7 @@ function computePace(pct: number, resetAtSec: number, windowSec: number, nowSec:
     return info;
   }
   // under-using → reserve (safe, will last until reset)
-  return { label: `${Math.round(-delta)}% reserve`, color: "var(--ok)", expectedPct, isDeficit: false };
+  return { label: `${Math.round(-delta)}% under pace`, color: "var(--ok)", expectedPct, isDeficit: false };
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
@@ -230,7 +232,7 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
       <div className="qb-track">
         <div className="qb-fill" style={{ width: `${fillW}%`, background: color, opacity: capped === 0 ? 0.4 : 1 }} />
         {/* Pace marker ("green line"): where usage should be now to last until
-            reset. Green when you have reserve / on pace, red when in deficit. */}
+            reset. Green when under or on pace, red when over it. */}
         {pace && (
           <div
             className="qb-pace-marker"
