@@ -4781,6 +4781,27 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* A background task's notice, which Claude Code submits through the same hook
+   as a human's typing (#834). It keeps its place in time but reads as an event,
+   not as words the reader wrote: no fill, a dashed edge, one line until opened. */
+.prompt-injected {
+  background: none;
+  border-style: dashed;
+  padding: 6px 10px;
+}
+.prompt-injected > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.prompt-injected-label { color: var(--muted); font-size: 11px; }
+.prompt-injected-detail {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-word;
+}
 
 /* ---------------- clickable tool row ---------------- */
 

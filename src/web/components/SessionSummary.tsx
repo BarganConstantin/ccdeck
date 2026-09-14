@@ -9,6 +9,7 @@ import { agentCost, agentModelIds } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import { shortModel, modelFamily } from "../model-label";
+import { typedPrompts } from "../injected-prompt";
 // The breakdown bar used to be a third copy of one component, `SsCostBar`,
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
@@ -174,8 +175,10 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     for (const m of agentModelIds(a)) modelSet.add(m);
     if (a.model) modelSet.add(a.model);
     if (a.kind === "subagent") subagentCount++;
-    promptCount += a.prompts.length;
-    if (!firstPrompt && a.prompts.length > 0) firstPrompt = a.prompts[0].text;
+    // Typed prompts only: a background task's notice is not a turn (#834).
+    const typed = typedPrompts(a.prompts);
+    promptCount += typed.length;
+    if (!firstPrompt && typed.length > 0) firstPrompt = typed[0].text;
     tokensSum += a.usage.inputTokens + a.usage.outputTokens;
     // Every call ever made, not just the bounded window the reducer retains.
     toolCount += a.toolCount;
