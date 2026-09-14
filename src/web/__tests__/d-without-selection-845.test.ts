@@ -41,7 +41,9 @@ describe("D with nothing selected picks something first (#845)", () => {
   it("goes to the session that has waited longest, as the waiting button does", () => {
     expect(block).toMatch(/blockedSessions\(stateRef\.current\.agents\.values\(\)\)/);
     expect(block).toMatch(/focusSession\(waiting\[0\]\.id\)/);
-    expect(appCode).toMatch(/onClick=\{\(\) => focusSession\(waitingSessions\[0\]\.id\)\}/);
+    // The button's click is a block since #825, which has it tell W where it
+    // went; where it goes is unchanged.
+    expect(appCode).toMatch(/waitingCursorRef\.current = waitingSessions\[0\]\.id;\s*focusSession\(waitingSessions\[0\]\.id\);/);
   });
 
   it("otherwise lands where j would", () => {

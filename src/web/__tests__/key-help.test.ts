@@ -73,7 +73,8 @@ describe("every key the deck binds is written down where a user can find it", ()
 
   it("is the complete set, so a new key cannot be added quietly", () => {
     expect([...new Set(BOUND.map(lower))].sort())
-      .toEqual([" ", "?", "a", "c", "d", "escape", "f", "h", "j", "k", "l", "m", "r", "t", "u"]);
+      // W since #825: the session waiting on you.
+      .toEqual([" ", "?", "a", "c", "d", "escape", "f", "h", "j", "k", "l", "m", "r", "t", "u", "w"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {

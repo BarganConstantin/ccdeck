@@ -73,6 +73,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "Space", action: "pause or resume the stream", binds: [" "] },
       { cap: "J", action: "next agent", binds: ["j", "J"] },
       { cap: "K", action: "previous agent", binds: ["k", "K"] },
+      { cap: "W", action: "the session waiting on you — oldest first, again for the next", binds: ["w", "W"] },
       { cap: "F", action: "fit every agent on screen", binds: ["f", "F"] },
       { cap: "R", action: "re-arrange the canvas and drop the pins", binds: ["r", "R"] },
       { cap: "C", action: "clear the canvas and the event log — asks first", binds: ["c", "C"] },

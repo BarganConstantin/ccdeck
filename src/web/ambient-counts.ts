@@ -82,6 +82,20 @@ export function blockedSessions(agents: Iterable<AgentNodeData>): BlockedSession
 }
 
 /**
+ * The blocked session W goes to (#825).
+ *
+ * The one after `lastId` in the oldest-first order above, wrapping, so pressing
+ * W again visits every session waiting on the reader without a pointer. The
+ * oldest when nothing was visited yet, or when the one visited last is not
+ * blocked any more — answering it is the usual reason it left the list.
+ */
+export function nextWaiting(waiting: BlockedSession[], lastId: string | null): BlockedSession | null {
+  if (waiting.length === 0) return null;
+  const at = waiting.findIndex(s => s.id === lastId);
+  return waiting[(at + 1) % waiting.length];
+}
+
+/**
  * Sessions with an agent still working — the other half of what the tab strip
  * reports, and the answer to the lesser question the favicon falls back to.
  *
