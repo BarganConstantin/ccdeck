@@ -6028,6 +6028,18 @@ button.tool.clickable:last-child { border-bottom: none; }
   text-align: right;
   flex-shrink: 0;
 }
+/* The legend for the marker on the bar (#850): the same 2px line in the same
+   colour, in front of the words that say what it means and which side of it
+   the reader is on. The tick was explained only by a title before, which a
+   touch or keyboard reader never sees. */
+.qb-pace-key {
+  display: inline-block;
+  width: 2px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 1px;
+  vertical-align: -1px;
+}
 .qb-limit-badge {
   margin-left: 4px;
   font-size: 11px;
