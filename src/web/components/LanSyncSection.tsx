@@ -914,6 +914,93 @@ export function offerLine(
     : { there: "works there", here, note: "share it to repair", tone: "bad" };
 }
 
+/** Which way one login can move between this deck and a paired one. `live`
+ *  is a copy that can cross; `wait` is one that will, on the next round;
+ *  `blocked` works there and stops at this deck until this deck shares it
+ *  too; `cut` is a copy with nothing to give. */
+export type LaneFlow = "live" | "wait" | "blocked" | "cut";
+
+/**
+ * One login between this deck and one paired deck — a lane between the two
+ * machines in that deck's dialog.
+ *
+ * ONE LANE PER LOGIN, BOTH WAYS. The dialog drew what that deck offers and
+ * what this deck offers as two lists, so a login both decks share — the
+ * ordinary case between one person's machines — was printed twice, once per
+ * direction, and the reader paired the rows up by eye. A login is one thing
+ * with a copy at each end, so it is one lane: a state at each end, and an
+ * arrow for each way a copy can travel.
+ *
+ * `caption` is the words, only where the two ends cannot say it alone: the
+ * end that is not working, then what happens next — offerLine's note. The
+ * steady state has none, which is what makes a caption worth reading.
+ */
+export interface Lane {
+  key: string;
+  email: string;
+  /** This deck's copy. */
+  here: "works" | "expired" | "missing";
+  /** That deck's, as its last list said — `unknown` when it does not offer it. */
+  there: "works" | "broken" | "unknown";
+  /** From that deck to this one; null when that deck does not offer it. */
+  in: LaneFlow | null;
+  /** From this deck to every paired deck; null when this deck does not offer it. */
+  out: "live" | "cut" | null;
+  caption: string | null;
+  tone: "ok" | "wait" | "bad" | "idle";
+}
+
+export function exchangeLanes(
+  offered: OfferedAccount[] | null,
+  accounts: LanAccount[],
+  shared: string[],
+): Lane[] {
+  const byKey = new Map(accounts.map(a => [a.key, a]));
+  const sharedHere = new Set(shared);
+  const lanes: Lane[] = [];
+  const seen = new Set<string>();
+  for (const theirs of offered ?? []) {
+    if (seen.has(theirs.key)) continue;
+    seen.add(theirs.key);
+    const mine = byKey.get(theirs.key) ?? null;
+    const giving = sharedHere.has(theirs.key);
+    const said = offerLine(theirs, mine, giving);
+    const here = !mine ? "missing" : mine.alive ? "works" : "expired";
+    // Both copies gone is the one note that already names both ends.
+    const caption = !theirs.alive && mine && !mine.alive
+      ? said.note
+      : [here === "works" ? null : said.here, theirs.alive ? null : said.there, said.note]
+          .filter(Boolean).join(" · ") || null;
+    lanes.push({
+      key: theirs.key,
+      email: theirs.email,
+      here,
+      there: theirs.alive ? "works" : "broken",
+      in: !theirs.alive ? "cut" : said.tone === "wait" ? "wait" : said.tone === "bad" ? "blocked" : "live",
+      out: giving && mine ? (mine.alive ? "live" : "cut") : null,
+      caption,
+      tone: said.tone,
+    });
+  }
+  // What only this deck offers, after, in the order this deck offers it.
+  for (const key of shared) {
+    const mine = byKey.get(key);
+    if (!mine || seen.has(key)) continue;
+    seen.add(key);
+    lanes.push({
+      key,
+      email: mine.email,
+      here: mine.alive ? "works" : "expired",
+      there: "unknown",
+      in: null,
+      out: mine.alive ? "live" : "cut",
+      caption: mine.alive ? null : "expired here",
+      tone: mine.alive ? "ok" : "bad",
+    });
+  }
+  return lanes;
+}
+
 async function post(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {
     method: "POST",

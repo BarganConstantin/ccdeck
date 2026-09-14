@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { deckRows, offerLine, rowSource, versionOrder, withAliases } from "../components/LanSyncSection";
+import { deckRows, exchangeLanes, offerLine, rowSource, versionOrder, withAliases } from "../components/LanSyncSection";
 
 const NOW = 1_700_000_000_000;
 /** A file with its comments taken out, so a rule cannot be satisfied by a
@@ -166,6 +166,58 @@ describe("what one offered login would do here", () => {
   });
 });
 
+// A login is one thing with a copy at each end. The dialog drew it as a row in
+// two lists, one per direction, so a login both decks share was printed twice
+// and paired up by eye; it is one lane now, with an arrow for each way a copy
+// can travel.
+describe("one login between two decks", () => {
+  const acct = (key: string, alive: boolean) => ({ key, email: `${key}@x`, alive });
+
+  it("is one lane both ways when both decks offer it, and says nothing while both copies work", () => {
+    expect(exchangeLanes([acct("a", true)], [acct("a", true)], ["a"])).toEqual([{
+      key: "a", email: "a@x", here: "works", there: "works", in: "live", out: "live", caption: null, tone: "ok",
+    }]);
+  });
+
+  it("cuts both ways when neither copy works, and names the fix once", () => {
+    const [l] = exchangeLanes([acct("a", false)], [acct("a", false)], ["a"]);
+    expect(l).toMatchObject({ here: "expired", there: "broken", in: "cut", out: "cut", tone: "bad" });
+    expect(l.caption).toBe("neither copy works — sign in again here");
+  });
+
+  it("marks a copy on its way as waiting, and names the end that lacks it", () => {
+    expect(exchangeLanes([acct("a", true)], [], [])[0])
+      .toMatchObject({ here: "missing", in: "wait", out: null, caption: "not on this deck · arrives next round" });
+    expect(exchangeLanes([acct("a", true)], [acct("a", false)], ["a"])[0])
+      .toMatchObject({ in: "wait", out: "cut", caption: "expired here · repairs next round" });
+  });
+
+  it("stops a copy at this deck until this deck shares it too", () => {
+    expect(exchangeLanes([acct("a", true)], [acct("a", false)], [])[0])
+      .toMatchObject({ in: "blocked", out: null, tone: "bad", caption: "expired here · share it to repair" });
+  });
+
+  it("says only the broken end when the other one works", () => {
+    expect(exchangeLanes([acct("a", false)], [acct("a", true)], ["a"])[0])
+      .toMatchObject({ in: "cut", out: "live", caption: "broken there", tone: "idle" });
+  });
+
+  it("puts what only this deck offers after, in its own order, knowing nothing of a copy there", () => {
+    const lanes = exchangeLanes(
+      [acct("a", true)],
+      [acct("a", true), acct("b", true), acct("c", false)],
+      ["c", "a", "b", "gone"],
+    );
+    expect(lanes.map(l => l.key)).toEqual(["a", "c", "b"]);
+    expect(lanes[1]).toMatchObject({ there: "unknown", in: null, out: "cut", caption: "expired here", tone: "bad" });
+    expect(lanes[2]).toMatchObject({ there: "unknown", in: null, out: "live", caption: null });
+  });
+
+  it("draws this deck's half alone when what that deck offers is not known", () => {
+    expect(exchangeLanes(null, [acct("a", true)], ["a"]).map(l => [l.in, l.out])).toEqual([[null, "live"]]);
+  });
+});
+
 describe("the dialog is as quiet as the row it opens from", () => {
   // `quiet` is the panel's own word for online with nothing to repair, and the
   // reason it exists is that a line every healthy row carries identically is a
@@ -182,19 +234,20 @@ describe("the dialog is as quiet as the row it opens from", () => {
     expect(MODAL).toContain('className="vis-hidden"');
   });
 
-  // The two state columns are the point of the grid: one left edge under
-  // `here`, on every row of both lists.
-  it("puts there and here in their own columns rather than one sentence", () => {
-    expect(MODAL).toContain("lan-offer-there");
-    expect(MODAL).toContain("lan-offer-here");
-    expect(MODAL).not.toContain("lan-offer-state");
+  // Which side a mark is on says whose copy it is — this deck's rail on the
+  // left, that deck's on the right — so `here` and `there` stop being printed
+  // on every row, and the two lists become one.
+  it("draws each login once, as a lane with a mark at each machine's end", () => {
+    expect(MODAL).toMatch(/className="lan-lanes" role="list"/);
+    expect(MODAL).toMatch(/role="listitem"/);
+    expect(MODAL).toMatch(/data-end="here" data-state=\{l\.here\}/);
+    expect(MODAL).toMatch(/data-end="there" data-state=\{l\.there\}/);
+    expect(MODAL).not.toContain("lan-offer");
   });
 
-  // `display: contents` is what puts the cells on the list's grid, and it is
-  // what takes the list semantics away unless the roles are spelled out.
-  it("keeps a list a list while its rows are on the grid", () => {
-    expect(MODAL).toMatch(/className="lan-offers" role="list"/);
-    expect(MODAL).toMatch(/role="listitem"/);
+  // The marks are for the eye. Whatever they say is said in words as well.
+  it("says what each mark means to a reader who cannot see it", () => {
+    expect(MODAL).toMatch(/<span className="vis-hidden">\{laneSaid\(l\)\}<\/span>/);
   });
 
   // A held key clears the 400ms bar while the finger has never come up, so
@@ -300,5 +353,30 @@ describe("the dialog says each thing once", () => {
   it("dates an old list in muted ink, under a header that already warns", () => {
     const stale = /\.lan-stale \{([^}]*)\}/.exec(CSS)?.[1] ?? "";
     expect(stale).toMatch(/color: var\(--muted\)/);
+  });
+});
+
+// A light running along a lane is a claim that a copy can travel that way. So
+// it runs only for a reader who has not asked for less motion, only toward a
+// deck that is answering, and it is hidden until it runs — less motion must
+// never leave one stuck half-way along a line.
+describe("the picture moves where a copy can", () => {
+  const block = /@media \(prefers-reduced-motion: no-preference\) \{\s*\/\* THE PICTURE MOVES[\s\S]*?\n\}/.exec(CSS)?.[0] ?? "";
+
+  it("runs every light and every draw inside the no-preference block, on a deck that answers", () => {
+    expect(block).toMatch(/\.lan-map\[data-link="up"\] \.lan-lane \.lan-glint\[data-dir="out"\] \{\s*animation: lan-run-out /);
+    const rest = CSS.replace(block, "");
+    expect(rest).not.toMatch(/animation: lan-run-/);
+    expect(rest).not.toMatch(/animation: lan-draw-/);
+  });
+
+  it("keeps a light hidden until it runs", () => {
+    expect(CSS).toMatch(/\.lan-glint \{ position: absolute; inset: 0; opacity: 0;/);
+  });
+
+  // The light running out and back is the motion on top of the fact. The fact
+  // — this deck is asking right now — is a colour, for every reader.
+  it("shows a check asking as a colour to every reader, motion or not", () => {
+    expect(CSS).toMatch(/\n\.lan-map\[data-asking\] \.lan-link \.lan-wire \{ background: var\(--accent\); \}/);
   });
 });

@@ -9920,7 +9920,10 @@ input, textarea { caret-color: var(--accent); }
    the same parts as the section it opens from: the `.lan-h` captions, the
    `.ap-lan-code` monospace for the two values that are data, the row's own
    traffic-light mark. */
-.modal.lan-peer { width: min(480px, 92vw); }
+/* 520, not the 480 a label and a value needed: the lanes are the widest thing
+   in it now, and every pixel taken from them is taken from the address on
+   each one. */
+.modal.lan-peer { width: min(520px, 92vw); }
 .lan-peer-head {
   justify-content: flex-start;
   align-items: flex-start;
@@ -9983,6 +9986,327 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer[data-tone="wait"] .lan-peer-state { color: var(--accent); }
 
 .lan-peer-body { gap: 20px; }
+
+/* ── the picture: two machines, the network, a lane per login ──────────────
+   This deck on the left and that one on the right, as the Local network guide
+   draws them, so a reader who has seen the guide has seen this. Everything
+   docks on two rails dropped from the machines: the network across the top,
+   then each login as a lane between the rails with a mark at each end for the
+   copy that machine holds. Which side a mark is on says whose copy it is, so
+   the words `here` and `there` are no longer printed on every row.
+
+   Every line is 1.5px and every mark sits on the rail's centre, 8px in from
+   the edge, so the grid under all of it is three columns — rail, lane, rail —
+   and the rows only ever differ in height. */
+.lan-map {
+  --wire: color-mix(in srgb, var(--text) 34%, transparent);
+  --rail: var(--line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lan-ends {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+/* A name and what it runs, hugging its own edge. Neither may take more than
+   half, so a long hostname on one side wraps instead of shoving the other. */
+.lan-end { display: flex; flex-direction: column; min-width: 0; max-width: 48%; margin: 0; }
+.lan-end[data-side="there"] { align-items: flex-end; text-align: right; }
+.lan-end-name {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.lan-end-runs { font-size: 10px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+
+.lan-link,
+.lan-lane {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  column-gap: 6px;
+  align-items: center;
+}
+.lan-machine { display: block; color: color-mix(in srgb, var(--muted) 35%, var(--text)); }
+.lan-span,
+.lan-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 18px;
+}
+/* The line itself. The label on it is set on the panel's own ground, so the
+   line stops at the words and starts again after them, the way a label sits
+   on a diagram's edge. */
+.lan-wire {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  /* Clipped at its two ends and nowhere else: a light leaves the lane at the
+     machine it reaches, and the copy's dot stands above and below the line. */
+  clip-path: inset(-4px 0);
+  border-radius: 1px;
+  background: var(--wire);
+}
+.lan-link-label,
+.lan-lane-email {
+  position: relative;
+  max-width: calc(100% - 24px);
+  padding: 0 8px;
+  background: var(--panel);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.lan-link-label { font-size: 10px; line-height: 1.5; color: var(--text); }
+.lan-lane-email { font-size: 11px; line-height: 1.45; color: var(--text); }
+
+/* The network, in the row mark's own three states. */
+.lan-map[data-link="up"] .lan-link .lan-wire { background: color-mix(in srgb, var(--ok) 60%, transparent); }
+.lan-map[data-link="bad"] .lan-link .lan-wire {
+  background: repeating-linear-gradient(90deg, var(--warn) 0 4px, transparent 4px 8px);
+}
+.lan-map:is([data-link="down"], [data-link="loose"]) .lan-link .lan-wire {
+  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+}
+/* Under the network: how it was found and how the last round went, then
+   anything the machine said in its own words. Centred on the line it is
+   about, in the column between the rails so the rails never cross it. */
+.lan-link-sub,
+.lan-link > .lan-done,
+.lan-link-note {
+  grid-column: 2;
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.lan-link > .lan-done { align-items: center; }
+.lan-round[data-tone="bad"] { color: var(--warn); }
+.lan-link-sub .lan-fact-raw { margin-top: 2px; }
+
+/* THE RAILS. Each row draws its own stretch — from under the machine on the
+   network row, and a little past its own edges on every lane — so the rails
+   stay whole whatever height a wrapped address makes a row, and end on the
+   last lane's marks rather than hanging past them. */
+.lan-map[data-bus] .lan-link::before,
+.lan-map[data-bus] .lan-link::after,
+.lan-lane::before,
+.lan-lane::after {
+  content: "";
+  position: absolute;
+  width: 1px;
+  background: var(--rail);
+}
+.lan-map[data-bus] .lan-link::before, .lan-lane::before { left: 7.5px; }
+.lan-map[data-bus] .lan-link::after, .lan-lane::after { right: 7.5px; }
+.lan-map[data-bus] .lan-link::before,
+.lan-map[data-bus] .lan-link::after { top: 18px; bottom: -12px; }
+.lan-lane::before, .lan-lane::after { top: -5px; bottom: -5px; }
+.lan-lane:last-child::before, .lan-lane:last-child::after { bottom: auto; height: 14px; }
+
+.lan-lanes {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lan-lane { row-gap: 1px; }
+.lan-lane > .lan-pip[data-end="here"] { grid-column: 1; grid-row: 1; }
+.lan-lane > .lan-track { grid-column: 2; grid-row: 1; }
+.lan-lane > .lan-pip[data-end="there"] { grid-column: 3; grid-row: 1; }
+
+/* A COPY, at the end of the machine that holds it. Filled is a copy that
+   works — the ok ink, or the warning ink for an expired one here, which is
+   the one mark somebody at this machine can do something about. A ring is no
+   copy to speak of: not on this deck, or not offered by that one. A ring
+   struck through is a copy that is there and broken. The panel-coloured
+   ring round every mark cuts the rail behind it, so the mark sits ON it. */
+.lan-pip {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  box-shadow: 0 0 0 3px var(--panel);
+}
+.lan-pip[data-state="works"] { background: var(--ok); border-color: var(--ok); }
+.lan-pip[data-state="expired"] { background: var(--warn); border-color: var(--warn); }
+.lan-pip[data-state="broken"] {
+  background: linear-gradient(135deg, transparent 38%, var(--muted) 38% 62%, transparent 62%);
+}
+/* A copy on its way is drawn waiting for it, in the ink the caption uses. */
+.lan-lane[data-tone="wait"] .lan-pip[data-state="missing"] { border-color: var(--accent); }
+
+/* A dashed lane is a login with no copy that can move either way. */
+.lan-wire[data-flow="cut"] {
+  background: repeating-linear-gradient(90deg, var(--muted) 0 3px, transparent 3px 7px);
+}
+.lan-chev {
+  position: absolute;
+  top: 50%;
+  margin-top: -4px;
+  z-index: 1;
+  color: color-mix(in srgb, var(--muted) 35%, var(--text));
+}
+.lan-chev[data-dir="in"] { left: -1px; }
+.lan-chev[data-dir="out"] { right: -1px; }
+.lan-lane[data-tone="wait"] .lan-chev[data-dir="in"] { color: var(--accent); }
+.lan-chev[data-gate] { color: var(--warn); }
+
+/* The lane's words: only what the marks cannot say, between the rails. */
+.lan-lane-note {
+  grid-column: 2;
+  grid-row: 2;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.lan-lane[data-tone="bad"] .lan-lane-note { color: var(--warn); }
+.lan-lane[data-tone="wait"] .lan-lane-note { color: var(--accent); }
+.lan-lane-done[data-ok="false"] { color: var(--warn); }
+
+/* The sentences under the picture, each a step below the one above. */
+.lan-map > :is(.lan-spent, .lan-empty, .lan-stale) { margin: 10px 0 0; }
+
+/* The key to the two arrows, drawn with the lane's own line and chevron, and
+   the door to this deck's half beside the arrow that is this deck's. */
+.lan-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin-top: 14px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-key { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.lan-key-wire { position: relative; flex: none; width: 18px; height: 8px; }
+.lan-key-wire::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: var(--wire);
+}
+.lan-legend-act { margin-left: auto; }
+
+/* A LIGHT RUNS WHERE A COPY CAN. Hidden until it runs, so a reader who asked
+   for less motion sees the chevrons alone and nothing half-drawn. It is the
+   lane's own line, as wide as the lane, with its bright end at one edge; the
+   line clips it, and moving it by its own width carries that end from one
+   machine to the other. Green for a copy that can cross, the accent for one
+   that will cross on the next round — and on the network, the accent while a
+   check is asking. */
+.lan-glint { position: absolute; inset: 0; opacity: 0; --glint: var(--ok); }
+.lan-glint[data-tone="wait"] { --glint: var(--accent); }
+/* On the network the light is the question itself, run over a line already
+   in the accent — so it is drawn in the text's own ink, which reads on it. */
+.lan-link .lan-glint { --glint: var(--text); }
+.lan-glint[data-dir="out"] {
+  background: linear-gradient(90deg, transparent calc(100% - 44px), var(--glint) calc(100% - 2px), transparent);
+}
+.lan-glint[data-dir="in"] {
+  background: linear-gradient(270deg, transparent calc(100% - 44px), var(--glint) calc(100% - 2px), transparent);
+}
+/* THE COPY ITSELF, at the head of its light: a tail alone read as a shimmer
+   on the line, a dot at its head reads as something being carried. The line
+   clips sideways only — see `.lan-wire` — so the dot can stand taller than
+   the 1.5px it rides on. */
+.lan-glint::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--glint);
+}
+.lan-glint[data-dir="out"]::after { right: 0; }
+.lan-glint[data-dir="in"]::after { left: 0; }
+@keyframes lan-run-out {
+  0% { transform: translateX(-100%); opacity: 0; }
+  8% { opacity: 1; }
+  42% { transform: translateX(0); opacity: 1; }
+  50%, 100% { transform: translateX(0); opacity: 0; }
+}
+@keyframes lan-run-in {
+  0% { transform: translateX(100%); opacity: 0; }
+  8% { opacity: 1; }
+  42% { transform: translateX(0); opacity: 1; }
+  50%, 100% { transform: translateX(0); opacity: 0; }
+}
+@keyframes lan-draw-both { from { clip-path: inset(0 50%); } }
+@keyframes lan-draw-in { from { clip-path: inset(0 0 0 100%); } }
+@keyframes lan-draw-out { from { clip-path: inset(0 100% 0 0); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* THE PICTURE MOVES WHERE A COPY CAN, and only while that deck answers: a
+     light on a lane to a deck that has gone quiet would be a promise nothing
+     is keeping. Each lane draws itself from the machine its copies leave —
+     from the middle when they leave both — once when the dialog opens and
+     again when a check comes back, so the answer to the press is visibly a
+     new picture. Then one light per way a copy can travel, a lane apart and
+     half a beat apart each way, so an exchange reads as two turns rather
+     than as traffic. */
+  .lan-lane .lan-wire {
+    animation: lan-draw-both 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-lane[data-draw="in"] .lan-wire {
+    animation: lan-draw-in 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-lane[data-draw="out"] .lan-wire {
+    animation: lan-draw-out 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+  }
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
+    animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
+  }
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"] {
+    animation: lan-run-in 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 2.8s) infinite;
+  }
+  /* A check is a question and its answer: out along the network and back. */
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"] {
+    animation: lan-run-out 1.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] {
+    animation: lan-run-in 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.65s infinite;
+  }
+}
+/* Named again for less motion, where none of them can run — they exist only
+   inside the block above — so the sweep that holds every travelling animation
+   to an answer finds this one, and the lights stay hidden. */
+@media (prefers-reduced-motion: reduce) {
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"],
+  .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"],
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"],
+  .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] { animation: none; }
+}
+/* A check is a question, and while it is asked the network takes the accent
+   — for every reader. The light running out and back is motion on top of the
+   fact, never the only sign of it. */
+.lan-map[data-asking] .lan-link .lan-wire { background: var(--accent); }
 /* A label and a value, one line each where one line will do. `max-content`
    sizes the label column by the longest label rather than by a guess, so every
    value starts on one left edge. `display: contents` lets each dt/dd pair keep
@@ -10031,9 +10355,6 @@ input, textarea { caret-color: var(--accent); }
   font-size: 10px;
   color: var(--muted);
 }
-/* How the deck was found, after the address it explains — `on this network`,
-   `added by address`. It was a row of its own, and a row is something read. */
-.lan-fact-aside { color: var(--muted); }
 .lan-done {
   list-style: none;
   margin: 4px 0 0;
@@ -10099,95 +10420,9 @@ input, textarea { caret-color: var(--accent); }
 .lan-twin[data-tone="bad"] .ap-pulse { color: var(--warn); }
 .lan-twin[data-tone="wait"] .ap-pulse { color: var(--accent); }
 
-/* `.lan-h-note` was the caption's second half, and both of the things it
-   carried have gone to where they are load-bearing: when the list was last
-   told is now marked on the list, in the warning ink, and only when it
-   disagrees with the round above it; and who gets this deck's list is said
-   beside the button that changes it. Nothing reads it any more. */
-/* ONE LEFT EDGE UNDER `here`, which is the whole reason this is a grid and not
-   a stack of sentences. Each row used to be flex, so the state began wherever
-   that row's address happened to end and no two rows started at the same x —
-   there was nothing to run an eye down. `max-content` on the two state columns
-   sizes each by the longest word the vocabulary can produce (two values for
-   `there`, three for `here`), so the columns are as narrow as the words allow
-   and still identical on every row, in both lists.
-
-   `display: contents` on the row is what puts the cells on this grid; the
-   explicit roles in the markup are what keeps it a list while it does. */
-.lan-offers {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  /* THE TWO STATE COLUMNS ARE FIXED, and they have to be. Sized by content,
-     they were not the same width twice: a note spans them, a spanning item
-     feeds its own width back into the tracks it crosses, and four lists on one
-     screen came out 58/71, 93/106, 118/175 and 54/57 — so `here` began at a
-     different x in every list and there was nothing to run an eye down, which
-     is the entire reason this is a grid. Both vocabularies are closed — two
-     words for `there`, three for `here` — and the widest of each measures
-     58.3px and 71.4px at this size. These carry roughly a tenth over that, for
-     the faces other platforms will render this in, and the cells wrap rather
-     than clip if some face ever needs more than the slack. The test that keeps
-     the two sets closed is what keeps these numbers honest. */
-  grid-template-columns: minmax(0, 1fr) 64px 78px;
-  align-items: baseline;
-  column-gap: 14px;
-  row-gap: 6px;
-}
-.lan-offers + .lan-offers { margin-top: 6px; }
-.lan-offer { display: contents; }
-/* The address is the thing a reader is matching, so it wraps rather than
-   ellipsing: the old row hid the end of a long login behind a truncation whose
-   width changed from row to row, and there was no way to see it at all. */
-.lan-offer-email {
-  min-width: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-.lan-offer-there,
-.lan-offer-here {
-  font-size: 10px;
-  line-height: 1.6;
-}
-/* Nothing here can change what a login does on the other machine — a round
-   only ever pulls — so `there` is never lit, in any state. It is context for
-   the cell beside it, and context that changes colour is a second thing to
-   read. */
-.lan-offer-there { color: var(--muted); }
-/* `here` is the column somebody scans, so it carries the tone. The healthy
-   state recedes to the same tier as the rest of the dialog's body copy rather
-   than going green: a list where the ordinary rows are coloured has no ink
-   left for the one row that is not. */
-.lan-offer-here { color: var(--text-secondary); }
-.lan-offer[data-tone="bad"] .lan-offer-here { color: var(--warn); }
-.lan-offer[data-tone="wait"] .lan-offer-here { color: var(--accent); }
-/* WHAT HAPPENS NEXT, and only on the rows where the answer is not "nothing".
-   Set under the state columns rather than under the address, because it is the
-   state it belongs to, and the indent is what says so without a rule or a
-   glyph. */
-/* WHAT HAPPENS NEXT, and only on the rows where the answer is not "nothing".
-   It takes the row's whole width rather than the state columns' 156px, where
-   the two notes worth reading both wrapped; the indent is what makes it read
-   as belonging to the address above it rather than as the next row, and 12px
-   is enough for that when the thing below it is 6px away and the thing it
-   belongs to is directly above. */
-.lan-offer-note {
-  grid-column: 1 / -1;
-  margin-top: -2px;
-  padding-left: 12px;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-.lan-offer[data-tone="bad"] .lan-offer-note { color: var(--warn); }
-.lan-offer[data-tone="wait"] .lan-offer-note { color: var(--accent); }
-/* The list is a fossil and says so above itself, where the rows it is about
-   are the next thing read — in the muted ink, because the warning is already
-   under the deck's name, and an old list is not a second alarm. */
+/* The lanes are a fossil and say so under themselves — in the muted ink,
+   because the warning is already under the deck's name, and an old picture is
+   not a second alarm. */
 .lan-stale {
   margin: 0 0 8px;
   font-size: 10px;
@@ -10195,14 +10430,6 @@ input, textarea { caret-color: var(--accent); }
   color: var(--muted);
 }
 .lan-empty { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
-/* The count, and the door into what it counts. A word rather than a control,
-   because opening it is not an act with a consequence — every row it reveals
-   is one this deck already advertises. */
-.lan-more { display: inline-flex; align-items: baseline; gap: 6px; }
-/* The mark is a character somebody reads, not a tint, so it reads from the
-   annotation tier like every other word here — --muted-dim is 2.35:1 and has
-   no business carrying a glyph that says which way this opens. */
-.lan-more-mark { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* The fix for this deck's expired logins, said once under them. It was the
    same sentence under every one of them, in the warning ink each time. */
 .lan-spent {
@@ -10210,14 +10437,6 @@ input, textarea { caret-color: var(--accent); }
   font-size: 10px;
   line-height: 1.5;
   color: var(--warn);
-}
-/* The list's scope, last and short: the same list goes to every paired deck,
-   which is the one thing a dialog about one deck could make somebody doubt. */
-.lan-scope {
-  margin: 8px 0 0;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--muted);
 }
 /* A bar with something to say instead of a bar with nothing in it. */
 .lan-foot-note {
