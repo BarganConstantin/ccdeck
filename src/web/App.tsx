@@ -4339,16 +4339,6 @@ function Inner() {
         </div>
       ) : null}
 
-      {isMounted(usagePhase) && (
-        <UsagePanel
-          state={stateRef.current}
-          now={now}
-          providers={providers}
-          leaving={usagePhase === "leaving"}
-          onClose={() => setUsagePanelOpen(false)}
-        />
-      )}
-
       {/* Claude-only, and now conditional on Claude Code actually being here.
           Every account in it is a Claude account, the store behind it is
           claude-swap's, and both of its empty states end at `claude auth login`
@@ -4357,15 +4347,6 @@ function Inner() {
           the first thing such a user saw. */}
       {isMounted(accountsPhase) && providers.claude && (
         <AccountsPanel leaving={accountsPhase === "leaving"} onClose={() => setAccountsPanelOpen(false)} />
-      )}
-
-      {/* Mounted only while it is open, which is also what starts its poll: the
-          topbar meter used to keep /api/system running for the life of the tab
-          on behalf of a readout that is gone. `usageOpen` moves it one rail
-          slot left when usage has the first one — see .sysdetail.shifted. */}
-      {isMounted(machinePhase) && (
-        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
-          onClose={() => setMachinePanelOpen(false)} />
       )}
 
       {sessionListOpen && (
@@ -4791,6 +4772,31 @@ function Inner() {
           />
         </ReactFlow>
       </main>
+
+      {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
+          fixed, so where they sit in the DOM changes nothing on screen — only
+          where Tab goes. Rendered ahead of the left column, as they used to be,
+          they sent a keyboard reader's focus topbar, right, left, right, centre;
+          here it reads the way the page does: the left column, the canvas,
+          these two, then the detail panel at the far right. */}
+      {isMounted(usagePhase) && (
+        <UsagePanel
+          state={stateRef.current}
+          now={now}
+          providers={providers}
+          leaving={usagePhase === "leaving"}
+          onClose={() => setUsagePanelOpen(false)}
+        />
+      )}
+
+      {/* Mounted only while it is open, which is also what starts its poll: the
+          topbar meter used to keep /api/system running for the life of the tab
+          on behalf of a readout that is gone. `usageOpen` moves it one rail
+          slot left when usage has the first one — see .sysdetail.shifted. */}
+      {isMounted(machinePhase) && (
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
+          onClose={() => setMachinePanelOpen(false)} />
+      )}
 
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
           "Click an agent to see its tools", and a fifteen-row shortcut list —
