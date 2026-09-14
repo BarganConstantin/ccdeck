@@ -60,6 +60,10 @@ export interface FocusTarget {
   isContentEditable?: boolean | null;
   role?: string | null;
   type?: string | null;
+  /** Did a pointer press put focus here? (#851) The browser cannot be asked:
+   *  `:focus-visible` is re-decided on the keystroke itself, before any
+   *  handler runs (see canvas-pointer-focus.test.ts), so App.tsx tracks it. */
+  pointerFocused?: boolean | null;
 }
 
 // <input> covers far more than typing, and the types below take Space or a
@@ -92,6 +96,13 @@ function tagOf(t: FocusTarget): string {
   return typeof t.tagName === "string" ? t.tagName.toUpperCase() : "";
 }
 
+/** A <button>, or anything wearing the button role. */
+function isButtonLike(t: FocusTarget): boolean {
+  if (tagOf(t) === "BUTTON") return true;
+  const roles = typeof t.role === "string" ? t.role.trim().toLowerCase() : "";
+  return roles.split(/\s+/).includes("button");
+}
+
 /** True when the keystroke is going into text the user is writing. Escape
  *  blurs one of these; every other key is simply not the deck's. */
 export function isTypingTarget(t: FocusTarget | null | undefined): boolean {
@@ -106,9 +117,17 @@ export function isTypingTarget(t: FocusTarget | null | undefined): boolean {
 
 /** True when the focused control answers bare keys itself, so the deck must
  *  leave this keystroke alone rather than preventDefault it away. */
-export function ownsKeystroke(t: FocusTarget | null | undefined): boolean {
+export function ownsKeystroke(t: FocusTarget | null | undefined, key?: string): boolean {
   if (!t) return false;
   if (isTypingTarget(t)) return true;
+  // A BUTTON THE MOUSE PRESSED does not own the letters (#851). Clicking `$`
+  // left focus on it, and then every single-key shortcut was dead until Esc,
+  // with nothing on screen to say so — mouse users rarely press Esc first, so
+  // the keys read as broken exactly when somebody mixed the two. A button has
+  // no use for a letter; what it owns is Space and Enter, which stay its own so
+  // the press that activates it is never stolen. Reached by Tab, it keeps
+  // every key, as before.
+  if (key != null && key.length === 1 && key !== " " && t.pointerFocused && isButtonLike(t)) return false;
   if (KEY_OWNING_TAGS.has(tagOf(t))) return true;
   // role takes a whitespace-separated fallback list; an interactive role
   // anywhere in it is enough reason for us to stay out of the way.

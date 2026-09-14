@@ -167,9 +167,12 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
   });
 
   it("exempts a card from the focused-control gate, and nothing else", () => {
-    // The gate stays exactly as it was for the toolbar buttons and the panel
-    // <select>s — a bare "c" from a dropdown must still not reach Clear.
-    expect(app).toMatch(/if \(intent\.nodeId == null && ownsKeystroke\(target\)\) return;/);
+    // The gate stays as it was for the toolbar buttons and the panel <select>s —
+    // a bare "c" from a dropdown must still not reach Clear. Since #851 it is
+    // also told the key, so a button the mouse pressed hands the letters back
+    // (keys-after-click-851.test.ts); that is ownsKeystroke's rule, not this
+    // exemption's.
+    expect(app).toMatch(/if \(intent\.nodeId == null && ownsKeystroke\(target, e\.key\)\) return;/);
   });
 
   it("asks the browser's chords first, so Cmd+Enter on a card stays the browser's", () => {
@@ -178,7 +181,7 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     // half the OS's chords.
     const chord = app.indexOf("if (isBrowserChord(e)) return;");
     const card = app.indexOf("const intent = canvasKeyIntent(e,");
-    const gate = app.indexOf("if (intent.nodeId == null && ownsKeystroke(target)) return;");
+    const gate = app.indexOf("if (intent.nodeId == null && ownsKeystroke(target, e.key)) return;");
     expect(chord).toBeGreaterThan(-1);
     expect(card).toBeGreaterThan(chord);
     expect(gate).toBeGreaterThan(card);
