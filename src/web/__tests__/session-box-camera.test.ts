@@ -300,19 +300,24 @@ describe("the four eased properties carry layout coordinates, not screen ones", 
   it("keeps the label in the same space, so the two cannot disagree", () => {
     // A box in layout space with a label still in screen space would put the
     // session's name somewhere other than the session at every zoom but 1.
+    // The lift is divided by the zoom since #846 — a layout distance that is
+    // 12px on screen at every zoom — so the tab keeps its 1× geometry; it is
+    // still layout space, which is what this guards.
     expect(prop(labelStyle(), "left")).toBe("c.x + 16");
-    expect(prop(labelStyle(), "top")).toBe("c.y - LABEL_LIFT");
+    expect(prop(labelStyle(), "top")).toBe("c.y - LABEL_LIFT / (zoom || 1)");
   });
 
   it("divides the layer's scale back out of the label, which must not zoom", () => {
-    // The label is text: at 0.2x it is a smudge, so it has always taken
-    // `scale(min(1, zoom))` to shrink with a zoom-out and never grow past its
-    // natural size on a zoom-in. Inside a scaled layer that same on-screen size
-    // costs a division, and dropping the division is the tempting simplification
-    // that would silently make the name zoom with the canvas.
+    // The label is text: at 0.2x it is a smudge. Inside a scaled layer its
+    // on-screen size costs a division, and dropping the division is the
+    // tempting simplification that would silently make the name zoom with the
+    // canvas. It used to be `scale(min(1, zoom))` on screen, shrinking with a
+    // zoom-out — which at the 0.32 a real board settles into drew a 10px label
+    // at about 3px. Since #846 it is 1× on screen at every zoom: the whole of
+    // the layer's scale is divided out, and none of it is kept.
     const transform = prop(labelStyle(), "transform")!;
-    expect(transform).toMatch(/Math\.min\(1, zoom\)/);
-    expect(transform).toMatch(/Math\.min\(1, zoom\)\s*\/\s*\(?\s*zoom/);
+    expect(transform).toMatch(/1\s*\/\s*\(?\s*zoom/);
+    expect(transform).not.toMatch(/Math\.min\(1, zoom\)/);
   });
 });
 

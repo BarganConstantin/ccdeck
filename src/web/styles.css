@@ -2909,6 +2909,21 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .canvas-wrap[data-detail="far"] .tool-conn {
   visibility: hidden;
 }
+/* AND WHAT SURVIVES IS DRAWN BIG ENOUGH TO READ (#846). The far tier kept the
+   state pill and the name, but at the canvas's scale: at the 0.32 a real board
+   settles into, a 12px name drew at about 4px, so the tier kept exactly the line
+   a reader cannot use. The title row is scaled back up by 0.9 / zoom — about
+   11px on screen — and widened by the inverse first, so after the scale it spans
+   the card's width exactly and the name still ellipsises inside it. A transform
+   and not a font size, because a card's measured height is an input to the
+   layout (see above): the row keeps its box and only draws larger, over the
+   card's own rows, which this tier has already hidden. `--zoom` is written on
+   the canvas by App.tsx beside `data-detail`, with no render of its own. */
+.canvas-wrap[data-detail="far"] .agent-node .title {
+  width: calc(100% * var(--zoom, 1) / 0.9);
+  transform: scale(calc(0.9 / var(--zoom, 1)));
+  transform-origin: left top;
+}
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
    rules with the same specificity — so on every live node the state won both

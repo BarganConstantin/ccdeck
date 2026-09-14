@@ -395,11 +395,17 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
           "--session-hue": hue,
         } as React.CSSProperties;
         // The label is the one child that must not scale with the camera: it is
-        // text, and a session name drawn at 0.2× is a smudge. It used to sit in
-        // screen space and take `scale(min(1, zoom))` to shrink with a zoom-out
-        // while never growing past its natural size on a zoom-in. It sits in
-        // layout space now like the box, so the layer's own scale(zoom) has to
-        // be divided back out to leave exactly that same size on screen.
+        // text, and a session name drawn at 0.2× is a smudge. It sits in layout
+        // space like the box, so the layer's own scale(zoom) is divided back out.
+        //
+        // AND IT STAYS ITS OWN SIZE ALL THE WAY OUT (#846). It used to shrink
+        // with a zoom-out — `scale(min(1, zoom))` on screen — so at the 0.32 a
+        // real board settles into, a 10px label drew at about 3px and the one
+        // line that says which session a cluster is could not be read. It is
+        // 1× on screen at every zoom now. The lift is divided out the same
+        // way, so the tab keeps the geometry it has at 1× — 12px above the
+        // box's top edge, over the handle's top strip — instead of sliding down
+        // over the cards as the box shrinks under it.
         //
         // `|| 1` guards a zoom of zero, which would make this Infinity and put
         // the label nowhere. React Flow clamps to minZoom (0.2 on this canvas)
@@ -407,8 +413,8 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
         const labelStyle: React.CSSProperties = {
           position: "absolute",
           left: c.x + 16,
-          top: c.y - LABEL_LIFT,
-          transform: `scale(${Math.min(1, zoom) / (zoom || 1)})`,
+          top: c.y - LABEL_LIFT / (zoom || 1),
+          transform: `scale(${1 / (zoom || 1)})`,
           transformOrigin: "left top",
           "--session-hue": hue,
         } as React.CSSProperties;
