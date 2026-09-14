@@ -4531,6 +4531,10 @@ function Inner() {
             // per gesture, but we only need the final state.
             const tier = zoomDetail(vp.zoom);
             if (tier !== detailRef.current) { detailRef.current = tier; setDetail(tier); }
+            // The zoom itself, for the far tier's title scale (#846). Written on
+            // the element rather than through state: it changes every frame of
+            // a gesture, and the sheet is the only reader.
+            canvasRef.current?.style.setProperty("--zoom", String(vp.zoom));
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
             vpSaveTimerRef.current = window.setTimeout(() => saveViewport(vp), 250);
           }}
