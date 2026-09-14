@@ -78,6 +78,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // session's cumulative tokens by the one model it was last seen on. See
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
+import { fmtTokens } from "./token-format";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
@@ -5215,10 +5216,13 @@ function Detail({
         <section className="detail-section">
           <h3>Tokens</h3>
           <div className="tokens-grid">
-            <div><span className="k">in</span><b>{agent.usage.inputTokens.toLocaleString()}</b></div>
-            <div><span className="k">out</span><b>{agent.usage.outputTokens.toLocaleString()}</b></div>
-            <div><span className="k">cache r</span><b>{agent.usage.cacheReadTokens.toLocaleString()}</b></div>
-            <div><span className="k">cache c</span><b>{agent.usage.cacheCreateTokens.toLocaleString()}</b></div>
+            {/* The usage panel's format, not a grouped integer (#835): side by
+                side, 111,053,708 and 177.08M read as two kinds of measure. The
+                exact count stays one hover away. */}
+            <div><span className="k">in</span><b title={agent.usage.inputTokens.toLocaleString()}>{fmtTokens(agent.usage.inputTokens)}</b></div>
+            <div><span className="k">out</span><b title={agent.usage.outputTokens.toLocaleString()}>{fmtTokens(agent.usage.outputTokens)}</b></div>
+            <div><span className="k">cache r</span><b title={agent.usage.cacheReadTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheReadTokens)}</b></div>
+            <div><span className="k">cache c</span><b title={agent.usage.cacheCreateTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheCreateTokens)}</b></div>
           </div>
         </section>
       )}
