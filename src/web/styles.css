@@ -10127,6 +10127,15 @@ input, textarea { caret-color: var(--accent); }
 .lan-lane > .lan-pip[data-end="here"] { grid-column: 1; grid-row: 1; }
 .lan-lane > .lan-track { grid-column: 2; grid-row: 1; }
 .lan-lane > .lan-pip[data-end="there"] { grid-column: 3; grid-row: 1; }
+/* ANCHORED TO THE ADDRESS'S FIRST LINE, not to the middle of the row. A long
+   login wraps at phone width, and centred on a two-line row the marks, the
+   line and the arrows all dropped to the gap between the lines — while the
+   rail, which cannot know the row's height, still stopped where a one-line
+   row keeps its mark, and left the last lane's mark floating under it. On the
+   first line's centre, 9px down, every one of them is where it always is. */
+.lan-lane > .lan-pip { align-self: start; margin-top: 5px; }
+.lan-track > .lan-wire,
+.lan-track > .lan-chev { top: 9px; }
 
 /* A COPY, at the end of the machine that holds it. Filled is a copy that
    works — the ok ink, or the warning ink for an expired one here, which is
@@ -10336,11 +10345,11 @@ input, textarea { caret-color: var(--accent); }
    for, and that were drawing at 12.95:1 while the sentence saying a login is
    broken drew at 4.70 two sections below. Nothing is hidden and nothing moves;
    the three rows nobody opens this dialog to read stop shouting over the rows
-   they do. Address, fingerprint and the last round keep full strength — those
-   are read ACROSS machines, matched against what a terminal says. */
+   they do. The fingerprint keeps full strength — it is read ACROSS machines,
+   matched against what the other screen says. The address and the last round
+   moved into the picture, and with them the only row that was ever warned. */
 .lan-fact[data-tone="quiet"] dd,
 .lan-fact[data-tone="meta"] dd { color: var(--muted); }
-.lan-fact[data-tone="bad"] dd { color: var(--warn); }
 .lan-fp { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
 /* Inline in a line of text, where SC 2.5.8 exempts a target from the 24px
    floor — so the word does not push the row it sits in to twice its height. */
