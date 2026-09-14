@@ -9,7 +9,7 @@
 // subscriber nor a persistence file, and when there is, the envelope is
 // serialized exactly once no matter how many consumers share it.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { get, request, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -112,8 +112,16 @@ function event(n: number) {
  *
  * The last line can be half-written while a fire-and-forget append is in
  * flight, so a line that will not parse is skipped rather than thrown on.
+ *
+ * And the FILE itself may not be there yet, for the same reason the content may
+ * not be: the append that creates it is fire-and-forget, so on a slow or
+ * contended runner the first read can land before it. That is the same "not yet"
+ * the caller's retry loop exists to absorb, so it is answered with no prompts
+ * rather than with ENOENT — which threw out of the loop before it could retry
+ * even once, and was seen only on CI.
  */
 function loggedPrompts(): unknown[] {
+  if (!existsSync(join(DIR, "events.jsonl"))) return [];
   return readFileSync(join(DIR, "events.jsonl"), "utf8")
     .split("\n")
     .filter(Boolean)
