@@ -56,6 +56,11 @@ export interface ViewportMotion {
    *  change midway through an animation, so it is read at the moment of the
    *  change rather than remembered. */
   documentHidden: boolean;
+  /** `prefers-reduced-motion: reduce` — has the reader asked the OS for less
+   *  motion? Left out, it is read from the page at the moment of the change,
+   *  the way count-up.ts asks: a reader can flip the setting while the deck is
+   *  open, and every caller already passes the other two. */
+  reducedMotion?: boolean;
 }
 
 /**
@@ -64,15 +69,39 @@ export interface ViewportMotion {
  * False in a page that is not being rendered, because there the animation is
  * not slower or choppier — it does not happen, and neither does the move it was
  * carrying. False for a duration that asks for no animation in the first place.
- * True otherwise, which is the ordinary case and must stay ordinary: a visible
- * tab animates exactly as before.
+ * False under reduced motion (#870): a pan and zoom across the whole canvas on
+ * every j/k is the vestibular trigger that setting exists to stop, and the
+ * camera was the one mover in the deck written in JS, where no media query in
+ * styles.css could reach it. True otherwise, which is the ordinary case and
+ * must stay ordinary: a visible tab animates exactly as before.
  *
  * A `false` answer is an instruction to the caller, not permission to skip the
  * move: it means "put the pane there now, by the synchronous route", never
  * "ask React Flow for it with duration 0" — see the note on `getD3Transition`
  * above for why those are not the same thing.
  */
-export function shouldAnimateViewport({ durationMs, documentHidden }: ViewportMotion): boolean {
-  if (documentHidden) return false;
+export function shouldAnimateViewport(
+  { durationMs, documentHidden, reducedMotion = prefersReducedMotion() }: ViewportMotion,
+): boolean {
+  if (documentHidden || reducedMotion) return false;
   return Number.isFinite(durationMs) && durationMs > 0;
+}
+
+/** Whether the reader asked for less motion. False where there is no page to
+ *  ask — the suite, a worker — so a missing API never stops an animation. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * The duration to hand React Flow's `fitView`, which — unlike `setViewport` —
+ * does have a synchronous branch: `duration > 0` is a d3 transition, anything
+ * else is `d3Zoom.transform(d3Selection, t)` applied there and then
+ * (@reactflow/core `fitView`). So for this one call a 0 really is "go now", and
+ * the fits that frame a chosen card ask the rule through here instead of
+ * passing a bare number. Never use it for setViewport; that is applyViewport's.
+ */
+export function fitViewDuration(durationMs: number): number {
+  const documentHidden = typeof document !== "undefined" && document.hidden;
+  return shouldAnimateViewport({ durationMs, documentHidden }) ? durationMs : 0;
 }
