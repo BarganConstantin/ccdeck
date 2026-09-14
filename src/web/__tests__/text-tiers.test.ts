@@ -173,6 +173,10 @@ describe("what was migrated to the secondary tier", () => {
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",
+      // The machine panel's process door: the one line that says what the door
+      // opens, "every process, with its command line". --muted on the door's
+      // plate measured 4.34:1 in dark (#859).
+      ".sd-door-sub",
     ]);
   });
 

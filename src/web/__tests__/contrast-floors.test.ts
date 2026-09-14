@@ -772,6 +772,42 @@ describe("the × that clears an account failure (#872)", () => {
   });
 });
 
+// ── #859 ────────────────────────────────────────────────────────────────────
+
+describe("the machine panel's process door, on the bed it is actually drawn on (#859)", () => {
+  // A composite bed: the door's plate is a 4% (8% on hover) share of --text over
+  // the panel. Every token pair in this file passes; the pair a reader sees is
+  // the ink over THAT, and --muted there was 4.34:1 in dark.
+  const sub = rule(".sd-door-sub")!;
+  const plates: Array<[string, string]> = [
+    ["at rest", decl(rule(".sysdetail .sd-door .sd-door-plate"), "background")!],
+    ["on hover", decl(rule(".sysdetail .sd-door:hover .sd-door-plate"), "background")!],
+  ];
+  const bedOf = (plate: string, theme: Theme) => {
+    expect(decl(rule(".sysdetail"), "background")).toBe("var(--panel)");
+    return over(resolve(plate, theme), parseColor(TOK[theme]["--panel"]));
+  };
+
+  it("reproduces the 4.34:1 the audit measured for --muted on the resting plate", () => {
+    expect(contrastRatio(resolve("var(--muted)", "dark"), bedOf(plates[0][1], "dark"))).toBeCloseTo(4.34, 2);
+  });
+
+  it("reads the door's one line of description at 4.5:1 on the plate, rest and hover, both themes", () => {
+    for (const theme of themes) {
+      const ink = resolve(decl(sub, "color")!, theme);
+      for (const [state, plate] of plates) {
+        const ratio = contrastRatio(ink, bedOf(plate, theme));
+        expect(ratio, `${theme} door subtitle ${state} — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("sets the panel's sentences at 11px, not 10", () => {
+    expect(decl(sub, "font-size")).toBe("11px");
+    expect(decl(rule(".sd-note"), "font-size")).toBe("11px");
+  });
+});
+
 // ── and one reader, so the blind spot has one place to be ───────────────────
 //
 // #662 fixed the reader in this file and in toggle-state.test.ts. #664 and #665
