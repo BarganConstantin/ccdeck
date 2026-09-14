@@ -1998,6 +1998,13 @@ function Inner() {
   // Fallback heuristic (`Date.now() - receivedAt > 30s`) covers older
   // servers without the replay flag.
   const replayActiveRef = useRef<boolean>(true);
+  /** When the latest replay landed, by the wall clock: the moment this page's
+   *  board stops being history arriving and starts being spend happening. Null
+   *  before the first replay-end and after the stream drops, because a
+   *  reconnect replays the ring again. The usage header's $/min counts from
+   *  here (#821) — counted from mount, the board total climbing from $0 to
+   *  itself during the replay read as hundreds of dollars a minute. */
+  const [liveSince, setLiveSince] = useState<number | null>(null);
   useEffect(() => {
     const es = new EventSource("/events");
     const coalescer = createRenderCoalescer(rerender, {
@@ -2006,10 +2013,11 @@ function Inner() {
       clearTimeout: (id) => window.clearTimeout(id),
     });
     es.addEventListener("open", () => { setLive(true); setEverConnected(true); });
-    es.addEventListener("error", () => setLive(false));
+    es.addEventListener("error", () => { setLive(false); setLiveSince(null); });
     es.addEventListener("replay-end", () => {
       replayActiveRef.current = false;
       coalescer.flush();
+      setLiveSince(Date.now());
     });
     es.addEventListener("hook", (e) => {
       try {
@@ -4784,6 +4792,7 @@ function Inner() {
           state={stateRef.current}
           now={now}
           providers={providers}
+          liveSince={liveSince}
           leaving={usagePhase === "leaving"}
           onClose={() => setUsagePanelOpen(false)}
         />

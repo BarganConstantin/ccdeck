@@ -5368,15 +5368,20 @@ button.tool.clickable:last-child { border-bottom: none; }
   align-items: center;
   gap: 4px;
 }
+/* Neutral, not the running pink (#821): the colour every in-flight thing on
+   the canvas wears made a money figure read as a state, and it is a rate. The
+   figure is the primary tier — it is the panel's headline number, not prose
+   and not a caption — and the span beside it the metadata tier. */
 .up-rate {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  color: var(--inflight);
+  color: var(--text);
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(240,171,252,0.12);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
 }
+.up-rate-span { color: var(--muted); }
 /* #380 deleted a 16px font-size here for the same reason it deleted `.sl-close`'s
    15px: `class="btn icon-btn up-close"` put `button.btn.icon-btn` (0,2,1) over
    this rule's (0,1,0). The class set is `glyph-btn up-close` now, so that fight
