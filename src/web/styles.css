@@ -1366,6 +1366,42 @@ button.btn.sm-hear {
    gap. Eight was too tight to read as two things; twenty separates them
    without opening a corridor. */
 .sysdetail.shifted { right: calc(var(--rail-r) + 280px + 20px); }
+
+/* THE RAILS COLUMN (#847). Usage and machine were two fixed overlays side by
+   side over the canvas; at 768px they covered 76% of it. They stack in one
+   280px column in the rail's slot now, and the canvas is padded by that column
+   so React Flow's pane — every card, the minimap, the controls — ends at its
+   edge while the canvas background still runs underneath. React Flow's root is
+   `width: 100%; height: 100%` of the canvas's content box, which is what makes
+   padding, rather than an offset, the thing that shrinks it; the drift
+   watchdog measures that same box (#615), so it moves with it.
+   Each panel stays its own scroll box and gives up height to the other when
+   both are open: `min-height: 0` lets a flex child shrink below its content. */
+.rails {
+  position: fixed;
+  top: 60px;
+  right: var(--rail-r);
+  z-index: 20;
+  width: 280px;
+  max-height: calc(100vh - 76px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rails > .usage-panel,
+.rails > .sysdetail {
+  position: static;
+  max-height: none;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+/* 280 for the column, 8 for its gap from the detail panel or the window edge,
+   and 8 more so a card never touches it. */
+.app:has(.rails) .canvas-wrap { padding-right: 296px; }
+/* The empty canvas's message is centred on the canvas's padding box, so with
+   the column open it sat off-centre and could run under it. Half the padding
+   back puts it in the middle of the part that can be seen. */
+.app:has(.rails) .empty-hero { left: calc(50% - 148px); }
 /* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
    same object: both fixed at the same top, both 280px, both opened by a button
    in the topbar directly above them. Before this one of them dropped 4px and
