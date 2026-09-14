@@ -51,7 +51,7 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
     return () => { cancelled = true; };
   }, []);
 
-  const { note, confirm } = clearCopy(agentCount, plan);
+  const { goes, stays, final, confirm } = clearCopy(agentCount, plan);
 
   return (
     <div className="modal-backdrop" onClick={onCancel} role="presentation">
@@ -74,7 +74,15 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
         </header>
 
         <section className="modal-body">
-          <p className="modal-note">{note}</p>
+          {/* What goes and what stays, one fact to a line (#843), rather than
+              one sentence the reader has to parse while deciding. */}
+          <dl className="cc-plan">
+            <dt>Goes</dt>
+            <dd>{goes.map(line => <span key={line}>{line}</span>)}</dd>
+            <dt>Stays</dt>
+            <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span>nothing</span>}</dd>
+          </dl>
+          {final && <p className="cc-final">{final}</p>}
           <div className="cc-actions">
             <button type="button" ref={cancelRef} className="btn" onClick={onCancel}>Cancel</button>
             <button type="button" className="btn danger" onClick={onConfirm}>{confirm}</button>

@@ -312,10 +312,11 @@ describe("Clear on a deck that does not own the shared log", () => {
   it("turns that plan into a confirmation that does not promise a deletion", async () => {
     const plan = readClearPlan((await call(scoped.port, "/api/clear", "GET")).json);
     expect(plan, "the dialog must be able to read the server's own answer").not.toBeNull();
-    const { note, confirm } = clearCopy(3, plan);
-    expect(note).toContain(`the deck on port ${wide.port} owns that file`);
-    expect(note).toMatch(/leaves the event log alone/);
-    expect(note).not.toMatch(/deletes the event log/);
+    // Goes and stays since #843, which sorted this sentence into lines.
+    const { goes, stays, confirm } = clearCopy(3, plan);
+    expect(stays.join(" ")).toContain(`the deck on port ${wide.port} owns that file`);
+    expect(stays.join(" ")).toMatch(/the event log/);
+    expect(goes.join(" ")).not.toMatch(/event log/);
     // The button stops saying "everything" when it is not going to destroy
     // everything.
     expect(confirm).toBe("Clear this canvas");
@@ -341,10 +342,10 @@ describe("Clear on the deck that does own it", () => {
     const plan = readClearPlan((await call(wide.port, "/api/clear", "GET")).json);
     expect(plan?.mine).toBe(true);
     expect(plan?.decks).toBe(2);
-    const { note, confirm } = clearCopy(3, plan);
+    const { goes, confirm } = clearCopy(3, plan);
     // The sentence the reporter never saw: what goes is not only this deck's.
-    expect(note).toContain("1 other running deck shares");
-    expect(note).toContain("all 3 agents on the canvas");
+    expect(goes.join(" ")).toContain("1 other running deck shares");
+    expect(goes.join(" ")).toContain("all 3 agents on the canvas");
     expect(confirm).toBe("Clear everything");
   });
 });
@@ -372,9 +373,9 @@ describe("A deck whose log nobody else holds", () => {
 
     // And it is the deck the old copy was written for, so it keeps the old
     // promise.
-    const { note, confirm } = clearCopy(1, readClearPlan(res.json));
-    expect(note).toContain("deletes this deck's event log");
-    expect(note).toContain("the one agent");
+    const { goes, confirm } = clearCopy(1, readClearPlan(res.json));
+    expect(goes.join(" ")).toContain("this deck's event log");
+    expect(goes.join(" ")).toContain("the one agent");
     expect(confirm).toBe("Clear everything");
   }, 60_000);
 });
@@ -420,9 +421,9 @@ describe("The sentence when the server has not answered yet", () => {
     // /api/clear`, a request that failed: all of them are "I do not know", and
     // the cost of over-warning is a cancelled click while the cost of
     // under-warning is somebody's history.
-    const { note } = clearCopy(2, null);
-    expect(note).toContain("every deck on this machine shares");
-    expect(note).toContain("all 2 agents");
+    const { goes } = clearCopy(2, null);
+    expect(goes.join(" ")).toContain("every deck on this machine shares");
+    expect(goes.join(" ")).toContain("all 2 agents");
   });
 
   it("is the sentence the dialog actually shows", () => {
