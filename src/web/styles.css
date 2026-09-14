@@ -2496,6 +2496,11 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .react-flow__node.rf-exiting { pointer-events: none; }
 .react-flow__node.rf-exiting .agent-node {
   animation: nodeExit 600ms cubic-bezier(0.55, 0, 0.55, 1) forwards;
+  /* Promoted for the exit only (#881). This was `will-change: transform` on
+     every `.agent-node`, a compositor layer per card for the life of the board,
+     and the only transform a card ever runs is this 600ms leaving — React Flow
+     moves the wrapper, not the card. */
+  will-change: transform, opacity, filter;
 }
 @keyframes nodeExit {
   0%   { opacity: 1; filter: blur(0) saturate(1); transform: scale(1); }
@@ -2904,7 +2909,6 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   box-shadow: var(--shadow-1);
   transition: border-color 200ms ease, box-shadow 200ms ease;
   overflow: hidden;
-  will-change: transform;
 }
 .agent-node:hover { box-shadow: var(--shadow-2); }
 
