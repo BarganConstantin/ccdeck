@@ -1584,7 +1584,11 @@ button.btn.sm-hear {
   font-weight: 600;
   color: var(--text);
 }
-.sd-door-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+/* The only line that says what the door opens, so it is read, not glanced at:
+   11px and the secondary tier. --muted on the plate's composite measured 4.34:1
+   in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
+   the contrast tests check never saw that ground. */
+.sd-door-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
 /* The plate carries the hover, so `.sd-open`'s own fill would be a second one
    under it — and it is a WIDER one: that fill bleeds to the panel's edges,
    which is right for a heading over readings and wrong under a plate, because
@@ -1641,7 +1645,9 @@ button.btn.sm-hear {
 .sd-load-item span { color: var(--muted); font-size: 10px; }
 .sd-load-item.over b { color: var(--warn); }
 
-.sd-note { margin-top: 5px; color: var(--muted); font-size: 10px; }
+/* 11px, the panel's reading size (#859): these are sentences — "reading this
+   machine…", why a reading is missing — not labels. */
+.sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
