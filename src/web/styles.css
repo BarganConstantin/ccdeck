@@ -10028,6 +10028,58 @@ input, textarea { caret-color: var(--accent); }
 .lan-done-what { color: var(--muted); }
 .lan-done li[data-ok="false"] .lan-done-what { color: var(--warn); }
 
+/* EVERY DECK AT ONE ADDRESS, when a machine runs more than one. One grid for
+   all of them, so the ports and the fingerprints start on one x and two decks
+   are compared by running an eye down them — the only reason anybody opens
+   this list. The identity on the first line: the dot, the address and port, the
+   fingerprint, and the verb on the far edge. What it runs, when it was paired
+   and how it is doing on the second, in the annotation tier, because those are
+   read after the identity and never instead of it.
+
+   `display: contents` on the row, as `.lan-offer` does, is what puts the cells
+   on this grid; the explicit roles in the markup keep it a list while it does.
+   Every cell names its column, so a row without a verb — the first, which the
+   dialog above already describes — still lands its second line under the
+   address rather than wherever auto-placement would drop it. */
+.lan-twins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 5px max-content minmax(0, 1fr) max-content;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.lan-twin { display: contents; }
+.lan-twin > i { grid-column: 1; align-self: center; }
+.lan-twin-at { grid-column: 2; color: var(--text); }
+/* Full strength on the address, one step down on the fingerprint: the port is
+   what tells two decks on one machine apart at a glance, and the fingerprint is
+   what gets matched against the other screen once somebody is sure. */
+.lan-twin-fp { grid-column: 3; min-width: 0; color: var(--text-dim); overflow-wrap: anywhere; }
+/* A key the machine held before and dropped: paired, and nothing to dial. Said
+   in words in the address's own column, in the annotation tier, rather than as
+   an empty cell that reads like a rendering fault. */
+.lan-twin-none { font-size: 10px; color: var(--muted); }
+/* Both lines tall, centred on the entry it ends: the verb is about the whole
+   deck, not about either line of it. */
+.lan-twin-do { grid-column: 4; grid-row: span 2; align-self: center; }
+.lan-twin-meta {
+  grid-column: 2 / 4;
+  margin-bottom: 9px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lan-twin:last-child .lan-twin-meta { margin-bottom: 0; }
+/* The row's own dot, in the row's own ink — see `.ap-lan-who .ap-pulse`. */
+.lan-twin .ap-pulse { color: var(--ok); opacity: 1; }
+.lan-twin[data-tone="bad"] .ap-pulse { color: var(--warn); }
+.lan-twin[data-tone="wait"] .ap-pulse { color: var(--accent); }
+
 /* `.lan-h-note` was the caption's second half, and both of the things it
    carried have gone to where they are load-bearing: when the list was last
    told is now marked on the list, in the warning ink, and only when it

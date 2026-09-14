@@ -540,6 +540,10 @@ export interface DeckRow {
   /** The whole of it, for the hover and the accessible name — a row is 190px
    *  wide and a sentence that fits there cannot also explain a direction. */
   hint: string;
+  /** Other paired decks with this row's name at this row's address — one
+   *  machine running more than one deck — folded into it and listed in its
+   *  dialog. See oneRowPerMachine. */
+  twins?: DeckRow[];
 }
 
 /** A deck that is paired, holds no address here, and reaches this one by
@@ -725,7 +729,7 @@ export function deckRows(
         : `${n.name}${where ? ` at ${where}` : ""}${p.last?.error ? ` — ${p.last.error}` : ""}`,
     });
   }
-  rows.push(...paired.sort(byName), ...dialling.sort(byName));
+  rows.push(...oneRowPerMachine(paired).sort(byName), ...dialling.sort(byName));
 
   const nearby: DeckRow[] = [];
   for (const p of s.strangers ?? []) {
@@ -769,6 +773,57 @@ export function deckRows(
   }
 
   return rows;
+}
+
+/**
+ * ONE ROW PER MACHINE, among the paired decks.
+ *
+ * Reported from a screenshot: one colleague's Mac twice in the list, the same
+ * name over the same address, two rows nobody could tell apart. They were two
+ * decks on one computer — two starts that got through before a start kept at
+ * most one, each with its own key — and to the person reading the list they are
+ * one machine whatever the fingerprints say. So they are drawn once, and the
+ * dialog behind that row lists every deck folded into it.
+ *
+ * BY THE NAME, which is what a reader tells rows apart by, and not by the
+ * address alone: two decks at one address under different names are something
+ * somebody here can tell apart, and chose to — an alias on one of them is
+ * exactly that choice. The address splits a name only where it can: one name at
+ * two addresses is two machines that happen to share a hostname, and a deck
+ * under that name with no address here stays a row of its own, since nothing
+ * says which of the two it is. With one address or none, every deck under the
+ * name is that machine — including the keys it held before, which are paired,
+ * hold no address and never call again once their deck is gone. Measured on
+ * the machine this came from: three paired keys for one colleague's Mac, one of
+ * them live.
+ *
+ * The one that is online leads, since it is the one the row's dot and verb are
+ * about; then one that holds an address; otherwise the order they came in.
+ */
+export function oneRowPerMachine(rows: DeckRow[]): DeckRow[] {
+  const byName = new Map<string, DeckRow[]>();
+  for (const r of rows) {
+    const list = byName.get(r.name);
+    if (list) list.push(r); else byName.set(r.name, [r]);
+  }
+  const out: DeckRow[] = [];
+  for (const group of byName.values()) {
+    const addrs = [...new Set(group.filter(r => r.addr).map(r => r.addr))];
+    if (addrs.length > 1) {
+      for (const a of addrs) out.push(fold(group.filter(r => r.addr === a)));
+      out.push(...group.filter(r => !r.addr));
+    } else {
+      out.push(fold(group));
+    }
+  }
+  return out;
+}
+
+/** One machine's decks as one row: the lead, and the rest as its twins. */
+function fold(list: DeckRow[]): DeckRow {
+  const [lead, ...twins] = [...list].sort((a, b) =>
+    (Number(b.here) - Number(a.here)) || (Number(!!b.addr) - Number(!!a.addr)));
+  return twins.length ? { ...lead, twins } : lead;
 }
 
 /** A list of decks with the names somebody here gave them — deckRows' rule,
@@ -1129,7 +1184,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
   // is gone — unpaired and not heard since, or an address whose answer just
   // gave it an identity — the dialog closes rather than drawing a machine that
   // is no longer on the list.
-  const openRow = peerOpen ? rows.find(r => r.fp === peerOpen) ?? null : null;
+  // A deck folded into another row is still found: which of a machine's decks
+  // leads can change between two polls, and the dialog is about the machine.
+  const openRow = peerOpen
+    ? rows.find(r => r.fp === peerOpen || r.twins?.some(t => t.fp === peerOpen)) ?? null
+    : null;
   useEffect(() => {
     if (peerOpen && status && !openRow) setPeerOpen(null);
   }, [peerOpen, status, openRow]);
@@ -1567,6 +1626,8 @@ export default function LanSyncSection({ accounts, onChanged }: {
           // What this deck offers is this deck's setting, not that deck's —
           // so the door to it closes this dialog on the way through.
           onSettings={() => { setPeerOpen(null); setSetupOpen(true); }}
+          twins={(openRow.twins ?? []).map(t => ({ row: t, peer: rowSource(status, t).peer ?? null }))}
+          onUnpair={fp => answer("unpair", fp, "unpair that deck")}
         />
       )}
     </div>

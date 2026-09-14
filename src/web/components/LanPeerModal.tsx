@@ -42,6 +42,11 @@ interface Props {
   /** Close this and open what this deck offers — the one list here that is
    *  not about the machine on the other end. */
   onSettings: () => void;
+  /** The other decks folded into this row — its name at its address, one
+   *  machine running more than one — each with the peer it was built from. */
+  twins?: Array<{ row: DeckRow; peer: RowSource["peer"] }>;
+  /** Unpair one of those, by fingerprint, through the row's own call. */
+  onUnpair?: (fp: string) => Promise<string | null>;
 }
 
 /** Two stamps this far apart came off the same round.
@@ -74,6 +79,7 @@ function Pencil() {
 
 export default function LanPeerModal({
   row, source, status, accounts, now, busy, onClose, onRename, onCheck, onVerb, onSettings,
+  twins = [], onUnpair,
 }: Props) {
   // The keyboard lands on ×, as it does in the tool inspector: this dialog is
   // opened to be read, and the first control in it — the pencil — would put a
@@ -87,6 +93,9 @@ export default function LanPeerModal({
   const [armed, setArmed] = useState(false);
   /** When it was armed, so a double-click cannot be its own confirmation. */
   const armedAt = useRef(0);
+  /** Which folded deck's unpair is armed, by fingerprint: the same two presses,
+   *  one deck at a time. Shares armedAt, since only one can be armed. */
+  const [armedTwin, setArmedTwin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   /** Whether the outbound list is open. Shut by default and per dialog: it is
    *  the same list in every one of them, and the rows worth seeing are drawn
@@ -105,6 +114,11 @@ export default function LanPeerModal({
     const t = window.setTimeout(() => setArmed(false), 4_000);
     return () => window.clearTimeout(t);
   }, [armed]);
+  useEffect(() => {
+    if (!armedTwin) return;
+    const t = window.setTimeout(() => setArmedTwin(null), 4_000);
+    return () => window.clearTimeout(t);
+  }, [armedTwin]);
 
   const press = (tag: string) => {
     const s = pressState(busy, tag);
@@ -283,6 +297,10 @@ export default function LanPeerModal({
     ? seenLabel(offers.at, now)
     : null;
 
+  // Every deck at this address, the one this dialog is about first. Empty for
+  // the ordinary machine, which runs one.
+  const instances = twins.length ? [{ row, peer: peer ?? null }, ...twins] : [];
+
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
@@ -373,6 +391,65 @@ export default function LanPeerModal({
                 to carry, which is the only place it is ever explained. */}
             {peer?.waiting && <p className="lan-note">{row.hint}</p>}
           </div>
+
+          {/* ONE MACHINE, MORE THAN ONE DECK. The list draws a machine once —
+              two rows with one name, and no address to tell them apart, are
+              one machine to anybody reading them — and this is where every
+              deck folded into that row is still accounted for: its port, its
+              fingerprint, what it runs, and a way to let go of the one that
+              should not be there. A key the machine held before and dropped
+              is one of these too: paired, no address, never calling again.
+              Everything above is about the first. */}
+          {instances.length > 1 && (
+            <div className="modal-section">
+              <h3 className="lan-h">{instances.length} decks on this machine</h3>
+              <ul className="lan-twins" role="list">
+                {instances.map((t, i) => {
+                  const at = t.peer?.addr ? `${t.peer.addr}:${t.peer.port}` : t.row.addr;
+                  const named = at || t.row.fp;
+                  const since = t.peer?.pairedAt ? seenLabel(t.peer.pairedAt, now) : null;
+                  const meta = [
+                    t.peer?.about?.version ? `runs ${t.peer.about.version}` : null,
+                    since ? `paired ${since === "now" ? "just now" : since}` : null,
+                    t.row.state,
+                  ].filter(Boolean).join(" · ");
+                  const fpT = t.row.fp;
+                  return (
+                    <li key={fpT} role="listitem" className="lan-twin" data-tone={t.row.tone}>
+                      <i className={t.row.here ? "ap-pulse" : "ap-dot"} aria-hidden />
+                      {at
+                        ? <code className="ap-lan-code lan-twin-at">{at}</code>
+                        : <span className="lan-twin-at lan-twin-none">no address here</span>}
+                      <code className="ap-lan-code lan-twin-fp">{fpT}</code>
+                      {/* Before the second line in the markup, so the grid
+                          places it beside the identity and lets it span both
+                          lines; after it, auto-placement dropped it onto the
+                          second line, a row below the address it acts on. */}
+                      {i > 0 && onUnpair && (
+                        <button type="button"
+                          className={`ap-manage-btn danger lan-twin-do${armedTwin === fpT ? " armed" : ""}`}
+                          {...press(`unpair:${fpT}`)}
+                          onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                          onClick={() => {
+                            if (armedTwin !== fpT) { setArmedTwin(fpT); armedAt.current = Date.now(); return; }
+                            if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                            setArmedTwin(null);
+                            void run(() => onUnpair(fpT));
+                          }}
+                          aria-label={armedTwin === fpT ? `Confirm unpairing ${named}` : `Unpair ${named}`}
+                          title={armedTwin === fpT
+                            ? "Press again to stop talking to this deck. Logins it already has stay with it."
+                            : "Stop talking to this one of the machine's decks"}>
+                          {busy === `unpair:${fpT}` ? "unpairing…" : armedTwin === fpT ? "sure?" : "unpair"}
+                        </button>
+                      )}
+                      <span className="lan-twin-meta">{i === 0 ? `${meta} · shown above` : meta}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           {paired && (
             <div className="modal-section">
