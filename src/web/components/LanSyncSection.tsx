@@ -1343,18 +1343,21 @@ export default function LanSyncSection({ accounts, onChanged }: {
             round caps — which is what the topbar's five and the browser-watch
             modal's cog already are.
 
-            The plus itself was `+ add a deck` at the foot, in the panel's
-            word-button costume, beside settings it has nothing to do with. The
-            accounts header two sections up has kept a plus for adding one since
-            it was written. */}
+            The add was `+ add a deck` at the foot, in the panel's word-button
+            costume, beside settings it has nothing to do with. It became a
+            plus, and the check beside it a round: the accounts header's add and
+            reload, a few rows up, meaning two other things (#838). So adding a
+            deck is a link — pairing is what it starts — and checking the paired
+            decks is a broadcast, one ask sent to all of them. */}
         {on && (
           <button type="button" className="glyph-btn ap-lan-plus"
             onClick={() => setAddOpen(true)}
             aria-label="Add a deck"
             title="Reach a deck that has not turned up on its own — by address, or with an invite">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-              <path d="M7 2.2v9.6M2.2 7h9.6" />
+              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M6.1 7.9a2.6 2.6 0 0 0 3.7 0l1.9-1.9a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
+              <path d="M7.9 6.1a2.6 2.6 0 0 0-3.7 0L2.3 8a2.6 2.6 0 0 0 3.7 3.7l.9-.9" />
             </svg>
           </button>
         )}
@@ -1363,13 +1366,14 @@ export default function LanSyncSection({ accounts, onChanged }: {
             onClick={() => void checkNow()}
             aria-label={busy === "check" ? "Checking every paired deck" : "Check every paired deck now"}
             title="Ask every paired deck now for anything this deck's expired logins need, instead of waiting for the next round">
-            {/* Open at the top right, with the head on the end that comes back
-                round — the arc reads as a return rather than as a circle with a
-                nick in it, which is what a 300° sweep at this size becomes. */}
+            {/* A broadcast: a point and two rings of arcs, one ask sent to every
+                paired deck at once (#838). The round it replaced is the accounts
+                header's reload, two sections up. */}
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
-              <path d="M11.9 2.6v3.7h-3.6" />
+              <circle cx="7" cy="7" r="1.1" fill="currentColor" stroke="none" />
+              <path d="M4.6 4.6a3.4 3.4 0 0 0 0 4.8M9.4 4.6a3.4 3.4 0 0 1 0 4.8" />
+              <path d="M2.6 2.6a6.2 6.2 0 0 0 0 8.8M11.4 2.6a6.2 6.2 0 0 1 0 8.8" />
             </svg>
           </button>
         )}
