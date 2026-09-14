@@ -128,6 +128,12 @@ describe("the Linux walk, against a real tree on disk", () => {
       temp2_input: "52000\n", temp2_label: "Core 0\n",
     });
     await chip("hwmon3", "amdgpu", { temp1_input: "61000\n", temp1_label: "edge\n", temp1_crit: "100000\n" });
+    // What an Intel package sensor actually publishes: max and crit are the
+    // same number. Read off a live machine, not invented.
+    await chip("hwmon4", "coretemp", {
+      temp1_input: "88000\n", temp1_label: "Package id 1\n",
+      temp1_max: "100000\n", temp1_crit: "100000\n",
+    });
     return root;
   };
 
@@ -140,6 +146,7 @@ describe("the Linux walk, against a real tree on disk", () => {
         "amdgpu:edge:61",
         "coretemp:Core 0:52",
         "coretemp:Package id 0:58",
+        "coretemp:Package id 1:88",
       ]);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
@@ -153,6 +160,43 @@ describe("the Linux walk, against a real tree on disk", () => {
       expect([pkg.warnAt, pkg.critAt]).toEqual([84, 100]);
       const core = (await readHwmon(root)).find(s => s.label === "Core 0")!;
       expect([core.warnAt, core.critAt], "the fallback bands").toEqual([75, 90]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("refuses a chip band that is not a band, which is every Intel coretemp", async () => {
+    // Intel coretemp publishes temp*_max === temp*_crit. Taken literally that
+    // is a zero-degree amber band: thermalTone goes calm -> hot at 100C, a
+    // number a CPU reaches only as it shuts the machine down, so a package at
+    // 88C drew the same grey as one at 45C. The 75/90 fallback that would have
+    // said something useful was discarded precisely BECAUSE the chip published
+    // its own numbers.
+    const root = await build();
+    try {
+      const pkg = (await readHwmon(root)).find(s => s.label === "Package id 1")!;
+      expect(pkg.celsius).toBe(88);
+      expect(pkg.critAt, "crit is still the chip's own").toBe(100);
+      expect(pkg.warnAt, "warn falls back rather than sitting on crit").toBe(75);
+      expect(thermalTone(pkg.celsius, pkg.warnAt, pkg.critAt)).toBe("warn");
+      // And a band that IS a band is still preferred over the fallback.
+      const usable = (await readHwmon(root)).find(s => s.label === "Package id 0")!;
+      expect([usable.warnAt, usable.critAt]).toEqual([84, 100]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("keeps the warn band under a chip whose crit is lower than our default", async () => {
+    // A drive that acts at 70C must not be given a 75C warn line it can never
+    // cross — the fallback is a ceiling, not a constant.
+    const root = await mkdtemp(join(tmpdir(), "hwmon-low-"));
+    try {
+      await mkdir(join(root, "hwmon0"), { recursive: true });
+      await writeFile(join(root, "hwmon0", "name"), "nvme\n");
+      await writeFile(join(root, "hwmon0", "temp1_input"), "50000\n");
+      await writeFile(join(root, "hwmon0", "temp1_max"), "70000\n");
+      await writeFile(join(root, "hwmon0", "temp1_crit"), "70000\n");
+      const [row] = await readHwmon(root);
+      expect(row.critAt).toBe(70);
+      expect(row.warnAt).toBe(63);
+      expect(row.warnAt).toBeLessThan(row.critAt);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
@@ -357,7 +401,10 @@ describe("the live reader, on whichever machine is running this", () => {
       expect(r.label.length).toBeGreaterThan(0);
       expect(r.celsius, `${r.label} is not a temperature`).toBeGreaterThan(0);
       expect(r.celsius).toBeLessThan(130);
-      expect(r.critAt).toBeGreaterThan(r.warnAt - 1);
+      // STRICTLY greater. This read `> warnAt - 1` — i.e. `>=` — and equality
+      // is exactly the shape that has no amber band at all, which is how a
+      // coretemp row reporting max === crit went unnoticed.
+      expect(r.critAt, `${r.label} has a zero-width warn band`).toBeGreaterThan(r.warnAt);
     }
     if (t.throttle) {
       expect(t.throttle.speedLimit).toBeGreaterThanOrEqual(0);

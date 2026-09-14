@@ -1167,14 +1167,33 @@ export async function readHwmon(root = "/sys/class/hwmon", deps = {}) {
       if (!m) continue;
       const celsius = celsiusFromMilli(await read(`${base}/${entry}`));
       if (celsius == null) continue;
+      const chipMax = celsiusFromMilli(await read(`${base}/${m[1]}_max`));
+      const chipCrit = celsiusFromMilli(await read(`${base}/${m[1]}_crit`));
       out.push({
         chip,
         label: await read(`${base}/${m[1]}_label`),
         celsius,
         // The hardware's own bands where it has them. `max` is where the chip
         // says it is unhappy and `crit` is where it says it will act.
-        warnAt: celsiusFromMilli(await read(`${base}/${m[1]}_max`)) ?? WARN_C,
-        critAt: celsiusFromMilli(await read(`${base}/${m[1]}_crit`)) ?? CRIT_C,
+        //
+        // `max` ONLY WHEN IT IS BELOW `crit`, because on Intel coretemp the two
+        // files carry the same number. Measured on a live machine:
+        //
+        //   coretemp  temp1_input 88000  temp1_max 100000  temp1_crit 100000
+        //   nvme      temp1_input 45850  temp1_max  84850  temp1_crit  85850
+        //
+        // The nvme row is a real band and works. The coretemp row is not: with
+        // max === crit the amber band is zero degrees wide, so thermalTone goes
+        // from calm straight to hot at 100C — a number a CPU reaches only as it
+        // shuts the machine down. A CPU at 89C was painted the same grey as one
+        // at 45C, on the one row anybody reads, and the 75/90 fallback that
+        // would have said so was discarded precisely BECAUSE the chip published
+        // its own. A chip that publishes one usable threshold is telling us
+        // where it will act, not where to start worrying.
+        warnAt: chipMax != null && chipCrit != null && chipMax >= chipCrit
+          ? Math.min(WARN_C, Math.round(chipCrit * 0.9))
+          : chipMax ?? WARN_C,
+        critAt: chipCrit ?? CRIT_C,
       });
     }
   }
