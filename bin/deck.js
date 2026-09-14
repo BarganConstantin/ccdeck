@@ -191,6 +191,47 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
   const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
   const say = (line) => process.stdout.write(`${line}\n`);
 
+  // WHAT THE ONE-SHOTS USED TO SWALLOW.
+  //
+  // reportUnknownFlags and reportIncompleteFlags live below this block and
+  // cannot be called from it — they reach for `G`, `P` and `write`, all
+  // declared a thousand lines down, so a call here is a temporal dead zone
+  // (the same reason the `--port` guard builds its own glyphs, #797). So the
+  // rows are written here, with this block's own tone.
+  //
+  // Without them `--help`'s closing promise — "Anything else on the command
+  // line is reported as an unknown option and then ignored" — held for a boot
+  // and for none of the nine one-shots: `ccdeck --status --prot 4317` printed
+  // the status and never mentioned the flag.
+  for (const token of flags.unknown ?? []) {
+    process.stderr.write(`  ${tone.warn}${gWarn}  unknown option${tone.reset}  ${token} ${dash} see \`${INVOKED_AS ?? PRODUCT} --help\`\n`);
+  }
+  for (const { flag, expects } of flags.incomplete ?? []) {
+    process.stderr.write(`  ${tone.warn}${gWarn}  missing value${tone.reset}   ${flag} ${dash} expected ${expects}\n`);
+  }
+
+  // AND `--stop` FAILS CLOSED ON A PORT IT CANNOT USE.
+  //
+  // The selector below reads "no usable port" and "no port asked for" as the
+  // same thing, and the second means every deck — so `ccdeck --stop --port
+  // 431x`, or `--port $UNSET`, ended every deck on the machine and exited 0.
+  // The guard that refuses a bad port sits ~270 lines below this block, which
+  // always exits before reaching it.
+  //
+  // A narrowing flag that fails open to "everything" is the wrong default for
+  // an off switch: failing closed costs a retype, failing open costs a deck
+  // somebody else was watching.
+  if (flags.stop) {
+    const askedPort = (flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p");
+    const badPort = flags.port != null && !isPortValue(flags.port);
+    if (badPort || askedPort) {
+      const shown = badPort ? ` ${flags.port}` : "";
+      console.error(`${INVOKED_AS ?? PRODUCT}: --port${shown}: not a port number ${dash} expected 0-65535.`);
+      console.error(`${INVOKED_AS ?? PRODUCT}: refusing to stop every deck when you asked for one.`);
+      process.exit(1);
+    }
+  }
+
   const { deckDataDir, deckLogDir } = await import(pathToFileURL(join(PKG_ROOT, "src/server/deck-home.mjs")).href);
 
   // ── --install ─────────────────────────────────────────────────────────────

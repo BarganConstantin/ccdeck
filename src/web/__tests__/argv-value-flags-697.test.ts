@@ -436,3 +436,52 @@ describe("--help says what the parser now does", () => {
     expect(deck).toMatch(/never swallows the next flag/);
   });
 });
+
+// THE `=` FORM, AND WHY IT IS NOT MERELY A CONVENTION.
+//
+// `--port=4400` used to land in `unknown` with `flags.port` left undefined.
+// On a boot that cost one muted row. On `--stop` it cost every deck on the
+// machine, because bin/deck.js reads "no usable port" and "no port asked for"
+// as the same value and the second means all of them — and no one-shot
+// reported the unknown flag either.
+//
+// A bare `--` is the POSIX end-of-options separator; reporting it as an
+// unknown option warned about a token the user typed on purpose.
+describe("`--flag=value` is the same as `--flag value`", () => {
+  for (const [argv, key, want] of [
+    [["--port=4400"], "port", "4400"],
+    [["--workspace=/srv/proj"], "workspace", "/srv/proj"],
+    [["--history=/tmp/events.jsonl"], "history", "/tmp/events.jsonl"],
+  ] as const) {
+    it(`reads ${argv[0]}`, () => {
+      const out = parseArgs([...argv]);
+      expect(out[key as keyof typeof out]).toBe(want);
+      expect(out.unknown).toEqual([]);
+      expect(out.incomplete).toEqual([]);
+    });
+  }
+
+  it("treats an empty joined value as missing, not as an empty path", () => {
+    const out = parseArgs(["--port="]);
+    expect(out.port).toBeUndefined();
+    expect(out.incomplete).toEqual([{ flag: "--port", expects: "a port number" }]);
+  });
+
+  it("names the token as the user typed it when the flag is unknown", () => {
+    // `--prot` alone would send them looking for a flag they did not type.
+    expect(parseArgs(["--prot=4400"]).unknown).toEqual(["--prot=4400"]);
+  });
+
+  it("stops at a bare `--` instead of warning about it", () => {
+    const out = parseArgs(["--no-open", "--", "--port", "4400"]);
+    expect(out.noOpen).toBe(true);
+    expect(out.port, "everything after -- is not ours to read").toBeUndefined();
+    expect(out.unknown).toEqual([]);
+  });
+
+  it("leaves a lone `-` and a negative number alone", () => {
+    // `-` is a conventional stdin placeholder and must not be read as a flag
+    // with a joined value; `eq > 2` keeps both away from the split.
+    expect(parseArgs(["-"]).unknown).toEqual(["-"]);
+  });
+});
