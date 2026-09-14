@@ -89,6 +89,12 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // Drawn only where Claude Code is, so the key is guarded the same way —
       // see the handler in App.tsx, which checks `providers.claude` first.
       { cap: "A", action: "Claude accounts, where Claude Code is installed", binds: ["a", "A"] },
+      // #826: the three topbar panels that were pointer-only.
+      { cap: "S", action: "this machine — cores, memory, temperature", binds: ["s", "S"] },
+      { cap: "B", action: "Browser Watch", binds: ["b", "B"] },
+      // Drawn only where Claude Code is, like A. M under Settings is the switch
+      // itself; this is the menu the speaker opens.
+      { cap: "V", action: "the sound menu — volume, tones, notifications", binds: ["v", "V"] },
       { cap: "?", action: "this sheet", binds: ["?"] },
     ],
   },
