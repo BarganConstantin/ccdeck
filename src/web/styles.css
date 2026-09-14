@@ -6040,6 +6040,32 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-radius: 1px;
   vertical-align: -1px;
 }
+/* The note opens the one number it is measured against (#856): "stay near N%
+   by now" was a title on a 2px tick. No `font` shorthand — it would reset the
+   11px `.qb-pace` sets; a 24px target is drawn around the words. */
+button.qb-pace {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+button.qb-pace:active { transform: scale(0.97); }
+button.qb-pace::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+.qb-why { font-size: 11px; line-height: 1.45; color: var(--text-dim); }
 .qb-limit-badge {
   margin-left: 4px;
   font-size: 11px;
@@ -6746,6 +6772,29 @@ button.tool.clickable:last-child { border-bottom: none; }
   color: var(--muted);
 }
 .ap-err { color: var(--warn); }
+/* The failure is a disclosure (#856): the reason a login died decides whether
+   to sign in again, and it lived in a title no keyboard or touch reader could
+   open. Drawn in the footer's text-control language, in the failure's colour. */
+button.ap-err {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+button.ap-err:active { transform: scale(0.97); }
+/* The reason, on a line of its own at the foot of the row. `order` puts it last
+   on screen; in reading order it stays right after the failure it explains. */
+.ap-why {
+  order: 1;
+  flex-basis: 100%;
+  color: var(--muted);
+  line-height: 1.45;
+}
 .ap-stale { color: var(--warn); }
 /* Right edge, under the lane percentages: it is a value, and the panel puts
    values there. On the left it read as a caption for the account. */
@@ -7626,7 +7675,8 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
    drawn around the word (#857): the transparent pseudo-element .ap-failure-x
    uses, so nothing in the wrapping footer moves to make room for it. */
 .ap-rotate::after,
-.ap-lanes-more::after {
+.ap-lanes-more::after,
+button.ap-err::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -8361,6 +8411,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
   .ap-field select:active:not(:disabled),
   .ap-rotate:active:not(:disabled),
   .ap-lanes-more:active,
+  button.ap-err:active, button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
   .bw-ep-head:active,
