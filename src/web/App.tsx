@@ -2910,6 +2910,27 @@ function Inner() {
     }, 60);
   }, [selectAgent, rf]);
 
+  // Which element a POINTER put focus on, so a button the mouse pressed stops
+  // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
+  // Tracked here because the browser cannot be asked at keydown time —
+  // `:focus-visible` is re-decided by the keystroke itself. A focus that lands
+  // within a moment of a press came from the press; any other focus (Tab, a
+  // dialog handing focus back) clears the mark.
+  const pointerFocusRef = useRef<EventTarget | null>(null);
+  useEffect(() => {
+    let pressedAt = -Infinity;
+    const onPress = () => { pressedAt = performance.now(); };
+    const onFocus = (e: FocusEvent) => {
+      pointerFocusRef.current = performance.now() - pressedAt < 250 ? e.target : null;
+    };
+    window.addEventListener("pointerdown", onPress, true);
+    window.addEventListener("focusin", onFocus, true);
+    return () => {
+      window.removeEventListener("pointerdown", onPress, true);
+      window.removeEventListener("focusin", onFocus, true);
+    };
+  }, []);
+
   // keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2923,6 +2944,7 @@ function Inner() {
         isContentEditable: el?.isContentEditable,
         role: el?.getAttribute?.("role"),
         type: el?.type,
+        pointerFocused: el != null && el === pointerFocusRef.current,
       };
       if (e.key === "Escape") {
         // One press, one owner. This branch used to clear the canvas selection
@@ -2985,7 +3007,7 @@ function Inner() {
       // keys it genuinely owns were answered above — so j still traverses and
       // / still reaches the search box while a card holds focus, which is the
       // whole point of being able to tab onto one.
-      if (intent.nodeId == null && ownsKeystroke(target)) return;
+      if (intent.nodeId == null && ownsKeystroke(target, e.key)) return;
       // A modal is on screen, and focus is not necessarily inside it.
       //
       // The gate above asks the FOCUSED ELEMENT whether it owns the keystroke,
