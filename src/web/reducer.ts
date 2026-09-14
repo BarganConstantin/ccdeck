@@ -1,6 +1,7 @@
 // Event → graph reducer. Pure-ish: same events in any order = same end state.
 import { bareModelId } from "./model-id";
 import { salientInput } from "./tool-input";
+import { injectedPrompt } from "./injected-prompt";
 import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, TokenUsage, ToolCall, WaitingBlock } from "./types";
 
 function emptyUsage(): TokenUsage {
@@ -1796,7 +1797,8 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // the paragraph above exists to prevent.
       if (text && !promptAlreadyRecorded(root, now, text)) {
         root.prompts.push({ at: now, text });
-        if (!root.firstPrompt) root.firstPrompt = shortPreview(text, 120);
+        // A background task's notice is not the session's opening words (#834).
+        if (!root.firstPrompt && !injectedPrompt(text)) root.firstPrompt = shortPreview(text, 120);
       }
       break;
     }

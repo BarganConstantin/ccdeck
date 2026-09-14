@@ -79,6 +79,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
+import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
@@ -5238,10 +5239,24 @@ function Detail({
 
       {agent.prompts.length > 0 && (
         <section className="detail-section">
-          <h3>Prompts <span className="section-count">{agent.prompts.length}</span></h3>
+          {/* The count is what was typed (#834). A background task's notice
+              is listed as the event it is, collapsed, in its place in time. */}
+          <h3>Prompts <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
           <div className="prompts">
             {agent.prompts.slice().reverse().map((pr, i) => {
               const t = promptTime(pr.at, now);
+              const injected = injectedPrompt(pr.text);
+              if (injected) {
+                return (
+                  <details className="prompt-entry prompt-injected" key={i}>
+                    <summary>
+                      <span className="prompt-time" title={t.title}>{t.label}</span>
+                      <span className="prompt-injected-label">{injected.label}</span>
+                    </summary>
+                    {injected.detail && <div className="prompt-injected-detail">{injected.detail}</div>}
+                  </details>
+                );
+              }
               return (
                 <div className="prompt-entry" key={i}>
                   <div className="prompt-time" title={t.title}>{t.label}</div>
