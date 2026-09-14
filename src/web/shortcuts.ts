@@ -74,8 +74,12 @@ const KEY_OWNING_TAGS = new Set([
   "INPUT", "TEXTAREA", "SELECT", "OPTION", "BUTTON", "SUMMARY", "A",
 ]);
 
-// The same controls rebuilt out of <div>/<span> with tabIndex, which is how
-// the tool bursts are written.
+// The same controls rebuilt out of <div>/<span> with a role. Nothing on this
+// deck is written that way today: the tool bursts were, until they went back
+// to being aria-hidden decoration with no tabIndex (#854) — the detail
+// panel's tool rows are real <button>s, and since #814 a selection made from
+// the keyboard opens that panel. The list stays so a control built that way
+// tomorrow is still left its own keys.
 const KEY_OWNING_ROLES = new Set([
   "button", "checkbox", "combobox", "link", "listbox", "menu", "menubar",
   "menuitem", "menuitemcheckbox", "menuitemradio", "option", "radio",
