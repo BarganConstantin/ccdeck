@@ -87,7 +87,7 @@ The deck opens on these eight pictures the first time it runs — they are the w
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The model chip (`Opus 5`, `GPT-5.5`) tells them apart. |
 | **Cost and quota, live** | Spend per model and per session, plus Claude and Codex quota windows as they refill. |
 | **Click to inspect** | Any node opens its prompt, tool calls, token usage and timing. |
-| **Survives restarts** | Events are appended to `~/.claude/agent-dag/events.jsonl` and replayed on open. |
+| **Survives restarts** | Events are appended to this platform's log directory (see `--history` below) and replayed on open. |
 | **Accounts without a terminal** | Sign a new Claude account in, move one or your whole set to another machine, rename, reorder, remove — from the panel. |
 | **Logins that repair each other** | A Claude login that expires on one of your machines is copied back from another machine on the same network that still has it — see [Local network](#local-network). |
 | **Knows when it is stale** | Node caches modules at startup, so an upgraded-while-running deck keeps executing old code. This one says so, and can restart itself when nothing is running. |
@@ -249,13 +249,18 @@ ccdeck [options]
                            have shown it
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to the current working directory
-      --all                Capture every session on this machine  (default)
-                           (beside --stop: every deck, not every session)
+      --all                Capture every session on this machine  (default;
+                           accepted and ignored — it is what a bare run does)
       --history <path>     Override the events log file
                            (default: this platform's log directory —
                            ~/Library/Logs/ccdeck on macOS, %LOCALAPPDATA%\ccdeck\Log
                            on Windows, $XDG_STATE_HOME/ccdeck on Linux)
       --no-persist         RAM-only mode — don't write or replay the log
+      --install            Put the deck on your PATH and start it at login —
+                           what an `npx` run needs to survive a reboot
+      --install-service    Start the deck when you log in. Set up on first run;
+                           this is only for putting it back
+      --uninstall-service  Stop starting at login (`--uninstall` does this too)
       --codex              Force Codex capture even if ~/.codex/ is missing
       --no-codex           Skip Codex capture (Claude only)
       --claude             Force Claude capture even if Claude Code wasn't found
@@ -354,6 +359,7 @@ Environment:
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |
 | `CLAUDE_SWAP_BACKUP` | Override the claude-swap store root the Accounts panel reads |
+| `CCDECK_HOME` | Put everything the deck writes — its state and its log — under this directory instead of the platform default. Wins over every rule below it |
 | `CLAUDE_CONFIG_DIR` | Override `~/.claude` — the hook entry, the event log and everything else the deck writes move with it |
 | `AGENTS_DECK_LHM_PORT` | Port of a running LibreHardwareMonitor web server, when it is not 8085 (Windows temperatures) |
 
@@ -371,11 +377,26 @@ Removes every hook entry ccdeck injected from `~/.claude/settings.json`, and `~/
 
 It removes the hook entries and nothing else. The forwarder script
 (`~/.claude/agent-dag/hook.js`), the discovery directory around it, the events
-log, and the tools ccdeck installed for you — claude-swap, ccusage, and a `uv`
-binary if it had to fetch one — are all left in place, and each has its own
-uninstaller. Deleting `~/.claude/agent-dag/` and `~/.agents-deck/` clears
-ccdeck's own files; `uv tool uninstall claude-swap` (or `pipx uninstall
-claude-swap`) removes the account switcher.
+log, the deck's own state, and the tools ccdeck installed for you — claude-swap,
+ccusage, and a `uv` binary if it had to fetch one — are all left in place, and
+each has its own uninstaller.
+
+Three directories hold ccdeck's own files, and the second one matters most:
+`~/.claude/agent-dag/` (the forwarder and the discovery directory), the
+platform's **data** directory, and the platform's **log** directory.
+
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| data — `prefs.json` | `~/Library/Application Support/ccdeck` | `%LOCALAPPDATA%\ccdeck\Data` | `$XDG_DATA_HOME/ccdeck` |
+| log — `events.jsonl` | `~/Library/Logs/ccdeck` | `%LOCALAPPDATA%\ccdeck\Log` | `$XDG_STATE_HOME/ccdeck` |
+
+`prefs.json` is the one to delete deliberately: it holds this deck's **Local
+network private key**, the one every deck you paired with has pinned. Leaving it
+behind leaves that identity on the machine. (`~/.agents-deck/` holds the managed
+tools rather than the deck's own state, and goes when you remove them.)
+
+`uv tool uninstall claude-swap` (or `pipx uninstall claude-swap`) removes the
+account switcher.
 
 ## Updating
 

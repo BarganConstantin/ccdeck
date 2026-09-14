@@ -437,7 +437,11 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
     say("");
     say(`  ${tone.muted}${dash}  ${left.length} other deck${left.length === 1 ? "" : "s"} still running:${tone.reset}`);
     for (const d of left) say(`       ${tone.muted}pid ${d.pid} ${bullet} ${d.port} ${bullet} ${where(d)}${tone.reset}`);
-    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --stop --port <n>\` ends one ${bullet} \`--stop --all\` ends every deck${tone.reset}`);
+    // `--stop --all` used to be named here as the way to reach every deck. It
+    // is not: `--all` is a parsed no-op, and a bare `--stop` already ends every
+    // deck — which is why this line is only reachable after `--stop --port <n>`
+    // narrowed one. Naming the narrowing form is the half that is true.
+    say(`     ${tone.muted}\`${INVOKED_AS ?? PRODUCT} --stop\` ends every deck ${bullet} \`--stop --port <n>\` ends one${tone.reset}`);
   }
   say("");
   process.exit(refused ? 1 : 0);
@@ -1807,8 +1811,9 @@ Options:
       --uninstall-service  Stop starting at login. \`--uninstall\` does this too
       --workspace <path>   Only capture sessions whose cwd is inside <path>
       --scope              Restrict to current working directory
-      --all                Capture every session (default). Beside --stop it
-                           means every deck rather than every session
+      --all                Capture every session (default). Accepted and
+                           ignored — it is what a bare run already does, and
+                           \`--stop --port <n>\` is the only way to narrow a stop
       --history <path>     Override events log file (default: this platform's log directory)
       --no-persist         Don't write or replay events log (RAM-only)
       --codex              Force-enable Codex capture even if ~/.codex/ missing
@@ -1817,8 +1822,10 @@ Options:
       --no-claude          Skip Claude entirely: no hooks, no claude-swap, no accounts panel
       --uninstall          Remove ${PRODUCT}'s hooks from ~/.claude/settings.json and
                            ~/.codex/hooks.json, and restore any sound hooks of yours it parked.
-                           Hook entries only: the forwarder script, ~/.claude/agent-dag/,
-                           the events log, ~/.agents-deck/ and claude-swap all stay
+                           Hook entries only: the forwarder script under
+                           ~/.claude/agent-dag/, the deck's own state and log
+                           directories (\`--status\` names them), ~/.agents-deck/
+                           and claude-swap all stay
   -h, --help               Show this help
   -v, --version            Print the version and exit
 

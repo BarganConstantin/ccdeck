@@ -297,7 +297,20 @@ describe("which deck --stop ends", () => {
     expect(DECK).toContain("still running:");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--stop --all\\` ends every deck");
+    //
+    // It used to name `--stop --all` as the way to reach every deck. `--all` is
+    // a parsed no-op (args.mjs: "legacy no-op (now default)") and a bare
+    // `--stop` already ends every deck — which is the only reason this line is
+    // reachable at all, since it prints when a `--stop --port <n>` left others
+    // running. So the hint names the two forms that do something different from
+    // each other.
+    expect(DECK).toContain("--stop\\` ends every deck");
+    expect(DECK).toContain("--stop --port <n>\\` ends one");
+    // Scoped to the OFFER rather than to the file: the line above it explains
+    // in prose why `--stop --all` was dropped, and a bare not-toContain would
+    // be tripped by that explanation.
+    expect(DECK, "--all does nothing; the hint must not offer it as an action")
+      .not.toContain("--stop --all\\` ends");
   });
 
   it("runs above the migration, and never starts a server", () => {
