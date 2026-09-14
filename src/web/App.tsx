@@ -70,7 +70,7 @@ import { paletteReader, readPalette, samePalette, type Palette } from "./palette
 import { restoreLayout, type StoredLayout } from "./stored-layout";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
-import { shouldAnimateViewport } from "./viewport-motion";
+import { fitViewDuration, shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { fmtCost, fmtCostRate } from "./pricing";
 // The topbar strip, the burn ticker, the selected-session ribbon and the detail
@@ -2877,7 +2877,7 @@ function Inner() {
     // Fit-view to the chosen node so it lands on screen even if the user
     // had panned away.
     window.setTimeout(() => {
-      try { rf.fitView({ padding: 0.35, duration: 350, nodes: [target] }); } catch {}
+      try { rf.fitView({ padding: 0.35, duration: fitViewDuration(350), nodes: [target] }); } catch {}
       lastFitTimeRef.current = Date.now();
       if (follow) focusCanvasNode(target.id);
     }, 30);
@@ -2894,7 +2894,7 @@ function Inner() {
     window.setTimeout(() => {
       try {
         const node = nodesRef.current.find(n => n.id === sessionId);
-        if (node) rf.fitView({ padding: 0.3, duration: 500, nodes: [node] });
+        if (node) rf.fitView({ padding: 0.3, duration: fitViewDuration(500), nodes: [node] });
         lastFitTimeRef.current = Date.now();
       } catch {}
     }, 60);
@@ -3766,7 +3766,7 @@ function Inner() {
               onClick={() => {
                 try {
                   const node = nodes.find(n => n.id === selected.id);
-                  if (node) rf.fitView({ padding: 0.35, duration: 500, nodes: [node] });
+                  if (node) rf.fitView({ padding: 0.35, duration: fitViewDuration(500), nodes: [node] });
                   lastFitTimeRef.current = Date.now();
                 } catch {}
               }}
