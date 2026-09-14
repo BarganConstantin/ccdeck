@@ -2903,6 +2903,15 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   outline-offset: 2px;
 }
 
+/* React Flow still renders its stock keyboard instructions into the page
+   — "Press enter or space to select a node. Press delete to remove it…" —
+   even with `disableKeyboardA11y` on, which only stops nodes pointing at them
+   (#853). Nothing references the two now, and neither is true of this graph,
+   but a screen reader browsing the page would still read them out as text.
+   `display: none` takes them out of the tree along with the view. */
+[id^="react-flow__node-desc"],
+[id^="react-flow__edge-desc"] { display: none; }
+
 .agent-node .accent-stripe {
   position: absolute;
   left: 0; top: 0; bottom: 0;

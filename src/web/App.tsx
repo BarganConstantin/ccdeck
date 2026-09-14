@@ -12,7 +12,7 @@ import ReactFlow, {
   useStoreApi,
   type ReactFlowState,
 } from "reactflow";
-import AgentNode, { waitingSentence } from "./components/AgentNode";
+import AgentNode, { agentAriaLabel, waitingSentence } from "./components/AgentNode";
 import { shortModel, modelFamily } from "./model-label";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -638,6 +638,8 @@ function snapshotToFlow(
       position: { x: 0, y: 0 },
       data: { ...a, now, onOpenContext },
       className: cls,
+      // Composed, not read off the card: see agentAriaLabel (#853).
+      ariaLabel: agentAriaLabel(a, now),
       ...(m ? { width: m.width, height: m.height } : null),
     });
     if (a.parentId && visibleIds.has(a.parentId)) {
@@ -4482,6 +4484,15 @@ function Inner() {
           // mouse, a trackpad or a finger has to beat before the gesture counts
           // as a drag instead of a click.
           nodeDragThreshold={5}
+          // React Flow's own keyboard layer told a screen reader, on every card,
+          // "use the arrow keys to move the node around. Press delete to remove
+          // it" (#853). Neither is true here: the nodes are a controlled prop with
+          // no onNodesChange, so its arrow moves and deletes never land, and the
+          // deck answers Enter itself (canvas-keys.ts). So the description goes,
+          // with the live region that would announce a move that never happens,
+          // and Backspace stops being a key React Flow listens for at all.
+          disableKeyboardA11y
+          deleteKeyCode={null}
           onNodeClick={(e, n) => {
             if (n.type === "sessionGroup") { clearSelection(); return; }
             selectAgent(n.id, e.shiftKey);

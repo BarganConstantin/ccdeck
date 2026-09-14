@@ -386,6 +386,29 @@ export function waitingSentence(waiting: WaitingBlock): string {
   return waiting.kind === "permission" ? "Needs your permission" : "Waiting for your input";
 }
 
+/** What a screen reader says for a card (#853). React Flow names a node from
+ *  its content when it is given no `ariaLabel`, so a card was heard as its
+ *  whole text run together — "liveagents-deck?1622m 12ssession…", a median of
+ *  89 characters — and at the far zoom tier, where the details are
+ *  `visibility: hidden`, the same card suddenly announced as three words. This
+ *  is composed from the data instead, so it does not change with zoom, and it
+ *  says the things a reader chooses a card by, in the card's own words: name,
+ *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
+export function agentAriaLabel(data: AgentNodeData, now: number = Date.now()): string {
+  const failed = data.tools.filter(t => t.ok === false).length;
+  const cost = agentCost(data, now).total;
+  return [
+    data.label,
+    data.kind === "root" ? "session" : "subagent",
+    stateLabel(data.state),
+    isAlarming(data.waiting) ? waitingSentence(data.waiting!) : null,
+    data.model ? shortModel(data.model) : null,
+    `${data.toolCount} ${data.toolCount === 1 ? "tool" : "tools"}`,
+    failed > 0 ? `${failed} failed` : null,
+    cost > 0 ? `${fmtCost(cost)}${agentUnpricedTokens(data, now) > 0 ? "+" : ""}` : null,
+  ].filter(Boolean).join(", ");
+}
+
 /** The same guess, worded for a surface with room to hedge — and worded against
  *  the sentence it will sit under.
  *
