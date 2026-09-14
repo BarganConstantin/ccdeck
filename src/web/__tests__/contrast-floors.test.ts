@@ -730,6 +730,48 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   });
 });
 
+// ── #872 ────────────────────────────────────────────────────────────────────
+
+describe("the × that clears an account failure (#872)", () => {
+  // The only way to dismiss the note, drawn in the note's own red and dimmed by
+  // `opacity` — which no token sweep sees, because the token itself is fine.
+  // At 0.6 it composited to 2.81:1 in light over the note's 12% wash.
+  const note = rule(".ap-failure")!;
+  const dismiss = rule(".ap-failure-x")!;
+
+  it("inherits the note's colour, so the note's red is the ink being measured", () => {
+    expect(decl(dismiss, "color")).toBe("inherit");
+    expect(decl(note, "color")).toBe("var(--err)");
+  });
+
+  it("reproduces the 2.81:1 the audit measured at the old 0.6", () => {
+    const panel = parseColor(TOK.light["--panel"]);
+    const bed = over(resolve(decl(note, "background")!, "light"), panel);
+    const ink = resolve("var(--err)", "light");
+    expect(contrastRatio(over([ink[0], ink[1], ink[2], 0.6], bed), bed)).toBeCloseTo(2.81, 2);
+  });
+
+  it("rests at 3:1 or better on the note, on every surface the note sits on, in both themes", () => {
+    const opacity = Number(decl(dismiss, "opacity") ?? "1");
+    for (const theme of themes) {
+      const ink = resolve(decl(note, "color")!, theme);
+      // The accounts panel and the LAN dialogs both paint --panel; the other
+      // two tiers are here so a move to either is measured, not assumed.
+      for (const surface of ["--panel", "--bg-soft", "--bg"] as const) {
+        const bed = over(resolve(decl(note, "background")!, theme), parseColor(TOK[theme][surface]));
+        const ratio = contrastRatio(over([ink[0], ink[1], ink[2], opacity], bed), bed);
+        expect(ratio, `${theme} × on the note over ${surface} — ${ratio.toFixed(2)}:1`)
+          .toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
+  });
+
+  it("still has somewhere to lift to under the pointer", () => {
+    expect(Number(decl(dismiss, "opacity"))).toBeLessThan(1);
+    expect(decl(rule(".ap-failure-x:hover"), "opacity")).toBe("1");
+  });
+});
+
 // ── and one reader, so the blind spot has one place to be ───────────────────
 //
 // #662 fixed the reader in this file and in toggle-state.test.ts. #664 and #665

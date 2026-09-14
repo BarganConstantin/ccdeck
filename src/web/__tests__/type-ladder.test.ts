@@ -419,13 +419,13 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
   });
 
   it("does NOT reach the opacities that only happen to be the same number", () => {
-    // `.ap-failure-x` rests at 0.6 and lifts to 1 under the pointer, which is a
-    // quiet affordance rather than a dead control; the search dim has its own
-    // ladder; the rest is decoration with no state at all. Equal numbers, three
-    // different decisions — a token over them would be worse than the literals.
-    for (const sel of [".ap-failure-x", ".tool-burst.dim:hover"]) {
-      expect(decl(sel, "opacity"), sel).toBe("0.6");
-    }
+    // The search dim has its own ladder; the rest is decoration with no state
+    // at all. Equal numbers, different decisions — a token over them would be
+    // worse than the literals. `.ap-failure-x` was on this list at 0.6 until
+    // #872 measured it at 2.81:1 in light; it rests at 0.8 now, and
+    // contrast-floors.test.ts holds it to 3:1.
+    expect(decl(".tool-burst.dim:hover", "opacity")).toBe("0.6");
+    expect(decl(".ap-failure-x", "opacity")).not.toBe("var(--dim-off)");
     expect(decl(".ap-dot", "opacity")).toBe("0.55");
     expect(decl(".ap-field::after", "opacity")).toBe("0.5");
     expect(decl(".aa-mark-ring", "opacity")).toBe("0.45");
