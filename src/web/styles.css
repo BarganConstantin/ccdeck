@@ -6584,8 +6584,14 @@ button.qb-pace::after {
    letters of every message. Its measure is what the margins leave. */
 .accounts-panel > .ap-failure { width: calc(288px - var(--panel-inset) - var(--panel-inset)); }
 .accounts-panel.leaving { animation: side-out var(--side-exit) cubic-bezier(0.16, 1, 0.3, 1) both; }
-@keyframes side-in { from { width: 0; } }
-@keyframes side-out { to { width: 0; } }
+/* A SLIDE, NOT A WIPE (#866). These animated `width`, and the canvas beside the
+   panel is the grid's 1fr column, so every frame of the 260ms re-laid the
+   canvas out and React Flow re-measured it. The panel keeps its 288px from the
+   first frame and slides in from its own left edge instead: the canvas takes
+   its new width once — at the start of an open, at the end of a close — and
+   the content inside the panel still never moves relative to it. */
+@keyframes side-in { from { transform: translateX(-100%); } }
+@keyframes side-out { to { transform: translateX(-100%); } }
 
 .ap-header {
   display: flex;
