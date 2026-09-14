@@ -649,3 +649,55 @@ describe("a Claude session inside a tree one of the running decks is scoped to",
     expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(1);
   }, 20_000);
 });
+
+// CAPTURE AND REPLAY HAVE TO AGREE ON HOW A PATH IS SPELLED.
+//
+// bin/deck.js canonicalises --workspace once (resolve + realpath.native), and
+// the hook canonicalises the session's cwd before deciding capture. But it
+// serialised the payload BEFORE that, so events.jsonl carried the RAW spelling
+// while replayScope — a pure string predicate over the logged cwd — compared it
+// against the resolved flag. The two coincide only where nothing in the path is
+// a symlink, a junction, a subst drive or an 8.3 short name, which is why it
+// held on the machine it was written on.
+//
+// Everywhere else a --workspace deck captured all day and came back EMPTY after
+// a restart, silently: replayLog neither counts nor warns about an out-of-scope
+// line. Codex sessions from the same tree replayed fine, because the watcher
+// already stores the canonical form — one flag, one path, two answers again.
+describe("a workspace reached through a symlink", () => {
+  it("posts the cwd the capture decision was made on, so the replay finds it", async () => {
+    const real = join(SANDBOX, "symlink-case", "real-proj");
+    const link = join(SANDBOX, "symlink-case", "link-proj");
+    mkdirSync(join(real, "sub"), { recursive: true });
+    try { symlinkSync(real, link, "junction"); } catch { return; }  // no symlinks here: nothing to prove
+
+    const workspace = canonicalWorkspace(link);
+    const sessionCwd = join(link, "sub");
+    // The premise. If these ever coincide the test proves nothing, so say so.
+    expect(sessionCwd.startsWith(workspace),
+           "the raw and canonical spellings must differ for this to test anything").toBe(false);
+
+    const deck = await deckListener();
+    try {
+      await runHook(
+        [{ pid: process.pid, port: deck.port, workspace }],
+        { hook_event_name: "PreToolUse", session_id: "sym-1", cwd: sessionCwd,
+          tool_name: "Bash", tool_use_id: "t1" },
+      );
+
+      const post = deck.seen.find(x => x.method === "POST");
+      expect(post, "the hook captured it — that half always worked").toBeTruthy();
+      const posted = JSON.parse(post!.body) as { cwd: string };
+
+      // What reached the wire, and therefore the log.
+      expect(realpathSync.native(posted.cwd)).toBe(realpathSync.native(join(real, "sub")));
+      // And the predicate the boot replay runs over that line admits it. This
+      // is codexCwdInWorkspace because that is literally what replayScope calls.
+      expect(codexCwdInWorkspace(posted.cwd, workspace),
+             "the replay admits the line the hook wrote").toBe(true);
+    } finally {
+      await deck.close();
+    }
+  });
+});
+
