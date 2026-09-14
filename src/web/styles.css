@@ -1418,6 +1418,9 @@ button.btn.sm-hear {
    the column open it sat off-centre and could run under it. Half the padding
    back puts it in the middle of the part that can be seen. */
 .app:has(.rails) .empty-hero { left: calc(50% - 148px); }
+/* The category bar is absolute, so the padding above does not bound it (#848):
+   it stops short of the column the same way the pane does. */
+.app:has(.rails) .cat-filter-bar { max-width: calc(100% - 28px - 296px); }
 /* Below 640px a 296px column would leave the canvas a sliver (#849), so the
    column becomes a sheet across the window, over the canvas, and the canvas
    keeps its width for when the sheet is closed again. */
@@ -1425,6 +1428,7 @@ button.btn.sm-hear {
   .rails { left: 8px; width: auto; }
   .app:has(.rails) .canvas-wrap { padding-right: 0; }
   .app:has(.rails) .empty-hero { left: 50%; }
+  .app:has(.rails) .cat-filter-bar { max-width: calc(100% - 28px); }
 }
 /* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
    same object: both fixed at the same top, both 280px, both opened by a button
@@ -2520,11 +2524,20 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   left: 14px;
   z-index: 6;
   display: flex;
+  /* WRAPS, AND STAYS INSIDE THE CANVAS (#848). It was one row with no limit,
+     inside a canvas that clips: at 640px — a 1280 laptop at 200% zoom — "mcp"
+     and "other" sat past the edge, cut off, and a keyboard reader's focus went
+     to chips nobody could see. The canvas's padding does not bound an absolute
+     child, so the limit is said here, and again below while the rails column
+     is open. The radius is the bar's own half-height rather than a pill's
+     999px, which reads the same on one row and still reads as one bar on two. */
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
   gap: 4px;
   padding: 4px;
   background: rgba(20, 22, 27, 0.78);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 18px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 6px 18px rgba(0,0,0,0.30);
