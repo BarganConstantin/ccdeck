@@ -4974,10 +4974,14 @@ function EmptyHero({ live, everConnected, providers, workspace, onTour }: {
       {offline ? (
         <>
           <h2>{everConnected ? "Disconnected from server" : "Server unreachable"}</h2>
+          {/* In the reader's words, not the route's (#832): `/events` is the
+              stream's endpoint and means nothing to somebody who typed
+              `npx ccdeck`. What they need is which of the two happened and
+              where to look. */}
           <p>
-            The browser cannot reach <code>/events</code>. Check that
-            <code>{PRODUCT}</code> is still running in your terminal, then this
-            page will resume automatically.
+            {everConnected ? "This page lost its connection to " : "This page cannot reach "}
+            <code>{PRODUCT}</code>. Check that it is still running in your terminal —
+            the page picks up again on its own.
           </p>
         </>
       ) : agentNoneCopy(providers, workspace)}
