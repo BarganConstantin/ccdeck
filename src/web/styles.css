@@ -618,6 +618,15 @@ button:focus-visible { outline-offset: 1px; }
   display: flex;
   align-items: center;
   gap: 24px;
+  /* Able to give (#849). `.actions` below says the readouts give first and the
+     controls not at all, but a flex item's default `min-width: auto` never let
+     this group shrink below its content — so on a narrow window it held its
+     width and pushed the controls off the right edge, and the page scrolled
+     sideways: at 400px, six buttons past the edge. Now it shrinks to nothing
+     before a single control moves, and what it loses is clipped rather than
+     pushed. */
+  min-width: 0;
+  overflow: hidden;
 }
 .topbar .brand {
   font-weight: 600;
@@ -764,6 +773,13 @@ button:focus-visible { outline-offset: 1px; }
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
+   controls still do not shrink; the bar spends less on padding and gaps so all
+   of them fit down to a 320px screen. */
+@media (max-width: 640px) {
+  .topbar { gap: 12px; padding: 0 10px; }
+  .topbar .actions { gap: 10px; }
 }
 
 /* ---------------- the sound menu (#711) ---------------- */
@@ -1402,6 +1418,14 @@ button.btn.sm-hear {
    the column open it sat off-centre and could run under it. Half the padding
    back puts it in the middle of the part that can be seen. */
 .app:has(.rails) .empty-hero { left: calc(50% - 148px); }
+/* Below 640px a 296px column would leave the canvas a sliver (#849), so the
+   column becomes a sheet across the window, over the canvas, and the canvas
+   keeps its width for when the sheet is closed again. */
+@media (max-width: 640px) {
+  .rails { left: 8px; width: auto; }
+  .app:has(.rails) .canvas-wrap { padding-right: 0; }
+  .app:has(.rails) .empty-hero { left: 50%; }
+}
 /* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
    same object: both fixed at the same top, both 280px, both opened by a button
    in the topbar directly above them. Before this one of them dropped 4px and
