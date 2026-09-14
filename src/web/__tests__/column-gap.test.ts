@@ -41,14 +41,16 @@ const columnsOf = (out: Node[]) =>
   [...new Set(out.map(n => Math.round(n.position.x)))].sort((a, b) => a - b);
 
 describe("columnGap ignores the per-session drag handles", () => {
-  it("keeps the second column on a canvas that fits two", () => {
-    // Two columns of card + burst lane and one card of gap is 1620 wide; with
-    // the handle setting the gap it claims 2456 and the fallback to a single
-    // column fires.
-    const out = autoLayout(sessions, [], {
-      measured: withHandles(), availableWidth: 2000, availableHeight: 400,
-    });
-    expect(columnsOf(out).length).toBe(2);
+  it("keeps the columns it would have with no handle measured", () => {
+    // Three columns of card + burst lane, with one card of gap between them,
+    // are 2560 wide. With the handle setting the gap they claim 4232, the fit
+    // scores them below two, and the board loses a column to a node nobody
+    // can see.
+    const opts = { availableWidth: 2000, availableHeight: 400 };
+    const bare = columnsOf(autoLayout(sessions, [], { ...opts, measured: cards() }));
+    const real = columnsOf(autoLayout(sessions, [], { ...opts, measured: withHandles() }));
+    expect(bare.length).toBeGreaterThan(1);
+    expect(real).toEqual(bare);
   });
 
   it("leaves one card of clear space between the columns, not a session box", () => {
@@ -56,7 +58,7 @@ describe("columnGap ignores the per-session drag handles", () => {
       measured: withHandles(), availableWidth: 4000, availableHeight: 400,
     });
     const xs = columnsOf(out);
-    expect(xs.length).toBe(2);
+    expect(xs.length).toBeGreaterThan(1);
     // Pitch minus the card and the burst lane beside it is what the eye reads
     // as the gap.
     expect(xs[1] - xs[0] - W - TOOL_LANE).toBe(W);
@@ -77,7 +79,7 @@ describe("columnGap ignores the per-session drag handles", () => {
     const xs = columnsOf(autoLayout(sessions, [], {
       measured, availableWidth: 4000, availableHeight: 400,
     }));
-    expect(xs.length).toBe(2);
+    expect(xs.length).toBeGreaterThan(1);
     expect(xs[1] - xs[0]).toBe(W + TOOL_LANE + 400);
   });
 });

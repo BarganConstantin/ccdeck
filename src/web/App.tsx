@@ -62,7 +62,7 @@ import BrowserWatchModal, { SEEN_KEY, unseenEpisodes, type WatchEpisode } from "
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
-import { autoLayout, bubblePush, fillGapsWithNewSessions, laneSignature, separateOverlaps } from "./layout";
+import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
@@ -143,6 +143,32 @@ const RF_NODE_CLASS = "react-flow__node";
  *  Enter, and matching an ancestor would have answered the donut's keys too. */
 function isCanvasNodeElement(el: Element | null | undefined): boolean {
   return !!el && el.classList?.contains?.(RF_NODE_CLASS) === true;
+}
+
+/** The margin and fill fitLeft frames the board with. The layout packs the
+ *  board for the same frame, so the two cannot disagree about what fits. */
+const FIT_MARGIN = 80;
+const FIT_FILL = 0.86;
+
+/** How much of the canvas's right edge the rail covers.
+ *
+ *  The machine and usage panels are `position: fixed` over the canvas rather
+ *  than a grid column beside it, so the canvas's own width counts the strip
+ *  under them as room. A board packed and fitted into that strip puts its
+ *  right-hand column under the panels — the one thing spreading the board
+ *  sideways must never do. Measured rather than derived from the panel flags,
+ *  like the canvas itself, so it stays right whether one panel is open or both
+ *  are, and wherever the detail panel has pushed the rail. A panel on its way
+ *  out is already gone as far as the board is concerned. */
+function railCover(canvas: Element | null): number {
+  if (!canvas) return 0;
+  const box = canvas.getBoundingClientRect();
+  let left = box.right;
+  for (const el of document.querySelectorAll(".sysdetail:not(.leaving), .usage-panel:not(.leaving)")) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.left > box.left) left = Math.min(left, r.left);
+  }
+  return Math.max(0, box.right - left);
 }
 
 /** Move the keyboard onto an agent card. Used when j/k traverses while the
@@ -695,15 +721,22 @@ function snapshotToFlow(
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
-      const laidOut = autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes });
+      // A card joining a session already on the canvas goes beside that session
+      // as it sits now, not where a layout from scratch would have it.
+      const laidOut = joinSessions(
+        autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
+        pinned,
+        id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
+      );
       for (const n of laidOut) if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
       // Finished sessions are pruned as they complete, so the column they were
       // in has holes while new work keeps being appended underneath. Offer the
-      // arrivals those holes before letting the canvas grow downward past
-      // bands that hold nothing.
+      // arrivals those holes first, and past them whichever of a column's foot
+      // or a new column to the right lets the fit show the board largest.
       fillGapsWithNewSessions(
         nodes, positions, pinned, measured,
         new Set(missing.map(n => n.id)), lanes,
+        { width: availableWidth, height: availableHeight },
       );
     }
     separateOverlaps(nodes, positions, pinned, measured, lanes);
@@ -2071,7 +2104,7 @@ function Inner() {
     // 1:1 only makes a small graph look coarse. FILL leaves the frame a little
     // loose — a fit that touches the margins reads as "already too big" and
     // gives the eye nowhere to land when the next session appears.
-    const MARGIN = 80, MAX_ZOOM = 1, MIN_ZOOM = 0.2, FILL = 0.86;
+    const MARGIN = FIT_MARGIN, MAX_ZOOM = 1, MIN_ZOOM = 0.2, FILL = FIT_FILL;
     try {
       const pane = document.querySelector(".canvas-wrap");
       const drawn = Array.from(document.querySelectorAll(".react-flow__node"))
@@ -2096,10 +2129,12 @@ function Inner() {
       if (!(w > 0 && h > 0)) return;
 
       // Tool bursts are an overlay rather than nodes, so they are absent from
-      // these rects — leave room or the last column's chips get clipped.
+      // these rects — leave room or the last column's chips get clipped. The
+      // rail's strip is not room either: a board framed into it would put its
+      // last column under the machine and usage panels.
       const zoom = Math.max(MIN_ZOOM, Math.min(
         MAX_ZOOM,
-        ((paneRect.width - MARGIN * 2) / (w + TOOL_LANE_ALLOWANCE)) * FILL,
+        ((paneRect.width - railCover(pane) - MARGIN * 2) / (w + TOOL_LANE_ALLOWANCE)) * FILL,
         ((paneRect.height - MARGIN * 2) / h) * FILL,
       ));
 
@@ -2576,14 +2611,23 @@ function Inner() {
   }, []);
   useEffect(() => () => { if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current); }, []);
 
-  const availableWidth = canvasSize.w > 0 ? canvasSize.w * 0.92 : 0;
-  // A column is filled to one screen before the next one starts. An earlier
-  // version allowed 1.6 screens on the theory that a fitted graph zooms out
-  // and shows more — true, but it meant a column had to run well past the
-  // viewport before wrapping, so the second column almost never appeared and
-  // the width stayed empty. One screen is the threshold that actually fills
-  // the canvas.
-  const availableHeight = canvasSize.h > 0 ? canvasSize.h : 0;
+  // What the rail covers of the canvas — see railCover. Read after every
+  // render, because a panel opening changes it without resizing the canvas,
+  // and kept only when it moves by more than the canvas's own 40px quantum.
+  const [railInset, setRailInset] = useState(0);
+  useEffect(() => {
+    const cover = railCover(canvasRef.current);
+    setRailInset(prev => (Math.abs(prev - cover) > 40 ? cover : prev));
+  });
+
+  // The frame fitLeft will show the board in, in flow units at full size: the
+  // canvas less the rail's strip, less the fit's margins and fill. The layout
+  // scores every arrangement by the zoom it gets in this frame, so the board
+  // spreads sideways as far as the visible canvas is wide, and no further.
+  const availableWidth = canvasSize.w > 0
+    ? Math.max(0, (canvasSize.w - railInset - FIT_MARGIN * 2) * FIT_FILL) : 0;
+  const availableHeight = canvasSize.h > 0
+    ? Math.max(0, (canvasSize.h - FIT_MARGIN * 2) * FIT_FILL) : 0;
 
   // Rebuilt on every render, drags included.
   //

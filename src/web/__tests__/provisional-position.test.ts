@@ -11,7 +11,7 @@
 // is not in any one of them: it is in what `positions` was asked to mean.
 import { describe, it, expect } from "vitest";
 import type { Edge, Node } from "reactflow";
-import { autoLayout, fillGapsWithNewSessions, separateOverlaps } from "../layout";
+import { autoLayout, fillGapsWithNewSessions, joinSessions, separateOverlaps } from "../layout";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "../placement";
 
 const W = 260, H = 120;
@@ -36,11 +36,18 @@ function layoutPass(
 ): string[] {
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0) {
-    const laidOut = autoLayout(nodes, edges, { direction: "LR", pinned, measured, ...CANVAS });
+    const laidOut = joinSessions(
+      autoLayout(nodes, edges, { direction: "LR", pinned, measured, ...CANVAS }),
+      pinned,
+      id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
+    );
     for (const n of laidOut) {
       if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
     }
-    fillGapsWithNewSessions(nodes, positions, pinned, measured, new Set(missing.map(n => n.id)));
+    fillGapsWithNewSessions(
+      nodes, positions, pinned, measured, new Set(missing.map(n => n.id)), undefined,
+      { width: CANVAS.availableWidth, height: CANVAS.availableHeight },
+    );
   }
   separateOverlaps(nodes, positions, pinned, measured);
   return missing.map(n => n.id);

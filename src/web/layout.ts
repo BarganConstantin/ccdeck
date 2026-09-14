@@ -1,9 +1,10 @@
 // Auto-layout helper using dagre. Pure: input nodes/edges -> positioned nodes.
 //
-// Each session is laid out as its own dagre subgraph and then stacked
-// vertically with a fixed gap. This guarantees the per-session cluster
-// boxes drawn by <SessionClusters/> never overlap, no matter how many
-// sessions are live at once.
+// Each session is laid out as its own dagre subgraph, and the subgraphs are
+// stacked into columns with a fixed gap — as many columns as let a fit show
+// the board largest on the canvas it is drawn on. This guarantees the
+// per-session cluster boxes drawn by <SessionClusters/> never overlap, no
+// matter how many sessions are live at once.
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 
@@ -61,16 +62,33 @@ function columnGap(
 const TOOL_LANE_W = 420;
 
 /**
- * Ceiling on columns. Two is enough to use a wide screen without shrinking the
- * fit-to-view zoom to the point where the cards stop being readable, which is
- * the whole reason to look at this canvas.
+ * The closest a fit ever frames the board — fitLeft's MAX_ZOOM. Cards are drawn
+ * at their natural size, so two arrangements that both show them 1:1 are
+ * equally readable, and the one with fewer columns is the easier read.
  */
-const MAX_COLUMNS = 2;
+const FULL_SIZE = 1;
+
+/**
+ * The zoom a fit would show a `w` x `h` board at, on a frame `canvasW` x
+ * `canvasH` that shows it at full size.
+ *
+ * This is what picks the number of columns and where a new session goes. A cap
+ * of two columns, and a second one only when both fitted the canvas at full
+ * size, used to decide it instead — so one session fanning out to subagents
+ * made two columns "not fit", everything collapsed into one strip several
+ * screens tall, and the fit shrank the whole board to a third of its size
+ * beside an empty right half. Scoring an arrangement by what the fit will
+ * actually show spreads the board sideways exactly as far as the canvas's own
+ * shape asks, and stops once the cards are at full size.
+ */
+function fitZoom(w: number, h: number, canvasW: number, canvasH: number): number {
+  return Math.min(FULL_SIZE, canvasW / Math.max(1, w), canvasH / Math.max(1, h));
+}
 
 export interface LayoutOptions {
   /**
-   * Canvas height available, in flow units. A column is filled to this before
-   * the next one is started; omitted or 0 keeps everything in one column.
+   * Height of the frame a fit shows the board in, in flow units at full size.
+   * Omitted or 0 keeps everything in one column.
    */
   availableHeight?: number;
   direction?: "LR" | "TB";
@@ -79,8 +97,8 @@ export interface LayoutOptions {
   /** Real per-node sizes (measured by React Flow). Overrides defaults. */
   measured?: Map<string, { width: number; height: number }>;
   /**
-   * Canvas width available for the graph, in flow units. Sessions are packed
-   * into as many columns as fit; omitted or 0 keeps the single column.
+   * Width of the same frame. Sessions are packed into however many columns
+   * let the fit show them largest; omitted or 0 keeps the single column.
    */
   availableWidth?: number;
   /**
@@ -283,28 +301,27 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
     ...layoutSession(sessions.get(sid)!, edges, direction, measured, pinned, lanes),
   }));
 
-  // One column per session-width that fits the canvas. Columns are as wide as
-  // the widest session so a session is never split across the boundary, which
-  // wastes some room when widths vary but keeps every session readable as one
-  // block — the thing the canvas exists to show.
-  // Assign sessions to columns first, then size each column to what actually
-  // landed in it. Sizing every column to the widest session in the graph made
-  // one wide session set the pitch for all of them, so two columns never fit
-  // and everything stacked into one very tall strip that fit-to-view then
-  // shrank to nothing.
+  // Sessions are cut into columns in id order, so they read down and then
+  // across, and a session is never split across a boundary — each one is read
+  // as a block, the thing the canvas exists to show. A column is as wide as
+  // what landed in it: sizing every column to the widest session in the graph
+  // made one wide session set the pitch for all of them.
   const gap = columnGap(nodes, measured);
-  const overflowAt = opts.availableHeight && opts.availableHeight > 0
-    ? opts.availableHeight
-    : Number.POSITIVE_INFINITY;
+  type Column = Array<typeof laid[number]>;
+  const widthOf = (col: Column) =>
+    col.reduce((w, s) => Math.max(w, s.width), 0) + TOOL_LANE_W;
+  const heightOf = (col: Column) =>
+    col.reduce((h, s) => h + s.height, 0) + SESSION_GAP * Math.max(0, col.length - 1);
 
-  const assign = (maxColumns: number) => {
-    const cols: Array<Array<typeof laid[number]>> = [[]];
+  // Fill a column until the next session would take it past `limit`. Wrap only
+  // when something is already in the column — a session taller than the limit
+  // has to start somewhere, and a fresh column would leave the previous one
+  // short and the next still over.
+  const cut = (limit: number) => {
+    const cols: Column[] = [[]];
     let cursorY = 0;
     for (const item of laid) {
-      // Wrap only when something is already in this column — a session taller
-      // than the screen has to start somewhere, and moving it to a fresh
-      // column would leave the previous one short and the next still over.
-      if (cols.length < maxColumns && cursorY > 0 && cursorY + item.height > overflowAt) {
+      if (cursorY > 0 && cursorY + item.height > limit) {
         cols.push([]);
         cursorY = 0;
       }
@@ -314,15 +331,44 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
     return cols;
   };
 
-  const widthOf = (col: Array<typeof laid[number]>) =>
-    col.reduce((w, s) => Math.max(w, s.width), 0) + TOOL_LANE_W;
+  // The same sessions in at most `k` columns, as even as their order allows:
+  // the lowest limit that still needs no more than `k`. A column's height is
+  // always the height of some run of consecutive sessions, so those runs are
+  // the only limits worth trying.
+  const limits: number[] = [];
+  for (let i = 0; i < laid.length; i++) {
+    let run = -SESSION_GAP;
+    for (let j = i; j < laid.length; j++) limits.push(run += laid[j].height + SESSION_GAP);
+  }
+  limits.sort((a, b) => a - b);
+  const balanced = (k: number) => {
+    let lo = 0, hi = limits.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cut(limits[mid]).length <= k) hi = mid;
+      else lo = mid + 1;
+    }
+    return cut(limits[lo]);
+  };
 
-  // Try the wider arrangement; fall back to one column when the real widths
-  // don't fit rather than letting columns run off the canvas.
-  let columns = assign(opts.availableWidth ? MAX_COLUMNS : 1);
-  if (columns.length > 1) {
-    const total = columns.reduce((w, c) => w + widthOf(c), 0) + gap * (columns.length - 1);
-    if (total > (opts.availableWidth ?? 0)) columns = assign(1);
+  // Every column count is scored by the zoom the fit will show it at. A tie
+  // goes to fewer columns, which is what stops a board already shown at full
+  // size from splitting further — the worry the old cap of two answered by
+  // refusing a third column however tall the other two had grown.
+  let columns: Column[] = [laid];
+  const frameW = opts.availableWidth ?? 0, frameH = opts.availableHeight ?? 0;
+  if (frameW > 0 && frameH > 0) {
+    const zoomOf = (cols: Column[]) => fitZoom(
+      cols.reduce((w, c) => w + widthOf(c), 0) + gap * (cols.length - 1),
+      Math.max(...cols.map(heightOf)),
+      frameW, frameH,
+    );
+    let best = zoomOf(columns);
+    for (let k = 2; k <= laid.length; k++) {
+      const cols = balanced(k);
+      const zoom = zoomOf(cols);
+      if (zoom > best + 1e-9) { best = zoom; columns = cols; }
+    }
   }
 
   const finalPositions = new Map<string, { x: number; y: number }>();
@@ -454,6 +500,20 @@ export function separateOverlaps(
  * the chips of the session beside it, and dropping an arrival into it would
  * land it under them.
  *
+ * Given the `frame` a fit shows the board in, a gap is not the only choice. The
+ * board used to grow only downward — into a gap in a column that already
+ * existed, or below it, never into a column that did not — so a board that
+ * started as one column stayed one column however many sessions arrived, and
+ * the fit shrank it beside an empty right half. With a frame, every clear slot
+ * is scored instead: each column's gaps and its foot, and the top of a new
+ * column to the right, by the zoom the fit would show the board at with the
+ * arrival in it. A slot inside the board costs nothing, so a hole is still
+ * filled first; past that the board grows whichever way keeps its cards
+ * largest. Between slots the fit would show at the same zoom, the one leaving
+ * the most room on the tighter axis wins, then the most on the other, then the
+ * leftmost and topmost. When nothing is settled yet the whole board is
+ * arriving at once, and autoLayout's arrangement of it stands.
+ *
  * Mutates `positions`; returns the session ids it relocated.
  */
 export function fillGapsWithNewSessions(
@@ -463,9 +523,17 @@ export function fillGapsWithNewSessions(
   measured: Map<string, { width: number; height: number }>,
   newIds: Set<string>,
   lanes?: Lanes,
+  /** The frame a fit shows the board in, as autoLayout is given it. */
+  frame?: { width: number; height: number },
 ): string[] {
   const sizeOf = (id: string) => footprint(id, measured, lanes);
   const posOf = (id: string) => pinned.get(id) ?? positions.get(id);
+  // The fit frames cards, not lanes, so the board it scores is card-sized.
+  const cardOf = (id: string) => {
+    const m = measured.get(id);
+    return { cw: m?.width ?? NODE_W, ch: m?.height ?? NODE_H };
+  };
+  const scoring = frame != null && frame.width > 0 && frame.height > 0;
 
   // Only a session that arrived WHOLE may be relocated.
   //
@@ -492,7 +560,7 @@ export function fillGapsWithNewSessions(
 
   // Group the arrivals, and keep anything already placed as an obstacle.
   const arriving = new Map<string, Node[]>();
-  const settled: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const settled: Array<{ x: number; y: number; w: number; h: number; cw: number; ch: number }> = [];
   for (const n of nodes) {
     const p = posOf(n.id);
     if (!p) continue;
@@ -501,10 +569,10 @@ export function fillGapsWithNewSessions(
     if (wholeSessionArrived.has(sid)) {
       (arriving.get(sid) ?? arriving.set(sid, []).get(sid)!).push(n);
     } else {
-      settled.push({ x: p.x, y: p.y, w, h });
+      settled.push({ x: p.x, y: p.y, w, h, ...cardOf(n.id) });
     }
   }
-  if (arriving.size === 0) return [];
+  if (arriving.size === 0 || (scoring && settled.length === 0)) return [];
 
   // Session boxes are what must not touch, so obstacles are inflated by the
   // chrome and the gap the layout would have left between two sessions.
@@ -513,6 +581,7 @@ export function fillGapsWithNewSessions(
     settled.some(r =>
       x < r.x + r.w + SESSION_CHROME && r.x < x + w + SESSION_CHROME &&
       y < r.y + r.h + PADDING        && r.y < y + h + PADDING);
+  const gap = columnGap(nodes, measured);
 
   const moved: string[] = [];
   // Id order, the same order autoLayout packs sessions in, so gap placement is
@@ -522,11 +591,14 @@ export function fillGapsWithNewSessions(
   for (const sid of [...arriving.keys()].sort()) {
     const members = arriving.get(sid)!;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let cardRight = -Infinity, cardBottom = -Infinity;
     for (const n of members) {
       const p = posOf(n.id)!;
       const { w, h } = sizeOf(n.id);
+      const { cw, ch } = cardOf(n.id);
       minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + w); maxY = Math.max(maxY, p.y + h);
+      cardRight = Math.max(cardRight, p.x + cw); cardBottom = Math.max(cardBottom, p.y + ch);
     }
     const w = maxX - minX, h = maxY - minY;
 
@@ -538,10 +610,53 @@ export function fillGapsWithNewSessions(
     const ys = [0, ...settled.map(r => r.y + r.h + PADDING)].sort((a, b) => a - b);
 
     let target: { x: number; y: number } | null = null;
-    outer: for (const x of xs) {
-      for (const y of ys) {
-        if (y >= minY) break;               // not a gap — that is where it already is
-        if (!clashes(x, y, w, h)) { target = { x, y }; break outer; }
+    if (scoring) {
+      // The board as the fit frames it: its cards, plus the burst lane fitLeft
+      // leaves beside the rightmost one.
+      let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+      for (const r of settled) {
+        left = Math.min(left, r.x); top = Math.min(top, r.y);
+        right = Math.max(right, r.x + r.cw); bottom = Math.max(bottom, r.y + r.ch);
+      }
+      // Scored by the zoom the fit would show the board at, and between slots
+      // that tie on it — every slot under a board already bound by its width
+      // is a tie — by how much room each leaves on the tighter axis, then on
+      // the other. Without that second look the leftmost column's foot won
+      // every tie, however much taller than its neighbour it already was.
+      const scoreAt = (x: number, y: number) => {
+        const across = frame!.width /
+          (Math.max(right, x + cardRight - minX) - Math.min(left, x) + TOOL_LANE_W);
+        const down = frame!.height /
+          (Math.max(bottom, y + cardBottom - minY) - Math.min(top, y));
+        return [Math.min(FULL_SIZE, across, down), Math.min(across, down), Math.max(across, down)];
+      };
+      const beats = (s: number[], t: number[]) => {
+        for (let i = 0; i < s.length; i++) {
+          if (s[i] > t[i] + 1e-9) return true;
+          if (s[i] < t[i] - 1e-9) return false;
+        }
+        return false;
+      };
+      // A new column starts a burst lane and a column gap past the rightmost
+      // card — the pitch autoLayout packs its columns at — level with the top
+      // of the board.
+      const fresh = Math.round(right + TOOL_LANE_W + gap);
+      const tops = [...new Set([...ys, top])].sort((a, b) => a - b);
+      let best: number[] | null = null;
+      for (const x of [...xs, fresh]) {
+        for (const y of tops) {
+          if (clashes(x, y, w, h)) continue;
+          const score = scoreAt(x, y);
+          if (best === null || beats(score, best)) { best = score; target = { x, y }; }
+        }
+      }
+      if (target && target.x === minX && target.y === minY) target = null;
+    } else {
+      outer: for (const x of xs) {
+        for (const y of ys) {
+          if (y >= minY) break;               // not a gap — that is where it already is
+          if (!clashes(x, y, w, h)) { target = { x, y }; break outer; }
+        }
       }
     }
 
@@ -557,10 +672,66 @@ export function fillGapsWithNewSessions(
     for (const n of members) {
       const p = posOf(n.id)!;
       const { w: nw, h: nh } = sizeOf(n.id);
-      settled.push({ x: p.x, y: p.y, w: nw, h: nh });
+      settled.push({ x: p.x, y: p.y, w: nw, h: nh, ...cardOf(n.id) });
     }
   }
   return moved;
+}
+
+
+/**
+ * Keep the cards a session gains beside that session, wherever it now sits.
+ *
+ * autoLayout places every card as if the whole board were being laid out from
+ * scratch, and the caller keeps only the slots of cards that had none. For a
+ * session already on the canvas that is the subagent it just spawned — and the
+ * scratch slot is where the session WOULD sit, not where it does. The two part
+ * as soon as anything moves a session: a gap it was dropped into, a push from a
+ * neighbour that grew, a column count that changed with the canvas. The child
+ * then landed wherever the scratch layout had its session, and the repair pass
+ * slid it down until it cleared something — a live board had three subagents
+ * strung out a screen below their parent, and to the left of it.
+ *
+ * So a new card moves by however far its session has: the offset between an
+ * already-placed member's real position and its scratch one. That member is the
+ * card's parent when the parent has a place, because the edge to it is what the
+ * eye follows, and otherwise the lowest id, so the choice is stable. A pinned
+ * card is never the anchor — dagre does not lay pins out, so a pin's scratch
+ * position is the pin itself and says nothing about where the session went —
+ * and is never moved.
+ *
+ * `placedAt` answers for cards that already have a real position. Returns
+ * `laidOut` with the unplaced cards of those sessions shifted.
+ */
+export function joinSessions(
+  laidOut: Node[],
+  pinned: Map<string, { x: number; y: number }>,
+  placedAt: (id: string) => { x: number; y: number } | undefined,
+): Node[] {
+  const anchors = new Map<string, Node[]>();
+  for (const n of laidOut) {
+    if (pinned.has(n.id) || !placedAt(n.id)) continue;
+    const sid = sessionOfNode(n);
+    (anchors.get(sid) ?? anchors.set(sid, []).get(sid)!).push(n);
+  }
+  if (anchors.size === 0) return laidOut;
+  for (const members of anchors.values()) members.sort((a, b) => a.id.localeCompare(b.id));
+
+  return laidOut.map(n => {
+    if (pinned.has(n.id) || placedAt(n.id)) return n;
+    const members = anchors.get(sessionOfNode(n));
+    if (!members) return n;
+    const parentId = (n.data as { parentId?: string } | undefined)?.parentId;
+    const anchor = members.find(m => m.id === parentId) ?? members[0];
+    const real = placedAt(anchor.id)!;
+    return {
+      ...n,
+      position: {
+        x: n.position.x + real.x - anchor.position.x,
+        y: n.position.y + real.y - anchor.position.y,
+      },
+    };
+  });
 }
 
 

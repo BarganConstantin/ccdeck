@@ -184,22 +184,24 @@ describe("autoLayout — packs sessions into columns", () => {
     expect(colsUsed(out)).toBe(1);
   });
 
-  it("adds a second column on a wide canvas and stops there", () => {
+  it("adds columns while they make the fit larger, and stops at full size", () => {
     const nodes = sessions(6);
     const measured = sizes(nodes.map(n => n.id));
-    const opts = { measured, availableHeight: 400 };   // force a wrap
+    const opts = { measured, availableHeight: 400 };   // one column is 1450 tall
+    // Too narrow for a second column to be worth its width.
     expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 400 }))).toBe(1);
-    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 2400 }))).toBe(2);
-    // Capped: a very wide canvas must not keep splitting into thin columns,
-    // which shrinks the fit zoom until the cards are unreadable.
-    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 9000 }))).toBe(2);
+    // Three columns of two show the board at 0.94; two of three only at 0.61.
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 2400 }))).toBe(3);
+    // A very wide canvas must not keep splitting into thin columns: three
+    // already show the cards at full size, and six would show them no larger.
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 9000 }))).toBe(3);
   });
 
-  it("keeps the second column when a member is pinned far to the right", () => {
+  it("keeps its columns when a member is pinned far to the right", () => {
     // A session's width used to be max(width, pin.x + card), so one card
-    // dragged to x=1200 made its session report itself 1460 wide, the two
-    // columns no longer "fit" the canvas, and everything collapsed into one
-    // very tall strip.
+    // dragged to x=1200 made its session report itself 1460 wide, the columns
+    // no longer "fit" the canvas, and everything collapsed into one very tall
+    // strip.
     const nodes = [...sessions(6), agent("s0n1", "s0")];
     const measured = sizes(nodes.map(n => n.id));
     const pinned = new Map([["s0n1", { x: 1200, y: 800 }]]);
@@ -207,9 +209,10 @@ describe("autoLayout — packs sessions into columns", () => {
     const out = autoLayout(nodes, [], {
       measured, pinned, availableWidth: 2400, availableHeight: 400,
     });
-    // Count the columns the packer built, not the pin sitting off to the side.
+    // Count the columns the packer built, not the pin sitting off to the side:
+    // the same three the board gets with nothing pinned.
     const flowed = out.filter(n => n.id !== "s0n1");
-    expect(new Set(flowed.map(n => Math.round(n.position.x))).size).toBe(2);
+    expect(new Set(flowed.map(n => Math.round(n.position.x))).size).toBe(3);
     expect(overlaps(out, measured)).toEqual([]);
   });
 
@@ -293,7 +296,7 @@ describe("column spacing", () => {
     const out = autoLayout(nodes, [], { measured, availableWidth: 4000, availableHeight: 300 });
 
     const xs = [...new Set(out.map(n => Math.round(n.position.x)))].sort((a, b) => a - b);
-    expect(xs.length).toBe(2);
+    expect(xs.length).toBeGreaterThanOrEqual(2);
 
     // Clear space = pitch, minus the card, minus the burst lane beside it.
     const TOOL_LANE = 420;
