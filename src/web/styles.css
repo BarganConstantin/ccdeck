@@ -10052,7 +10052,14 @@ input, textarea { caret-color: var(--accent); }
   height: 1.5px;
   margin-top: -0.75px;
   /* Clipped at its two ends and nowhere else: a light leaves the lane at the
-     machine it reaches, and the copy's dot stands above and below the line. */
+     machine it reaches, and the copy's dot stands above and below the line.
+     `overflow-x: clip` is what does the clipping for LAYOUT: clip-path only
+     stops the paint, so a light waiting to enter from that deck's end — moved
+     one whole lane to the right — still counted as content past the dialog's
+     edge, and the body grew a horizontal scrollbar for the first part of every
+     run: the dialog 11px taller, then not, over and over. The clip-path stays
+     for the lanes drawing in, which animate it. */
+  overflow-x: clip;
   clip-path: inset(-4px 0);
   border-radius: 1px;
   background: var(--wire);

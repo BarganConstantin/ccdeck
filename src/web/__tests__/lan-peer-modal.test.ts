@@ -374,6 +374,16 @@ describe("the picture moves where a copy can", () => {
     expect(CSS).toMatch(/\.lan-glint \{ position: absolute; inset: 0; opacity: 0;/);
   });
 
+  // A light waits one whole lane past the end it enters from. clip-path hid
+  // it, but only from the paint: it still counted as content past the
+  // dialog's edge, and a horizontal scrollbar came and went with every run,
+  // so the whole dialog pulsed 11px taller and back. The line has to clip it
+  // for layout as well.
+  it("never lets a light that has not entered yet widen the dialog", () => {
+    const wire = /\n\.lan-wire \{([^}]*)\}/.exec(CSS)?.[1] ?? "";
+    expect(wire).toMatch(/overflow-x: clip;|overflow: hidden;/);
+  });
+
   // The light running out and back is the motion on top of the fact. The fact
   // — this deck is asking right now — is a colour, for every reader.
   it("shows a check asking as a colour to every reader, motion or not", () => {
