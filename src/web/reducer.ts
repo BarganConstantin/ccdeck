@@ -2,6 +2,7 @@
 import { bareModelId } from "./model-id";
 import { salientInput } from "./tool-input";
 import { injectedPrompt } from "./injected-prompt";
+import { looksLikeId, readableBasename } from "./readable-name";
 import type { AgentNodeData, BlockedTool, ContextBreakdown, HookEnvelope, HookPayload, TokenUsage, ToolCall, WaitingBlock } from "./types";
 
 function emptyUsage(): TokenUsage {
@@ -192,10 +193,11 @@ export function initialState(): GraphState {
   };
 }
 
+/** The name a card shows for a directory: its basename, or the nearest
+ *  ancestor's when the basename is an id (#842). Every caller is a label —
+ *  `cwdBasename` and a root's default name — and nothing keys on it. */
 function basename(p?: string): string | undefined {
-  if (!p) return undefined;
-  const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts[parts.length - 1];
+  return readableBasename(p);
 }
 
 /** A breakdown that asserts nothing, for a root that has not been told anything
@@ -228,7 +230,9 @@ function subagentIdFor(sessionId: string, agentId: string): string {
 }
 
 function subagentLabel(p: HookPayload): string {
-  return p.agent_type ?? p.subagent_type ?? "subagent";
+  const type = p.agent_type ?? p.subagent_type;
+  // A type with an id in it names nothing a reader can use (#842).
+  return type && !looksLikeId(type) ? type : "subagent";
 }
 
 /** The key under which this event explicitly identifies a subagent, or null
