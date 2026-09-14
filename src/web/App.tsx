@@ -5031,9 +5031,11 @@ function agentNoneCopy(providers: Providers, workspace: string | null) {
           path really depends on, and each able to say the deck is not watching
           that CLI at all. The words live in provider-copy.ts so the branches can
           be tested without a DOM. */}
-      <p className="hint-row">
-        Not seeing anything? Make sure <code>{PRODUCT}</code> is running.
-      </p>
+      {/* No "make sure ccdeck is running" line (#831). This copy renders only
+          while the stream is live — the offline branch has its own words — so
+          it told a connected reader to check the one thing the page already
+          knew. What can really keep the canvas empty is a capture path, and
+          each of those says so below. */}
       {captureHints(providers).map(hint => (
         <p className="hint-row" key={hint.provider}>
           {hint.spans.map((span, i) =>
