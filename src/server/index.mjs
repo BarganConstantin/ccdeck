@@ -422,12 +422,58 @@ export async function logSharing() {
 const ROTATE_AT_BYTES = 50 * 1024 * 1024;
 let lastRotateCheckAt = 0;
 let rotateInProgress = false;
-async function maybeRotatePersistFile() {
+/** Bytes handed to appendLogLine since the last time we looked at the file.
+ *
+ *  THE 30-SECOND CLOCK MADE THE THRESHOLD ADVISORY. The stat was throttled to
+ *  once per 30s and this function has one caller — the push path — so the
+ *  overshoot was exactly `30s x the ingest byte rate`, which is unbounded in
+ *  throughput rather than merely loose. Measured, on a log doing 10.5 MB/s:
+ *
+ *    t=6s  log=51393249      <- 50 MB crossed
+ *    t=30s log=306262048
+ *    t=31s log=0  log1=316750478   <- rotation fires, 302 MB, 25s late
+ *
+ *  and at higher rates 1,199 MB and 2,579 MB with ZERO rotations — 51x the
+ *  cap, 604 MB on disk across the two generations for a documented 50 MB.
+ *
+ *  Counting what we hand the appender costs one addition per event and removes
+ *  the dependency on throughput: the check now happens when enough has been
+ *  written to be worth a stat, whatever the clock says. The clock stays as a
+ *  FLOOR for the idle case, where nothing is being written and a periodic look
+ *  is the only way to notice a file that grew by some other route.
+ *
+ *  Deliberately a lower bound on the real file: it counts bytes queued, not
+ *  bytes landed, and it is reset on every look rather than on a successful
+ *  rotation — so a stat that finds the file still under the threshold has
+ *  already paid for itself and does not need to re-count what it just saw. */
+let bytesSinceRotateCheck = 0;
+/** Enough written to be worth a stat, whatever the clock says. A fifth of the
+ *  threshold, so the worst overshoot is bounded at ~20% rather than by rate. */
+const ROTATE_CHECK_EVERY_BYTES = Math.floor(ROTATE_AT_BYTES / 5);
+/** And a floor for the idle case, where nothing is being written and a
+ *  periodic look is the only way to notice a file that grew by some other
+ *  route — another deck appending to a log they share, say. */
+const ROTATE_CHECK_EVERY_MS = 30_000;
+/**
+ * Whether it is worth asking the filesystem how big the log is.
+ *
+ * Pure, and exported, for the reason mayReadAccounts and maySelfPoll are: this
+ * is the rule, and a rule whose only observable failure is a file quietly
+ * reaching gigabytes belongs somewhere a test can point at it. Rotation had no
+ * test of any kind.
+ */
+export function rotateCheckDue({ now, lastCheckAt, bytesSince }) {
+  return now - lastCheckAt >= ROTATE_CHECK_EVERY_MS
+    || bytesSince >= ROTATE_CHECK_EVERY_BYTES;
+}
+
+async function maybeRotatePersistFile(wroteBytes = 0) {
   if (!persistPath) return;
+  bytesSinceRotateCheck += wroteBytes;
   const now = Date.now();
-  // Throttle disk-stat checks to once per 30s.
-  if (now - lastRotateCheckAt < 30_000) return;
+  if (!rotateCheckDue({ now, lastCheckAt: lastRotateCheckAt, bytesSince: bytesSinceRotateCheck })) return;
   lastRotateCheckAt = now;
+  bytesSinceRotateCheck = 0;
   if (rotateInProgress) return;
   rotateInProgress = true;
   try {
@@ -3809,9 +3855,12 @@ function pushEvent(raw, source, opts = {}) {
     // does: the string being written is the one serialization of the event the
     // SSE frame also used, and the token was taken out of the payload before
     // either existed.
-    appendLogLine(persistPath, json + "\n");
-    // Cheap throttled check (every 30s) — only rotates if file > 50MB.
-    maybeRotatePersistFile();
+    const line = json + "\n";
+    appendLogLine(persistPath, line);
+    // Throttled check — every 30s, or every fifth of the threshold written,
+    // whichever comes first. The byte arm is what keeps the 50 MB cap from
+    // being advisory at any real ingest rate; see maybeRotatePersistFile.
+    maybeRotatePersistFile(Buffer.byteLength(line));
   }
 
   // Note the session so the caches the scanners below fill can expire by
