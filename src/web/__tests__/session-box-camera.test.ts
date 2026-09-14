@@ -279,14 +279,20 @@ describe("the camera is applied once, to the layer, on a property nothing eases"
 
 // ── the geometry underneath it ──────────────────────────────────────────────
 
-describe("the four eased properties carry layout coordinates, not screen ones", () => {
-  const GEOMETRY: [string, string][] = [["left", "c.x"], ["top", "c.y"], ["width", "c.w"], ["height", "c.h"]];
+describe("the eased geometry carries layout coordinates, not screen ones", () => {
+  // The position is a translate since #864; the size is still width and height.
+  const GEOMETRY: [string, string][] = [
+    ["transform", "`translate(${c.x}px, ${c.y}px)`"], ["width", "c.w"], ["height", "c.h"],
+  ];
 
-  it("writes each of the four as the cluster bound and nothing else", () => {
+  it("writes the position and the size as the cluster bound and nothing else", () => {
     for (const [css, expr] of GEOMETRY) expect(prop(boxStyle(), css), css).toBe(expr);
+    // Pinned at the origin, so the translate is the whole of the position.
+    expect(prop(boxStyle(), "left")).toBe("0");
+    expect(prop(boxStyle(), "top")).toBe("0");
   });
 
-  it("keeps the viewport out of all four, which is the whole defect", () => {
+  it("keeps the viewport out of all of it, which is the whole defect", () => {
     // `c.x * zoom + x` is what this looked like before, on four properties, at
     // 60fps, through 320ms of easing each.
     for (const [css] of GEOMETRY) {
@@ -326,12 +332,13 @@ describe("the four eased properties carry layout coordinates, not screen ones", 
 describe("the easing the camera was abusing is still there for its own reason", () => {
   const card = () => ruleFor(".cluster-card");
 
-  it("still eases all four, because a layout move is what they are for", () => {
+  it("still eases the position and the size, because a layout move is what they are for", () => {
     // Deleting them would have cured a lag by introducing a lead: the box reads
     // each node's FINAL position the frame the layout changes, while the nodes
-    // are still travelling to it.
+    // are still travelling to it. The position eases as a transform since #864.
     const eased = transitioned(decl(card().body, "transition"));
-    for (const p of ["left", "top", "width", "height"]) expect(eased, p).toContain(p);
+    for (const p of ["transform", "width", "height"]) expect(eased, p).toContain(p);
+    for (const p of ["left", "top"]) expect(eased, `${p} is eased again`).not.toContain(p);
   });
 
   it("keeps the fade, which is not travel and never was", () => {
@@ -347,9 +354,9 @@ describe("the easing the camera was abusing is still there for its own reason", 
       .map(part => part.replace(/^\S+\s*/, "").replace(/\s+/g, ""));
     expect(nodeTiming.length, ".react-flow__node transition").toBeGreaterThan(0);
     const boxTiming = splitTop(decl(card().body, "transition")!)
-      .filter(part => /^(left|top|width|height)\b/.test(part))
+      .filter(part => /^(transform|width|height)\b/.test(part))
       .map(part => part.replace(/^\S+\s*/, "").replace(/\s+/g, ""));
-    expect(boxTiming).toHaveLength(4);
+    expect(boxTiming).toHaveLength(3);
     for (const timing of boxTiming) expect(timing).toBe(nodeTiming[0]);
   });
 

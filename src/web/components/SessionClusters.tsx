@@ -386,10 +386,15 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
         // easing fire on every pan and zoom frame as well, and once it was
         // folded in no rule in the sheet could tell a camera move from a layout
         // move ever again, because by then they were the same number.
+        // The position is a translate since #864: the box still eases over the
+        // 320ms the nodes do when the layout moves, but on the compositor
+        // rather than through left and top. The size stays width and height,
+        // which change only when a session gains or loses a node.
         const boxStyle: React.CSSProperties = {
           position: "absolute",
-          left: c.x,
-          top: c.y,
+          left: 0,
+          top: 0,
+          transform: `translate(${c.x}px, ${c.y}px)`,
           width: c.w,
           height: c.h,
           "--session-hue": hue,
