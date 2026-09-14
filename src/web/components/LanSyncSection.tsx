@@ -313,7 +313,7 @@ export const LAN_POLL_OFF_MS = 60_000;
 /** The shortest gap between arming `unpair` and confirming it that counts as
  *  two decisions. A double-click on the right end of a row armed the verb and
  *  confirmed it in one gesture, and its second press lands before anybody
- *  could have read `sure?` — so a press sooner than this is not an answer. */
+ *  could have read `confirm` — so a press sooner than this is not an answer. */
 export const CONFIRM_GAP_MS = 400;
 
 export function parseAddress(raw: string): { addr: string; port: number } | null {
@@ -1596,7 +1596,7 @@ export default function LanSyncSection({ accounts, onChanged }: {
                           return;
                         }
                         // A double-click is one decision, not two: its second
-                        // press lands before anybody could have read `sure?`.
+                        // press lands before anybody could have read `confirm`.
                         if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
                         setArmed(null);
                         void answer("unpair", p.fp, "unpair that deck");
@@ -1605,7 +1605,11 @@ export default function LanSyncSection({ accounts, onChanged }: {
                       title={armed === p.fp
                         ? "Press again to stop talking to this deck. Logins it already has stay with it."
                         : "Stop talking to this deck from now on"}>
-                      {armed === p.fp ? "sure?" : "unpair"}
+                      {/* The word the account row's armed remove says (#839):
+                          one arm-then-confirm idiom for every in-panel act that
+                          cannot be undone here; only Clear, which destroys the
+                          most, asks in a dialog. */}
+                      {armed === p.fp ? "confirm" : "unpair"}
                     </button>
                   )}
                   {p.kind === "dialling" && (

@@ -614,7 +614,7 @@ export default function LanPeerModal({
                           title={armedTwin === fpT
                             ? "Press again to stop talking to this deck. Logins it already has stay with it."
                             : "Stop talking to this one of the machine's decks"}>
-                          {busy === `unpair:${fpT}` ? "unpairing…" : armedTwin === fpT ? "sure?" : "unpair"}
+                          {busy === `unpair:${fpT}` ? "unpairing…" : armedTwin === fpT ? "confirm" : "unpair"}
                         </button>
                       )}
                       <span className="lan-twin-meta">{i === 0 ? `${meta} · shown above` : meta}</span>
@@ -671,7 +671,7 @@ export default function LanPeerModal({
               title={armed
                 ? "Press again to stop talking to this deck. Logins it already has stay with it."
                 : "Stop talking to this deck from now on"}>
-              {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Unpair — sure?" : "Unpair"}
+              {busy === `unpair:${row.fp}` ? "Unpairing…" : armed ? "Confirm unpair" : "Unpair"}
             </button>
           )}
           {row.kind === "nearby" && (
