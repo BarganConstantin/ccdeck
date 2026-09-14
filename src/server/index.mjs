@@ -4208,6 +4208,8 @@ export async function writeJsonArray(res, items) {
   res.end(frame === "[" ? "[]" : "]");
 }
 
+import { cacheControlFor, encodedBody, pickEncoding } from "./static-cache.mjs";
+
 async function serveStatic(req, res, url) {
   // Strip leading slash, default to index.html
   let rel = url.pathname.replace(/^\/+/, "");
@@ -4219,11 +4221,21 @@ async function serveStatic(req, res, url) {
     const s = await stat(filePath);
     if (s.isDirectory()) return send(res, 404, { error: "not found" });
     const buf = await readFile(filePath);
+    const ext = extname(filePath).toLowerCase();
+    // Compressed when the browser takes it, and cached for good when the name
+    // is a content hash (#883) — see static-cache.mjs. `rel` is the URL's own
+    // spelling, forward slashes on every platform, which is what the hash
+    // pattern reads; `filePath` is only the cache key.
+    const encoding = pickEncoding(req.headers["accept-encoding"], ext);
+    const body = encoding ? encodedBody(filePath, s.mtimeMs, buf, encoding) : buf;
     res.writeHead(200, {
-      "Content-Type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
-      "Cache-Control": "no-cache",
+      "Content-Type": MIME[ext] ?? "application/octet-stream",
+      "Cache-Control": cacheControlFor(rel),
+      "Vary": "Accept-Encoding",
+      "Content-Length": body.length,
+      ...(encoding ? { "Content-Encoding": encoding } : {}),
     });
-    res.end(buf);
+    res.end(body);
   } catch {
     // SPA fallback to index.html for client-side routes
     try {
