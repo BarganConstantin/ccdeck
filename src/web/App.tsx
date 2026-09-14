@@ -972,15 +972,36 @@ function Inner() {
   useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(loadMachinePanelOpen);
   useEffect(() => { saveMachinePanelOpen(machinePanelOpen); }, [machinePanelOpen]);
+  /** True while the session list holds the left column the accounts panel was
+   *  open in (#824). Opening the list used to close the panel for good: the
+   *  close was persisted as "0", so the panel stayed gone across reloads, and a
+   *  reader lost a panel they never closed. An eviction is not that choice — it
+   *  is remembered here, never written as one, and undone when the list goes. */
+  const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
-    try {
-      const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
-      return stored === null ? true : stored === "1";
-    } catch { return true; }
+    const wanted = (() => {
+      try {
+        const stored = window.localStorage.getItem(ACCOUNTS_PANEL_OPEN_KEY);
+        return stored === null ? true : stored === "1";
+      } catch { return true; }
+    })();
+    // The list holds the column on this load, so the panel waits behind it.
+    if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
+    return wanted;
   });
   useEffect(() => {
+    // An eviction is not the reader closing the panel, so it is not stored as one.
+    if (!accountsPanelOpen && accountsEvictedRef.current) return;
     try { window.localStorage.setItem(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0"); } catch {}
   }, [accountsPanelOpen]);
+  // The list gave the column back, by any of its ways out: so does the panel it
+  // took the column from (#824).
+  useEffect(() => {
+    if (!sessionListOpen && accountsEvictedRef.current) {
+      accountsEvictedRef.current = false;
+      setAccountsPanelOpen(true);
+    }
+  }, [sessionListOpen]);
   /** The panel outlives its own `false` by the length of its exit, so closing
    *  it animates instead of cutting 288px out of the layout in one frame.
    *  Must match `--side-exit` in the sheet. */
@@ -1484,11 +1505,15 @@ function Inner() {
   // panel in the same slot.
   const toggleSessionList = useCallback(() => {
     setSessionListOpen(open => {
-      if (!open) setAccountsPanelOpen(false);
+      // Opening the list takes the column. If the panel was in it, that is an
+      // eviction to undo when the list closes (#824), not the panel closing.
+      if (!open) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
       return !open;
     });
   }, []);
   const toggleAccountsPanel = useCallback(() => {
+    // The reader's own call on the panel ends any eviction.
+    accountsEvictedRef.current = false;
     setAccountsPanelOpen(open => {
       if (!open) setSessionListOpen(false);
       return !open;
