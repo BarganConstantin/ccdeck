@@ -441,6 +441,22 @@ function main() {
   // carries, so this process ends itself rather than being killed.
   setTimeout(() => process.exit(0), 1900);
 
+  // AND NOTHING THIS PROCESS DOES MAY REACH THE HOST CLI'S TRANSCRIPT.
+  //
+  // The cap above covers a stuck server. This covers the other way out: a
+  // throw. Claude Code surfaces a non-zero exit as `<hook> hook error` plus the
+  // first stderr line, so one uncaught TypeError puts a Node stack trace in
+  // front of the user on every tool call — which is what a malformed discovery
+  // record used to do, forever, because nothing removes such a record.
+  //
+  // Deliberately last-resort and deliberately silent. Every path in this file
+  // is written to end at exit 0 on its own; this is here because
+  // hook-read-only.test.ts proves that property by grepping for `process.exit`
+  // literals, and a grep cannot see a throw. It covers the async callbacks too,
+  // which a try/catch around the stdin handler would not.
+  process.on("uncaughtException", () => process.exit(0));
+  process.on("unhandledRejection", () => process.exit(0));
+
   // The deck reads the Claude quota by running `claude --print /usage`, which is
   // a full Claude Code invocation and therefore fires these hooks. Reporting it
   // drew a session onto the canvas for every quota poll — no prompt, no tools,
@@ -468,7 +484,15 @@ function main() {
 
     let files;
     try {
-      files = fs.readdirSync(DIR).filter(f => f.endsWith(".json"));
+      // `${pid}.json`, which is what writeDiscovery names them — not every
+      // `.json` in the directory. DIR is ~/.claude/agent-dag/, and that is not
+      // a registry: it is the deck's old home. prefs.json lived there and
+      // deck-home.mjs's migration leaves the original where it is, so on every
+      // upgraded machine this was reading and parsing the deck's 0600
+      // private-key file on every tool call. It was never leaked — no top-level
+      // `workspace`, so the guard dropped it — but it is the one file in there
+      // guaranteed to have a shape this loop does not expect.
+      files = fs.readdirSync(DIR).filter(f => /^\d+\.json$/.test(f));
     } catch { return process.exit(0); }
     if (!files.length) return process.exit(0);
 
@@ -493,7 +517,29 @@ function main() {
     for (const file of files) {
       let d;
       try { d = JSON.parse(fs.readFileSync(path.join(DIR, file), "utf8")); } catch { continue; }
-      if (typeof d.workspace !== "string" || !d.pid || !d.port) continue;
+      // THE SERVER'S GUARD, VERBATIM PLUS THE PORT RANGE. This read
+      // `typeof d.workspace !== "string" || !d.pid || !d.port`, which has two
+      // holes and both are reachable from one hand-edited file:
+      //
+      //   • `d.workspace` is a property access, and it sat OUTSIDE the try —
+      //     so a record of `null` threw before the guard could refuse it;
+      //   • `!d.port` admits any truthy non-port. `"http"`, `-1` and `{}` all
+      //     passed, reached http.request({ port }) and threw SYNCHRONOUSLY
+      //     inside the forEach below, before a single socket was opened.
+      //
+      // Either way: exit 1, a Node stack trace on stderr, and — measured — ZERO
+      // POSTs to a healthy deck registered alongside. Claude Code surfaces a
+      // non-zero exit as `<hook> hook error` with the first stderr line, on
+      // every tool call, and nothing removes the record: pid 1 is init, so
+      // isAlive is true forever and the unlink below never fires.
+      //
+      // index.mjs:2156 reads these same files and always refused them. Two
+      // readers of one directory disagreeing is the bug; this is the stronger
+      // half, which is the one that belongs in the process that cannot afford
+      // to throw.
+      if (!d || typeof d.pid !== "number"
+          || !Number.isInteger(d.port) || d.port < 1 || d.port > 65535
+          || typeof d.workspace !== "string") continue;
       // A missing token is not a reason to drop the file here — prove() decides
       // what a target has to prove, and a deck older than the handshake can
       // prove nothing. See requiresProof.

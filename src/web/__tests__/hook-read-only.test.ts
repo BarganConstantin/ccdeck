@@ -23,7 +23,7 @@
 // hook-script-atomic.test.ts pins that the file installed into the user's config
 // dir is this one, byte for byte.
 import { describe, it, expect, afterAll } from "vitest";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -177,6 +177,85 @@ describe("the script itself, run the way Claude Code runs it", () => {
       const run = await runHook(input, null);
       expect(run.stdout, why).toBe("");
       expect(run.code, why).toBe(0);
+    }
+  });
+});
+
+// THE PROPERTY THIS FILE ASSERTS, ASSERTED BY RUNNING IT.
+//
+// The sweep above greps for `process.exit(N)` literals, and a grep cannot see a
+// throw. Four malformed discovery records each crashed the hook with exit 1 and
+// a Node stack trace on stderr:
+//
+//   null                                   exit=1  hook.js:496 TypeError
+//   {"pid":1,"port":"http","workspace":""} exit=1  ERR_SOCKET_BAD_PORT
+//   {"pid":1,"port":-1,"workspace":""}     exit=1  ERR_SOCKET_BAD_PORT
+//   {"pid":1,"port":{},"workspace":""}     exit=1  ERR_INVALID_ARG_TYPE
+//
+// `d.workspace` was read outside the try, so `null` threw on the property
+// access; and `!d.port` admitted any truthy non-port, which reached
+// http.request({ port }) and threw synchronously inside the forEach — before a
+// single socket opened, so a healthy deck registered alongside was never even
+// challenged. pid 1 is init, so isAlive is true forever and nothing removes the
+// record: Claude Code surfaces the non-zero exit as `<hook> hook error` with the
+// first stderr line, on every tool call, permanently.
+describe("a registry holding something that is not a deck record", () => {
+  const shapes: Array<[string, string]> = [
+    ["a null record", "null"],
+    ["a string port", '{"pid":1,"port":"http","workspace":""}'],
+    ["a negative port", '{"pid":1,"port":-1,"workspace":""}'],
+    ["an object port", '{"pid":1,"port":{},"workspace":""}'],
+    ["a port out of range", '{"pid":1,"port":70000,"workspace":""}'],
+    ["a pid that is not a number", '{"pid":"init","port":4317,"workspace":""}'],
+    ["a top-level array", "[1,2,3]"],
+    ["a record with no workspace", '{"pid":1,"port":4317}'],
+  ];
+
+  for (const [name, record] of shapes) {
+    it(`exits 0 and says nothing on ${name}`, () => {
+      const dir = mkdtempSync(join(tmpdir(), "ccdeck-hook-bad-record-"));
+      try {
+        const reg = join(dir, "claude", "agent-dag");
+        mkdirSync(reg, { recursive: true });
+        writeFileSync(join(reg, "99.json"), record, "utf8");
+        const r = spawnSync(process.execPath, [COPY, "--provider", "claude"], {
+          input: JSON.stringify({
+            hook_event_name: "PreToolUse", session_id: "s1", cwd: dir,
+            tool_name: "Bash", tool_use_id: "t1",
+          }),
+          env: { ...process.env, CLAUDE_CONFIG_DIR: join(dir, "claude"), HOME: dir, USERPROFILE: dir },
+          encoding: "utf8",
+          timeout: 10_000,
+        });
+        expect(r.status, `${name}: ${String(r.stderr).split("\n")[0]}`).toBe(0);
+        expect(String(r.stderr), "nothing reaches the host CLI's transcript").toBe("");
+        expect(String(r.stdout)).toBe("");
+      } finally {
+        rmTempDir(dir);
+      }
+    });
+  }
+
+  it("ignores a .json in the deck's home that is not a record at all", () => {
+    // DIR is ~/.claude/agent-dag/, which is the deck's old home rather than a
+    // registry: prefs.json lived there and deck-home.mjs's migration leaves the
+    // original where it is. The filter keeps `${pid}.json` now, so the deck's
+    // 0600 private-key file is not read on every tool call.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-hook-prefs-"));
+    try {
+      const reg = join(dir, "claude", "agent-dag");
+      mkdirSync(reg, { recursive: true });
+      writeFileSync(join(reg, "prefs.json"), JSON.stringify({ lan: { secret: "PRIVATE" } }), "utf8");
+      const r = spawnSync(process.execPath, [COPY, "--provider", "claude"], {
+        input: JSON.stringify({ hook_event_name: "Stop", session_id: "s1", cwd: dir }),
+        env: { ...process.env, CLAUDE_CONFIG_DIR: join(dir, "claude"), HOME: dir, USERPROFILE: dir },
+        encoding: "utf8",
+        timeout: 10_000,
+      });
+      expect(r.status).toBe(0);
+      expect(String(r.stderr)).toBe("");
+    } finally {
+      rmTempDir(dir);
     }
   });
 });

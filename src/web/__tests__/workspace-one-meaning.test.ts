@@ -567,8 +567,12 @@ async function runHook(decks: Array<Record<string, unknown>>, event: Record<stri
   // now — a tokenless file used to fall back to pid liveness and that fallback
   // is retired. The listeners above answer the challenge; what is under test
   // here is still which decks are posted to at all.
+  // `${pid}.json`, which is the only name writeDiscovery has ever written
+  // (installer.mjs:781) and the only one the hook reads. The fixture used to
+  // say `deck-${i}.json` — a shape production never produces — so it was
+  // exercising the hook against records it would never meet.
   decks.forEach((d, i) => writeFileSync(
-    join(dir, `deck-${i}.json`), JSON.stringify({ token: DECK_TOKEN, ...d }), "utf8"));
+    join(dir, `${9000 + i}.json`), JSON.stringify({ token: DECK_TOKEN, ...d }), "utf8"));
 
   const child = spawn(process.execPath, [HOOK_COPY, "--provider", "claude"], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
