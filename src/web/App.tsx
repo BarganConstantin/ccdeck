@@ -5114,7 +5114,9 @@ function Detail({
           <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
         </div>
         <div className="hero-meta">
-          <span className="hero-meta-item">{agent.kind}</span>
+          {/* The card's word for it, not the reducer's (#833): "root" is
+              internal vocabulary, and one thing had two names. */}
+          <span className="hero-meta-item">{agent.kind === "root" ? "session" : "subagent"}</span>
           <span className="hero-sep">·</span>
           <span className="hero-meta-item" title={`started ${new Date(agent.startedAt).toLocaleString()}`}>
             {elapsedLabel}
