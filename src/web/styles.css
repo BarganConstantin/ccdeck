@@ -308,9 +308,9 @@
    they already had.
 
    Not tokenised, on purpose, and all of them currently spell some value this
-   block also spells: `.ap-failure-x` and the two search-dim hovers rest at 0.6
-   and lift to 1 under the pointer, which is a quiet affordance rather than a
-   dead one; `.ap-dot`, `.ap-field::after`, `.ap-auto-now::after`, the accent
+   block also spells: the two search-dim hovers rest at 0.6 and lift to 1 under
+   the pointer, which is a quiet affordance rather than a dead one (`.ap-failure-x`
+   did too, until #872 measured it at 2.81:1 in light and it moved to 0.8); `.ap-dot`, `.ap-field::after`, `.ap-auto-now::after`, the accent
    stripe and `.aa-mark-ring` are decoration with no state at all;
    `.rf-spotlit-out` and `.tool-burst.dim` are what a selection does to what it
    not match, which is a third idiom with its own ladder. Those are coincidentally
@@ -6765,7 +6765,10 @@ button.tool.clickable:last-child { border-bottom: none; }
   border: 0;
   background: none;
   color: inherit;
-  opacity: 0.6;
+  /* 0.8, not the 0.6 it rested at: over the note's 12% wash of its own red,
+     0.6 left the only way to clear the note at 2.81:1 in light (#872). 0.8 is
+     3.99:1 there and still lifts to 1 under the pointer. */
+  opacity: 0.8;
   font-size: 12px;
   line-height: 1.2;
   cursor: pointer;
