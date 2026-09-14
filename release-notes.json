@@ -31,6 +31,16 @@
     "about a defect in the type, and the suite refuses both it and no space at",
     "all."
   ],
+  "3.22.10": [
+    {
+      "title": "🖱️ Icon buttons are easier to hit",
+      "body": "Icon buttons react when the pointer is near them — no need to hit the icon exactly."
+    },
+    {
+      "title": "🧩 Sessions spread across the canvas",
+      "body": "Sessions now spread across the canvas in columns instead of one tall column, and new sessions and subagents land in the free space beside them. Nothing is placed under the Machine or Usage panels. Press R once to rearrange a board you already have."
+    }
+  ],
   "3.21.0": [
     {
       "title": "🖼️ The deck explains itself in pictures",
