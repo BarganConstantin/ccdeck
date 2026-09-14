@@ -41,6 +41,7 @@
 // prose. A switch somebody has turned OFF is: that deck is no longer doing what
 // it says on the box, and the line under it says what that costs.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
 import { sameKeys, writeFailure } from "./LanSyncSection";
@@ -129,7 +130,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   const asks = status.autoAsk !== false;
   const says = status.autoAccept !== false;
 
-  return (
+  // Portalled like every dialog opened from inside the accounts panel: the
+  // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal lan-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-modal-title">
@@ -294,6 +297,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

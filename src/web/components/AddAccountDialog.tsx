@@ -23,6 +23,7 @@
 // a share — an irreversible side effect as the greeting. Opening a dialog is
 // not consent to open a browser.
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
 import { isLoginOver, loginEndNotice, shouldPollLogin, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
@@ -306,7 +307,14 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   const ended = isLoginOver(login?.state) || Boolean(error && startedRef.current && !busy);
   const notice = loginEndNotice({ state: login?.state, serverError: login?.error, localError: error });
 
-  return (
+  // Through a portal, like SectionHistoryModal, but for a different rule of the
+  // panel it opens from. The accounts panel wipes open by animating its width,
+  // and to keep its text still while it does, every direct child gets a fixed
+  // 288px measure (`.accounts-panel > *`). This backdrop was a direct child, so
+  // a `position: fixed; inset: 0` box came out 288px wide: a scrim over the
+  // panel alone, and the dialog squeezed into it at the left edge instead of
+  // centred on the screen. At <body>, no panel rule can reach it.
+  return createPortal(
     <div className="modal-backdrop" onClick={close} role="presentation">
       <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add a Claude account">
         <header className="modal-head">
@@ -562,6 +570,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
           )}
         </section>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

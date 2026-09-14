@@ -32,6 +32,7 @@
 // the difference that decides between them: an address waits on a person, an
 // invite does not.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressAccepted, pressState } from "../panel-press";
 import { leftLabel, parseAddress, writeFailure } from "./LanSyncSection";
@@ -222,7 +223,9 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
   const live = status.invite && status.invite.expiresAt > now ? status.invite : null;
   const steps = status.reach?.steps ?? [];
 
-  return (
+  // Portalled like every dialog opened from inside the accounts panel: the
+  // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal lan-add" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-add-title">
@@ -390,7 +393,8 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
           </div>
         </section>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

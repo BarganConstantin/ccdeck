@@ -17,6 +17,7 @@
 // row behind it and the row's own press lights this. Nothing here decides
 // anything the row could not.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { askedLabel, CONFIRM_GAP_MS, offerLine, roundLabel, seenLabel, versionOrder } from "./LanSyncSection";
@@ -275,7 +276,9 @@ export default function LanPeerModal({
     ? seenLabel(offers.at, now)
     : null;
 
-  return (
+  // Portalled like every dialog opened from inside the accounts panel: the
+  // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal lan-peer" data-tone={row.tone} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="lan-peer-title" aria-describedby="lan-peer-sub">
@@ -558,6 +561,7 @@ export default function LanPeerModal({
           )}
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

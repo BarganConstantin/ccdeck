@@ -14,6 +14,7 @@
 // the clear, so five boxes is five live logins on the clipboard, and that is a
 // fact the user should meet before the copy rather than after it.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
@@ -126,7 +127,10 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // came up short can never present itself as the full set.
   const carried = bundle?.shared.length ?? 0;
 
-  return (
+  // Portalled for the reason AddAccountDialog is: this also mounts as a direct
+  // child of the accounts panel, whose `.accounts-panel > *` gave the fixed
+  // backdrop the panel's 288px width.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal sa-modal" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label="Share accounts with another deck">
@@ -294,6 +298,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
           )}
         </section>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

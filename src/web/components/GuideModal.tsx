@@ -15,6 +15,7 @@
 // it pressing Enter should be able to keep pressing Enter to the end. The ×
 // and Escape still close it from any step, and the arrow keys move either way.
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 export interface GuideStep {
@@ -60,7 +61,9 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
     if (finish) finish.act(); else onClose();
   };
 
-  return (
+  // Portalled because LanSyncSection opens this guide from inside the accounts
+  // panel, and a modal is not the panel's to lay out — see AddAccountDialog.
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div ref={dialogRef} className="modal guide" onClick={e => e.stopPropagation()}
         onKeyDown={onKey} role="dialog" aria-modal="true" aria-labelledby="guide-title">
@@ -108,6 +111,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
           </div>
         </section>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
