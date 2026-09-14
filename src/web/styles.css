@@ -3498,9 +3498,11 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 .tokens-grid .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
 .tokens-grid b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* The dashed edge is the whole difference. It also faded the card to 0.92,
+   which took the "?" — the only word on the card for "this start was
+   synthesised" — under AA in dark: 4.17:1 (#878). */
 .agent-node.synthetic {
   border-style: dashed;
-  opacity: 0.92;
 }
 .agent-node .synth-tag {
   display: inline-flex;
