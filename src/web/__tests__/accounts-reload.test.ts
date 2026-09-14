@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  RELOAD_SLOW,
   RELOAD_UNREACHABLE,
   answered,
   explainReload,
@@ -60,6 +61,17 @@ describe("what a finished reload says", () => {
   it("marks every message of its own as one a later reload may withdraw", () => {
     expect(explainReload([{ ok: false, status: 500, body: null }, ok])?.reload).toBe(true);
     expect(RELOAD_UNREACHABLE.reload).toBe(true);
+    expect(RELOAD_SLOW.reload).toBe(true);
+  });
+
+  it("tells a deck that is slow apart from one that is not there (#829)", () => {
+    // The panel's own 30-second abort used to read "couldn't reach the deck
+    // server" too, which sent a reader to restart a server that was fine and
+    // waiting on claude-swap.
+    expect(RELOAD_SLOW.text).not.toBe(RELOAD_UNREACHABLE.text);
+    expect(RELOAD_SLOW.text).toMatch(/waiting/);
+    expect(RELOAD_SLOW.text).not.toMatch(/couldn.t reach/);
+    expect(nextFailure(RELOAD_SLOW, null)).toBeNull();
   });
 });
 
@@ -124,7 +136,8 @@ describe("the panel's reload path", () => {
     // One setFailure for the answered case, one for the thrown one. The empty
     // catch that swallowed everything is what this file exists for.
     expect(panel).toContain("setFailure(prev => nextFailure(prev, verdict));");
-    expect(panel).toContain("setFailure(prev => nextFailure(prev, RELOAD_UNREACHABLE));");
+    // The thrown case picks between the two by whose abort it was (#829).
+    expect(panel).toContain("setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));");
     expect(panel).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
   });
 

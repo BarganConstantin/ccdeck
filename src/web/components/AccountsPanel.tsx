@@ -20,6 +20,7 @@ import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import {
   type Failure,
+  RELOAD_SLOW,
   RELOAD_UNREACHABLE,
   answered,
   explainReload,
@@ -468,7 +469,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const verdict = explainReload([await answered(accts), await answered(autoRes)]);
       setFailure(prev => nextFailure(prev, verdict));
     } catch {
-      setFailure(prev => nextFailure(prev, RELOAD_UNREACHABLE));
+      // Our own abort is a deck that answered the connection and then took
+      // too long, not one that is gone (#829) — see RELOAD_SLOW.
+      setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));
     } finally {
       window.clearTimeout(bell);
       if (force) setReloading(false);

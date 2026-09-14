@@ -53,15 +53,28 @@ interface Answerable {
 }
 
 /**
- * Nothing came back at all.
+ * Nothing came back at all, because nothing answered: fetch rejected.
  *
- * Covers the deck that is not there — fetch rejects — and the one that took the
- * connection and then wedged, which only ends because the caller aborts it.
- * From here those are one fact, and splitting them would promise the reader a
- * distinction the panel cannot actually make.
+ * This used to cover the other way a reload can end with nothing too — the
+ * panel's own 30-second abort — on the reasoning that from here the two were one
+ * fact. They are not (#829): the caller knows when the abort was its own. A deck
+ * that took the connection and then sat on it is a deck that is there, most
+ * often waiting on claude-swap, and telling that reader the server could not be
+ * reached sent them to restart one that was fine. That case is RELOAD_SLOW.
  */
 export const RELOAD_UNREACHABLE: Failure = Object.freeze({
   text: "couldn't reach the deck server",
+  reload: true,
+});
+
+/**
+ * The deck took the connection and did not answer before the panel gave up on
+ * it (#829). Still a reload message — the next one that lands withdraws it — and
+ * worded as a wait rather than a fault, because the usual reason is claude-swap
+ * taking its time and the panel is already asking again.
+ */
+export const RELOAD_SLOW: Failure = Object.freeze({
+  text: "still waiting on the deck server — claude-swap can be slow to answer",
   reload: true,
 });
 
