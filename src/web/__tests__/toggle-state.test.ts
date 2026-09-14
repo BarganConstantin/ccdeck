@@ -402,7 +402,8 @@ describe("what each of the four toggles announces", () => {
     // that removed it was about width, and it was about the three TEXT buttons
     // that went with it; a 24px glyph is not that.
     expect(app).toMatch(/aria-label="Toggle session list"/);
-    expect(app).toContain("☰");
+    // Drawn since #837, rather than typed as ☰ in whichever font each platform had.
+    expect(app).toMatch(/aria-label="Toggle session list"[\s\S]{0,600}?<svg /);
     // It reports its state, which is what the removal cost: aria-expanded on
     // this button was the only announcement of the panel's open state anywhere
     // in the deck.

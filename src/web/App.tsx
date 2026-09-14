@@ -3905,7 +3905,16 @@ function Inner() {
               aria-label="Toggle session list"
               aria-expanded={sessionListOpen}
               aria-controls={sessionListOpen ? "session-list" : undefined}
-            >☰</button>
+            >
+              {/* AUTHORED, NOT TYPED (#837). ☰, $ and ☀/☾ came from whichever
+                  font each platform had — three sizes and three baselines
+                  beside five drawn icons. All eight are drawn now, on one spec:
+                  13px on a 14 viewBox, a 1.4 stroke, round caps and joins. */}
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5.4 3.6h6.6M5.4 7h6.6M5.4 10.4h6.6" />
+                <path d="M2.2 3.6h.2M2.2 7h.2M2.2 10.4h.2" />
+              </svg>
+            </button>
             <button
               className="btn icon-btn"
               onClick={() => setUsagePanelOpen(o => !o)}
@@ -3913,7 +3922,12 @@ function Inner() {
               aria-label="Toggle usage panel"
               aria-expanded={usagePanelOpen}
               aria-controls={usagePanelOpen ? "usage-panel" : undefined}
-            >$</button>
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9.4 4.5C9 3.6 8.1 3.1 7 3.1c-1.4 0-2.4.8-2.4 1.9 0 1.2 1.2 1.6 2.4 2s2.4.8 2.4 2c0 1.1-1 1.9-2.4 1.9-1.1 0-2-.5-2.4-1.4" />
+                <path d="M7 1.6v1.5M7 10.9v1.5" />
+              </svg>
+            </button>
             {/* Same disclosure as the usage panel — a sidebar that opens beside
                 the canvas and takes no focus with it.
                 Gone entirely without Claude Code, rather than present and inert.
@@ -3929,7 +3943,7 @@ function Inner() {
               aria-expanded={accountsPanelOpen}
               aria-controls={accountsPanelOpen ? "accounts-panel" : undefined}
             >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <circle cx="7" cy="4.6" r="2.4" />
                 <path d="M2.4 12c0-2.3 2.1-3.7 4.6-3.7s4.6 1.4 4.6 3.7" />
               </svg>
@@ -3961,7 +3975,7 @@ function Inner() {
               aria-expanded={machinePanelOpen}
               aria-controls={machinePanelOpen ? "system-panel" : undefined}
             >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <rect x="3.6" y="3.6" width="6.8" height="6.8" rx="1.2" />
                 <path d="M5.8 1.4v2.2M8.2 1.4v2.2M5.8 10.4v2.2M8.2 10.4v2.2M1.4 5.8h2.2M1.4 8.2h2.2M10.4 5.8h2.2M10.4 8.2h2.2" />
               </svg>
@@ -3983,7 +3997,7 @@ function Inner() {
               aria-label="Open usage history"
               aria-haspopup="dialog"
             >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <line x1="3" y1="11.5" x2="3" y2="7" />
                 <line x1="7" y1="11.5" x2="7" y2="3" />
                 <line x1="11" y1="11.5" x2="11" y2="8.5" />
@@ -4009,7 +4023,7 @@ function Inner() {
                 + (watchUnseen > 0 ? `, ${watchUnseen} unread` : "")}
               aria-haspopup="dialog"
             >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />
                 {watchOn || watchUnseen > 0
                   ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
@@ -4109,7 +4123,16 @@ function Inner() {
               title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (T)`}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
-              {theme === "dark" ? "☀" : "☾"}
+              {theme === "dark" ? (
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="7" cy="7" r="2.5" />
+                  <path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.1 3.1l.85.85M10.05 10.05l.85.85M3.1 10.9l.85-.85M10.05 3.95l.85-.85" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
