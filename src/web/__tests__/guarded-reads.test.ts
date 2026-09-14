@@ -59,7 +59,7 @@ const get = (path: string, headers: Record<string, string> = {}) =>
 const uiHeaders = (p = port) => ({ host: `127.0.0.1:${p}`, "sec-fetch-site": "same-origin" });
 
 describe("what a plain loopback client can read", () => {
-  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch"]) {
+  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`refuses ${path} with no browser headers and no token`, async () => {
       expect(await get(path)).toBe(401);
     });
@@ -71,7 +71,7 @@ describe("what a plain loopback client can read", () => {
 });
 
 describe("what the deck's own page can read", () => {
-  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch"]) {
+  for (const path of ["/api/events", "/api/claude-accounts", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`allows ${path} for a same-origin request addressed to loopback`, async () => {
       expect(await get(path, uiHeaders())).not.toBe(401);
     });
@@ -129,6 +129,35 @@ describe("a browser that sends no fetch metadata", () => {
       "sec-fetch-site": "cross-site",
       referer: `http://127.0.0.1:${port}/`,
     })).toBe(401);
+  });
+});
+
+// The two routes the gate was written for and did not cover. Filed after a
+// request carrying NO HEADERS AT ALL got 401 from /api/claude-accounts and 200
+// from /api/lan on the same deck, one route apart.
+describe("the LAN routes carry the same class of secret as the roster", () => {
+  it("does not hand the shared-account list to a caller the roster refuses", async () => {
+    // `shared` is one `<email>@@<organization uuid>` per account this deck
+    // offers, and `peers[].offers.accounts[].email` is the same for every
+    // paired deck. A caller that cannot read /api/claude-accounts must not
+    // read the same addresses out of the sync panel's route.
+    expect(await get("/api/claude-accounts")).toBe(401);
+    expect(await get("/api/lan")).toBe(401);
+  });
+
+  it("does not hand out a live invite token, which is a bearer credential", async () => {
+    // Not a description of the pairing — the thing that performs it.
+    // readInvite -> connectToPeer({code}) -> onInviteUsed pins the caller as
+    // trusted with nobody pressing anything, and a trusted deck may then send
+    // `manifest` and `want` and receive sealed OAuth credentials.
+    expect(await get("/api/lan")).toBe(401);
+  });
+
+  it("keeps lan.shared out of prefs as well, where publicPrefs leaves it", async () => {
+    // publicPrefs strips `lan.secret` and every `trusted[].pub`, which was the
+    // half that had to be right. It keeps `lan.shared` and every trusted
+    // peer's name, which is the same inventory by another door.
+    expect(await get("/api/prefs")).toBe(401);
   });
 });
 
