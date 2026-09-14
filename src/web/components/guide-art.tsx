@@ -459,7 +459,7 @@ export const LAN_STEPS: GuideStep[] = [
   { art: <LanProblemArt />, line: "A login can expire on one machine while it still works on another." },
   {
     art: <LanPairArt />,
-    line: "Turn this on, on both machines. They find each other and pair.",
+    line: "Both decks are on. They find each other and ask to pair.",
     tip: "Not showing up? The + in the section reaches a machine by address or invite.",
   },
   { art: <LanShareArt />, line: "Tick which logins this machine may hand out. Nothing is shared until you do." },

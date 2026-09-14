@@ -45,7 +45,11 @@ describe("a step is a picture with one line under it", () => {
     // machine": the problem, both switches, the share list, the repair.
     expect(LAN_STEPS.map(s => s.line)).toEqual([
       expect.stringMatching(/expire/),
-      expect.stringMatching(/both machines/),
+      // "both decks" since 3.22.7: the step no longer tells anybody to switch
+      // the feature on, because it now arrives on. What it still has to say is
+      // that it takes two of them, and that pairing is asked for rather than
+      // assumed.
+      expect.stringMatching(/both decks/i),
       expect.stringMatching(/Tick/),
       expect.stringMatching(/copied/),
     ]);

@@ -170,9 +170,9 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 ## What it touches
 
-It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history when Browser Watch is on; that is its own section below, because it is the one thing here that is about you rather than about an agent.
+It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
+What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
 
 ## Browser Watch
 
@@ -180,7 +180,7 @@ The panel behind the eye icon answers one question: **did something drive your b
 
 To answer it the deck reads the browsers' own history. That means, on each poll: it finds every Chromium profile (Chrome, Brave, Edge, Vivaldi), **copies each profile's `History` database** to a temp file — a live database cannot be opened safely — queries the visits newer than the moment this deck started, and deletes the copy. Nothing leaves the machine, and the copy exists for as long as one query takes.
 
-**The switch decides whether any of that happens in the background.** With Browser Watch off, the deck's five-minute poll reads no browser at all; with it on, the poll reads, keeps what it finds in `~/.claude/agent-dag/browser-watch/state.json`, writes a line per finding to `watch.log` beside it, and performs whatever reaction you chose. Opening the panel always reads live, on either setting — that is you looking, and it is the only way the panel can tell you what is there.
+**The switch decides whether any of that happens in the background, and it starts on.** With Browser Watch off, the deck's five-minute poll reads no browser at all; with it on, the poll reads, keeps what it finds in `~/.claude/agent-dag/browser-watch/state.json`, writes a line per finding to `watch.log` beside it, and performs whatever reaction you chose. Opening the panel always reads live, on either setting — that is you looking, and it is the only way the panel can tell you what is there.
 
 Only visits **after this deck started** are ever considered. Your existing history is not swept, not archived and not shown.
 
@@ -210,11 +210,11 @@ Four pictures, which are also the guide the section opens from `See how it works
 <table>
 <tr>
 <td><img src="assets/guide/lan-1.svg" width="440" alt="A login can expire on one machine while it still works on another."></td>
-<td><img src="assets/guide/lan-2.svg" width="440" alt="Turn this on, on both machines. They find each other and pair."></td>
+<td><img src="assets/guide/lan-2.svg" width="440" alt="Both decks are on. They find each other and ask to pair."></td>
 </tr>
 <tr>
 <td align="center"><sub><b>1.</b> A login can expire on one machine while it still works on another.</sub></td>
-<td align="center"><sub><b>2.</b> Turn this on, on both machines. They find each other and pair.</sub></td>
+<td align="center"><sub><b>2.</b> Both decks are on. They find each other and ask to pair.</sub></td>
 </tr>
 <tr>
 <td><img src="assets/guide/lan-3.svg" width="440" alt="Tick which logins this machine may hand out. Nothing is shared until you do."></td>
@@ -226,11 +226,11 @@ Four pictures, which are also the guide the section opens from `See how it works
 </tr>
 </table>
 
-**On each machine, in order:** open the Claude accounts panel (`A`), switch **Local network** on, and in the dialog that opens tick the logins this machine may hand out. That is all — the two decks find each other over a UDP beacon on port 45317, pair on their own, and from then on every paired deck is asked once a minute for anything this deck's expired logins need.
+**On each machine, in order:** open the Claude accounts panel (`A`), open **Local network**'s settings (the sliders button), and tick the logins this machine may hand out. The section is on unless somebody switched it off. The two decks find each other over a UDP beacon on port 45317 and ask each other to pair; press `accept` where it is asked, and from then on every paired deck is asked once a minute for anything this deck's expired logins need.
 
 **When they do not find each other** — a VPN, a guest network, two subnets — `+` at the top of the section reaches a deck by address, or with an invite the other deck minted. An invite is the route when the machine that cannot be seen is this one.
 
-**What is shared, and with whom.** Nothing until you tick a login, and then only that login, and only with decks somebody at this machine accepted — the deck asks the machines it finds and says yes to the ones that ask, and both switches are in the same dialog if you would rather press `accept` yourself. A paired deck can fill an *expired* slot of this deck's and nothing else: it cannot overwrite a login that still works here. What crosses the wire is the same live credential a share carries, sealed to the deck it is addressed to, so treat the pairing decision as the moment that matters. Unpairing stops future rounds; a login already copied stays where it went.
+**What is shared, and with whom.** Nothing until you tick a login, and then only that login, and only with decks somebody at this machine accepted — the deck asks the machines it finds, and a machine that is asked waits for somebody there to press `accept` — unless its `Say yes to every deck that asks` switch, in the same dialog, is on. A paired deck can fill an *expired* slot of this deck's and nothing else: it cannot overwrite a login that still works here. What crosses the wire is the same live credential a share carries, sealed to the deck it is addressed to, so treat the pairing decision as the moment that matters. Unpairing stops future rounds; a login already copied stays where it went.
 
 ## Options
 
@@ -344,6 +344,7 @@ Environment:
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
 | `AGENTS_DECK_NO_FRESHEN=1` | Never nudge claude-swap to collect usage early |
 | `AGENTS_DECK_NO_NOTIFY=1` | Never raise a desktop notification when a session blocks and no page is open |
+| `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |
