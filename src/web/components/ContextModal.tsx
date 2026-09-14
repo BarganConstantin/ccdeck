@@ -241,7 +241,15 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       className="ctx-donut"
       onClick={onClick}
       title={`context: ${currentContextTokens.toLocaleString()} / ${window.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}
-      aria-label="Show context breakdown"
+      /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
+         contents, so the <text> percentage inside the svg was never read, and
+         `title` is not consulted once a label is present — leaving a screen
+         reader with "Show context breakdown, button" on every root card and no
+         way to tell a session at 12% from one at 94%, including the amber and
+         red escalations that exist so you know a session is about to compact.
+         Inside the modal the same value is a role="progressbar" with
+         aria-valuenow; this is the surface that was silent. */
+      aria-label={`Context ${Math.round(pct * 100)}% of ${window.toLocaleString()} tokens — show breakdown`}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />

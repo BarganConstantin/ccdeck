@@ -58,3 +58,46 @@ describe("minimap node colour", () => {
     expect(minimapNodeColor({ type: "agent" }, token)).toBe(token("--ok"));
   });
 });
+
+// THE STATE `state` CANNOT SAY.
+//
+// The reducer sets `waiting` without touching `state`, so a root parked on a
+// permission prompt is still "active" and was painted the same --inflight as a
+// session that is happily working. Every other surface marks it — the favicon,
+// the tab title, the topbar chip, the card's amber WaitingRow, the sidebar's
+// top sort tier, the W shortcut — and the minimap is the one a person scans to
+// decide WHERE on a large board to fly the camera, which is the question "who
+// is blocked on me" asks. Ten sessions with one blocked showed ten
+// indistinguishable rects.
+describe("a session blocked on a human", () => {
+  const paint = (waiting: unknown, state = "active") =>
+    minimapNodeColor({ data: { state, waiting } } as never, (n) => n);
+
+  it("is drawn in the warn colour, not as another busy agent", () => {
+    expect(paint({ kind: "permission", since: 1 })).toBe("--warn");
+    expect(paint({ kind: "asked", since: 1 })).toBe("--warn");
+  });
+
+  it("uses isAlarming's rule, so it agrees with the tab strip rather than inventing a sixth", () => {
+    // `idle` is deliberately not an alarm anywhere else in the deck — an empty
+    // input box is a turn that ended, not a session stuck.
+    expect(paint({ kind: "idle", since: 1 })).toBe("--inflight");
+  });
+
+  it("outranks state, because a blocked session is still `active`", () => {
+    // This is the whole reason the test exists: the block is invisible to the
+    // `state` tests below it.
+    expect(paint(null)).toBe("--inflight");
+    expect(paint({ kind: "permission", since: 1 }, "active")).toBe("--warn");
+  });
+
+  it("puts the block ahead of an error, because the block is the actionable one", () => {
+    // A session can be both. The error already happened; the block is the one
+    // a person can end by looking at it, which is why every other surface sorts
+    // waiting to the top (SessionList's rank(), the topbar chip, W). An
+    // ordinary errored session is still red.
+    expect(paint({ kind: "permission", since: 1 }, "err")).toBe("--warn");
+    expect(paint(null, "err")).toBe("--err");
+  });
+});
+
