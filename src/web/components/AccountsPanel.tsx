@@ -776,8 +776,8 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
             {/* IT TURNS WHILE IT WORKS, where it used to swap the arrow for an
                 ellipsis. Both say which of the two states the control is in,
                 which is what #518 asked of it; a rotation says it without the
-                button's ink changing shape, and it is what the LAN section's
-                round already does for the same act. */}
+                button's ink changing shape. The LAN section's check turns the
+                same way while it works, with its own glyph since #838. */}
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
               strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />

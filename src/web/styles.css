@@ -10892,6 +10892,9 @@ input, textarea { caret-color: var(--accent); }
    only sign it had started was a word three lines below the glyph that was
    pressed, which is not where the eye is. It turns while it works, at the one
    speed in this app that means "still going" rather than "something happened". */
+/* It turns while it asks: a broadcast sweeping round reads as asking. #838
+   gave it a glyph of its own; the motion stays the one "working" has here —
+   pulse is the live-traffic tempo, and a busy control is not live traffic. */
 .ap-lan-check[aria-busy="true"] { color: var(--accent); animation: spin 900ms linear infinite; }
 /* The sheet's own `spin` does this already — see the empty-hero orbits. A
    second set of keyframes spelling `rotate(360deg)` is a second thing to keep
