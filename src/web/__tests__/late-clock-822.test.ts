@@ -28,7 +28,9 @@ const app = read("../App.tsx");
 
 describe("a clock whose start the deck did not see reads as a floor (#822)", () => {
   it("prefixes the card's clock with ≥ for a session joined late", () => {
-    expect(code(card)).toMatch(/\{data\.synthetic \? "≥ " : ""\}\{elapsed\(data\.startedAt, data\.endedAt, now\)\}/);
+    // The clock is its own leaf on a one-second beat since #873; the floor mark
+    // stays in front of it.
+    expect(code(card)).toMatch(/\{data\.synthetic \? "≥ " : ""\}<Elapsed start=\{data\.startedAt\} end=\{data\.endedAt\} \/>/);
   });
 
   it("says why in the clock's title", () => {

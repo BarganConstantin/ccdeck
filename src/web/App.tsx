@@ -584,6 +584,42 @@ const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
  *  purely so the call sites below read the way they always have. */
 const detailCategoryFor = categoryFor;
 
+type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void };
+
+/**
+ * Node data that keeps its identity while the board has not changed (#873).
+ *
+ * This was `{ ...a, now, onOpenContext }`: a fresh object for every card on every
+ * 250ms tick, so React Flow's memoised node wrapper never bailed and every card
+ * and its sparkline re-rendered four times a second on an idle board. The
+ * reducer bumps `state.revision` on every change it makes to an agent, so a copy
+ * taken at one revision is still true until the next — and the cards, memoised
+ * on it, sit still between events. Time reaches them through the leaves that
+ * print it, on their own beat (use-now.ts).
+ */
+const NODE_DATA = new WeakMap<GraphState, {
+  revision: number;
+  open: (sessionId: string) => void;
+  byId: Map<string, FlowNodeData>;
+}>();
+
+function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
+  let entry = NODE_DATA.get(state);
+  if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
+    entry = { revision: state.revision, open: onOpenContext, byId: new Map() };
+    NODE_DATA.set(state, entry);
+  }
+  const { byId } = entry;
+  return a => {
+    let d = byId.get(a.id);
+    if (!d) {
+      d = { ...a, onOpenContext };
+      byId.set(a.id, d);
+    }
+    return d;
+  };
+}
+
 function snapshotToFlow(
   state: GraphState,
   now: number,
@@ -614,9 +650,10 @@ function snapshotToFlow(
   lineage: Set<string> | null,
   visibleIds: Set<string>,
   onOpenContext: (sessionId: string) => void,
-): { nodes: Node<AgentNodeData & { now: number; onOpenContext?: (sessionId: string) => void }>[]; edges: Edge[] } {
-  const nodes: Node<AgentNodeData & { now: number; onOpenContext?: (sessionId: string) => void }>[] = [];
+): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
+  const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
+  const dataFor = nodeDataFor(state, onOpenContext);
   for (const a of state.agents.values()) {
     if (!visibleIds.has(a.id)) continue;
     const exiting = a.exitAt != null;
@@ -638,7 +675,7 @@ function snapshotToFlow(
       id: a.id,
       type: "agent",
       position: { x: 0, y: 0 },
-      data: { ...a, now, onOpenContext },
+      data: dataFor(a),
       className: cls,
       // Composed, not read off the card: see agentAriaLabel (#853).
       ariaLabel: agentAriaLabel(a, now),
@@ -2702,7 +2739,7 @@ function Inner() {
         position: { x: b.minX - GROUP_PAD, y: b.minY - GROUP_PAD },
         // w/h handed to the node component so it can size itself in explicit
         // pixels (a 100% child would collapse under RF's content sizing).
-        data: { sessionId: sid, w, h } as unknown as AgentNodeData & { now: number },
+        data: { sessionId: sid, w, h } as unknown as AgentNodeData,
         width: w,
         height: h,
         style: { width: w, height: h },
@@ -2715,7 +2752,7 @@ function Inner() {
       });
     }
     return out;
-  }, [nodes, now]);
+  }, [nodes]);
 
   /**
    * The array React Flow renders, with the in-flight drag applied on top.

@@ -852,6 +852,8 @@ interface ToolBurstsProps {
   onOpenTool?: (toolId: string) => void;
 }
 
+import { memo } from "react";
+
 export default function ToolBursts({ agents, visibleAgentIds, positions, pinned, measured, spotlight, hiddenCategories, now, onOpenTool }: ToolBurstsProps) {
   // Deliberately NOT subscribed to the viewport. useViewport() fires on every
   // frame of a pan/zoom gesture, and this walk of the agents map — regex
@@ -927,7 +929,47 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
           );
         })}
       </svg>
-      {bursts.map(b => {
+      {bursts.map(b => (
+        <Bubble
+          key={b.id}
+          b={b}
+          x={x}
+          y={y}
+          zoom={zoom}
+          dim={spotlight != null && !spotlight.has(b.agentId)}
+          onOpenTool={onOpenTool}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface BubbleProps {
+  b: Burst;
+  x: number;
+  y: number;
+  zoom: number;
+  dim: boolean;
+  onOpenTool?: (toolId: string) => void;
+}
+
+/** What a bubble draws, value by value (#873). `collectBursts` builds a fresh
+ *  Burst for every bubble on every render — it has to, the clock moves the fades
+ *  on the connectors — so identity says nothing; these are the fields the markup
+ *  below reads, and a bubble whose fields did not move is not rendered again. */
+function sameBubble(p: BubbleProps, q: BubbleProps): boolean {
+  const a = p.b, c = q.b;
+  return p.x === q.x && p.y === q.y && p.zoom === q.zoom && p.dim === q.dim && p.onOpenTool === q.onOpenTool
+    && a.id === c.id && a.toolId === c.toolId && a.worldX === c.worldX && a.worldY === c.worldY
+    && a.spawnDx === c.spawnDx && a.spawnDy === c.spawnDy && a.status === c.status && a.fading === c.fading
+    && a.category === c.category && a.mcpHue === c.mcpHue && a.isSub === c.isSub && a.emoji === c.emoji
+    && a.name === c.name && a.toolName === c.toolName && a.inputPreview === c.inputPreview;
+}
+
+/** One bubble, memoised on what it draws (#873). On an idle board the clock
+ *  ticks four times a second and every Burst is rebuilt; a bubble none of whose
+ *  drawn values changed now stays exactly as it is. */
+const Bubble = memo(function Bubble({ b, x, y, zoom, dim, onOpenTool }: BubbleProps) {
         const px = b.worldX * zoom + x;
         const py = b.worldY * zoom + y;
         const wrapStyle: React.CSSProperties & Record<string, string> = {
@@ -950,10 +992,9 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
         const innerStyle: React.CSSProperties & Record<string, string | number> = b.mcpHue != null
           ? { "--mcp-hue": b.mcpHue }
           : {};
-        const isSpotOut = spotlight != null && !spotlight.has(b.agentId);
-        const dimClass = isSpotOut ? " dim" : "";
+        const dimClass = dim ? " dim" : "";
         return (
-          <div key={b.id} className="tool-burst-wrap" style={wrapStyle}>
+          <div className="tool-burst-wrap" style={wrapStyle}>
             {/* Decoration, and now honest about it.
 
                 Every clickable bubble used to be a role="button" tabIndex={0}
@@ -987,7 +1028,4 @@ function BurstLayer({ bursts, spotlight, onOpenTool }: BurstLayerProps) {
             </div>
           </div>
         );
-      })}
-    </div>
-  );
-}
+}, sameBubble);

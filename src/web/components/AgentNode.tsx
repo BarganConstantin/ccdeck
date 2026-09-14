@@ -98,9 +98,15 @@ function agentCostTooltip(a: UsageBearing): string {
   ].join("\n");
 }
 import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
+import { memo } from "react";
+import { useNow } from "../use-now";
 
-export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & { now: number; onOpenContext?: (sessionId: string) => void }>) {
-  const now = data.now ?? Date.now();
+/** A card re-renders when its agent changes, not when the clock does (#873).
+ *  Time reaches it through the three leaves that print it — the elapsed clock,
+ *  the waiting row and the sparkline — each on a shared one-second beat, and
+ *  the card itself is memoised on node data that keeps its identity until the
+ *  board's revision moves. */
+function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void }>) {
   const cls = [
     "agent-node",
     `state-${data.state}`,
@@ -180,7 +186,7 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
           <div className="time" title={data.synthetic
             ? `The deck joined this session after it began, so it has run at least this long — first seen ${new Date(data.startedAt).toLocaleTimeString()}`
             : `Started ${new Date(data.startedAt).toLocaleTimeString()}`}>
-            {data.synthetic ? "≥ " : ""}{elapsed(data.startedAt, data.endedAt, now)}
+            {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
           </div>
         </div>
       </div>
@@ -257,7 +263,7 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
           wide and the header already spends it on the state pill, the workspace
           name and the elapsed clock; a fourth item there pushed the label to an
           ellipsis and still overflowed. A blocked session has earned a line. */}
-      {data.waiting && <WaitingRow waiting={data.waiting} now={now} />}
+      {data.waiting && <WaitingRow waiting={data.waiting} />}
 
       {/* The same slot, for the sessions that can never fill it (#398). A Codex
           session emits no notification and its rollout carries no approval
@@ -285,7 +291,7 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
       })()}
 
       {(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0) && (
-        <ToolRateSpark tools={data.tools} outputs={data.outputs} now={now} />
+        <ToolRateSpark tools={data.tools} outputs={data.outputs} />
       )}
 
       <div className="meta">
@@ -332,7 +338,9 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
             );
           }
           if (c.total <= 0) return null;
-          const elapsedSec = Math.max(0, ((data.endedAt ?? now) - data.startedAt) / 1000);
+          // As of this render (#873). The card re-renders on its agent's events
+          // and the rate lives in a tooltip, so it is at most one event stale.
+          const elapsedSec = Math.max(0, ((data.endedAt ?? Date.now()) - data.startedAt) / 1000);
           // Not for a session the deck joined late (#822): its cost is the whole
           // session's and its clock only the part this page saw, so the quotient
           // would overstate the burn by however much of the session was missed.
@@ -357,6 +365,15 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData & 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
   );
+}
+
+export default memo(AgentNode);
+
+/** The card's clock, on its own beat (#873): the one piece of the header that
+ *  changes every second, and so the only piece that re-renders every second. */
+function Elapsed({ start, end }: { start: number; end?: number }) {
+  const now = useNow(1000);
+  return <>{elapsed(start, end, now)}</>;
 }
 
 /** The one word this app uses for a session's state, wherever it says it.
@@ -472,7 +489,9 @@ export function waitingLabel(waiting: WaitingBlock): string {
  *  ping is .ap-pulse, the emitter the accounts panel
  *  already uses, so the app keeps one idiom for "still asking" and one
  *  reduced-motion answer for it. */
-function WaitingRow({ waiting, now }: { waiting: WaitingBlock; now: number }) {
+function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
+  // Its own beat (#873): "blocked for 3m" counts up while the card sits still.
+  const now = useNow(1000);
   // The pulse and the amber belong to a session that is STOPPED until a human
   // answers, which is both `permission` and `asked` — the same set `isAlarming`
   // names, and it has to stay the same set or the card would contradict the
@@ -509,7 +528,9 @@ function WaitingRow({ waiting, now }: { waiting: WaitingBlock; now: number }) {
  *  It counts both now. A tool call is one mark and a completed block of the
  *  model's own output is another, so the line moves whenever the session does
  *  and is flat only when the session genuinely is. */
-function ToolRateSpark({ tools, outputs, now }: { tools: ToolCall[]; outputs?: number[]; now: number }) {
+function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
+  // Its own beat (#873): the window slides under a card that has not changed.
+  const now = useNow(1000);
   const WINDOW_MS = 60_000;
   const BUCKETS = 24;
   const BUCKET_MS = WINDOW_MS / BUCKETS;
