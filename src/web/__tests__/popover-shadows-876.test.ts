@@ -20,6 +20,7 @@ function decl(selector: string, prop: string): string | null {
 }
 
 const LIGHT = ':root[data-theme="light"] ';
+const history = readFileSync(fileURLToPath(new URL("../components/UsageHistoryModal.tsx", import.meta.url)), "utf8");
 
 function lightToken(name: string): string {
   const block = /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/.exec(css);
@@ -35,7 +36,11 @@ const BLACK = /rgba\(\s*0\s*,\s*0\s*,\s*0\s*,/;
 
 describe("the usage-history dialog's shadow (#876)", () => {
   it("is .modal's --shadow-2, which each theme block tunes for its own canvas", () => {
-    expect(decl(".uh-modal", "box-shadow")).toBe("var(--shadow-2)");
+    // By composition since #874: the dialog wears the shared shell, and its own
+    // rule declares no second shadow.
+    expect(history).toMatch(/className="modal uh-modal"/);
+    expect(decl(".modal", "box-shadow")).toMatch(/^var\(--shadow-2\)/);
+    expect(decl(".modal.uh-modal", "box-shadow")).toBeNull();
   });
 });
 
@@ -62,7 +67,8 @@ describe("the sound popover's shadow on the light theme (#876)", () => {
 
 describe("no floating surface keeps a black shadow on white", () => {
   it("answers the light theme for every dialog and popover this batch touched", () => {
-    for (const sel of [".sound-menu", ".uh-modal", ".ctx-modal"]) {
+    // `.modal` carries both dialogs this batch touched since #874 put them on it.
+    for (const sel of [".sound-menu", ".modal"]) {
       const base = decl(sel, "box-shadow")!;
       const themed = /var\(--shadow-\d\)/.test(base) && !BLACK.test(base);
       expect(themed || decl(`${LIGHT}${sel}`, "box-shadow") !== null, `${sel}: ${base}`).toBe(true);

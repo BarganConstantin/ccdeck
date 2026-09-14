@@ -493,7 +493,9 @@ describe("what each of the four toggles announces", () => {
     expect(history).not.toMatch(/aria-pressed|aria-expanded/);
     expect(historyModal).toMatch(/role="dialog" aria-modal="true"/);
     expect(historyModal).toMatch(/useModalDismiss/);
-    expect(declIn(bodyOf(".uh-backdrop"), "position")).toBe("fixed");
+    // The shared scrim since #874, which put this dialog on the .modal shell.
+    expect(historyModal).toMatch(/className="modal-backdrop"/);
+    expect(declIn(bodyOf(".modal-backdrop"), "position")).toBe("fixed");
   });
 
   it("leaves no toggle showing its state as a class the tree cannot see", () => {

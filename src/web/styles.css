@@ -3044,29 +3044,20 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    like two different ones depending on which button opened it. popIn's
    transform-origin stays centre: a modal is the documented exception to
    origin-awareness, and nothing here is anchored to its trigger. */
-.ctx-modal-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100;
-  padding: 24px;
-  animation: fadeIn 140ms ease-out;
-}
-/* The scrim .modal-backdrop and .uh-backdrop turn to on the light theme. A
-   black 55% over a white page reads as the lights going out (#875). */
-:root[data-theme="light"] .ctx-modal-backdrop { background: rgba(15,23,42,0.30); }
-.ctx-modal {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  /* .modal's shadow, which each theme block tunes for its own canvas (#875). */
-  box-shadow: var(--shadow-2);
-  width: min(560px, 100%);
+/* On the shared shell since #874: the markup is `modal-backdrop` and
+   `modal ctx-modal`, so the scrim and its light answer, the blur, the surface,
+   the edge, the shadow, the entrance and its reduced-motion answer are .modal's
+   — one set of rules, where #875 had to fix a copy of them. What is left here
+   is what this dialog is not like the others in: narrower, a padded block
+   rather than a head-and-body column, and it scrolls as a whole. Two classes,
+   so it outranks .modal wherever the two sit in the sheet. */
+.modal.ctx-modal {
+  display: block;
+  width: min(560px, 92vw);
   max-height: 80vh;
   overflow: auto;
   padding: 18px 20px 22px;
   color: var(--text);
-  animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
 }
 .ctx-modal-head {
   display: flex;
@@ -6170,29 +6161,16 @@ button.qb-pace::after {
 }
 
 /* ---------------- usage history modal (ccusage) ---------------- */
-/* Same entrance as .modal and .ctx-modal, for the reason written out at
-   .ctx-modal-backdrop: one interaction, one arrival. */
-.uh-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100;
-  padding: 24px;
-  animation: fadeIn 140ms ease-out;
-}
-.uh-modal {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  /* .modal's shadow, which each theme block tunes for its own canvas. A black
-     50% stayed black 50% on the white page (#876). */
-  box-shadow: var(--shadow-2);
-  width: min(760px, 100%);
+/* On the shared shell since #874, like the context dialog: `modal-backdrop`
+   and `modal uh-modal`, so the scrim, surface, shadow and entrance are .modal's
+   and only the size and this dialog's own padding are written here. */
+.modal.uh-modal {
+  display: block;
+  width: min(760px, 92vw);
   max-height: 84vh;
   overflow: auto;
   padding: 16px 18px 20px;
   color: var(--text);
-  animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
 }
 .uh-head {
   display: flex; align-items: center; gap: 12px;
@@ -6530,7 +6508,6 @@ button.qb-pace::after {
 .uh-model-bar-fill { display: block; height: 100%; border-radius: 3px; }
 .uh-model-cost { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
 
-:root[data-theme="light"] .uh-backdrop { background: rgba(15,23,42,0.30); }
 
 /* ---------------- accounts panel (claude-swap) ---------------- */
 /* Sits left of the usage panel so both can be open — comparing accounts is
@@ -8569,9 +8546,9 @@ button.ap-err::after {
   .qb-pace-marker,
   .uh-bar { transition: none; }
 
+  /* Every dialog, the context and usage-history ones included since #874
+     put them on this shell. */
   .modal,
-  .ctx-modal,
-  .uh-modal,
   /* #711's popover. Not a dialog, and listed here for exactly the reason the
      paragraph above gives: a media query does not inherit through a shared
      shape, only through a selector actually written down. It carries the same

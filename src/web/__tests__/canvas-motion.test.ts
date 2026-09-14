@@ -598,13 +598,13 @@ const isBackdrop = (rule: Rule) =>
 
 const backdrops = all.filter(r => !r.reduced && isBackdrop(r));
 
-/** backdrop → the panel it centres. All three are reached from this canvas
- *  through one useModalDismiss and dismissed by one Escape key, so they are one
- *  interaction and get one arrival. */
+/** backdrop → the panel it centres. Every dialog reached from this canvas is
+ *  dismissed through one useModalDismiss and one Escape key, so they are one
+ *  interaction and get one arrival. The context and usage-history dialogs had
+ *  a backdrop and a panel of their own that agreed with this pair; since #874
+ *  they compose it, so the sweep below finds one pair and that is the point. */
 const DIALOGS: [backdrop: string, panel: string][] = [
   [".modal-backdrop", ".modal"],
-  [".ctx-modal-backdrop", ".ctx-modal"],
-  [".uh-backdrop", ".uh-modal"],
 ];
 
 describe("one entrance for one interaction: the modal", () => {

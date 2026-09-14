@@ -230,8 +230,8 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const selectedDay = selected ? days.find(d => d.period === selected) ?? null : null;
 
   return (
-    <div className="uh-backdrop" onClick={onClose} role="presentation">
-      <div ref={dialogRef} className="uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Usage history">
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Usage history">
         <header className="uh-head">
           <div className="uh-titlewrap">
             <div className="uh-title">Usage history</div>
