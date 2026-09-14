@@ -750,8 +750,8 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // that when the deck on the port is the deck it would itself have built. A
     // `--no-claude` deck has no hooks, no accounts panel and no switcher, and
     // until this field existed it was indistinguishable from one that has all
-    // three. An older deck has no such field, so it is excluded by
-    // construction — see runningDeck.
+    // three. An older deck has no such field, so it never passes for one and is
+    // replaced instead — see secondStart.
     claude: claude !== false,
     // What this deck IS, so a launcher that attaches can say whether the deck
     // it found is the version the user just asked for. Never a decision: a

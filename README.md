@@ -241,9 +241,9 @@ ccdeck [options]
       --no-open            Don't open the browser automatically
       --foreground         Hold the terminal, the way every version before 3.20
                            did (Ctrl+C stops the deck again)
-      --new                Start a second deck even if one is already running
-      --stop               Stop the deck a bare `ccdeck` would open
-                           (--port <n> stops that one; --all stops every deck)
+      --new                Replace the running deck with a fresh one
+      --stop               Stop the running deck
+                           (--port <n> stops only the one on that port)
       --status             What is running on this machine, and on which ports
       --logs               What a backgrounded deck wrote where a terminal would
                            have shown it
@@ -272,10 +272,8 @@ dashboard.
 
 `--foreground` is there for anything that was relying on the old behaviour — a
 wrapper script, a CI step, a supervisor of your own that starts the deck and
-waits on it. On the first run after upgrading you may also see a line about a
-deck from an older version still running: those publish nothing this one can
-check, so it starts beside them rather than attaching to something it cannot
-identify, and `ccdeck --stop --all` clears them.
+waits on it. On the first run after upgrading, the deck from the older version
+is stopped and the new one takes its place; the boot report says so.
 
 `ccdeck` runs in the background. The boot report prints in your terminal exactly
 as it always has — the hooks, the port, the URL — and then the prompt comes back
@@ -317,9 +315,16 @@ The port fallback is still there — 4317 is also the standard OTLP collector
 port, and Windows reserves whole TCP ranges for Hyper-V, WSL2 and Docker — but
 it now runs only when the thing holding the port is *not* one of your decks. The
 deck on the port has to prove it is yours, with the same token handshake the
-hooks use, before its tab is opened. Any flag that changes what the deck **is**
-— a port, a workspace, a log, either `--codex` or `--claude` pair — still starts
-its own, and `--new` starts one unconditionally.
+hooks use, before its tab is opened.
+
+**There is only ever one.** A start that asks for a different deck — a port, a
+workspace, a log, either `--codex` or `--claude` pair — or that is a newer
+version than the deck running, stops that deck and takes its place; `--new` does
+so unconditionally. Two starts at the same moment, such as the login item and a
+terminal opened at login, wait for each other instead of both starting. The rule
+holds per Claude config directory: pointing `CLAUDE_CONFIG_DIR` somewhere else
+is a second deck with its own identity, as it always was, and the login item is
+given the same directory as the shell that installed it.
 
 ccdeck looks for each CLI before it does anything on that CLI's behalf. Claude
 Code counts as present when its binary is on `PATH` (or in one of the places its

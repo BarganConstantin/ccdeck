@@ -269,12 +269,11 @@ describe("the ladder, when asking did not work", () => {
 });
 
 describe("which deck --stop ends", () => {
-  it("targets the one a bare `ccdeck` would open, and nothing else by default", () => {
-    // One model to hold: `ccdeck` opens X, `ccdeck --stop` ends X. Same
-    // sameShape the attach uses.
-    expect(DECK).toMatch(/decks\.filter\(d => sameShape\(d, mine\)\)\.slice\(0, 1\)/);
-    expect(DECK).toMatch(/flags\.all\s*\n?\s*\?\s*decks/);
-    expect(DECK).toContain("decks.filter(d => d.port === named)");
+  it("ends every deck unless one is named, since a start keeps only one", () => {
+    // A second deck here is a leftover from before the one-deck rule, and an
+    // off switch that ended one of two would leave the machine running.
+    expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
+    expect(DECK).not.toMatch(/decks\.filter\(d => sameShape\(d, mine\)\)\.slice\(0, 1\)/);
   });
 
   it("reads the default shape, not the flags on this command line", () => {

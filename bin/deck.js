@@ -21,7 +21,10 @@ import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
 // with the rest rather than fetched later. Deliberately NOT the other way
 // round: it takes the handshake as a parameter precisely so that it never has
 // to import the server. See the note at the top of that file.
-import { asksForOwnDeck, runningDeck, versionNote } from "../src/server/running-deck.mjs";
+import { deckRegistryDir, liveDecks, olderVersion, secondStart, versionNote } from "../src/server/running-deck.mjs";
+// The same kind of leaf — fs, path, crypto and deck-probe.mjs — for the same
+// reason: it is taken before anything else in the boot has run.
+import { takeBootLock } from "../src/server/boot-lock.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, "..");
@@ -178,12 +181,11 @@ if (flags.uninstall) {
 // block below gives (#797): those are declared two hundred lines further down
 // and this runs at module top level.
 //
-// WHICH DECK. The shape a bare `ccdeck` would have built — same `sameShape` the
-// attach uses, so `ccdeck` and `ccdeck --stop` name the same deck and there is
-// one model to hold. `--port <n>` names one directly; `--all` takes every deck
-// on the machine. (`--all` is the legacy capture flag, a no-op since it became
-// the default; beside `--stop` it can only mean this, and it is the word a
-// person reaches for.)
+// WHICH DECK. Every one, unless `--port <n>` names one. A start keeps at most
+// one deck now, so a second is a leftover from before that rule, and an off
+// switch that ended one of two would leave the machine running. (`--all` is the
+// legacy capture flag, a no-op since it became the default; beside `--stop` it
+// always meant "every deck", and that is what the bare command means now.)
 if (flags.stop || flags.status || flags.logs || flags.install || flags.installService || flags.uninstallService) {
   const { dash, ok: gOk, warn: gWarn, bullet, arrow, ellipsis: gEllipsis } = glyphs(unicodeOK());
   const tone = palette(colorProfile({ isTTY: Boolean(process.stdout.isTTY) }));
@@ -391,21 +393,18 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
   // default SHAPE, so the matcher finds it without help. It is also declared
   // below this block, which would make reading it here a ReferenceError (#797).
   const named = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
-  const wanted = flags.all
-    ? decks
-    : named !== null
-      ? decks.filter(d => d.port === named)
-      : decks.filter(d => sameShape(d, mine)).slice(0, 1);
+  // EVERY DECK, unless one is named. There is meant to be one — a start keeps
+  // at most one now — so a second here is a leftover from before that rule, and
+  // an off switch that ended one of two would leave the machine running. `--all`
+  // is still accepted, and now means what the bare command means.
+  const wanted = named !== null ? decks.filter(d => d.port === named) : decks;
 
   if (!wanted.length) {
-    // Three different silences, and saying the wrong one sends the reader
-    // looking in the wrong place. A machine with no deck at all is not a
-    // machine whose deck is scoped differently.
-    const why = !decks.length
-      ? `no deck is running`
-      : named !== null
-        ? `no deck is listening on ${named} ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists them`
-        : `no deck of this shape is running ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists the ${decks.length} that ${decks.length === 1 ? "is" : "are"}`;
+    // Two different silences, and saying the wrong one sends the reader looking
+    // in the wrong place.
+    const why = named !== null && decks.length
+      ? `no deck is listening on ${named} ${dash} \`${INVOKED_AS ?? PRODUCT} --status\` lists them`
+      : `no deck is running`;
     say(`\n  ${tone.muted}${dash}  ${why}${tone.reset}\n`);
     process.exit(0);
   }
@@ -1180,6 +1179,10 @@ function restartTarget() {
 let server = null;
 let discovery = null;
 let discoveryFile = null;
+// The boot lock, for the same reason: taken at the gate below, given back once
+// this deck is registered, and given back by the exit handler on every way out
+// before that. See src/server/boot-lock.mjs.
+let bootLock = null;
 
 // This worker does not outlive the supervisor that started it (#702).
 //
@@ -1235,9 +1238,11 @@ dieWithParent(() => shutdown(0));
 // ── is one of ours already up? ────────────────────────────────────────────────
 // A bare `ccdeck` typed beside a deck that is already running used to build a
 // second everything on a random port, and neither half mentioned the other.
-// src/server/running-deck.mjs carries the whole argument, the registry read and
-// the token handshake that makes the answer trustworthy; this is only where it
-// is asked.
+// Then it attached only to a deck of exactly its own shape and built a second
+// one beside anything else — a different flag, an older version, or a login
+// item whose environment decided `codex` or the log path differently from the
+// shell's. src/server/running-deck.mjs carries the whole argument, the registry
+// read, the handshake and the rule; this is only where it is asked and acted on.
 //
 // ASKED EXACTLY HERE, and the position is the point. Everything the answer
 // depends on is resolved above — the workspace, the canonical log path, which
@@ -1246,16 +1251,52 @@ dieWithParent(() => shutdown(0));
 // discovery file written. An attach therefore leaves the machine precisely as
 // it found it, which is what makes it safe to do without asking.
 //
-// A respawn is excluded on its own line rather than left to the flag check.
-// The supervisor relaunches us with `--port <bound>`, which is a shaping flag
-// and would be excluded anyway — but a restart is THIS deck coming back, and
-// having that read as "somebody typed ccdeck twice" is an accident waiting for
-// the day the supervisor stops passing the port.
-if (!RESPAWN && !asksForOwnDeck(flags)) {
-  const live = await runningDeck({
+// UNDER THE BOOT LOCK, held until this deck's own record is on disk — see the
+// release beside discovery.check below, and boot-lock.mjs for why a registry
+// read alone could not close the window two starts at login fell through.
+//
+// A RESPAWN IS ASKED TOO, and answers differently. A restart is THIS deck
+// coming back, so there is nothing to attach to — but in the gap a crash
+// leaves, a `ccdeck` typed by hand finds no deck and starts one, and the
+// respawn that followed used to take a random port beside it. Now it finds
+// that deck and exits 0, and the supervisor, reading a clean exit, ends too.
+bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
+{
+  // `--port` alone, not AGENT_DAG_PORT: the variable is how somebody RUNS a
+  // deck rather than which one they mean — the line `--stop` draws above.
+  const askedPort = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
+  const plan = secondStart({
+    live: await liveDecks().catch(() => []),
     want: { workspace, persist, codex: wantCodex, claude: wantClaude },
-  }).catch(() => null);
-  if (live) {
+    port: askedPort,
+    ours: PKG_VERSION,
+    fresh: flags.new === true,
+    respawn: RESPAWN,
+  });
+  if (plan.act === "yield") {
+    console.error(`${PRODUCT}: a deck started on ${plan.deck.port} while this one was coming back ${G.dash} leaving it to that one.`);
+    process.exit(0);
+  }
+  // THE NEWEST START WINS. What is stopped here is either the deck this start
+  // replaces or, on an attach, a second deck left over from before this rule —
+  // the duplicate the rule exists to end. Each one is said, with why, because a
+  // deck that vanishes without a word is a mystery of its own.
+  if (plan.stop.length) {
+    const { stopDeck } = await import(pathToFileURL(join(PKG_ROOT, "src/server/stop-deck.mjs")).href);
+    for (const d of plan.stop) {
+      const why = plan.act === "replace" && flags.new === true
+        ? "you asked for a fresh one"
+        : olderVersion(d.version, PKG_VERSION)
+          ? (d.version ? `it was v${d.version}` : "it was an older version")
+          : plan.act === "attach" ? "it was a second deck" : "it was started with different settings";
+      const out = await stopDeck(d).catch(() => ({ ok: false, reason: "unreachable" }));
+      write(out.ok
+        ? `\n  ${P.ok}${G.ok}${P.reset}  stopped the deck on ${d.port}${P.muted}  ${G.bullet}  pid ${d.pid}  ${G.bullet}  ${why}${P.reset}\n`
+        : `\n  ${P.warn}${G.warn}  could not stop the deck on ${d.port} (pid ${d.pid}) ${G.dash} ${out.reason ?? out.how}${P.reset}\n`);
+    }
+  }
+  if (plan.act === "attach") {
+    const live = plan.deck;
     const liveUrl = `http://127.0.0.1:${live.port}`;
     const note = versionNote(live.version, PKG_VERSION);
     // Not the startup report's rows. That report has a label column because it
@@ -1275,7 +1316,7 @@ if (!RESPAWN && !asksForOwnDeck(flags)) {
     if (note) write(`  ${P.warn}${G.warn}  ${note}${P.reset}\n`);
     // THE TYPO'S WARNING, on the path that has no startup report to carry it.
     //
-    // asksForOwnDeck used to answer `true` for these two so the report would
+    // The gate used to answer `true` for these two so the report would
     // run and print them, and that is how `ccdeck --stpo` — a misspelling of
     // the flag that STOPS a deck — came to build a second one. The warning was
     // the requirement; the extra process never was. Printed here, in the same
@@ -1284,8 +1325,8 @@ if (!RESPAWN && !asksForOwnDeck(flags)) {
     reportIncompleteFlags(flags.incomplete);
     // The line that says a second deck was NOT started. Without it the command
     // looks like it did nothing at all, which is the other way to be confusing
-    // about this — and it names the flag for the person who really did want two.
-    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${INVOKED_AS ?? PRODUCT} --new\` starts one${P.reset}\n`);
+    // about this — and it names the flag for the person who wanted a fresh one.
+    write(`\n  ${P.muted}${G.dash}  no second deck was started ${G.dash} \`${INVOKED_AS ?? PRODUCT} --new\` replaces it with a fresh one${P.reset}\n`);
     if (openBrowser) {
       write(`\n  ${P.ok}${P.bold}${G.play}  opening browser${G.ellipsis}${P.reset}\n\n`);
       try {
@@ -1420,6 +1461,10 @@ discoveryFile = discovery.file;
 // Now, not in five seconds: nothing should reach the pulse line below without
 // the deck knowing whether the hooks can see it.
 await discovery.check();
+// Registered, so the next start can find this deck for itself and the boot
+// lock has done its job. Given back here rather than at exit, or a second
+// `ccdeck` would wait out this deck's whole life before attaching to it.
+bootLock?.release();
 
 // Never on a respawn: the tab that asked for the restart is still open and
 // reconnecting on its own. A second one would be the deck talking over itself.
@@ -1433,31 +1478,6 @@ if (openBrowser && !RESPAWN) {
     const { openUrl } = await import(pathToFileURL(join(PKG_ROOT, "src/server/open-url.mjs")).href);
     openUrl(url);
   } catch {}
-}
-
-// ── the deck from before this version that is still running ──────────────────
-//
-// UPGRADE DAY, and without this it is a mystery. A deck older than the attach
-// publishes no `claude` and no `version` in its discovery record, so sameShape
-// cannot match it — deliberately, because a record that cannot be compared is
-// not one to attach to. The consequence is that the first `ccdeck` after an
-// upgrade starts a SECOND deck beside the one already running, opens a tab on
-// it, and says nothing; and `ccdeck --stop` will not find the old one either,
-// because it has the same shape problem.
-//
-// So it is named, once, with the command that actually clears it. Only for
-// decks with no version: a deck started with `--new`, or one scoped to another
-// workspace, is somebody's deliberate second deck and needs no explaining.
-if (!RESPAWN) {
-  try {
-    const { liveDecks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
-    const older = (await liveDecks()).filter(d => !d.version);
-    if (older.length) {
-      const where = older.map(d => d.port).join(", ");
-      write(`  ${P.warn}${G.warn}${P.reset}  ${P.muted}${older.length === 1 ? "a deck" : `${older.length} decks`} from an older ${PRODUCT} ${older.length === 1 ? "is" : "are"} still running on ${where}${P.reset}\n`);
-      write(`     ${P.muted}too old to be recognised, so this one started beside ${older.length === 1 ? "it" : "them"} ${G.dash} \`${INVOKED_AS ?? PRODUCT} --stop --all\` clears the lot${P.reset}\n\n`);
-    }
-  } catch { /* a question about other decks is never a reason to fail a boot */ }
 }
 
 // ── starting at login ─────────────────────────────────────────────────────────
@@ -1487,6 +1507,9 @@ if (!RESPAWN) {
         script: join(PKG_ROOT, "bin", "agent-dag.js"),
         logPath: join(deckLogDir(), "deck.log"),
         product: PRODUCT,
+        // The directories that decide WHICH deck this is, so the one started at
+        // login is the one started from this shell — see scopeEnv.
+        serviceEnv: svc.scopeEnv(process.env),
       });
       svc.writeServiceRecord(deckDataDir(), out.ok
         ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }
@@ -1673,6 +1696,11 @@ async function shutdown(code = 0) {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
+// Every way out, including the attach and the boot that fails before it
+// registers: a lock left behind would hold the next start for thirty seconds
+// before it could judge the holder gone. Synchronous, because `exit` allows
+// nothing else, and a no-op once the lock has been given back.
+process.on("exit", () => { bootLock?.release(); });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -1762,11 +1790,11 @@ Options:
       --no-open            Don't open the browser automatically
       --foreground         Hold the terminal, the way every version before 3.20
                            did. Ctrl+C stops the deck again
-      --new                Start a second deck even if one is already running.
+      --new                Replace the running deck with a fresh one.
                            Without it, a bare \`${PRODUCT}\` beside a deck that is
                            already up opens that deck's tab instead of building
                            a rival on another port
-      --stop               Stop the deck a bare \`${PRODUCT}\` would open.
+      --stop               Stop the running deck.
                            With --port <n>, stop that one; with --all, stop every
                            deck on this machine
       --status             What is running on this machine, and on which ports

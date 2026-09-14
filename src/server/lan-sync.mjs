@@ -441,7 +441,27 @@ export function inviteProof(code, transcript) {
  * still reads as two machines when the hostnames differ, which they do.
  */
 export function hostId({ hostname = os.hostname(), home = os.homedir() } = {}) {
-  return createHash("sha256").update(`${hostname}\u0000${home}`).digest("hex").slice(0, 12);
+  return createHash("sha256").update(`${machineName(hostname)}\u0000${home}`).digest("hex").slice(0, 12);
+}
+
+/**
+ * The part of a hostname that names the machine, rather than the network it is
+ * on at the moment.
+ *
+ * macOS answers `os.hostname()` with `Petrus-MacBook-Pro.local` at one moment
+ * and `Petrus-MacBook-Pro` at another, and a DHCP server can hang its own
+ * domain on the end — `.lan`, `.home`, `.fritz.box`. hostId hashed whatever it
+ * was handed, so two decks on one computer started either side of such a change
+ * disagreed about which machine they were on. Sharing a key, each read the other
+ * as an `id-clash` — the copied-~/.claude case beaconVerdict heals — and one of
+ * them took a new key: one machine, two fingerprints, two rows on every
+ * colleague's panel. The first label, case folded, is the name the machine
+ * keeps through all of that. An address used as a hostname is kept whole,
+ * since its first label is only the first octet.
+ */
+export function machineName(hostname) {
+  const h = String(hostname ?? "").trim().toLowerCase().replace(/\.$/, "");
+  return /^\d+(\.\d+){3}$/.test(h) ? h : h.split(".")[0];
 }
 
 export function beaconPayload({ name, fp, port, instance, host }) {

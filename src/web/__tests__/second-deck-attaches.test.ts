@@ -8,32 +8,37 @@
 //
 // The fallback is not the bug and does not move — 4317 is the standard OTLP
 // port, and on Windows `winnat` can reserve it with nothing listening at all.
-// What changed is that the deck now asks a different question first: not "is
-// this port free" but "is one of MY decks already up", answered from the
-// registry and proved with the token handshake before a single byte is trusted.
+// What changed is that the deck asks a different question first: not "is this
+// port free" but "is one of MY decks already up", answered from the registry
+// and proved with the token handshake before a single byte is trusted.
 //
-// These tests pin the three ways that could quietly go wrong: attaching when it
-// should not, refusing to attach when it should, and trusting a port that has
-// not proved itself.
+// And then it keeps ONE. The first version attached only to a deck of exactly
+// its own shape and built a second beside anything else — which is how a
+// colleague's machine came to show up twice on the Local network list, two
+// fingerprints at one address. Now the deck found is kept only when it serves
+// what this start asked for and is not older; anything else is stopped and
+// this start takes its place.
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // @ts-expect-error — .mjs server module, no types
 const mod = await import("../../server/running-deck.mjs");
-const { SHAPING_FLAGS, asksForOwnDeck, runningDeck, sameShape, versionNote } = mod as {
-  SHAPING_FLAGS: readonly string[];
-  asksForOwnDeck: (flags: Record<string, unknown>) => boolean;
+const { liveDecks, olderVersion, sameShape, secondStart, serves, versionNote } = mod as {
   sameShape: (record: Rec | null, want: Partial<Rec>) => boolean;
+  olderVersion: (running: unknown, ours: unknown) => boolean;
+  serves: (record: Rec, o: { want?: Partial<Rec>; port?: number | null; ours?: string }) => boolean;
+  secondStart: (o: {
+    live?: Rec[]; want?: Partial<Rec>; port?: number | null; ours?: string; fresh?: boolean; respawn?: boolean;
+  }) => { act: "start" | "attach" | "replace" | "yield"; deck?: Rec; stop: Rec[] };
   versionNote: (running: unknown, ours: unknown) => string;
-  runningDeck: (o: {
-    want?: Partial<Rec>;
+  liveDecks: (o: {
     dir?: string;
     fs?: { readdir: (d: string) => Promise<string[]>; readFile: (p: string) => Promise<string> };
     self?: number;
     alive?: (pid: number) => boolean;
     prove?: (port: number, token: string) => Promise<boolean>;
-  }) => Promise<Rec | null>;
+  }) => Promise<Rec[]>;
 };
 
 type Rec = {
@@ -43,10 +48,11 @@ type Rec = {
 };
 
 const WANT = { workspace: "", persist: "/log/events.jsonl", codex: true, claude: true };
+const OURS = "3.19.0";
 
 /** A record of the default shape, differing only where asked. */
 const rec = (over: Partial<Rec> = {}): Rec => ({
-  pid: 4231, port: 4317, token: "t".repeat(64), ...WANT, version: "3.19.0", ...over,
+  pid: 4231, port: 4317, token: "t".repeat(64), ...WANT, version: OURS, ...over,
 });
 
 /** A registry directory holding exactly these records, one file each. */
@@ -73,62 +79,121 @@ const SRC = readFileSync(
 const DECK = readFileSync(fileURLToPath(new URL("../../../bin/deck.js", import.meta.url)), "utf8");
 const INDEX = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
 
-describe("only a bare command line may be answered by an existing deck", () => {
-  it("attaches for `ccdeck` and `ccdeck --no-open`, and for nothing else", () => {
-    expect(asksForOwnDeck({ unknown: [], incomplete: [] })).toBe(false);
-    // --no-open changes what the LAUNCHER does with a URL, not what the deck is.
-    expect(asksForOwnDeck({ noOpen: true, unknown: [], incomplete: [] })).toBe(false);
-    // --all has been a no-op since it became the default.
-    expect(asksForOwnDeck({ all: true, unknown: [], incomplete: [] })).toBe(false);
-    expect(asksForOwnDeck({ new: true, unknown: [], incomplete: [] })).toBe(true);
+describe("a start keeps at most one deck", () => {
+  it("starts when nothing is running", () => {
+    expect(secondStart({ live: [], want: WANT, ours: OURS })).toEqual({ act: "start", stop: [] });
   });
 
-  it("treats every flag that changes what the deck IS as a request for a new one", () => {
-    // Not a hand-written list twice over: the export is walked, so a flag added
-    // to it is covered here the moment it is added, and one quietly removed
-    // fails this test rather than silently starting to attach.
-    expect([...SHAPING_FLAGS].sort()).toEqual(
-      ["claude", "codex", "history", "noClaude", "noCodex", "noPersist", "port", "scope", "workspace"],
-    );
-    for (const flag of SHAPING_FLAGS) {
-      expect(asksForOwnDeck({ [flag]: "x", unknown: [], incomplete: [] }), flag).toBe(true);
+  it("attaches to a deck that already serves what was asked, and stops nothing", () => {
+    const d = rec();
+    expect(secondStart({ live: [d], want: WANT, ours: OURS })).toEqual({ act: "attach", deck: d, stop: [] });
+  });
+
+  it("replaces a deck started differently, rather than standing a second beside it", () => {
+    // Each of these used to leave two decks: a scoped deck, one with another
+    // log, one whose environment found no Codex, one without the Claude side.
+    for (const over of [
+      { workspace: "/home/u/proj" }, { persist: "/other/events.jsonl" }, { persist: null },
+      { codex: false }, { claude: false },
+    ] as Partial<Rec>[]) {
+      const d = rec(over);
+      expect(secondStart({ live: [d], want: WANT, ours: OURS }), JSON.stringify(over))
+        .toEqual({ act: "replace", stop: [d] });
     }
   });
 
-  it("does not let a misspelling build the second deck", () => {
-    // THE REGRESSION THIS EXISTS FOR. These two answered `true` at first, so
-    // the startup report would run and print the warning that names the bad
-    // token — and that is how `ccdeck --stpo`, a typo in the flag that STOPS a
-    // deck, came to build one instead. The guard meant to protect against extra
-    // decks was the thing creating them.
-    expect(asksForOwnDeck({ unknown: ["--stpo"], incomplete: [] })).toBe(false);
-    expect(asksForOwnDeck({ unknown: ["--workpace"], incomplete: [] })).toBe(false);
-    // `ccdeck --workspace $UNSET` reaches the parser as a bare `--workspace`.
-    expect(asksForOwnDeck({ unknown: [], incomplete: [{ flag: "--workspace", expects: "a path" }] }))
-      .toBe(false);
+  it("replaces an older deck, and keeps a newer one", () => {
+    const old = rec({ version: "3.18.4" });
+    expect(secondStart({ live: [old], want: WANT, ours: OURS }).act).toBe("replace");
+    // Too old to publish a version at all is older than anything that does.
+    const ancient = rec();
+    delete (ancient as Partial<Rec>).version;
+    expect(secondStart({ live: [ancient], want: WANT, ours: OURS }).act).toBe("replace");
+    // An older copy launched beside a newer deck opens the newer one.
+    expect(secondStart({ live: [rec({ version: "3.22.0" })], want: WANT, ours: OURS }).act).toBe("attach");
   });
 
-  it("prints the warning on the attach path, which is what was actually needed", () => {
-    // The report was never the requirement — the message was. Both are printed
-    // beside the attach, in the same rows the startup report uses, so nothing a
-    // typo would have been told is lost and nothing extra is started.
-    const ask = DECK.indexOf("if (!RESPAWN && !asksForOwnDeck(flags))");
+  it("compares versions as numbers, not as text", () => {
+    expect(olderVersion("3.9.0", "3.22.0")).toBe(true);
+    expect(olderVersion("3.22.0", "3.9.0")).toBe(false);
+    expect(olderVersion("3.22.0", "3.22.0")).toBe(false);
+    expect(olderVersion("", "3.22.0")).toBe(true);
+    // Nothing to compare against: no grounds to replace anything.
+    expect(olderVersion("3.22.0", "")).toBe(false);
+  });
+
+  it("honours a named port, and treats `--port 0` as any", () => {
+    const d = rec({ port: 4317 });
+    expect(serves(d, { want: WANT, port: 4317, ours: OURS })).toBe(true);
+    expect(serves(d, { want: WANT, port: 0, ours: OURS })).toBe(true);
+    expect(secondStart({ live: [d], want: WANT, port: 4400, ours: OURS })).toEqual({ act: "replace", stop: [d] });
+  });
+
+  it("replaces even a deck that serves when `--new` asks for a fresh one", () => {
+    const d = rec();
+    expect(secondStart({ live: [d], want: WANT, ours: OURS, fresh: true })).toEqual({ act: "replace", stop: [d] });
+  });
+
+  it("keeps the first deck that serves and stops every other one", () => {
+    // Leftovers from before the rule: the duplicate is ended on the next start.
+    const a = rec({ pid: 1, port: 4317 });
+    const b = rec({ pid: 2, port: 4322 });
+    const scoped = rec({ pid: 3, port: 4330, workspace: "/x" });
+    expect(secondStart({ live: [a, b, scoped], want: WANT, ours: OURS }))
+      .toEqual({ act: "attach", deck: a, stop: [b, scoped] });
+    expect(secondStart({ live: [scoped], want: WANT, ours: OURS }))
+      .toEqual({ act: "replace", stop: [scoped] });
+  });
+
+  it("lets a respawn yield to a deck that started in its gap, and never stops one", () => {
+    // A restart is THIS deck coming back. A deck found running got there while
+    // it was down, was asked for more recently, and keeps its place.
+    const d = rec();
+    expect(secondStart({ live: [d], want: WANT, ours: OURS, respawn: true })).toEqual({ act: "yield", deck: d, stop: [] });
+    expect(secondStart({ live: [], want: WANT, ours: OURS, respawn: true })).toEqual({ act: "start", stop: [] });
+  });
+
+  it("is asked of every start, respawns included, with nothing but the rule's inputs", () => {
+    const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(DECK)?.[1] ?? "";
+    expect(call).toMatch(/live: await liveDecks\(\)/);
+    expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude \}/);
+    expect(call).toMatch(/fresh: flags\.new === true/);
+    expect(call).toMatch(/respawn: RESPAWN/);
+    // A typo is not an input, so a misspelling cannot decide anything — the
+    // lesson of `ccdeck --stpo` building a second deck through the old guard.
+    expect(call).not.toMatch(/unknown|incomplete/);
+    // And no gate in front of it that a respawn or a flag could walk around.
+    expect(DECK).not.toContain("asksForOwnDeck");
+    expect(DECK).toMatch(/if \(plan\.act === "yield"\) \{[\s\S]{0,200}process\.exit\(0\);/);
+  });
+
+  it("stops what it replaces before it binds anything, and says why", () => {
+    const stop = DECK.indexOf("const out = await stopDeck(d)");
+    const bind = DECK.indexOf("const starting = startServer({");
+    expect(stop).toBeGreaterThan(0);
+    expect(stop).toBeLessThan(bind);
+    expect(DECK).toContain("stopped the deck on ${d.port}");
+    expect(DECK).toContain("you asked for a fresh one");
+    expect(DECK).toContain("it was started with different settings");
+  });
+
+  it("prints a typo's warning on the attach path, which is what was actually needed", () => {
+    const ask = DECK.indexOf("if (plan.act === \"attach\") {");
     const unknown = DECK.indexOf("reportUnknownFlags(flags.unknown);", ask);
     const incomplete = DECK.indexOf("reportIncompleteFlags(flags.incomplete);", ask);
     const bind = DECK.indexOf("const starting = startServer({");
     expect(unknown).toBeGreaterThan(ask);
     expect(incomplete).toBeGreaterThan(ask);
-    // Inside the attach block, not the boot path's own copies further down.
     expect(unknown).toBeLessThan(bind);
     expect(incomplete).toBeLessThan(bind);
   });
 
-  it("is offered by the parser at all", () => {
+  it("is offered by the parser, and documented as the replace it now is", () => {
     const args = readFileSync(
       fileURLToPath(new URL("../../server/args.mjs", import.meta.url)), "utf8",
     );
     expect(args).toContain('a === "--new"');
-    expect(DECK).toContain("--new");
+    expect(DECK).toContain("--new                Replace the running deck with a fresh one.");
   });
 });
 
@@ -145,16 +210,14 @@ describe("the deck found must be the deck we would have built", () => {
     expect(sameShape(rec({ claude: false }), WANT)).toBe(false);
   });
 
-  it("leaves a deck older than the `claude` field alone, by construction", () => {
-    // The strict compare is what does it: an older record has no such key, so
-    // `undefined === true` is false and its deck keeps the behaviour it has
-    // always had. No version check to remember to update.
+  it("never passes a deck older than the `claude` field for one, so it is replaced", () => {
     const old = rec();
     delete (old as Partial<Rec>).claude;
     expect(sameShape(old, WANT)).toBe(false);
+    expect(secondStart({ live: [old], want: WANT, ours: OURS }).act).toBe("replace");
   });
 
-  it("publishes both new fields, or nothing downstream can compare them", () => {
+  it("publishes both fields, or nothing downstream can compare them", () => {
     const installer = readFileSync(
       fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
     );
@@ -166,33 +229,31 @@ describe("the deck found must be the deck we would have built", () => {
   });
 });
 
-describe("a port has to prove itself before it is opened", () => {
-  it("returns the prover, and challenges only what already matched the shape", async () => {
+describe("a port has to prove itself before anything is done to it", () => {
+  it("challenges every record and returns the provers in port order", async () => {
     const { fs } = registry([
       rec({ pid: 11, port: 4319 }),
       rec({ pid: 12, port: 4318, workspace: "/elsewhere" }),
       rec({ pid: 13, port: 4317 }),
     ]);
     const prove = vi.fn(async () => true);
-    const found = await runningDeck({ want: WANT, fs, self: 99, alive: () => true, prove });
-    // Lowest port wins — electWriters' rule, so the answer is the same every
-    // time it is asked rather than whatever readdir happened to return first.
-    expect(found?.pid).toBe(13);
-    // One round trip on the ordinary machine, and the scoped deck on 4318 was
-    // never dialled at all.
-    expect(prove).toHaveBeenCalledTimes(1);
-    expect(prove.mock.calls.map(c => (c as unknown as [number])[0])).toEqual([4317]);
+    const found = await liveDecks({ fs, self: 99, alive: () => true, prove });
+    // Every one: a start about to STOP a deck must know it is one, whatever its
+    // shape. Lowest port first — electWriters' rule, so the answer is the same
+    // every time it is asked.
+    expect(found.map(d => d.pid)).toEqual([13, 12, 11]);
+    expect(prove).toHaveBeenCalledTimes(3);
   });
 
-  it("moves on when a port answers wrongly, rather than opening it", async () => {
+  it("leaves out a port that answers wrongly, rather than trusting it", async () => {
     // #695: a record left by a deck that is gone passes a signal-0 probe forever
     // once the OS recycles its pid, and the port it names may by then belong to
-    // anything at all. A collector on 4317 cannot hash a token it never had.
+    // anything at all. A collector on 4317 cannot hash a token it never had —
+    // and must never be sent a shutdown either.
     const { fs } = registry([rec({ pid: 11, port: 4317 }), rec({ pid: 12, port: 4318 })]);
     const prove = vi.fn(async (port: number) => port === 4318);
-    const found = await runningDeck({ want: WANT, fs, self: 99, alive: () => true, prove });
-    expect(found?.port).toBe(4318);
-    expect(prove).toHaveBeenCalledTimes(2);
+    const found = await liveDecks({ fs, self: 99, alive: () => true, prove });
+    expect(found.map(d => d.port)).toEqual([4318]);
   });
 
   it("skips our own record, dead pids, and decks too old to be challenged", async () => {
@@ -204,24 +265,22 @@ describe("a port has to prove itself before it is opened", () => {
       tokenless,                          // pre-handshake: cannot prove anything
     ]);
     const prove = vi.fn(async () => true);
-    const found = await runningDeck({
-      want: WANT, fs, self: 99, alive: (pid: number) => pid !== 15, prove,
-    });
-    expect(found).toBeNull();
+    const found = await liveDecks({ fs, self: 99, alive: (pid: number) => pid !== 15, prove });
+    expect(found).toEqual([]);
     expect(prove).not.toHaveBeenCalled();
   });
 
   it("answers `no deck` for a directory it cannot read, and never throws on the boot path", async () => {
     const prove = vi.fn(async () => true);
     const fs = { readdir: async () => { throw new Error("EACCES"); }, readFile: async () => "" };
-    await expect(runningDeck({ want: WANT, fs, self: 1, alive: () => true, prove })).resolves.toBeNull();
+    await expect(liveDecks({ fs, self: 1, alive: () => true, prove })).resolves.toEqual([]);
     // One corrupt record must not take the others down with it.
     const half = {
       readdir: async () => ["1.json", "2.json"],
       readFile: async (p: string) => (String(p).endsWith("1.json") ? "{ not json" : JSON.stringify(rec({ pid: 2 }))),
     };
-    const found = await runningDeck({ want: WANT, fs: half, self: 1, alive: () => true, prove });
-    expect(found?.pid).toBe(2);
+    const found = await liveDecks({ fs: half, self: 1, alive: () => true, prove });
+    expect(found.map(d => d.pid)).toEqual([2]);
   });
 
   it("keeps the handshake in a leaf, so nothing has to import the server to ask", () => {
@@ -251,7 +310,7 @@ describe("what the attach does and does not disturb", () => {
     // The position is the point: an attach must leave the machine exactly as it
     // found it, so it happens before the port, the hooks, the tool probes, the
     // banner and the discovery file.
-    const ask = DECK.indexOf("if (!RESPAWN && !asksForOwnDeck(flags))");
+    const ask = DECK.indexOf("const plan = secondStart({");
     const bind = DECK.indexOf("const starting = startServer({");
     const work = DECK.indexOf("const jobs = startupWork()");
     const register = DECK.indexOf("discovery = keepDiscovery({");
@@ -270,13 +329,6 @@ describe("what the attach does and does not disturb", () => {
     expect(INDEX).toMatch(/portRetryable = \(err\) =>[\s\S]{0,120}EADDRINUSE[\s\S]{0,40}EACCES/);
   });
 
-  it("never attaches on a respawn, whatever the flags say", () => {
-    // A restart is this deck coming back, not somebody typing ccdeck twice. The
-    // supervisor relaunches with `--port <bound>`, which would exclude it
-    // anyway — this is the guard that survives the day it stops doing that.
-    expect(DECK).toContain("if (!RESPAWN && !asksForOwnDeck(flags))");
-  });
-
   it("waits for the launcher chain instead of exiting out from under it", () => {
     // Every child openUrl spawns is unref'd, so an immediate exit ends this
     // process before a missing xdg-open has been answered by gio — and then no
@@ -285,22 +337,33 @@ describe("what the attach does and does not disturb", () => {
     expect(DECK).toMatch(/openUrl\(liveUrl\);[\s\S]{0,400}await sleep\(LAUNCH_GRACE_MS\);/);
   });
 
-  it("says a second deck was not started, and how to start one anyway", () => {
+  it("says a second deck was not started, and how to get a fresh one", () => {
     // Without it the command looks like it did nothing at all, which is the
     // other way to be confusing about this.
     expect(DECK).toContain("no second deck was started");
     // The backtick is escaped in the source: the line lives inside a template
     // literal, and the flag is quoted for the shell in the message itself.
-    expect(DECK).toContain("--new\\` starts one");
+    expect(DECK).toContain("--new\\` replaces it with a fresh one");
+  });
+
+  it("has nothing left to warn about older decks, because they are replaced", () => {
+    expect(DECK).not.toContain("too old to be recognised");
   });
 });
 
-describe("an older deck on the port is said out loud, not routed around", () => {
-  it("names both versions when they differ", () => {
-    expect(versionNote("3.18.0", "3.19.0")).toMatch(/running v3\.18\.0/);
-    expect(versionNote("3.18.0", "3.19.0")).toMatch(/you launched v3\.19\.0/);
-    // And it says what to do about it, which is the only reason to print it.
-    expect(versionNote("3.18.0", "3.19.0")).toMatch(/restart/);
+describe("the off switch ends every deck", () => {
+  it("stops them all unless one is named by port", () => {
+    // There is meant to be one. A second is a leftover, and an off switch that
+    // ended one of two would leave the machine running.
+    expect(DECK).toContain("const wanted = named !== null ? decks.filter(d => d.port === named) : decks;");
+    expect(DECK).toContain("--stop               Stop the running deck.");
+  });
+});
+
+describe("a newer deck kept on the port is said out loud", () => {
+  it("names both versions, and which way round they are", () => {
+    expect(versionNote("3.22.0", "3.19.0")).toMatch(/running v3\.22\.0, newer than the v3\.19\.0 you launched/);
+    expect(versionNote("3.18.0", "3.19.0")).toMatch(/older than the v3\.19\.0/);
   });
 
   it("says nothing when there is nothing useful to say", () => {
@@ -310,9 +373,7 @@ describe("an older deck on the port is said out loud, not routed around", () => 
     expect(versionNote(undefined, "3.19.0")).toBe("");
   });
 
-  it("still attaches, because a rival on a random port is the worse answer", () => {
-    // The note is printed and the attach continues — the mismatch is not a
-    // branch. That is the whole point of the module.
+  it("prints it on the attach and carries on", () => {
     expect(DECK).toMatch(/const note = versionNote\(live\.version, PKG_VERSION\);/);
     expect(DECK).not.toMatch(/if \(note\) [\s\S]{0,40}(return|continue)/);
   });

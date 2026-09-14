@@ -1,4 +1,4 @@
-// Why a second `ccdeck` must not quietly become a second deck.
+// Why a second `ccdeck` must never leave a second deck behind it.
 //
 // THE DEFECT. `startServer` is handed `portRange: [4318, 4400]` and answers a
 // refused bind on 4317 by taking a random port out of it. That fallback is
@@ -15,7 +15,7 @@
 //
 // THE QUESTION IS NOT "IS THE PORT FREE". It is "is one of MY decks already
 // running", and the registry answers that without touching a port: every deck
-// writes ~/.claude/agent-dag/<pid>.json with its pid, port, token and shape.
+// writes <config>/agent-dag/<pid>.json with its pid, port, token and shape.
 //
 // A PID IS NOT EVIDENCE, and that is #695's whole lesson. A record left behind
 // by a deck that is gone — SIGKILL, an OOM kill, a power cut, a console window
@@ -28,12 +28,26 @@
 // seen. A collector, a container, a stranger on a recycled port cannot answer.
 // The deck that wrote the file can.
 //
-// THE DECK FOUND MUST ALSO BE THE DECK WE WOULD HAVE BUILT. Attaching a plain
-// `ccdeck` to a deck started with `--workspace ~/proj` would open a canvas
-// filtered to a directory the user never mentioned, and attaching to a
-// `--no-claude` deck would open one with no accounts panel and no hooks. So the
-// shape is compared field for field, and anything that does not match starts
-// its own deck exactly as before.
+// ONE DECK, WHATEVER THE SHAPE. The first answer to "a deck is up" attached
+// only to a deck that was exactly the one this start would have built, and
+// built a second one beside anything else. So a flag, an older version, or an
+// environment that decided `codex` or the log path differently — a login item
+// runs under the service manager's environment, not the shell's — each left
+// two decks running on one machine, with two LAN keys and two rows on every
+// colleague's panel. It was reported from the field exactly that way. Now a
+// start keeps at most one:
+//
+//   the deck found serves what this start asked for, and is not older  → attach
+//   anything else                                                        → stop it, start
+//
+// The newest start wins, because it is the one somebody just asked for. The
+// rule is secondStart, a function of what is running and what was asked, so it
+// can be pinned without starting a process.
+//
+// PER CLAUDE CONFIG DIRECTORY, which is where the registry lives. For nearly
+// everybody that is one per user; somebody who points CLAUDE_CONFIG_DIR at a
+// second directory has a second registry, and has been getting a second deck
+// with its own identity on purpose since deck-home.mjs was written.
 //
 // WHAT THIS FILE DOES NOT IMPORT: src/server/index.mjs. That module is the whole
 // server, and it arms its timers the moment it is loaded — but this one is read
@@ -63,55 +77,13 @@ export function deckRegistryDir(env = process.env, home = undefined) {
 }
 
 /**
- * The flags that mean "I want a deck of my own", as opposed to "show me the
- * deck".
- *
- * Every one of them changes what the deck IS — which sessions it captures,
- * which log it appends to, which of the two CLIs it serves, which port it
- * binds. A command line carrying any of them is a request that an existing deck
- * cannot satisfy, so it is never answered by attaching to one.
- *
- * `--no-open` is deliberately absent: it changes what the LAUNCHER does once it
- * has a URL, not what the deck is, and it is honoured on the attach path too.
- * `--all` is absent because it has been a no-op since it became the default.
- */
-export const SHAPING_FLAGS = Object.freeze([
-  "port", "workspace", "scope", "history", "noPersist",
-  "codex", "noCodex", "claude", "noClaude",
-]);
-
-/**
- * Is this command line one that must build its own deck?
- *
- * Only a shaping flag, and `--new` — the deliberate escape hatch for the person
- * who really does want two.
- *
- * A TYPO IS NOT ONE, and the first version of this had it the other way round.
- * `unknown` and `incomplete` both forced a new deck, on the argument that an
- * attach prints no startup report and would swallow the warning that names the
- * bad token. The consequence of that argument was `ccdeck --stpo` — a typo in
- * the flag that STOPS a deck — building a second one, which is the exact
- * outcome this whole module exists to prevent, reached through the guard meant
- * to protect it.
- *
- * The warning was the real requirement, not the new process, so the attach path
- * prints it instead: see the call to reportUnknownFlags beside the attach in
- * bin/deck.js. Nothing is swallowed, and no misspelling can leave a rival deck
- * on a random port behind it.
- */
-export function asksForOwnDeck(flags = {}) {
-  if (flags.new === true) return true;
-  return SHAPING_FLAGS.some((k) => flags[k] !== undefined);
-}
-
-/**
  * Would this record's deck serve what we were about to build?
  *
  * Compared field for field rather than by a version or a heuristic. `claude`
  * and `codex` are strict identity against a boolean, so a record written before
- * either field existed carries `undefined`, fails, and its deck is left alone —
- * which is the old behaviour, reached by construction rather than by a version
- * check nobody would remember to update.
+ * either field existed carries `undefined` and fails — and a deck that old is
+ * replaced rather than attached to, which is what a start does with any deck
+ * it cannot vouch for.
  */
 export function sameShape(record, want = {}) {
   if (!record) return false;
@@ -121,9 +93,70 @@ export function sameShape(record, want = {}) {
     && record.claude === (want.claude !== false);
 }
 
+/**
+ * Is `running` a version older than `ours`?
+ *
+ * Numeric, field by field, because "3.9.0" sorts after "3.22.0" as a string. A
+ * running deck that publishes no version at all predates the field, which makes
+ * it older than anything that does. Our own version unreadable is the one case
+ * with nothing to compare, and it answers no: a start that cannot say what it
+ * is has no grounds to replace anything.
+ */
+export function olderVersion(running, ours) {
+  const parse = (v) => {
+    const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(v ?? ""));
+    return m ? m.slice(1).map(Number) : null;
+  };
+  const o = parse(ours);
+  if (!o) return false;
+  const r = parse(running);
+  if (!r) return true;
+  for (let i = 0; i < 3; i++) if (r[i] !== o[i]) return r[i] < o[i];
+  return false;
+}
+
+/**
+ * Does this running deck already serve what this start asked for?
+ *
+ * The shape, the port when one was named, and a version no older than ours.
+ * `port` is the one `--port` asked for, or null when none was; 0 is "any free
+ * port", which every running deck satisfies.
+ */
+export function serves(record, { want = {}, port = null, ours = "" } = {}) {
+  return sameShape(record, want)
+    && (port == null || port === 0 || record.port === port)
+    && !olderVersion(record.version, ours);
+}
+
+/**
+ * What a start does about the decks already running.
+ *
+ *   { act: "start",   stop: [] }        nothing is running
+ *   { act: "attach",  deck, stop }      open `deck`; stop the rest — leftovers
+ *                                       from before this rule
+ *   { act: "replace", stop }            stop every one of them, then start
+ *   { act: "yield",   deck, stop: [] }  a respawn found somebody else's deck
+ *
+ * `fresh` is `--new`: replace even a deck that would have served. `respawn` is
+ * the supervisor bringing a crashed or restarted worker back — that is THIS
+ * deck returning, so anything already running got there in the gap, was asked
+ * for more recently, and keeps its place.
+ *
+ * The deck kept on an attach is the first that serves, in the registry's port
+ * order, so the answer is the same every time it is asked.
+ */
+export function secondStart({ live = [], want = {}, port = null, ours = "", fresh = false, respawn = false } = {}) {
+  if (!live.length) return { act: "start", stop: [] };
+  if (respawn) return { act: "yield", deck: live[0], stop: [] };
+  const keep = fresh ? null : live.find(d => serves(d, { want, port, ours })) ?? null;
+  if (keep) return { act: "attach", deck: keep, stop: live.filter(d => d !== keep) };
+  return { act: "replace", stop: [...live] };
+}
+
 /** A record complete enough to be worth a challenge. A missing token is a deck
- *  older than the handshake: it cannot prove anything, so it cannot be attached
- *  to, and it keeps the behaviour it has always had. */
+ *  older than the handshake: it cannot prove anything, so it can be neither
+ *  attached to nor stopped by token, and it keeps the behaviour it has always
+ *  had. */
 function usable(d) {
   return Boolean(d)
     && Number.isInteger(d.pid)
@@ -134,13 +167,13 @@ function usable(d) {
 /**
  * Every registered deck whose pid is still there, ordered.
  *
- * NOT PROVED — this is the cheap half, a directory listing and a signal-0 each,
- * and its three callers want different things from it. `detach.mjs` wants only
- * the count, to decide whether deck.log belongs to a deck that is still running
- * or to nobody; a round trip per record to answer that would be absurd. Ordered by port with pid breaking the tie, which is the rule
- * electWriters uses for the log and is here for the same reason: several decks
- * can qualify, and the answer has to be the same one every time it is asked
- * rather than whatever `readdir` happened to return first.
+ * NOT PROVED — this is the cheap half, a directory listing and a signal-0 each.
+ * `detach.mjs` wants only the count, to decide whether deck.log belongs to a
+ * deck that is still running or to nobody; a round trip per record to answer
+ * that would be absurd. Ordered by port with pid breaking the tie, which is the
+ * rule electWriters uses for the log and is here for the same reason: several
+ * decks can qualify, and the answer has to be the same one every time it is
+ * asked rather than whatever `readdir` happened to return first.
  *
  * A failure to read the directory is "no decks", not an error. This runs on the
  * boot path of a program whose job is to start, and there is no reading of that
@@ -168,38 +201,15 @@ export async function registeredDecks({
 }
 
 /**
- * The deck already serving what this process was about to serve, or null.
- *
- * Only records that already match the shape are challenged, and the walk stops
- * at the first that proves itself. On the ordinary machine that is one loopback
- * round trip; on a machine with no deck running it is a directory listing and
- * nothing else. That is why this is not `liveDecks().find(…)`: the boot path
- * must not pay a round trip per deck to answer a question the first one settles.
- */
-export async function runningDeck({
-  want = {},
-  dir = deckRegistryDir(),
-  fs = { readdir, readFile },
-  self = process.pid,
-  alive = isProcessAlive,
-  prove = challengeDeck,
-} = {}) {
-  for (const d of await registeredDecks({ dir, fs, self, alive })) {
-    if (!sameShape(d, want)) continue;
-    if (await prove(d.port, d.token)) return d;
-  }
-  return null;
-}
-
-/**
  * Every deck on this machine that answered a challenge, in port order.
  *
- * The list `--status` prints and the list `--stop` chooses from. Everything is
- * challenged here, unlike runningDeck: a list that quietly omitted a deck it
- * could not be bothered to ask about would be worse than no list, because the
- * whole reason to run `--status` is to find the process you did not know was
- * there. The round trips go out together — one deadline for the lot, not one
- * after another — since they are independent and each is bounded at 400ms.
+ * What a start decides by, the list `--status` prints and the list `--stop`
+ * ends. Everything is challenged: a start that is about to stop a deck must
+ * know it is one, and a list that quietly omitted a deck it could not be
+ * bothered to ask about would be worse than no list, because the whole reason
+ * to run `--status` is to find the process you did not know was there. The
+ * round trips go out together — one deadline for the lot, not one after
+ * another — since they are independent and each is bounded at 400ms.
  */
 export async function liveDecks({
   dir = deckRegistryDir(),
@@ -216,19 +226,18 @@ export async function liveDecks({
 /**
  * What to say about the version of the deck we attached to.
  *
- * A mismatch does NOT stop the attach, and that is the deliberate half. Someone
- * who runs `npx ccdeck@latest` while an older deck is up has asked for the new
- * one, but the way to give it to them is not to stand a rival deck on a random
- * port beside the old one — that is the failure this whole module removes. So
- * they are attached and TOLD, with the one sentence that gets them the version
- * they asked for.
+ * An attach only ever keeps a deck at least as new as the one launched — an
+ * older one is replaced — so a difference here is somebody running an older
+ * copy, an npx cache or a second install, beside a newer deck. That deck is
+ * kept and they are told, because the newer one is what they would have wanted.
  *
- * Empty when the versions agree, and empty when the running deck is too old to
- * report one: "unknown" beside a number is noise, and there is nothing useful
- * to do about it either way.
+ * Empty when the versions agree, and empty when either side is too old to
+ * report one: "unknown" beside a number is noise.
  */
 export function versionNote(running, ours) {
   if (typeof running !== "string" || running === "" || typeof ours !== "string" || ours === "") return "";
   if (running === ours) return "";
-  return `running v${running}, you launched v${ours} — restart it from the deck to upgrade`;
+  return olderVersion(running, ours)
+    ? `running v${running}, older than the v${ours} you launched`
+    : `running v${running}, newer than the v${ours} you launched — kept it`;
 }

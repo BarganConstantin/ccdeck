@@ -77,24 +77,15 @@ describe("the child's output is a file, never a pipe", () => {
 });
 
 describe("the deck from before this version that is still running", () => {
-  it("is named, with the command that actually clears it", () => {
-    // UPGRADE DAY, and without this it is a mystery. A deck older than the
-    // attach publishes no `claude` and no `version`, so sameShape cannot match
-    // it — deliberately, because a record that cannot be compared is not one to
-    // attach to. The consequence is that the first `ccdeck` after an upgrade
-    // starts a SECOND deck beside the one already running, and `--stop` will
-    // not find the old one either. Measured against two real decks: "2 decks
-    // from an older ccdeck are still running on 4317, 4363".
-    expect(DECK).toContain("from an older ${PRODUCT}");
-    expect(DECK).toContain("--stop --all");
-    expect(DECK).toContain("(await liveDecks()).filter(d => !d.version)");
-  });
-
-  it("says nothing about a deliberate second deck", () => {
-    // One started with `--new`, or scoped to another workspace, publishes a
-    // version like any other and needs no explaining.
-    expect(DECK).toMatch(/filter\(d => !d\.version\)/);
-    expect(DECK).not.toMatch(/filter\(d => !sameShape/);
+  it("is replaced on upgrade day, and says so, instead of being started beside", () => {
+    // UPGRADE DAY used to be a mystery and then a warning: a deck older than
+    // the attach publishes no `claude` and no `version`, so the first `ccdeck`
+    // after an upgrade started a SECOND deck beside it and named the old one
+    // ("2 decks from an older ccdeck are still running on 4317, 4363"). A start
+    // keeps one deck now, so the older one is stopped and this one takes its
+    // place — the line that says so names the version it replaced.
+    expect(DECK).not.toContain("too old to be recognised");
+    expect(DECK).toMatch(/olderVersion\(d\.version, PKG_VERSION\)[\s\S]{0,120}it was v\$\{d\.version\}/);
   });
 });
 

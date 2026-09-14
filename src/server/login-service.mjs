@@ -315,6 +315,30 @@ export function lingerState({ platform = process.platform, run = spawnSync, user
 }
 
 /**
+ * The variables that decide WHICH deck a start is, for the login item's job.
+ *
+ * A login item runs in the environment the service manager builds, not the
+ * shell's. Somebody who exports CLAUDE_CONFIG_DIR, CCDECK_HOME or CODEX_HOME got
+ * a deck keyed to those directories from the terminal and one keyed to the
+ * defaults at login: two registries that cannot see each other, so two decks
+ * and two LAN keys on one machine — the one-deck rule in running-deck.mjs holds
+ * per registry and cannot reach across. Carried into the job so both starts are
+ * the same deck. Only the ones that are set: an unset variable written into the
+ * job as "" would be a different setting, not the same absent one.
+ *
+ * Windows is not given these. A Task Scheduler job has no environment block in
+ * its XML; it inherits the user's persistent variables, which is where a
+ * Windows user sets them (`setx`) for them to outlive the shell anyway.
+ */
+export const SCOPE_VARS = Object.freeze(["CLAUDE_CONFIG_DIR", "CCDECK_HOME", "CODEX_HOME"]);
+
+export function scopeEnv(env = process.env) {
+  return Object.fromEntries(
+    SCOPE_VARS.filter(k => typeof env?.[k] === "string" && env[k].trim() !== "").map(k => [k, env[k]]),
+  );
+}
+
+/**
  * Write the login item and register it.
  *
  * Returns a verdict rather than throwing. Nothing here is worth refusing to run
