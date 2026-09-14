@@ -4644,7 +4644,11 @@ function Inner() {
             now={now}
             onOpenTool={setOpenedToolId}
           />
-          <Controls showInteractive={false}>
+          {/* No React Flow fit-view button (#840). Recenter below does the same
+              fit and also turns autofit back on, so two near-identical buttons
+              sat side by side and the reader had to guess the difference. F
+              still fits from the keyboard. */}
+          <Controls showInteractive={false} showFitView={false}>
             <ControlButton
               onClick={enableAutoFitAndRefit}
               title={autoFitDisabled
@@ -4661,11 +4665,11 @@ function Inner() {
             </ControlButton>
             {/* The last control out of the topbar, and the only toggle in this
                 stack. Second rather than first: Recenter above it belongs beside
-                the zoom and fit buttons it repeats a job of, and these two are
+                the zoom buttons, the view's other commands, and these two are
                 the reversible, often-pressed pair — putting Pause here keeps the
                 one control that destroys something at the far end of the column
                 from the one a hand comes back to.
-                It reports its state, which none of its four neighbours has to.
+                It reports its state, which none of its neighbours has to.
                 They are one-shot commands and a glyph is a complete account of
                 what a command does; this one is a setting that stays on, so
                 there is a fact about it that is true between presses and a user
