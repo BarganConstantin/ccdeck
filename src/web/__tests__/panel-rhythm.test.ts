@@ -233,6 +233,18 @@ describe("the distance a panel prints its content at", () => {
     expect(horizontal(".usage-panel .cost-bar", "margin")).toEqual([14, 14]);
     expect(px(TOKENS["--panel-inset"])).toBe(14);
   });
+
+  it("fits a margin inset inside the accounts panel's fixed measure", () => {
+    // Every child of the accounts panel is held at 288px so the slide does not
+    // re-wrap it, and the column is anchored to the right edge. A child that
+    // prints its inset as a MARGIN on top of that 288 is a wider box than the
+    // panel, and the extra hangs off the left: the refusal box sat at x=-15 and
+    // clipped the first letters of its message. So its width is the measure
+    // less its two margins, and adds back up to the panel exactly.
+    const measure = px(decl(".accounts-panel > *", "width"));
+    const [left, right] = horizontal(".ap-failure", "margin");
+    expect(px(decl(".accounts-panel > .ap-failure", "width")) + left + right).toBe(measure);
+  });
 });
 
 // ── 2. a header and the rows underneath it ──────────────────────────────────

@@ -6340,6 +6340,11 @@ button.tool.clickable:last-child { border-bottom: none; }
   animation: side-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .accounts-panel > * { width: 288px; }
+/* The one child that prints its inset as a margin rather than a padding. A
+   fixed 288 plus 14 either side is a 316px box anchored to the right edge, so
+   the refusal the panel exists to show hung 14px off the left and lost the first
+   letters of every message. Its measure is what the margins leave. */
+.accounts-panel > .ap-failure { width: calc(288px - var(--panel-inset) - var(--panel-inset)); }
 .accounts-panel.leaving { animation: side-out var(--side-exit) cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes side-in { from { width: 0; } }
 @keyframes side-out { to { width: 0; } }
