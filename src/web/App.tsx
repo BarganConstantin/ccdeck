@@ -4054,7 +4054,7 @@ function Inner() {
               className="btn icon-btn"
               onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))}
               title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (T)`}
-              aria-label="Toggle theme"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
               {theme === "dark" ? "☀" : "☾"}
             </button>
