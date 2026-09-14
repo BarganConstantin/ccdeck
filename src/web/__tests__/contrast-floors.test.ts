@@ -808,6 +808,44 @@ describe("the machine panel's process door, on the bed it is actually drawn on (
   });
 });
 
+// ── #878 ────────────────────────────────────────────────────────────────────
+
+describe("the ? on a card whose start was synthesised (#878)", () => {
+  const card = rule(".agent-node.synthetic")!;
+  const tag = rule(".agent-node .synth-tag")!;
+  /** Opacity on the card composites the ink AND the ground under it onto the
+   *  canvas, which is why a token pair never saw it. */
+  const ratioAt = (opacity: number, theme: Theme, bed: Rgba) => {
+    const canvas = parseColor(TOK[theme]["--bg"]);
+    const ink = resolve(decl(tag, "color")!, theme);
+    return contrastRatio(
+      over([ink[0], ink[1], ink[2], opacity], canvas),
+      over([bed[0], bed[1], bed[2], opacity], canvas));
+  };
+
+  it("reproduces the defect: at the old 0.92 the dark ? fell under 4.5:1", () => {
+    const worst = Math.min(...nodeBeds("dark").map(([, bed]) => ratioAt(0.92, "dark", bed)));
+    expect(worst).toBeLessThan(BODY);
+  });
+
+  it("marks the card with its dashed edge, not with a fade of the whole card", () => {
+    expect(decl(card, "border-style")).toBe("dashed");
+    expect(decl(card, "opacity"), "a fade takes the ? with it").toBeNull();
+  });
+
+  it("reads the ? at 4.5:1 on every node bed, in both themes", () => {
+    const opacity = Number(decl(card, "opacity") ?? "1");
+    for (const theme of themes) {
+      const beds = nodeBeds(theme);
+      expect(beds.length, `${theme}: no node beds to measure against`).toBe(2);
+      for (const [name, bed] of beds) {
+        const ratio = ratioAt(opacity, theme, bed);
+        expect(ratio, `${theme} ? on ${name} — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+});
+
 // ── and one reader, so the blind spot has one place to be ───────────────────
 //
 // #662 fixed the reader in this file and in toggle-state.test.ts. #664 and #665
