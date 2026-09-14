@@ -515,8 +515,9 @@ describe("the list is quiet until it is not", () => {
     expect(tail).toMatch(/ap-lan-checked/);
     expect(CODE).not.toContain("name &amp; sharing");
     // And the title is what pushes the header's controls right, so the row
-    // survives every combination of the three that can be missing.
-    expect(rule(".ap-lan .ap-auto-title")).toMatch(/margin-right:\s*auto/);
+    // survives every combination of the three that can be missing. It is the
+    // shared title rule now, since Auto-switch's head is the same row.
+    expect(rule(".ap-auto-title")).toMatch(/margin-right:\s*auto/);
   });
 });
 

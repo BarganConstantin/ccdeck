@@ -373,6 +373,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // a setting write on the other end. Null follows whatever the store holds.
   const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
   const [thresholdSaved, setThresholdSaved] = useState(false);
+  // `save` only exists while there is a pick to store, so it leaves the panel
+  // under the reader's focus: the press that stored the pick is the press that
+  // unmounts it. The picker is where focus goes when that happens.
+  const thresholdRef = useRef<HTMLSelectElement>(null);
+  const thresholdSaveRef = useRef<HTMLButtonElement>(null);
   // Which rows have their other quota windows open. Every row opens collapsed,
   // including the active one: uniform rows are what makes a column scannable,
   // and a default that depended on state would make the panel's resting height
@@ -670,7 +675,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       setThresholdDraft(null);
     }
     setThresholdSaved(true);
-    window.setTimeout(() => setThresholdSaved(false), SAVED_MS);
+    window.setTimeout(() => {
+      // `saved` is the last thing the control says before it goes. A focused
+      // button that unmounts drops focus on <body>, so hand it to the picker
+      // first — only if it is still there, never out from under a reader who
+      // has moved on.
+      if (document.activeElement === thresholdSaveRef.current) thresholdRef.current?.focus();
+      setThresholdSaved(false);
+    }, SAVED_MS);
   };
 
   return (
@@ -1287,93 +1299,117 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           })}
           </ul>
 
+          {/* The line named an actor the reader has already met on every row
+              (`collected 9m ago`) and in the auto-switch note, and buried the
+              one fact only this line carries: these numbers do not keep
+              themselves up to date. Consequence first, actor not at all.
+
+              UNDER THE NUMBERS IT IS ABOUT. It sat below Auto-switch, on a rule
+              of its own between two sections and belonging to neither — the
+              one sentence in the panel about the roster, read after the reader
+              had left the roster. Here it closes the list, and the rule that
+              was fencing it off from Auto-switch is Auto-switch's own. */}
+          <p className="ap-footnote" title="Anthropic's usage endpoint allows roughly 28–30 requests per hour per account, shared by every tool on this machine — polling it from here would rate-limit your account. So the deck never fetches: it asks claude-swap to collect while this panel is open, at most once every three minutes, and claude-swap decides whether that touches the network at all.">
+            These numbers only update while this panel is open.
+          </p>
+
           {/* ── auto-switch ── */}
           {auto?.ok && (
             <div className="ap-auto">
-              {/* The four things on this line had no rank between them: the
-                  name of the section, the number saying where you are, the
-                  control saying where it trips and the switch saying whether it
-                  is armed all sat at one altitude, separated by one 10px gap.
-                  Rank is bought with distance rather than with a new size or a
-                  rule — the title takes the line, the controls take the next
-                  one 8px under it, and the on/off switch is pushed to the far
-                  edge of that line because it is a different decision from the
-                  threshold beside it. 8 and 6 are the panel ladder, not the
-                  topbar one.
+              {/* THE SWITCH ON THE TITLE'S LINE, the way Local network below
+                  carries its own. The title had a line to itself and every
+                  control was crowded onto the next, so the section read as a
+                  heading over a toolbar; now the head says what the section is
+                  and whether it is armed, and the line under it says where it
+                  trips. Two decisions, one line each, and both section heads in
+                  this panel are the same shape.
                   A real h3 rather than a span, under the h2 the panel header
                   carries: this is a section of the panel and a reader walking
-                  headings should find it. `margin: 0` in the sheet, because the
-                  UA sheet gives it 1em and that would put the title back on a
-                  line of its own by accident rather than on purpose. */}
+                  headings should find it. */}
               <div className="ap-auto-head">
                 <h3 className="ap-auto-title">Auto-switch</h3>
 
-                <span className="ap-auto-ctl">
-                  {/* The live number belongs next to the threshold it is
-                      racing: the setting means nothing without knowing where
-                      you are. */}
-                  {activePct != null && (
-                    <span className={`ap-auto-now${nearTrigger ? " near" : ""}`}
-                      title={`The active account has used ${Math.round(activePct)}% of its limit. Auto-switch trips at ${threshold}%.`}>
-                      {Math.round(activePct)}%
-                    </span>
-                  )}
-                  {/* The same pairing as the slot picker, for the same reason:
-                      this select wrote a setting per keystroke, `8` then `7`
-                      landing two writes (#516). Smaller blast radius, and it
-                      would have been the one control in the panel still acting
-                      on a key. */}
-                  <span className="ap-field" title="Switch once the active account passes this much of its limit">
-                    <select
-                      aria-label="Switch threshold"
-                      value={thresholdPick}
-                      {...pressProps("threshold")}
-                      onChange={e => setThresholdDraft(e.target.value)}
-                    >
-                      {THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
-                    </select>
+                {/* Always a control, never a read-out. An earlier version hid
+                    the toggle whenever a terminal loop was detected, on the
+                    grounds that the deck's own loop would be redundant — but a
+                    setting you cannot see is worse than a redundant one, and
+                    the toggle still decides what happens the moment that
+                    terminal loop stops. The terminal's state is shown beside it
+                    instead of replacing it.
+
+                    The name is written out because the contents cannot carry it
+                    (#546). A switch names WHAT it controls and reports whether
+                    it is on separately, through aria-checked; this one had only
+                    the word its state is spelled with, so it announced as "off,
+                    switch, off" and, once armed, as "on, switch, on" — a
+                    voice-control user had to say *click off* to turn it on.
+                    `title` could not stand in: the accessible name algorithm
+                    reaches contents before it reaches title, so the tooltip
+                    resolved to a description and the h3 beside it, being
+                    nothing but a nearby heading, resolved to nothing at all.
+                    `aria-label` outranks both, which is the same answer
+                    .ap-add, .ap-refresh and the threshold select were each
+                    given in the #381 sweep. It says what the h3 says, so what
+                    the reader hears and what a voice-control user has to
+                    pronounce are the words on the screen. */}
+                <button
+                  type="button"
+                  className={`ap-auto-state${auto.enabled ? " live" : ""}`}
+                  role="switch"
+                  aria-checked={auto.enabled}
+                  aria-label="Auto-switch"
+                  {...pressProps("enable")}
+                  onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
+                  title={auto.enabled
+                    ? "Stop switching accounts automatically"
+                    : "Switch accounts automatically when the active one nears its limit"}
+                />
+              </div>
+
+              <div className="ap-auto-ctl">
+                {/* The live number belongs next to the threshold it is racing:
+                    the setting means nothing without knowing where you are. */}
+                {activePct != null && (
+                  <span className={`ap-auto-now${nearTrigger ? " near" : ""}`}
+                    title={`The active account has used ${Math.round(activePct)}% of its limit. Auto-switch trips at ${threshold}%.`}>
+                    {Math.round(activePct)}%
                   </span>
-                  <button type="button" className="ap-manage-btn" {...pressProps("threshold")}
+                )}
+                {/* The same pairing as the slot picker, for the same reason:
+                    this select wrote a setting per keystroke, `8` then `7`
+                    landing two writes (#516). Smaller blast radius, and it
+                    would have been the one control in the panel still acting on
+                    a key. */}
+                <span className="ap-field" title="Switch once the active account passes this much of its limit">
+                  <select
+                    ref={thresholdRef}
+                    aria-label="Switch threshold"
+                    value={thresholdPick}
+                    {...pressProps("threshold")}
+                    onChange={e => setThresholdDraft(e.target.value)}
+                  >
+                    {THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
+                  </select>
+                </span>
+                {/* ONLY WHILE THERE IS SOMETHING TO SAVE. It stood beside the
+                    picker at rest, where the one thing a press could do was
+                    answer `saved` about a value nobody had touched — a control
+                    whose job was a no-op for as long as the setting was left
+                    alone, which is nearly always. It arrives with a pick, leaves
+                    after saying `saved`, and a pick put back where it was takes
+                    it away again: thresholdCommit already knows when there is
+                    nothing to send. It comes after the picker so that arriving
+                    moves nothing the reader just pressed.
+
+                    `saved` only while the pick is the stored one. A second pick
+                    inside the confirmation's 1.8s would otherwise sit behind a
+                    button claiming it was already stored. */}
+                {(thresholdCtl.sends || thresholdSaved) && (
+                  <button ref={thresholdSaveRef} type="button" className="ap-manage-btn" {...pressProps("threshold")}
                     title={thresholdCtl.title}
                     onClick={() => doThreshold(thresholdPick, thresholdCtl)}
-                  >{thresholdSaved ? thresholdCtl.done : thresholdCtl.label}</button>
-
-                  {/* Always a control, never a read-out. An earlier version
-                      hid the toggle whenever a terminal loop was detected, on
-                      the grounds that the deck's own loop would be redundant —
-                      but a setting you cannot see is worse than a redundant
-                      one, and the toggle still decides what happens the moment
-                      that terminal loop stops. The terminal's state is shown
-                      beside it instead of replacing it.
-
-                      The name is written out because the contents cannot carry
-                      it (#546). A switch names WHAT it controls and reports
-                      whether it is on separately, through aria-checked; this
-                      one had only the word its state is spelled with, so it
-                      announced as "off, switch, off" and, once armed, as "on,
-                      switch, on" — a voice-control user had to say *click off*
-                      to turn it on. `title` could not stand in: the accessible
-                      name algorithm reaches contents before it reaches title,
-                      so the tooltip resolved to a description and the h3 above
-                      it, being nothing but a nearby heading, resolved to
-                      nothing at all. `aria-label` outranks both, which is the
-                      same answer .ap-add, .ap-refresh and the threshold select
-                      were each given in the #381 sweep. It says what the h3
-                      says, so what the reader hears and what a voice-control
-                      user has to pronounce are the words on the screen. */}
-                  <button
-                    type="button"
-                    className={`ap-auto-state${auto.enabled ? " live" : ""}`}
-                    role="switch"
-                    aria-checked={auto.enabled}
-                    aria-label="Auto-switch"
-                    {...pressProps("enable")}
-                    onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
-                    title={auto.enabled
-                      ? "Stop switching accounts automatically"
-                      : "Switch accounts automatically when the active one nears its limit"}
-                  />
-                </span>
+                  >{thresholdSaved && !thresholdCtl.sends ? thresholdCtl.done : thresholdCtl.label}</button>
+                )}
               </div>
 
               {/* Which engine is actually switching right now. Two would not
@@ -1413,14 +1449,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 aria-label="Dismiss this message" title="Dismiss">×</button>
             </div>
           )}
-
-          {/* The line named an actor the reader has already met on every row
-              (`collected 9m ago`) and in the auto-switch note, and buried the
-              one fact only this line carries: these numbers do not keep
-              themselves up to date. Consequence first, actor not at all. */}
-          <p className="ap-footnote" title="Anthropic's usage endpoint allows roughly 28–30 requests per hour per account, shared by every tool on this machine — polling it from here would rate-limit your account. So the deck never fetches: it asks claude-swap to collect while this panel is open, at most once every three minutes, and claude-swap decides whether that touches the network at all.">
-            These numbers only update while this panel is open.
-          </p>
 
           {/* Last, under the accounts it is about. It is the one section here
               that is not about THIS machine's accounts but about other

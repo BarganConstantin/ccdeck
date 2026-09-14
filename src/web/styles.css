@@ -6643,6 +6643,10 @@ button.tool.clickable:last-child { border-bottom: none; }
   flex: 1;
   min-width: 0;
 }
+/* The panel's own refusal is followed by Local network's rule directly, where
+   the footnote used to stand between them. The four LAN dialogs that share this
+   box end on it, so only this one takes a bottom margin. */
+.ap-failure:has(+ .ap-lan) { margin-bottom: 8px; }
 /* DRAWN like the message rather than like a button: it sits inside two lines
    of 10px text in a 288px panel, where anything with a real hit area would be
    the loudest thing in the box. That argument is about ink and it still holds
@@ -6703,39 +6707,50 @@ button.tool.clickable:last-child { border-bottom: none; }
   padding: 12px var(--panel-inset) 11px;
   border-top: 1px solid var(--line);
 }
-/* Two lines, and the second one is the only line with controls on it.
-   The four things here — the name of the section, the live percentage, the
-   threshold and its commit, and the on/off switch — used to sit on one row at
-   one altitude separated by a single 10px gap, so nothing said which was the
-   heading, which was a reading and which was a control. #516 had already forced
-   the row to wrap (the threshold gained a commit control and the four measured
-   193px against the 162px left beside an 87px caption), so it was two lines in
-   practice and one line in the sheet, breaking wherever the width happened to
-   run out.
-   Now it is two lines on purpose. The title takes the first, the controls take
-   the second 8px under it, and inside that line the pair that belongs together
-   — the picker and the press that commits it — sits at 6px while the on/off
-   switch is pushed to the far edge by `margin-left: auto`. That is the same
-   trick `remove` uses in the manage block: separation by distance rather than
-   by a rule or a colour, and 8 and 6 are steps on this panel's own 4/6/8/10
-   ladder rather than the topbar's. */
+/* Two lines, one decision each. The head says what the section is and whether
+   it is armed; the line 8px under it says where it trips.
+   The four things here used to sit on one row at one altitude, then on two
+   lines with the title alone on the first and every control crowded onto the
+   second — a heading over a toolbar, with the on/off switch pushed to the far
+   end of a line about a percentage. The switch is the section's state, so it
+   sits on the title's line the way Local network's does below, and both section
+   heads in this panel are one row drawn one way. The line under it is the
+   reading and the picker, plus `save` only while there is a pick to store —
+   after the picker, so arriving moves nothing the reader just pressed. 8 and 6
+   are steps on this panel's own 4/6/8/10 ladder rather than the topbar's. */
 .ap-auto-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 .ap-auto-ctl {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 8px;
+}
+/* The one control that comes and goes, so it arrives rather than appears — from
+   a little smaller, the way the popup it answers closed. Backwards only: a fill
+   that outlived the entrance would hold `transform` over the press scale. */
+.ap-auto-ctl > .ap-manage-btn {
+  animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+@keyframes ap-commit-in {
+  from { opacity: 0; transform: scale(0.94); }
 }
 /* A real <h3> since the density pass, under the panel header's <h2>: a reader
    walking headings should be able to find this section. Everything below was
    already what it rendered as a <span>; `margin: 0` is the one line the promotion
    needs, because the UA sheet gives an h3 1em top and bottom and that would put
-   a line and a half of air where the 8px above is doing the work. */
+   a line and a half of air where the 8px below is doing the work.
+
+   THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL PULLING. `margin-left: auto`
+   on a control only works while that control is the leftmost one after the
+   title, and Local network's three glyphs are all conditional. One rule on the
+   thing that is always there survives every combination, in both heads. */
 .ap-auto-title {
   margin: 0;
+  margin-right: auto;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
@@ -6824,44 +6839,17 @@ button.ap-auto-state { cursor: pointer; transition: border-color 120ms, backgrou
    Everything below is the inside of it. The ladder is the panel's — 11px for a
    thing you read, 10px for a label beside it — and the gaps are 8 and 6 like
    the section above. */
-/* The section's own frame is `.ap-auto`'s. What this adds is the seam above
-   it: it follows the panel's footnote rather than another section, so without a
-   rule of its own it would sit against a sentence with nothing between them. */
-.ap-lan {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-/* Auto-switch puts its title on one line and four controls on the next, which
-   is what the column direction buys it. This section has ONE control up here,
-   so the column left the most consequential switch on the surface alone on a
-   line with 190px of nothing to its left — the least anchored thing on screen
-   attached to the decision with the highest stakes. One row, and it reads the
-   way AUTO-SWITCH reads. `margin-left: auto` on the switch is already in
-   `.ap-auto-state`, so the gap does the rest. */
-.ap-lan .ap-auto-head {
-  flex-direction: row;
-  align-items: center;
-  /* The two controls up here are ONE group and have to read as one: the round
-     and the switch are both about "is this deck talking to the network right
-     now". They each carried `margin-left: auto`, and two auto margins split the
-     free space between them — which parked the glyph in the middle of the row,
-     equidistant from the title it does not belong to and the switch it does. */
-  gap: 6px;
-}
-/* THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL PULLING. `margin-left: auto`
-   on one of the three up here only works while that one is the leftmost of
-   them, and all three are conditional — the plus and the round both need the
-   switch to be on, and the round also needs a paired deck. One rule on the
-   thing that is always there survives every combination.
-
-   And the switch gives its own auto back, or the two of them split the free
-   space and the whole group floats: measured, that left the switch four pixels
-   short of the panel's right edge and a seventeen-pixel hole in front of it
-   where the other gaps are six. What it takes instead is a deliberate one —
-   the three glyphs are acts, the switch is a state, and a gap is how a row says
-   which is which without a rule drawn between them. */
-.ap-lan .ap-auto-title { margin-right: auto; }
+/* The section's frame is `.ap-auto`'s, seam and all. It had a second one of its
+   own — 14px either side of another rule — for following the panel's footnote
+   rather than a section, and the footnote now closes the roster instead. */
+/* The head's shape is `.ap-auto-head`'s now — one row, the title pushing — so
+   all this section adds up there is the switch giving its own auto back. With
+   glyphs between it and the title, two auto margins split the free space and
+   the whole group floats: measured, that left the switch four pixels short of
+   the panel's right edge and a seventeen-pixel hole in front of it where the
+   other gaps are six. What it takes instead is a deliberate one — the three
+   glyphs are acts, the switch is a state, and a gap is how a row says which is
+   which without a rule drawn between them. */
 .ap-lan > .ap-auto-head .ap-auto-state { margin-left: 4px; }
 .ap-lan-row {
   display: flex;
@@ -7471,10 +7459,11 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-lanes-more:hover { color: var(--accent); }
 .ap-lanes-more:active { transform: scale(0.97); }
 
+/* The roster's last line. The last row's own soft rule is the seam above it,
+   so it draws none — it had one while it stood alone between two sections. */
 .ap-footnote {
   margin: 0;
-  padding: 9px 14px 2px;
-  border-top: 1px solid var(--line-soft);
+  padding: 8px var(--panel-inset) 10px;
   font-size: 9px;
   line-height: 1.5;
   color: var(--muted);
@@ -8171,6 +8160,7 @@ button.ap-auto-state:disabled { cursor: default; opacity: var(--dim-off); }
      arrives there without travelling. */
   .ap-lan-chev { transition: none; }
   .ap-manage-btn.danger.armed::after { animation: none; transform: scaleX(0); }
+  .ap-auto-ctl > .ap-manage-btn { animation: none; }
   /* Every press in the app lands here, not just this panel's — the scale is one
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */

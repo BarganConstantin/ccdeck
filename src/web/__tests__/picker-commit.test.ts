@@ -234,7 +234,9 @@ describe("both commit controls are reachable and named", () => {
     // only by `title` is one a touch user never sees — the defect the #381
     // sweep found twice in this same panel.
     expect(panelCode).toMatch(/>\{slotDone === a\.num \? commit\.done : commit\.label\}<\/button>/);
-    expect(panelCode).toMatch(/>\{thresholdSaved \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
+    // `saved` only while the pick is the stored one: a second pick inside the
+    // confirmation would otherwise sit behind a button claiming it was stored.
+    expect(panelCode).toMatch(/>\{thresholdSaved && !thresholdCtl\.sends \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
   });
 
   it("keeps the picker itself named by the hidden label it has always had", () => {
@@ -262,5 +264,26 @@ describe("both commit controls are reachable and named", () => {
       expect(attrs.slice(0, 600)).not.toMatch(/aria-busy=/);
       expect(attrs.slice(0, 600)).not.toMatch(/\{\.\.\.pressProps\([^)]*sends/);
     }
+  });
+});
+
+describe("the threshold's commit control exists only while there is a pick to store", () => {
+  // It stood beside the picker at rest, where a press could only answer `saved`
+  // about a value nobody had touched — and the setting is left alone nearly
+  // always. The slot picker's control keeps its place: it opens inside a block
+  // the reader asked for, and every pick in it is one press from moving an
+  // account.
+  it("renders for a pick the store does not hold, and for the `saved` after it", () => {
+    expect(panelCode).toMatch(/\{\(thresholdCtl\.sends \|\| thresholdSaved\) && \(\s*<button ref=\{thresholdSaveRef\}/);
+  });
+
+  it("hands focus to the picker before it leaves", () => {
+    // The press that stored the pick is the press that unmounts the control, and
+    // a focused button that unmounts drops focus on <body>. Once React has
+    // removed it there is nothing left to ask, so the handoff comes first.
+    const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(panelCode)?.[0] ?? "";
+    expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
+    expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
+    expect(panelCode).toMatch(/<select\s+ref=\{thresholdRef\}/);
   });
 });
