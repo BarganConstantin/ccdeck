@@ -668,11 +668,17 @@ button:focus-visible { outline-offset: 1px; }
   font: inherit;
   margin: 0;
 }
+/* The favicon's ring, in the deck's one accent (#867). This was a cyan-pink-
+   green conic gradient in a rounded square with a 12px cyan halo, the only
+   permanent decorative glow in a sheet that keeps glow for state. The tab and
+   the page now carry one mark; the tab's copy is the one that fills in when
+   the deck wants you, so this one stays still. */
 .topbar .brand .logo {
+  flex: none;
   width: 14px; height: 14px;
-  border-radius: 4px;
-  background: conic-gradient(from 220deg, #7dd3fc, #f0abfc, #86efac, #7dd3fc);
-  box-shadow: 0 0 12px rgba(125,211,252,0.45);
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: none;
 }
 .topbar .brand .v {
   color: var(--muted);
