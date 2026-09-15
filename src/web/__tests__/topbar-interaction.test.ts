@@ -317,8 +317,8 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // previews, so its name says what the press does rather than what it used
     // to do. What this case is about is unchanged and is why it still names a
     // control in the second run: the settings run still exists and still has
-    // something in it.
-    expect(app).toMatch(/aria-label="Sound settings"/);
+    // something in it. The name ends in the setting's state now as well.
+    expect(app).toMatch(/aria-label=\{`Sound settings, \$\{soundOn \? "on" : "off"\}`\}/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {

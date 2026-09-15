@@ -427,6 +427,9 @@ describe("the height of a button", () => {
     for (const rule of RULES) {
       for (const sel of selectors(rule.selector)) {
         const subject = sel.split(/[\s>+~]+/).filter(Boolean).pop() ?? "";
+        // A pseudo-element is a box of its own drawn inside the button (an open
+        // panel's line is 2px tall), not a second height for the button.
+        if (/::(?:before|after)$/.test(subject)) continue;
         const carriesBtn = /\.(btn|icon-btn)\b/.test(subject)
           || /\.(sl-close|up-close|ap-add|ap-refresh|ap-switch|uh-retry|uh-reload|up-refresh-btn|hero-action-btn)\b/.test(subject);
         if (!carriesBtn) continue;

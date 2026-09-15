@@ -656,6 +656,13 @@ button:focus-visible { outline-offset: 1px; }
      pushed. */
   min-width: 0;
   overflow: hidden;
+  /* And it gives from the LEFT. A clipped group loses its trailing edge by
+     default, and the trailing edge of this one is the blocked-session chip, so
+     the one thing on the bar that has to be seen was the first to go. Packed
+     to the end, the overflow falls off the wordmark instead, and the stream
+     pill and the alarm stay. With room to spare the group is its own width
+     and this moves nothing. */
+  justify-content: flex-end;
 }
 .topbar .brand {
   font-weight: 600;
@@ -809,17 +816,28 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   gap: 8px;
 }
+/* The ring stands off the button here. At the sheet's 1px offset a 2px accent
+   ring hugs the edge, and on this bar that read as the accent frame an open
+   panel used to wear: a focused Session list looked open, and a focused Usage
+   merged frame, ring and line into one block. 3px leaves a visible gap between
+   the edge and the ring, and the 52px bar has 11px above and below a 30px
+   button to hold it; the 8px between two buttons keeps 3px clear of the next. */
+.topbar button.btn:focus-visible { outline-offset: 3px; }
 /* THE WORDS (#836). Eight bare glyphs meant a first-timer or a touch user could
    not learn the bar without hovering each one. Where the bar has room, each
    says its name beside the glyph: a word its accessible name already contains,
-   so what the eye reads and what voice control hears agree (2.5.3). The two
-   that raise a dialog end in an ellipsis, the platform's own mark for "this
-   opens something", which tells them from the panel toggles beside them while
-   nothing is open. Under 1600px the bar is glyphs again: the readouts give
-   first and the controls never do, and the words are about 480px the bar does
-   not have below that. */
+   so what the eye reads and what voice control hears agree (2.5.3). The theme
+   button keeps its sun or moon alone, and no word ends in an ellipsis.
+   From 1440px, which is a 14" laptop at its default scale and a 1920 screen at
+   125%; 1600 left every one of those on bare glyphs. The words cost about
+   440px, and the bar's common worst case at 1440 still fits: a blocked
+   session, a live stream and a selected agent come to 256 of readout, 346 of
+   ribbon at 24vw, 743 of controls and 84 of gaps and padding, 1429 in all.
+   A paused deck on top of that does not fit, and `.readout` above is why that
+   costs the wordmark rather than the alarm. Under 1440 the bar is glyphs
+   again: the readouts give first and the controls never do. */
 .tb-word { display: none; }
-@media (min-width: 1600px) {
+@media (min-width: 1440px) {
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
   .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 10px; }
 }
@@ -829,6 +847,26 @@ button:focus-visible { outline-offset: 1px; }
 @media (max-width: 640px) {
   .topbar { gap: 12px; padding: 0 10px; }
   .topbar .actions { gap: 10px; }
+  /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
+     loses, and the blocked-session chip is its last child, so at 600px it was
+     cut in half and at 400px it was gone while the wordmark still said "ccdec".
+     Here the bar spends its readout on the alarm: the wordmark leaves the
+     screen but not the outline (it is the page's <h1>, so it is hidden the way
+     .vis-hidden hides, never with display), an up-to-date version chip leaves
+     (a stale one stays, it is a warning), and the chip says its number without
+     the word, which its accessible name still carries in full. */
+  .topbar .readout { gap: 12px; }
+  .topbar .brand h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .topbar .brand button.v:not(.stale),
+  .topbar .waiting-stat .ws-word { display: none; }
+  .topbar .waiting-stat { padding: 3px 8px; }
 }
 
 /* ---------------- the sound menu (#711) ---------------- */
@@ -1302,8 +1340,11 @@ button.btn.sm-hear {
      viewport, which moves worst-case-plus-ribbon collision from ~1588px to
      ~1350px. It is the largest width lever in this bar and it is not a media
      query: the label's ellipsis was already doing the right thing at every
-     width, it was only ever given too much room to do it in. */
-  max-width: min(380px, 26vw);
+     width, it was only ever given too much room to do it in.
+     24vw since the controls say their names from 1440px: the share that still
+     leaves a blocked session readable beside them at that width (see THE
+     WORDS). */
+  max-width: min(380px, 24vw);
   min-width: 0;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -1440,6 +1481,11 @@ button.btn.sm-hear {
   align-items: center;
   gap: 14px;
 }
+/* Nothing to say is no box at all. The strip renders nothing while the stream
+   is live, and an empty flex item still takes a gap on either side, so the bar
+   drew 48px between the version chip and the blocked-session chip where every
+   other role boundary in it is 24. */
+.topbar .status:empty { display: none; }
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
    than floating over the canvas. The two queue instead of overlapping: alone,
@@ -2196,6 +2242,7 @@ button.btn.danger:hover {
    its width pinned to its height, which is the whole of what "icon button"
    means here. The 30px it used to write twice is where --ctl-h came from. */
 button.btn.icon-btn {
+  position: relative;
   width: var(--ctl-h);
   height: var(--ctl-h);
   padding: 0;
@@ -2238,16 +2285,30 @@ button.btn.icon-btn[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--bg);
 }
-/* AN OPEN PANEL IS UNDERLINED, NOT FILLED (#836). The toggles that disclose a
-   region beside the canvas are usually open two or three at a time, so the
-   fill above made the bar at rest read as "three things switched on" rather
-   than "three panels showing". A 2px accent line along the foot, the tab idiom
-   for "this one is showing", says the second; the accent edge keeps the state
-   difference #370 measured for, and the glyph stays --text. The fill stays for
-   a setting that is on, which is what aria-pressed means. */
-button.btn.icon-btn[aria-expanded="true"] {
-  border-color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
+/* AN OPEN PANEL IS UNDERLINED, AND ONLY UNDERLINED. The toggles that disclose
+   a region beside the canvas are usually open two or three at a time, so the
+   fill above made the bar at rest read as "three things switched on" (#836).
+   The first answer kept an accent frame and laid a 2px foot inside it, which
+   drew a 3px bottom edge against 1px sides: a raised key, the loudest shape in
+   the bar, spent on panels that are already on screen. The frame bought almost
+   nothing (1.67:1 / 1.52:1 off the resting edge in light), so it is gone and
+   the line stands on its own: a mark under the button's content, clear of the
+   border, in --accent at 5.24:1 or better off either end of the bar in both
+   themes, which is the state difference #370 asks for. The edge and the glyph
+   stay at rest, so hover and the focus ring each keep a channel of their own.
+   The popover opener is left out. Its menu hangs directly under it, which is
+   the whole answer to "is it open", and a panel's mark on it would claim a
+   region beside the canvas that does not exist. The fill above stays for a
+   setting that is on, which is what aria-pressed means. */
+button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
 }
 /* `button.btn:hover` repaints the border and the glyph in --accent, and on this
    chip --accent is the fill — so a pressed toggle would have had no pointer
@@ -8998,11 +9059,19 @@ button.ap-err::after,
 .ap-stopped { color: var(--warn); }
 
 /* ── Browser watch ────────────────────────────────────────────────────────
-   The topbar control is an outline like the five beside it and gains nothing
+   The topbar control is an outline like the seven beside it and gains nothing
    at rest. #720 took a resting pill OUT of this bar for saying nothing all
    day; a second control that reported "no findings" would be the same mistake
    wearing an eye. The badge is the only thing that ever appears, and only when
-   an episode nobody has read exists. */
+   an episode nobody has read exists.
+   It is a count, not an alarm, so it is --muted and not --warn. Amber in this
+   bar belongs to the blocked-session chip, the one thing the deck exists to
+   raise, and an eye that went amber with a filled amber bubble for unread
+   browser history was the loudest object in the bar while nothing needed
+   anyone. --bg on --muted is 5.08:1 in dark and 6.95:1 in light, and the
+   bubble stands 4.70:1 or better off either end of the bar in dark and 6.95:1
+   or better in light. The button's own glyph and word stay at
+   rest in every state: the pupil or the slash carries watching, see App.tsx. */
 .bw-btn { position: relative; }
 .bw-badge {
   position: absolute;
@@ -9012,20 +9081,14 @@ button.ap-err::after,
   height: 14px;
   padding: 0 3px;
   border-radius: 999px;
-  background: var(--warn);
+  background: var(--muted);
   color: var(--bg);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 14px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* Colour agrees with the silhouette, it does not carry the state on its own —
-   see the note in App.tsx. Three tiers, the same three the panel's own dots
-   use: resting grey for off, the deck's accent for armed, amber for a finding
-   nobody has read. */
-.bw-btn.watching { color: var(--accent); }
-.bw-btn.has-findings { color: var(--warn); }
 
 .bw-modal { width: min(860px, 94vw); }
 /* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a
@@ -11686,7 +11749,11 @@ input, textarea { caret-color: var(--accent); }
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot,
+  button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after { forced-color-adjust: none; background: Highlight; }
+  /* The count keeps its bubble, so the digits stay a badge on the corner
+     rather than a stray number over the button's edge. */
+  .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,

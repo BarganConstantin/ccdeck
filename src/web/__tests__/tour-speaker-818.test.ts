@@ -19,7 +19,7 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
   it("points at the speaker, which is what the topbar draws", () => {
     expect(copy).toMatch(/speaker in the topbar/);
     // The control the tip means, and the cone it is drawn with.
-    expect(app).toMatch(/aria-label="Sound settings"/);
+    expect(app).toMatch(/aria-label=\{`Sound settings, /);
     expect(app).toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
   });
 });

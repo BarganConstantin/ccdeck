@@ -485,12 +485,12 @@ const CONTROLS: Control[] = [
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
-  // The on state of an icon toggle (#370). Two selectors on one rule, so both
-  // have to be named or the exhaustiveness check below reports the other as
-  // unswept. Its own state delta — this fill against the bare bar, which is a
-  // different question from this edge against this fill — is toggle-state.test.ts'.
+  // The on state of an icon toggle (#370). Its own state delta — this fill
+  // against the bare bar, which is a different question from this edge against
+  // this fill — is toggle-state.test.ts'. An open panel draws no boundary of
+  // its own any more: it keeps the resting edge swept under `button.btn` and
+  // adds a line under its content, which toggle-state.test.ts measures too.
   { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
-  { at: 'button.btn.icon-btn[aria-expanded="true"]', beds: [...TOPBAR, "--panel"] },
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the
@@ -638,8 +638,8 @@ const EXEMPT_RINGS = new Set([
   // move. 1.91:1 dark / 1.39:1 light, and the file already refuses to let
   // --accent-dim be a border-color anywhere for exactly that reason; as a glow
   // over an edge that is still there it takes nothing away.
-  // The open-panel state lost its fill and so its halo (#836): it is an
-  // accent edge and an underline now, and hover repaints nothing it needs.
+  // The open-panel state lost its fill and so its halo (#836): it is a line
+  // under its content now, and hover repaints nothing it needs.
   'button.btn.icon-btn[aria-pressed="true"]:hover',
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads

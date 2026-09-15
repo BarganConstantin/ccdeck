@@ -209,6 +209,8 @@ function barEnds(theme: Theme): Array<[string, Rgba]> {
 /** The on state, as the sheet writes it: one rule, two selectors. */
 const ON = 'button.btn.icon-btn[aria-pressed="true"]';
 const ON_EXPANDED = 'button.btn.icon-btn[aria-expanded="true"]';
+/** An open panel's mark: a line under the button's content, not a frame. */
+const OPEN_LINE = `${ON_EXPANDED}:not([aria-haspopup])::after`;
 
 describe("the contrast maths, against the two ends everybody knows", () => {
   it("puts white on black at 21:1 and a colour on itself at 1:1", () => {
@@ -279,12 +281,29 @@ describe("the on state, as the sheet draws it now", () => {
     // Two rules since #836: a setting that is on keeps the fill measured
     // below, and a panel that is showing is underlined instead, because two
     // or three open at once made the bar read as three things switched on.
+    // The underline is a line of its own under the content, not a foot inside
+    // an accent frame: frame and foot together drew a raised key.
     const rule = RULES.find(r => selectors(r.selector).includes(ON));
     expect(rule, "no rule keyed on aria-pressed").toBeTruthy();
-    const open = RULES.find(r => selectors(r.selector).includes(ON_EXPANDED));
+    const open = RULES.find(r => selectors(r.selector).includes(OPEN_LINE));
     expect(open, "no rule keyed on aria-expanded").toBeTruthy();
-    expect(declIn(open!.body, "box-shadow")).toBe("inset 0 -2px 0 var(--accent)");
-    expect(declIn(open!.body, "border-color")).toBe("var(--accent)");
+    expect(declIn(open!.body, "background")).toBe("var(--accent)");
+    expect(declIn(open!.body, "height")).toBe("2px");
+    expect(RULES.some(r => selectors(r.selector).includes(ON_EXPANDED)), "an open panel is framed again").toBe(false);
+  });
+
+  it("draws an open panel's line 3:1 or better off the bare bar, at both ends, in both themes", () => {
+    // The line is the whole of the state now, so it carries the delta #370
+    // measured the fill for: a mark that is there against a bar where it is not.
+    for (const theme of themes) {
+      const line = resolve(decl(OPEN_LINE, "background")!, theme);
+      const ends = barEnds(theme);
+      expect(ends.length, `${theme}: no topbar ends`).toBe(2);
+      for (const [name, bed] of ends) {
+        expect(contrastRatio(over(line, bed), bed), `${theme} open line vs ${name}`)
+          .toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
   });
 
   it("stopped painting itself in --accent-dim, which is a wash and not a state", () => {
@@ -364,7 +383,10 @@ describe("the on state, as the sheet draws it now", () => {
 describe("what each of the four toggles announces", () => {
   /** The attributes of the <button> whose aria-label is exactly this. */
   function button(label: string): string {
-    const at = app.indexOf(`aria-label="${label}"`);
+    // A name spelled as a literal, or as a template that begins with it: the
+    // sound button's name ends in its setting's state.
+    const at = [app.indexOf(`aria-label="${label}"`), app.indexOf("aria-label={`" + label)]
+      .find(i => i > -1) ?? -1;
     expect(at, `no button labelled ${label}`).toBeGreaterThan(-1);
     const open = app.lastIndexOf("<button", at);
     return app.slice(open, app.indexOf(">", at) + 1);

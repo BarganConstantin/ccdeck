@@ -820,7 +820,7 @@ describe("the click opens the menu, and M still silences the deck", () => {
   it("makes the topbar speaker a disclosure rather than a toggle", () => {
     expect(app).toMatch(/onClick=\{\(\) => setSoundMenuOpen\(o => !o\)\}/);
     const tags = openTags(read("App.tsx"), ["button"])
-      .filter(t => t.attrs.includes('aria-label="Sound settings"'));
+      .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags).toHaveLength(1);
     expect(tags[0].ranAway).toBe(false);
     expect(tags[0].attrs).toMatch(/aria-haspopup="dialog"/);
@@ -961,7 +961,7 @@ describe("the popover, built out of the parts the six dialogs already use", () =
     // off the very control the popover's Escape hands focus back to.
     expect(menu).not.toMatch(/disabled/);
     const tags = openTags(read("App.tsx"), ["button"])
-      .filter(t => t.attrs.includes('aria-label="Sound settings"'));
+      .filter(t => t.attrs.includes("aria-label={`Sound settings, "));
     expect(tags[0].attrs.replace(/\s+/g, " ")).toMatch(/\{\.\.\.selfPressProps\(false\)\}/);
     expect(tags[0].attrs).not.toMatch(/disabled=/);
   });

@@ -4155,7 +4155,7 @@ function Inner() {
               aria-label={`${waitingSessions.length} session${waitingSessions.length === 1 ? "" : "s"} waiting for you`}
             >
               <span className="ap-pulse" aria-hidden />
-              <b>{waitingSessions.length}</b> waiting
+              <b>{waitingSessions.length}</b> <span className="ws-word">waiting</span>
             </button>
           )}
           {/* The ask, and it lives HERE rather than in a settings panel.
@@ -4244,17 +4244,16 @@ function Inner() {
           );
         })()}
         <div className="actions">
-          {/* Three runs, 8px inside and 18px between, against the 24px that
+          {/* Two runs, 8px inside and 18px between, against the 24px that
               separates this whole group from the readout: control to control,
               run to run, role to role. Every one of those numbers was already
               in the sheet.
-              The runs are the three disclosures ($ , accounts, history) and the
-              two persisted settings (sound, theme). Only one control moved to
-              get there — sound, from third to sixth. It is a setting written to
-              disk, not a panel that opens, so it never belonged in the
-              disclosure run; and taking it out drops the worst case from three
-              adjacent accent-filled buttons to two, since aria-pressed and
-              aria-expanded paint the same fill.
+              The first run opens things: the session list, Usage and its
+              History, Accounts, Machine and Browser watch. The second changes
+              how the deck behaves: Sound and the theme. Sound left the first
+              run as a setting written to disk rather than a panel that opens,
+              and it stays in the second now that its click opens a menu,
+              because the menu is still about that one setting.
               Re-layout, Clear and now Pause are gone from here entirely. All
               three are canvas verbs and they are on the canvas, in the React
               Flow control stack beside Recenter — the same place `F` already
@@ -4331,6 +4330,38 @@ function Inner() {
               </svg>
               <span className="tb-word">Usage</span>
             </button>
+            {/* Beside Usage, because it is the same subject over a longer span:
+                Usage is what is being spent now, History is ccusage's record
+                of the days before. Read next to the dollar sign, "History" says
+                whose history it is; filed at the end of the run it read as the
+                browser history the eye after it watches.
+                Neither aria-pressed nor aria-expanded. What this opens is a
+                modal — role="dialog" aria-modal="true" behind a full-screen
+                scrim, with the focus trap #371 added — so while it is open this
+                button cannot be clicked, cannot be tabbed to, and aria-modal has
+                removed the whole topbar from the accessibility tree. A state
+                whose `true` no reader can ever reach is worse than no state: it
+                would be a value announced only in the one case it is not
+                needed. The label says "Open" rather than "Toggle", and
+                aria-haspopup says what kind of thing opens. */}
+            <button
+              className="btn icon-btn"
+              onClick={() => setUsageHistoryOpen(o => !o)}
+              title="Usage history — ccusage (H)"
+              aria-label="Open usage history"
+              aria-haspopup="dialog"
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <line x1="3" y1="11.5" x2="3" y2="7" />
+                <line x1="7" y1="11.5" x2="7" y2="3" />
+                <line x1="11" y1="11.5" x2="11" y2="8.5" />
+              </svg>
+              {/* No ellipsis. On a row of chips "History…" read as a word cut
+                  off, the convention it borrowed means "asks for more before it
+                  acts" (which a viewer does not), and Sound opens a dialog too
+                  without one. Every button here opens something. */}
+              <span className="tb-word">History</span>
+            </button>
             {/* Same disclosure as the usage panel — a sidebar that opens beside
                 the canvas and takes no focus with it.
                 Gone entirely without Claude Code, rather than present and inert.
@@ -4362,10 +4393,12 @@ function Inner() {
                 readout shorter. The panel is the same panel; what changed is
                 that opening it costs a click on a glyph rather than a live
                 trace in the corner of the bar.
-                Third in the run and not last, because this run is ordered by
-                what a control DOES: three disclosures that open a region beside
-                the canvas, then two that raise a dialog over it. A machine
-                panel filed after the two dialogs would read as a third dialog.
+                The run is ordered by subject: the session list, then what is
+                being spent (Usage, and History beside it), then who spends it
+                and what it runs on (Accounts, Machine), then Browser watch. It
+                was ordered by kind, panels first and dialogs after with an
+                ellipsis to tell them apart, and that split Usage from its own
+                history.
                 The glyph is a processor — a die with its pins — which is the
                 one shape in this row that says "the box you are sitting at"
                 rather than "your work". No aria-pressed: this discloses a
@@ -4385,45 +4418,25 @@ function Inner() {
               </svg>
               <span className="tb-word">Machine</span>
             </button>
-            {/* The odd one out, and deliberately given neither aria-pressed nor
-                aria-expanded. What this opens is a modal — role="dialog"
-                aria-modal="true" behind a full-screen scrim, with the focus trap
-                #371 added — so while it is open this button cannot be clicked,
-                cannot be tabbed to, and aria-modal has removed the whole topbar
-                from the accessibility tree. A state whose `true` no reader can
-                ever reach is worse than no state: it would be a value announced
-                only in the one case it is not needed. The label already says
-                "Open" rather than "Toggle"; aria-haspopup is the part that was
-                missing, and it says what kind of thing opens. */}
-            <button
-              className="btn icon-btn"
-              onClick={() => setUsageHistoryOpen(o => !o)}
-              title="Usage history — ccusage (H)"
-              aria-label="Open usage history"
-              aria-haspopup="dialog"
-            >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <line x1="3" y1="11.5" x2="3" y2="7" />
-                <line x1="7" y1="11.5" x2="7" y2="3" />
-                <line x1="11" y1="11.5" x2="11" y2="8.5" />
-              </svg>
-              {/* An ellipsis on the two that raise a dialog, the platform's own
-                  mark for "this opens something": what tells them from the
-                  panel toggles beside them while nothing is open. */}
-              <span className="tb-word">History…</span>
-            </button>
-            {/* THE SILHOUETTE CARRIES THE STATE, AND THE COLOUR ONLY AGREES
-                WITH IT. At 13px a hue change is not readable — ambient.ts makes
-                the same argument about the favicon, where amber and grey come
-                to 1.01:1 under protanopia — so watching and not watching are a
-                pupil and a slash, which differ in shape at any size.
+            {/* THE SILHOUETTE CARRIES THE STATE, AND NOTHING ELSE DOES. At 13px
+                a hue change is not readable — ambient.ts makes the same
+                argument about the favicon, where amber and grey come to 1.01:1
+                under protanopia — so watching and not watching are a pupil and
+                a slash, which differ in shape at any size.
 
                 The slash is not a warning. Off is the default and it is a fine
-                place to be, since the panel still answers retroactively; it
-                wears the same resting grey as every other icon in this bar
-                rather than the amber that belongs to a finding. */}
+                place to be, since the panel still answers retroactively.
+
+                The button used to agree in colour as well, accent while
+                watching and amber with a finding unread, and both are gone.
+                Accent in this bar is hover, focus and an open panel's line;
+                amber is the blocked-session chip, the one alarm the deck exists
+                to raise. An eye that went amber for unread browser history
+                taught the reader to look past amber. The badge says something
+                is unread, in the bar's resting grey, and the pupil says the
+                watch is on. */}
             <button
-              className={`btn icon-btn bw-btn${watchUnseen > 0 ? " has-findings" : watchOn ? " watching" : ""}`}
+              className="btn icon-btn bw-btn"
               onClick={() => setBrowserWatchOpen(o => !o)}
               title={watchOn
                 ? "Browser watch — watching; the deck is keeping its own copy (B)"
@@ -4438,16 +4451,19 @@ function Inner() {
                   ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
                   : <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
               </svg>
-              <span className="tb-word">Watch…</span>
-            {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
+              {/* The dialog's own title, so the word on the button and the
+                  heading it opens are the same two words. "Watch" alone did
+                  not say what is watched. */}
+              <span className="tb-word">Browser watch</span>
+              {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
             </button>
           </div>
           <div className="action-run">
-            {/* The one genuine aria-pressed of the five, and it was already
-                carrying it. This installs or removes a Stop hook on disk: there
-                is no region it discloses and nothing on screen appears when it
-                goes on, so "expanded" would be a promise of content that does not
-                exist. A setting that is on or off is what "pressed" means.
+            {/* The settings run. Sound was the one genuine aria-pressed in this
+                bar: it installs or removes a Stop hook on disk, a setting that
+                is on or off. Since #711 the click opens a menu instead, and the
+                pressed state went with the switch into that menu; the button is
+                a disclosure now and reports the setting in its name.
 
                 Gone without Claude Code, by the same rule the accounts button
                 in the run above states: this switch is one entry in Claude Code's
@@ -4487,16 +4503,16 @@ function Inner() {
                    supposed to hand focus back to. */
                 {...selfPressProps(false)}
                 title={finishSoundTitle(providers, { on: soundOn === true, locked: chimeState === "locked", prefs: tonePrefs })}
-                /* The name a screen reader announces, and it names what the
-                   press DOES: it opens the settings. The on/off state is no
-                   longer here because the button no longer carries it — the
-                   menu's switch does, with aria-pressed of its own, and the
-                   icon keeps showing it. `title` reaches assistive tech only as
-                   a description, which is announced later than the name and by
-                   no means everywhere, so nothing a user needs lives only
-                   there. Static rather than derived, because the button does
-                   not render at all without Claude Code. */
-                aria-label="Sound settings"
+                /* The name a screen reader announces: what the press DOES (it
+                   opens the settings), then whether sound is on, the same shape
+                   Browser watch's name has. The menu's switch changes it, with
+                   aria-pressed of its own; the name only reports it, so a
+                   reader learns the chimes are off without opening anything,
+                   as the icon's waves or cross already tell a sighted one.
+                   `title` reaches assistive tech only as a description, which
+                   is announced later than the name and by no means everywhere,
+                   so nothing a user needs lives only there. */
+                aria-label={`Sound settings, ${soundOn ? "on" : "off"}`}
                 aria-haspopup="dialog"
                 aria-expanded={soundMenuOpen}
                 aria-controls={soundMenuOpen ? "sound-menu" : undefined}
@@ -4544,9 +4560,10 @@ function Inner() {
                   <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
                 </svg>
               )}
-              {/* The mode it switches TO, which is what the glyph already
-                  draws and what the accessible name says. */}
-              <span className="tb-word">{theme === "dark" ? "Light" : "Dark"}</span>
+              {/* No word here at any width. Every other word in the bar names
+                  a thing, and "Dark" on a light bar named an action, so it read
+                  as the mode the deck was already in. A sun and a moon need no
+                  caption, and the accessible name says which way it goes. */}
             </button>
           </div>
         </div>
