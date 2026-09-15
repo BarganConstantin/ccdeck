@@ -277,11 +277,34 @@ export function mayForceRead(now = Date.now()) {
  * because none of them has completed yet to move the clock.
  */
 export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
-  if (_inflight) return _inflight;
-  if (force && mayForceRead()) {
+  // THE FORCE IS HANDLED BEFORE THE IN-FLIGHT SHARE, not after.
+  //
+  // The two guards do different jobs — the comment above says so: "the floor
+  // bounds how often a NEW read starts, and this bounds how many run at once."
+  // Testing `_inflight` first let the second pre-empt the first: a Refresh
+  // landing while any poll was running never reached `cache.clear()` and never
+  // moved `_lastForced`, so it returned the UNFORCED snapshot already on its
+  // way out, built from the mtime cache it was meant to drop — and left the
+  // 60s floor unarmed, so the next press was not rationed either.
+  //
+  // Worse than a no-op: the snapshot in flight was built with the FIRST
+  // caller's opts, so a panel press landing during the badge's `live=0` poll
+  // with the watch off returned that poll's archive-only answer — no profiles,
+  // no relay, and "the watch is off" as the reason.
+  //
+  // The window is small (a read is ~400ms against a 10s panel poll) and the
+  // panel's own poll is the likeliest collider, which is to say it is the
+  // collider that happens while somebody is looking at the panel and reaching
+  // for Refresh.
+  const forced = force && mayForceRead();
+  if (forced) {
     cache.clear();
     _lastForced = Date.now();
   }
+  // A forced caller chains off the read in flight rather than joining it: that
+  // one was started before the cache was cleared, so its answer is the stale
+  // one this press asked to replace.
+  if (_inflight) return forced ? _inflight.then(() => browserWatchSnapshot(opts)) : _inflight;
   _inflight = browserWatchSnapshot(opts).finally(() => { _inflight = null; });
   return _inflight;
 }
