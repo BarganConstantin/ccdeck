@@ -41,7 +41,7 @@ import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
-import { appendLogLine, codexCwdInWorkspace, electWriters, foldsCase, writesCodexLog } from "./log-writer.mjs";
+import { appendFailureStats, appendLogLine, codexCwdInWorkspace, electWriters, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 
@@ -546,8 +546,25 @@ async function maybeRotatePersistFile(wroteBytes = 0) {
   try {
     const s = await stat(persistPath).catch(() => null);
     if (!s || s.size < ROTATE_AT_BYTES) return;
+    // ONLY THE DECK THAT WRITES THIS LOG MAY MOVE IT, the same gate `/api/clear`
+    // already keeps and for the same reason. Two decks appending to one log is
+    // explicitly permitted as the fail-safe — log-writer.mjs says "a line
+    // written twice is recoverable" — so both cross 50 MB and both rotate. If
+    // B's stat lands before A's rename, B's `unlink` deletes the archive A has
+    // just made and B's `rename` moves the new, near-empty live file into its
+    // place: one generation of history destroyed by a deck that was only
+    // housekeeping. The append path was made multi-writer safe; this one was
+    // not. Ownership is electWriters, so nothing new gets to disagree with it.
+    const sharing = await logSharing();
+    if (!sharing.mine) return;
     // Roll events.jsonl → events.jsonl.1 (replacing any previous .1).
     const oldPath = persistPath + ".1";
+    // LET THE QUEUE DRAIN FIRST. Appends are ordered behind a promise chain
+    // inside log-writer.mjs and a descriptor opened before the rename completes
+    // into the RENAMED inode, so the line being appended at the moment of a
+    // rotation lands in the archive rather than the live log — measured, a
+    // 24 MB line in events.jsonl.1 and a 65-byte live file. See flushAppends.
+    await flushAppends(persistPath);
     try { await unlink(oldPath); } catch {}
     const { rename } = await import("node:fs/promises");
     await rename(persistPath, oldPath);
@@ -4310,6 +4327,32 @@ export function replayScope(workspace, platform = process.platform) {
 }
 
 /**
+ * Can this log fill the ring on its own?
+ *
+ * Read from the END and bounded by the ring, so the answer costs at most one
+ * ring's worth of parsing however large the file is — and on a full log it
+ * stops within the first few hundred lines. Deliberately UNSCOPED: the number
+ * it returns is an upper bound on what any workspace predicate will admit, so
+ * `false` is a certainty that the archive is needed while `true` is only the
+ * absence of evidence that it is. See the order-dependent branch of replayLog
+ * for why that asymmetry is the right way round.
+ */
+async function fillsRing(filePath, maxEvents, maxChars) {
+  let n = 0;
+  let chars = 0;
+  for await (const line of linesFromEnd(filePath)) {
+    if (!line) continue;
+    let evt;
+    try { evt = JSON.parse(line); } catch { continue; }
+    if (!evt || typeof evt !== "object" || !evt.payload) continue;
+    n++;
+    chars += ENVELOPE_CHARS + payloadChars(evt.payload);
+    if (n >= maxEvents || chars >= maxChars) return true;
+  }
+  return false;
+}
+
+/**
  * Read the log back into the ring buffer at boot.
  *
  * A line that will not parse is skipped rather than thrown on, and that is
@@ -4384,7 +4427,23 @@ export function replayScope(workspace, platform = process.platform) {
 export async function replayLog(filePath, workspace = "", {
   maxEvents = MAX_BUFFER, maxChars = MAX_BUFFER_CHARS,
 } = {}) {
-  if (!existsSync(filePath)) return 0;
+  // THE ARCHIVE IS PART OF THE HISTORY, and for two years nothing read it.
+  // `maybeRotatePersistFile` renames events.jsonl to events.jsonl.1 at 50 MB;
+  // a grep for `.1` across src/ and bin/ finds the write, the copy deck-home's
+  // migration makes, and two comments. replayLog is called once, with
+  // `persistPath` alone. So the boot immediately after a rotation replays a
+  // file holding a handful of lines while 50 MB of history sits beside it
+  // unread — and the next rotation's `unlink` deletes it outright. Measured:
+  // one rotation, then `replayLog(events.jsonl)` returning 1.
+  //
+  // The reader below already stops the moment EITHER of the ring's bounds is
+  // reached, so on a log that can fill the ring on its own this costs nothing
+  // at all: the archive is never opened. It is read only when the live log
+  // cannot fill the ring, which is exactly the window a rotation opens.
+  const archivePath = filePath + ".1";
+  const liveThere = existsSync(filePath);
+  const archiveThere = existsSync(archivePath);
+  if (!liveThere && !archiveThere) return 0;
   let skipped = 0;
   let skippedBytes = 0;
   const admits = replayScope(workspace);
@@ -4403,12 +4462,31 @@ export async function replayLog(filePath, workspace = "", {
 
   let count = 0;
   if (admits.orderDependent) {
-    for await (const line of linesFromStart(filePath)) {
-      if (!line) continue;
-      const evt = parse(line);
-      if (!usable(evt) || !admits(evt.payload)) continue;
-      replay(evt);
-      count++;
+    // Oldest first, so the archive comes BEFORE the live log — `admits` is
+    // stateful and answers from what it has already seen, which is the whole
+    // reason this branch reads forwards at all.
+    //
+    // Whether the archive is worth reading is decided by a probe rather than by
+    // this branch's own reader, because this branch has no stopping rule: it
+    // pushes everything and lets the ring evict. The probe reads the LIVE log
+    // backwards, unscoped, and is bounded by the ring, so it costs at most one
+    // ring's worth of parsing from the end of the file and nothing more. An
+    // unscoped count is an upper bound on what scoping will admit, so "this
+    // cannot fill the ring" is certain when the probe says so — and when it
+    // says the opposite a scoped deck may still under-fill, which is precisely
+    // what it does today. Nothing regresses; the case a rotation creates, where
+    // the live log holds a handful of lines, is the one that is fixed.
+    const files = [];
+    if (archiveThere && !(liveThere && await fillsRing(filePath, maxEvents, maxChars))) files.push(archivePath);
+    if (liveThere) files.push(filePath);
+    for (const file of files) {
+      for await (const line of linesFromStart(file)) {
+        if (!line) continue;
+        const evt = parse(line);
+        if (!usable(evt) || !admits(evt.payload)) continue;
+        replay(evt);
+        count++;
+      }
     }
   } else {
     // Newest first, so this is filled back to front and then walked in reverse
@@ -4428,16 +4506,24 @@ export async function replayLog(filePath, workspace = "", {
     // records logs reaching gigabytes.
     const newestFirst = [];
     let stagedChars = 0;
-    for await (const line of linesFromEnd(filePath)) {
-      if (!line) continue;
-      const evt = parse(line);
-      if (!usable(evt) || !admits(evt.payload)) continue;
-      newestFirst.push(evt);
-      stagedChars += ENVELOPE_CHARS + payloadChars(evt.payload);
-      // Everything older than this would be evicted by the events already held,
-      // so reading further is work whose only result is throwing it away.
-      // Either limit reaching its ceiling means exactly that.
+    // Newest generation first. The second pass runs only if the first stopped
+    // because it ran out of FILE rather than because it reached a bound, which
+    // is the "cannot fill the ring" test stated exactly and for free — and it
+    // is also why a full live log never opens the archive at all.
+    for (const file of liveThere ? [filePath, archivePath] : [archivePath]) {
+      if (!existsSync(file)) continue;
       if (newestFirst.length >= maxEvents || stagedChars >= maxChars) break;
+      for await (const line of linesFromEnd(file)) {
+        if (!line) continue;
+        const evt = parse(line);
+        if (!usable(evt) || !admits(evt.payload)) continue;
+        newestFirst.push(evt);
+        stagedChars += ENVELOPE_CHARS + payloadChars(evt.payload);
+        // Everything older than this would be evicted by the events already held,
+        // so reading further is work whose only result is throwing it away.
+        // Either limit reaching its ceiling means exactly that.
+        if (newestFirst.length >= maxEvents || stagedChars >= maxChars) break;
+      }
     }
     for (let i = newestFirst.length - 1; i >= 0; i--) replay(newestFirst[i]);
     count = newestFirst.length;
@@ -4887,6 +4973,51 @@ async function resumeSse(req, res, lastId) {
 // Without persistence a restart wipes the canvas irrecoverably — replayLog has
 // no file to read — so the deck must not offer to do it.
 let _canRestart = false;
+// And a log that cannot be written is the same thing wearing a different hat.
+// This was a test of CONFIGURATION — `_onRestart != null && persist != null` —
+// so a deck whose `--history` named a read-only volume, a full one, or a
+// removable drive that was later unmounted answered `canRestart: true` while
+// not one event reached disk. Measured: 10 of 10 posts acknowledged, no file on
+// disk, `canRestart: true`. The press then lands on replayLog's
+// `if (!existsSync(filePath)) return 0` and takes the whole session history
+// with it — which is precisely the loss the flag exists to prevent.
+let _persistWritable = false;
+
+/**
+ * Can this deck be restarted without losing the canvas?
+ *
+ * Asked at the moment of the press rather than read off a boot-time flag,
+ * because the writable half of it changes while the deck runs: a drive
+ * unmounted or a volume filled mid-session is discovered by the appender, not
+ * by the probe. `failing` is log-writer's own count of paths inside a failure
+ * episode, and this process appends to exactly one log — so 1 means the log
+ * being drawn is not the log being kept.
+ */
+function canRestartNow() {
+  return _canRestart && _persistWritable && appendFailureStats(persistPath).failing === 0;
+}
+
+/**
+ * Is the log this deck was told to keep actually writable?
+ *
+ * One `open(path, "a")` and one close — the same pair every append pays, asked
+ * once at boot so the answer is known before the first event rather than after
+ * the first silent loss. It CREATES the file, which is what an append would do
+ * anyway and what makes the probe honest about the directory as well as the
+ * file: EROFS, EACCES and ENOENT all surface here.
+ */
+async function probeLogWritable(path) {
+  let handle = null;
+  try {
+    handle = await open(path, "a");
+    return true;
+  } catch (err) {
+    console.error(`${PRODUCT}: the event log ${path} is not writable (${err && err.message ? err.message : err}) — Restart is disabled, because it would replay a log this deck is not filling`);
+    return false;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
 
 async function handleVersion(req, res) {
   const { versionReport } = await import(
@@ -4929,7 +5060,7 @@ async function handleVersion(req, res) {
   // default em dash is what a browser should get.
   const rename = renameNotice({ invoked, pkgRoot: PKG_ROOT });
   send(res, 200, {
-    ...report, canRestart: _canRestart, invokedAs: invoked, renameFix: rename?.fix ?? null,
+    ...report, canRestart: canRestartNow(), invokedAs: invoked, renameFix: rename?.fix ?? null,
   });
 }
 
@@ -4958,6 +5089,11 @@ async function handleRestart(req, res) {
   // the whole canvas — replayLog has no file to read — and a destructive act
   // must not be prevented by a hidden button alone.
   if (!_canRestart) return send(res, 409, { ok: false, reason: "no_persist" });
+  // A configured log that cannot be written is the same destruction by another
+  // route, and it deserves its own word: "no_persist" would tell a user who
+  // passed `--history` that they had not, which is the sort of answer that
+  // sends someone looking in the wrong place. See canRestartNow.
+  if (!canRestartNow()) return send(res, 409, { ok: false, reason: "log_unwritable" });
 
   let wantUpgrade = false;
   if (req.method === "POST") {
@@ -5638,11 +5774,29 @@ export async function canonicalCwd(raw) {
  */
 async function handleClear(res) {
   const sharing = await logSharing();
+  const mineToEmpty = Boolean(sharing.path && sharing.mine);
+  // WAIT FOR THE QUEUE BEFORE EMPTYING THE FILE. Appends are fire-and-forget
+  // behind a promise chain inside log-writer.mjs, and the truncate consulted it
+  // in neither direction: a session mid-burst had its lines queued, the user
+  // pressed Clear, the file went to zero, and the queue then drained its
+  // PRE-CLEAR lines into the now-empty file. Measured — 564 bytes and three
+  // events of a cleared session, 2.5s after a Clear that answered
+  // `{"log":"cleared"}` against a file that was genuinely 0 bytes at the time.
+  // The next restart replays them, so sessions the user explicitly and
+  // irreversibly cleared come back.
+  //
+  // This is #698's residue by a different route, and it survives the ownership
+  // gate that fixed #698 precisely because it happens on the deck that DOES own
+  // the file. See flushAppends for why the wait is bounded.
+  if (mineToEmpty) await flushAppends(sharing.path);
   // Not `events.length = 0`: the ring is measured by a running total now, and
   // emptying the array without the total leaves a debt that never clears. See
   // clearEventBuffer.
   clearEventBuffer();
-  if (sharing.path && sharing.mine) truncate(sharing.path, 0).catch(() => {});
+  // Awaited now, where it used to be fired and forgotten. The flush above is
+  // worth nothing if the answer can go out — and the next event be appended —
+  // before the file has actually reached zero.
+  if (mineToEmpty) await truncate(sharing.path, 0).catch(() => {});
   // Drop the caches that gate an emit on "has this changed", because the
   // client is about to forget what they are comparing against: __clear makes
   // the reducer return a fresh state, so every session's name and every
@@ -5690,6 +5844,18 @@ function handleHealth(_req, res) {
     uptimeMs: Math.round(process.uptime() * 1000),
     workspace: _workspace,
     providers: _providers,
+    // WHETHER THE EVENTS BEING DRAWN ARE BEING KEPT. `seq` above counts what
+    // the deck accepted, and it counted a deck whose every append was failing
+    // exactly the same as one whose every append landed. `log` is the other
+    // half of that sentence: `writable` is the boot probe's answer, `failing`
+    // says the appender is inside a failure episode right now, and
+    // `failedLines` / `failedChars` are what has been attempted and lost since
+    // this deck started.
+    //
+    // No path. The health probe is a deliberately open route and this is the
+    // smallest set of facts that answers the question; the path is already in
+    // the banner for anyone standing at the terminal.
+    log: persistPath ? { writable: _persistWritable, ...appendFailureStats(persistPath) } : null,
   });
 }
 
@@ -6317,9 +6483,15 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);
+  _persistWritable = false;
   if (persist) {
     persistPath = resolve(persist);
     try { await mkdir(pdirname(persistPath), { recursive: true }); } catch {}
+    // Asked before the first event, so a log that cannot be written is a fact
+    // the deck states rather than one the user discovers by pressing Restart.
+    // The mkdir above is inside a bare try/catch, so its failure is already
+    // swallowed once by the time we get here — see _persistWritable.
+    _persistWritable = await probeLogWritable(persistPath);
     // `_workspace`, not `workspace`: the field has just been normalised on the
     // line above, and the replay has to answer the same question the live paths
     // answer with the same string. Passed rather than read off the module scope
