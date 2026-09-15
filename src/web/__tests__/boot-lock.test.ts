@@ -72,10 +72,16 @@ describe("one start at a time", () => {
   });
 
   it("is never read as a deck by anything that lists the registry", () => {
-    // hook/hook.js and the stale sweep in index.mjs both keep `*.json` only.
+    // The stale sweep in index.mjs keeps `*.json` only; the hook is narrower
+    // still and keeps `${pid}.json`, which is the only shape writeDiscovery has
+    // ever produced (installer.mjs:781). Either rule excludes the lock, and the
+    // narrow one excludes it twice over.
     expect(BOOT_LOCK_FILE.endsWith(".json")).toBe(false);
     const hook = readFileSync(fileURLToPath(new URL("../../../hook/hook.js", import.meta.url)), "utf8");
-    expect(hook).toMatch(/readdirSync\(DIR\)\.filter\(f => f\.endsWith\("\.json"\)\)/);
+    expect(hook).toMatch(/readdirSync\(DIR\)\.filter\(f => \/\^\\d\+\\\.json\$\/\.test\(f\)\)/);
+    // And the rule itself, rather than only its spelling: whatever the filter
+    // is, it must refuse this name.
+    expect(/^\d+\.json$/.test(BOOT_LOCK_FILE)).toBe(false);
   });
 });
 
