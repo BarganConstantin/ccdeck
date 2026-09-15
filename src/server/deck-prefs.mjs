@@ -353,76 +353,128 @@ let _chain = Promise.resolve();
  * installer.mjs's readSettingsForWrite, which is this policy on settings.json.
  */
 export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
-  const job = async () => {
-    const mk = deps.mkdir ?? mkdir;
-    const temp = deps.createTemp ?? createTemp;
-    const setMode = deps.chmod ?? chmod;
-    const drop = deps.unlink ?? unlink;
-    // `renameWithRetry`, not `rename` (#786). MoveFileExW refuses while any
-    // handle without FILE_SHARE_DELETE is open on either side, and Defender and
-    // the search indexer open a file the instant it is written — so on Windows
-    // a bare rename fails on a perfectly healthy machine, `POST /api/prefs`
-    // 500s through `guard`, and the notifications switch silently does not
-    // stick. POSIX rename(2) has no such rule, which is why this shipped green.
-    const mv = deps.rename ?? renameWithRetry;
-    const target = prefsPath(home);
-    const { prefs: prev, source, quarantined } = await loadPrefs(home, deps);
-    if (source === "unreadable") throw unreadablePrefs(target, "the read failed");
-    if (source === "corrupt" && !quarantined) {
-      throw unreadablePrefs(target, "it is not JSON and could not be moved aside");
-    }
-    // The LAN section merges rather than replaces, so a page toggling the
-    // switch does not have to send the passphrase back to keep it — and so
-    // nothing has to send a secret it was never given.
-    const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) } };
-    const next = normalise(merged);
-    await mk(prefsDir(home), { recursive: true, mode: 0o700 });
-    // `createTemp`, not a name built out of the pid alone.
-    //
-    // The splice browser-watch-store.mjs met is NOT the hazard here: `_chain`
-    // above serializes every write in this process, and two decks on one home
-    // have two pids. The hazard is the LEFTOVER. A deck killed between the
-    // create and the rename strands a temp file with this deck's private key
-    // in it under a name derived from its pid, the old code never unlinked one
-    // on failure either — and `writeFile`'s `mode` applies only when the call
-    // CREATES the file, so a later deck the OS hands that pid back adopted the
-    // stranded file whole, keeping whatever permissions it had, and wrote the
-    // key into it. O_EXCL is what turns a taken name into an error the caller
-    // handles instead, and it is also what makes PREFS_MODE binding from the
-    // first byte rather than a hope about what was there before. codex-auth.mjs
-    // argues all of this at length over the one other secret this deck stages
-    // through a temp file.
-    const { tmp, handle } = await temp(target, { mode: PREFS_MODE });
-    let landed = false;
-    try {
-      try {
-        await handle.writeFile(JSON.stringify(next, null, 2) + "\n", "utf8");
-        // The fsync is the half of "atomic" a rename alone does not buy. A
-        // rename orders the directory entry; it does not order the BYTES, so a
-        // machine that loses power just after it can come up with the entry
-        // pointing at a file that was never flushed — which is the truncated
-        // prefs.json this whole read path now exists to survive.
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      // The umask only ever clears bits off the creation mode, so the key is
-      // never wider than 0600 — but it can land narrower, and a prefs.json at
-      // 0400 is one this writer cannot replace next time. On Windows chmod's
-      // only effect is the read-only bit, and a read-only target is one no
-      // rename can replace. Pin it either way.
-      await setMode(tmp, PREFS_MODE);
-      await mv(tmp, target);
-      landed = true;
-    } finally {
-      // A temp left behind holds this deck's private key in cleartext.
-      if (!landed) await drop(tmp).catch(() => {});
-    }
-    return next;
-  };
+  return queued(() => save(() => patch, home, deps));
+}
+
+/**
+ * Change some of the preferences from what the write is about to READ.
+ *
+ * The twin of `updateStore` in browser-watch-store.mjs, made for the same
+ * reason and shaped the same way: `mutate(prev)` runs INSIDE the queued job,
+ * after that job's own `loadPrefs` and after the two guards that decide whether
+ * this file may be written at all, so the patch is a function of the file
+ * rather than of a copy somebody took earlier — and a caller that computes one
+ * never sees the defaults `loadPrefs` returns for a file it refused to write
+ * over.
+ *
+ * WHICH CALLERS NEED IT, AND WHY A PATCH IS NOT ENOUGH ON ITS OWN. `writePrefs`
+ * already merges field by field, so two writes naming two different fields
+ * cannot lose each other. What it cannot do is merge two writes of the SAME
+ * field, and three callers compute one whole field — `lan.manual` twice and
+ * `lan.aliases` once — out of `index.mjs`'s module-level `_prefs`, which is
+ * refreshed only when a previous write resolves. Two of them in one turn both
+ * read before either job runs, and the second patch is a whole array or a whole
+ * map without the first's entry in it: both answer 200, both panels redraw, one
+ * change is never written.
+ *
+ * Measured against this file in a temp directory, with those exact call shapes,
+ * starting from `manual: ["10.0.0.1:5000"]`:
+ *
+ *     memory manual  = ["10.0.0.1:5000","10.0.0.3:5002"]   # the onDial entry is gone
+ *     disk   manual  = ["10.0.0.1:5000","10.0.0.3:5002"]
+ *
+ * The alias route carried a comment claiming the opposite — "the whole map is
+ * rebuilt from the one on disk rather than sent by the page, so two tabs
+ * renaming two decks cannot undo each other" — which is the sentence this makes
+ * true.
+ *
+ * `mutate` returns a PATCH, not a whole state, so the merge doctrine above is
+ * unchanged: a field nobody mentions keeps its value. It may return nothing,
+ * which means "no change" and still rewrites the file with what it read.
+ */
+export async function updatePrefs(mutate, home = deckDataDir(), deps = {}) {
+  return queued(() => save(mutate, home, deps));
+}
+
+/** One read-modify-write, behind every other one. Both entry points go through
+ *  here so there is a single queue and a single merge. */
+function queued(job) {
   const started = _chain.then(job, job);
   _chain = started.then(() => {}, () => {});
   return started;
+}
+
+async function save(mutate, home, deps) {
+  const mk = deps.mkdir ?? mkdir;
+  const temp = deps.createTemp ?? createTemp;
+  const setMode = deps.chmod ?? chmod;
+  const drop = deps.unlink ?? unlink;
+  // `renameWithRetry`, not `rename` (#786). MoveFileExW refuses while any
+  // handle without FILE_SHARE_DELETE is open on either side, and Defender and
+  // the search indexer open a file the instant it is written — so on Windows
+  // a bare rename fails on a perfectly healthy machine, `POST /api/prefs`
+  // 500s through `guard`, and the notifications switch silently does not
+  // stick. POSIX rename(2) has no such rule, which is why this shipped green.
+  const mv = deps.rename ?? renameWithRetry;
+  const target = prefsPath(home);
+  const { prefs: prev, source, quarantined } = await loadPrefs(home, deps);
+  if (source === "unreadable") throw unreadablePrefs(target, "the read failed");
+  if (source === "corrupt" && !quarantined) {
+    throw unreadablePrefs(target, "it is not JSON and could not be moved aside");
+  }
+  // INSIDE THE JOB, after the read above and after the two guards that
+  // decide whether this file may be written at all — see `updatePrefs`.
+  // `writePrefs` hands over a constant here, which is what makes the two
+  // one function.
+  const patch = await mutate(prev);
+  // The LAN section merges rather than replaces, so a page toggling the
+  // switch does not have to send the passphrase back to keep it — and so
+  // nothing has to send a secret it was never given.
+  const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) } };
+  const next = normalise(merged);
+  await mk(prefsDir(home), { recursive: true, mode: 0o700 });
+  // `createTemp`, not a name built out of the pid alone.
+  //
+  // The splice browser-watch-store.mjs met is NOT the hazard here: `_chain`
+  // above serializes every write in this process, and two decks on one home
+  // have two pids. The hazard is the LEFTOVER. A deck killed between the
+  // create and the rename strands a temp file with this deck's private key
+  // in it under a name derived from its pid, the old code never unlinked one
+  // on failure either — and `writeFile`'s `mode` applies only when the call
+  // CREATES the file, so a later deck the OS hands that pid back adopted the
+  // stranded file whole, keeping whatever permissions it had, and wrote the
+  // key into it. O_EXCL is what turns a taken name into an error the caller
+  // handles instead, and it is also what makes PREFS_MODE binding from the
+  // first byte rather than a hope about what was there before. codex-auth.mjs
+  // argues all of this at length over the one other secret this deck stages
+  // through a temp file.
+  const { tmp, handle } = await temp(target, { mode: PREFS_MODE });
+  let landed = false;
+  try {
+    try {
+      await handle.writeFile(JSON.stringify(next, null, 2) + "\n", "utf8");
+      // The fsync is the half of "atomic" a rename alone does not buy. A
+      // rename orders the directory entry; it does not order the BYTES, so a
+      // machine that loses power just after it can come up with the entry
+      // pointing at a file that was never flushed — which is the truncated
+      // prefs.json this whole read path now exists to survive.
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    // The umask only ever clears bits off the creation mode, so the key is
+    // never wider than 0600 — but it can land narrower, and a prefs.json at
+    // 0400 is one this writer cannot replace next time. On Windows chmod's
+    // only effect is the read-only bit, and a read-only target is one no
+    // rename can replace. Pin it either way.
+    await setMode(tmp, PREFS_MODE);
+    await mv(tmp, target);
+    landed = true;
+  } finally {
+    // A temp left behind holds this deck's private key in cleartext.
+    if (!landed) await drop(tmp).catch(() => {});
+  }
+  return next;
 }
 
 /**
