@@ -256,21 +256,96 @@ export function identityFrom(secret) {
  * long-lived group key, which meant a single recorded transfer stayed readable
  * to anybody who ever learned the passphrase.
  *
- * NOT FORWARD-SECRET, whatever this used to say. It said "the ephemeral halves
- * are gone when the socket is", and there are no ephemeral halves: `secret` and
- * `peerPub` are the two decks' LONG-TERM keys, and everything else that goes
- * into this is in a recording of the handshake. So whoever later holds either
- * private key can derive this key for any connection they recorded, and open
- * whatever was sealed under it — the frames after the handshake included (see
- * frameChannel). Closing that takes an ephemeral X25519 pair per connection,
- * which is a change to the handshake and not one to make in passing.
+ * AND FORWARD-SECRET BETWEEN TWO DECKS THAT BOTH SAY SO, which until #1120 no
+ * connection was. Without `ephemeral` this is the key every deck derived
+ * before: X25519 between the two decks' LONG-TERM keys, over a transcript
+ * whose every field crossed the network in the clear. So whoever recorded a
+ * connection and later took either deck's private key — a 0600 file, and also
+ * a file that rides along in backups and in a `~/.claude` somebody copied —
+ * could derive that connection's key and open all of it: every frame after the
+ * handshake, the version card, and each credential a `have` carried, logins
+ * since rotated or removed included, and the other deck's half of the
+ * conversation with them.
+ *
+ * With `ephemeral`, each end also brings a key pair made for this connection
+ * alone (ephemeralPair), and the key is HKDF over four X25519 results rather
+ * than one. Which four is Noise's KK pattern (noiseprotocol.org/noise.html
+ * §7.5): both static keys known in advance, `-> e, es, ss` and `<- e, ee, se`.
+ * How they are combined is Signal's X3DH (§2.2, §3.3): concatenated in a fixed
+ * order, each a fixed 32 bytes so no two orderings read alike, into one HKDF —
+ * without X3DH's run of 0xFF bytes in front, which it needs only because its
+ * keys also sign, and a deck's never do. HKDF's info is the transcript, the
+ * way TLS 1.3 derives every secret over the transcript of the handshake that
+ * made it (RFC 8446 §7.1).
+ *
+ *   ss  static × static — the one term there was, and still what makes the key
+ *       need a long-term key at all: whoever held both ephemeral halves and
+ *       neither static key would have ee, es and se, and not this.
+ *   ee  ephemeral × ephemeral — the forward secrecy, which is #1120. Neither
+ *       deck keeps its half past this call (see lan-socket.mjs), so once a
+ *       connection is over, no key anybody still holds — both long-term keys
+ *       included — recomputes this one.
+ *   es  the dialler's ephemeral × the answerer's static key, and
+ *   se  the dialler's static key × the answerer's ephemeral. Neither adds
+ *       forward secrecy; each stops a stolen key being worn as SOMEBODY ELSE,
+ *       which ss cannot. Whoever holds B's private key computes DH(b, A) just
+ *       as A does, so with ss and ee alone they could dial B as A — or as any
+ *       deck B has paired — and B would prove itself to them and hand over
+ *       every login it shares. With se they need A's key or B's ephemeral as
+ *       well, and hold neither. es is the same guard the other way round, for
+ *       a deck whose own key is stolen and which dials out. Noise calls it
+ *       resistance to key-compromise impersonation (§7.7, source property 2).
+ *
+ * `role` says which end this is — "caller" for the deck that dialled — because
+ * each end computes es and se from different halves and both must land in the
+ * same place. Named by who dialled and never by fingerprint, for frameKeys'
+ * reason: a copied ~/.claude gives both ends one fingerprint.
+ *
+ * Its own label in the info string, so a key from this schedule and one from
+ * the other are never the same key, whatever two transcripts look like. The
+ * four results are zeroed as soon as HKDF has read them; the ephemeral private
+ * half never leaves the KeyObject it was made in, and nothing writes it
+ * anywhere. That is all the forgetting a JavaScript process can promise, and
+ * it is what forward secrecy asks of it: nothing of the ephemeral side left to
+ * find once the connection is gone.
+ *
+ * THROWS on a key X25519 cannot use: a type other than X25519, which readPub
+ * now refuses before this, or one of the few low-order points, whose shared
+ * secret is all zeros (RFC 7748 §6.1) and which OpenSSL refuses rather than
+ * returns. The socket layer refuses the handshake when it does.
  */
-export function sessionKey(secret, peerPub, transcript) {
+export function sessionKey(secret, peerPub, transcript, ephemeral = null) {
   const priv = createPrivateKey({ key: Buffer.from(secret, "base64"), format: "der", type: "pkcs8" });
   const theirs = createPublicKey({ key: Buffer.from(peerPub, "base64"), format: "der", type: "spki" });
-  const shared = diffieHellman({ privateKey: priv, publicKey: theirs });
-  return Buffer.from(hkdfSync("sha256", shared, Buffer.alloc(0),
-    Buffer.from(`ccdeck-lan-v${PROTOCOL}|${transcript}`, "utf8"), 32));
+  if (!ephemeral) {
+    const shared = diffieHellman({ privateKey: priv, publicKey: theirs });
+    return Buffer.from(hkdfSync("sha256", shared, Buffer.alloc(0),
+      Buffer.from(`ccdeck-lan-v${PROTOCOL}|${transcript}`, "utf8"), 32));
+  }
+  const { role, priv: mine, peer } = ephemeral;
+  if (role !== "caller" && role !== "listener") throw new Error(`no such end: ${role}`);
+  const theirsNow = createPublicKey({ key: Buffer.from(peer, "base64"), format: "der", type: "spki" });
+  const made = [];
+  const dh = (privateKey, publicKey) => {
+    const out = diffieHellman({ privateKey, publicKey });
+    made.push(out);
+    return out;
+  };
+  try {
+    const ss = dh(priv, theirs);
+    const ee = dh(mine, theirsNow);
+    const mineWithTheirStatic = dh(mine, theirs);
+    const staticWithTheirs = dh(priv, theirsNow);
+    const [es, se] = role === "caller"
+      ? [mineWithTheirStatic, staticWithTheirs]
+      : [staticWithTheirs, mineWithTheirStatic];
+    const ikm = Buffer.concat([ss, ee, es, se]);
+    made.push(ikm);
+    return Buffer.from(hkdfSync("sha256", ikm, Buffer.alloc(0),
+      Buffer.from(`ccdeck-lan-v${PROTOCOL}|${EPHEMERAL}|${transcript}`, "utf8"), 32));
+  } finally {
+    for (const b of made) b.fill(0);
+  }
 }
 
 /**
@@ -280,9 +355,28 @@ export function sessionKey(secret, peerPub, transcript) {
  * two build differently is a handshake that never agrees and a bug that only
  * appears between two machines. Caller first, always, so the order does not
  * depend on which end is asking.
+ *
+ * BOTH EPHEMERAL KEYS TOO, when the two decks mix them (#1120), as they
+ * arrived. Not only inside ee: this string is HKDF's info in sessionKey, and
+ * each proof is an HMAC under the key that comes out, so the proofs the static
+ * keys make cover these two strings by name. A middleman who swaps either key
+ * for one of their own has changed what one end proves over, and that end's
+ * proof fails at the other whatever the arithmetic would have done. Noise
+ * mixes every public key it sends into its handshake hash for the same reason
+ * (§5.3). Base64 has no `|`, and readEphemeral takes a key only in the one
+ * spelling its bytes encode to, so no field can spill into the next.
+ *
+ * Given at all, both are written. One missing prints as `undefined` and
+ * matches nothing at the other end; it does not fall back to the four-field
+ * string, because a transcript that quietly dropped a key is the downgrade this
+ * is here to refuse.
  */
-export function handshakeTranscript(callerFp, listenerFp, callerChallenge, listenerChallenge) {
-  return `${callerFp}|${listenerFp}|${callerChallenge}|${listenerChallenge}`;
+export function handshakeTranscript(callerFp, listenerFp, callerChallenge, listenerChallenge,
+  callerEphemeral, listenerEphemeral) {
+  const fixed = `${callerFp}|${listenerFp}|${callerChallenge}|${listenerChallenge}`;
+  return callerEphemeral === undefined && listenerEphemeral === undefined
+    ? fixed
+    : `${fixed}|${callerEphemeral}|${listenerEphemeral}`;
 }
 
 /**
@@ -291,14 +385,58 @@ export function handshakeTranscript(callerFp, listenerFp, callerChallenge, liste
  * It arrives from the network before anything has been agreed, so it is checked
  * for being an X25519 public key at all rather than trusted to be one — a
  * string that is not gets a refusal here instead of a throw three frames later.
+ *
+ * AN X25519 KEY, NOT MERELY A KEY, and until #1120 it only checked the second.
+ * Any SPKI parsed, so an Ed25519 or a P-256 key came through as a deck's
+ * public key, and the throw this promised to prevent happened one line later,
+ * in sessionKey: `Incompatible key types for Diffie-Hellman`, inside the
+ * listener's `data` handler, before anybody was trusted. Nothing catches a
+ * throw there. Measured on Node 24 with a listener in a process of its own:
+ * one `hello` carrying an Ed25519 key, and the process exited with code 1.
+ * No deck has ever sent anything but X25519 (newKeypair), so no deck is
+ * refused by this.
  */
 export function readPub(raw) {
+  const der = x25519(raw);
+  return der ? { pub: raw, fp: fingerprint(der) } : null;
+}
+
+/**
+ * An ephemeral public key somebody sent, or null: checked exactly as readPub
+ * checks a static one, and then held to one spelling.
+ *
+ * The spelling matters here and not for a static key, which only ever reaches
+ * the transcript as its fingerprint. This string goes in as it arrived, among
+ * fields joined by `|` with no lengths, and base64 decoding skips what it does
+ * not understand, `|` included — so a key that decoded to the right bytes
+ * could still carry a separator. Only the exact text those bytes encode to is
+ * taken.
+ */
+export function readEphemeral(raw) {
+  const der = x25519(raw);
+  return der && der.toString("base64") === raw ? raw : null;
+}
+
+/** The DER of an X25519 public key, from the base64 a deck sends, or null. */
+function x25519(raw) {
   if (typeof raw !== "string" || raw.length < 40 || raw.length > 128) return null;
   try {
     const der = Buffer.from(raw, "base64");
-    createPublicKey({ key: der, format: "der", type: "spki" });
-    return { pub: raw, fp: fingerprint(der) };
+    return createPublicKey({ key: der, format: "der", type: "spki" }).asymmetricKeyType === "x25519" ? der : null;
   } catch { return null; }
+}
+
+/**
+ * A key pair for one connection and no other (#1120).
+ *
+ * The private half stays the KeyObject it was made as — never exported, never
+ * a string, which JavaScript could not wipe — and the end that made it lets go
+ * of it the moment sessionKey has used it. The public half is what travels, as
+ * the same base64 SPKI a static key travels as.
+ */
+export function ephemeralPair() {
+  const { publicKey, privateKey } = generateKeyPairSync("x25519");
+  return { priv: privateKey, pub: publicKey.export({ type: "spki", format: "der" }).toString("base64") };
 }
 
 // ── the invite ──────────────────────────────────────────────────────────────
@@ -1013,17 +1151,56 @@ export function open(key, { iv, tag, body }, aad) {
  *  later frame format is a new word an older deck simply does not recognise. */
 export const SEALS = "seal1";
 
+/**
+ * What a deck of this version ends the random part of its challenge with, to
+ * say it mixes a key pair made for the connection into the connection's key
+ * (#1120; see sessionKey): the four bytes of "eph1" in ASCII, which in the hex
+ * a challenge is written in is `65706831`.
+ *
+ * IN THE CHALLENGE FOR THE REASON `.seal1` IS, and stripped it fails the same
+ * way. Mixing needs a new field — each end's ephemeral public key, `epk` — and
+ * an older deck binds nothing but the fingerprints and the two challenges. So
+ * a deck that took "no `epk`" to mean "an older peer" would be taken back to a
+ * key with no forward secrecy by anybody who deleted the field both ways, with
+ * both proofs still good. The mark goes where both proofs already reach: each
+ * end decides from the two challenges, each end's own challenge is the one it
+ * binds, and a middleman who takes the mark off either leaves the two ends on
+ * different transcripts — and on different schedules — so the dialler's proof
+ * fails at the listener before a frame is sent. And once both challenges say
+ * so, a missing or unusable `epk` is refused, never read as an older deck.
+ *
+ * IN THE RANDOM PART RATHER THAN AS A WORD, which is TLS 1.3's own answer to
+ * the same problem: its downgrade sentinel is a fixed value in the last bytes
+ * of ServerHello.random (RFC 8446 §4.1.3), a field the older handshake already
+ * covers and reads as nothing but random. Here that keeps a challenge the
+ * shape #810 gave it — 32 hex characters and `.seal1` — which #810's decks
+ * send too and its suite pins. It costs 32 of the 128 random bits, and 96 is
+ * still no challenge anybody sees twice. And a deck from #810 whose sixteen
+ * random bytes happen to end in these four, one handshake in 2^32, reads as a
+ * deck that mixes and sent no key: that round is refused rather than
+ * downgraded, and the next one has a new challenge.
+ */
+export const EPHEMERAL = "eph1";
+const EPHEMERAL_HEX = Buffer.from(EPHEMERAL, "ascii").toString("hex");
+const MIXES = new RegExp(`^[0-9a-f]{24}${EPHEMERAL_HEX}\\.`);
+
 /** Letters, digits, `.`, `_` and `-`, bounded. Ours are 38 characters and an
  *  older deck's are 32; the bound is only there so a challenge is never the
  *  largest thing a stranger can make this hash. */
 const CHALLENGE = /^[0-9A-Za-z._-]{1,128}$/;
 
-/** This deck's challenge for one connection: sixteen fresh random bytes, and
- *  the mark that says it seals — unless it is speaking as a deck from before
- *  #810, which is how the suite plays one. */
-export function challengeFor({ seals = true } = {}) {
-  const nonce = randomBytes(16).toString("hex");
-  return seals ? `${nonce}.${SEALS}` : nonce;
+/** This deck's challenge for one connection: twelve fresh random bytes and the
+ *  four that say it mixes, then the mark that says it seals. A deck speaking as
+ *  one of #810's version sends sixteen random bytes and the mark, and one from
+ *  before #810 sixteen random bytes and nothing, which is how the suite plays
+ *  each. Mixing rides on sealing: no deck was ever released that did one
+ *  without the other, so `seals: false` says neither. */
+export function challengeFor({ seals = true, ephemeral = seals } = {}) {
+  if (!seals) return randomBytes(16).toString("hex");
+  const nonce = ephemeral
+    ? `${randomBytes(12).toString("hex")}${EPHEMERAL_HEX}`
+    : randomBytes(16).toString("hex");
+  return `${nonce}.${SEALS}`;
 }
 
 /** A challenge a peer sent, or null for one no deck sends — see "WHICH IS WHY
@@ -1035,6 +1212,14 @@ export function readChallenge(raw) {
 /** Whether the deck that made this challenge said it seals. */
 export function sealsFrames(challenge) {
   return typeof challenge === "string" && challenge.endsWith(`.${SEALS}`);
+}
+
+/** Whether the deck that made this challenge said it mixes a key pair of its
+ *  own into the connection's key — see EPHEMERAL. Only in a challenge that
+ *  says it seals as well, so a deck from before #810, whose challenge is
+ *  sixteen random bytes and nothing else, can never be taken for one. */
+export function mixesEphemeral(challenge) {
+  return sealsFrames(challenge) && MIXES.test(challenge);
 }
 
 /** Which way a frame is going, named by who dialled — never by fingerprint,
