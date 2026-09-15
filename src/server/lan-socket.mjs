@@ -121,6 +121,52 @@ export const MAX_FRAME_BYTES = MAX_MANIFEST_BYTES;
  *  in a peer or somebody holding sockets open to see what happens. */
 export const MAX_SOCKETS = 16;
 
+/**
+ * And the most any ONE host may take of that, because a budget nobody
+ * apportions belongs to whoever grabs it first.
+ *
+ * The cap above is deliberate and documented and it was not shared out, so a
+ * host that did nothing at all could hold the whole of it. Measured against a
+ * real listener with a paired caller:
+ *
+ *     baseline handshake:                OK
+ *     with 16 silent sockets held:       REFUSED: peer closed the connection
+ *     with 16 idle authed sockets held:  REFUSED, and still refused 11s later
+ *
+ * No key, no trust, not one byte sent — sixteen TCP connections and silence.
+ * Every further connection is destroyed on arrival, a paired deck's included,
+ * and re-dialling on a cycle shorter than HANDSHAKE_MS holds it there. Outbound
+ * still works, so the shape of it is "this deck becomes unreachable" rather
+ * than "sync stops" — but a deck nobody can reach is a deck that has stopped
+ * healing logins for everyone pointed at it.
+ *
+ * FOUR RATHER THAN THE OBVIOUS TWO. One round plus one dial-back is two, and
+ * two decks on ONE machine is a supported setup — it is how this gets tested,
+ * and `reuseAddr` exists for it — so the honest ceiling from one address is
+ * twice that. It still means no single host can take more than a quarter of the
+ * table, which is the property that matters.
+ */
+export const MAX_SOCKETS_PER_HOST = 4;
+
+/**
+ * How long a socket may say nothing before it is dropped, at any point.
+ *
+ * HANDSHAKE_MS covers the part before `authed` and stops there: it is cleared
+ * the moment a peer authenticates, and after that a socket had no deadline of
+ * any kind — `live` shrank only on close or error. So a paired deck that
+ * completed four handshakes and then went quiet held its whole share of the
+ * table for as long as its process lived, which makes the budget a permanent
+ * lease rather than a rate limit.
+ *
+ * A round is a request and a response. The caller's own per-frame bell is
+ * ROUND_MS (10s) in lan-engine, and a `want` puts a claude-swap subprocess on
+ * the far side between the two, so a legitimate gap can approach that. Thirty
+ * seconds is three times the longest honest silence and half the gap between
+ * rounds, and a round gets a fresh socket anyway — lan-engine destroys it in
+ * its own `finally`.
+ */
+export const IDLE_MS = 30_000;
+
 /** The shortest gap between two "I am here too" replies to a stranger. Long
  *  enough that a burst of decks starting together cannot make a storm, short
  *  enough that starting two decks by hand feels instant. */
@@ -372,15 +418,49 @@ export function createSyncServer({
   /** One was used. The caller stores the pairing and retires the invite: a
    *  token that pairs twice is a token worth stealing twice. */
   onInviteUsed,
+  /** How long a socket may say nothing before it is dropped — see IDLE_MS,
+   *  which is what the deck runs on. A parameter only so the suite can drive
+   *  the reclaim in a few hundred milliseconds rather than half a minute; a
+   *  case that slept for the real value would be thirty seconds of CI per run
+   *  and would still only be checking a timer. */
+  idleMs = IDLE_MS,
 } = {}) {
   let server = null;
   const live = new Set();
 
+  /** Which host a socket came from, in one spelling. Node reports an IPv4 peer
+   *  on a dual-stack listener as `::ffff:127.0.0.1`, and two spellings of one
+   *  address would be two budgets. Empty for a socket already going away, which
+   *  is why the count below only ever matches non-empty ones. */
+  const from = sock => sock.remoteAddress?.replace(/^::ffff:/, "") ?? "";
+
   const onConnection = sock => {
     if (!secret || live.size >= MAX_SOCKETS) { sock.destroy(); return; }
+    // AND NOT ALL OF IT TO ONE CALLER. The table is small on purpose; what was
+    // missing is that it was not shared out, so the cheapest thing on the
+    // network — connect, say nothing — took the whole of it. See
+    // MAX_SOCKETS_PER_HOST.
+    //
+    // An address we cannot read is counted by the total alone rather than
+    // lumped together with every other unreadable one: an accepted TCP socket
+    // always has a peer, so an empty answer here is a socket already on its way
+    // out, and treating those as one host would let a closing connection refuse
+    // a real one.
+    const here = from(sock);
+    if (here) {
+      let mine = 0;
+      for (const s of live) if (from(s) === here) mine++;
+      if (mine >= MAX_SOCKETS_PER_HOST) { sock.destroy(); return; }
+    }
     live.add(sock);
     sock.setEncoding("utf8");
     sock.setNoDelay(true);
+    // ARMED HERE RATHER THAN AT `authed`, and that is the point of it: the
+    // handshake deadline below is cleared the moment a peer authenticates, and
+    // this is the one that is not. It is longer than HANDSHAKE_MS, so it never
+    // decides the outcome of a handshake — it is what ends a socket that has
+    // gone quiet afterwards, which nothing used to.
+    sock.setTimeout(idleMs, () => sock.destroy());
 
     let authed = false;
     let peerFp = null;
