@@ -125,9 +125,12 @@ beforeAll(async () => {
   const warn = console.warn;
   console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(" ")); };
   try {
-    // No providers: this boots for the log alone, and the Codex rollout watcher
-    // would add events of its own to the buffer being asserted on.
-    server = await startServer({ port: 0, persist: LIVE_LOG, workspace: "", codex: false, claude: false });
+    // No Codex: this boots for the log alone, and the Codex rollout watcher
+    // would add events of its own to the buffer being asserted on. `claude`
+    // stays TRUE, and since #1004 that matters: the boot replay is gated on the
+    // providers the same way live capture always was, so a deck told it is
+    // watching neither CLI replays nothing — and this log is Claude's.
+    server = await startServer({ port: 0, persist: LIVE_LOG, workspace: "", codex: false, claude: true });
   } finally {
     console.warn = warn;
   }
