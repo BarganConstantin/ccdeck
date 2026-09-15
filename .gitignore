@@ -6,3 +6,17 @@ dist
 # Written by the CI test step (`--outputFile.json`), under src/web because
 # vitest resolves it against its own root. Never wanted in a commit.
 vitest-report.json
+# Packing is this repo's own way of checking a release — `npm pack` is what
+# tarball-install-smoke.test.ts and the `floor` job both run, and both pass
+# `--pack-destination` so their tarball lands in a temp directory. A bare
+# `npm pack` typed by hand does not: it drops `ccdeck-<version>.tgz` in the
+# root, untracked, one `git add .` away from a commit.
+#
+# That is how `agents-deck-3.19.0.tgz` got in (4a25c6f, a change set about
+# service installation) and it stayed: 890 KB, the largest tracked file in the
+# repo, ahead of the hero screenshot, pinned to a package name the README now
+# says is no longer published. Nothing referenced it and it was never in
+# `package.json` `files`, so the entire cost was clone weight — and the rule
+# below is what stops the next one, since the file itself is the only thing
+# the deletion fixed.
+*.tgz

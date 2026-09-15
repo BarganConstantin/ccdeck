@@ -186,7 +186,6 @@ jobs:
             }
           '
 
-  # ── The release ─────────────────────────────────────────────────────────
   # ── the floor, proved rather than advertised ────────────────────────────────
   #
   # package.json says `engines: { node: ">=18" }` and the README carries a badge
@@ -306,11 +305,67 @@ jobs:
           [ "$fail" = "0" ] && echo "floor ok on $(node --version)"
           exit "$fail"
 
+  # ── the types, actually checked ─────────────────────────────────────────────
+  #
+  # `npm run build` is `vite build`, and Vite transpiles TypeScript with esbuild,
+  # which STRIPS types without checking them. A type error does not fail the
+  # build; it produces a working bundle with a hole in it. So until this job
+  # existed the green matrix said nothing at all about type correctness, and the
+  # `"strict": true` in tsconfig.json was enforced only by whoever remembered to
+  # type `npm run typecheck` before pushing (#961).
+  #
+  # That is the same shape as the skip-gate problem the `test` job reasons about
+  # at length above, one step earlier: there, a check that could quietly stop
+  # running; here, a check that never started. A script nothing invokes is not a
+  # guarantee, it is a suggestion.
+  #
+  # ONE LEG, not a fourth column on the matrix. `tsc` reads the same sources and
+  # the same tsconfig on all three operating systems and answers identically —
+  # nothing in this project's types is conditioned on the platform — so running
+  # it three times buys nothing and costs a wait. Running it on its own also
+  # makes it fail FAST: a type error is reported in well under a minute instead
+  # of behind the slowest leg of a matrix that builds and boots.
+  #
+  # Node 22, matching the other jobs deliberately: node-floor.test.ts reads every
+  # `node-version:` in this file back out and compares the set against
+  # `engines.node` and its registered gap, so a different version here would be a
+  # finding there rather than a free choice.
+  #
+  # WHAT IT CHECKS is tsconfig.build.json — `src/web` minus `src/web/__tests__` —
+  # and that narrowness is a stated choice, not a leftover. The suite imports the
+  # server's untyped `.mjs` modules behind `@ts-expect-error`, so checking it
+  # produces ~200 TS7016s that say nothing about the app; vite.config.ts is out
+  # for a duller reason spelled out in that file. The tests are checked by being
+  # run, which is the job above.
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # No build step. `tsc --noEmit` reads sources, not artifacts, and the point
+      # of this job is precisely that the build cannot answer the question.
+      - name: Typecheck
+        run: npm run typecheck
+
+  # ── The release ─────────────────────────────────────────────────────────
   publish:
-    # Every leg. `needs` on a matrix job waits for all of them and requires all
-    # of them to have succeeded, so a red Windows leg blocks the release even
-    # though fail-fast: false let the other two finish.
-    needs: [test, floor]
+    # Every leg, and every gate. `needs` on a matrix job waits for all of its
+    # legs and requires all of them to have succeeded, so a red Windows leg
+    # blocks the release even though fail-fast: false let the other two finish —
+    # and `typecheck` is in the list for the same reason the other two are: a
+    # check that cannot stop a publish is a check the publish does not have.
+    needs: [test, floor, typecheck]
     # The workflow now runs on pushes and pull requests too; this keeps the
     # publish job itself on exactly the two triggers it had before.
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}

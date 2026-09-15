@@ -190,8 +190,13 @@ describe("the register of conditionally-skipped cases", () => {
     // hand-written list of condition names had to be edited every time a probe
     // was added, and the edit was easy to make without asking whether the new
     // probe belonged in it — which is how a register grows a hole.
+    // Seven since #962 added a third `!existsSync(dist)` site — notices-bundle
+    // .test.ts, which reads the built chunks to decide what the third-party
+    // notices must attribute. The number is stated rather than derived on
+    // purpose: it is the one place a new probe gate has to be acknowledged by a
+    // human, and this file going red on the day one lands is the acknowledgement.
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(6);
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(7);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The remaining probe site is the read-only-directory one, the only probe with

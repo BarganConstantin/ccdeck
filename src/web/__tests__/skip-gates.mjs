@@ -113,11 +113,14 @@ export const CONDITIONS = {
     // about the machine. The inventory test pins that step's existence for
     // exactly this reason.
     //
-    // Two sites now, and the second raises the stakes: theme-first-paint's one
-    // case reads the built page, while tarball-install-smoke's nine PACK that
-    // build and run what comes out. A leg that stops building loses the only
-    // coverage the shipped package has, so this condition answering `true` in
-    // CI is the single most expensive silent skip in the register.
+    // Three sites now, and each raises the stakes: theme-first-paint's one case
+    // reads the built page, tarball-install-smoke's nine PACK that build and run
+    // what comes out, and notices-bundle's four read the built chunks to decide
+    // what THIRD_PARTY_NOTICES.md must attribute — an artifact question with a
+    // licensing answer, which no amount of reading the sources can settle. A leg
+    // that stops building loses the only coverage the shipped package has, so
+    // this condition answering `true` in CI is the single most expensive silent
+    // skip in the register.
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
   },
@@ -178,6 +181,13 @@ export const GATES = [
   { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 2 },
 
   { file: "theme-first-paint.test.ts", gate: "it.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 1 },
+  // #962's four cases, which read dist/web/assets rather than dist/web/index
+  // .html: what strings the built chunks actually contain, and therefore which
+  // packages THIRD_PARTY_NOTICES.md must attribute. Same gate as its two
+  // neighbours because the same build step satisfies it, and the same stakes —
+  // without a build there is no artifact to derive the notices from, and the
+  // document would be checked against nothing at all.
+  { file: "notices-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 4 },
   // The whole tarball block. It packs what is on disk with `--ignore-scripts`,
   // so a leg that has not built has nothing honest to pack — and a tarball
   // without dist/web does not boot at all, which would make this a timeout
