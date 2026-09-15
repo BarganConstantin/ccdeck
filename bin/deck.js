@@ -1679,6 +1679,18 @@ async function shutdown(code = 0) {
       await discovery?.stop();
       if (discoveryFile) await removeDiscovery(discoveryFile);
     } catch { /* the sweep at the next boot gets it */ }
+    // THE LINES WE ALREADY SAID WE HAD. /api/event answers {ok:true, seq}
+    // before the append lands — right for the hook, which holds a 1.9s cap and
+    // must not wait on a filesystem — so an exit that waits only for the
+    // listener abandons whatever is still queued. Measured: 40 posts
+    // acknowledged, 12 written. The restart path is the one that costs most,
+    // since the replacement deck rebuilds its canvas from the log before it
+    // binds. Bounded inside drainAppends, so a wedged filesystem cannot hold
+    // the exit; a deadline reached is the old behaviour.
+    try {
+      const { drainAppends } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
+      await drainAppends();
+    } catch { /* nothing queued, or the module never loaded */ }
     // No server yet means nothing to drain and nothing to hand the port over to,
     // so the exit is the whole of the shutdown.
     if (!server) return process.exit(code);

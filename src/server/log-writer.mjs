@@ -293,6 +293,48 @@ export function appendLogLine(filePath, line) {
 }
 
 /**
+ * Wait for every queued append to land, bounded.
+ *
+ * The deck answers `{ok:true, seq}` before the line reaches disk — pushEvent
+ * calls appendLogLine fire-and-forget, and the 200 goes out on the next
+ * statement. That is the right shape for the hook, which holds a 1.9s cap and
+ * must not wait on a filesystem. It is the wrong shape for an exit: shutdown
+ * waited for the listener to drain and for nothing else, so a backlog was
+ * abandoned. Measured on a sandboxed deck, 40 concurrent posts then SIGTERM:
+ *
+ *   acknowledged 200: 40 of 40
+ *   lines written:    12
+ *
+ * Twenty-eight events the deck had told the hook were recorded. The twelve
+ * that landed were whole — the single write(2) holds — so this is the queue
+ * being dropped, not a torn line.
+ *
+ * The restart path is the one that costs most: the replacement deck rebuilds
+ * its canvas from events.jsonl before it binds, so the sessions and tool calls
+ * in the dropped tail leave the board permanently.
+ *
+ * BOUNDED, because a wedged filesystem must not hold the exit hostage — the
+ * whole point of the fire-and-forget shape is that no caller waits on the disk
+ * indefinitely, and that has to stay true of the last caller too. A deadline
+ * reached is the old behaviour, which is no worse than before.
+ */
+export function drainAppends(ms = 3000) {
+  const pending = [...appendTails.values()];
+  if (!pending.length) return Promise.resolve(true);
+  let bell;
+  const deadline = new Promise(resolve => {
+    bell = setTimeout(() => resolve(false), ms);
+    bell.unref?.();
+  });
+  // `catch` on each: a failed append has already been swallowed by the chain,
+  // and a rejection here would skip the rest of the drain.
+  return Promise.race([
+    Promise.all(pending.map(p => Promise.resolve(p).catch(() => {}))).then(() => true),
+    deadline,
+  ]).finally(() => clearTimeout(bell));
+}
+
+/**
  * One line, one write(2). The loop exists only for the short-write case
  * described above; on every filesystem that does not do that it runs once.
  *
