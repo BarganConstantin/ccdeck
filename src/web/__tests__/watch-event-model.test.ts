@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { browserWatchSnapshot, invalidateBrowserWatchCache } from "../../server/browser-watch.mjs";
+import { flooredReader, type Visit } from "./floored-reader";
 
 const PROFILE = {
   browser: "brave", name: "Brave", profile: "Default",
@@ -29,7 +30,9 @@ const visit = (atMs: number, api = false) =>
 /** Each case gets its own profile identity. The delta baseline is keyed on
  *  browser/profile and is process-scoped ON PURPOSE — it survives a cache
  *  invalidation, which is the bug the last case in this file exists for — so
- *  two cases sharing one key would inherit each other's counts. */
+ *  two cases sharing one key would inherit each other's counts. Since #989 the
+ *  same holds for what a profile has contributed and where its next read
+ *  starts, and the reader honours that floor — see floored-reader.ts. */
 let seq = 0;
 function session(script: { mtime: number; rows: unknown[] }[]) {
   let i = 0;
@@ -37,10 +40,7 @@ function session(script: { mtime: number; rows: unknown[] }[]) {
   const deps = {
     discoverProfiles: () => [profile],
     statSync: () => ({ mtimeMs: script[Math.min(i, script.length - 1)].mtime }),
-    readVisitsSince: async () => ({
-      rows: script[Math.min(i, script.length - 1)].rows,
-      watermark: "0", degraded: false, reason: null,
-    }),
+    readVisitsSince: flooredReader(() => script[Math.min(i, script.length - 1)].rows as Visit[]).read,
     readFileSync: () => { throw new Error("ENOENT"); },
     readStore: async () => ({
       settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
@@ -50,6 +50,7 @@ function session(script: { mtime: number; rows: unknown[] }[]) {
     appendLog: async () => {},
     react: async () => [],
     isReactingDeck: () => false,
+    logSize: async () => 0,
   };
   return { deps, profile, step: () => { i += 1; } };
 }

@@ -15,6 +15,7 @@ import {
   mayForceRead,
 } from "../../server/browser-watch.mjs";
 import { unseenEpisodes, SEEN_KEY } from "../components/BrowserWatchModal";
+import { flooredReader } from "./floored-reader";
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const src = (rel: string) => readFileSync(at(rel), "utf8");
@@ -34,11 +35,22 @@ const PROFILE = {
  *  ~/.claude/agent-dag/browser-watch/state.json, where it then showed up in a
  *  running deck's panel as an episode that had never happened. It also made the
  *  suite's behaviour depend on whether the developer's watch was switched on.
- *  Sealed here so no case can reach the real config directory by omission. */
-function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profiles = [PROFILE] } = {}) {
-  const calls: string[] = [];
+ *  Sealed here so no case can reach the real config directory by omission.
+ *
+ *  AND EACH HARNESS IS ITS OWN PROFILE. Since #989 what a profile has
+ *  contributed and where its next read starts are process-scoped and survive
+ *  a cache invalidation on purpose — a Refresh means "look again now", not
+ *  "forget what you saw" — so two cases sharing one browser/profile key would
+ *  inherit each other's findings. The reader honours the floor it is handed,
+ *  for the reason floored-reader.ts gives. */
+let identities = 0;
+function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profiles = [] as any[] } = {}) {
   const wrote: unknown[] = [];
   let tick = 0;
+  const nth = ++identities;
+  const profile = { ...PROFILE, profile: `Default${nth}`, historyPath: `/p/History-${nth}` };
+  if (profiles.length === 0) profiles = [profile];
+  const reader = flooredReader(() => rows);
   const deps = {
     readStore: async () => ({
       settings: { v: 1, enabled: true, reaction: "notify", quietMinutes: 15, gapMinutes: 15 },
@@ -54,13 +66,11 @@ function harness({ rows = [] as any[], mtimes = [1] as (number | null)[], profil
       if (m === null) throw new Error("ENOENT");
       return { mtimeMs: m };
     },
-    readVisitsSince: async (path: string) => {
-      calls.push(path);
-      return { rows, watermark: "0", degraded: false, reason: null };
-    },
+    readVisitsSince: reader.read,
     readFileSync: () => { throw new Error("ENOENT"); },
+    logSize: async () => 0,
   };
-  return { deps, calls, wrote, advance: () => { tick++; } };
+  return { deps, calls: reader.calls, wrote, profile, advance: () => { tick++; } };
 }
 
 beforeEach(() => invalidateBrowserWatchCache());
@@ -100,7 +110,7 @@ describe("paying for a read only when there is something to read", () => {
     const h = harness();
     await browserWatchSnapshot({ deps: h.deps });
     await browserWatchSnapshot({ deps: h.deps });
-    expect(h.calls).toEqual(["/p/History"]);
+    expect(h.calls).toEqual([h.profile.historyPath]);
   });
 
   it("reads again as soon as the browser has written", async () => {
@@ -110,7 +120,7 @@ describe("paying for a read only when there is something to read", () => {
     await browserWatchSnapshot({ deps: h.deps });
     h.advance();
     await browserWatchSnapshot({ deps: h.deps });
-    expect(h.calls).toEqual(["/p/History", "/p/History"]);
+    expect(h.calls).toEqual([h.profile.historyPath, h.profile.historyPath]);
   });
 
   it("does not read a profile whose history file is not there", async () => {
@@ -145,7 +155,7 @@ describe("what a forced read is allowed to spend", () => {
     const h = harness();
     await fetchBrowserWatch({ force: true, deps: h.deps });
     await fetchBrowserWatch({ force: true, deps: h.deps });
-    expect(h.calls).toEqual(["/p/History"]);
+    expect(h.calls).toEqual([h.profile.historyPath]);
   });
 
   it("hands a concurrent caller the read already running", async () => {
@@ -159,7 +169,7 @@ describe("what a forced read is allowed to spend", () => {
       fetchBrowserWatch({ deps: h.deps }),
     ]);
     expect(a).toBe(b);
-    expect(h.calls).toEqual(["/p/History"]);
+    expect(h.calls).toEqual([h.profile.historyPath]);
   });
 });
 

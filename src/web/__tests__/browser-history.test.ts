@@ -109,7 +109,7 @@ function fakeFs(trace: Trace, failCopy?: Error) {
  * `Error: file is not a database` from the constructor, reproduced here by
  * handing the real one 4 KB of /dev/urandom.
  */
-function fakeSqlite(trace: Trace, rows: RawRow[], openThrows?: Error) {
+function fakeSqlite(trace: Trace, rows: RawRow[], openThrows?: Error, counted?: number) {
   return async () => ({
     DatabaseSync: class {
       constructor(file: string, options: unknown) {
@@ -118,7 +118,11 @@ function fakeSqlite(trace: Trace, rows: RawRow[], openThrows?: Error) {
       }
       prepare(sql: string) {
         trace.sql.push(sql);
-        return { all: (...params: unknown[]) => { trace.params.push(params); return rows; } };
+        return {
+          all: (...params: unknown[]) => { trace.params.push(params); return rows; },
+          // The count statement (#989), as TEXT like the module casts it.
+          get: (...params: unknown[]) => { trace.params.push(params); return { n: String(counted ?? rows.length) }; },
+        };
       }
       close() { trace.closed += 1; }
     },
@@ -274,6 +278,101 @@ describe("the SQL every backend is handed", () => {
     const sql = trace.ran[0].args[trace.ran[0].args.length - 1];
     expect(sql).not.toContain("DROP");
     expect(sql).toContain("v.visit_time > 0");
+  });
+});
+
+// THE RUNNING COUNT A CALLER CAN ASK FOR (#989).
+//
+// Browser Watch used to floor every read at the deck's start, so the number of
+// rows a read returned was a running total, and a fall in it was how the watch
+// noticed a browsing history being cleared. Its floor now advances to the last
+// watermark, and a cleared history then answers no rows at all — the same as a
+// quiet minute. `countSince` asks for that running total without the rows.
+describe("the running count a caller can ask for", () => {
+  it("runs no count unless asked, so every other caller's read is unchanged", async () => {
+    const trace = newTrace();
+    const got = await readVisitsSince("/profile/History", "13000000000000000", {
+      copyDir: "/copies",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [ROW_A]) },
+    });
+    expect(trace.sql).toHaveLength(1);
+    expect(got.total).toBeNull();
+  });
+
+  it("counts above its own floor, bound as a BigInt, from the handle the rows came from", async () => {
+    // Above the floor it was given and not across the whole table: Chrome
+    // deletes visits older than ninety days by itself, and a count of every
+    // visit would fall for that and be reported as a history somebody cleared.
+    const trace = newTrace();
+    const got = await readVisitsSince("/profile/History", "13000000000000500", {
+      copyDir: "/copies",
+      countSince: "13000000000000000",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [ROW_A], undefined, 7) },
+    });
+    expect(trace.opened).toHaveLength(1);
+    expect(trace.sql[1]).toBe("SELECT CAST(COUNT(*) AS TEXT) n FROM visits WHERE visit_time > ?");
+    expect(trace.params[1]).toEqual([13000000000000000n]);
+    expect(got.total).toBe(7);
+    expect(got.rows).toHaveLength(1);
+  });
+
+  it("takes the count off the front of the CLI's output without losing a visit", async () => {
+    // One invocation, count first, because a second spawn per poll is the cost
+    // this backend is already the fallback for.
+    const trace = newTrace();
+    const got = await readVisitsSince("/profile/History", "13000000000000500", {
+      copyDir: "/copies",
+      countSince: "13000000000000000",
+      backend: { kind: "sqlite3-cli", bin: "/usr/bin/sqlite3" },
+      deps: { ...fakeFs(trace), run: fakeRun(trace, { stdout: "12" + RECORD + asciiOf([ROW_A, ROW_B]) }) },
+    });
+    const sql = trace.ran[0].args[trace.ran[0].args.length - 1];
+    expect(sql.startsWith("SELECT CAST(COUNT(*) AS TEXT) n FROM visits WHERE visit_time > 13000000000000000;")).toBe(true);
+    expect(got.total).toBe(12);
+    expect(got.rows.map(r => r.url)).toEqual([ROW_A.url, ROW_B.url]);
+  });
+
+  it("answers null rather than a guess when the CLI's first record is not a count", async () => {
+    // Null is "could not count", and the caller must never read it as zero.
+    // The visit that came first is still read.
+    const trace = newTrace();
+    const got = await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      countSince: "0",
+      backend: { kind: "sqlite3-cli", bin: "/usr/bin/sqlite3" },
+      deps: { ...fakeFs(trace), run: fakeRun(trace, { stdout: asciiOf([ROW_A]) }) },
+    });
+    expect(got.total).toBeNull();
+    expect(got.rows.map(r => r.url)).toEqual([ROW_A.url]);
+  });
+
+  it("never pastes a non-numeric count floor into the CLI command line", async () => {
+    const trace = newTrace();
+    await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      countSince: "0; DROP TABLE visits;--",
+      backend: { kind: "sqlite3-cli", bin: "/usr/bin/sqlite3" },
+      deps: { ...fakeFs(trace), run: fakeRun(trace, { stdout: "" }) },
+    });
+    const sql = trace.ran[0].args[trace.ran[0].args.length - 1];
+    expect(sql).not.toContain("DROP");
+    expect(sql).toContain("FROM visits WHERE visit_time > 0;");
+  });
+
+  it("is null, never zero, on every read that could not be taken", async () => {
+    const trace = newTrace();
+    const none = await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies", countSince: "0", backend: { kind: "none" }, deps: fakeFs(trace),
+    });
+    const torn = await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      countSince: "0",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [], new Error("file is not a database")) },
+    });
+    expect([none.total, torn.total]).toEqual([null, null]);
   });
 });
 
@@ -667,7 +766,7 @@ describe("the branch most users run, and the reason it was untestable", () => {
 });
 
 /** Does this runtime have the in-process reader at all? Node 22.5+, which every
- *  CI leg is, and which the register in skip-gates.mjs records — the two cases
+ *  CI leg is, and which the register in skip-gates.mjs records — the cases
  *  below BUILD a database with it, so unlike the branch case above they cannot
  *  say anything useful without it. */
 const hasNodeSqlite = (() => {
@@ -733,6 +832,46 @@ describe.skipIf(!hasNodeSqlite)("a real database, with a real Chrome timestamp i
         + " FROM visits v JOIN urls u ON u.id = v.url WHERE v.visit_time > 0 ORDER BY v.visit_time");
       expect(() => uncast.all(), "node:sqlite stopped refusing the column — the cast may no longer be load-bearing")
         .toThrow(/too large to be represented as a JavaScript number|ERR_OUT_OF_RANGE/);
+      db.close();
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+
+  it("counts what is above the deck's start, which a clear lowers and an expiry does not (#989)", async () => {
+    // A synthetic database on the real reader: two visits from before the deck
+    // started and three after, read the way Browser Watch reads it — rows above
+    // the last watermark, the count above the deck's start.
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-count-chrome-"));
+    try {
+      const historyPath = join(dir, "History");
+      const Db = createRequire(import.meta.url)("node:sqlite").DatabaseSync;
+      const db = new Db(historyPath);
+      db.exec("CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT)");
+      db.exec("CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER, transition INTEGER)");
+      db.exec("INSERT INTO urls (id, url) VALUES (1, 'https://news.example/story')");
+      const start = 13432716000000000n;
+      const at = [start - 5_000_000n, start - 4_000_000n, start + 1_000_000n, start + 2_000_000n, start + 3_000_000n];
+      at.forEach((t, i) => db.exec(`INSERT INTO visits (id, url, visit_time, transition) VALUES (${i + 1}, 1, ${t}, 0)`));
+      const read = () => readVisitsSince(historyPath, String(start + 2_000_000n), {
+        copyDir: join(dir, "copies"), countSince: String(start),
+      });
+
+      const first = await read();
+      expect(first.degraded, `the real read degraded: ${first.reason}`).toBeFalsy();
+      expect(first.rows).toHaveLength(1);
+      expect(first.total, "the count reached below the deck's start").toBe(3);
+
+      // Chrome expiring an old visit: below the floor, so the count holds.
+      db.exec("DELETE FROM visits WHERE id = 1");
+      expect((await read()).total, "an expired old visit read as a cleared history").toBe(3);
+
+      // Somebody clearing the last hour: the rows above the watermark are gone
+      // and so is the count, even though this read returns no rows at all.
+      db.exec(`DELETE FROM visits WHERE visit_time > ${start}`);
+      const cleared = await read();
+      expect(cleared.rows).toHaveLength(0);
+      expect(cleared.total).toBe(0);
       db.close();
     } finally {
       rmTempDir(dir);

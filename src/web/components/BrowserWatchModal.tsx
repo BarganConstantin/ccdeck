@@ -107,7 +107,7 @@ interface WatchSnapshot {
   profiles: WatchProfile[];
   browsers: WatchBrowser[];
   episodes: WatchEpisode[];
-  coverage: { startedMs: number; oldestVisitMs: number | null; lastHumanMs: number | null; quietMs: number; logPath: string; checkedMs: number; checks: number; archived: number; now: number };
+  coverage: { startedMs: number; oldestVisitMs: number | null; lastHumanMs: number | null; quietMs: number; logPath: string; logBytes?: number; checkedMs: number; checks: number; archived: number; now: number };
   degraded: boolean;
 }
 
@@ -185,6 +185,22 @@ function modeState(
   // Episodes tab uses. This line says whether the watch is running.
   if (!snap.settings.enabled) return { kind: "off", word: "Paused", detail: "nothing new is recorded" };
   return { kind: "on", word: "Watching", detail: "" };
+}
+
+/**
+ * What watch.log holds on disk, said beside the path the panel already names
+ * (#989), so the one file in this feature that used to grow without a bound
+ * shows the bound holding.
+ *
+ * NEVER A ZERO FOR A FILE WITH SOMETHING IN IT. The sentence this sits in says
+ * every address is written in full, and "0 KB" beside a file holding four of
+ * them would contradict it. A log never written says "empty".
+ */
+export function logBytesLabel(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "empty";
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** What the watch actually reads: visits per browser, summed across its
@@ -947,8 +963,9 @@ export default function BrowserWatchModal({
                     <dt>Keeps</dt>
                     <dd>
                       Only while the switch is on, and only the episodes it flagged — never your ordinary
-                      browsing. In <code className="bw-path">{snap.coverage.logPath}</code>, with every
-                      address written in full so you can check it yourself.
+                      browsing. In <code className="bw-path">{snap.coverage.logPath}</code>
+                      {typeof snap.coverage.logBytes === "number" ? ` (${logBytesLabel(snap.coverage.logBytes)})` : ""},
+                      with every address written in full so you can check it yourself.
                     </dd>
                     <dt>Sends</dt>
                     <dd>
