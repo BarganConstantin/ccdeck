@@ -242,20 +242,40 @@ function isAlive(pid) {
 function electWriters(decks, platform = process.platform) {
   const byLog = new Map();
   for (const d of decks) {
-    const log = typeof d.persist === "string" ? d.persist : "";
-    // Two namespaces, so a deck with no log to share — and a deck too old to
-    // report one — is alone in its group and cannot collide with a real path.
-    const key = log
-      ? `log:${foldsCase(platform) ? log.toLowerCase() : log}`
-      : `deck:${d.pid}:${d.port}`;
+    const key = logGroup(d, platform);
     const held = byLog.get(key);
-    // Ports are unique among live decks; pid only breaks a tie a stale
-    // discovery file could invent, so the answer stays deterministic.
-    if (!held || d.port < held.port || (d.port === held.port && d.pid < held.pid)) {
-      byLog.set(key, d);
-    }
+    if (!held || beforeInLine(d, held) < 0) byLog.set(key, d);
   }
   return new Set(byLog.values());
+}
+
+/**
+ * Which log a deck is competing for — the group electWriters decides within.
+ *
+ * Two namespaces, so a deck with no log to share — and a deck too old to report
+ * one — is alone in its group and cannot collide with a real path.
+ *
+ * Named rather than inlined because the hand-on in main() has to ask the same
+ * question: when the elected writer cannot take the event, the decks entitled
+ * to take it from it are exactly the ones this answers the same for.
+ */
+function logGroup(d, platform = process.platform) {
+  const log = typeof d.persist === "string" ? d.persist : "";
+  return log
+    ? `log:${foldsCase(platform) ? log.toLowerCase() : log}`
+    : `deck:${d.pid}:${d.port}`;
+}
+
+/**
+ * The order a log's decks stand in to write it. Lowest port first; ports are
+ * unique among live decks, so pid only breaks a tie a stale discovery file
+ * could invent and the answer stays deterministic.
+ *
+ * A comparator rather than a "beats" predicate because main() sorts a whole
+ * group with it — the second in line matters now, not only the first.
+ */
+function beforeInLine(a, b) {
+  return a.port - b.port || a.pid - b.pid;
 }
 
 /**
@@ -523,16 +543,38 @@ function proveTargets(targets, cb) {
 }
 
 /**
- * Hand this deck the payload. `done` runs exactly once, whatever the outcome —
- * a delivered event, a refused connection and a socket that errors after the
- * response are all just "this target is finished".
+ * Hand this deck the payload. `done` runs exactly once, with whether the deck
+ * TOOK it — which is a different question from whether this target is finished,
+ * and answering only the second one is #1019.
  *
  * `persists` is this deck's answer from electWriters: true for the one deck that
  * logs the event, false for every other one it is also drawn on.
+ *
+ * THE STATUS LINE WAS NEVER READ. A 200, a 500 and a connection reset all ran
+ * the same callback, so the hook counted every POST as delivered and the caller
+ * had nothing to branch on. With the elected writer 500ing and one healthy deck
+ * beside it, measured against a real deck and a real events.jsonl:
+ *
+ *   hook exit=0 wall=576ms   4450 (elected) POST /api/event           -> 500
+ *                            4460 (healthy) POST /api/event?persist=0
+ *                            drew on its canvas: ["tool-1019"]
+ *                            events.jsonl lines: 0
+ *
+ * Same count for a writer that hangs up mid-body (wall=580ms) and for one that
+ * takes the body and never answers (wall=1686ms). That is #695's symptom
+ * through a different door: every deck draws the event, all the others were
+ * told `?persist=0`, and the log silently stops growing.
+ *
+ * A 2xx settles this immediately rather than on the last byte of the response.
+ * The route answers only once the event is in the ring and queued for the log,
+ * so the status IS the receipt and nothing after it can withdraw one — while a
+ * socket that dies while the answer is still arriving would otherwise read as a
+ * refusal and make main() hand the log to a second deck that then writes the
+ * line a second time.
  */
 function post(d, body, persists, done) {
   let settled = false;
-  const finish = () => { if (settled) return; settled = true; done(); };
+  const finish = ok => { if (settled) return; settled = true; done(ok); };
   const req = http.request({
     hostname: "127.0.0.1",
     port: d.port,
@@ -542,8 +584,13 @@ function post(d, body, persists, done) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     timeout: POST_TIMEOUT_MS,
-  }, res => { res.resume(); res.on("end", finish); });
-  req.on("error", finish);
+  }, res => {
+    const took = res.statusCode >= 200 && res.statusCode < 300;
+    res.resume();
+    res.on("end", () => finish(took));
+    if (took) finish(true);
+  });
+  req.on("error", () => finish(false));
   req.on("timeout", () => req.destroy());
   req.write(body);
   req.end();
@@ -832,7 +879,75 @@ function main() {
         let pending = proven.length;
         const done = () => { if (--pending <= 0) process.exit(0); };
 
-        for (const d of proven) post(d, taggedInput, writers.has(d), done);
+        // THE ELECTION HAS A SECOND PLACE NOW (#1019).
+        //
+        // Answering the handshake established that the port belongs to the deck
+        // its record describes. It did not establish that the deck will take the
+        // event: it can be restarted by its supervisor between the challenge and
+        // the POST, it can fail the ingest and say 500, and an oversized body is
+        // refused outright (#1014). Electing a writer that then refuses used to
+        // mean nobody wrote the line, because every other deck sharing that log
+        // had already been told `?persist=0` — the same silent stop #695 was
+        // closed on, reached through the answer rather than through the record.
+        //
+        // So each log keeps the queue the election would have picked from, in
+        // electWriters' own order, and a writer that does not answer 2xx hands
+        // the log to the next deck in it. Only the writers fail over: a deck that
+        // was only drawing the event has nothing to hand on.
+        //
+        // The deck it is handed to has ALREADY been posted this event with
+        // `?persist=0`, so it is asked twice. Both halves of that are settled
+        // where they land: the reducer treats a re-delivered `tool_use_id` as the
+        // call it already has (it names "a hook retry" as one of the three ways
+        // that happens), and the server's `noteLogWriter` reads `persist=1` as
+        // this deck owning the session again, which is what lets it append the
+        // line the first deck refused.
+        //
+        // The fan-out stays parallel. Posting to the writer first and fanning out
+        // only after its 2xx is the ordering that needs no queue, and it costs
+        // every OTHER deck the writer's whole deadline before it is drawn on —
+        // 1000ms of the 1900ms CAP_MS gives this process, on every event, to
+        // insure against a case that is rare. The hand-on is paid for only when a
+        // writer actually fails.
+        //
+        // THE HAND-ON IS STILL THE POST PHASE, and it is bounded the way the
+        // other three are. Each deck it reaches is one more post() carrying its
+        // own POST_TIMEOUT_MS, and nothing in it can hold this process past the
+        // timer main() armed before discovery began: `pending` decides how EARLY
+        // the process may exit, never how late. The worst case that reaches a
+        // hand-on at all — a writer that takes the body and never answers — is
+        // one POST deadline followed by a loopback round trip to the next deck,
+        // which fits inside CAP_MS when discovery and the challenge answer
+        // normally. When they did not, and the timer ends the process with a
+        // hand-on still in flight, the line is lost exactly as it was lost before
+        // this change and the hook still exits 0. The cap is the backstop over
+        // the hand-on too, not something the hand-on gets to argue with.
+        const inLine = new Map();
+        for (const d of proven) {
+          const key = logGroup(d);
+          if (!inLine.has(key)) inLine.set(key, []);
+          inLine.get(key).push(d);
+        }
+        for (const queue of inLine.values()) queue.sort(beforeInLine);
+
+        // `queue[0]` is the deck electWriters picked, so dropping the head is
+        // exactly "the next one down". An empty queue is a log with one deck on
+        // it: there is nobody to hand it to, and nothing here can invent one.
+        const writeTo = d => post(d, taggedInput, true, took => {
+          if (took) return done();
+          const queue = inLine.get(logGroup(d));
+          queue.shift();
+          if (!queue.length) return done();
+          // No done() on this path: the group's slot in `pending` stays open
+          // for as long as the hand-on is still going, so the process does not
+          // exit out from under the deck that is about to be asked.
+          writeTo(queue[0]);
+        });
+
+        for (const d of proven) {
+          if (writers.has(d)) writeTo(d);
+          else post(d, taggedInput, false, done);
+        }
       });
     });
   });
