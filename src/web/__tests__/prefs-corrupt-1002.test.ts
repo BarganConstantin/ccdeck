@@ -37,7 +37,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-prefs-corrupt-"));
 process.env.HOME = DIR;
@@ -149,11 +149,25 @@ describe("a prefs.json that cannot be parsed", () => {
     expect(values.lan.secret).toBe("");
     // The name is prefs.json's plus `.corrupt-<ms>`: it sits beside the file it
     // came from so nobody has to be told where to look, and the stamp is
-    // milliseconds rather than an ISO timestamp because a colon cannot be in a
-    // filename on Windows — which is one of the platforms this has to work on.
+    // milliseconds rather than an ISO timestamp because an ISO timestamp has
+    // colons in it, Windows forbids those in a filename, and a quarantine that
+    // cannot be created on one of the platforms it protects is not a quarantine.
+    //
+    // ON THE BASENAME, and the first version of this was not — it asked whether
+    // the whole PATH held a colon, which every absolute Windows path does
+    // (`C:\Users\RUNNER~1\AppData\Local\Temp\…`), so it went red on the
+    // windows-latest runner for exactly the reason the rule exists. Do not
+    // re-scope it back to the path. The set is every character Windows forbids
+    // in a filename rather than the colon alone, because the rule being
+    // protected is "a name that file system will accept", and `Date.now()` is
+    // only one of the ways a future edit could stop satisfying it.
+    const WINDOWS_FORBIDS = /[<>:"\/\\|?*]/;
+    // Not vacuous: the ISO spelling this rule rejects is caught by it.
+    expect("prefs.json.corrupt-2026-09-15T05:12:00.000Z").toMatch(WINDOWS_FORBIDS);
+
     expect(prefs.quarantinePath(home, 1_700_000_000_000))
       .toBe(`${prefs.prefsPath(home)}.corrupt-1700000000000`);
-    expect(quarantined).not.toContain(":");
+    expect(basename(quarantined)).not.toMatch(WINDOWS_FORBIDS);
   });
 
   it.skipIf(process.platform === "win32")("keeps it readable by nobody else", async () => {
