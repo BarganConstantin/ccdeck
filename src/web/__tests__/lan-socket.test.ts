@@ -105,7 +105,11 @@ describe("two decks in one group, talking", () => {
     const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller() });
     const back = new Promise<string>(res => peer.sock.on("data", (d: string) => res(d.trim())));
     peer.send({ t: "manifest" });
-    expect(JSON.parse(await back)).toEqual({ t: "pong", saw: "manifest" });
+    // Sealed on the wire since #810, both ends being of this version — so it
+    // is read through the connection's own reader, the way lan-engine reads it.
+    // lan-sealed-frames-810.test.ts owns what the bytes themselves say.
+    expect(peer.sealed).toBe(true);
+    expect(peer.read(JSON.parse(await back))).toEqual({ t: "pong", saw: "manifest" });
     expect(heard).toEqual([{ t: "manifest" }]);
     peer.sock.destroy();
   });

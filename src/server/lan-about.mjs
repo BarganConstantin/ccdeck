@@ -7,8 +7,10 @@
 // first thing somebody hunting for a known-broken version would want, and
 // nobody on the network is owed it. It rides the manifest exchange, which only
 // happens between two decks that have each accepted the other — and it is
-// sealed with that connection's key, because the frames around it are JSON in
-// the clear on the wire.
+// sealed with that connection's key on its own. Between two decks that both
+// seal (#810) the frame around it is sealed too, and this is a second seal
+// inside the first; toward a deck from before that, the frames around it are
+// still JSON in the clear on the wire, and this seal is the only one there is.
 //
 // BOTH WAYS. The deck that dials sends its own card with the question, and the
 // deck that answers sends its own with the answer. A deck that only calls in —
