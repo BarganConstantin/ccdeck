@@ -267,6 +267,35 @@ const FORCE_POLL_MS = 60_000;
 const STORE_TRUSTED_MS = 45 * 60_000;
 
 /**
+ * How long a caller may be kept waiting before this module answers anyway.
+ *
+ * Source 3 has no ceiling of its own and never had one. Its cost is the sum of
+ * every step below it — three spawns under a 15-second deadline each, with two
+ * 1.2-second sleeps between them — and nobody had ever added it up. Measured on
+ * a sandboxed deck with a `claude` that never prints (#1011):
+ *
+ *     $ curl -s -m 120 -w "[%{http_code}] time_total=%{time_total}s" .../api/quota
+ *     {"ok":false,"reason":"cli_failed",...}
+ *     [200] time_total=47.411343s
+ *
+ * 3 × 15s + 2 × 1.2s = 47.4, to the tenth. The rest of the deck stayed
+ * responsive throughout — /api/health answered in 0.0008s while that request
+ * was out — so what this bounds is one pinned request rather than a stalled
+ * server: a panel on "Checking…" for three quarters of a minute, and one fewer
+ * socket in the browser's per-origin pool for as long as it is out.
+ *
+ * FIVE SECONDS, and it is a budget rather than a guess at how long the CLI
+ * takes. A sandbox with a real `claude` and no credentials answered in 4.2s and
+ * 4.5s, which is the slow END of the good case, and the good case is already
+ * served from the store or the API in milliseconds. What is left above five
+ * seconds is the CLI in trouble, and for that the honest answer is "not yet".
+ *
+ * Nothing is cancelled when it expires — see answerWithin. The read runs on,
+ * publishes to the cache, and the panel's next poll gets the real numbers.
+ */
+export const QUOTA_DEADLINE_MS = 5_000;
+
+/**
  * claude-swap's row for the active account, in the shape the panel speaks.
  *
  * Exported for tests: the mapping is where a wrong number would come from, and
@@ -477,14 +506,25 @@ export function quotaClaudeBin(platform = process.platform, env = process.env,
   return "claude";
 }
 
-export async function fetchClaudeQuota({ force = false } = {}) {
+/**
+ * @param deadlineMs how long the CALLER is prepared to wait. Zero — the
+ *   default, and what every internal caller uses — waits for the read however
+ *   long it takes, which is what a test driving the chain end to end wants.
+ *   The route passes QUOTA_DEADLINE_MS; see answerWithin for what expiring
+ *   means, which is not cancelling.
+ */
+export async function fetchClaudeQuota({ force = false, deadlineMs = 0 } = {}) {
   const now = Date.now();
   if (!force && _cache && now - _cacheAt < CACHE_MS) return _cache;
 
   // If another CLI probe is already in flight, wait for it instead of spawning a
   // second concurrent process (which can return empty output and overwrite the
   // good result with 0%).
-  if (_inflight) return _inflight;
+  //
+  // Under a deadline the joiner is bounded too, and has to be: joining a read
+  // that started 46 seconds ago is the same 47-second wait reached by the other
+  // door, and it is the door the panel's own 60-second poll walks through.
+  if (_inflight) return answerWithin(_inflight, deadlineMs, now);
 
   // `_inflight === mine` rather than a bare clear: invalidateQuotaCache drops
   // `_inflight` so the next caller starts a read that knows the account moved,
@@ -495,7 +535,51 @@ export async function fetchClaudeQuota({ force = false } = {}) {
   const mine = _doFetch(now, force, _generation)
     .finally(() => { if (_inflight === mine) _inflight = null; });
   _inflight = mine;
-  return mine;
+  return answerWithin(mine, deadlineMs, now);
+}
+
+/**
+ * The read's answer, or the best thing we can say by the time the caller's
+ * patience runs out.
+ *
+ * THE READ IS NOT CANCELLED, and that is the whole design rather than a
+ * shortcut. It keeps running, keeps `_inflight` filled so nothing spawns a
+ * second Claude Code beside it, and ends in publish() like any other read — so
+ * the numbers it eventually produces are in the cache for whoever asks next.
+ * The panel polls every 60 seconds and presses ↻ into the same slot, so "not
+ * yet" is a state it leaves on its own within a poll. Cancelling would spend a
+ * whole `claude --print /usage` and throw the result away, and the budget this
+ * module is built around (28-30 requests an hour, shared with claude-swap) is
+ * the one thing it must not do.
+ *
+ * WHAT "NOT YET" SAYS. The freshest real reading this module holds, marked
+ * stale — the same answer, in the same shape, that the poll-floor branch of
+ * _doFetch already gives for the same question — and only when there is none,
+ * the `waiting` reason the panel has rendered a sentence for all along. Its
+ * timestamp is the reading's own and never `now`: an age indicator that
+ * vouches for numbers collected hours ago is what quota-held-age.test.ts
+ * exists to stop, and a deadline is not a licence to re-stamp them.
+ *
+ * Exported because a deadline nothing can point at is a deadline nobody can
+ * test.
+ */
+export function answerWithin(read, deadlineMs, now = Date.now()) {
+  if (!(deadlineMs > 0)) return read;
+  let bell;
+  const expired = new Promise(resolve => {
+    bell = setTimeout(() => resolve(notYet(now)), deadlineMs);
+    // A deadline is not a reason for the process to stay alive: this timer
+    // outlives nothing, and an exit waiting on it would be this function
+    // holding the deck open for an answer nobody is there to read.
+    bell.unref?.();
+  });
+  return Promise.race([read, expired]).finally(() => clearTimeout(bell));
+}
+
+/** What the deck can honestly say about a reading it has not finished taking. */
+function notYet(now) {
+  if (_lastGood) return { ..._lastGood, stale: true };
+  return { ok: false, reason: now < _rateLimitedUntil ? "rate_limited" : "waiting", fetchedAt: now };
 }
 
 /**

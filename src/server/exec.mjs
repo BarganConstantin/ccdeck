@@ -402,6 +402,81 @@ export function killTree(child, signal) {
   }
 }
 
+/**
+ * Every child this module started and has not yet seen the end of.
+ *
+ * A deadline is not a promise unless something is alive to enforce it, and the
+ * deadlines in this file all live in the parent: `run` states the outcome on a
+ * timer and only then kills, `runInteractive` does the same. Kill the parent
+ * and the timer dies with it, so the very case a deadline exists for — a tool
+ * that has hung — is the one case where nothing is left to stop it.
+ *
+ * Observed (#1012). A sandboxed deck, a quota poll in flight, SIGINT to the
+ * deck at 05:26:22.706. The deck was gone within 200ms; its `claude --print
+ * /usage` child, spawned at 05:26:18.078 under a 15-second deadline, was still
+ * running at 05:26:35.204 — reparented to init, past the deadline the dead
+ * parent would have enforced, and with nothing anywhere that would ever kill
+ * it. A whole Claude Code process, hundreds of MB resident, orphaned by a
+ * Ctrl+C.
+ *
+ * REMOVED ON 'close', NOT ON 'exit', and the difference is Windows'. A batch
+ * candidate runs THROUGH cmd.exe and the tool is a grandchild (see viaCmd and
+ * killTree): the wrapper can exit while the tool underneath goes on holding
+ * the inherited stdio, which is exactly the shape killTree's `taskkill /T`
+ * exists for. 'exit' there means "the wrapper is gone" and 'close' means "and
+ * so is everything it started" — forgetting on the first would drop a tree
+ * that is still running and still reachable. 'error' is the third way a child
+ * ends, and the only one after which 'close' may never come at all.
+ *
+ * `runDetached` is deliberately absent. It is the one function here named for
+ * outliving its call — a sound, or a collection whose result lands in a file
+ * the next poll reads — it holds no deadline, and it unrefs its child on
+ * purpose. Killing those on the way out would be this set overreaching.
+ */
+const live = new Set();
+
+/** Track one child until it ends. Returns it, so it can wrap a spawn inline. */
+function watchChild(cp) {
+  if (!cp) return cp;
+  live.add(cp);
+  const forget = () => { live.delete(cp); };
+  cp.once?.("close", forget);
+  cp.once?.("error", forget);
+  return cp;
+}
+
+/**
+ * The pids of the children this deck still has running.
+ *
+ * Exported for the test below this, and because it is the honest answer to
+ * "what is this deck still doing" that a future `--status` wants. It may
+ * over-report by one in the Windows case above — a wrapper whose 'close' never
+ * arrives stays here — which is the right direction to be wrong in: that entry
+ * names a process that really is still running.
+ */
+export const liveChildPids = () => [...live].map(c => c?.pid).filter(Boolean);
+
+/**
+ * Stop every child this module started, and everything they started.
+ *
+ * Called from shutdown(), where the alternative is the orphan above. It does
+ * not WAIT for the corpses, on purpose: a signal is delivered synchronously on
+ * POSIX, and on Windows killTree's taskkill is a process of its own that
+ * CreateProcess has already started by the time spawn() returns and that
+ * outlives this one. Waiting would buy nothing and would spend the ~200ms exit
+ * that is the rest of shutdown's good behaviour.
+ *
+ * The set is cleared first so a 'close' arriving mid-loop cannot mutate what
+ * is being iterated, and so a second call — shutdown can be reached twice —
+ * has nothing left to do.
+ */
+export function killLiveChildren(signal) {
+  const doomed = [...live];
+  live.clear();
+  for (const cp of doomed) killTree(cp, signal);
+  return doomed.length;
+}
+
 // Reasons to try the next candidate spelling rather than give up. EINVAL and
 // UNKNOWN show up on Windows for a file that exists but cannot be executed the
 // way it was asked for; both mean "not this one", not "no such tool".
@@ -695,8 +770,11 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env } = 
       };
 
       try {
-        const cp = execFile(file, argv,
-          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...opts }, done);
+        // watchChild: this run's deadline lives in the timer below, in THIS
+        // process, so a shutdown that does not reap it leaves the child with
+        // no deadline at all. See `live` above, and #1012.
+        const cp = watchChild(execFile(file, argv,
+          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...opts }, done));
         // Give the child EOF on stdin straight away, which is what this
         // function's contract has always claimed ("run closes stdin", says
         // runInteractive's header) and what execFile does not do: it leaves the
@@ -853,7 +931,10 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
     const { file, args: argv, opts, launch } = candidateSpec(raw, args);
     let proc;
     try {
-      proc = spawn(file, argv, { stdio: ["pipe", "pipe", "pipe"], shell: false, windowsHide: true, ...opts });
+      // Tracked for the same reason `run`'s child is, and with more at stake:
+      // this one's deadline is five minutes and it is a `claude auth login`
+      // blocked on a stdin pipe only this process holds. See `live` above.
+      proc = watchChild(spawn(file, argv, { stdio: ["pipe", "pipe", "pipe"], shell: false, windowsHide: true, ...opts }));
     } catch (err) {
       return tryNext(err) ? attempt(i + 1) : finish(-1, err);
     }
