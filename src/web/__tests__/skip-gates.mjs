@@ -141,8 +141,25 @@ export const CONDITIONS = {
 // why CI can assert the strongest possible thing on those two legs — that
 // nothing was skipped at all.
 export const GATES = [
+  // #796's tilde, driven through backupRoot() rather than read out of it (#994).
+  // The rule under test is Linux's — a value is absolute when it starts with
+  // "/" — and `~/data` becomes absolute only once it is joined onto a home
+  // directory that is itself "/"-rooted. On Windows node's join hands back a
+  // drive letter and backslashes, so the expanded value is "relative" by that
+  // rule and correctly ignored: the case would be asserting the fallback there,
+  // not the expansion. The rule itself is stated on all three legs by the
+  // un-gated cases beside it; only the expansion is POSIX-only.
+  { file: "backup-root-shared.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-rename-retry.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-temp-collision.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
+  // Three mode assertions on the deck's discovery record, the same shape as
+  // prefs-corrupt-1002's two below: the token file's 0600, the same 0600 after
+  // the atomic rewrite has replaced the inode, and the 0700 on the directory
+  // that rewrite's temp file is born in. Windows has no POSIX mode to read.
+  // They used to gate themselves from INSIDE the body — an `if` around the only
+  // assertion, and two early `return`s — which this scanner cannot see, so the
+  // Windows leg reported all three as passing while running nothing (#994).
+  { file: "discovery-live.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },

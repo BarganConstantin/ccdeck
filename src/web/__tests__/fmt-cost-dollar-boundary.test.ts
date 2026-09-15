@@ -100,3 +100,55 @@ describe("the burn-rate chip inherits the fix", () => {
     expect(fmtCostRate(0.998, 60)).toBe("$1.00/min");
   });
 });
+
+// ── THE REST OF fmtCostRate, WHICH NOTHING HAD EVER RUN (#994) ──────────────
+//
+// `grep -rn fmtCostRate src/web/__tests__/` returned two files before this
+// block. One of them greps AgentNode.tsx as source text and never calls the
+// function; the other is the case directly above, and it exercises the `/min`
+// branch. So of the four outcomes this function has — two null guards, `/min`,
+// `/hr` — exactly one had ever been evaluated by the suite.
+//
+// It is the burn-rate chip on every active card, in the detail rail and in the
+// usage panel, and both untested halves fail QUIETLY. Break the `* 3600` and a
+// cheap long session gets a confident wrong dollars-per-hour that no reader has
+// an intuition to check against. Break the `elapsedSec < 10` guard and a session
+// two seconds old divides a real cost by a near-zero denominator and prints the
+// result as a rate.
+describe("fmtCostRate over a long cheap session, and where it refuses", () => {
+  it("switches to an hourly rate when the per-minute figure drops under a cent", () => {
+    // $0.30 over two hours. Per minute that is a quarter of a cent — which
+    // `fmtCost` would render "<1¢", a chip that says nothing — so the scale
+    // moves up and the same rate is 15¢ an hour. The `* 3600` is the whole of
+    // that conversion and this is the only case that evaluates it.
+    expect(fmtCostRate(0.30, 7200)).toBe("15¢/hr");
+    // An agentic session left running overnight: $2 over eight hours.
+    expect(fmtCostRate(2, 8 * 3600)).toBe("25¢/hr");
+  });
+
+  it("changes unit at one cent a minute and not somewhere either side of it", () => {
+    // $1.00 over 6000s is exactly 1¢/min, the first value the minute scale can
+    // print — and it prints with the tenth `fmtCost` gives everything under
+    // 10¢, so "1.0¢/min" and not "1¢/min". A hair under it belongs to the hour
+    // scale, and the two readings are the same rate: 0.99¢/min is 59¢/hr.
+    expect(fmtCostRate(1, 6000)).toBe("1.0¢/min");
+    expect(fmtCostRate(0.99, 6000)).toBe("59¢/hr");
+  });
+
+  it("says nothing at all rather than dividing by a window too short to mean anything", () => {
+    // Nine seconds is inside the guard, ten is the first second outside it.
+    // Without the guard the chip lights up on the first tool call of a session
+    // with whatever $0.50/9s works out to, which is a number about the sampling
+    // window and not about the session.
+    expect(fmtCostRate(0.5, 9)).toBeNull();
+    expect(fmtCostRate(0.5, 10)).toBe("$3.00/min");
+    expect(fmtCostRate(0.5, 0)).toBeNull();
+  });
+
+  it("says nothing for a session that has not cost anything", () => {
+    // Zero and negative both. `fmtCost(0)` is "—", so without this guard the
+    // chip would read "—/min", which is a rate for a session that has no rate.
+    expect(fmtCostRate(0, 3600)).toBeNull();
+    expect(fmtCostRate(-1, 3600)).toBeNull();
+  });
+});

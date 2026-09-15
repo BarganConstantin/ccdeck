@@ -786,21 +786,37 @@ describe("a heal that healed nothing", () => {
     ).not.toMatch(/await /);
   });
 
+  // The route's `importAccount`, sliced to the end of the property and with
+  // every whole-line comment taken out — THE CODE, NOT THE PROSE ABOUT IT (#994).
+  //
+  // The two cases below used to pin the comment that states the promise:
+  // `NO \`force\`, ever` in both, and in one a sentence of the reasoning, at one
+  // point down to where its line wrapped. That fails the moment the prose is
+  // reworded and holds for as long as the words stay, whatever the code beside
+  // them does. And the second case sliced from `importAccount: async blob =>`,
+  // a spelling 0144367 changed to `(blob, step)` when the route learned to fill
+  // an empty slot: `indexOf` answered -1, `slice(-1, 1599)` is the empty
+  // string, and `not.toMatch` holds of the empty string forever. It had
+  // asserted nothing about the route since.
+  //
+  // Empty rather than thrown when the anchor is gone, for the reason
+  // fillEmptySlot above gives; each case says so by name before relying on it.
+  const route = (() => {
+    const at = src.indexOf("importAccount: async (blob, step) => {");
+    return at === -1 ? "" : src.slice(at, src.indexOf("\n  },", at)).replace(/^\s*\/\/.*$/gm, "");
+  })();
+
   it("keeps the promise the flag was never passed for", () => {
     // A peer cannot reach the forced path: the verdict comes from THIS
     // machine's claude-swap, about THIS machine's store, and nothing a peer
     // sends can make a slot report that it holds nothing. `only` narrows it to
     // the one account, so a bundle carrying several cannot ride in behind it.
-    expect(src).toContain("NO `force`, ever");
-    expect(src).toMatch(/nothing a peer sends can make a slot report that it holds nothing/);
-    // Sliced to the end of the property rather than by a character count: the
-    // reasoning above the call is long, and a window that stopped short of it
-    // would assert the flag is absent from a block that does not contain it
-    // either way. The route delegates the forced path now, so the flag is not
-    // in this block at all — which is the same assertion at full strength.
-    const at = src.indexOf("importAccount: async (blob, step)");
-    const block = src.slice(at, src.indexOf("\n  },", at));
-    expect(block).not.toMatch(/force:\s*true/);
+    expect(route, "the route's importAccount is gone or renamed").not.toBe("");
+    // Not `force: true` — `force` in any spelling. The old pattern knew only the
+    // literal, so `force: step.force`, which hands the decision to whatever a
+    // peer put in its step, passed it. The route delegates the forced path, so
+    // the word has no business in its code at all.
+    expect(route).not.toMatch(/\bforce\b/);
     // And exactly one forced call in the deck, carrying `only`. `--force`
     // overwrites every account it matches, so narrowing to the one the verdict
     // was about is what keeps an overwrite a named act.
@@ -816,9 +832,17 @@ describe("a heal that healed nothing", () => {
     // The promise that a peer cannot overwrite a working credential of this
     // deck's is kept by that flag never being passed. Reporting the decline
     // honestly is the fix; widening the flag is a different decision.
-    expect(src).toContain("NO `force`, ever");
-    const at = src.indexOf("importAccount: async blob =>");
-    expect(src.slice(at, at + 1600)).not.toMatch(/force:\s*true/);
+    //
+    // So: one import, and after a decline the only way on is fillEmptySlot,
+    // which asks this machine before it forces anything. A second import after
+    // the decline — the retry that would be "reaching for --force" — is a
+    // second call here, whatever options it carries.
+    expect(route, "the route's importAccount is gone or renamed").not.toBe("");
+    expect(route.match(/\bimportAccount\(/g) ?? [], "the route imports more than once").toHaveLength(1);
+    const decline = route.indexOf("if (out.added === true) return { ok: true };");
+    expect(decline, "the decline is no longer told apart from a heal").toBeGreaterThan(-1);
+    expect(route.slice(decline)).toMatch(/return fillEmptySlot\(blob, /);
+    expect(route).not.toMatch(/\bforce\b/);
   });
 });
 
