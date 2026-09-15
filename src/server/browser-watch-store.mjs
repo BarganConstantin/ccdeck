@@ -207,8 +207,24 @@ export async function readStore(home = claudeConfigDir(), deps = {}) {
   // caller — so it says so and the snapshot does it.
   if (parsed && parsed.v !== STORE_VERSION) return { settings, episodes: [], dismissed: [], migrated: true };
 
+  // FILTERED BEFORE `archivable`, NOT AFTER. archivable opens with
+  // `String(e.host ?? "")`, which is a property access — so a `null` element
+  // threw before the `.filter` below could refuse it, and the throw escaped
+  // readStore (the try up there wraps only JSON.parse) through
+  // browserWatchSnapshot and fetchBrowserWatch into guard(): a 500 on
+  // GET /api/browser-watch, and on the settings and dismiss POSTs through
+  // updateStore. The panel stayed dead until the file was edited by hand.
+  //
+  // `{"v":2,"episodes":[null]}` is all it took. A string element was already
+  // handled correctly — it is specifically a non-object that reached the
+  // property access — and normalise a few lines up is defensive for exactly
+  // this reason: "a hand edit, a half-written save and an older version all
+  // arrive from" here.
   const episodes = Array.isArray(parsed?.episodes)
-    ? parsed.episodes.map(archivable).filter(e => Number.isFinite(e.startMs))
+    ? parsed.episodes
+        .filter(e => e && typeof e === "object")
+        .map(archivable)
+        .filter(e => Number.isFinite(e.startMs))
     : [];
   // WHAT THE READER HAS ALREADY LOOKED AT. It has to be its own list rather
   // than a deletion from `episodes`, because the panel reads the browser's

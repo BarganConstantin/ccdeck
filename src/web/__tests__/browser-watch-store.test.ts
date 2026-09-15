@@ -3,7 +3,7 @@
 // changes what the watch does without changing what it says, and an archive
 // that loses an episode loses the one record an intruder cannot reach.
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
@@ -331,5 +331,47 @@ describe("a store written under rules that no longer apply", () => {
       const raw = JSON.parse(readFileSync(storePath(home), "utf8"));
       expect(raw.v).toBeGreaterThan(1);
     } finally { rmTempDir(home); }
+  });
+});
+
+// A FILE ON DISK ARRIVES FROM "a hand edit, a half-written save and an older
+// version", which is what normalise a few lines up is defensive for. archivable
+// was not: it opens with `String(e.host ?? "")` — a property access — and the
+// `.filter` that would have refused a bad element ran AFTER the `.map`.
+//
+// So `{"v":2,"episodes":[null]}` threw out of readStore (its try wraps only
+// JSON.parse), through browserWatchSnapshot and fetchBrowserWatch into guard():
+// a 500 on GET /api/browser-watch, and on the settings and dismiss POSTs
+// through updateStore. The panel stayed dead until the file was edited by hand.
+describe("an episodes array holding something that is not an episode", () => {
+  const read = async (raw: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-bw-bad-"));
+    try {
+      mkdirSync(join(dir, "agent-dag", "browser-watch"), { recursive: true });
+      writeFileSync(join(dir, "agent-dag", "browser-watch", "state.json"), raw, "utf8");
+      return await readStore(dir);
+    } finally { rmTempDir(dir); }
+  };
+
+  for (const [name, raw] of [
+    ["a null element", '{"v":2,"episodes":[null]}'],
+    ["a number", '{"v":2,"episodes":[42]}'],
+    ["a nested array", '{"v":2,"episodes":[[1,2]]}'],
+    ["a boolean", '{"v":2,"episodes":[true]}'],
+  ] as const) {
+    it(`is dropped rather than thrown on: ${name}`, async () => {
+      const store = await read(raw);
+      expect(store.episodes).toEqual([]);
+    });
+  }
+
+  it("keeps the good rows beside the bad ones", async () => {
+    const store = await read('{"v":2,"episodes":[null,{"host":"x.test","startMs":1,"endMs":2,"urls":[]}]}');
+    expect(store.episodes.map(e => e.host)).toEqual(["x.test"]);
+  });
+
+  it("still drops a string element, which was already handled correctly", async () => {
+    const store = await read('{"v":2,"episodes":["oops"]}');
+    expect(store.episodes).toEqual([]);
   });
 });

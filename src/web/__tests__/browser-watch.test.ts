@@ -527,3 +527,52 @@ describe("which deck is allowed to win the election", () => {
     expect(watch).toBeGreaterThan(codex);
   });
 });
+
+// TWO GUARDS THAT DO DIFFERENT JOBS, IN THE ORDER THAT MAKES BOTH TRUE.
+//
+// fetchBrowserWatch's own comment distinguishes them — "the floor bounds how
+// often a NEW read starts, and this bounds how many run at once" — and the
+// `_inflight` test ran first, so the second pre-empted the first. A Refresh
+// landing while any poll was running never reached cache.clear(), never moved
+// _lastForced (leaving the 60s floor unarmed for the next press), and returned
+// the UNFORCED snapshot already on its way out — built from the very mtime
+// cache the press asked to drop.
+//
+// And the snapshot in flight was built with the FIRST caller's opts, so a panel
+// press landing during the badge's `live=0` poll with the watch off got that
+// poll's archive-only answer: no profiles, no relay, "the watch is off".
+describe("a Refresh that lands while a poll is running", () => {
+  const src = readFileSync(
+    fileURLToPath(new URL("../../server/browser-watch.mjs", import.meta.url)), "utf8");
+
+  it("clears the cache before the in-flight share is consulted", () => {
+    const forced = src.indexOf("const forced = force && mayForceRead();");
+    const inflight = src.indexOf("if (_inflight) return forced");
+    expect(forced).toBeGreaterThan(0);
+    expect(inflight).toBeGreaterThan(forced);
+    // The order that swallowed it must not come back.
+    expect(src).not.toContain("if (_inflight) return _inflight;\n  if (force && mayForceRead())");
+  });
+
+  it("chains off the read in flight rather than joining it", () => {
+    // That read was started before the cache was cleared, so its answer is the
+    // stale one this press asked to replace — and it carries the first
+    // caller's opts, not this one's.
+    expect(src).toContain("_inflight.then(() => browserWatchSnapshot(opts))");
+  });
+});
+
+// And the dismiss route computes inside the write queue, like the settings
+// route beside it: two presses in one turn both read before either job ran, so
+// the second wrote an array without the first key and the first row came back
+// on the next ten-second poll.
+describe("two dismissals in one turn", () => {
+  it("are both kept, because the list is built inside the job", () => {
+    const server = readFileSync(
+      fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    expect(server).toContain("dismissed: [...new Set([...(cur.dismissed ?? []), key])],");
+    expect(server, "the snapshot taken before the queue must not come back")
+      .not.toContain("const dismissed = [...new Set([...(store.dismissed ?? []), key])];");
+  });
+});
+

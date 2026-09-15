@@ -4815,10 +4815,18 @@ async function handleBrowserWatchDismiss(req, res) {
   const { invalidateBrowserWatchCache, noteWatchSetting } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/browser-watch.mjs")).href
   );
-  const store = await readStore();
+  // COMPUTED INSIDE THE JOB, like the settings route four lines up, whose
+  // comment says why: "updateStore re-reads inside the write queue, so a poll
+  // that landed between the read above and this line cannot have its archive
+  // thrown away." This read the whole `dismissed` array before the queue, so
+  // two Dismiss presses in one turn both read before either job ran and the
+  // second wrote an array without the first key — both rows left the list,
+  // both answered 200, and the first came back on the next ten-second poll.
   const key = episodeKey(host, startMs);
-  const dismissed = [...new Set([...(store.dismissed ?? []), key])];
-  await updateStore(cur => ({ ...cur, dismissed }));
+  await updateStore(cur => ({
+    ...cur,
+    dismissed: [...new Set([...(cur.dismissed ?? []), key])],
+  }));
   // The reader acting on their own list, which is exactly the kind of line the
   // `act` level exists for.
   noteWatchSetting(`dismissed ${host}`);
