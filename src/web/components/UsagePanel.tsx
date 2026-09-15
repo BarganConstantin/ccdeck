@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL, type CostBreakdown } from "../pricing";
 import { countTo } from "../count-up";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
-import { recordSpend, spendRate, type SpendSample } from "../spend-rate";
+import { recordSpend, spendRate, NO_SPEND_HISTORY, type SpendHistory } from "../spend-rate";
 import { boardTotals, BOARD_SCOPE_LABEL, BOARD_SCOPE_TITLE, BOARD_SPEND_LABEL } from "../board-usage";
 import {
   PERIODS, periodFocusMove, sinceFor, modelRows as ccModelRows, sessionRows as ccSessionRows,
@@ -664,10 +664,10 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     const t = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 30_000);
     return () => window.clearInterval(t);
   }, []);
-  /** The board total against the clock, for the header's $/min (#821). A ref,
+  /** Per-session spend against the clock, for the header's $/min (#821). A ref,
    *  because the samples are history the memo below reads and extends — not
    *  state, which would re-render the panel for every sample it takes. */
-  const spendSamples = useRef<SpendSample[]>([]);
+  const spendSamples = useRef<SpendHistory>(NO_SPEND_HISTORY);
   /** The replay the samples above were taken after. A new one — a reconnect —
    *  starts them again, since it re-applies the ring the board was built from. */
   const spendSince = useRef<number | null>(null);
@@ -754,10 +754,17 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
     // history arriving, not spending (see liveSince in App.tsx).
     if (spendSince.current !== liveSince) {
       spendSince.current = liveSince;
-      spendSamples.current = [];
+      spendSamples.current = NO_SPEND_HISTORY;
     }
-    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, board.cost.total);
-    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, board.cost.total);
+    // PER SESSION, not the board total (#987). The board gains a session's whole
+    // accumulated cost the moment it first reaches the canvas, and against one
+    // total that is indistinguishable from spending: a joining session carrying
+    // $15 of history took a true $0.20/min to $1.70/min and held it for the
+    // full ten-minute window. This is the same map the live delta below is
+    // built on, and the same rule — only work the deck watched happen counts.
+    const bySession = boardBySession(state.agents.values(), now);
+    if (liveSince != null) spendSamples.current = recordSpend(spendSamples.current, now, bySession);
+    const rate = liveSince == null ? null : spendRate(spendSamples.current, now, bySession);
     const burnRate = rate ? { label: fmtCostRate(rate.spent, rate.spanSec), spanMin: rate.spanMin } : null;
     return {
       byModel,
