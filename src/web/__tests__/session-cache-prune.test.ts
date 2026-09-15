@@ -139,15 +139,57 @@ async function otherSessions(count: number, tag: string): Promise<void> {
 }
 
 describe("per-session cache expiry", () => {
-  it("forgets a session pushed out by newer ones", async () => {
+  it("does NOT forget a live session pushed past the cap by newer ones", async () => {
+    // WHAT THIS USED TO ASSERT, and why it is the opposite now:
+    //
+    //   it("forgets a session pushed out by newer ones", …)
+    //     await otherSessions(CAP + 8, "filler");
+    //     expect(await stampedModel(sid)).toBeUndefined();
+    //
+    // That was the defect #1032 measured, pinned as the requirement. Eviction
+    // clears the three read-throttle stamps and pruneTranscriptScans drops the
+    // byte cursor, so an evicted session that speaks again re-reads its whole
+    // transcript on EVERY event — and those re-reads are themselves pushEvent
+    // calls, so it feeds itself. Fresh deck per row, 16 events per session,
+    // 21 KB transcripts:
+    //
+    //   N=200  synthetic=600   rchar=6 MB
+    //   N=256  synthetic=768   rchar=7 MB
+    //   N=300  synthetic=9159  rchar=77 MB
+    //
+    // A 17% increase in sessions, 11.9x the derived events and 11x the reads:
+    // three per SESSION became three per EVENT. A cliff sitting exactly on the
+    // constant, and the server's cap (256) is above the client's AGENT_CAP
+    // (200), so the UI cannot warn about a number it will not draw.
+    //
+    // The cap now reaps only sessions nothing has been heard from, which is
+    // what its comment always claimed. `cold-session` here is seconds old, so
+    // it is live by OUTPUT_WATCH_WINDOW_MS — the same definition outputWatch
+    // already polls by — and 264 newer sessions do not make it otherwise.
     const sid = "cold-session";
     await prime(sid);
     expect(await stampedModel(sid)).toBe(MODEL);
 
     await otherSessions(CAP + 8, "filler");
 
-    expect(await stampedModel(sid)).toBeUndefined();
+    expect(await stampedModel(sid)).toBe(MODEL);
   }, 60_000);
+
+  it("still drops the least-recent ones at the hard ceiling, so the map is bounded", async () => {
+    // The age rule alone is unbounded in principle, and an unbounded map is the
+    // leak this mechanism exists to end. HARD_TRACKED_SESSIONS is the backstop:
+    // past it the least-recently-seen entries go whether or not they are live.
+    // Reaching it means something is wrong in a way no cache policy fixes.
+    const sid = "ceiling-session";
+    await prime(sid);
+    expect(await stampedModel(sid)).toBe(MODEL);
+
+    // Eight times the cap, which is what HARD_TRACKED_SESSIONS is set to, plus
+    // enough to push this one over it.
+    await otherSessions(CAP * 8, "flood");
+
+    expect(await stampedModel(sid)).toBeUndefined();
+  }, 120_000);
 
   it("keeps a session that is still being used", async () => {
     const sid = "warm-session";
