@@ -219,13 +219,18 @@ describe("a registry entry the filesystem never answers for", () => {
     // that the healthy deck was handed the event while the stalled read was
     // still outstanding — neither of which can happen on one thread.
     const deck = await deckListener();
+    // `<pid>0.json` rather than a number picked out of the air: a discovery
+    // record is named for the deck's pid, this one has to be a name the live
+    // record cannot also have, and it must not be a substring of it either —
+    // the preload decides what to stall by matching the path.
+    const stalled = `${process.pid}0.json`;
     try {
       const run = await runHook({
         records: {
-          "424242.json": { pid: process.pid, port: 1, workspace: "" },
+          [stalled]: { pid: process.pid, port: 1, workspace: "" },
           [`${process.pid}.json`]: { pid: process.pid, port: deck.port, workspace: "" },
         },
-        preload: stallingFs("424242.json"),
+        preload: stallingFs(stalled),
       });
       expect(run.signal, "the hook never returned: a blocking fs call outran its own cap").toBe(null);
       expect(run.code, run.stderr.split("\n")[0]).toBe(0);
