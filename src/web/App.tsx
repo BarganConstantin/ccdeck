@@ -54,7 +54,7 @@ import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
-import { blockKey, canAsk, nextRaised, noticesFor, seedRaised, shouldReseed } from "./notify";
+import { blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { NotifyPermission } from "./notify";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import type { WatchEpisode } from "./components/BrowserWatchModal";
@@ -3629,13 +3629,47 @@ function Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifyPermission]);
 
+  /** Whether the world has been adopted as history yet — the seed below runs
+   *  once, on the FIRST replay, and a reconnect's replay must not re-run it. */
+  const notifySeededReplayRef = useRef(false);
+
+  // …AND THE MOMENT THAT ACTUALLY CARRIES THE BLOCKS (#968). The seed above runs
+  // at mount, and at mount this deck knows nothing: `stateRef.current` is still
+  // `initialState()`, because the EventSource that fills it is opened by an
+  // effect and its first message cannot arrive before the mount commit. So
+  // `waitingSessions` is `[]` there and `seedRaised([])` adopted an empty world
+  // — then recorded itself as seeded, so it never ran again.
+  //
+  // The cost was the exact burst the seed exists to prevent. A tab a browser
+  // restored INTO THE BACKGROUND after a reboot is hidden, so the visibility
+  // gate does not cover it; the ring buffer replays three standing prompts with
+  // their original `since`; the coalescer flushes one render at `replay-end`;
+  // and `blockedKeys` moves from "" to three keys against an empty `raised` —
+  // three notifications about prompts from before lunch, at once.
+  //
+  // `liveSince` is the moment the deck has finished adopting the world, so the
+  // seed happens here instead. Declared BEFORE the raiser so that on the commit
+  // where both fire — replay-end changes `liveSince` and `blockedKeys` together
+  // — this one has already adopted them.
+  useEffect(() => {
+    if (!shouldSeedFromWorld(notifySeededReplayRef.current, liveSince)) return;
+    notifySeededReplayRef.current = true;
+    notifyRaisedRef.current = seedRaised(waitingSessions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveSince]);
+
   useEffect(() => {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    // Never before the seed above. Effects run in declaration order, so on
-    // mount that one has already adopted the standing blocks — but a render
-    // that reordered them would turn every open deck into a burst, and the
-    // guard is one comparison.
-    if (notifySeededAtRef.current === null) return;
+    // Never before EITHER seed above. Effects run in declaration order, so on
+    // the commit that ends the first replay both have already adopted the
+    // standing blocks — but a render that reordered them would turn every
+    // restored deck into a burst, and the guard is one call.
+    //
+    // The `liveSince` half also holds the raiser through the replay itself:
+    // blocks arriving there are history by definition, and returning here
+    // leaves `raised` untouched, so the seed at replay-end still adopts them
+    // rather than them being dropped.
+    if (!mayRaise(notifySeededAtRef.current, liveSince)) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
     const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible, notifyOn);
     for (const n of notices) {
@@ -3671,8 +3705,16 @@ function Inner() {
     notifyRaisedRef.current = pageVisible
       ? seedRaised(waitingSessions)
       : nextRaised(waitingSessions, notices, notifyRaisedRef.current);
+    // `liveSince` as well as the keys, and it is not decoration. A block raised
+    // while the stream was DOWN arrives during the reconnect's replay, when
+    // this effect is gated off — so `blockedKeys` has already taken its new
+    // value by the time the gate opens, and keyed on the keys alone this would
+    // never run again for it. The reconnect's `replay-end` does not re-seed
+    // (that is `shouldSeedFromWorld`'s first-replay-only guard), so on that
+    // commit `raised` still lacks the block and it is announced — which is the
+    // notification a user who walked away most wants.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockedKeys]);
+  }, [blockedKeys, liveSince]);
 
   return (
     <div className="app">

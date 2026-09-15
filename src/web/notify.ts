@@ -245,6 +245,67 @@ export function shouldReseed(
 }
 
 /**
+ * …and the THIRD moment, which is the one that actually carries the standing
+ * blocks (#968).
+ *
+ * `shouldReseed` fires at mount, and at mount the deck knows nothing. The graph
+ * `waitingSessions` is computed from is `initialState()` until the `EventSource`
+ * delivers, and that EventSource is opened by an effect, so its first message
+ * cannot land before the mount commit. The mount seed therefore ran
+ * `seedRaised([])` — it adopted an empty world and then recorded itself as
+ * having seeded, so it never ran again.
+ *
+ * WHAT WAS OBSERVED. Three sessions sitting on permission prompts; the user
+ * reboots; the browser restores the deck's tab INTO THE BACKGROUND, so
+ * `document.hidden` is true and the visibility gate — the thing that covers the
+ * ordinary "you just opened it, so you are looking at it" case — does not
+ * apply. Permission was granted in an earlier session. Mount seeds nothing. The
+ * stream connects, the server drains its ring buffer, three `Notification`
+ * envelopes are applied with their ORIGINAL `since`, and the coalescer flushes
+ * one render at `replay-end`. `blockedKeys` goes from "" to three keys, the
+ * raise effect runs against an empty `raised`, and three notifications about
+ * prompts from before lunch arrive on the desktop at once.
+ *
+ * So the world is adopted when the deck has finished adopting the world, which
+ * is what `liveSince` marks — it is set at `replay-end`, after the coalescer has
+ * flushed, and is null both before the first one and after the stream drops.
+ *
+ * FIRST REPLAY ONLY, and the guard is the point rather than an optimisation. A
+ * reconnect after a dropped connection also ends in `replay-end`; seeding there
+ * would adopt — and therefore silence — a block that was raised while the tab
+ * was disconnected, which is the single notification the user most wants.
+ */
+export function shouldSeedFromWorld(
+  seeded: boolean,
+  liveSince: number | null | undefined,
+): boolean {
+  return !seeded && liveSince != null;
+}
+
+/**
+ * Whether the notifier may speak at all yet.
+ *
+ * Both halves of "has started watching", as one rule, because the raiser must
+ * not run before EITHER of them. The permission half was already there as a
+ * bare `notifySeededAtRef.current === null` comparison in the component; the
+ * live half is new and is what stops the replay itself being announced — during
+ * a replay the blocks arriving are history by definition, and `liveSince` is
+ * null for exactly as long as that is true.
+ *
+ * Holding fire is safe because nothing is forgotten by it: the raiser leaves
+ * `raised` untouched when it returns here, so a block that arrives mid-replay is
+ * adopted by the seed at `replay-end` rather than dropped. What it costs is a
+ * deck whose stream never connects saying nothing — which it could not have said
+ * anything about anyway, since every block it knows about arrives on that stream.
+ */
+export function mayRaise(
+  seededAt: NotifyPermission | null,
+  liveSince: number | null | undefined,
+): boolean {
+  return seededAt !== null && liveSince != null;
+}
+
+/**
  * Whether the deck should be offering to turn notifications on.
  *
  * "denied" is a dead end and the button must not pretend otherwise: once a user
