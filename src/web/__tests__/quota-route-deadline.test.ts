@@ -115,23 +115,30 @@ beforeEach(() => {
   invalidateQuotaCache();
 });
 
-// A deadline short enough that a test waiting it out costs nothing, and long
-// enough that a loaded runner cannot trip it on scheduling alone. The number
-// the route uses is asserted separately, below.
+// The deadline these cases hand in. Short enough that waiting it out costs
+// nothing; the five seconds the ROUTE spends is asserted separately, below.
 const SOON = 80;
 
 /**
  * A bounded answer, or a sentence saying one never came.
  *
- * The regression this file guards is a promise that never settles, and a test
- * which merely awaits it hangs until the suite's own budget expires — reported
- * as a timeout, on whichever file the runner happened to be in, rather than as
- * this rule being broken. Twenty deadlines' grace is far more than scheduling
- * noise and far less than a wait anybody would notice.
+ * The regression here is a promise that NEVER settles, and a test which merely
+ * awaits one hangs until the suite's own budget expires — reported as a timeout,
+ * on whichever file the runner happened to be in, rather than as this rule being
+ * broken. So the wait is capped here instead, and the cap is what gets asserted
+ * against.
+ *
+ * Deliberately far above SOON rather than just above it. What these cases claim
+ * is that the wait is bounded AT ALL — the difference between five seconds and
+ * forever — and not that an 80ms timer fires within 80ms on the third operating
+ * system of a loaded CI matrix. A ceiling pinned near the deadline would fail
+ * there for scheduling reasons and teach everyone to re-run it, and a flaky
+ * ceiling bounds nothing.
  */
 const SILENCE = "the read was never bounded — the caller is still waiting";
+const PATIENCE = 5_000;
 const orSilence = <T>(p: Promise<T>): Promise<T | string> =>
-  Promise.race([p, new Promise<string>(r => { setTimeout(() => r(SILENCE), SOON * 20); })]);
+  Promise.race([p, new Promise<string>(r => { setTimeout(() => r(SILENCE), PATIENCE); })]);
 
 describe("a read that outlives the caller's patience", () => {
   it("answers when the deadline says, not when the CLI does", async () => {
@@ -148,7 +155,7 @@ describe("a read that outlives the caller's patience", () => {
     expect(answer, "not yet, rather than a held connection")
       .toMatchObject({ ok: false, reason: "waiting" });
     expect(spent, "bounded by the deadline, whatever the CLI is doing")
-      .toBeLessThan(2_000);
+      .toBeLessThan(PATIENCE * 2);
 
     letGo();
     await read;
@@ -186,7 +193,7 @@ describe("a read that outlives the caller's patience", () => {
       fetchClaudeQuota({ deadlineMs: SOON }),
     ]));
     expect(both, "both joiners answered").not.toBe(SILENCE);
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(Date.now() - started).toBeLessThan(PATIENCE * 2);
     for (const answer of both as Quota[]) expect(answer).toMatchObject({ ok: false, reason: "waiting" });
     expect(claudeRuns(), "and neither joiner spawned its own").toHaveLength(1);
 
