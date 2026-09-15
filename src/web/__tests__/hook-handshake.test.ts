@@ -16,7 +16,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
 import { rmTempDir } from "./rm-temp-dir";
 import { randomBytes } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
@@ -364,4 +364,114 @@ describe("a deck that is simply too busy to answer in time", () => {
     expect(challenges).toBe(2);
     expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(0);
   }, 15_000);
+});
+
+describe("a record no running deck is keeping, on a port that answers nothing", () => {
+  // #1069. A record whose pid the OS recycled onto a live process passes the
+  // only staleness test there was, for good — and when its port has something
+  // behind it that accepts and never answers, every event paid both challenge
+  // deadlines for it, and every honest deck's POST waited behind the barrier:
+  // 833ms on every tool call, measured, permanently. A running deck stamps its
+  // record every five seconds (ensureDiscovery), so a record that is silent AND
+  // has gone a minute unstamped is one nobody is keeping.
+
+  /** A registry of several records, kept so a second run sees what the first left. */
+  function registryOf(records: Record<string, Record<string, unknown>>) {
+    const home = mkdtempSync(join(ROOT, "home-"));
+    const dir = join(home, "agent-dag");
+    mkdirSync(dir, { recursive: true });
+    for (const [name, record] of Object.entries(records)) {
+      writeFileSync(join(dir, name), JSON.stringify(record), "utf8");
+    }
+    return { home, dir };
+  }
+
+  async function fire(home: string) {
+    const child = spawn(process.execPath, [COPY, "--provider", "claude"], {
+      env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+    child.stdin.end(JSON.stringify(EVENT));
+    await new Promise<void>((done, fail) => {
+      child.on("error", fail);
+      child.on("exit", () => done());
+    });
+  }
+
+  // A numbered name, because the hook reads nothing else, and one that is not
+  // the live record's name and does not contain it.
+  const GHOST = `${process.pid}0.json`;
+  const LIVE = `${process.pid}.json`;
+  const age = (file: string, ms: number) => {
+    const then = new Date(Date.now() - ms);
+    utimesSync(file, then, then);
+  };
+
+  it("is forgotten after the event it costs, so the next event does not pay for it again", async () => {
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    const silent = await listener(() => { /* accepts, never answers */ });
+    const { home, dir } = registryOf({
+      [LIVE]: discoveryFor(deck.port, token),
+      [GHOST]: discoveryFor(silent.port, randomBytes(32).toString("hex")),
+    });
+    age(join(dir, GHOST), 10 * 60_000);
+    try {
+      await fire(home);
+      expect(silent.seen, "the silent port was not given its two deadlines").toHaveLength(2);
+      expect(existsSync(join(dir, GHOST)), "a silent record nobody has stamped for ten minutes is still on disk").toBe(false);
+
+      await fire(home);
+      expect(silent.seen, "the second event paid for the same ghost again").toHaveLength(2);
+      expect(deck.seen.filter(s => s.method === "POST"), "the deck that answered missed an event").toHaveLength(2);
+      expect(existsSync(join(dir, LIVE)), "the live deck's own record went with it").toBe(true);
+    } finally {
+      await deck.close();
+      await silent.close();
+    }
+  }, 20_000);
+
+  it("is kept while something is still stamping it, however late its answers", async () => {
+    // The case the deadline retry exists for: a deck too loaded to answer inside
+    // 400ms twice is still running its five-second check, so its record is fresh
+    // and it gets asked again on the next event.
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    const busy = await listener(() => { /* too busy to answer in time */ });
+    const { home, dir } = registryOf({
+      [LIVE]: discoveryFor(deck.port, token),
+      [GHOST]: discoveryFor(busy.port, randomBytes(32).toString("hex")),
+    });
+    try {
+      await fire(home);
+      expect(busy.seen).toHaveLength(2);
+      expect(existsSync(join(dir, GHOST)), "a record stamped a moment ago was treated as abandoned").toBe(true);
+    } finally {
+      await deck.close();
+      await busy.close();
+    }
+  }, 20_000);
+
+  it("is kept when its port refuses, however long ago it was stamped", async () => {
+    // A refusal is a verdict that costs nothing, and it is also what a deck
+    // restarting under its supervisor gives for a moment. Only the silent port
+    // was ever expensive, so only the silent port is grounds for forgetting.
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    const gone = await listener(() => {});
+    const refused = gone.port;
+    await gone.close();
+    const { home, dir } = registryOf({
+      [LIVE]: discoveryFor(deck.port, token),
+      [GHOST]: discoveryFor(refused, randomBytes(32).toString("hex")),
+    });
+    age(join(dir, GHOST), 10 * 60_000);
+    try {
+      await fire(home);
+      expect(deck.seen.filter(s => s.method === "POST")).toHaveLength(1);
+      expect(existsSync(join(dir, GHOST)), "a refused port was taken as proof the deck is gone").toBe(true);
+    } finally {
+      await deck.close();
+    }
+  }, 20_000);
 });

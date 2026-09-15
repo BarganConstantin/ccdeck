@@ -361,7 +361,9 @@ function sameProof(got, want) {
 // followed by one 1000ms deadline. What the barrier does cost is that an honest
 // deck's POST waits for the slowest challenge in the set, which only matters
 // when some OTHER record's port accepts a connection and then says nothing. A
-// ghost port with nothing behind it refuses instantly and delays no one.
+// ghost port with nothing behind it refuses instantly and delays no one; one
+// with something silent behind it costs both deadlines once, and its record is
+// then forgotten if no deck has been keeping it — see forgetIfAbandoned.
 const CHALLENGE_TIMEOUT_MS = 400;
 const POST_TIMEOUT_MS = 1000;
 
@@ -413,7 +415,9 @@ const CAP_MS = 1900;
 /**
  * Ask the listener to prove it is the deck that wrote `d`. `cb` is called
  * exactly once with true or false — a refused connection, a silent port and a
- * wrong answer are all just "not the deck this record describes".
+ * wrong answer are all just "not the deck this record describes" — and, for a
+ * port that let BOTH deadlines pass, with "deadline" as a second argument: the
+ * one verdict that costs 800ms, and the one proveTargets acts on.
  *
  * A deck that advertised no token cannot be asked and passes: see requiresProof.
  */
@@ -436,11 +440,11 @@ function prove(d, cb, attempt = 0) {
   // port answering is not a deck at all.
   const retryOnTimeout = () => {
     if (settled) return;
-    if (attempt >= 1) return finish(false);
+    if (attempt >= 1) return finish(false, "deadline");
     settled = true;                        // this attempt is over; the next owns `cb`
     prove(d, cb, attempt + 1);
   };
-  const finish = ok => { if (settled) return; settled = true; cb(ok); };
+  const finish = (ok, why = null) => { if (settled) return; settled = true; cb(ok, why); };
 
   if (!requiresProof(d)) return finish(true);
 
@@ -504,42 +508,86 @@ function prove(d, cb, attempt = 0) {
  * ordering, and it is the same reordering src/server/index.mjs makes in
  * readLiveDecks for the Codex rollouts no hook ever sees.
  *
- * The record is NOT unlinked when a target fails. A dead pid is proof the deck
- * is gone and is swept above; a failed challenge is not — a deck restarting
- * under its supervisor refuses connections for a moment while its record still
+ * A FAILED CHALLENGE ON ITS OWN IS STILL NOT PROOF THE DECK IS GONE. A dead pid
+ * is, and is swept above; a failed challenge is not — a deck restarting under
+ * its supervisor refuses connections for a moment while its record still
  * stands, and a merely busy one can miss the 400ms deadline. Deleting another
- * deck's registration on that evidence trades a bug that loses log lines for one
- * that loses a whole deck's events, and it buys nothing now that the election no
- * longer believes the record.
+ * deck's registration on that evidence alone trades a bug that loses log lines
+ * for one that loses a whole deck's events.
  *
- * WHAT THAT LAST CLAUSE USED TO SAY, AND WHAT IT COSTS. It said "a ghost that
- * survives on disk costs one instant ECONNREFUSED per hook run and decides
- * nothing", and that is true only while NOTHING is listening on the port the
- * record names. Measured, one healthy deck plus one unremovable record naming a
- * port that accepts a connection and then says nothing (#1018):
+ * WHAT THAT COST WHEN SOMETHING WAS LISTENING (#1069). This paragraph used to
+ * end "a ghost that survives on disk costs one instant ECONNREFUSED per hook
+ * run", which is true only while NOTHING is listening on the port the record
+ * names. Measured through the installed command shape, one healthy deck plus
+ * one record whose pid is alive and names a port that accepts a connection and
+ * then says nothing:
  *
- *   healthy deck alone                        34ms  36ms  33ms
- *   + ghost whose port refuses                34ms  40ms  38ms
- *   + ghost whose port accepts and is silent  837ms  837ms  834ms
+ *   healthy deck alone                        36ms  38ms  39ms
+ *   + ghost whose port refuses                36ms  45ms  37ms
+ *   + ghost whose port accepts and is silent  849ms  848ms  836ms
  *
- * The retry above turns one 400ms deadline into two, and the barrier makes
- * every honest deck's POST wait for the slowest challenge in the set. So it is
- * 833ms on every event, permanently: the record is unremovable by design once
- * the OS has recycled the dead deck's pid onto anything long-lived, and 4317 —
- * the deck's own default — is also the standard OTLP collector port, so a
- * listener being there is not far-fetched.
+ * The retry in prove() turns one 400ms deadline into two, and the barrier makes
+ * every honest deck's POST wait for the slowest challenge in the set — so that
+ * was the price of EVERY event, for good, because nothing else ever removed the
+ * record once the OS had recycled the dead deck's pid onto something
+ * long-lived. And 4317, the deck's own default, is also the standard OTLP
+ * collector port, so something silent being there is not far-fetched.
  *
- * It is left standing here rather than fixed in passing. Every remedy is a
- * change to the deletion policy this paragraph exists to argue for — unlink on
- * a failed challenge past some age, say, using the `startedAt` the record
- * already carries — and that deserves its own change and its own evidence, not
- * a rider on a timing fix.
+ * So one more piece of evidence is asked for, and only on the verdict that
+ * costs anything. A running deck keeps its record: keepDiscovery re-asserts it
+ * every five seconds, and ensureDiscovery stamps the file's mtime each time even
+ * when nothing in it has changed. A record that let both deadlines pass AND has
+ * not been stamped for ABANDONED_AFTER_MS belongs to no running deck, whatever
+ * its pid says, and is unlinked — see forgetIfAbandoned. The two cases above
+ * stay protected: a restarting deck REFUSES, which is a different verdict and
+ * never gets here, and a busy deck is still stamping its record every five
+ * seconds, so however late its answer, its record is fresh. The table's last row
+ * is now paid once, on the first event after the deck died, instead of on every
+ * one after it.
  */
 function proveTargets(targets, cb) {
   const ok = new Array(targets.length).fill(false);
   let pending = targets.length;
   const settle = () => { if (--pending <= 0) cb(targets.filter((_, i) => ok[i])); };
-  targets.forEach((d, i) => prove(d, answered => { ok[i] = answered; settle(); }));
+  targets.forEach((d, i) => prove(d, (answered, why) => {
+    ok[i] = answered;
+    // Inside the barrier rather than after it, so the unlink has landed before
+    // main() can exit on the last POST. It is a stat and at most an unlink, on
+    // the one path that has already spent 800ms waiting.
+    if (why === "deadline") return forgetIfAbandoned(d, settle);
+    settle();
+  }));
+}
+
+/**
+ * How long a record may go unstamped before a silent port is taken to mean that
+ * no deck is keeping it. Twelve of keepDiscovery's five-second intervals: a deck
+ * whose event loop has not run a timer for a minute is not answering anybody,
+ * and if it does come back, its next check writes the record again.
+ */
+const ABANDONED_AFTER_MS = 60_000;
+
+/** The file each target was read from, for forgetIfAbandoned. A WeakMap rather
+ *  than a field on the record, because the record is the deck's own JSON and
+ *  every field on it is a field some reader decides by. */
+const RECORD_FILE = new WeakMap();
+
+/**
+ * Unlink `d`'s record if nothing has stamped it for ABANDONED_AFTER_MS. `done`
+ * runs exactly once, whatever the filesystem says: a record that cannot be
+ * statted, or that another hook run has already unlinked, is left as it is.
+ *
+ * A deck judged abandoned wrongly — frozen for a minute, then back — is not
+ * lost: keepDiscovery finds its file missing on the next check and writes it
+ * again, which is the case that function was written for.
+ */
+function forgetIfAbandoned(d, done) {
+  const file = RECORD_FILE.get(d);
+  if (!file) return done();
+  fs.stat(file, (err, st) => {
+    if (err || Date.now() - st.mtimeMs < ABANDONED_AFTER_MS) return done();
+    fs.unlink(file, () => done());
+  });
 }
 
 /**
@@ -649,6 +697,10 @@ function readRecord(file, resolvedCwd, found, done) {
     // prove nothing. See requiresProof.
 
     if (!isAlive(d.pid)) return fs.unlink(full, () => done());
+
+    // Where this record lives, for the one later verdict that may forget it —
+    // see forgetIfAbandoned.
+    RECORD_FILE.set(d, full);
 
     // "" is machine-wide and must never reach normPath: resolving it would
     // produce this hook's own cwd — the agent's — and scope a deck that asked

@@ -5,7 +5,7 @@
 // sessions reach the same server through the rollout watcher instead, so one
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
-import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink } from "node:fs/promises";
+import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink, utimes } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -896,10 +896,11 @@ export function discoveryPath() {
  * the deck received zero events while looking perfectly healthy. Re-asserting
  * is cheap (one small read), so the deck checks rather than assumes.
  *
- * A file this process wrote is left alone, mode included. Anything else — no
- * file, unreadable, another pid, a stale port, token, events log, Codex setting
- * or Codex tree, Claude setting, or a version left by the deck this process
- * replaced — is replaced. Every field another deck decides by is compared, the
+ * A file this process wrote is left alone, mode and contents included — only its
+ * mtime moves, stamped on every check; see the note where it is. Anything else —
+ * no file, unreadable, another pid, a stale port, token, events log, Codex
+ * setting or Codex tree, Claude setting, or a version left by the deck this
+ * process replaced — is replaced. Every field another deck decides by is compared, the
  * log path included: leave one out and a record missing it would pass as ours
  * forever, which for the log path means no deck can tell which of them share a
  * file and they all write their own copy of every event again. The Codex tree
@@ -922,6 +923,15 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
       && d.claude === (claude !== false)
       && (d.version ?? "") === (typeof version === "string" ? version : "")
       && (d.parent ?? null) === (Number.isInteger(parent) ? parent : null)) {
+      // STAMPED, though nothing in it changed. The mtime is how a reader tells a
+      // record some deck is still keeping from one whose deck is gone while its
+      // pid lives on under another process: hook.js unlinks a record whose port
+      // lets both challenge deadlines pass only once this stamp is a minute old
+      // (#1069), which a deck running this check every five seconds never lets
+      // happen. Best-effort — a stamp that cannot be written leaves the record
+      // exactly as every deck before this one left it.
+      const now = new Date();
+      await utimes(file, now, now).catch(() => {});
       return { file, rewritten: false };
     }
   } catch { /* missing, unreadable or corrupt — rewritten below */ }
