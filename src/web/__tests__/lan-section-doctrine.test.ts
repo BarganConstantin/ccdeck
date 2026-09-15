@@ -323,20 +323,21 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     expect(SERVER).toMatch(/autoAccept: lan\.autoAccept !== false/);
   });
 
-  it("says nothing in the state it ships in, and says what a switch turned off costs", () => {
+  it("stays quiet in the state it ships in, and warns only where a switch gives logins away", () => {
     // The two labels describe the two switches in full, so a paragraph under
     // them repeating it is a paragraph nobody reads twice — the same rule the
-    // roster is built on. What earns a line is a switch somebody has turned
-    // OFF, because the deck is then behaving differently from its default and
-    // that difference is what a reader opened this to check.
-    expect(MODAL).toMatch(/\{says \? null : asks \? \(\s*<p className="lan-note">/);
-    // No yellow anywhere in this dialog now. It had two paragraphs of it, both
-    // under controls whose own labels said the same thing, and a surface that
-    // shouts about its resting state is a surface people stop reading.
-    expect(MODAL).not.toContain("lan-warn");
-    // The note that IS drawn never claims the incoming half still waits for
-    // somebody, which would be a lie the moment the second switch is on.
-    const note = /\{says \? null : asks \? \(\s*<p className="lan-note">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
+    // roster is built on. What earns a line is a deck behaving differently from
+    // its default, and that difference is what a reader opened this to check.
+    // One line, always present, so a screen reader hears it change.
+    expect(MODAL).toMatch(/<p className=\{armedAccept \|\| says \? "lan-warn" : "lan-note"\} aria-live="polite">/);
+    // Yellow is spent on one thing (#828): saying yes to every deck that asks,
+    // armed or on, which is off as shipped. The dialog used to carry two
+    // paragraphs of it under controls whose labels said the same, and a surface
+    // that shouts about its resting state is a surface people stop reading.
+    expect(MODAL.match(/lan-warn/g)).toHaveLength(1);
+    // The note that IS drawn with the yes switch off never claims the incoming
+    // half pairs on its own.
+    const note = /\) : asks \? \(\s*<>([\s\S]*?)<\/>/.exec(MODAL)?.[1] ?? "";
     expect(note).toMatch(/still has to say yes/);
   });
 
@@ -1128,7 +1129,10 @@ describe("what did not change", () => {
     // was which.
     expect(MODAL).not.toMatch(/Everyone on this network can see this name/);
     expect(MODAL).not.toMatch(/Read this out when somebody is deciding/);
-    expect(MODAL).not.toContain("lan-warn");
+    // One warning line survives, and it is not an explanation: it is the second
+    // press of the yes switch, asked for, and what that switch gives away while
+    // it is on (#828). Pinned beside the switches, above.
+    expect(MODAL.match(/lan-warn/g)).toHaveLength(1);
     // AND THE FINGERPRINT IS STILL PRINTED WHERE IT IS ACTED ON. It is not a
     // decoration anywhere it appears: it is the one value whoever is asking
     // cannot choose, so it belongs on both surfaces that answer a request.
