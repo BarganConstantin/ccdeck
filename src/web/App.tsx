@@ -4312,6 +4312,10 @@ function Inner() {
                 <path d="M5.4 3.6h6.6M5.4 7h6.6M5.4 10.4h6.6" />
                 <path d="M2.2 3.6h.2M2.2 7h.2M2.2 10.4h.2" />
               </svg>
+              {/* THE WORD (#836), drawn where the bar has room — see .tb-word.
+                  Each one is a word its button's accessible name already
+                  contains, so the eye and voice control agree. */}
+              <span className="tb-word">Session list</span>
             </button>
             <button
               className="btn icon-btn"
@@ -4325,6 +4329,7 @@ function Inner() {
                 <path d="M9.4 4.5C9 3.6 8.1 3.1 7 3.1c-1.4 0-2.4.8-2.4 1.9 0 1.2 1.2 1.6 2.4 2s2.4.8 2.4 2c0 1.1-1 1.9-2.4 1.9-1.1 0-2-.5-2.4-1.4" />
                 <path d="M7 1.6v1.5M7 10.9v1.5" />
               </svg>
+              <span className="tb-word">Usage</span>
             </button>
             {/* Same disclosure as the usage panel — a sidebar that opens beside
                 the canvas and takes no focus with it.
@@ -4345,6 +4350,7 @@ function Inner() {
                 <circle cx="7" cy="4.6" r="2.4" />
                 <path d="M2.4 12c0-2.3 2.1-3.7 4.6-3.7s4.6 1.4 4.6 3.7" />
               </svg>
+              <span className="tb-word">Accounts</span>
             </button>
             )}
             {/* The session list's ☰ used to sit here, sharing the left slot with
@@ -4377,6 +4383,7 @@ function Inner() {
                 <rect x="3.6" y="3.6" width="6.8" height="6.8" rx="1.2" />
                 <path d="M5.8 1.4v2.2M8.2 1.4v2.2M5.8 10.4v2.2M8.2 10.4v2.2M1.4 5.8h2.2M1.4 8.2h2.2M10.4 5.8h2.2M10.4 8.2h2.2" />
               </svg>
+              <span className="tb-word">Machine</span>
             </button>
             {/* The odd one out, and deliberately given neither aria-pressed nor
                 aria-expanded. What this opens is a modal — role="dialog"
@@ -4400,6 +4407,10 @@ function Inner() {
                 <line x1="7" y1="11.5" x2="7" y2="3" />
                 <line x1="11" y1="11.5" x2="11" y2="8.5" />
               </svg>
+              {/* An ellipsis on the two that raise a dialog, the platform's own
+                  mark for "this opens something": what tells them from the
+                  panel toggles beside them while nothing is open. */}
+              <span className="tb-word">History…</span>
             </button>
             {/* THE SILHOUETTE CARRIES THE STATE, AND THE COLOUR ONLY AGREES
                 WITH IT. At 13px a hue change is not readable — ambient.ts makes
@@ -4427,6 +4438,7 @@ function Inner() {
                   ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
                   : <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
               </svg>
+              <span className="tb-word">Watch…</span>
             {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
             </button>
           </div>
@@ -4495,6 +4507,7 @@ function Inner() {
                     ? <><path d="M9.8 5.4a2.4 2.4 0 0 1 0 3.2" /><path d="M11.3 3.9a4.6 4.6 0 0 1 0 6.2" /></>
                     : <><path d="M10 5.6l2.6 2.8" /><path d="M12.6 5.6L10 8.4" /></>}
                 </svg>
+                <span className="tb-word">Sound</span>
               </button>
               {soundMenuOpen && (
                 <SoundMenu
@@ -4531,6 +4544,9 @@ function Inner() {
                   <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
                 </svg>
               )}
+              {/* The mode it switches TO, which is what the glyph already
+                  draws and what the accessible name says. */}
+              <span className="tb-word">{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
           </div>
         </div>

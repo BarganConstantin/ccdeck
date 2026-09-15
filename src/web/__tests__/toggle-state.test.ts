@@ -275,10 +275,16 @@ describe("what the toggle state used to be worth (#370)", () => {
 });
 
 describe("the on state, as the sheet draws it now", () => {
-  it("is one rule serving both attributes, so no toggle can be styled and mute", () => {
+  it("keys both attributes, so no toggle can be styled and mute", () => {
+    // Two rules since #836: a setting that is on keeps the fill measured
+    // below, and a panel that is showing is underlined instead, because two
+    // or three open at once made the bar read as three things switched on.
     const rule = RULES.find(r => selectors(r.selector).includes(ON));
     expect(rule, "no rule keyed on aria-pressed").toBeTruthy();
-    expect(selectors(rule!.selector)).toContain(ON_EXPANDED);
+    const open = RULES.find(r => selectors(r.selector).includes(ON_EXPANDED));
+    expect(open, "no rule keyed on aria-expanded").toBeTruthy();
+    expect(declIn(open!.body, "box-shadow")).toBe("inset 0 -2px 0 var(--accent)");
+    expect(declIn(open!.body, "border-color")).toBe("var(--accent)");
   });
 
   it("stopped painting itself in --accent-dim, which is a wash and not a state", () => {
@@ -335,8 +341,10 @@ describe("the on state, as the sheet draws it now", () => {
     // toggle would answer the pointer with nothing at all.
     const hover = bodyOf(`${ON}:hover`);
     expect(declIn(hover, "box-shadow")).toBe("0 0 0 2px var(--accent-dim)");
-    expect(selectors(RULES.find(r => selectors(r.selector).includes(`${ON}:hover`))!.selector))
-      .toContain(`${ON_EXPANDED}:hover`);
+    // An open panel needs no halo: hover repaints the edge and the glyph, and
+    // leaves the underline that carries the state where it is (#836).
+    expect(RULES.some(r => selectors(r.selector).includes(`${ON_EXPANDED}:hover`))).toBe(false);
+    expect(declIn(bodyOf("button.btn:hover"), "box-shadow")).toBeNull();
   });
 
   it("out-specifies the hover it has to survive", () => {

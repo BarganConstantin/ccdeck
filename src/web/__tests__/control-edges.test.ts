@@ -638,8 +638,9 @@ const EXEMPT_RINGS = new Set([
   // move. 1.91:1 dark / 1.39:1 light, and the file already refuses to let
   // --accent-dim be a border-color anywhere for exactly that reason; as a glow
   // over an edge that is still there it takes nothing away.
+  // The open-panel state lost its fill and so its halo (#836): it is an
+  // accent edge and an underline now, and hover repaints nothing it needs.
   'button.btn.icon-btn[aria-pressed="true"]:hover',
-  'button.btn.icon-btn[aria-expanded="true"]:hover',
   // A currentColor hairline on a canvas label that is lifting under the
   // pointer. .cluster-label is exempt at rest for the reason below — it reads
   // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.

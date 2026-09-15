@@ -799,6 +799,20 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   gap: 8px;
 }
+/* THE WORDS (#836). Eight bare glyphs meant a first-timer or a touch user could
+   not learn the bar without hovering each one. Where the bar has room, each
+   says its name beside the glyph: a word its accessible name already contains,
+   so what the eye reads and what voice control hears agree (2.5.3). The two
+   that raise a dialog end in an ellipsis, the platform's own mark for "this
+   opens something", which tells them from the panel toggles beside them while
+   nothing is open. Under 1600px the bar is glyphs again: the readouts give
+   first and the controls never do, and the words are about 480px the bar does
+   not have below that. */
+.tb-word { display: none; }
+@media (min-width: 1600px) {
+  .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
+  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 10px 0 9px; }
+}
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
    of them fit down to a 320px screen. */
@@ -2209,19 +2223,28 @@ button.btn.icon-btn {
    attributes, because the deck has both kinds — the panel buttons disclose a
    region (aria-expanded) and the sound button is a setting (aria-pressed).
    The reasoning for each is on the buttons themselves in App.tsx. */
-button.btn.icon-btn[aria-pressed="true"],
-button.btn.icon-btn[aria-expanded="true"] {
+button.btn.icon-btn[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--bg);
+}
+/* AN OPEN PANEL IS UNDERLINED, NOT FILLED (#836). The toggles that disclose a
+   region beside the canvas are usually open two or three at a time, so the
+   fill above made the bar at rest read as "three things switched on" rather
+   than "three panels showing". A 2px accent line along the foot, the tab idiom
+   for "this one is showing", says the second; the accent edge keeps the state
+   difference #370 measured for, and the glyph stays --text. The fill stays for
+   a setting that is on, which is what aria-pressed means. */
+button.btn.icon-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 /* `button.btn:hover` repaints the border and the glyph in --accent, and on this
    chip --accent is the fill — so a pressed toggle would have had no pointer
    feedback at all. The halo is the same `0 0 0 2px var(--accent-dim)` the
    search field draws on focus, and it only adds: it sits outside the border
    box, so every ratio above is exactly what it was. */
-button.btn.icon-btn[aria-pressed="true"]:hover,
-button.btn.icon-btn[aria-expanded="true"]:hover {
+button.btn.icon-btn[aria-pressed="true"]:hover {
   box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
