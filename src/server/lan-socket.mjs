@@ -91,7 +91,7 @@ import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
   beaconPayload, beaconVerdict, cleanName, handshakeTranscript, hostId, notePeer, proof, proofOk,
-  inviteProof, readBeacon, readPub, sessionKey, trustedPeer,
+  inviteProof, inviteProofBack, readBeacon, readPub, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 
@@ -490,32 +490,49 @@ export function createSyncServer({
           // name — refused loudly rather than quietly re-pinned.
           return refuse("impostor");
         }
+        // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
+        // holds a token the owner of this machine copied and sent, which is the
+        // same decision the accept button is — made earlier, and made once.
+        //
+        // The proof is over the transcript, so it is worth nothing to somebody
+        // who recorded an earlier exchange, and the code itself never travels.
+        //
+        // ASKED BEFORE "DO I KNOW THIS DECK", because the two questions are
+        // independent and the answer to this one is owed to the caller either
+        // way. A caller that sent a code is waiting to be shown one back, and a
+        // deck it has ALREADY paired with is not exempt from that — somebody
+        // pasting a token into a deck that happens to be paired already would
+        // otherwise be told the minter does not hold its own invite.
+        // `offer` rather than `live`, which is what this used to be called: the
+        // socket table one scope out is also `live`, and widening this block
+        // widened the shadow with it.
+        const offer = invite();
+        const transcript = handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
+        const heldInvite = !!offer && typeof msg.invite === "string"
+          && proofOk(inviteProof(offer.code, transcript), msg.invite);
+        // AND THE CODE, BACK. The session proof says "I hold the private half
+        // of the key I just showed you", which anything with a socket can say.
+        // This says "I am the deck whose owner minted that token", which only
+        // the minter can — and a caller joining on an invite has no pin to
+        // check against, so it is the only thing standing between an invite
+        // address and whoever else is reachable there.
+        const back = heldInvite ? { inviteProof: inviteProofBack(offer.code, transcript) } : {};
         if (!known) {
-          // AN INVITE THIS DECK HANDED OUT, PRESENTED BACK. Whoever is calling
-          // holds a token the owner of this machine copied and sent, which is
-          // the same decision the accept button is — made earlier, and made
-          // once. So there is nothing to press: the deck is pinned here.
-          //
-          // The proof is over the transcript, so it is worth nothing to
-          // somebody who recorded an earlier exchange, and the code itself
-          // never travels.
-          const live = invite();
-          if (live && typeof msg.invite === "string") {
-            const want = inviteProof(live.code, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
-            if (proofOk(want, msg.invite)) {
-              onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
-                addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
-              authed = true;
-              clearTimeout(deadline);
-              sendFrame(sock, {
-                t: "ok", fp, name,
-                proof: proof(key, {
-                  challenge: myChallenge, peerChallenge: theirChallenge,
-                  fromFp: fp, toFp: peerFp, direction: "reply",
-                }),
-              });
-              return;
-            }
+          if (heldInvite) {
+            // So there is nothing to press: the deck is pinned here.
+            onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
+              addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
+            authed = true;
+            clearTimeout(deadline);
+            sendFrame(sock, {
+              t: "ok", fp, name,
+              proof: proof(key, {
+                challenge: myChallenge, peerChallenge: theirChallenge,
+                fromFp: fp, toFp: peerFp, direction: "reply",
+              }),
+              ...back,
+            });
+            return;
           }
           // A DECK THIS ONE'S OWNER ALREADY ANSWERED, and the answer was no.
           // It is not asked again here, and — the half a held refusal cannot
@@ -540,13 +557,17 @@ export function createSyncServer({
         authed = true;
         clearTimeout(deadline);
         // And ours, so the caller knows it reached the deck it pinned rather
-        // than something standing in the way of one.
+        // than something standing in the way of one. Plus the invite, when one
+        // was presented and held: a deck already on this list is not a reason
+        // to leave a caller's question unanswered. Nothing is retired on this
+        // path — nobody was paired, because they already were.
         sendFrame(sock, {
           t: "ok", fp, name,
           proof: proof(key, {
             challenge: myChallenge, peerChallenge: theirChallenge,
             fromFp: fp, toFp: peerFp, direction: "reply",
           }),
+          ...back,
         });
         return;
       }
@@ -614,6 +635,11 @@ export function connectToPeer({
   /** The public key we pinned for this deck the first time, or null for a deck
    *  we are meeting — an address somebody typed. */
   expectPub = null,
+  /** Whether the deck that minted `code` said it will prove it holds one too.
+   *  From the token's own `pb`, which is the only way to tell a deck that will
+   *  not from a deck that cannot — see mintInvite. False leaves this path
+   *  exactly as it shipped, for a token minted by an older deck. */
+  inviteProvesBack = false,
 }) {
   return new Promise((resolve, reject) => {
     const myChallenge = randomBytes(16).toString("hex");
@@ -701,6 +727,22 @@ export function connectToPeer({
         fromFp: theirFp, toFp: fp, direction: "reply",
       });
       if (!proofOk(want, msg.proof)) return fail(new Error("that deck could not prove its own key"));
+      // AND THAT IT IS THE DECK THE INVITE NAMED. The proof above is about a
+      // key the responder chose a moment ago; this one is about a code it had
+      // to have been given. `join` has no pin to pass, so `expectPub` above is
+      // null on this path and this is the only check that distinguishes the
+      // deck whose owner minted the token from whatever else is reachable at
+      // one of the ten addresses the token happens to carry.
+      //
+      // The caller giving up here is not the end of the attempt: `join` walks
+      // the rest of the list, so a deck answering at a stale or borrowed
+      // address costs one failed address instead of winning the whole token.
+      if (code && inviteProvesBack) {
+        const back = inviteProofBack(code, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge));
+        if (!proofOk(back, msg.inviteProof)) {
+          return fail(new Error("that deck does not hold the invite"));
+        }
+      }
       settled = true;
       clearTimeout(timer);
       sock.removeAllListeners("close");

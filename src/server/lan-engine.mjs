@@ -59,6 +59,24 @@ export const ASKING_MS = 8_000;
  *  going to answer, and holding the attempt open would stall the next round. */
 export const ROUND_MS = 10_000;
 
+/**
+ * The most addresses `autoAsk` may put on the dial list on its own.
+ *
+ * Measured, because the shape of it is not the obvious one: the dial list is
+ * keyed `host:port`, not by fingerprint, so five hundred beacons from one
+ * address on one port make one row. Five hundred beacons from one address on
+ * five hundred PORTS make five hundred rows, and a round dials them one at a
+ * time with a ROUND_MS bell on each — so a list that size is eighty minutes of
+ * round, and the decks somebody actually paired with sit at the end of it
+ * waiting their turn. The ceiling on that without this number is 65,535 rows
+ * from a single host.
+ *
+ * It bounds only what the deck added BY ITSELF. Addresses a person typed are
+ * not capped: a list of those is somebody's own decision and the deck is in no
+ * position to tell them they have too many machines.
+ */
+export const MAX_AUTO_PEERS = 32;
+
 
 /** What this machine calls itself when the user has not said. The hostname,
  *  because that is the word they already use for this machine everywhere else. */
@@ -182,6 +200,11 @@ export function createEngine({
   let beacon = null;
   let server = null;
   let timer = null;
+  /** This engine, for the helpers below `apply` that need to press its own
+   *  accept — see askToAccept. Set on the first apply, which is the only thing
+   *  that can start a round or a listener, so nothing reads it before it is
+   *  there. */
+  let engine = null;
   /**
    * Decks that finished a handshake and that nobody here has accepted yet, and
    * decks merely heard shouting on the network. Two lists because they are two
@@ -349,6 +372,34 @@ export function createEngine({
   };
 
   /**
+   * A real deck nobody here has accepted: draw it as a row with an accept on it.
+   *
+   * ONE HELPER FOR BOTH DIRECTIONS, because the evidence is the same either
+   * way. A deck that DIALLED this one finishes a handshake at the listener and
+   * arrives through `onPending`; a deck this one dialled finishes the same
+   * handshake in roundWith. Both have proved they hold the key they announced,
+   * and neither has been agreed to. Before #969 only the first raised a
+   * request and the second silently pinned itself.
+   *
+   * SAY YES FOR SOMEBODY WHO SAID TO. `autoAccept` is the accept button and
+   * nothing else: the same pin, from the same key the handshake just proved.
+   * Nothing about the wire changes — an inbound connection is still refused,
+   * because trust is read fresh per connection, and the caller comes back a few
+   * seconds later.
+   *
+   * A deck already told no does not become a row again. On the inbound path
+   * lan-socket refuses it before this is ever called; on the outbound one there
+   * is nothing before this, so the check lives here.
+   */
+  const askToAccept = entry => {
+    if (declined.has(entry.fp)) return;
+    const had = pending.get(entry.fp);
+    pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
+    if (cfg.autoAccept) { engine?.accept(entry.fp); return; }
+    if (!had) onChange?.();
+  };
+
+  /**
    * Is anybody on the other end still deciding?
    *
    * The exact sentence lan-socket.mjs sends for "a real deck, not yet
@@ -410,16 +461,6 @@ export function createEngine({
         sendFrame(conn.sock, frame);
       });
 
-      // TRUST ON FIRST USE, AND ONLY FOR AN ADDRESS SOMEBODY TYPED. Reaching a
-      // deck we have no pin for means the person at this keyboard put its
-      // address in the field, which is the same decision the accept button is
-      // on the other side. Pinning it here is what makes the two lists agree —
-      // without it this deck would dial a peer every minute and still show it
-      // as nobody, and its own listener would refuse the same deck calling
-      // back.
-      //
-      // A deck we DO have a pin for was checked before this line: connectToPeer
-      // was given expectPub and refuses a different key at that address.
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
       // and nothing else until somebody answers it — and once one has, the deck
       // on the other end has told us what it calls itself. The row says that
@@ -427,7 +468,46 @@ export function createEngine({
       // address was trying to reach.
       learned.set(`${peer.addr}:${peer.port}`, { fp: conn.peerFp, name: conn.peerName || "" });
 
+      // TRUST ON FIRST USE, AND ONLY FOR AN ADDRESS SOMEBODY NAMED. Reaching a
+      // deck we have no pin for used to mean the person at this keyboard put
+      // its address in the field, which is the same decision the accept button
+      // is on the other side. Pinning it here is what makes the two lists agree
+      // — without it this deck would dial a peer every minute and still show it
+      // as nobody, and its own listener would refuse the same deck calling back.
+      //
+      // THE PREMISE WAS NOT CHECKED, AND `autoAsk` BREAKS IT — which is #969,
+      // and it is a chain rather than one mistake. A beacon authenticates
+      // nothing, by construction: it carries a fingerprint and a port and
+      // nothing binds either to the address it came from. `autoAsk` ships on,
+      // and it answered every new fingerprint by putting that address on the
+      // dial list. The next round reached it, arrived here with no pin, and
+      // read "no pin" as "somebody typed this". Nobody typed anything. One
+      // unsolicited packet, zero presses, and the far end was in `cfg.trusted`
+      // — which index.mjs writes to prefs.json, and which is the whole inbound
+      // gate — so from then on it could authenticate to `serve` and ask for
+      // every account the owner had ticked. Reproduced end to end before this
+      // line changed.
+      //
+      // So the row has to say where it came from, and only a row a person
+      // named may be pinned unseen. A row the deck added itself raises the
+      // request instead — which is all `autoAsk` ever promised: it is the ASK
+      // switch, and the accept switch is the other one.
+      //
+      // A deck we DO have a pin for was checked before this line: connectToPeer
+      // was given expectPub and refuses a different key at that address.
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
+        if (!peer.typed) {
+          // The same row the listener's own `onPending` draws, from the other
+          // direction: this deck dialled rather than being dialled, and the
+          // handshake it just finished is the same evidence either way — a real
+          // deck holding the key it announced. What is missing is the press,
+          // and that is what this asks for.
+          askToAccept({
+            fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName,
+            addr: peer.addr, port: peer.port,
+          });
+          throw new Error("waiting for somebody here to accept that deck");
+        }
         const { list, added } = addTrusted(cfg.trusted, {
           fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName, at: now(),
         });
@@ -516,7 +596,14 @@ export function createEngine({
    *
    *  Keyed by `host:port` rather than by fingerprint, because a fingerprint is
    *  what a deck says about itself after the handshake and this list has to
-   *  exist before there has been one. */
+   *  exist before there has been one.
+   *
+   *  EVERY ROW SAYS WHERE IT CAME FROM, in `typed`, and the difference decides
+   *  whether reaching it may pin a key sight unseen. A row somebody put in the
+   *  address field — or pressed accept on, or joined by invite — is a person
+   *  naming a machine. A row `autoAsk` added from a beacon is this deck
+   *  answering a shout, which is not the same claim and must not read as one.
+   *  See roundWith, where the difference is the whole of the trust rule. */
   const manual = new Map();
   /** What answered at a typed address, once something has. Keyed the same way
    *  `manual` is, because until a connection succeeds an address is all there
@@ -549,6 +636,7 @@ export function createEngine({
       /** The engine itself, for the callbacks handed to the socket below: they
        *  outlive this call and `this` is not theirs to keep. */
       const self = this;
+      engine = this;
       const was = cfg;
       cfg = { ...cfg, ...next };
       // TURNING IT ON ANSWERS WHAT IS ALREADY WAITING. A person who switches
@@ -561,7 +649,7 @@ export function createEngine({
       // The same for the other direction: switching `ask` on with four machines
       // already listed asks those four.
       if (!was.autoAsk && cfg.autoAsk) {
-        for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub) this.accept(fp);
+        for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub) this.accept(fp, { byHand: false });
       }
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
@@ -613,21 +701,10 @@ export function createEngine({
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
         declined: fp => declined.has(fp),
-        onPending: entry => {
-          const had = pending.get(entry.fp);
-          pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
-          // SAY YES FOR SOMEBODY WHO SAID TO. It is the accept button and
-          // nothing else: the same pin, from the same key this handshake just
-          // proved, so the deck is trusted on its next attempt a few seconds
-          // later exactly as it would be if a person had pressed it. Nothing
-          // about the wire changes — this connection is still refused, because
-          // trust is read fresh per connection.
-          //
-          // A deck already told no does NOT come back this way: lan-socket
-          // refuses it before this is ever called.
-          if (cfg.autoAccept) { self.accept(entry.fp); return; }
-          if (!had) onChange?.();
-        },
+        // The same helper the outbound round uses, because a deck that called
+        // in and a deck this one called have proved exactly the same thing —
+        // see askToAccept.
+        onPending: askToAccept,
       });
       let port;
       try {
@@ -661,7 +738,9 @@ export function createEngine({
           // Only a deck that is NEW is asked, or a beacon every thirty seconds
           // would be thirty seconds of asking; and never one this deck's owner
           // already turned away.
-          if (cfg.autoAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp); return; }
+          // Never `byHand`: a beacon is a shout from an address nobody here
+          // named, and the row it leaves may ask rather than pin.
+          if (cfg.autoAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
           if (!had) onChange?.();
@@ -749,6 +828,14 @@ export function createEngine({
             host: at.addr, port: at.port, timeoutMs: ROUND_MS,
             fp: identity.fp, pub: identity.pub, secret: identity.secret,
             name: cfg.name, myPort: server.port(), code: inv.code,
+            // MAKE IT PROVE IT HOLDS THE CODE. Without this the loop pinned
+            // whatever answered first, and the addresses in a token are only as
+            // trustworthy as the network they name: `localAddresses` keeps
+            // RFC1918, so a container bridge address or a lease that has since
+            // moved to somebody else's machine is an ordinary thing to find in
+            // one. Stopping at the first that ANSWERS is right; stopping at the
+            // first that answers CORRECTLY is what it was supposed to mean.
+            inviteProvesBack: inv.provesBack,
           });
           const { list } = addTrusted(cfg.trusted, {
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),
@@ -782,7 +869,7 @@ export function createEngine({
      * thing. A fingerprint nobody has actually met is refused rather than
      * trusted on a name somebody typed.
      */
-    accept(fp) {
+    accept(fp, { byHand = true } = {}) {
       const asked = pending.get(fp) ?? null;
       const heard = strangers.get(fp) ?? null;
       const seen = asked ?? heard;
@@ -801,7 +888,12 @@ export function createEngine({
       // is the same two presses, in the other order.
       if (!seen.pub) {
         if (!seen.addr || !seen.port) return null;
-        this.addPeer(seen.addr, seen.port);
+        // `byHand` IS WHAT THE ROW WILL BE ALLOWED TO DO LATER. A press here is
+        // a person naming a machine, so the row may be pinned on the round that
+        // reaches it. `autoAsk` reaches this same line with byHand false — the
+        // deck answering a shout — and the row it leaves may only ASK, which is
+        // what the switch's own name says it does. See roundWith.
+        this.addPeer(seen.addr, seen.port, { typed: byHand });
         strangers.delete(fp);
         onChange?.();
         return { fp, name: seen.name, addr: seen.addr, port: seen.port, dialled: true };
@@ -884,11 +976,36 @@ export function createEngine({
     /** Dial this address on every round from now on. Returns false for an
      *  address that is not one, rather than storing a row that can never
      *  connect and reports an error every minute forever. */
-    addPeer(addr, port) {
+    addPeer(addr, port, { typed = true } = {}) {
       const p = Number(port);
       if (typeof addr !== "string" || !addr.trim() || !Number.isInteger(p) || p < 1 || p > 65_535) return false;
       const host = addr.trim();
-      manual.set(`${host}:${p}`, { fp: `manual:${host}:${p}`, name: host, addr: host, port: p, manual: true });
+      const at = `${host}:${p}`;
+      // MAKING ROOM RATHER THAN REFUSING, and only among rows the deck added
+      // itself. A hard refusal at the cap would let whoever got there first
+      // keep the whole budget, so a real deck starting later would never be
+      // asked — which turns a cap meant to protect the round into a way to
+      // silence it. Evicted first is the oldest auto row that has never
+      // answered: `learned` holds an entry only for an address that completed a
+      // handshake, so a row with no entry there has cost a round and returned
+      // nothing. When every auto row has answered, the new one waits.
+      if (!typed && !manual.has(at)) {
+        const auto = [...manual.entries()].filter(([, v]) => !v.typed);
+        if (auto.length >= MAX_AUTO_PEERS) {
+          const stale = auto.find(([k]) => !learned.has(k));
+          if (!stale) return false;
+          manual.delete(stale[0]);
+          learned.delete(stale[0]);
+        }
+      }
+      // A row somebody typed outranks one the deck added: the same address
+      // arriving by hand after a beacon put it there is a person vouching for
+      // it, and nothing about that should be undone by the next beacon.
+      const was = manual.get(at);
+      manual.set(at, {
+        fp: `manual:${at}`, name: host, addr: host, port: p, manual: true,
+        typed: typed || was?.typed === true,
+      });
       return true;
     },
     removePeer(addr, port) { return manual.delete(`${String(addr).trim()}:${Number(port)}`); },
