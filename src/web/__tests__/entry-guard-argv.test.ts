@@ -150,11 +150,45 @@ describe("the guard on a Windows-shaped argv[1]", () => {
   it("still recognises the entry file itself, drive letter and all", () => {
     // The positive half of the comparison, which the fix must not disturb: the
     // href pathToFileURL builds from a real path — `C:\…` on Windows — is the
-    // same string the ESM loader hands the module as import.meta.url. Both
-    // sides come from node's own URL machinery rather than a literal, so on
-    // Windows this is the drive-letter encoding being checked, not asserted.
-    expect(ENTRY_HREF).toBe(new URL("../../server/index.mjs", import.meta.url).href);
-  });
+    // same string the ESM loader hands the module as import.meta.url.
+    //
+    // THIS CASE USED TO RUN NO PRODUCT CODE AT ALL (#778). It asserted
+    //
+    //   expect(ENTRY_HREF).toBe(new URL("../../server/index.mjs", import.meta.url).href)
+    //
+    // — node's URL machinery agreeing with itself about this file's neighbour —
+    // and never loaded the module whose guard it is named for. Compare the
+    // guard's `import.meta.url` with the bare path instead of its href, which is
+    // never equal, and `npm run dev:server` stops starting anything; this case
+    // stayed green through exactly that edit. dev-server-port.test.ts launches
+    // the entry for real and would notice. The file that is ABOUT the guard did
+    // not.
+    //
+    // So the guard is asked now, in a child whose argv[1] is the entry's real
+    // path — a drive-letter path on the Windows leg, which is the encoding the
+    // old comment promised to check. A guard that says yes starts the server,
+    // and the first `listen` is intercepted: it reports and ends the child
+    // before anything is bound, so the yes is observed without a deck ever
+    // listening. A guard that says no lets the import settle and the event loop
+    // drain, and `beforeExit` reports that instead. The port is set inside the
+    // band this suite's decks use regardless, in case the interception is ever
+    // what breaks.
+    const r = probe(["-e", `
+      const say = (o) => console.log("PROBE " + JSON.stringify(o));
+      require("node:net").Server.prototype.listen = function () {
+        say({ imported: true, entered: true,
+          listeners: process.getActiveResourcesInfo().filter((x) => x === "TCPSERVERWRAP").length });
+        process.exit(0);
+      };
+      process.on("beforeExit", () => say({ imported: true, entered: false }));
+      process.env.AGENT_DAG_PORT = "4567";
+      process.argv[1] = ${JSON.stringify(ENTRY)};
+      import(${JSON.stringify(ENTRY_HREF)}).catch((e) => { say({ imported: false, error: e && e.message }); process.exit(0); });
+    `]) as Probe & { entered?: boolean };
+    expect(r.error).toBeUndefined();
+    expect(r.entered, "the guard did not start the server for its own entry file").toBe(true);
+    expect(r.listeners, "something was bound before the server's own listen").toBe(0);
+  }, 40_000);
 
   it("never hands argv[1] to pathToFileURL unguarded", () => {
     // The shape, pinned: pathToFileURL's argument has to be proven a string

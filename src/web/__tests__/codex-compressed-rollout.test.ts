@@ -12,11 +12,29 @@
 // quietly collapsed to the last seven with figures that still looked right. A
 // wrong money number that never errors is the exact class of bug this file
 // exists to prevent.
-import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { describe, it, expect, vi, afterAll } from "vitest";
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as zlib from "node:zlib";
+
+// A Codex home of this file's own, in place before anything below imports the
+// module: fetchCodexUsage walks $CODEX_HOME/sessions, and a case that reached
+// the real one would be counting the developer's own sessions.
+const SANDBOX = mkdtempSync(join(tmpdir(), "codex-zst-home-"));
+const CODEX_HOME = join(SANDBOX, "codex");
+const ENV_KEYS = ["HOME", "USERPROFILE", "CODEX_HOME"] as const;
+const PREV = Object.fromEntries(ENV_KEYS.map(k => [k, process.env[k]]));
+process.env.HOME = SANDBOX;
+process.env.USERPROFILE = SANDBOX;
+process.env.CODEX_HOME = CODEX_HOME;
+afterAll(() => {
+  for (const k of ENV_KEYS) {
+    if (PREV[k] === undefined) delete process.env[k]; else process.env[k] = PREV[k];
+  }
+  rmTempDir(SANDBOX);
+});
 
 /** Node 22.15 brought zstd to node:zlib. CI runs `node-version: 22`, which
  *  resolves to the newest 22.x, so the real round trip below runs on all three
@@ -37,19 +55,62 @@ const source = readFileSync(new URL("../../server/codex-usage.mjs", import.meta.
 const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 describe("the collector accepts a compressed rollout", () => {
-  it("matches both spellings, not just the plain one", () => {
-    // The whole bug in one line: `if (!f.endsWith(".jsonl")) continue`.
-    expect(source).toMatch(/!f\.endsWith\("\.jsonl"\) && !f\.endsWith\(COMPRESSED\)/);
-  });
+  // DRIVEN THROUGH fetchCodexUsage, over a rollout tree of this file's own (#778).
+  //
+  // This block used to be three cases of source text: the filter line down to
+  // its loop variable's name, the suffix constant's declaration, and the first
+  // thirty characters of parseRolloutTime's regex. A rename failed them with
+  // nothing broken, and a break anywhere outside those three strings passed
+  // them. Anchor that regex on `\.jsonl$` and every compressed rollout drops
+  // out of the usage window without a word — the collapse this file's header
+  // describes, reached by a route the pins could not see, while the regex
+  // still begins the way the third case looked for.
+  //
+  // The fixtures are dated a minute ago in local time, because that is how
+  // Codex names a rollout and how parseRolloutTime reads one, and the window
+  // counts back from now. Codex compresses only rollouts a week cold; the name
+  // is all the collector reads, so a fresh one stands in for an old one.
+  it("counts a compressed rollout in the usage window beside a plain one", async () => {
+    const at = new Date(Date.now() - 60_000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const [y, mo, d] = [String(at.getFullYear()), pad(at.getMonth() + 1), pad(at.getDate())];
+    const stamp = `${y}-${mo}-${d}T${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`;
+    const day = join(CODEX_HOME, "sessions", y, mo, d);
+    mkdirSync(day, { recursive: true });
+    const rolloutAt = (input: number) => JSON.stringify({
+      timestamp: at.toISOString(), type: "event_msg",
+      payload: { type: "token_count", info: { total_token_usage: {
+        input_tokens: input, output_tokens: 10, cached_input_tokens: 0, total_tokens: input + 10 } } },
+    }) + "\n";
+    writeFileSync(join(day, `rollout-${stamp}-0000aaaa-0000-4000-8000-000000000001.jsonl`), rolloutAt(100));
+    const packed = join(day, `rollout-${stamp}-0000bbbb-0000-4000-8000-000000000002.jsonl.zst`);
+    writeFileSync(packed, HAS_ZSTD
+      ? (zlib as never as { zstdCompressSync(b: Buffer): Buffer }).zstdCompressSync(Buffer.from(rolloutAt(1_000), "utf8"))
+      : Buffer.from([0x28, 0xb5, 0x2f, 0xfd]));
 
-  it("knows the suffix Codex actually writes", () => {
-    expect(source).toContain('const COMPRESSED = ".jsonl.zst";');
-  });
+    // Fresh, so the module resolves the sandbox's CODEX_HOME and starts with no
+    // cache and no scan floor behind it.
+    vi.resetModules();
+    const { fetchCodexUsage } = await import("../../server/codex-usage.mjs") as never as {
+      fetchCodexUsage(o: { force: boolean }): Promise<{
+        ok: boolean;
+        window5h: { inputTokens: number; sessionCount: number };
+        window7d: { inputTokens: number; sessionCount: number };
+      }>;
+    };
+    const usage = await fetchCodexUsage({ force: true });
+    expect(usage.ok).toBe(true);
 
-  it("leaves the timestamp parsing alone, because the name still carries it", () => {
-    // `rollout-2026-06-17T12-39-01-<uuid>.jsonl.zst` still starts with the
-    // stamp parseRolloutTime reads, so nothing downstream has to know.
-    expect(source).toMatch(/\^rollout-\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)T/);
+    if (!HAS_ZSTD) {
+      // The older runtime's half: the file is found and cannot be read, and the
+      // plain one beside it is still counted rather than the scan failing whole.
+      expect(usage.window7d.sessionCount).toBe(1);
+      expect(usage.window7d.inputTokens).toBe(100);
+      return;
+    }
+    expect(usage.window7d.sessionCount, "the compressed rollout was left out of the week").toBe(2);
+    expect(usage.window7d.inputTokens).toBe(1_100);
+    expect(usage.window5h.inputTokens, "and out of the five hours").toBe(1_100);
   });
 });
 

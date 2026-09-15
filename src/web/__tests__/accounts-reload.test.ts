@@ -131,21 +131,52 @@ const panel = readFileSync(`${web}components/AccountsPanel.tsx`, "utf8");
  *  wears `aria-busy` and the rule is what makes it turn. */
 const css = readFileSync(`${web}styles.css`, "utf8");
 
+/** The reload callback, from its declaration to the dependency list that
+ *  closes it — so what the cases below find, they find inside the reload. */
+const load = (() => {
+  const at = panel.indexOf("const load = useCallback(async (force = false) => {");
+  return at === -1 ? "" : panel.slice(at, panel.indexOf("}, []);", at));
+})();
+/** What the reload calls its controller, its timer and its verdict, read out of
+ *  it by what each one does rather than written down here. See the second case. */
+const ctl = /const (\w+) = new AbortController\(\);/.exec(load)?.[1];
+const bell = ctl && new RegExp(
+  `const (\\w+) = window\\.setTimeout\\(\\(\\) => ${ctl}\\.abort\\(\\), RELOAD_TIMEOUT_MS\\);`,
+).exec(load)?.[1];
+const verdict = /const (\w+) = explainReload\(/.exec(load)?.[1];
+
 describe("the panel's reload path", () => {
   it("ends in a message or a clean slate whichever way the request went", () => {
     // One setFailure for the answered case, one for the thrown one. The empty
     // catch that swallowed everything is what this file exists for.
-    expect(panel).toContain("setFailure(prev => nextFailure(prev, verdict));");
+    expect(verdict, "the answered case no longer reads a verdict off the responses").toBeTruthy();
+    expect(load).toContain(`setFailure(prev => nextFailure(prev, ${verdict}));`);
     // The thrown case picks between the two by whose abort it was (#829).
-    expect(panel).toContain("setFailure(prev => nextFailure(prev, ctl.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));");
+    expect(load).toContain(`setFailure(prev => nextFailure(prev, ${ctl}.signal.aborted ? RELOAD_SLOW : RELOAD_UNREACHABLE));`);
     expect(panel).not.toMatch(/catch\s*\{\s*\/\*[^*]*\*\/\s*\}/);
   });
 
   it("bounds a reload that never answers, so nothing can wait on it forever", () => {
-    expect(panel).toContain("const ctl = new AbortController();");
-    expect(panel).toContain("window.setTimeout(() => ctl.abort(), RELOAD_TIMEOUT_MS)");
-    expect(panel.match(/signal: ctl\.signal/g)).toHaveLength(2);
-    expect(panel).toContain("window.clearTimeout(bell);");
+    // BY WHAT THE NAMES POINT AT, NOT BY WHAT THEY ARE CALLED (#778). This used
+    // to pin `const ctl = new AbortController();` and
+    // `window.clearTimeout(bell);` — two local variable names — so renaming
+    // either failed it with the behaviour untouched. And it could not see the
+    // break that matters: move the clear up to the line after the timer is
+    // armed and the bound is gone before the first request leaves, which is the
+    // ↻ that waits forever back again, with every string it looked for still
+    // in the file. So the controller and the timer are found by what they do,
+    // and the clear has to sit in the `finally`, after both requests.
+    expect(load, "the reload callback is gone or renamed").not.toBe("");
+    expect(ctl, "the reload makes no AbortController of its own").toBeTruthy();
+    expect(bell, "nothing aborts that controller after RELOAD_TIMEOUT_MS").toBeTruthy();
+    // Both requests ride that controller's signal.
+    expect(load.match(new RegExp(`signal: ${ctl}\\.signal`, "g"))).toHaveLength(2);
+    // Disarmed exactly once, and only on the way out.
+    const clear = `window.clearTimeout(${bell});`;
+    expect(load.split(clear).length - 1, "the timer is not cleared exactly once").toBe(1);
+    const fin = load.indexOf("} finally {");
+    expect(fin, "the reload has no finally to clear its timer in").toBeGreaterThan(-1);
+    expect(load.indexOf(clear), "the timer is cleared before the requests it bounds").toBeGreaterThan(fin);
   });
 
   it("waits longer than the server's own ceiling, so slow is never called dead", () => {

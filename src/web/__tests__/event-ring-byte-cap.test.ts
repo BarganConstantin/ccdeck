@@ -257,8 +257,14 @@ describe("event ring byte budget", () => {
 
     it("charges a top-level primitive, which is a legal body here", () => {
       expect(payloadChars("hello")).toBe(5);
-      expect(payloadChars(7)).toBeGreaterThan(0);
-      expect(payloadChars(null)).toBeGreaterThan(0);
+      // One slot's worth: exactly what the same value costs as an element of an
+      // array, whatever its spelling. `toBeGreaterThan(0)` used to be the whole
+      // of this (#778), which a primitive charged a single character — or its
+      // own digit count, so `7` at one and `null` at four — passed without
+      // comment, while every value in an array was charged eight.
+      for (const p of [7, null, true, 12_345_678_901]) {
+        expect(payloadChars(p), String(p)).toBe(payloadChars([p]));
+      }
     });
   });
 
