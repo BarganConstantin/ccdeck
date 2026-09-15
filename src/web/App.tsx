@@ -77,6 +77,7 @@ import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./v
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
 import { restoreLayout, type StoredLayout } from "./stored-layout";
+import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { fitViewDuration, shouldAnimateViewport } from "./viewport-motion";
@@ -534,14 +535,13 @@ function saveLayoutFrame(frame: Frame): void {
   try { window.localStorage.setItem(LAYOUT_FRAME_KEY, JSON.stringify(frame)); } catch {}
 }
 
-function loadViewport(): { x: number; y: number; zoom: number } | null {
+/** The viewport the canvas was last left at, or null. What it has to be to
+ *  count — and why a zero zoom does not — is parseStoredViewport's (#1006);
+ *  the try is for the storage read itself, which can throw on its own. */
+function loadViewport(): StoredViewport | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(VIEWPORT_STORAGE_KEY);
-    if (!raw) return null;
-    const vp = JSON.parse(raw);
-    if (typeof vp?.x !== "number" || typeof vp?.y !== "number" || typeof vp?.zoom !== "number") return null;
-    return vp;
+    return parseStoredViewport(window.localStorage.getItem(VIEWPORT_STORAGE_KEY));
   } catch { return null; }
 }
 
@@ -5054,8 +5054,8 @@ function Inner() {
               ? OPENING_FIT_MS
               : 0,
           }}
-          minZoom={0.2}
-          maxZoom={1.6}
+          minZoom={CANVAS_MIN_ZOOM}
+          maxZoom={CANVAS_MAX_ZOOM}
           panOnScroll
           nodesDraggable
           nodesConnectable={false}
