@@ -5318,6 +5318,29 @@ button.tool.clickable:last-child { border-bottom: none; }
   max-height: 320px;
   overflow: auto;
 }
+/* One tool call, the way it reads (#816). The copy button sits on its section
+   heading's own line; a labelled value that fits on one line is drawn as one,
+   and a well holds the rest — a change coloured by side, with the side in a
+   character as well so it reads without the colour. */
+.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.tm-head h4 { margin: 0; }
+/* Both are the one button, at the one button height the sheet allows (see
+   panel-rhythm.test.ts): the copy keeps its width beside the heading, and show
+   all sits a step under the well it opens. */
+.tm-copy { flex: none; }
+.tm-more { margin-top: 6px; }
+.tm-block,
+.tm-inline { margin: 0 0 8px; }
+.tm-block:last-child,
+.tm-inline:last-child { margin-bottom: 0; }
+.tm-label { display: block; margin: 0 0 3px; font-size: 10px; color: var(--muted); }
+.tm-inline { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; color: var(--text); }
+.tm-inline .tm-label { display: inline; margin: 0; flex: none; }
+.tm-inline code { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.tm-del { color: var(--err); }
+.tm-add { color: var(--ok); }
+.tm-ctx { color: var(--muted); }
+.modal-section pre.tm-err { color: var(--err); }
 
 /* Also the reduced-motion entrance for every node and bubble on the canvas, and
    there with `both` — so no `to { opacity: 1 }`, which would fill over .tool-burst.dim,
