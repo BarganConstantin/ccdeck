@@ -122,6 +122,35 @@ function extractUsage(node: unknown, depth = 0): TokenUsage | null {
  *  would have changed nothing a Bedrock user could see. */
 const MODEL_PATTERN = /^(?:claude[-_]|gpt[-_]|o\d|codex[-_])/i;
 
+/** The tool's own namespace, which is not the envelope's.
+ *
+ *  `tool_input` and `tool_response` are the only two fields on the wire that
+ *  carry arbitrary foreign nested data — they are whatever the tool was called
+ *  with and whatever it returned — and types.ts declares both `any`. Scanning
+ *  into them let a tool's ARGUMENTS rename the session that called it:
+ *
+ *    after ModelObserved:                     gpt-5.6-sol
+ *    after a tool_input naming another model: claude-opus-4-5
+ *    after a nested tool_response model:      o3-mini
+ *
+ *  The first was an ordinary MCP call — `mcp__openai__chat` with
+ *  `tool_input: { model: "claude-opus-4-5", messages: [...] }`. One call from
+ *  any LLM-calling MCP server did it.
+ *
+ *  And it re-priced the session, not only the chip: usage-models.ts falls back
+ *  to `[{ model: a.model, usage: a.usage }]` whenever `usageByModel` is absent,
+ *  which is every Codex session, so the whole bill was recomputed at the stolen
+ *  model's rate — $14.50 to $22.50 on a 2M/400K/5M session. The Codex path is
+ *  also the least shielded: pushEvent's top-level stamp reads modelBySession,
+ *  which is Claude-only.
+ *
+ *  NOT applied to extractUsage, which has no equivalent hole: its only caller
+ *  is `extractUsage(p.tool_response)` in PostToolUse, and that one is
+ *  deliberate — it reads a Task's usage off the tool result and assigns it to
+ *  the TOOL CALL (`tc.usage`), never to the session. It is never handed a whole
+ *  envelope, so there is nothing for it to wander into. */
+const FOREIGN_KEYS = new Set(["tool_input", "tool_response"]);
+
 /** Recursively look for a `model` string anywhere in the payload — both
  *  CCs surface it on different keys per event. Accept Claude or Codex ids. */
 function extractModel(node: unknown, depth = 0): string | null {
@@ -135,7 +164,8 @@ function extractModel(node: unknown, depth = 0): string | null {
     // `title` and the usage panel's per-model key are meant to show.
     return obj.model;
   }
-  for (const v of Object.values(obj)) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (FOREIGN_KEYS.has(k)) continue;
     const m = extractModel(v, depth + 1);
     if (m) return m;
   }
