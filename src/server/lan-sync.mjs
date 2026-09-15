@@ -172,8 +172,18 @@ export function cleanName(raw, fallback = "unnamed deck") {
   // this string reaches a terminal log as well as a page, and a name carrying
   // an ANSI escape can move a cursor or repaint a line. A literal control
   // character in the source would be invisible to whoever reads this next.
+  // And \p{Cf}, the FORMAT class, which the control ranges above do not cover:
+  // U+202E RIGHT-TO-LEFT OVERRIDE, U+2066-2069 (the directional isolates),
+  // U+200B and U+00AD. A name is drawn in one inline formatting context with
+  // the peer's address and the words "wants to pair" (LanSyncSection.tsx:1496),
+  // and there is no `dir`, no <bdi> and no `unicode-bidi: isolate` anywhere in
+  // the sheet — so an override's scope runs to the end of that line and the
+  // address the operator is checking renders reversed. That row's own comment
+  // calls the fingerprint "the only value that cannot be chosen by whoever is
+  // asking"; the strings beside it should at least not be able to rearrange it.
   const stripped = raw
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\p{Cf}/gu, "")
     .replace(/\s+/g, " ")
     .trim();
   return stripped ? [...stripped].slice(0, MAX_NAME).join("") : fallback;
