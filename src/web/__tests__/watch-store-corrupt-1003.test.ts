@@ -40,7 +40,7 @@
 // aside and named out loud before anything can write over it, and a write that
 // cannot even do that refuses rather than land.
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -355,12 +355,19 @@ describe("the temp file the archive is staged through", () => {
     const dir = join(home, "agent-dag", "browser-watch");
     const stale = `${store.storePath(home)}.999.1.tmp`;
     writeFileSync(stale, "{}", "utf8");
-    const now = Date.now() + TEMP_STALE_MS + 1;
+    // Aged from the file's own stamp rather than from Date.now(), so the margin
+    // does not depend on the filesystem's clock and the process's agreeing to
+    // the millisecond. One millisecond was all this had, and a Windows runner
+    // counted 0 here (CI, 2026-09-15). An unlink that fails is reported rather
+    // than swallowed, so a file something else is holding names itself.
+    const now = statSync(stale).mtimeMs + TEMP_STALE_MS + 1;
     const fs = await import("node:fs/promises");
+    const failed: string[] = [];
+    const onError = (path: string, err: unknown) => failed.push(`${basename(path)}: ${String(err)}`);
 
-    expect(await sweepTempFiles({ dirs: [join(home, "agent-dag")], fs, now }),
+    expect(await sweepTempFiles({ dirs: [join(home, "agent-dag")], fs, now, onError }),
       "the parent directory reached it, so the sweep was never the problem").toBe(0);
-    expect(await sweepTempFiles({ dirs: [store.storeDir(home)], fs, now })).toBe(1);
+    expect(await sweepTempFiles({ dirs: [store.storeDir(home)], fs, now, onError }), failed.join("; ")).toBe(1);
     expect(readdirSync(dir)).toEqual([]);
   });
 
