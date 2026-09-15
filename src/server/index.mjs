@@ -6213,7 +6213,8 @@ async function handleClear(res) {
   // most one early look, which finds a small file and resets it. And a
   // rotation running at the same moment needs nothing from here; emptyLog says
   // why the order inside the turn is enough.
-  const emptied = mineToEmpty ? emptyLog(sharing.path, [sharing.path + ".1"]) : null;
+  const emptyOutcome = {};
+  const emptied = mineToEmpty ? emptyLog(sharing.path, [sharing.path + ".1"], undefined, emptyOutcome) : null;
   // Drop the caches that gate an emit on "has this changed", because the
   // client is about to forget what they are comparing against: __clear makes
   // the reducer return a fresh state, so every session's name and every
@@ -6247,9 +6248,22 @@ async function handleClear(res) {
   // reached zero — and bounded by emptyLog, so a disk that does not come back
   // in time still gets an answer, with the turn left on the chain in order.
   if (emptied) await emptied;
+  // WHAT THE FILE ACTUALLY DID (#1140). This answered "cleared" for any log this
+  // deck owns, whatever the truncate had done: emptyLog keeps the queue moving
+  // by swallowing its error, and nothing read it back, so on a read-only volume
+  // the page was told the history was gone and the next boot replayed all of
+  // it. The canvas IS clear either way — the ring was emptied above — so this
+  // stays `ok`, and says which half did not happen, here and in the terminal.
+  // A turn still on the chain at the deadline has no error yet and keeps the
+  // answer it always had.
+  const failed = mineToEmpty && emptyOutcome.error ? emptyOutcome.error : null;
+  if (failed) {
+    console.error(`${PRODUCT}: Clear could not empty the event log ${sharing.path} (${failed.code ?? failed.message}) — the canvas is clear, but that history will come back at the next boot`);
+  }
   return send(res, 200, {
     ok: true,
-    log: !sharing.path ? "none" : sharing.mine ? "cleared" : "kept",
+    log: !sharing.path ? "none" : sharing.mine ? (failed ? "failed" : "cleared") : "kept",
+    ...(failed ? { error: failed.code ?? "EIO" } : {}),
     path: sharing.path,
     decks: sharing.decks,
     mine: sharing.mine,
