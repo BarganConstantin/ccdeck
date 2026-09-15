@@ -4324,7 +4324,9 @@ function Inner() {
               aria-expanded={usagePanelOpen}
               aria-controls={usagePanelOpen ? "usage-panel" : undefined}
             >
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              {/* tb-glyph-narrow: the one glyph in the set whose ink is far
+                  narrower than its box — see the rule in styles.css. */}
+              <svg className="tb-glyph-narrow" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M9.4 4.5C9 3.6 8.1 3.1 7 3.1c-1.4 0-2.4.8-2.4 1.9 0 1.2 1.2 1.6 2.4 2s2.4.8 2.4 2c0 1.1-1 1.9-2.4 1.9-1.1 0-2-.5-2.4-1.4" />
                 <path d="M7 1.6v1.5M7 10.9v1.5" />
               </svg>

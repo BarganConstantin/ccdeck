@@ -491,6 +491,9 @@ const CONTROLS: Control[] = [
   // its own any more: it keeps the resting edge swept under `button.btn` and
   // adds a line under its content, which toggle-state.test.ts measures too.
   { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
+  // A popover opener while its menu is out: the control fill, and the whole
+  // foreground as its edge — the version chip's own hover, held.
+  { at: 'button.btn.icon-btn[aria-haspopup][aria-expanded="true"]', beds: [...TOPBAR, "--panel"] },
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the

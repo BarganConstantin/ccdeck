@@ -110,8 +110,18 @@ describe("an open panel is underlined, and only underlined", () => {
     expect(css).not.toMatch(/inset 0 -2px 0 var\(--accent\)/);
   });
 
-  it("leaves the popover opener out, because its menu is the answer", () => {
+  it("leaves the popover opener out of the line, and holds it while its menu is out", () => {
     expect(app).toMatch(/aria-haspopup="dialog"\s+aria-expanded=\{soundMenuOpen\}/);
+    const held = body('button.btn.icon-btn[aria-haspopup][aria-expanded="true"]');
+    expect(held).toMatch(/background: var\(--ctl-fill\);/);
+    expect(held).toMatch(/border-color: var\(--text\);/);
+  });
+
+  it("gives the narrow dollar sign back the air its box adds", () => {
+    expect(app).toMatch(/<svg className="tb-glyph-narrow" width="13" height="13" viewBox="0 0 14 14"/);
+    expect(app.match(/className="tb-glyph-narrow"/g)).toHaveLength(1);
+    // Both sides at once, so a square button still centres it.
+    expect(css).toMatch(/\.topbar \.tb-glyph-narrow \{ margin-inline: -2px; \}/);
   });
 
   it("keeps the fill for a setting that is on, which is what pressed means", () => {
@@ -126,6 +136,8 @@ describe("an open panel is underlined, and only underlined", () => {
 describe("the bar keeps amber for the alarm", () => {
   it("draws Browser watch's unread count as a count, not an alarm", () => {
     expect(body(".bw-badge")).toMatch(/background: var\(--muted\);/);
+    // Cut out of the corner it overlaps, not laid over the button's edge.
+    expect(body(".bw-badge")).toMatch(/box-shadow: 0 0 0 2px var\(--panel\);/);
     expect(css).not.toMatch(/\.bw-btn\.(?:has-findings|watching)/);
     expect(app).toMatch(/className="btn icon-btn bw-btn"/);
   });

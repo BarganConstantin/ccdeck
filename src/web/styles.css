@@ -823,6 +823,13 @@ button:focus-visible { outline-offset: 1px; }
    the edge and the ring, and the 52px bar has 11px above and below a 30px
    button to hold it; the 8px between two buttons keeps 3px clear of the next. */
 .topbar button.btn:focus-visible { outline-offset: 3px; }
+/* The dollar sign is the one glyph whose ink is far narrower than its box:
+   4.8 of 14 units, where the rest of the set runs 8.6 to 12.2. At the set's
+   shared 13px box that left about 2.4px more air on each side than any
+   neighbour, so "$  Usage" read loose beside "Accounts": 9.6px from ink to
+   word against 6.2 to 8.1 for the others, measured. The box gives the air
+   back on both sides at once, so the glyph stays centred in a square button. */
+.topbar .tb-glyph-narrow { margin-inline: -2px; }
 /* THE WORDS (#836). Eight bare glyphs meant a first-timer or a touch user could
    not learn the bar without hovering each one. Where the bar has room, each
    says its name beside the glyph: a word its accessible name already contains,
@@ -2309,6 +2316,15 @@ button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after {
   height: 2px;
   border-radius: 1px;
   background: var(--accent);
+}
+/* The popover opener while its menu is out. The menu is the answer to "is it
+   open", and the opener agrees with it quietly: the control fill and the whole
+   foreground as its edge, which is the version chip's hover held, so the
+   button reads as the one the menu came from without claiming a panel's line.
+   At rest it looked exactly as it does with the menu shut. */
+button.btn.icon-btn[aria-haspopup][aria-expanded="true"] {
+  background: var(--ctl-fill);
+  border-color: var(--text);
 }
 /* `button.btn:hover` repaints the border and the glyph in --accent, and on this
    chip --accent is the fill — so a pressed toggle would have had no pointer
@@ -9088,6 +9104,9 @@ button.ap-err::after,
   line-height: 14px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  /* A ring of the bar's own colour, so the badge sits cut out of the corner it
+     overlaps rather than on top of the button's edge. */
+  box-shadow: 0 0 0 2px var(--panel);
 }
 
 .bw-modal { width: min(860px, 94vw); }
