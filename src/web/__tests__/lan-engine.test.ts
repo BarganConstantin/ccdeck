@@ -1330,4 +1330,185 @@ describe("two rounds at once", () => {
     expect(second, "the finished round was handed back a second time").not.toBe(first);
     expect(await second).toEqual([]);
   }, 20_000);
+
+  // #1132. The guard above lived in `round`, and `round` was one of two ways
+  // into a round. `roundOne` — the "Check now" in one deck's own dialog, reached
+  // from the same route with a fingerprint in the body — called `roundWith`
+  // directly. So a press landing on the timer's round dialled the deck that
+  // round was already healing from and moved the same credential again.
+  // fillEmptySlot's in-lock verdict limits what the second write can do on the
+  // forced path; it does not stop the dial, the export, or the second write.
+  //
+  // WHAT WAS OBSERVED, on main at 1887d95 and again at 7ce52d8: the far side
+  // exported `[5, 5]` and this side imported twice, where the case above
+  // asserts `[5]`.
+  //
+  // THE PRESS JOINS, for the reason the case above gives and one the dialog
+  // adds. The dialog does not read the reply's list: it redraws from what the
+  // last ask of that deck left behind, where a login that moved says "arrived
+  // last round". A second ask queued after a heal finds the login healthy,
+  // moves nothing, and writes that over the record — so the lane repaired from
+  // that very deck a moment earlier would stop saying so, in answer to the
+  // press that asked about it.
+  //
+  // It asks the deck itself only when what it waited for has nothing to say
+  // about that deck from after the press — the round had already been past it,
+  // or never had it on its list — and then after, never beside.
+
+  /** Where the three cases below listen, each on a port of its own from
+   *  4640-4646: a deck under test has no business being reachable from the
+   *  office for the seconds it runs — see `host` in createEngine. */
+  const LOOPBACK = "127.0.0.1";
+
+  /** An import held open until `release`, the way `cswap import` holds the
+   *  store on a real machine, and the moment the first one began. Anything
+   *  that imports after the release goes straight through, so a round that got
+   *  past the guard cannot leave the case waiting on a gate nobody opens. */
+  function heldImports(s: ReturnType<typeof store>) {
+    const gates: Array<() => void> = [];
+    let held = true;
+    let reached!: () => void;
+    const importing = new Promise<void>(r => { reached = r; });
+    return {
+      importing,
+      importAccount: async (blob: string) => {
+        s.imported.push(blob);
+        reached();
+        if (held) await new Promise<void>(r => gates.push(r));
+        return true;
+      },
+      release() { held = false; for (const open of gates.splice(0)) open(); },
+    };
+  }
+
+  /** Give something that must NOT happen the time it would take if it did.
+   *  Over loopback a handshake and a `want` take milliseconds, so a round that
+   *  got past the guard has reached the far side long before this gives up —
+   *  and the wait is only spent in full when the code is right. */
+  async function allowFor(happened: () => boolean, ms = 1_000) {
+    for (const end = Date.now() + ms; !happened() && Date.now() < end;) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+
+  it("is one round when the press is a check of the deck the round is already asking", async () => {
+    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+    const shared = [K("claude2@sapec.md", "org-2")];
+    const held = heldImports(mine);
+    const a = await deck(mine, "Deck-A", shared, { host: LOOPBACK, importAccount: held.importAccount }, { port: 4640 });
+    const b = await deck(theirs, "Deck-B", shared, { host: LOOPBACK }, { port: 4641 });
+    await point(a, b, b.port);
+
+    const timer = a.e.round();
+    await held.importing;                  // a credential is being written right now
+    const press = a.e.roundOne(b.id.fp);   // and somebody presses "Check now" on that deck
+    await allowFor(() => theirs.exported.length > 1);
+    const beside = [...theirs.exported];
+
+    held.release();
+    const [byTimer, byPress] = await Promise.all([timer, press]);
+    expect(beside, "the check dialled and exported beside the round already running").toEqual([5]);
+    // Its answer is what the round found at that deck, which here is the round.
+    expect(byPress).toEqual(byTimer);
+    expect(byPress).toEqual([{
+      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      action: "heal", ok: true, why: null,
+    }]);
+    // This store never learns that the import worked — there is no claude-swap
+    // behind it to ask — so any second ask of that deck would plan the same
+    // heal and export again. One export is the press joining, not asking.
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+    // And the dialog is drawn from the same answer the press was given.
+    expect(peerRow(a, b.id.fp)?.last?.done).toEqual(byTimer);
+  }, 20_000);
+
+  it("holds a round asked for during a check until the check is done", async () => {
+    // The same door from the other side. A check that is running is a round
+    // too, and the timer's tick or a "Sync now" arriving during it waits
+    // rather than walking the list beside it. It cannot join: a check asks one
+    // deck, and a round was asked to ask all of them.
+    // Alive while the two are introduced, so the round that teaches this deck
+    // who answers at that address has nothing to move; then it dies.
+    const row = { num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: true };
+    const mine = store([row]);
+    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+    const shared = [K("claude2@sapec.md", "org-2")];
+    const held = heldImports(mine);
+    const a = await deck(mine, "Deck-A", shared, {
+      host: LOOPBACK,
+      importAccount: async (blob: string) => {
+        const ok = await held.importAccount(blob);
+        // What a real store says once an import lands: `importAccount` drops
+        // the accounts cache, and the next read asks claude-swap again.
+        row.alive = true;
+        return ok;
+      },
+    }, { port: 4642 });
+    const b = await deck(theirs, "Deck-B", shared, { host: LOOPBACK }, { port: 4643 });
+    await point(a, b, b.port);
+    // A check finds a deck the way the list does — by the fingerprint that
+    // answered at its address — and the round in `point` was refused before
+    // anything answered. The button is only drawn for a deck that has.
+    expect(await a.e.round()).toEqual([]);
+    row.alive = false;
+
+    const press = a.e.roundOne(b.id.fp);
+    await held.importing;                  // the check is writing a credential
+    const timer = a.e.round();             // and the timer comes round
+    await allowFor(() => theirs.exported.length > 1);
+    const beside = [...theirs.exported];
+
+    held.release();
+    const [byPress, byTimer] = await Promise.all([press, timer]);
+    expect(beside, "a round ran beside the check that was writing a credential").toEqual([5]);
+    expect(byPress).toEqual([{
+      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      action: "heal", ok: true, why: null,
+    }]);
+    // Held, not dropped and not merged into the check: the round ran once the
+    // check was done, and found the login it would have moved already here.
+    expect(byTimer).toEqual([]);
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("asks the deck itself after the round, when that round had been past it before the press", async () => {
+    // Two decks, asked in the order they were added: Deck-B, which has nothing
+    // this one needs, then Deck-C, which has the login this one is missing. The
+    // press is on Deck-B while the round is writing Deck-C's credential, so the
+    // round already running holds an answer from Deck-B that is older than the
+    // press — and handing that back would be a check that checked nothing.
+    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+    const shared = [K("claude2@sapec.md", "org-2")];
+    const held = heldImports(mine);
+    const a = await deck(mine, "Deck-A", shared, { host: LOOPBACK, importAccount: held.importAccount }, { port: 4644 });
+    // Deck-B reads its own store every time it is asked what it has, so the
+    // count is how many times it was asked.
+    let askedB = 0;
+    const b = await deck(store([]), "Deck-B", shared, {
+      host: LOOPBACK,
+      readAccounts: async () => { askedB += 1; return { accounts: [] }; },
+    }, { port: 4645 });
+    const c = await deck(theirs, "Deck-C", shared, { host: LOOPBACK }, { port: 4646 });
+    await point(a, b, b.port);
+    await point(a, c, c.port);
+
+    const timer = a.e.round();
+    await held.importing;                  // Deck-B answered; Deck-C's login is being written
+    const before = askedB;
+    const press = a.e.roundOne(b.id.fp);
+    await allowFor(() => askedB > before);
+    const beside = askedB - before;
+
+    held.release();
+    await Promise.all([timer, press]);
+    expect(beside, "the check dialled Deck-B while Deck-C's credential was being written").toBe(0);
+    expect(askedB - before, "the press was answered without Deck-B being asked after it").toBe(1);
+    // Deck-C's login moved once, by the round.
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
 });
