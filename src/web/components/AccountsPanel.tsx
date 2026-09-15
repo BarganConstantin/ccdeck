@@ -1375,19 +1375,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           })}
           </ul>
 
-          {/* The line named an actor the reader has already met on every row
-              (`collected 9m ago`) and in the auto-switch note, and buried the
-              one fact only this line carries: these numbers do not keep
-              themselves up to date. Consequence first, actor not at all.
-
-              UNDER THE NUMBERS IT IS ABOUT. It sat below Auto-switch, on a rule
-              of its own between two sections and belonging to neither — the
-              one sentence in the panel about the roster, read after the reader
-              had left the roster. Here it closes the list, and the rule that
-              was fencing it off from Auto-switch is Auto-switch's own. */}
-          <p className="ap-footnote" title="Anthropic's usage endpoint allows roughly 28–30 requests per hour per account, shared by every tool on this machine — polling it from here would rate-limit your account. So the deck never fetches: it asks claude-swap to collect while this panel is open, at most once every three minutes, and claude-swap decides whether that touches the network at all.">
-            These numbers only update while this panel is open.
-          </p>
+          {/* No footnote under the roster. "These numbers only update while this
+              panel is open" closed the list for a while; the owner asked for it
+              to go, and every row already says when it was last collected. */}
 
           {/* ── auto-switch ── */}
           {auto?.ok && (

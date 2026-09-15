@@ -8120,16 +8120,6 @@ button.ap-err::after,
   transform: translate(-50%, -50%);
 }
 
-/* The roster's last line. The last row's own soft rule is the seam above it,
-   so it draws none — it had one while it stood alone between two sections. */
-.ap-footnote {
-  margin: 0;
-  padding: 8px var(--panel-inset) 10px;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--muted);
-  cursor: help;
-}
 
 /* ── displaced by a growing session ──────────────────────────────────────── */
 /*

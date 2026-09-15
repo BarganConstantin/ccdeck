@@ -52,8 +52,11 @@ describe("the accounts panel's reading sizes (#857)", () => {
     expect(footer.map(px), footer.join(" ")).toEqual(footer.map(() => 11));
   });
 
-  it("sets the roster's footnote at 11px", () => {
-    expect(px(".ap-footnote")).toBe(11);
+  it("has no footnote under the roster any more — every row says when it was collected", () => {
+    const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
+    expect(panel).not.toMatch(/className="ap-footnote"/);
+    expect(panel).not.toMatch(/These numbers only update while this panel is open/);
+    expect(css).not.toMatch(/\.ap-footnote\s*\{/);
   });
 });
 
