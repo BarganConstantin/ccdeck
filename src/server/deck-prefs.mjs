@@ -23,15 +23,26 @@
 // each would be a switch nobody could reason about.
 //
 // The write is the atomic one browser-watch-store.mjs argues for at length —
-// temp file, rename — because the alternative is a truncated JSON document as
-// the only record of what the user chose, and a corrupt file here silently
-// turns the notifications back on.
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+// temp file, fsync, rename — because the alternative is a truncated JSON
+// document as the only record of what the user chose.
+//
+// And the READ is the other half of that sentence, which took #1002 to notice.
+// An atomic write makes a truncated prefs.json rare; it does not make it
+// impossible — a full disk, a power cut, an editor saving garbage — and what
+// the deck did when it met one was read it as "nothing chosen yet" and then
+// write defaults over it, destroying the LAN key every paired machine had
+// pinned. A file that cannot be parsed is now moved aside and said out loud;
+// only a genuinely ABSENT file starts clean. See loadPrefs.
+import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
 // The rename, with the Windows retry ladder installer.mjs wrote for exactly
-// this call. See the note over the write below (#786).
-import { renameWithRetry } from "./installer.mjs";
+// this call. See the note over the write below (#786). `stripBom` and
+// `createTemp` come from the same module for the reason its export block gives:
+// a rule spelled twice is a rule that drifts, and both of these are rules
+// settings.json and auth.json already follow on files with the same stakes.
+import { createTemp, renameWithRetry, stripBom } from "./installer.mjs";
 import { join } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
+import { PRODUCT } from "./brand.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -107,10 +118,12 @@ export const DEFAULTS = Object.freeze({
  *  machine the default mode hands it to every other account on the box, and
  *  from it they can decrypt any credential that crosses the network.
  *
- *  Passed to `writeFile` rather than applied with a follow-up chmod, and the
+ *  Named on the CREATE rather than applied with a follow-up chmod, and the
  *  difference is the whole point — claude-swap's transfer.py makes the same
- *  argument at length: a write-then-chmod leaves the file readable for the
- *  window between the two, which is exactly when a secret is in it. */
+ *  argument at length: a create-then-chmod leaves the file readable for the
+ *  window between the two, which is exactly when a secret is in it. The chmod
+ *  that does follow the create is not that: it only pins a file the umask may
+ *  have made narrower, and cannot widen one past what the create allowed. */
 export const PREFS_MODE = 0o600;
 
 /** The longest name somebody here may give another deck. The same order as a
@@ -218,12 +231,102 @@ export function normalise(raw) {
   };
 }
 
-/** What is on disk, or the defaults. A corrupt or absent file is not an error
- *  the user can act on mid-session, so it reads as "nothing chosen yet". */
-export async function readPrefs(home = deckDataDir(), deps = {}) {
+/** Where the bytes of a prefs.json nothing could parse are put.
+ *
+ *  `Date.now()` rather than an ISO timestamp because a colon is not a legal
+ *  filename character on Windows, and a quarantine that cannot be created on
+ *  the platform it is protecting is not a quarantine. */
+export const quarantinePath = (home = deckDataDir(), at = Date.now()) =>
+  `${prefsPath(home)}.corrupt-${at}`;
+
+/** The refusal `writePrefs` throws rather than merge onto a base it knows is
+ *  not the user's. Shaped like installer.mjs's SETTINGS_UNREADABLE, which is
+ *  the same policy on the other file this deck rewrites: a file we cannot
+ *  reproduce is never treated as an empty one. */
+function unreadablePrefs(path, why) {
+  const err = new Error(
+    `${path} could not be read (${why}). Refusing to overwrite it — this deck's ` +
+    `LAN key and its pairings are in there and cannot be re-derived. Fix the ` +
+    `file or move it aside, then restart ${PRODUCT}.`,
+  );
+  err.code = "PREFS_UNREADABLE";
+  err.prefsPath = path;
+  err.why = why;
+  return err;
+}
+
+/**
+ * Read prefs.json, and say WHICH of four things happened — because three of
+ * them hand back the same object and only one of them means it.
+ *
+ * WHY THE SOURCE IS PART OF THE ANSWER. The old read collapsed "no file yet"
+ * and "a file nothing could parse" into one silent `{ ...DEFAULTS }`, which is
+ * a defensible answer to a question about VALUES and a catastrophic one as the
+ * merge base of a write. A power cut or an OOM kill between the write and the
+ * rename leaves a truncated prefs.json; the next boot read it as "nothing
+ * chosen yet", found an empty `lan.secret`, generated a new identity and wrote
+ * it — over the file that still had the old key, the pairings, the shared
+ * accounts and the dialled addresses legibly in it. Every peer that had pinned
+ * this deck had to accept it again, and nothing anywhere said why.
+ *
+ *   "file"       parsed. These are the user's own settings.
+ *   "missing"    ENOENT, and only ENOENT. Nothing has been chosen yet;
+ *                defaults, silently, which is what a first start is.
+ *   "corrupt"    bytes that are not JSON. Moved aside to `quarantined` BEFORE
+ *                this returns, so nothing can merge over them.
+ *   "unreadable" the read itself failed for some reason other than absence — a
+ *                permission, a directory in the way. The file is still there
+ *                and still unread, which is exactly when a write must not land.
+ *
+ * A BYTE-ORDER MARK IS NOT DAMAGE. Notepad and `Set-Content` write one, and
+ * `JSON.parse` throws on it — so stripping it here is what keeps a perfectly
+ * good hand-edited file out of quarantine. Same call installer.mjs makes on
+ * settings.json for the same reason.
+ */
+export async function loadPrefs(home = deckDataDir(), deps = {}) {
   const read = deps.readFile ?? readFile;
-  try { return normalise(JSON.parse(await read(prefsPath(home), "utf8"))); }
-  catch { return { ...DEFAULTS }; }
+  const warn = deps.warn ?? console.error;
+  const path = prefsPath(home);
+  const defaults = () => ({ ...DEFAULTS });
+
+  let raw;
+  try {
+    raw = await read(path, "utf8");
+  } catch (err) {
+    if (err?.code === "ENOENT") return { prefs: defaults(), source: "missing", quarantined: "" };
+    warn(`${PRODUCT}: could not read ${path}: ${err?.message ?? err}. Leaving it alone — settings will not be saved until it can be read.`);
+    return { prefs: defaults(), source: "unreadable", quarantined: "" };
+  }
+
+  try {
+    return { prefs: normalise(JSON.parse(stripBom(raw))), source: "file", quarantined: "" };
+  } catch (err) {
+    const why = err?.message ?? String(err);
+    const mv = deps.rename ?? renameWithRetry;
+    const to = quarantinePath(home);
+    try {
+      await mv(path, to);
+    } catch (moveErr) {
+      // ENOENT means somebody else moved it between the read and the rename —
+      // a second deck booting on the same machine. The bytes are safe, just not
+      // under a name this read chose, and what is at `path` now is nothing.
+      if (moveErr?.code === "ENOENT") return { prefs: defaults(), source: "missing", quarantined: "" };
+      // Anything else and the damaged file is STILL THERE, unread and
+      // unprotected. Saying so is the whole point: `writePrefs` refuses on it.
+      warn(`${PRODUCT}: ${path} could not be read as JSON (${why}), and could not be moved aside either: ${moveErr?.message ?? moveErr}. Settings will not be saved until it is fixed or moved.`);
+      return { prefs: defaults(), source: "corrupt", quarantined: "" };
+    }
+    warn(`${PRODUCT}: ${path} could not be read as JSON (${why}). It has been kept as ${to} and this deck is starting with fresh settings — its LAN key and its pairings are in that file, so do not delete it if you want them back.`);
+    return { prefs: defaults(), source: "corrupt", quarantined: to };
+  }
+}
+
+/** What is on disk, or the defaults — the VALUES alone, for the callers that
+ *  want nothing else. `loadPrefs` is the same read with the answer to "and was
+ *  that really the user's file?" still attached; anything about to write must
+ *  ask that question, and does. */
+export async function readPrefs(home = deckDataDir(), deps = {}) {
+  return (await loadPrefs(home, deps)).prefs;
 }
 
 let _chain = Promise.resolve();
@@ -240,11 +343,21 @@ let _chain = Promise.resolve();
  *
  * Serialized for the same reason the other store is: two pages toggling two
  * different switches in the same second must not lose one of them.
+ *
+ * AND IT REFUSES RATHER THAN MERGE ONTO A BASE THAT IS NOT THE USER'S. The
+ * merge above exists to PRESERVE what the caller did not send; handed the
+ * defaults because `loadPrefs` could not read the file, it preserves nothing
+ * and the write becomes the thing that destroys the key. So the two failures
+ * that read as defaults are separated: a file that was moved aside is safe to
+ * start clean over, and one still sitting there unread is not. See
+ * installer.mjs's readSettingsForWrite, which is this policy on settings.json.
  */
 export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
   const job = async () => {
     const mk = deps.mkdir ?? mkdir;
-    const write = deps.writeFile ?? writeFile;
+    const temp = deps.createTemp ?? createTemp;
+    const setMode = deps.chmod ?? chmod;
+    const drop = deps.unlink ?? unlink;
     // `renameWithRetry`, not `rename` (#786). MoveFileExW refuses while any
     // handle without FILE_SHARE_DELETE is open on either side, and Defender and
     // the search indexer open a file the instant it is written — so on Windows
@@ -252,16 +365,59 @@ export async function writePrefs(patch, home = deckDataDir(), deps = {}) {
     // 500s through `guard`, and the notifications switch silently does not
     // stick. POSIX rename(2) has no such rule, which is why this shipped green.
     const mv = deps.rename ?? renameWithRetry;
-    const prev = await readPrefs(home, deps);
+    const target = prefsPath(home);
+    const { prefs: prev, source, quarantined } = await loadPrefs(home, deps);
+    if (source === "unreadable") throw unreadablePrefs(target, "the read failed");
+    if (source === "corrupt" && !quarantined) {
+      throw unreadablePrefs(target, "it is not JSON and could not be moved aside");
+    }
     // The LAN section merges rather than replaces, so a page toggling the
     // switch does not have to send the passphrase back to keep it — and so
     // nothing has to send a secret it was never given.
     const merged = { ...prev, ...patch, lan: { ...prev.lan, ...(patch?.lan ?? {}) } };
     const next = normalise(merged);
     await mk(prefsDir(home), { recursive: true, mode: 0o700 });
-    const tmp = `${prefsPath(home)}.${process.pid}.tmp`;
-    await write(tmp, JSON.stringify(next, null, 2) + "\n", { encoding: "utf8", mode: PREFS_MODE });
-    await mv(tmp, prefsPath(home));
+    // `createTemp`, not a name built out of the pid alone.
+    //
+    // The splice browser-watch-store.mjs met is NOT the hazard here: `_chain`
+    // above serializes every write in this process, and two decks on one home
+    // have two pids. The hazard is the LEFTOVER. A deck killed between the
+    // create and the rename strands a temp file with this deck's private key
+    // in it under a name derived from its pid, the old code never unlinked one
+    // on failure either — and `writeFile`'s `mode` applies only when the call
+    // CREATES the file, so a later deck the OS hands that pid back adopted the
+    // stranded file whole, keeping whatever permissions it had, and wrote the
+    // key into it. O_EXCL is what turns a taken name into an error the caller
+    // handles instead, and it is also what makes PREFS_MODE binding from the
+    // first byte rather than a hope about what was there before. codex-auth.mjs
+    // argues all of this at length over the one other secret this deck stages
+    // through a temp file.
+    const { tmp, handle } = await temp(target, { mode: PREFS_MODE });
+    let landed = false;
+    try {
+      try {
+        await handle.writeFile(JSON.stringify(next, null, 2) + "\n", "utf8");
+        // The fsync is the half of "atomic" a rename alone does not buy. A
+        // rename orders the directory entry; it does not order the BYTES, so a
+        // machine that loses power just after it can come up with the entry
+        // pointing at a file that was never flushed — which is the truncated
+        // prefs.json this whole read path now exists to survive.
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      // The umask only ever clears bits off the creation mode, so the key is
+      // never wider than 0600 — but it can land narrower, and a prefs.json at
+      // 0400 is one this writer cannot replace next time. On Windows chmod's
+      // only effect is the read-only bit, and a read-only target is one no
+      // rename can replace. Pin it either way.
+      await setMode(tmp, PREFS_MODE);
+      await mv(tmp, target);
+      landed = true;
+    } finally {
+      // A temp left behind holds this deck's private key in cleartext.
+      if (!landed) await drop(tmp).catch(() => {});
+    }
     return next;
   };
   const started = _chain.then(job, job);

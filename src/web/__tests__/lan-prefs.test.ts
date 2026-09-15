@@ -10,37 +10,71 @@ import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain .mjs server module, no types
 import { ALIAS_MAX, DEFAULTS, cleanAlias, isAliasKey, normalise, publicPrefs, PREFS_MODE, writePrefs } from "../../server/deck-prefs.mjs";
 
+/** An fs failure shaped the way `node:fs/promises` raises one. The `code` is
+ *  not decoration here: since #1002 the read turns on it, because "no file yet"
+ *  and "a file I could not read" are the two answers that used to be one. A
+ *  fake that throws a bare Error is the second of those, and a write refuses on
+ *  it — so every case below that means "nothing saved yet" has to say ENOENT. */
+const fsError = (code: string) =>
+  Object.assign(new Error(`${code}: fake, deck-prefs test`), { code });
+
+/** One recorded staging file, standing in for installer.mjs's `createTemp`.
+ *  What the cases below need from it is the name it was given and the mode it
+ *  was asked to create with; the real one opens with O_EXCL, which is what
+ *  makes that mode binding. */
+type Staged = { tmp: string; mode: unknown; body: string };
+const recordingTemp = (into: Staged[]) =>
+  async (target: string, opts: { mode?: number } = {}) => {
+    const row: Staged = { tmp: `${target}.staged.tmp`, mode: opts.mode, body: "" };
+    into.push(row);
+    return {
+      tmp: row.tmp,
+      handle: {
+        writeFile: async (body: string) => { row.body = body; },
+        sync: async () => {},
+        close: async () => {},
+      },
+    };
+  };
+
 describe("where the passphrase is written", () => {
   it("creates the file readable by nobody else", () => {
     expect(PREFS_MODE).toBe(0o600);
   });
 
-  it("names the mode on the write itself, not in a chmod after it", async () => {
+  it("names the mode on the create itself, so no instant of it is wider", async () => {
     // The difference is the whole point, and claude-swap's transfer.py makes
     // the same argument at length: a write-then-chmod leaves the file at the
     // umask-derived mode for the window between the two, which is exactly when
-    // the secret is in it.
-    const wrote: Array<{ path: string; opts: unknown }> = [];
+    // the secret is in it. The chmod that follows the create does not weaken
+    // that — it only pins a file the umask may have made NARROWER than 0600,
+    // which is a prefs.json this writer could not replace next time.
+    const staged: Staged[] = [];
+    const chmods: Array<[string, number]> = [];
     await writePrefs({ lan: { secret: "a-private-key" } }, "/tmp/nowhere", {
-      readFile: async () => { throw new Error("no file"); },
+      readFile: async () => { throw fsError("ENOENT"); },
       mkdir: async () => {},
-      writeFile: async (path: string, _body: string, opts: unknown) => { wrote.push({ path, opts }); },
+      createTemp: recordingTemp(staged),
+      chmod: async (p: string, mode: number) => { chmods.push([p, mode]); },
       rename: async () => {},
     });
-    expect(wrote).toHaveLength(1);
-    expect(wrote[0].opts).toEqual({ encoding: "utf8", mode: PREFS_MODE });
+    expect(staged).toHaveLength(1);
+    expect(staged[0].mode).toBe(PREFS_MODE);
+    expect(chmods).toEqual([[staged[0].tmp, PREFS_MODE]]);
   });
 
   it("writes to a temp path and renames, so a crash cannot truncate it", async () => {
+    const staged: Staged[] = [];
     const paths: string[] = [];
     await writePrefs({ lan: { secret: "x" } }, "/tmp/nowhere", {
-      readFile: async () => { throw new Error("no file"); },
+      readFile: async () => { throw fsError("ENOENT"); },
       mkdir: async () => {},
-      writeFile: async (path: string) => { paths.push(path); },
+      createTemp: recordingTemp(staged),
+      chmod: async () => {},
       rename: async (from: string, to: string) => { paths.push(`${from} -> ${to}`); },
     });
-    expect(paths[0]).toMatch(/\.tmp$/);
-    expect(paths[1]).toMatch(/\.tmp -> .*prefs\.json$/);
+    expect(staged[0].tmp).toMatch(/\.tmp$/);
+    expect(paths[0]).toMatch(/\.tmp -> .*prefs\.json$/);
   });
 });
 
@@ -98,15 +132,17 @@ describe("the shape on disk", () => {
   it("does not lose the private key when a page toggles the switch", async () => {
     // The LAN section merges rather than replaces, which is what lets a page
     // change one field without sending back a secret it was never given.
-    let saved: Record<string, unknown> | null = null;
+    const staged: Staged[] = [];
     const deps = {
       readFile: async () => JSON.stringify({ lan: { enabled: false, secret: "kept", shared: ["a@@1"] } }),
       mkdir: async () => {},
-      writeFile: async (_p: string, body: string) => { saved = JSON.parse(body); },
+      createTemp: recordingTemp(staged),
+      chmod: async () => {},
       rename: async () => {},
     };
     await writePrefs({ lan: { enabled: true } }, "/tmp/nowhere", deps);
-    expect(saved!.lan).toEqual({
+    const saved = JSON.parse(staged[0].body) as Record<string, unknown>;
+    expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
       autoAsk: true, autoAccept: false, aliases: {}, shareActive: true,
     });
