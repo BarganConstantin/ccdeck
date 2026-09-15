@@ -156,9 +156,15 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   // Order matters — the first match wins, so each family's variants precede
   // its bare alias.
 
-  // gpt-5.6-cyber — $12.50 / $75  (cached $1.25).   400K context.
+  // gpt-5.6-cyber — $12.50 / $75  (cached $1.25, cache write $15.625).  400K.
+  //
+  // The cache write is 1.25x uncached, as its three 5.6 siblings are. A zero
+  // here did two things at once, because `billedInputTokens` keys on the rate
+  // being non-zero: the written tokens stayed on the input line at $12.50 AND
+  // the cache-write line rendered "-". Zero remains correct for the older
+  // families -- gpt-5.1-codex-max publishes no cache-write line at all.
   { match: /^gpt[-_]5[-_.]6[-_]cyber/i,
-    rates: { input: 12.50, output: 75, cacheRead: 1.25, cacheWrite: 0 } },
+    rates: { input: 12.50, output: 75, cacheRead: 1.25, cacheWrite: 15.625 } },
 
   // gpt-5.6-luna — $0.20 / $1.20  (cached $0.02, cache write $0.25)
   { match: /^gpt[-_]5[-_.]6[-_]luna/i,
@@ -168,10 +174,15 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   { match: /^gpt[-_]5[-_.]6[-_]terra/i,
     rates: { input: 2, output: 12, cacheRead: 0.20, cacheWrite: 2.50 } },
 
-  // gpt-5.6 / gpt-5.6-sol — $5 / $30  (cached $0.50, cache write $6.25).
+  // gpt-5.6 / gpt-5.6-sol — $4 / $20  (cached $0.40, cache write $5).
   // Bare `gpt-5.6` is an alias for sol, so one row covers both.
+  //
+  // Cut after this file's 2026-08-12 sweep — -20% input, -33% output — and the
+  // row sat at the old $5/$30 for five releases. Sol is the DEFAULT Codex
+  // model, so this row prices most of what the deck reports for Codex, and it
+  // was reporting a session ~38% dearer than it was.
   { match: /^gpt[-_]5[-_.]6(?:[-_]sol)?\b/i,
-    rates: { input: 5, output: 30, cacheRead: 0.50, cacheWrite: 6.25 } },
+    rates: { input: 4, output: 20, cacheRead: 0.40, cacheWrite: 5 } },
 
   // gpt-5.5-pro — $30 / $180  (no cached rate published)
   { match: /^gpt[-_]5[-_.]5[-_]pro/i,
@@ -503,9 +514,14 @@ export function costForUsage(
 }
 
 // ─── Context window ──────────────────────────────────────────────────────
-// Every current Claude model above Haiku ships a 1M-token window; Haiku and
-// the older tiers stay at 200K. The model id sometimes carries a `[1m]`
-// suffix (CC's UI banner uses it) — treat that as an explicit override
+// The 1M-token window begins at the 4.6 generation -- it is NOT "every model
+// above Haiku". Anthropic's context-windows page names the list exactly:
+// Fable 5.1, Mythos 5.1, Fable 5, Mythos 5, Opus 5, Opus 4.8, Opus 4.7,
+// Opus 4.6, Sonnet 5, Sonnet 4.6. "Other Claude models, including Claude
+// Sonnet 4.5, have a 200k-token context window" -- and Opus 4.5 is one of the
+// others. It was in the list below for five releases, which drew its donut at
+// a fifth of the fullness it had. The model id sometimes carries a `[1m]`
+// suffix (CC's UI banner uses it) -- treat that as an explicit override
 // regardless of family.
 const CONTEXT_WINDOW_DEFAULT = 200_000;
 const CONTEXT_WINDOW_BIG = 1_000_000;
@@ -514,7 +530,7 @@ const BIG_CONTEXT_PATTERNS: RegExp[] = [
   /\[1m\]/i,                                  // explicit suffix
   /^claude[-_]opus[-_]5\b/i,                  // Opus 5
   /^claude[-_]sonnet[-_]5\b/i,                // Sonnet 5
-  /^claude[-_]opus[-_]4[-_.](?:5|6|7|8)\b/i,  // Opus 4.5+
+  /^claude[-_]opus[-_]4[-_.](?:6|7|8)\b/i,    // Opus 4.6+ (4.5 is 200K)
   /^claude[-_]sonnet[-_]4[-_.]6\b/i,          // Sonnet 4.6
   /^claude[-_](fable|mythos)[-_]5\b/i,        // Fable/Mythos 5
 ];

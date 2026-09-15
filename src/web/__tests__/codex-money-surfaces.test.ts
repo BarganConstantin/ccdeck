@@ -145,8 +145,8 @@ describe("the new rows do not become the catch-all the window table has", () => 
     // boundary before a `.` — so a bare `gpt-5` row without its lookahead would
     // have swallowed the lot.
     const before: Array<[string, number, number]> = [
-      ["gpt-5.6-sol", 5, 30],
-      ["gpt-5.6", 5, 30],
+      ["gpt-5.6-sol", 4, 20],
+      ["gpt-5.6", 4, 20],
       ["gpt-5.6-luna", 0.20, 1.20],
       ["gpt-5.6-terra", 2, 12],
       ["gpt-5.6-cyber", 12.50, 75],
@@ -315,8 +315,9 @@ describe("the cache-write count Codex has been writing all along", () => {
     });
     expect(root.usage.cacheCreateTokens).toBe(9_000);
     expect(root.usage.cacheReadTokens).toBe(700_000);
-    // $6.25/Mtok on sol — the line that was pinned at $0.00 forever.
-    expect(costForUsage(root.usage, "gpt-5.6-sol").cacheWrite).toBeCloseTo(9_000 * 6.25 / 1e6, 10);
+    // $5/Mtok on sol (1.25x its $4 input) — the line that was pinned at
+    // $0.00 forever, and then at the pre-cut $6.25 for five releases.
+    expect(costForUsage(root.usage, "gpt-5.6-sol").cacheWrite).toBeCloseTo(9_000 * 5 / 1e6, 10);
   });
 
   it("leaves Claude's spelling as the one that wins when both could apply", () => {
@@ -347,10 +348,10 @@ describe("the cache-write count Codex has been writing all along", () => {
     expect(billedInputTokens(u, "gpt-5.6") + u.cacheReadTokens + u.cacheCreateTokens)
       .toBe(u.inputTokens);
     const c = costForUsage(u, "gpt-5.6");
-    expect(c.input).toBeCloseTo(200_000 * 5 / 1e6, 10);
-    expect(c.cacheRead).toBeCloseTo(700_000 * 0.5 / 1e6, 10);
-    expect(c.cacheWrite).toBeCloseTo(100_000 * 6.25 / 1e6, 10);
-    expect(c.total).toBeCloseTo(1.0 + 0.35 + 0.625, 10);
+    expect(c.input).toBeCloseTo(200_000 * 4 / 1e6, 10);
+    expect(c.cacheRead).toBeCloseTo(700_000 * 0.4 / 1e6, 10);
+    expect(c.cacheWrite).toBeCloseTo(100_000 * 5 / 1e6, 10);
+    expect(c.total).toBeCloseTo(0.8 + 0.28 + 0.5, 10);
   });
 
   it("keeps them on the input line for a family that prices writes at zero", () => {
