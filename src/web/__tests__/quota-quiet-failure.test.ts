@@ -144,6 +144,43 @@ describe("a Claude Code that is there and answering badly", () => {
     expect(failures.some(l => l.includes("rate limited"))).toBe(true);
   }, 30_000);
 
+  it("does not call a failed run 0%, however far it got before it failed", async () => {
+    // The shape that made this a bug rather than a nicety: the CLI prints its
+    // own header and THEN fails — a network error, a rate limit, a timeout
+    // after the banner. `cliOk` is a regex over stdout+stderr, so it was
+    // satisfied; nothing looked at the exit status; and the no-numbers
+    // fallback published `{ok:true, session5hPct:0, week7dPct:0}`.
+    //
+    // The panel drew two full-looking bars reading "5-hour window 0%" while
+    // the deck logged `claude CLI failed` in the same second, and somebody
+    // reading an empty window starts a long run against one that is spent.
+    world.reply = {
+      ok: false, code: 1,
+      stdout: "Claude Code usage\n",
+      stderr: "Error: unable to contact api.anthropic.com",
+    };
+    const out = await fetchClaudeQuota({ force: true });
+    expect(out.ok, "a run that errored is not a measurement").toBe(false);
+    expect(out.reason).toBe("cli_failed");
+    expect(out.session5hPct).toBeUndefined();
+    expect(said.some(l => l.includes("claude CLI failed"))).toBe(true);
+  }, 30_000);
+
+  it("still reads the quota lines when the CLI prints them and then exits non-zero", async () => {
+    // The other half, and the reason the gate is on the FALLBACK rather than
+    // on the parse: _execOnce keeps the output either way on purpose, because
+    // the quota lines can be on stdout with a non-zero exit. Numbers that were
+    // actually printed must still win.
+    world.reply = {
+      ok: false, code: 1,
+      stdout: "Claude Code usage\nCurrent session: 42% used (resets in 2h)\nCurrent week: 13% used (resets in 3d)\n",
+      stderr: "warning: something unrelated",
+    };
+    const out = await fetchClaudeQuota({ force: true });
+    expect(out.ok, "printed numbers are a measurement whatever the exit code").toBe(true);
+    expect(out.session5hPct).toBe(42);
+  }, 30_000);
+
   it("forgets a failure once the CLI works, so the next one is heard", async () => {
     world.reply = { ok: false, code: 1, stdout: "", stderr: "not logged in" };
     await fetchClaudeQuota({ force: true });

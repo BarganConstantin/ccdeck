@@ -67,9 +67,23 @@ describe("whether this machine has a subscription to report on", () => {
 
 describe("what the server publishes when the CLI prints no windows", () => {
   it("only calls it <1% on a machine that has a subscription", () => {
-    expect(server).toContain("const subscribed = cliOk ? await hasSubscriptionCredential() : false;");
-    expect(server).toContain("const result = cliOk && subscribed");
-    expect(server).toContain('reason: cliOk ? "no_subscription" : "cli_failed"');
+    expect(server).toContain("const subscribed = cliOk && cliRan ? await hasSubscriptionCredential() : false;");
+    expect(server).toContain("const result = cliOk && cliRan && subscribed");
+    expect(server).toContain('reason: cliOk && cliRan ? "no_subscription" : "cli_failed"');
+  });
+
+  it("and only when the run itself succeeded, not merely when its output was recognised", () => {
+    // `cliOk` is a regex over stdout+stderr — it means "we recognised what came
+    // back", and a CLI that printed its banner and THEN failed satisfies it.
+    // Resting the <1% branch on it alone published {ok:true, 0%, 0%} for a run
+    // that errored, while the deck logged `claude CLI failed` in the same
+    // second. `cliRan` carries the exit status the parse deliberately ignores.
+    expect(server).toContain("return { cliOk, ran: r.ok, missing, parsed: parseUsageText(combined) };");
+    expect(server).toContain("cliRan = r.ran || cliRan;");
+    // And the gate is on the FALLBACK only: the parse above still keeps its
+    // output on a non-zero exit, because the quota lines can be printed and the
+    // exit still be non-zero. quota-quiet-failure.test.ts drives both halves.
+    expect(server).toContain("const combined = r.stdout + \"\\n\" + r.stderr;");
   });
 });
 
