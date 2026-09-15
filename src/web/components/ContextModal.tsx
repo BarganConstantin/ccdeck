@@ -122,7 +122,30 @@ export default function ContextModal({ agent, onClose }: Props) {
   // count for the whole session, and a session that switched model has that
   // count spread over two rate cards (#686).
   const cost = agentCost(agent);
-  const cumulative = usage.inputTokens + usage.cacheReadTokens + usage.cacheCreateTokens;
+  // THE FOUR ROWS IT IS PRINTED UNDER, and not three of them plus a double
+  // count. This read `input + cacheRead + cacheCreate`: it omitted output,
+  // which is one of the rows immediately above it, and for a Codex session the
+  // three it did add overlap — pricing.ts and codex-usage.mjs both record that
+  // OpenAI's `input_tokens` already CONTAINS `cached_input_tokens` and
+  // `cache_write_input_tokens`, and the reducer stores total_token_usage
+  // verbatim.
+  //
+  // A Codex session with input 300,000 (280,000 of it cached) and output
+  // 10,000 printed 580,000 under four rows whose real total is `total_tokens`
+  // = 310,000 — nearly double, on the one panel whose job is saying what is in
+  // the window. A Claude session read 290,000 where the rows sum to 300,000.
+  //
+  // The provider split is already solved in billedInputTokens; this asks the
+  // same question rather than writing a third copy of the rule.
+  // Keyed on the PROVIDER rather than on the model id. `isCodexModel` would
+  // answer the same for every real session, but #383 deliberately took it off
+  // pricing.ts's public surface — and the fact this line needs is about which
+  // CLI reported the numbers, not which model produced them. `agent.provider`
+  // is that fact, and it is already what reducer.ts branches on for the
+  // turn-end sweep.
+  const cumulative = agent.provider === "codex"
+    ? usage.inputTokens + usage.outputTokens
+    : usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheCreateTokens;
   // Which CLI's memory file, and which of this panel's sections are answerable
   // at all. The two ecosystems fill this modal from different sources and one of
   // them cannot fill a whole section, so every line below that names a file, a
