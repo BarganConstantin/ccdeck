@@ -554,7 +554,18 @@ const { deckDataDir, deckLogDir, legacyDeckDir, migrateDeckFiles, sweepTempFiles
   // The litter an atomic write leaves when its process is killed between the
   // write and the rename. Nothing has ever swept it, because the code that
   // makes it is not running any more when it is made.
-  await sweepTempFiles({ dirs: [legacy, data, log], fs: fsp }).catch(() => 0);
+  //
+  // THE WATCH'S OWN DIRECTORY IS NAMED SEPARATELY because the sweep does not
+  // recurse: it walks the directories it is handed and nothing under them, and
+  // `browser-watch/` is a subdirectory of `legacy`. Its temp files are the
+  // biggest ones the deck makes — about 2.5 MB each with a full 500-episode
+  // archive, by that module's own measurement — and until now they were outside
+  // the reach of the sweep that exists because ninety-seven of them were found
+  // in one directory, the oldest six days old.
+  const { storeDir: watchStoreDir } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/browser-watch-store.mjs")).href
+  );
+  await sweepTempFiles({ dirs: [legacy, data, log, watchStoreDir()], fs: fsp }).catch(() => 0);
 }
 // CANONICALISED here rather than left as typed: the discovery file publishes
 // this path so the hook can tell which decks share one log and elect a single
