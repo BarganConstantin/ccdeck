@@ -64,14 +64,16 @@
 // falls back to the file's mtime — "something navigated at 09:06, no URL" is a
 // weaker signal than a list of URLs and it is a great deal better than a blank
 // panel and a crash.
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 const { COPYFILE_EXCL } = fsConstants;
 import { pathLookup, run } from "./exec.mjs";
+// The staging root is under the tree the user already owns rather than under
+// os.tmpdir(). See `stagingRoot` and the note inside readVisitsSince.
+import { claudeConfigDir } from "./claude-dir.mjs";
 
 /**
  * 1601-01-01 → 1970-01-01, in microseconds.
@@ -283,8 +285,36 @@ async function probeBackend({
 
 /** Distinguishes this deck's copies from a sibling deck's in a shared copyDir.
  *  pid alone is not enough — one deck polls repeatedly and must not read a copy
- *  it is still writing. */
+ *  it is still writing. Kept beside the `mkdtemp` directory rather than replaced
+ *  by it: the directory is what makes the name unreachable to anybody else, and
+ *  this is what keeps it readable to a person looking at one. */
 let copySeq = 0;
+
+/**
+ * Where a copy of somebody's browsing history is allowed to be staged.
+ *
+ * NOT `os.tmpdir()`, and the reason is one platform out of three. On macOS that
+ * is a per-user `/var/folders/…/T` and on Windows it is inside the profile; on
+ * Linux it is `/tmp`, mode 1777, writable by every account on the box. A fixed
+ * name under a shared, world-writable directory is a name any other account can
+ * take first — and `mkdir` with `recursive: true` does not fail on a directory
+ * that is already there, it succeeds and keeps whatever mode and owner that
+ * directory already had. So the `mode: 0o700` this call passes was applied only
+ * on the run that created the directory and was a silent no-op on every run
+ * after it, and on every run where somebody else got there first.
+ *
+ * `~/.claude/agent-dag/browser-watch/staging` is inside a tree the user already
+ * owns, which removes the shared namespace rather than defending against it —
+ * the same move #551 made for `uv-bootstrap` and `macmon`, and the last stager
+ * left in the system temp directory after it. The parent is the Browser Watch
+ * directory browser-watch-store.mjs writes `state.json` into; `staging/` is a
+ * subdirectory of it so a transient copy is never mistaken for the archive.
+ *
+ * Resolved per call rather than at module load, because `claudeConfigDir` reads
+ * CLAUDE_CONFIG_DIR and the suite moves it.
+ */
+export const stagingRoot = (home = claudeConfigDir()) =>
+  join(home, "agent-dag", "browser-watch", "staging");
 
 /**
  * Every navigation newer than `sinceChromeTime`.
@@ -303,20 +333,24 @@ let copySeq = 0;
  *   reason     null on success, otherwise a stable slug and a detail:
  *              "no-sqlite-reader: …" | "copy-failed: …" | "unreadable-copy: …"
  *
- * `opts.copyDir` is where the copy of the locked file goes; `opts.backend` skips
- * the probe when the caller already resolved it; `opts.deps` injects the
- * filesystem, the runner and the import for tests.
+ * `opts.copyDir` is the root the copy of the locked file is staged UNDER — each
+ * call gets its own `mkdtemp` directory inside it, so the copy's own path is
+ * never one a caller or anybody else can predict. `opts.backend` skips the probe
+ * when the caller already resolved it; `opts.deps` injects the filesystem, the
+ * runner and the import for tests.
  *
  * NEVER THROWS. Not "rarely" — this is called from a poll in the deck's own
  * process and the inputs are a file another program owns, so the failure modes
  * are ordinary rather than exceptional.
  */
 export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
-  const { copyDir = join(tmpdir(), "ccdeck-browser-watch"), backend } = opts;
+  const { copyDir = stagingRoot(), backend } = opts;
   const deps = opts.deps ?? {};
   const {
     copyFile: copy = copyFile,
     mkdir: makeDir = mkdir,
+    mkdtemp: makeTemp = mkdtemp,
+    chmod: setMode = chmod,
     rm: remove = rm,
     run: exec = run,
     importSqlite = loadSqlite,
@@ -340,17 +374,15 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
   }
 
   let copyPath = null;
+  let stage = null;
   try {
-    // MODE 0700, AND A NAME NOBODY ELSE CAN PREDICT.
+    // A DIRECTORY NOBODY ELSE COULD HAVE MADE, IN A TREE NOBODY ELSE CAN WRITE.
     //
-    // `os.tmpdir()` is per-user on macOS (/var/folders/…, 0700) and on Windows,
-    // and on Linux it is the shared, world-writable /tmp. A fixed directory
-    // name and `history-<pid>-<n>.sqlite` inside it meant three things there,
-    // all of them avoidable:
+    // Three things a fixed name under `os.tmpdir()` meant on Linux, where that
+    // is `/tmp`, mode 1777:
     //
-    //   * a complete, unencrypted copy of the user's browsing history, mode
-    //     0644, under a predictable path, readable by every other account on
-    //     the machine for the life of the poll;
+    //   * a complete, unencrypted copy of the user's browsing history under a
+    //     predictable path, in a directory chosen by whoever created it first;
     //   * another UID can create the directory first — `mkdir` with `recursive`
     //     swallows EEXIST and keeps THEIR mode — and then read every copy, or
     //     plant a symlink at the name and have this overwrite a file the user
@@ -358,10 +390,33 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     //   * a second user on the same box then fails EACCES on a directory they
     //     cannot write, and their deck is degraded for good.
     //
-    // The mode is set on creation AND after, because the directory may already
-    // exist from an earlier run of this same deck.
+    // The second is closed by COPYFILE_EXCL below. The other two were not, and
+    // the comment that used to stand here claimed a mitigation the file did not
+    // contain: "the mode is set on creation AND after" — `grep -c chmod` on this
+    // module answered 0. That mattered exactly where it said it did, because
+    // POSIX `mkdir` applies a mode ONLY when it creates the directory. Measured:
+    // a directory already at 0777 was still 0777 after
+    // `mkdir(copyDir, { recursive: true, mode: 0o700 })`. So on every run after
+    // the first, and on every run where another account had got there first, the
+    // mode argument did nothing at all, and an account that pre-created
+    // `/tmp/ccdeck-browser-watch` 0755 under its own uid left every other user's
+    // deck failing `copy-failed:` on every poll, permanently, with the panel
+    // saying only that the history could not be read.
+    //
+    // Both are gone with the shared namespace: `copyDir` now defaults under
+    // `~/.claude`, and `mkdtemp` CREATES — it cannot be handed a directory
+    // somebody else made, it picks the six random characters itself, and the
+    // directory it makes is 0700 by construction rather than by an argument
+    // that may be ignored. The chmod is kept and is now real, so the directory
+    // ABOVE the staging one is pinned on the runs where it already existed; it
+    // is best-effort because a home on a filesystem with no POSIX modes (a
+    // Windows profile, an exFAT volume, a network mount) must not lose the
+    // feature over a permission it cannot express, and mkdtemp is what the
+    // guarantee actually rests on.
     await makeDir(copyDir, { recursive: true, mode: 0o700 });
-    copyPath = join(copyDir, `history-${process.pid}-${++copySeq}-${randomUUID().slice(0, 8)}.sqlite`);
+    try { await setMode(copyDir, 0o700); } catch { /* best-effort, see above */ }
+    stage = await makeTemp(join(copyDir, "history-"));
+    copyPath = join(stage, `history-${process.pid}-${++copySeq}-${randomUUID().slice(0, 8)}.sqlite`);
     // COPYFILE_EXCL: refuse rather than write through a symlink or over a file
     // that is already there. A refusal is one degraded poll; the alternative is
     // clobbering whatever the name pointed at.
@@ -370,6 +425,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     // The browser is not installed, the profile moved, the disk is full. All of
     // them are "no rows this poll", none of them is a reason to stop polling.
     await discard(remove, copyPath);
+    await discard(remove, stage);
     return { rows: [], watermark: unchanged, degraded: true, reason: `copy-failed: ${why(err)}` };
   }
 
@@ -381,11 +437,14 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
   } catch (err) {
     return { rows: [], watermark: unchanged, degraded: true, reason: `unreadable-copy: ${why(err)}` };
   } finally {
-    // A 21 MB file per poll. Left behind, this fills the user's temp directory
-    // at the rate the deck polls — and the copy is a full, unencrypted list of
+    // A 21 MB file per poll. Left behind, this fills the staging directory at
+    // the rate the deck polls — and the copy is a full, unencrypted list of
     // everywhere they have been, which is not a thing to leave lying around
-    // under a predictable name.
+    // under a predictable name. The staging DIRECTORY goes with it: `mkdtemp`
+    // makes one per call, so a poll that removed only the file would leave an
+    // empty directory behind every ten seconds for as long as the deck is up.
     await discard(remove, copyPath);
+    await discard(remove, stage);
   }
 
   const rows = [];
@@ -417,13 +476,17 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
  * closing — see __tests__/rm-temp-dir.ts, which paid for that knowledge twice.
  * The catch is on top of it because a leftover 21 MB file in a temp directory is
  * not worth a failed poll.
+ *
+ * `recursive` because this is handed BOTH the copy and the `mkdtemp` directory
+ * it sits in, and `rm` refuses a directory without it (ERR_FS_EISDIR) even with
+ * `force`. On a plain file it changes nothing.
  */
 async function discard(remove, path) {
   if (!path) return;
   try {
-    await remove(path, { force: true, maxRetries: 5, retryDelay: 20 });
+    await remove(path, { force: true, recursive: true, maxRetries: 5, retryDelay: 20 });
   } catch {
-    // The OS still has it. It is in a temp directory and it is one file.
+    // The OS still has it. It is one file, or one directory holding one file.
   }
 }
 

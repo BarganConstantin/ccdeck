@@ -268,7 +268,9 @@ ccdeck [options]
       --claude             Force Claude capture even if Claude Code wasn't found
       --no-claude          Skip Claude entirely — no hooks, no claude-swap,
                            no Accounts panel (Codex only)
-      --uninstall          Remove ccdeck's hooks from settings files
+      --uninstall          Remove ccdeck's hooks from settings files, and name
+                           the files that still hold this deck's private key
+      --purge              With --uninstall: delete those files too
   -h, --help               Show this help
   -v, --version            Print the version and exit
 ```
@@ -399,6 +401,24 @@ tools rather than the deck's own state, and goes when you remove them.)
 
 `uv tool uninstall claude-swap` (or `pipx uninstall claude-swap`) removes the
 account switcher.
+
+### Deleting the key
+
+You do not have to work the table above out for yourself, and on an upgraded
+machine it is not the whole answer: `prefs.json` moved to the data directory by
+being **copied**, so a second copy is still in `~/.claude/agent-dag/` and
+deleting one of the two is not deleting the key.
+
+`--uninstall` prints every path that still holds one, resolved for your machine.
+Adding `--purge` deletes them:
+
+```bash
+npx ccdeck --uninstall --purge
+```
+
+That takes your ccdeck settings — pairings, aliases, which accounts this deck
+offered — with the key, which is the point: after an uninstall there is nothing
+left for them to configure.
 
 ## Updating
 

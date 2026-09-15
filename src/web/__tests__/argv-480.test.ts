@@ -96,6 +96,11 @@ const ATTACH: [token: string, argv: string[], parsed: Record<string, unknown>][]
   ["--install", ["--install"], { install: true }],
   ["--install-service", ["--install-service"], { installService: true }],
   ["--uninstall-service", ["--uninstall-service"], { uninstallService: true }],
+  // #959. `--purge` is the opt-in half of the uninstall: `--uninstall` names
+  // the prefs.json files that still hold this deck's LAN private key, and this
+  // deletes them. In this table rather than in KEPT for the reason given above
+  // it — KEPT means "already worked before the sweep existed".
+  ["--purge", ["--purge"], { purge: true }],
 ];
 
 describe("the flag list is swept whole, not sampled", () => {
