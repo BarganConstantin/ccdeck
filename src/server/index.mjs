@@ -5680,13 +5680,40 @@ function isAuthorizedDataRead(req) {
   return originMatchesHost(headers.referer, headers.host);
 }
 
-/** The reads that carry the user's own work, rather than the machine's. */
+/** The reads that carry the user's own work, rather than the machine's.
+ *
+ *  `/api/lan` and `/api/prefs` were missing, and they are the same class of
+ *  secret as the four that were here. Measured against a running deck with a
+ *  request carrying no headers at all — the sandboxed subprocess with loopback
+ *  egress that isAuthorizedDataRead names above, or another UID on a shared
+ *  box — `/api/claude-accounts` answered 401 and `/api/lan` answered 200 with:
+ *
+ *    • `shared`, one `<email>@@<organization uuid>` per account this deck
+ *      offers — the address of every Claude login on the machine;
+ *    • `peers[].offers.accounts[]`, the same for every paired deck, plus each
+ *      one's LAN address, port, hostname, OS and ccdeck version;
+ *    • `invite`, whenever the owner has one open — and that one is a bearer
+ *      credential, not a description. readInvite -> connectToPeer({code}) ->
+ *      onInviteUsed pins the caller as trusted with nobody pressing anything,
+ *      and a trusted deck may then send `manifest` and `want` and receive the
+ *      sealed OAuth credentials for every shared account.
+ *
+ *  `/api/prefs` carries the narrower half: publicPrefs already strips
+ *  `lan.secret` and every `trusted[].pub`, which was the part that had to be
+ *  right, but it keeps `lan.shared` — the same addresses — and every trusted
+ *  peer's name and fingerprint.
+ *
+ *  Neither route has a caller outside the deck's own page, so guarding them
+ *  costs nothing: every fetch of both is in src/web, and a page's own GET
+ *  carries Sec-Fetch-Site: same-origin. */
 const GUARDED_READS = new Set([
   "/events",
   "/api/events",
   "/api/claude-accounts",
   "/api/claude-accounts/login",
   "/api/browser-watch",
+  "/api/lan",
+  "/api/prefs",
 ]);
 
 function isAuthorizedMutation(req) {
