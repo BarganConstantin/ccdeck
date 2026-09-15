@@ -29,21 +29,31 @@ export type Theme = "dark" | "light";
 export const THEME_KEY = "agent-dag.theme";
 
 /**
- * The theme a stored value asks for.
+ * The theme a stored value asks for, and what no choice falls back to.
  *
- * Only the exact string "light" is light. Absent, null from a store the browser
- * refused, or anything a future version might have written all collapse to
- * dark, which is both the deck's default and the one the stylesheet already
- * paints with no attribute at all — so an unrecognised value costs nothing and
- * changes nothing on screen.
+ * "light" and "dark" are choices, and a choice wins whatever the OS says.
+ * Anything else — absent, null from a store the browser refused, or a value a
+ * future version might have written — is no choice at all, and the deck
+ * follows the OS (#885): a first run on a light desktop used to open dark.
+ * `prefersLight` is the OS's answer, passed in rather than asked for so this
+ * stays pure and the bootstrap can be held against it input for input. Its
+ * default is dark, the one the stylesheet already paints with no attribute.
  */
-export function resolveTheme(stored: string | null | undefined): Theme {
-  return stored === "light" ? "light" : "dark";
+export function resolveTheme(stored: string | null | undefined, prefersLight = false): Theme {
+  if (stored === "light" || stored === "dark") return stored;
+  return prefersLight ? "light" : "dark";
+}
+
+/** Does the OS ask for light? `window` is absent in bare node and `matchMedia`
+ *  can be missing in a locked-down embed; neither may cost the mount, so both
+ *  read as "no", which is dark. */
+export function prefersLight(): boolean {
+  try { return window.matchMedia("(prefers-color-scheme: light)").matches; } catch { return false; }
 }
 
 /** The theme this tab boots with. `readStored` swallows the SecurityError a
  *  blocked profile raises on the `localStorage` getter itself, so a store the
  *  browser will not hand over costs a preference and never the mount. */
 export function storedTheme(): Theme {
-  return resolveTheme(readStored(THEME_KEY));
+  return resolveTheme(readStored(THEME_KEY), prefersLight());
 }

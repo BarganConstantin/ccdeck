@@ -2093,7 +2093,9 @@ function Inner() {
   const [everConnected, setEverConnected] = useState(false);
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
   // same attribute from the same stored value before anything painted, and the
-  // write-back stores the value it just read. It is left unguarded anyway,
+  // write-back stores the value it just read. With nothing stored yet, what it
+  // stores is what the OS asked for (#885), so the deck someone first sees is
+  // the one they keep until T changes it. It is left unguarded anyway,
   // because the only way to skip it is a "have we mounted yet" ref — a second
   // answer to a question the DOM already holds, and one that goes wrong the day
   // someone reorders the effects. Re-asserting an identical attribute is free.

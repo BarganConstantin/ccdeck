@@ -25,7 +25,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
+import { prefersLight, resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const html = read("../index.html");
@@ -54,12 +54,19 @@ type Refusal = "getter" | "getItem" | "missing";
  * "Block All Cookies" is the real-world case, and the one a try around getItem
  * alone would miss.
  */
-function boot(stored: string | null | Refusal): { applied?: string; asked?: string } {
+function boot(stored: string | null | Refusal, os?: boolean | "throws"): { applied?: string; asked?: string } {
   const out: { applied?: string; asked?: string } = {};
   const refuse = () => { throw new Error("SecurityError: The operation is insecure."); };
   const store = { getItem: (key: string) => { out.asked = key; return stored as string | null; } };
 
-  const window = Object.defineProperty({}, "localStorage",
+  // `os` is the OS's colour-scheme answer (#885). Left out, the window has no
+  // matchMedia at all, which is every case written before the OS was asked.
+  const base = os === undefined ? {}
+    : { matchMedia: (query: string) => {
+        if (os === "throws") throw new Error("matchMedia is not available");
+        return { matches: query === "(prefers-color-scheme: light)" && os };
+      } };
+  const window = Object.defineProperty(base, "localStorage",
     stored === "getter" ? { get: refuse }
     : stored === "getItem" ? { value: { getItem: refuse } }
     : stored === "missing" ? { value: undefined }
@@ -74,18 +81,39 @@ function boot(stored: string | null | Refusal): { applied?: string; asked?: stri
 }
 
 describe("resolveTheme", () => {
-  it("treats only the exact string light as light", () => {
-    expect(resolveTheme("light")).toBe("light");
-    expect(resolveTheme("dark")).toBe("dark");
+  it("keeps a stored choice whatever the OS asks for", () => {
+    for (const os of [false, true]) {
+      expect(resolveTheme("light", os)).toBe("light");
+      expect(resolveTheme("dark", os)).toBe("dark");
+    }
   });
 
-  it("falls back to dark for a value nothing wrote or this version cannot read", () => {
+  it("follows the OS for a value nothing wrote or this version cannot read (#885)", () => {
     // null is both "never chosen" and "store refused" — readStored collapses
     // the two — and an unknown string is what a future version could leave
-    // behind. All three land on the default the sheet already paints.
+    // behind. None of them is a choice, so the OS decides; with no answer from
+    // the OS they land on the default the sheet already paints.
     for (const value of [null, undefined, "", "LIGHT", "system", "purple"]) {
       expect(resolveTheme(value)).toBe("dark");
+      expect(resolveTheme(value, false)).toBe("dark");
+      expect(resolveTheme(value, true)).toBe("light");
     }
+  });
+
+  it("asks the OS without ever throwing, and boots light on a light desktop", () => {
+    const glob = globalThis as unknown as Record<string, unknown>;
+    const media = (matches: boolean) => ({ matchMedia: (q: string) => ({ matches: q === "(prefers-color-scheme: light)" && matches }) });
+    try {
+      glob.window = { ...media(true), localStorage: { getItem: () => null } };
+      expect(prefersLight()).toBe(true);
+      expect(storedTheme()).toBe("light");
+      glob.window = { ...media(true), localStorage: { getItem: () => "dark" } };
+      expect(storedTheme()).toBe("dark");
+      glob.window = { matchMedia: () => { throw new Error("no matchMedia"); }, localStorage: { getItem: () => null } };
+      expect(() => storedTheme()).not.toThrow();
+      expect(storedTheme()).toBe("dark");
+    } finally { delete glob.window; }
+    expect(prefersLight()).toBe(false);
   });
 
   it("gives the deck a theme even when the browser refuses the store", () => {
@@ -122,6 +150,18 @@ describe("the inline bootstrap in index.html", () => {
   it("applies the stored preference on the very first parse", () => {
     expect(boot("light")).toEqual({ applied: "light", asked: THEME_KEY });
     expect(boot("dark").applied).toBe("dark");
+    expect(boot("dark", true).applied).toBe("dark");
+    expect(boot("light", false).applied).toBe("light");
+  });
+
+  it("follows the OS when nothing is stored, on the very first parse (#885)", () => {
+    expect(boot(null, true).applied).toBe("light");
+    expect(boot(null, false).applied).toBe("dark");
+    // A refused store is no choice either, so the OS still decides.
+    expect(boot("getter", true).applied).toBe("light");
+    // And an OS that cannot be asked costs nothing: dark, and the parse goes on.
+    expect(() => boot(null, "throws")).not.toThrow();
+    expect(boot(null, "throws").applied).toBe("dark");
   });
 
   it("asks for the key every other version of the deck wrote", () => {
@@ -148,8 +188,12 @@ describe("the inline bootstrap in index.html", () => {
     for (const stored of [null, "light", "dark", "", "LIGHT", "system", "purple"]) {
       const expected: Theme = resolveTheme(stored);
       expect(boot(stored).applied).toBe(expected);
+      for (const os of [false, true]) {
+        expect(boot(stored, os).applied, `${stored} with the OS on ${os ? "light" : "dark"}`).toBe(resolveTheme(stored, os));
+      }
     }
     expect(boot("getter").applied).toBe(resolveTheme(null));
+    expect(boot("getter", true).applied).toBe(resolveTheme(null, true));
   });
 
   it("adds no flash in the other direction for the default theme", () => {
