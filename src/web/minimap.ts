@@ -1,6 +1,7 @@
 // Pure paint rule for the minimap. Kept out of App.tsx so it can be
 // unit-tested without pulling in React Flow / the DOM.
 import type { AgentNodeData } from "./types";
+import { isAlarming } from "./ambient-counts";
 
 /**
  * React Flow type of the invisible per-session drag handle.
@@ -40,6 +41,20 @@ export function minimapNodeColor(
   cssVar: (name: string) => string,
 ): string {
   if (node.type === SESSION_GROUP_TYPE) return "transparent";
+  // BLOCKED ON A HUMAN COMES FIRST, because `state` cannot say it: the reducer
+  // sets `waiting` without touching `state`, so a root parked on a permission
+  // prompt is still "active" and painted the same --inflight as a session that
+  // is happily working. Every other surface marks it — the favicon, the tab
+  // title, the topbar chip, the card's amber WaitingRow, the sidebar's top sort
+  // tier, the W shortcut — and the minimap is the one a person scans to decide
+  // WHERE on a large board to fly the camera, which is exactly the question
+  // "who is blocked on me" asks. Ten sessions with one blocked showed ten
+  // indistinguishable rects.
+  //
+  // isAlarming rather than a fresh rule, so this agrees with the tab strip and
+  // rank() instead of inventing a sixth definition of "waiting": permission and
+  // asked, never idle.
+  if (isAlarming(node.data?.waiting)) return cssVar("--warn");
   const state = node.data?.state;
   if (state === "err") return cssVar("--err");
   if (state === "active") return cssVar("--inflight");

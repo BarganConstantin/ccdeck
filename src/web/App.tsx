@@ -4591,6 +4591,24 @@ function Inner() {
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          /* EDGES ARE NOT KEYBOARD STOPS. React Flow's store defaults
+             `edgesFocusable` to true, and its EdgeWrapper gates on that flag
+             alone rather than on `disableKeyboardA11y` below — so every parent
+             -> child connector took tabIndex 0, role="button", an aria-label of
+             `Edge from ${source} to ${target}`, and a description reading
+             "Press enter or space to select an edge. You can then press delete
+             to remove it or escape to cancel."
+
+             Subagent ids are `${sessionId}::${agentId}`, so that label was
+             about 110 characters of UUID, read out at a stop between every
+             parent and child. And every key it named was then swallowed:
+             `disableKeyboardA11y` short-circuits EdgeWrapper's onKeyDown, so
+             Enter, Space, Delete and Escape on a focused edge all did nothing.
+
+             This is what #853 and #367 fixed for nodes, applied to nodes only.
+             The edge keeps role="img" and its label, which is harmless — the
+             target node already carries the name. */
+          edgesFocusable={false}
           fitView={!restoredViewport}
           /* The opening frame is React Flow's own, and it goes through the same
              d3 transition every other viewport animation does — so a deck that
