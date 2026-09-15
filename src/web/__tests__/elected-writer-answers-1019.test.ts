@@ -26,6 +26,16 @@
 // electWriters' own order. These tests assert THE LINE COUNT IN THE LOG rather
 // than what the hook thinks it did — the whole defect was a process that
 // believed it had delivered.
+//
+// #1133 took the third of those three ways out of the hand-on. A writer that
+// takes the body and never answers is, from the hook's side, the same
+// observation as one that takes it and answers late, right up to the moment
+// the hook has to end — and the late one appends the line when it catches up,
+// so handing on at the deadline wrote that event twice
+// (writer-answers-late-1133.test.ts). The silent writer keeps the log now, and
+// its case below pins that the line is lost cleanly rather than written twice.
+// The 500 and the hang-up still hand on: in both, the writer ended the exchange
+// itself and claimed nothing.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -250,7 +260,6 @@ describe("an elected writer that does not take the event", () => {
   for (const [answer, what] of [
     ["500", "answers 500"],
     ["reset", "hangs up mid-body"],
-    ["silent", "takes the body and never answers"],
   ] as Array<[Answer, string]>) {
     it(`hands the log on when the writer ${what}`, async () => {
       const token = randomBytes(32).toString("hex");
@@ -277,6 +286,29 @@ describe("an elected writer that does not take the event", () => {
       dropWriter();
     }, 30_000);
   }
+
+  it("keeps the log with a writer that takes the body and never answers", async () => {
+    // #1133, and the price of it said out loud. This writer took the whole
+    // body and let the hook's deadline pass; a real deck in that state is
+    // usually a busy one that appends the line when it catches up, so a second
+    // deck must not be asked to append it too. This listener never catches up,
+    // so here the line is lost — as it was before #1087 — and the hook still
+    // ends itself cleanly at the deadline rather than at the cap.
+    const token = randomBytes(32).toString("hex");
+    const seen: string[] = [];
+    const writer = await listenBelow(PORT, deck(token, "silent", seen));
+    registerWriter(writer.port, token);
+
+    const before = lines();
+    const { id, code, stderr } = await fireHook("sess-silent");
+    expect(seen, `the writer was asked to keep the event (stderr: ${stderr})`)
+      .toContain("/api/event");
+    expect(code, "the hook still ends itself cleanly").toBe(0);
+    await settle(before + 1, 2000);
+    expect(lines(), "no second deck was asked to write it").toBe(before);
+    expect(drawnCount(id), "drawn once, with ?persist=0, and never handed the log").toBe(1);
+    dropWriter();
+  }, 30_000);
 
   it("asks the second deck once when the writer does take it", async () => {
     // The working case, and the one the hand-on must not buy its way out of: a
