@@ -134,12 +134,21 @@ const inFlight = (state: GraphState, session: string): string[] =>
 
 /** Traffic from the other sessions on a busy deck: whole calls, opened and
  *  closed inside the pause, which is what fills a hold. Interleaved across six
- *  sessions the way six agents working at once interleave. */
+ *  sessions the way six agents working at once interleave.
+ *
+ *  The outcome is addressed to the session that OPENED the call — `(i - 1) % 6`
+ *  and not `i % 6` — which used to be a distinction without a difference and is
+ *  not one since #1009. Consecutive `i` are never the same session under `% 6`,
+ *  so every pre/post pair this helper emitted was addressed to two different
+ *  sessions, and it read as "whole calls, opened and closed" only because the
+ *  reducer settled a call by bare `tool_use_id` no matter which session's
+ *  envelope carried the result. That is the very cross-session leak the issue
+ *  reported, standing in here for ordinary traffic. Pairing it up is what the
+ *  comment above always claimed the helper did. */
 function flood(d: ReturnType<typeof deck>, envelopes: number): void {
   for (let i = 0; i < envelopes; i++) {
-    const session = `other-${i % 6}`;
-    if (i % 2 === 0) d.feed(pre(session, `o${i}`, `echo ${i}`));
-    else d.feed(post(session, `o${i - 1}`, "ok"));
+    if (i % 2 === 0) d.feed(pre(`other-${i % 6}`, `o${i}`, `echo ${i}`));
+    else d.feed(post(`other-${(i - 1) % 6}`, `o${i - 1}`, "ok"));
   }
 }
 

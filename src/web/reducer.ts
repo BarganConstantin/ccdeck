@@ -174,8 +174,11 @@ function extractModel(node: unknown, depth = 0): string | null {
 
 export interface GraphState {
   agents: Map<string, AgentNodeData>;
+  /** `toolKey(session_id, tool_use_id)` → the call still in flight under it.
+   *  Keyed on the pair and never on the bare id; see `toolKey`. */
   toolIndex: Map<string, ToolCall>;
-  /** tool_use_id → owning agent.id, so PostToolUse can settle the right agent's tool. */
+  /** `toolKey(session_id, tool_use_id)` → owning agent.id, so PostToolUse can
+   *  settle the right agent's tool. */
   toolOwner: Map<string, string>;
   /** Per-session LIFO stack of active subagent ids — used to attribute incoming
    *  PreToolUse to the deepest live subagent, since CC tool-call hooks don't
@@ -257,6 +260,43 @@ function rootAgentId(sessionId: string): string {
 
 function subagentIdFor(sessionId: string, agentId: string): string {
   return `${sessionId}::${agentId}`;
+}
+
+/** The key both id-keyed tool maps are written under: the session the call
+ *  belongs to, joined to the `tool_use_id` the session named it by.
+ *
+ *  #1009. `toolIndex` and `toolOwner` used to be keyed on the bare
+ *  `tool_use_id`, and a `tool_use_id` is not unique on this board. It is unique
+ *  within ONE session, because within a session one process allocates it; the
+ *  deck holds every session on the machine at once and those allocators have
+ *  nothing in common. Codex is the plain case — the watcher forwards the
+ *  rollout's own `call_id` straight through as `tool_use_id`, and two Codex
+ *  sessions start counting from `call_1` each — but nothing makes a Claude
+ *  session's ids disjoint from a Codex session's either.
+ *
+ *  What a collision did, driven through this reducer: two sessions each open a
+ *  call under `call_1`, and the second `PreToolUse` finds the first session's
+ *  call through `findTool`'s `toolIndex` lookup, decides it is looking at a
+ *  re-delivery of a call it already has, and refreshes that call in place —
+ *  renaming the FIRST session's bubble to the second session's tool and pushing
+ *  nothing for the second, which is then drawn nowhere. The `PostToolUse` that
+ *  followed then settled the first session's bubble with the second session's
+ *  result. One call erased, one bubble carrying another session's answer, and
+ *  no surface anywhere saying either happened.
+ *
+ *  NUL is the separator because it is the one byte neither half can carry.
+ *  Both come out of JSON and both are ids in practice — UUIDs, `call_N`,
+ *  `toolu_…` — so `:` and `::` are the ambiguous choices, not the safe ones:
+ *  `::` is already how `subagentIdFor` builds an agent id, and the synthesised
+ *  id below (`${owner.id}:${owner.toolCount}`) puts a `:` inside the second
+ *  half on purpose. A join that cannot be re-split is the whole point, since
+ *  nothing ever parses this back apart — it is only ever compared.
+ *
+ *  Exported for the tests, which read both maps directly and would otherwise
+ *  each hand-roll the separator — the one way a suite can go green against a
+ *  key shape the reducer no longer writes. */
+export function toolKey(sessionId: string, toolUseId: string): string {
+  return `${sessionId}\u0000${toolUseId}`;
 }
 
 function subagentLabel(p: HookPayload): string {
@@ -509,9 +549,10 @@ function trimTools(state: GraphState, a: AgentNodeData): void {
       // agent whose history is being trimmed — `resolveOwner` hands a
       // re-delivered `PreToolUse` back to the root whenever no subagent is live —
       // so owner equality would hold for both copies and guard nothing.
-      if (state.toolIndex.get(t.id) === t) {
-        state.toolIndex.delete(t.id);
-        state.toolOwner.delete(t.id);
+      const key = toolKey(a.sessionId, t.id);
+      if (state.toolIndex.get(key) === t) {
+        state.toolIndex.delete(key);
+        state.toolOwner.delete(key);
       }
     }
   }
@@ -527,13 +568,22 @@ function trimTools(state: GraphState, a: AgentNodeData): void {
 }
 
 /** Find the ToolCall already recorded under `id`, or null if this is the first
- *  time we see it. `toolIndex` answers for every call still in flight no matter
- *  which agent owns it; a call that has already settled (or was swept stale) is
- *  gone from the index, so fall back to the resolved owner's own history, newest
- *  first. Anything older than that window was evicted by `trimTools` and is
- *  deliberately not resurrected — it is off the board for good. */
+ *  time we see it. `toolIndex` answers for every call of THIS SESSION still in
+ *  flight no matter which agent owns it; a call that has already settled (or was
+ *  swept stale) is gone from the index, so fall back to the resolved owner's own
+ *  history, newest first. Anything older than that window was evicted by
+ *  `trimTools` and is deliberately not resurrected — it is off the board for
+ *  good.
+ *
+ *  The session in the lookup key is the owner's and not a parameter, which is
+ *  the same thing: every caller resolved `owner` from this payload, and both
+ *  `ensureRoot` and `ensureSubagent` stamp the node with the session it was
+ *  created under. A subagent therefore carries its root's `sessionId`, so the
+ *  index still answers across the agents of one session — which it has to, since
+ *  `resolveOwner` can hand a re-delivered `PreToolUse` to a different agent than
+ *  the one that opened the call (#443). */
 function findTool(state: GraphState, owner: AgentNodeData, id: string): ToolCall | null {
-  const live = state.toolIndex.get(id);
+  const live = state.toolIndex.get(toolKey(owner.sessionId, id));
   if (live) return live;
   for (let i = owner.tools.length - 1; i >= 0; i--) {
     if (owner.tools[i].id === id) return owner.tools[i];
@@ -619,8 +669,9 @@ function promptAlreadyRecorded(a: AgentNodeData, at: number, text: string): bool
  *  settling a bubble nothing draws is not a thing worth keeping a map for. */
 function releaseToolIds(state: GraphState, a: AgentNodeData): void {
   for (const t of a.tools) {
-    if (state.toolIndex.get(t.id) === t) state.toolIndex.delete(t.id);
-    if (state.toolOwner.get(t.id) === a.id) state.toolOwner.delete(t.id);
+    const key = toolKey(a.sessionId, t.id);
+    if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
+    if (state.toolOwner.get(key) === a.id) state.toolOwner.delete(key);
   }
 }
 
@@ -824,7 +875,12 @@ export function settlesInFlightCall(state: GraphState, env: HookEnvelope): boole
   const name = p?.hook_event_name;
   if (name !== "PostToolUse" && name !== "PostToolUseFailure") return false;
   const id = p?.tool_use_id;
-  return typeof id === "string" && id.length > 0 && state.toolIndex.has(id);
+  if (typeof id !== "string" || id.length === 0) return false;
+  // The same `?? "unknown"` `applyEvent` and `resolveOwner` use, because the key
+  // this asks about has to be the one `PreToolUse` wrote. An envelope with no
+  // session at all lands on the "unknown" root, and its calls are in flight
+  // under that name like any other session's.
+  return state.toolIndex.has(toolKey(p?.session_id ?? "unknown", id));
 }
 
 /** Tell the graph that the deck is about to apply a run with a hole in it, so
@@ -1006,8 +1062,8 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // resurrects it, which is what happens when the sweep guessed wrong and
         // the session comes back — the same un-reap `lastEventAt` performs for
         // the root above.
-        state.toolIndex.delete(t.id);
-        state.toolOwner.delete(t.id);
+        state.toolIndex.delete(toolKey(a.sessionId, t.id));
+        state.toolOwner.delete(toolKey(a.sessionId, t.id));
         changed = true;
       }
     }
@@ -1244,8 +1300,11 @@ const WAITING_KEEPERS = new Set([
 function blockedCall(state: GraphState, sessionId: string): ToolCall | null {
   let newest: ToolCall | null = null;
   for (const tc of state.toolIndex.values()) {
-    // `toolIndex` spans every session on the board, and holds exactly the calls
-    // that have not settled — PostToolUse and the stale sweep both delete.
+    // `toolIndex` holds every session's in-flight calls in one map — its KEYS
+    // name a session (#1009), its values do not — and holds exactly the calls
+    // that have not settled: PostToolUse and the stale sweep both delete. So the
+    // session filter stays a filter over the values, read off the owner the call
+    // is actually drawn under rather than off the key it was filed by.
     const owner = tc.agentId ? state.agents.get(tc.agentId) : undefined;
     if (!owner || owner.sessionId !== sessionId) continue;
     if (!newest || tc.startedAt > newest.startedAt) newest = tc;
@@ -1879,8 +1938,13 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       owner.tools.push(tc);
       owner.toolCount += 1;
       owner.state = "active";
-      state.toolIndex.set(id, tc);
-      state.toolOwner.set(id, owner.id);
+      // Filed under this session's name (#1009). `owner.sessionId` rather than
+      // the local `sessionId` so the write and every later read — `findTool`,
+      // `trimTools`, `releaseToolIds`, the sweep — all spell the key off the
+      // same field on the same node. They are the same string: `resolveOwner`
+      // only ever returns a node of `p.session_id ?? "unknown"`.
+      state.toolIndex.set(toolKey(owner.sessionId, id), tc);
+      state.toolOwner.set(toolKey(owner.sessionId, id), owner.id);
       trimTools(state, owner);
       break;
     }
@@ -1888,15 +1952,28 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     case "PostToolUseFailure": {
       const id = p.tool_use_id;
       if (!id) break;
-      let tc = state.toolIndex.get(id);
+      const key = toolKey(sessionId, id);
+      let tc = state.toolIndex.get(key);
       let resurrected = false;
       // If the tool isn't in the live index it may have been swept stale
       // — look it up in its owner's tools array and resurrect it. Without
       // this, a slow PostToolUse arriving after the 90s stale cutoff was
       // silently dropped and the tool stayed marked failed forever even
       // when it actually completed.
+      //
+      // THIS SESSION'S agents only (#1009). The scan used to walk every agent on
+      // the board and settle the first `tools` entry whose bare id matched, so a
+      // session whose own copy of the id had already settled reached across and
+      // stamped its result — response, `ok`, `endedAt`, and the sweep's un-reap
+      // — onto an unrelated session's live bubble. That is the same collision
+      // the key above closes, arriving by the other door: keying the map alone
+      // would have left this scan as a second, slower path to the same wrong
+      // call. A subagent carries its root's `sessionId`, so a root's late
+      // outcome still finds a call drawn under a subagent of the same session,
+      // which is the case the resurrection exists for.
       if (!tc) {
         for (const a of state.agents.values()) {
+          if (a.sessionId !== sessionId) continue;
           const found = a.tools.find(x => x.id === id);
           if (found) { tc = found; resurrected = true; break; }
         }
@@ -1969,8 +2046,11 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // away again. That oscillation, $0.4675 → $0.0175, is what #685 reported.
       const usage = extractUsage(p.tool_response);
       if (usage) tc.usage = usage;
-      state.toolIndex.delete(id);
-      state.toolOwner.delete(id);
+      // The key this handler looked the call up by, which is also the key
+      // `PreToolUse` filed it under: the resurrection path above only accepts a
+      // call off an agent of this same session, so the two agree on both halves.
+      state.toolIndex.delete(key);
+      state.toolOwner.delete(key);
       break;
     }
     case "SubagentStart": {
@@ -2090,8 +2170,8 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
         // is no longer held open. A late outcome still lands — the PostToolUse
         // handler falls back to scanning the owner's tool list and resurrects
         // the call, un-saying this.
-        state.toolIndex.delete(t.id);
-        state.toolOwner.delete(t.id);
+        state.toolIndex.delete(toolKey(root.sessionId, t.id));
+        state.toolOwner.delete(toolKey(root.sessionId, t.id));
       }
       // ...and only `SessionEnd` says the SESSION is over (#445). `Stop` is a
       // turn boundary on both providers — Claude fires it when the main agent
