@@ -754,8 +754,19 @@ export function parseGetProcessJson(json, totalMem) {
       // shape covers both. Absent rather than zero when the value did not come
       // back: `StartTime` throws for a process this session may not open, and
       // `Threads.Count` is undefined on a row that failed to project.
+      //
+      // `typeof` rather than `Number.isFinite(Number(…))` on the uptime, and the
+      // difference is the whole of that rule: `Number(null)` is 0, and 0 is
+      // finite, so the projection's own `else{$null}` — the branch it takes for
+      // every process whose StartTime this session may not read — arrived as an
+      // uptime of ZERO SECONDS. Every protected process on the machine was
+      // reported to the panel as having started this instant, which is the
+      // reading the comment above says must never be invented. A genuine zero
+      // is still kept: `[int]` of a sub-second TimeSpan is 0, and a process that
+      // started this instant is a real answer when it is the real answer. Same
+      // guard the CPU field two lines up already used, for the same reason.
       ...(Number.isFinite(Number(r.Threads)) && Number(r.Threads) > 0 ? { threads: Number(r.Threads) } : {}),
-      ...(Number.isFinite(Number(r.StartedAt)) ? { uptimeSec: Number(r.StartedAt) } : {}),
+      ...(typeof r.StartedAt === "number" && Number.isFinite(r.StartedAt) ? { uptimeSec: r.StartedAt } : {}),
       rssBytes: Number(r.WorkingSet) || 0,
     }));
 }
@@ -781,6 +792,21 @@ export function parseGetProcessJson(json, totalMem) {
  * Core count is deliberately not a parameter any more. The aggregate meter's
  * 0-100 convention (see cpuPercent) is a different question with a different
  * answer, and the only way this drifts back is if a core count is in reach.
+ *
+ * THE ROW IS CARRIED, NOT REBUILT, and that is the half this used to get wrong
+ * (#954). It listed the four fields it knew about — pid, cpu, mem, name — so
+ * `threads`, `uptimeSec` and `rssBytes` were silently dropped on their way
+ * through, and this is the only step the Windows reading takes: readProcessesNow
+ * returns straight out of the win32 branch, on the other side of the
+ * `attachDetail` call that puts those three back on POSIX. Every Windows row
+ * therefore reached the panel with three of its seven columns missing, always,
+ * and the memory header — which sorts on `rssBytes` and treats `undefined` as a
+ * missing reading — reordered nothing when clicked, because every row was
+ * missing it. Invisible to anyone developing on macOS or Linux.
+ *
+ * `cpuSec` is the one field deliberately removed: it is the raw counter this
+ * function exists to turn into a rate, the POSIX rows never carry one, and
+ * shipping it would put two spellings of the same quantity on the wire.
  */
 export function cpuFromDeltas(rows, prev, elapsedMs, limit = Infinity) {
   const secs = elapsedMs / 1000;
@@ -793,7 +819,8 @@ export function cpuFromDeltas(rows, prev, elapsedMs, limit = Infinity) {
       // process; report nothing rather than a negative or a wild number.
       if (d >= 0) cpu = Math.round((d / secs) * 1000) / 10;
     }
-    return { pid: r.pid, cpu, mem: r.mem, name: r.name };
+    const { cpuSec: _raw, ...rest } = r;
+    return { ...rest, cpu };
   });
   // Until the second reading lands there is no CPU to sort on, so the list is
   // ordered by memory — which is a real answer to "what is this machine doing",
@@ -869,20 +896,35 @@ export async function readProcesses(platform = process.platform, detail = false)
   return procInFlight;
 }
 
+/**
+ * The one-liner the Windows process list is read with.
+ *
+ * Threads and StartTime ride along on the call that was already being made —
+ * `Get-Process` has both, so the two columns cost nothing here. `WorkingSet64`
+ * joins `PrivateMemorySize64` rather than replacing it: the percentage has
+ * always been computed from private bytes and moving it would change a number
+ * that is on screen today, while the new column wants the resident figure Task
+ * Manager itself shows.
+ *
+ * NOT `-IncludeUserName`: it requires an elevated session, and no part of this
+ * deck may ask for one. The user column is simply absent on Windows, which is
+ * the same rule the thermal section keeps.
+ *
+ * A named export for the reason WIN_THERMAL_PS is one, and #954 is why it
+ * became one: three of the seven columns this projection is built to fill were
+ * being dropped after it, and every assertion in the suite was made against a
+ * payload somebody typed. A constant can be handed to the real powershell.exe
+ * on the Windows leg of the matrix, which is the only place the claim "Windows
+ * really does answer with these seven keys" can be measured rather than
+ * reasoned about.
+ */
+export const WIN_PROCESS_PS =
+  "Get-Process | Select-Object Id,ProcessName,CPU,@{n='Threads';e={$_.Threads.Count}},@{n='StartedAt';e={if($_.StartTime){[int]((Get-Date)-$_.StartTime).TotalSeconds}else{$null}}},@{n='WorkingSet';e={$_.WorkingSet64}},@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress";
+
 async function readProcessesNow(platform, detail = false) {
   if (platform === "win32") {
     const out = await run("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      // Threads and StartTime ride along on the call that was already being
-      // made — `Get-Process` has both, so the two columns cost nothing here.
-      // `WorkingSet64` joins `PrivateMemorySize64` rather than replacing it:
-      // the percentage has always been computed from private bytes and moving
-      // it would change a number that is on screen today, while the new column
-      // wants the resident figure Task Manager itself shows.
-      // NOT `-IncludeUserName`: it requires an elevated session, and no part
-      // of this deck may ask for one. The user column is simply absent on
-      // Windows, which is the same rule the thermal section keeps.
-      "Get-Process | Select-Object Id,ProcessName,CPU,@{n='Threads';e={$_.Threads.Count}},@{n='StartedAt';e={if($_.StartTime){[int]((Get-Date)-$_.StartTime).TotalSeconds}else{$null}}},@{n='WorkingSet';e={$_.WorkingSet64}},@{n='WorkingSetPrivate';e={$_.PrivateMemorySize64}} | ConvertTo-Json -Compress",
+      "-NoProfile", "-NonInteractive", "-Command", WIN_PROCESS_PS,
     ], 6_000);
     // The same shape the POSIX branch below returns, and not a bare array: the
     // caller reads `read.procs.length` to decide whether this was a real
