@@ -325,6 +325,9 @@ const PRESSES: Press[] = [
   // the reason #355 gave: a 9px word with no box is still a thing being
   // pressed, and 0.97 of a word is the visible number.
   [".ap-lanes-more:active", "0.97", "transform"],
+  // Local network's way in at the top of the accounts panel (#844), the same
+  // word-with-a-dotted-rule as the two above.
+  [".ap-lan-jump:active", "0.97", "transform"],
   // #856's two disclosures: a failure that opens its reason, a pace note that
   // opens its number. Text-weight, like the two footer controls above.
   ["button.ap-err:active", "0.97", "transform"],

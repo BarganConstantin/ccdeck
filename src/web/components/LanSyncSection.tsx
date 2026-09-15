@@ -1031,10 +1031,16 @@ async function post(url: string, body: Record<string, unknown>) {
   return res.json().catch(() => null);
 }
 
-export default function LanSyncSection({ accounts, onChanged }: {
+/** What the panel's way in to this section says about it (#844). */
+export interface LanSummary { on: boolean; paired: number }
+
+export default function LanSyncSection({ accounts, onChanged, onSummary }: {
   accounts: LanAccount[];
   /** The roster changed under us — a healed account is a different row. */
   onChanged: () => void;
+  /** Told whether the network is on and how many decks are paired, so the
+   *  link at the top of the panel can say so without a poll of its own. */
+  onSummary?: (s: LanSummary) => void;
 }) {
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [manual, setManual] = useState<string[]>([]);
@@ -1320,11 +1326,15 @@ export default function LanSyncSection({ accounts, onChanged }: {
   const showFolded = foldOpen || live.length === 0;
   const state = sectionState(status, now);
   const paired = rest.filter(r => r.kind === "paired").length;
+  useEffect(() => { onSummary?.({ on, paired }); }, [on, paired, onSummary]);
 
   return (
     <div className="ap-auto ap-lan">
       <div className="ap-auto-head">
-        <h3 className="ap-auto-title">Local network</h3>
+        {/* The target of the panel's link (#844). The id is what it scrolls to;
+            focus goes to the section's first control, so the jump invents no
+            focus stop of its own. */}
+        <h3 className="ap-auto-title" id="ap-lan-title">Local network</h3>
         {/* THE ROUND, BESIDE THE SWITCH. It was a full-width button at the foot
             of the section, under the list it refreshes and under a tooltip that
             covered it — and it is the panel's own idiom for exactly this act:

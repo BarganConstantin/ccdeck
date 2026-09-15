@@ -339,6 +339,21 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    *  `active` chip moving rows used to be the only answer, and a screen reader
    *  heard nothing at all. */
   const [switched, setSwitched] = useState<{ num: number; name: string } | null>(null);
+  /** What Local network last said about itself (#844), for the way in under
+   *  the header. Null until the section has mounted and read its own state. */
+  const [lanSummary, setLanSummary] = useState<{ on: boolean; paired: number } | null>(null);
+  /** Local network's own way in (#844). The section is the last thing in the
+   *  panel, so the line under the header scrolls to its heading and hands focus
+   *  to the section's first control, and the next Tab carries on from there
+   *  rather than from the top. A control rather than the heading, because the
+   *  deck keeps one script-only focus stop and it is the skip link's. */
+  const jumpToLan = () => {
+    const head = document.getElementById("ap-lan-title");
+    if (!head) return;
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    head.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    head.closest(".ap-lan")?.querySelector<HTMLElement>("button:not(:disabled), input, select")?.focus({ preventScroll: true });
+  };
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const timerRef = useRef<number | null>(null);
   // Which account's row is expanded into its edit controls. One at a time —
@@ -805,6 +820,17 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           </button>
         </div>
       </div>
+
+      {/* LOCAL NETWORK'S OWN WAY IN (#844) — see .ap-lan-way. Drawn once the
+          section has said what it is, so it never names a state it has not
+          read. The name is the link; the state beside it is plain text. */}
+      {lanSummary && (
+        <div className="ap-lan-way">
+          <button type="button" className="ap-lan-jump" onClick={jumpToLan}
+            title="Go to Local network, the last section of this panel">Local network</button>
+          <span>{lanSummary.on ? (lanSummary.paired > 0 ? `on · ${lanSummary.paired} paired` : "on · none paired yet") : "off"}</span>
+        </div>
+      )}
 
       {/* Nothing has arrived yet. "Checking…" is only true while a request is
           still out: the panel's failure box lives inside the branch below,
@@ -1523,6 +1549,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
               alive: a.alive === true,
             }))}
             onChanged={() => load(true)}
+            onSummary={setLanSummary}
           />
         </>
       )}

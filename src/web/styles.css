@@ -6985,6 +6985,37 @@ button.qb-pace::after {
   letter-spacing: 0.02em;
 }
 .ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* LOCAL NETWORK'S OWN WAY IN (#844). The section is the last thing in this
+   panel, under every account and the auto-switch block, and it is not an
+   account setting; the tour had to spend a tip saying where it was. A line
+   under the header names it and says its state, and the name is the link:
+   pressed, the panel scrolls to the section and puts focus on its heading.
+   Written in `.ap-lanes-more`'s language, a word with a dotted rule and no box,
+   because it is a way to somewhere rather than an act. */
+.ap-lan-way {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px var(--panel-inset);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.ap-lan-jump {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-lan-jump:hover { color: var(--accent); }
+.ap-lan-jump:active { transform: scale(0.97); }
 /* THE PADDING WENT WITH THE GLYPH IT PLACED. `1px 6px` said where a text arrow
    sat inside the 24px floor, and it did change a pixel of the box after all:
    12px of content width around a 13px icon measured the button at 25x24 in a
@@ -8068,7 +8099,8 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-rotate::after,
 .ap-lanes-more::after,
 button.ap-err::after,
-.ap-fix::after {
+.ap-fix::after,
+.ap-lan-jump::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -8822,6 +8854,7 @@ button.ap-err::after,
   .ap-field select:active:not(:disabled),
   .ap-rotate:active:not(:disabled),
   .ap-lanes-more:active,
+  .ap-lan-jump:active,
   button.ap-err:active, button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
@@ -11620,7 +11653,8 @@ input, textarea { caret-color: var(--accent); }
   .ap-fix::after,
   .ap-rotate::after,
   .ap-lanes-more::after,
-  button.ap-err::after { width: max(100%, 32px); height: 32px; }
+  button.ap-err::after,
+  .ap-lan-jump::after { width: max(100%, 32px); height: 32px; }
   .ap-failure-x::after { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
   .lan-switches { gap: 14px; }
 }
