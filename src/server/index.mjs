@@ -6,7 +6,7 @@
 import { createServer, request as httpRequest } from "node:http";
 import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
 import { existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
-import { extname, join, resolve, sep, dirname as pdirname } from "node:path";
+import { basename, extname, join, resolve, sep, dirname as pdirname } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname } from "node:path";
@@ -2451,6 +2451,33 @@ async function listRecentCodexRollouts() {
   return out;
 }
 
+/**
+ * The session id a rollout's own file name carries, or null.
+ *
+ * Codex names every rollout `rollout-<YYYY-MM-DDTHH-MM-SS>-<uuid>.jsonl` —
+ * codex-usage.mjs reads the timestamp half as parseRolloutTime — and the uuid
+ * is the id `session_meta.payload.id` states. findCodexRolloutPath already leans
+ * on that, matching a session id against file names, so the name is the
+ * fallback when the header stops saying it (#996). A compressed `.jsonl.zst`
+ * is not matched: this reader never opens one.
+ */
+export function sidFromRolloutName(path) {
+  const m = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(basename(String(path ?? "")));
+  return m ? m[1] : null;
+}
+
+/** Which of the two ways a rollout can fail to say whose it is has been printed
+ *  already. Once per kind for the life of the process, not once per file: the
+ *  scan retries a rollout it cannot place on every tick, and a change to the
+ *  format would hit every rollout at once, so per file would be the same
+ *  sentence once for each of them. */
+const codexHeaderWarned = new Set();
+function warnUnplacedRollout(kind, path, why) {
+  if (codexHeaderWarned.has(kind)) return;
+  codexHeaderWarned.add(kind);
+  console.warn(`${PRODUCT}: cannot tell which Codex session ${path} belongs to: ${why}. If Codex has changed its rollout format, its sessions will not be drawn until the deck reads the new one.`);
+}
+
 // Read the first complete JSON line of a rollout (the session_meta header)
 // to learn sid + cwd before we start streaming. The header line can be large
 // (base_instructions text runs tens of KB), so we read in growing chunks until
@@ -2468,11 +2495,31 @@ async function readCodexHeader(path) {
       if (nl >= 0) {
         const obj = JSON.parse(text.slice(0, nl));
         if (obj && obj.type === "session_meta" && obj.payload) {
+          // THE ID, WITH THE FILE NAME BEHIND IT (#996). Every other field this
+          // file takes off a rollout goes through a type guard, and the event
+          // names are read in both spellings because OpenAI has renamed a record
+          // once already; this one went straight into `sid`. A renamed or
+          // dropped `payload.id` made every header answer undefined, and the
+          // scan `continue`s on that — so every rollout was retried on every
+          // tick, its first 64KB re-read each time, not one Codex session was
+          // drawn, and nothing said why. The file name carries the same id.
+          const id = obj.payload.id;
+          const sid = typeof id === "string" && id !== "" ? id : sidFromRolloutName(path);
+          if (!sid) warnUnplacedRollout("no-id", path, "its session_meta has no id, and its file name carries none");
           // Canonicalised here and nowhere else: everything downstream — the
           // workspace test below, the log election, the cwd on every event this
           // rollout produces — reads state.cwd, and this is the one place it is
           // read off disk. See canonicalCwd.
-          return { sid: obj.payload.id, cwd: await canonicalCwd(obj.payload.cwd) };
+          return { sid, cwd: await canonicalCwd(obj.payload.cwd) };
+        }
+        // The other rename the scan would otherwise retry in silence: a first
+        // line that is whole but is not a session_meta will never become one.
+        // Said, not guessed around — which record a renamed header would be is
+        // not something to infer from one line. Only for a file named like a
+        // rollout, so some other `.jsonl` left in the tree is not reported as a
+        // format change.
+        if (obj && typeof obj === "object" && sidFromRolloutName(path)) {
+          warnUnplacedRollout("no-header", path, `its first line is a ${JSON.stringify(String(obj.type ?? "record with no type"))}, not a session_meta`);
         }
         return null;
       }
@@ -2537,9 +2584,14 @@ export function codexObjToPayload(obj, sid, cwd) {
     // "waiting" state derived from this plus a pending call would be a guess
     // wearing the clothes of a measurement.
     //
-    // Written on the record even when the value is missing or not a string, so
-    // a future Codex that renames or drops the field clears the stale answer
-    // rather than pinning the session to whatever it last said.
+    // Deleted from the record when the value is missing or not a string, so this
+    // server stops stamping a stale policy on the payloads it builds from here
+    // on. The page does not un-say it, though. `approval_policy: undefined` does
+    // not survive JSON.stringify, so the wire has no way to say "cleared", and
+    // the reducer applies the field only when it is a non-empty string — a card
+    // keeps the last policy it was told for as long as the session is on the
+    // board. This comment used to promise the stale answer was cleared; it is
+    // cleared here and nowhere else (#996).
     if (typeof pl.approval_policy === "string" && pl.approval_policy) {
       codexSessionApproval.set(sid, pl.approval_policy);
     } else {
