@@ -27,33 +27,31 @@ function decl(selector: string, prop: string): string | null {
   return null;
 }
 
+// The accounts half has moved once since: the reason no longer opens as a line
+// that pushes the row down, but as a popover over the column hung from the
+// warning — the ⋯ menu's surface — with the fix as its one button.
 describe("why a login failed is a button, not a title (#856)", () => {
-  const failure = /<button[^>]*?className="ap-err"[\s\S]*?<\/button>/.exec(accounts)?.[0] ?? null;
+  const warning = /<button type="button" id=\{`ap-issue-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(accounts)?.[0] ?? null;
 
   it("is a button that says whether its reason is open", () => {
-    expect(failure, "the failure is not a button").not.toBeNull();
-    expect(failure).toMatch(/type="button"/);
-    expect(failure).toMatch(/aria-expanded=\{whyOpen\.includes\(String\(a\.num\)\)\}/);
+    expect(warning, "the warning is not a button").not.toBeNull();
+    expect(warning).toMatch(/aria-haspopup="dialog"/);
+    expect(warning).toMatch(/aria-expanded=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}`\}/);
     // Conditional, because the target only exists while it is open — the same
-    // rule the manage block's disclosure follows.
-    expect(failure).toMatch(/aria-controls=\{whyOpen\.includes\(String\(a\.num\)\) \? `ap-why-\$\{a\.num\}` : undefined\}/);
+    // rule the ⋯ menu follows.
+    expect(warning).toMatch(/aria-controls=\{issueOpen\?\.anchor === `ap-issue-\$\{a\.num\}` \? "ap-issue-pop" : undefined\}/);
   });
 
-  it("opens the reason as text in the row, and no longer as a title", () => {
-    expect(accounts).not.toMatch(/className="ap-err"\s+title=/);
-    expect(accounts).toMatch(/<span id=\{`ap-why-\$\{a\.num\}`\} className="ap-why">\{e\.hint\}<\/span>/);
+  it("opens the reason as text over the column, and never as a title", () => {
+    expect(accounts).not.toMatch(/className="ap-issue"[^>]*\stitle=/);
+    expect(accounts).toMatch(/<p className="ap-pop-note ap-issue-hint">\{issue\.hint\}<\/p>/);
+    expect(accounts).toMatch(/role="dialog"\s*labelledBy="ap-issue-title"/);
   });
 
-  it("puts the reason on its own line at the foot of the row", () => {
-    expect(decl(".ap-why", "flex-basis")).toBe("100%");
-    expect(decl(".ap-why", "order")).toBe("1");
-  });
-
-  it("draws the failure in the footer's text-control language, with a 24px target", () => {
-    expect(decl(".ap-err", "color")).toBe("var(--warn)");
-    expect(decl("button.ap-err", "text-decoration")).toBe("underline dotted");
-    expect(decl("button.ap-err", "position")).toBe("relative");
-    expect(decl("button.ap-err::after", "height")).toBe("24px");
+  it("draws the failure as a mark and a word in the warning ink, with a 24px target", () => {
+    expect(decl('.ap-issue[data-tone="warn"]', "color")).toBe("var(--warn)");
+    expect(decl(".ap-issue", "position")).toBe("relative");
+    expect(decl(".ap-issue::after", "height")).toBe("24px");
   });
 });
 

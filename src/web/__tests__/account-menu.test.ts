@@ -69,10 +69,13 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
 });
 
 describe("the menu", () => {
-  it("offers four items in the order they are reached for, the irreversible one last", () => {
+  it("offers its items in the order they are reached for, the irreversible one last", () => {
+    // Four always, and a fifth — holding the account out of rotation, or
+    // putting it back — whenever that means something: it moved here off the
+    // row, where it was a word under every account while auto-switch ran.
     const menu = view("menu");
-    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(4);
-    const order = [">Rename</button>", ">Move to slot…</button>", ': "Share"}', 'role="separator"', ': "Remove"}']
+    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(5);
+    const order = [">Rename</button>", ">Move to slot…</button>", ': "Share"}', ': "Hold out of rotation"}', 'role="separator"', ': "Remove"}']
       .map(s => menu.indexOf(s));
     expect(order.every(i => i >= 0), order.join()).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);

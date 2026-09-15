@@ -476,7 +476,8 @@ describe("the list is quiet until it is not", () => {
     // other is done twice in a deck's life. The first is a `+` in the header
     // now, beside the round, which is where the accounts header two sections up
     // has kept the same glyph for the same act since it was written.
-    const head = /<div className="ap-auto-head">([\s\S]*?)<\/div>/.exec(CODE)?.[1] ?? "";
+    // The section's header is its view's header now, beside Back and the title.
+    const head = /<h2 id="ap-lan-title">Local network<\/h2>([\s\S]*?)<div className="ap-scroll"/.exec(CODE)?.[1] ?? "";
     expect(head).toMatch(/ap-lan-plus/);
     expect(head).toMatch(/aria-label="Add a deck"/);
     expect(head).toMatch(/ap-lan-check/);
@@ -511,7 +512,7 @@ describe("the list is quiet until it is not", () => {
     // the list's last line with the fold, because both are facts about the list
     // rather than about any deck on it.
     expect(CODE).not.toContain("ap-lan-foot");
-    const tail = /<div className="ap-lan-tail">([\s\S]*?)\n {10}<\/div>/.exec(CODE)?.[1] ?? "";
+    const tail = /<div className="ap-lan-tail">([\s\S]*?)\n {16}<\/div>/.exec(CODE)?.[1] ?? "";
     expect(tail).toMatch(/ap-lan-more/);
     expect(tail).toMatch(/ap-lan-checked/);
     expect(CODE).not.toContain("name &amp; sharing");

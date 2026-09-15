@@ -105,53 +105,8 @@ export function laneSplit<T extends LaneLike>(lanes: readonly T[]): LaneSplit<T>
   return { shown: head, rest: tail, fuller, peak: fuller ?? top };
 }
 
-/**
- * The word on the row's disclosure, or null when there is nothing behind it.
- *
- * Null at 0 and at 1: a row with one window is already showing all of it, and a
- * control that opens nothing is worse than no control. The count is on the
- * closed state because that is where it answers a question — how much is not
- * being shown — and off the open state, where the answer is on screen.
- *
- * When a hidden window is fuller than the one on show, it takes the label
- * instead of the count. The row leads with `5h` so the column stays readable,
- * which means the window that actually decides when auto-switch trips can be
- * the one folded away — and a row reading a calm 40% while 7d sits at 79% would
- * be the panel lying by omission. The count is the weaker of the two facts and
- * it survives in the hover sentence, so nothing is dropped. One line either
- * way: `.ap-meta` is a 9px footer that already wraps on an errored row, and two
- * facts side by side is what would push it over.
- */
-export function moreLabel(
-  rest: number,
-  open: boolean,
-  fuller?: { label: string; pct: number } | null,
-): string | null {
-  if (rest < 1) return null;
-  if (open) return "fewer";
-  if (fuller) return `${fuller.label} ${Math.round(fuller.pct)}%`;
-  return `${rest} more`;
-}
-
-/**
- * The disclosure's hover sentence, which is where the server's own headroom
- * finally gets said.
- *
- * `headroom` is 100 less the binding lane's percentage, computed once by
- * claude-swap's reader and shipped with every account. Saying it here costs the
- * resting row no height and answers the question the bars are being read for:
- * not "how full is this window" but "how much is left before this account stops
- * being the one to use".
- */
-export function lanesTitle(
-  headroom: number | null,
-  peakLabel: string | null,
-  rest: number,
-  open: boolean,
-): string {
-  const lead = headroom == null
-    ? "No usage has been collected for this account yet."
-    : `${Math.round(headroom)}% left on ${peakLabel ?? "the window that runs out first"}, which is the one that runs out first.`;
-  const other = rest === 1 ? "the other window" : `the other ${rest} windows`;
-  return `${lead} ${open ? "Hide" : "Show"} ${other}.`;
-}
+// NO COUNT OF WHAT IS FOLDED. The row's disclosure used to be a word in its
+// footer — `1 more`, `fewer`, or the hot lane's label — and "1 more" named no
+// thing a reader could picture. The shut row now shows its windows plus `fuller`
+// when there is one, and the whole row is what opens; there is no label left to
+// compute.

@@ -44,7 +44,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { laneSplit, lanesTitle, moreLabel } from "../lane-view";
+import { laneSplit } from "../lane-view";
 
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
@@ -160,165 +160,52 @@ describe("what the resting row shows", () => {
   });
 });
 
-describe("what the disclosure says", () => {
-  it("says nothing at all when there is nothing behind it", () => {
-    expect(moreLabel(0, false)).toBeNull();
-    expect(moreLabel(0, true)).toBeNull();
-  });
-
-  it("counts what is hidden while it is hidden, and stops counting once it is not", () => {
-    expect(moreLabel(1, false)).toBe("1 more");
-    expect(moreLabel(4, false)).toBe("4 more");
-    // Open, the number is on screen; repeating it in the control would be the
-    // panel saying twice what the reader can already see.
-    expect(moreLabel(4, true)).toBe("fewer");
-  });
-
-  it("wears the hot folded lane instead of the count, which is what the cut costs (#647)", () => {
-    // #647: the panel's call site was pinned as `moreLabel(rest.length,
-    // lanesOpen, fuller)` and every call in this file passed two arguments, so
-    // the branch the header above calls the point of the design was asserted at
-    // the call site and executed by nothing. What the header says it does:
-    // a row leading with two calm windows over a hidden hot one is the panel
-    // lying by omission, so when the fullest lane is a folded one the
-    // disclosure says which and how full rather than how many.
-    expect(moreLabel(2, false, { label: "scoped-0", pct: 91 })).toBe("scoped-0 91%");
-    expect(moreLabel(1, false, { label: "7d", pct: 100 })).toBe("7d 100%");
-    // Rounded, and rounded the same way `lanesTitle` rounds its headroom: the
-    // percentage arrives as a float and `40.4%` in a 9px footer is noise.
-    expect(moreLabel(3, false, { label: "5h", pct: 66.6 })).toBe("5h 67%");
-    expect(moreLabel(3, false, { label: "5h", pct: 66.4 })).toBe("5h 66%");
-    expect(moreLabel(3, false, { label: "5h", pct: 0.4 })).toBe("5h 0%");
-  });
-
-  it("keeps the count in the cases where a fuller lane changes nothing (#647)", () => {
-    // The three ways the third argument is present and still not the answer.
-    // Absent and null are the same statement — `laneSplit` returns `null` when
-    // no folded lane beats the row, and the panel hands that straight over —
-    // so both have to produce the count rather than one of them producing
-    // `undefined %`.
-    expect(moreLabel(4, false, null)).toBe("4 more");
-    expect(moreLabel(4, false, undefined)).toBe("4 more");
-    expect(moreLabel(4, false)).toBe("4 more");
-    // Open wins over it: the number AND the lane are both on screen.
-    expect(moreLabel(4, true, { label: "scoped-0", pct: 91 })).toBe("fewer");
-    // And nothing behind the control is still nothing to say, however hot the
-    // lane handed in claims to be.
-    expect(moreLabel(0, false, { label: "scoped-0", pct: 91 })).toBeNull();
-  });
-
-  it("takes that argument from laneSplit, the way the panel builds it (#647)", () => {
-    // The two halves joined, because a pure function that is right about a
-    // `fuller` nothing ever hands it is the failure mode this file's header
-    // names. Lanes carry a label here — the panel's `Lane` does, and that is
-    // what makes `laneSplit`'s `fuller` assignable to `moreLabel`'s third
-    // parameter without anything in between.
-    const labelled = (id: string, label: string, pct: number) => ({ id, label, pct });
-    const say = (lanes: Array<{ id: string; label: string; pct: number }>, open = false) => {
-      const { rest, fuller } = laneSplit(lanes);
-      return moreLabel(rest.length, open, fuller);
-    };
-    // The hot folded lane: the row shows 12% and 44% while a model sits at 91%.
-    expect(say([
-      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91),
-    ])).toBe("opus 91%");
-    // The calm one: nothing folded beats the row, so the count comes back.
-    expect(say([
-      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 88),
-      labelled("scoped-0", "opus", 9), labelled("scoped-1", "sonnet", 3),
-    ])).toBe("2 more");
-    // A tie is not fuller — `laneSplit` uses `>` so the row keeps the lane it
-    // is already showing — and the control says how many rather than repeating
-    // a number already on the row.
-    expect(say([
-      labelled("five_hour", "5h", 40), labelled("scoped-0", "opus", 40),
-    ])).toBe("1 more");
-    // Open, from the same split.
-    expect(say([
-      labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91),
-    ], true)).toBe("fewer");
-  });
-
-  it("leads its sentence with the headroom the panel had never rendered", () => {
-    const shut = lanesTitle(19, "5h", 2, false);
-    // The headroom is about the fullest window; the row leads with the first.
-    // Since those can now be different lanes, the sentence says both rather
-    // than naming one and letting the reader assume it is the other.
-    // Names the lane the headroom is about, which after the by-kind cut can be
-    // one of the folded ones — so the sentence says which rather than letting
-    // the reader assume it is one of the two on the row.
-    expect(shut).toMatch(/^19% left on 5h/);
-    expect(shut).toMatch(/runs out first/);
-    expect(shut).toMatch(/Show the other 2 windows\./);
-    expect(lanesTitle(19, "5h", 2, true)).toMatch(/Hide the other 2 windows\./);
-    // One window reads as one window rather than as "1 windows".
-    expect(lanesTitle(50, "7d", 1, false)).toMatch(/Show the other window\./);
-    // Rounded, because headroom arrives as a float from a percentage.
-    expect(lanesTitle(66.6, "7d", 1, false)).toMatch(/^67% left/);
-    // And an account claude-swap has never read says so instead of saying 0%.
-    expect(lanesTitle(null, null, 2, false)).toMatch(/^No usage has been collected/);
-  });
-});
-
+// THE DISCLOSURE WORD IS GONE. A shut row used to carry `1 more` / `fewer` in
+// its footer, and "1 more" named nothing a reader could picture. A shut row now
+// shows its windows plus the hot folded lane when there is one, and the whole
+// row is what opens — so what is left to pin is that split and that door.
 describe("the row renders the windows, and the panel reads the same function", () => {
-  it("maps the split rather than the whole roster", () => {
-    expect(panelCode).not.toMatch(/a\.lanes\.map\(l => <LaneBar/);
-    expect(panelCode).toMatch(/const \{ shown, rest, fuller, peak \} = laneSplit\(a\.lanes\);/);
-    expect(panelCode).toMatch(/\{shown\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} \/>\)\}/);
-    // The rest exist only while the row is open.
-    expect(panelCode).toMatch(/\{lanesOpen && rest\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} \/>\)\}/);
+  const labelled = (id: string, label: string, pct: number) => ({ id, label, pct });
+  /** What a shut row shows, built the way the panel builds it. */
+  const quick = (lanes: Array<{ id: string; label: string; pct: number }>) => {
+    const { shown, fuller } = laneSplit(lanes);
+    return (fuller ? [...shown, fuller] : shown).map(l => l.label);
+  };
+
+  it("shuts a row on its windows, plus a folded lane only when it is the fullest (#647)", () => {
+    expect(panelCode).toMatch(/const \{ shown, fuller \} = laneSplit\(a\.lanes\);/);
+    expect(panelCode).toMatch(/const quick = fuller \? \[\.\.\.shown, fuller\] : shown;/);
+    // Two calm windows over a hidden hot one would be the panel lying by
+    // omission, so the hot one joins them; a calm folded lane stays folded.
+    expect(quick([labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91)]))
+      .toEqual(["5h", "7d", "opus"]);
+    expect(quick([labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 88), labelled("scoped-0", "opus", 9)]))
+      .toEqual(["5h", "7d"]);
+    // A tie is not fuller: `laneSplit` uses `>`, so the row keeps what it shows.
+    expect(quick([labelled("five_hour", "5h", 40), labelled("scoped-0", "opus", 40)])).toEqual(["5h"]);
   });
 
-  it("takes the auto-switch readout from the same place instead of a second Math.max", () => {
-    expect(panelCode).toMatch(/const activePct = laneSplit\(activeAcct\?\.lanes \?\? \[\]\)\.peak\?\.pct \?\? null;/);
-    expect(panelCode).not.toMatch(/Math\.max\(\.\.\.activeAcct/);
+  it("opens every window as a bar, in the order the server sent them", () => {
+    expect(panelCode).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} frozen=\{frozen\} \/>\)/);
   });
 
-  it("opens every row collapsed, including the active one", () => {
-    // Uniform rows are what makes a column scannable, and a default that
-    // depended on state would make the panel's resting height depend on which
-    // account happens to be live. Measured: 98.59px per block either way.
+  it("opens the live row, and every other row only when the reader opens it", () => {
     expect(panelCode).toMatch(/useState<string\[\]>\(\[\]\)/);
-    // Keyed by the account rather than by its slot — see lane-open.ts and
-    // lane-identity.test.ts. The empty default is what this case is about.
-    expect(panelCode).toMatch(/const lanesOpen = openLanes\.includes\(laneKey\(a\)\);/);
-    expect(panelCode).not.toMatch(/openLanes.*a\.active|a\.active.*openLanes/);
+    expect(panelCode).toMatch(/const open = a\.active \|\| openLanes\.includes\(laneKey\(a\)\);/);
+    // The live row has nothing folded, so it has no door.
+    expect(panelCode).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
   });
 
-  it("points the disclosure at a group that exists in both states", () => {
-    // `.ap-more` one row up makes its `aria-controls` conditional, because the
-    // menu it names is not in the document while it is closed and an IDREF
-    // resolving to nothing is a dangling pointer rather than a relationship.
-    // Here the lane group is always rendered and only its contents change, so
-    // the same rule comes out the other way: unconditional.
-    expect(panelCode).toMatch(/<div className="ap-lanes" id=\{`ap-lanes-\$\{a\.num\}`\}>/);
-    expect(panelCode).toMatch(/aria-controls=\{`ap-lanes-\$\{a\.num\}`\}/);
-    expect(panelCode).toMatch(/aria-expanded=\{lanesOpen\}/);
-    // …and the conditional one is still conditional, so this is a decision
-    // rather than a habit.
+  it("points the door at the detail only while the detail exists", () => {
+    expect(panelCode).toMatch(/aria-expanded=\{open\}/);
+    expect(panelCode).toMatch(/aria-controls=\{open \? `ap-detail-\$\{a\.num\}` : undefined\}/);
+    expect(panelCode).toMatch(/<div className="ap-detail" id=\{`ap-detail-\$\{a\.num\}`\}>/);
+    // The ⋯ follows the same rule for the same reason.
     expect(panelCode).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
   });
 
-  it("sits in the footer the row already had, and only when it opens something", () => {
-    // The footer is the last thing on the row now: the ⋯ opens a popover over
-    // the column rather than a block under this line.
-    const meta = /<div className="ap-meta">([\s\S]*?)<\/div>\s*\n\s*<\/li>/.exec(panelCode)![1];
-    expect(meta).toMatch(/className="ap-lanes-more"/);
-    expect(meta).toMatch(/\{more && \(/);
-    expect(panelCode).toMatch(/const more = moreLabel\(rest\.length, lanesOpen, fuller\);/);
-  });
-
-  it("draws it in the tier the footer already speaks, not as a fourth control language", () => {
-    // The footer's size, no box, a dotted rule under the word — `.ap-rotate`'s
-    // language, because both are the reader stating a preference rather than
-    // acting on the account. --muted rather than --text-dim so it holds 4.5:1
-    // on the active row as well as on the panel. 11px since #857.
-    const rule = /\.ap-lanes-more \{([^}]*)\}/.exec(bare)![1];
-    const rotate = /\.ap-rotate \{([^}]*)\}/.exec(bare)![1];
-    expect(rule).toMatch(/font-size:\s*11px/);
-    expect(/font-size:\s*(\d+px)/.exec(rule)![1]).toBe(/font-size:\s*(\d+px)/.exec(rotate)![1]);
-    expect(rule).toMatch(/border:\s*none/);
-    expect(rule).toMatch(/color:\s*var\(--muted\)/);
-    expect(rule).toMatch(/text-decoration:\s*underline dotted/);
+  it("no longer counts what is folded: there is no `1 more` to read", () => {
+    expect(panelCode).not.toMatch(/moreLabel|lanesTitle|ap-lanes-more/);
+    expect(bare).not.toMatch(/\.ap-lanes-more/);
   });
 });

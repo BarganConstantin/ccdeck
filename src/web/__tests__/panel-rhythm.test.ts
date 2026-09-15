@@ -198,9 +198,9 @@ describe("the distance a panel prints its content at", () => {
    *  other two are being held to, not because they changed. */
   const EDGES: Array<[string, "padding" | "margin"]> = [
     [".ap-header", "padding"],
-    [".ap-account", "padding"],
     [".ap-empty", "padding"],
-    [".ap-auto", "padding"],
+    [".ap-foot", "padding"],
+    [".ap-lan", "padding"],
     [".ap-failure", "margin"],
     [".session-list .sl-header", "padding"],
     [".up-header", "padding"],
@@ -222,6 +222,17 @@ describe("the distance a panel prints its content at", () => {
       expect([selector, left], `${selector} left`).toEqual([selector, inset]);
       expect([selector, right], `${selector} right`).toEqual([selector, inset]);
     }
+  });
+
+  it("reaches it through two boxes on an account row, and the two add up", () => {
+    // The row is inset from the column so the tone it takes under the pointer
+    // keeps a margin, and pads the rest — the way a session row reaches its
+    // inset through the gutter, the edge and the padding.
+    const inset = px(TOKENS["--panel-inset"]);
+    const [listL, listR] = horizontal(".ap-list", "padding");
+    const [rowL, rowR] = horizontal(".ap-account", "padding");
+    expect([listL + rowL, listR + rowR]).toEqual([inset, inset]);
+    expect(listL).toBeGreaterThan(0);
   });
 
   it("keeps the two rules that must stay literal in step with the token", () => {
@@ -253,8 +264,10 @@ describe("a panel header against the rows it heads", () => {
   it("starts and ends where they do, in the accounts panel", () => {
     // The header used to write `12px 12px 10px 14px` — three insets in one
     // declaration, and the odd one out was the right, 2px inside every row.
-    expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-account", "padding"));
-    expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-auto", "padding"));
+    const [listL, listR] = horizontal(".ap-list", "padding");
+    const [rowL, rowR] = horizontal(".ap-account", "padding");
+    expect(horizontal(".ap-header", "padding")).toEqual([listL + rowL, listR + rowR]);
+    expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-foot", "padding"));
   });
 
   it("starts and ends where they do, in the session list", () => {

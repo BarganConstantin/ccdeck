@@ -318,20 +318,16 @@ const PRESSES: Press[] = [
   // it is shaped as: a 16px circle is a box, and 0.97 of a box that size is
   // not visible.
   [".bw-help:active", "0.94", "transform"],
-  [".ap-rotate:active:not(:disabled)", "0.97", "transform"],
-  // The account row's own disclosure — the control that opens the quota windows
-  // the row is not showing. Written in `.ap-rotate`'s language one line up
-  // because it belongs to the same tier, and it joins the convention here for
-  // the reason #355 gave: a 9px word with no box is still a thing being
-  // pressed, and 0.97 of a word is the visible number.
-  [".ap-lanes-more:active", "0.97", "transform"],
-  // Local network's way in at the top of the accounts panel (#844), the same
-  // word-with-a-dotted-rule as the two above.
-  [".ap-lan-jump:active", "0.97", "transform"],
-  // #856's two disclosures: a failure that opens its reason, a pace note that
-  // opens its number. Text-weight, like the two footer controls above.
-  ["button.ap-err:active", "0.97", "transform"],
+  // An inactive account's one verb, a word on the control fill: a labelled
+  // control, 0.97 like every other one.
+  [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  // #856's two disclosures: a warning that opens its reason, a pace note that
+  // opens its number. Text-weight, and still a thing being pressed — the
+  // reason #355 gave — so 0.97 of a word.
+  [".ap-issue:active", "0.97", "transform"],
   ["button.qb-pace:active", "0.97", "transform"],
+  // The one press on the live account's notice, a labelled control.
+  [".ap-notice-fix:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
@@ -422,6 +418,14 @@ const EXEMPT: string[] = [
   // from under the pointer in the instant before the menu turns into the form
   // that word opened.
   ".ap-menu-item",
+  // An account's row, which is the door to its detail, and the way into Local
+  // network at the foot of the column — rows in a desktop list, answered the
+  // way the LAN list's machines are: the tone deepens and nothing moves. A row
+  // that scaled would slide the name and its numbers out from under the
+  // pointer in the instant the row opens. The controls on an account row keep
+  // their own 0.97.
+  ".ap-row-open",
+  ".ap-nav",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

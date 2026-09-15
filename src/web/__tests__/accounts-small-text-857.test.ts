@@ -47,9 +47,9 @@ describe("the accounts panel's reading sizes (#857)", () => {
     expect(px(".ap-lane-label")).toBeGreaterThan(px(".ap-lane-reset"));
   });
 
-  it("sets the row footer and every control on it at one size, 11px", () => {
-    const footer = [".ap-meta", ".ap-rotate", ".ap-lanes-more", ".ap-fix"];
-    expect(footer.map(px), footer.join(" ")).toEqual(footer.map(() => 11));
+  it("sets every line under the name, and every control on those lines, at one size, 11px", () => {
+    const lines = [".ap-meta", ".ap-quota", ".ap-issue-line", ".ap-switch", ".ap-fix"];
+    expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 11));
   });
 
   it("has no footnote under the roster any more — every row says when it was collected", () => {
@@ -60,8 +60,11 @@ describe("the accounts panel's reading sizes (#857)", () => {
   });
 });
 
-describe("the footer's text-weight controls have a 24px target (#857)", () => {
-  for (const sel of [".ap-lanes-more", ".ap-rotate"]) {
+// The footer's two text-weight controls went — the lanes open from the whole
+// row now, and holding an account out is in its ⋯ — and the warning's words are
+// the text-weight control left on a row, drawn the same way.
+describe("a row's text-weight control has a 24px target (#857)", () => {
+  for (const sel of [".ap-issue"]) {
     it(`${sel} draws the target around the word without growing the word`, () => {
       expect(decl(sel, "position")).toBe("relative");
       expect(decl(sel, "padding"), "padding would widen a flex item in a wrapping footer").toBe("0");

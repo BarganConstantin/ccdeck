@@ -172,7 +172,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
 
   it("still finds the rules the collapse moved, so a pass is not vacuous", () => {
     // The four rules the report singled out, at the values they landed on.
-    expect(decl(".ap-email", "font-size")).toBe("11px");            // was 10.5, then #857's floor
+    expect(decl(".ap-email", "font-size")).toBe("12px");            // was 10.5, #857's floor, then the row's name
     expect(decl(".detail .row .v", "font-size")).toBe("11px");      // was 11.5
     expect(decl(".session-list .sl-label", "font-size")).toBe("12px"); // was 12.5
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
@@ -322,8 +322,10 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // replaced the arrow measured the button at 25x24 in a row of 24x24 ones.
     // An SVG is centred by the flex box; there is nothing left to nudge.
     expect(decl(".ap-refresh", "padding")).toBeNull();
-    expect(decl(".ap-switch", "font-size")).toBeNull();
-    expect(decl(".ap-switch", "flex-shrink")).toBe("0");
+    // `.ap-switch` is no longer `.ap-manage-btn` with a class beside it that
+    // nothing could win with: it is a control of its own, and its size is its
+    // own rule's to say.
+    expect(decl(".ap-switch", "font-size")).toBe("11px");
     expect(decl(".ap-add", "font-size")).toBeNull();
     // The colour is gone rather than dead. It was pinned here as the surviving
     // declaration when the font-size went, but it never rendered either:

@@ -166,63 +166,65 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
   });
 });
 
+// THE CHIP WENT, AND THE ORDER STAYED. The live account was a filled accent pill
+// saying `active` — the loudest thing in the column, on the one row whose state
+// needs no second look. It is a dot in the slot's column now, in the accent, and
+// the row saying more than any other row — it is the open one — says the rest.
+// The verb stayed under the account; it lost its edge rather than gaining one.
 describe("three tiers, one per kind of thing a row says", () => {
-  it("makes state a filled chip, which is the loudest of the three", () => {
+  it("marks the live account with a dot in the accent, and says it in words to a screen reader", () => {
+    expect(panelCode).toMatch(/<span className="ap-live" title=\{`Active account · slot \$\{a\.num\}`\}>\s*<span className="vis-hidden">Active account, slot \{a\.num\}:<\/span>/);
+    expect(panelCode).toMatch(/aria-current=\{a\.active \? "true" : undefined\}/);
+    expect(declOf(".ap-live::before", "background")).toBe("var(--accent)");
+    // A mark with no word beside it on screen is non-text contrast (1.4.11).
     for (const theme of themes) {
-      const bed = beds(theme).panel;
-      const fill = resolve(declOf(".ap-badge-active", "background")!, theme);
-      const word = resolve(declOf(".ap-badge-active", "color")!, theme);
-      // The chip against the panel, against the wash it replaces, and against
-      // the verb pill it outranks.
-      const pill = over(resolve(declOf(".ap-manage-btn", "background")!, theme), bed);
-      expect(contrastRatio(fill, bed), `${theme} chip on --panel`).toBeGreaterThanOrEqual(5);
-      expect(contrastRatio(fill, beds(theme).active), `${theme} chip on its own row`).toBeGreaterThanOrEqual(5);
-      expect(contrastRatio(fill, pill), `${theme} chip vs the switch pill`).toBeGreaterThanOrEqual(5);
-      expect(contrastRatio(word, fill), `${theme} the word on the chip`).toBeGreaterThanOrEqual(BODY);
+      const dot = resolve("var(--accent)", theme);
+      expect(contrastRatio(dot, beds(theme).panel), `${theme} the dot on --panel`).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(dot, beds(theme).active), `${theme} the dot on its own row`).toBeGreaterThanOrEqual(3);
     }
-    // The shipped numbers, as numbers.
-    expect(contrastRatio(resolve("var(--accent)", "dark"), beds("dark").panel)).toBeCloseTo(10.855, 2);
-    expect(contrastRatio(resolve("var(--accent)", "light"), beds("light").panel)).toBeCloseTo(5.934, 2);
+    expect(bare).not.toMatch(/\.ap-badge-active/);
   });
 
-  it("drops the verb to the panel's own small pill instead of a box of its own", () => {
-    // `switch` was `btn ap-switch`, so it rendered `button.btn`: 30px tall with
-    // a 24px minimum on the two markers beside it. It is `.ap-manage-btn` now —
-    // the same pill `save`, `share` and `remove` use — and its own class is
-    // down to the one thing it still has to say.
-    expect(panelCode).toMatch(/className="ap-manage-btn ap-switch"/);
-    expect(panelCode).not.toMatch(/className="btn ap-switch"/);
-    expect(declOf(".ap-switch", "flex-shrink")).toBe("0");
-    expect(declOf(".ap-switch", "padding")).toBeNull();
-    expect(declOf(".ap-switch", "font-size")).toBeNull();
+  it("drops the verb to a word on the control fill, with no edge of its own", () => {
+    // It was `.ap-manage-btn ap-switch`: an outlined pill, the strongest
+    // boundary on a row whose name and numbers are what a switch is decided on.
+    expect(panelCode).toMatch(/className="ap-switch"/);
+    expect(panelCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
+    expect(declOf(".ap-switch", "flex")).toBe("none");
+    expect(declOf(".ap-switch", "border")).toBe("0");
+    expect(declOf(".ap-switch", "background")).toBe("var(--ctl-fill)");
+    expect(declOf(".ap-switch", "min-height")).toBe("24px");
+    for (const theme of themes) {
+      const fill = over(resolve("var(--ctl-fill)", theme), beds(theme).panel);
+      expect(contrastRatio(resolve("var(--text)", theme), fill), `${theme} the word on the fill`).toBeGreaterThanOrEqual(BODY);
+    }
   });
 
   it("says held out in words, on every held-out row, with auto-switch on or off", () => {
     // The dimming was the whole signal before, and with auto-switch off the one
     // control that would undo it was not rendered at all — a 1.4.1 failure and a
-    // trap in the same rule.
-    expect(panelCode).toMatch(/\{a\.disabled && <span className="ap-badge-held">held out<\/span>\}/);
+    // trap in the same rule. The word stays on the row; the undo is in the ⋯,
+    // offered whenever the account is out.
+    expect(panelCode).toMatch(/\{a\.disabled && <span className="ap-held">held out<\/span>\}/);
     expect(panelCode).toMatch(/\(\(\(auto\?\.enabled \|\| auto\?\.external\) && !a\.active\) \|\| a\.disabled\) && \(/);
-    expect(panelCode).toMatch(/\{a\.disabled \? "put back" : "hold out"\}/);
-    // The marker takes the slot `switch` would have had, because a switch to a
+    expect(panelCode).toMatch(/\{a\.disabled \? "Put back in rotation" : "Hold out of rotation"\}/);
+    // The marker takes the slot `Switch` would have had, because a switch to a
     // held-out account is refused and a control that can never act is worse
     // than no control.
-    expect(panelCode).toMatch(/\{!a\.active && !a\.disabled && \(/);
+    expect(panelCode).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
     expect(panelCode).not.toMatch(/disabled=\{[^}]*a\.disabled/);
     for (const theme of themes) {
-      const chip = over(resolve(declOf(".ap-badge-held", "background")!, theme), beds(theme).panel);
-      expect(contrastRatio(resolve(declOf(".ap-badge-held", "color")!, theme), chip), `${theme} held out`)
+      expect(contrastRatio(resolve(declOf(".ap-held", "color")!, theme), beds(theme).panel), `${theme} held out`)
         .toBeGreaterThanOrEqual(BODY);
     }
   });
 
   it("leaves the state markers out of the control language entirely", () => {
-    // Neither chip draws a border, so neither can be mistaken for the pill
-    // beside it and neither lands in control-edges.test.ts as a control with an
-    // edge to justify. They are markers.
-    for (const sel of [".ap-badge-active", ".ap-badge-held"]) {
+    // Neither marker draws a border or claims a pointer, so neither can be
+    // mistaken for the verb beside it. They are markers.
+    for (const sel of [".ap-live", ".ap-held"]) {
       expect(ruleOf(sel), sel).not.toMatch(/(?:^|;)\s*border(?:-(?:color|width|style|top|bottom|left|right))?\s*:/);
-      expect(declOf(sel, "border-radius"), sel).toBe("999px");
+      expect(ruleOf(sel), sel).not.toMatch(/cursor\s*:\s*pointer/);
     }
   });
 });

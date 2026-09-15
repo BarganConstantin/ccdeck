@@ -24,7 +24,7 @@ describe("a switch answers on the row it was about (#827)", () => {
 
   it("draws the refusal on that row, and only other messages at the foot", () => {
     expect(panel).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
-    expect(panel).toMatch(/\{failure && failure\.row == null && \(\s*<div className="ap-failure" role="alert">/);
+    expect(panel).toMatch(/\{view === "accounts" && data != null && failure && failure\.row == null && \(\s*<div className="ap-failure" role="alert">/);
   });
 
   it("keeps a refused switch on its row through the reload that follows it", () => {
@@ -35,7 +35,8 @@ describe("a switch answers on the row it was about (#827)", () => {
   it("names the account a switch took to, and clears it when the next one starts", () => {
     expect(doSwitch).toMatch(/else setSwitched\(\{ num, name \}\);/);
     expect(doSwitch).toMatch(/setFailure\(null\);\s*setSwitched\(null\);/);
-    expect(panel).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`\)\}/);
+    expect(panel).toMatch(/const name = a\.alias \?\? a\.email \?\? `account \$\{a\.num\}`;/);
+    expect(panel).toMatch(/onClick=\{\(\) => doSwitch\(a\.num, name\)\}/);
   });
 });
 

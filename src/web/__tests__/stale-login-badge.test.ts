@@ -23,7 +23,7 @@ import { authTrouble, readVerdicts } from "../../server/claude-accounts.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 const accounts = await import("../../server/claude-accounts.mjs");
 import { autoRecaptureState } from "../../server/cswap-admin.mjs";
-import { collectorText, staleCopyText } from "../components/AccountsPanel";
+import { accountIssue, collectorText, staleCopyText } from "../components/AccountsPanel";
 
 const src = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -189,21 +189,21 @@ describe("what the panel is allowed to offer", () => {
     // in. So this pins the chain that leads to the row button specifically:
     // it renders only under `e.fixable`, which is reached only through
     // `a.error`, which authTrouble now returns null for in this case.
-    const rowButton = /\{e\.fixable && \(\s*<button[^>]*onClick=\{\(\) => setAddOpen\(true\)\}/;
-    expect(panel).toMatch(rowButton);
-    expect(panel).toMatch(/\{a\.error && \(\(\) => \{/);
-    // And nothing else in a row reaches it.
-    // TWO ROW CONTROLS REACH IT NOW, and the rule is no longer a count. The
-    // second is `stopped`, and it is gated on claude-swap naming a state that a
-    // sign-in actually fixes — see collectorText's `fix`, which is absent for
-    // `keychain_unavailable` precisely because nothing is wrong with the
-    // account there.
     //
-    // #721's harm cannot be reached through either: an account the CLI says the
-    // user is signed in as is `staleCopy`, which has neither branch.
-    const rowOpeners = (panel.match(/className="ap-fix" onClick=\{\(\) => setAddOpen\(true\)\}/g) ?? []).length;
-    expect(rowOpeners, "a row control opens the sign-in dialog outside the two gated branches").toBe(2);
-    expect(panel).toMatch(/\{a\.stopped && \(\(\) => \{\s*\n\s*const fix = collectorText/);
+    // THE OFFER IS ONE VALUE NOW: the `fix` accountIssue hands back, which it
+    // hands back only for a login claude-swap rejected or never stored. The
+    // popover a warning opens and the notice over the list both render it and
+    // nothing else; the header's `+` is the third opener and the only one that
+    // is the user deciding rather than the deck telling them.
+    //
+    // #721's harm cannot be reached: an account the CLI says the user is signed
+    // in as is `staleCopy`, and that has no fix at all.
+    expect(accountIssue({ error: null, stopped: false, staleCopy: true, repair: { state: "running" } }, 0)?.fix).toBeNull();
+    expect(accountIssue({ error: "invalid_grant", stopped: false, staleCopy: false }, 0)?.fix).toBe("Sign in again");
+    expect(panel).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ closeIssue\(true\); setAddOpen\(true\); \}\}/);
+    expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
+    const openers = (panel.match(/setAddOpen\(true\)/g) ?? []).length;
+    expect(openers, "something opens the sign-in dialog outside the gated fix and the header's +").toBe(3);
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {
@@ -223,8 +223,11 @@ describe("what the panel is allowed to offer", () => {
     expect(collectorText(null)).toBeNull();
     expect(collectorText("something_new")?.fix).toBeUndefined();
     // The panel asks `fix` rather than deciding for itself.
-    expect(panel).toContain("const fix = collectorText(a.collector ?? null)?.fix;");
-    expect(panel).toContain("if (!fix) return null;");
+    expect(panel).toContain("fix: v.fix ? sentence(v.fix) : null,");
+    expect(accountIssue({ error: null, stopped: true, collector: null }, 0)?.fix).toBeNull();
+    expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.fix).toBeNull();
+    expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.fix).toBe("Sign in");
+    expect(accountIssue({ error: null, stopped: true, collector: "relogin_required" }, 0)?.fix).toBe("Sign in again");
   });
 
   it("does the repair itself, so there is nothing to press", () => {
@@ -239,7 +242,9 @@ describe("what the panel is allowed to offer", () => {
   });
 
   it("says the quieter true thing instead", () => {
-    expect(panel).toMatch(/a\.staleCopy && \(/);
+    expect(panel).toMatch(/if \(a\.staleCopy\) \{/);
+    expect(accountIssue({ error: null, staleCopy: true, repair: { state: "running" } }, 0))
+      .toMatchObject({ text: "Resuming…", tone: "quiet", fix: null, blocksSwitch: false });
     // And names the remedy that actually applies, rather than the one that
     // would log the user out of a working session.
     const running = staleCopyText({ state: "running" }, 0);
@@ -457,19 +462,29 @@ describe("which half of the row is allowed to be loud", () => {
   const panel = src("../components/AccountsPanel.tsx");
   const css = src("../styles.css");
 
-  it("draws a broken account at the rank of the other faults, not below them", () => {
-    // `staleCopy` and `stopped` were wearing one class, and that class is quiet
-    // on purpose: #721 means the collector cannot read an account the user IS
-    // signed in as — nothing to fix, and a badge would send them to re-log in
-    // for a problem they do not have. `stopped` is the opposite state: the
-    // account cannot be used from this deck at all.
-    expect(css).toContain(".ap-stopped { color: var(--warn); }");
-    expect(css).toContain(".ap-stale-copy { font-size: 10px; color: var(--text-dim); }");
-    // And the panel uses the new one for it.
-    expect(panel).toMatch(/<span className="ap-stopped" title=/);
-    // `.ap-stopped` takes no font-size, so it matches the row it is on rather
-    // than shrinking the way the quiet one deliberately does.
-    expect(css).not.toMatch(/\.ap-stopped \{[^}]*font-size/);
+  it("draws a broken account at the rank of the other faults, and a repairing one below them", () => {
+    // `staleCopy` is quiet on purpose: #721 means the collector cannot read an
+    // account the user IS signed in as — nothing to fix, and a warning would
+    // send them to re-log in for a problem they do not have. A dead or missing
+    // login is the opposite state: the account cannot be used from this deck.
+    expect(accountIssue({ error: null, stopped: true, collector: "relogin_required" }, 0)?.tone).toBe("warn");
+    expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.tone).toBe("warn");
+    expect(accountIssue({ error: "invalid_grant" }, 0)?.tone).toBe("warn");
+    // The keychain is not the account's fault and is still the reader's to fix.
+    expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.tone).toBe("warn");
+    expect(accountIssue({ error: null, staleCopy: true }, 0)?.tone).toBe("quiet");
+    expect(accountIssue({ error: null, stopped: true, collector: null }, 0)?.tone).toBe("quiet");
+    expect(accountIssue({ error: "http-429" }, 0)?.tone).toBe("quiet");
+    // And the ink is the tone's, from one rule.
+    expect(css).toContain('.ap-issue[data-tone="warn"] { color: var(--warn); }');
+  });
+
+  it("does not offer a switch to a login that cannot be used", () => {
+    expect(accountIssue({ error: "invalid_grant" }, 0)?.blocksSwitch).toBe(true);
+    expect(accountIssue({ error: null, stopped: true, collector: "no_credentials" }, 0)?.blocksSwitch).toBe(true);
+    expect(accountIssue({ error: null, stopped: true, collector: "keychain_unavailable" }, 0)?.blocksSwitch).toBe(false);
+    expect(accountIssue({ error: "http-429" }, 0)?.blocksSwitch).toBe(false);
+    expect(panel).toMatch(/\{!a\.active && !a\.disabled && !issue\?\.blocksSwitch && \(/);
   });
 
   it("stops painting the symptom when the cause is already on the row", () => {
@@ -477,7 +492,8 @@ describe("which half of the row is allowed to be loud", () => {
     // that. Two ambers on one row gave the louder half to the consequence:
     // "no stored login" in the dimmest tone the panel has, beside "collected
     // 22h ago · due" in the warning one.
-    expect(panel).toContain('`ap-age${a.stale && !a.stopped && !a.error ? " ap-stale" : ""}`');
+    expect(panel).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
+    expect(panel).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
   });
 });
 

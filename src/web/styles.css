@@ -347,7 +347,7 @@
    Not tokenised, on purpose, and all of them currently spell some value this
    block also spells: the two search-dim hovers rest at 0.6 and lift to 1 under
    the pointer, which is a quiet affordance rather than a dead one (`.ap-failure-x`
-   did too, until #872 measured it at 2.81:1 in light and it moved to 0.8); `.ap-dot`, `.ap-field::after`, `.ap-auto-now::after`, the accent
+   did too, until #872 measured it at 2.81:1 in light and it moved to 0.8); `.ap-dot`, `.ap-field::after`, the accent
    stripe and `.aa-mark-ring` are decoration with no state at all;
    `.rf-spotlit-out` and `.tool-burst.dim` are what a selection does to what it
    not match, which is a third idiom with its own ladder. Those are coincidentally
@@ -7102,7 +7102,7 @@ button.qb-pace::after {
      from its own left edge, and the text inside never moves. */
   align-items: flex-end;
   min-height: 0;
-  overflow: hidden auto;
+  overflow: hidden;
   animation: side-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .accounts-panel > * { width: 288px; }
@@ -7121,6 +7121,35 @@ button.qb-pace::after {
 @keyframes side-in { from { transform: translateX(-100%); } }
 @keyframes side-out { to { transform: translateX(-100%); } }
 
+/* THE ROSTER SCROLLS; THE HEADER AND THE FOOT STAND. The column used to be one
+   scroll of three sections, so past a few accounts Auto-switch and Local network
+   went under the fold with nothing saying they were there. The list takes the
+   height that is left and the foot stays on the column's floor at every length.
+   The panel itself no longer scrolls — its inner scroll is the boundary the ⋯
+   and the warnings' popovers close against. */
+.ap-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+}
+.ap-foot {
+  flex-shrink: 0;
+  padding: 10px var(--panel-inset) 12px;
+  border-top: 1px solid var(--line-soft);
+}
+/* The way into Local network follows the policy row inside the same foot: one
+   rule over the two of them, not one each. */
+.ap-foot + .ap-foot { border-top: 0; padding-top: 0; }
+.ap-foot:has(+ .ap-foot) { padding-bottom: 4px; }
+/* Local network's view takes the column the way the accounts do: its header
+   stands and its own scroll takes the rest. */
+.ap-lan-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .ap-header {
   display: flex;
   align-items: center;
@@ -7136,37 +7165,10 @@ button.qb-pace::after {
   letter-spacing: 0.02em;
 }
 .ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-/* LOCAL NETWORK'S OWN WAY IN (#844). The section is the last thing in this
-   panel, under every account and the auto-switch block, and it is not an
-   account setting; the tour had to spend a tip saying where it was. A line
-   under the header names it and says its state, and the name is the link:
-   pressed, the panel scrolls to the section and puts focus on its heading.
-   Written in `.ap-lanes-more`'s language, a word with a dotted rule and no box,
-   because it is a way to somewhere rather than an act. */
-.ap-lan-way {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px var(--panel-inset);
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 11px;
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.ap-lan-jump {
-  position: relative;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: var(--text-dim);
-  cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.ap-lan-jump:hover { color: var(--text); }
-.ap-lan-jump:active { transform: scale(0.97); }
+/* Back, at the head of Local network's view. Pulled out by the glyph's own
+   side bearing so the chevron's ink, not its 24px box, sits on the inset the
+   accounts' title starts on. */
+.ap-back { margin-left: -6px; }
 /* THE PADDING WENT WITH THE GLYPH IT PLACED. `1px 6px` said where a text arrow
    sat inside the 24px floor, and it did change a pixel of the box after all:
    12px of content width around a 13px icon measured the button at 25x24 in a
@@ -7183,17 +7185,67 @@ button.qb-pace::after {
    click that landed looks exactly like a click that missed. */
 .ap-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 
-/* The roster is a list and now says so. Nothing here changes the box model —
-   the row is the <li>, so no element was added between the panel and it — and
-   the three declarations are only undoing what the UA sheet does to a <ul>. */
+/* The roster is a list and says so. The rows are inset 6px from the column and
+   pad 8px inside, so their text lands on the header's 14px while the tone a row
+   takes under the pointer keeps a margin from the column's edge.
+
+   SPACE SEPARATES THE ACCOUNTS, NOT RULES. Every row drew a hairline under
+   itself, which with the section rules and the header's made the column a stack
+   of stripes; a 2px gap between rows that each carry their own padding groups
+   them as well and draws nothing. */
 .ap-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 6px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .ap-account {
-  padding: 10px var(--panel-inset) 8px;
-  border-bottom: 1px solid var(--line-soft);
+  /* The box the row's door is laid over, and a stacking context of its own so
+     the row's controls can sit above the door without climbing over the
+     popover layer. */
+  position: relative;
+  isolation: isolate;
+  padding: 6px 8px;
+  border-radius: var(--r-ctl);
+}
+/* A shut row is a door, and it answers the pointer with a tone rather than a
+   card: the row's own box, 4%, on at once and off at once — the same answer a
+   machine's row gives in Local network. */
+.ap-account:has(> .ap-row-open):hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-more, .ap-issue):active)) {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+/* Secondary text on a lit row is still text. The tone lifts the ground under
+   it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
+   mixed toward the foreground — the rule the LAN rows already write down. */
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email) {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+/* THE ROW IS THE DOOR. A button laid over the whole row, under the row's own
+   controls: a press anywhere on it opens or shuts the detail, and the keyboard's
+   ring goes round the row, inset so it never draws over the next one. A button
+   and not a role on the <li>, because the row holds buttons of its own. */
+.ap-row-open {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ap-row-open:focus-visible { outline-offset: -2px; }
+/* The row's own controls, over the door: a press on one does what it says and
+   does not also open the row. */
+.ap-account :is(.ap-switch, .ap-more, .ap-issue, .ap-failure, .ap-switched) {
+  position: relative;
+  z-index: 1;
 }
 /* The tint is not the state channel and never could have been. At the 6% it
    shipped at it measured 1.118:1 against the panel in dark and 1.091:1 in light
@@ -7227,12 +7279,34 @@ button.qb-pace::after {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  min-height: 24px;
 }
 .ap-num {
+  flex: none;
+  min-width: 14px;
   font-size: 10px;
   color: var(--muted);
-  min-width: 9px;
+  font-variant-numeric: tabular-nums;
+}
+/* THE LIVE ACCOUNT, MARKED AND NOT SHOUTED. It was a filled accent pill saying
+   `active` — the loudest thing in the column, on the one row whose state never
+   needs a second look once the reader knows the column. A dot in the slot's own
+   column says it in the accent, which in this deck means live, and the row
+   saying more than any other row — it is the one that is open — says the rest.
+   The word is still there for a screen reader, and the row is aria-current. */
+.ap-live {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 10px;
+}
+.ap-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 /* Two text spans share this row and only one of them was told it may be cut.
    `.ap-email` below carries the full `min-width: 0` + `overflow: hidden` +
@@ -7263,7 +7337,7 @@ button.qb-pace::after {
    own `e.g. work` placeholder invites, so in the ordinary case the clamp never
    binds and the row renders exactly as it did. */
 .ap-alias {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
   min-width: 0;
@@ -7272,95 +7346,78 @@ button.qb-pace::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The identity is the first thing on the row and reads at the row's size. Under
+   an alias it steps down, because then the alias is the name. */
 .ap-email {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1;
 }
-/* The panel exists to answer one question and this is the answer, so it is the
-   loudest thing in the row: a filled accent chip at 10.855:1 against the panel
-   in dark and 5.934:1 in light, against the 1.118:1 the wash it replaces was
-   managing, and 9.345:1 / 5.129:1 against the outlined `switch` pill it sits
-   one row above. Its own word reads --bg on --accent at 11.724:1 / 5.241:1,
-   which is the same fill-and-invert `.ap-manage-btn.danger.armed` uses for the
-   other state in this panel that has to be unmissable.
-   The `●` went with the box. A filled chip does not need a dot inside it to say
-   it is a state, and the word — not the colour — is what keeps this out of
-   1.4.1 territory. */
-.ap-badge-active {
-  flex-shrink: 0;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-/* Held out is the row's other state and gets the same slot and the same shape,
-   in neutral: a wash of the control fill rather than the accent, with the word
-   at --text — 11.148:1 dark and 16.357:1 light on that fill. Not `--muted`,
-   which lands at 4.05:1 on the same bed and is the trap the control tokens
-   carry a note about. No border, so it cannot be mistaken for the pill beside
-   it and so it stays out of the control sweep, which is what it is: a marker,
-   not a thing to press. */
-.ap-badge-held {
-  flex-shrink: 0;
-  padding: 1px 8px;
-  border-radius: 999px;
+.ap-alias + .ap-email { font-size: 11px; color: var(--muted); }
+/* Held out is a state, said in a word where `Switch` would stand. It was a
+   pill — a second chip shape on a row that already had one — and a marker is
+   not a thing to press; putting the account back is in its ⋯. */
+.ap-held { flex: none; font-size: 11px; color: var(--muted); }
+/* THE ROW'S ONE VERB, QUIETER THAN THE ACCOUNT. It was an outlined pill with the
+   control edge at rest, the strongest boundary on a row whose name and numbers
+   are what a switch is decided on. A word on the control fill says "press me"
+   without a border, at the 24px floor (#884), and fills a step deeper under
+   the pointer. */
+.ap-switch {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
   background: var(--ctl-fill);
   color: var(--text);
-  font-size: 10px;
-  line-height: 1.5;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-/* Same dead 10px as `.ap-refresh` above, and gone for the same reason. The
-   padding went the same way in the density pass: `switch` dropped from
-   `button.btn` to `.ap-manage-btn`, the small-verb pill `save`, `share` and
-   `remove` already use, and that rule is later in the sheet at the same
-   specificity, so a padding declared here could only ever lose to it. What is
-   left is the one thing this class still does — the pill must not be squeezed
-   by the email flexing beside it. */
-.ap-switch { flex-shrink: 0; }
+.ap-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.ap-switch:active:not(:disabled) { transform: scale(0.97); }
+.ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
 
-/* The lanes as one group, so the disclosure in the footer has something to
-   point `aria-controls` at in both states. Unlike the manage block, whose
-   target genuinely does not exist while it is closed, this box is always in the
-   document and only its contents change — so the IDREF is unconditional there,
-   which is the same rule reaching the opposite answer. */
+/* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The slot's column — wide
+   enough for two digits, so slot 10 does not push its name off the line the
+   others start on — and the head's gap are 20px, and the lines below are
+   indented by them, so the eye
+   reads down from the account rather than from the row's edge. */
+.ap-detail { margin: 6px 0 0 20px; }
+/* One lane is one line: its key, its bar, how full, and when it rolls over. The
+   reset used to sit on a second line under every bar, which made the live row
+   five lines tall for two facts. It is a column at the far end now, dim and
+   tabular, so three resets read as one column. */
 .ap-lanes {
   display: flex;
   flex-direction: column;
+  gap: 5px;
 }
 .ap-lane {
   display: grid;
-  grid-template-columns: 30px 1fr 32px;
-  grid-template-areas: "label track pct" ".  reset reset";
+  grid-template-columns: 34px minmax(0, 1fr) 32px 44px;
+  grid-template-areas: "label track pct reset";
   align-items: center;
-  gap: 2px 6px;
-  margin-bottom: 3px;
+  column-gap: 6px;
 }
-/* The two tiers swapped, because they were the wrong way round. The lane label
-   is the reading key for the row — "5h", "7d", the model name — and the reset
-   line under it is a footnote about when the window rolls over. They were
-   painted --text-dim and --muted respectively, and --text-dim is the WEAKER of
-   the two by construction (see the note on --text-dim in the dark palette), so
-   the 9px footnote was drawn 36% stronger than the 10px name it belongs to:
-   5.78:1 against 7.87:1 on white. In dark the two tokens share a value, so the
-   step does not exist there at all and 10px vs 9px was carrying the whole
-   separation on its own.
-   Swapping costs nothing in dark — both tiers are #7e828c, so both readings stay
-   4.70:1 — and in light it puts the stronger tier on the stronger line, which is
-   the order the tokens were built to express. It also raises the label rather
-   than lowering the footnote, so nothing on this row gets quieter.
-   #857 then raised the sizes. The key and its percentage are what an account
-   is chosen by, so they take the panel's 11px floor; the reset line takes 10px,
-   one ladder step under its key, because in dark the two tiers are one colour
-   and that step is still the only thing separating them there. */
-.ap-lane-label { grid-area: label; font-size: 11px; color: var(--muted); }
+/* The key is the reading key for the row — "5h", "7d", the model name — at the
+   panel's 11px floor (#857), and the reset beside it a step under, because in
+   dark the two tiers are one colour and the size is what separates them. */
+.ap-lane-label {
+  grid-area: label;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ap-lane-track {
   grid-area: track;
   height: 4px;
@@ -7369,64 +7426,138 @@ button.qb-pace::after {
   overflow: hidden;
 }
 .ap-lane-fill { height: 100%; border-radius: 2px; }
-.ap-lane-pct { grid-area: pct; font-size: 11px; text-align: right; }
-.ap-lane-reset { grid-area: reset; font-size: 10px; color: var(--text-dim); }
-.ap-lane-reset:empty { display: none; }
+.ap-lane-pct { grid-area: pct; font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.ap-lane-reset {
+  grid-area: reset;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 
-/* The row footer, and the one line that grows: a failure and its fix, the
-   disclosure for the windows the row is not showing, the rotation preference
-   and the freshness stamp can all be on it at once. It never wrapped, so it
-   overflowed instead — measured on the errored row before the disclosure was
-   added to it, at 271px of content in a 259px box, which the panel absorbed
-   only because the overhang fell inside its own 14px inset. One more control on
-   that line took the panel itself to 300/287 and started a sideways scrollbar,
-   which is the defect panel-overflow.test.ts exists for. Wrapping is the answer
-   rather than truncating any of them: every item here is either a failure, a
-   control or the age, and none of those is the one to drop. The row gap is 4
-   and the column gap is 8, both steps on this panel's own ladder. */
+/* The open row's last line: when claude-swap last read the account and when it
+   plans to again. Right edge, under the numbers it dates. */
 .ap-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 8px;
-  margin-top: 5px;
-  /* 11px, the panel's floor (#857): this line says why a login died and how
-     old the numbers are, and everything on it speaks at its size. */
+  margin-top: 6px;
   font-size: 11px;
   color: var(--muted);
 }
-.ap-err { color: var(--warn); }
-/* The failure is a disclosure (#856): the reason a login died decides whether
-   to sign in again, and it lived in a title no keyboard or touch reader could
-   open. Drawn in the footer's text-control language, in the failure's colour. */
-button.ap-err {
-  position: relative;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-button.ap-err:active { transform: scale(0.97); }
-/* The reason, on a line of its own at the foot of the row. `order` puts it last
-   on screen; in reading order it stays right after the failure it explains. */
-.ap-why {
-  order: 1;
-  flex-basis: 100%;
-  color: var(--muted);
-  line-height: 1.45;
-}
 .ap-stale { color: var(--warn); }
-/* Right edge, under the lane percentages: it is a value, and the panel puts
-   values there. On the left it read as a caption for the account. */
 .ap-age {
   margin-left: auto;
   white-space: nowrap;
   cursor: help;
 }
+
+/* THE SHUT ROW'S LINE: the two numbers an account is chosen by, on the name's
+   left edge. Keys in the label tier, values in the secondary one — they only
+   take a colour once they are a reason not to switch, in the same inks the bars
+   use. Numbers that cannot move are drawn in one quiet ink, and the age that
+   says so takes the warning. */
+.ap-quota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin: 1px 0 0 20px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ap-q { white-space: nowrap; }
+.ap-q-label { color: var(--muted); }
+.ap-q-pct[data-level="mid"] { color: var(--warn); }
+.ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-account[data-frozen] .ap-q-pct { color: var(--muted); }
+.ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; }
+/* An account nobody has read yet is usually one added a minute ago: news, not
+   a warning. */
+.ap-q-age[data-never] { color: var(--muted); }
+
+/* A note about the row that is news rather than state — a move that traded two
+   accounts' slots. */
+.ap-note { margin: 2px 0 0 20px; font-size: 11px; }
+
+/* WHAT IS WRONG, AS A LINE ON THE ROW. A mark and a few words, never a banner
+   and never a pill, in the warning ink when it is the reader's to act on and in
+   the label tier when it clears or repairs on its own. The words are a button:
+   the why and the fix open from them (#856), with a 24px target drawn round
+   them so the line does not grow to hold it. The underline arrives with the
+   pointer — a dotted rule under every warning at rest was one more line of ink
+   on a row that is already saying the loudest thing in the column. */
+.ap-issue-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 2px 0 0 20px;
+  font-size: 11px;
+}
+.ap-issue {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-issue[data-tone="warn"] { color: var(--warn); }
+.ap-issue-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-issue:hover .ap-issue-text,
+.ap-issue[aria-expanded="true"] .ap-issue-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.ap-issue:active { transform: scale(0.97); }
+.ap-warn-glyph { flex: none; }
+.ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
+
+/* THE LIVE ACCOUNT'S TROUBLE, over the list. Every session this deck starts
+   runs on that login, so it earns one line with a wash of its own ink — the
+   only colour spent on a surface in this column — and the one press that fixes
+   it. Compact on purpose: a line, not a dashboard banner. */
+.ap-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 6px 0;
+  padding: 3px 3px 3px 8px;
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  font-size: 11px;
+}
+.ap-notice .ap-issue { flex: 1 1 auto; font-weight: 500; }
+/* The sentence wraps rather than clipping: "needs att…" is the one word a
+   notice cannot lose, and a wider system font on Windows is all it takes. */
+.ap-notice .ap-issue-text { white-space: normal; text-align: left; }
+.ap-notice-fix {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-tag);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-notice-fix:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.ap-notice-fix:active { transform: scale(0.97); }
 
 .ap-empty {
   display: flex;
@@ -7475,10 +7606,6 @@ button.ap-err:active { transform: scale(0.97); }
   flex: 1;
   min-width: 0;
 }
-/* The panel's own refusal is followed by Local network's rule directly, where
-   the footnote used to stand between them. The four LAN dialogs that share this
-   box end on it, so only this one takes a bottom margin. */
-.ap-failure:has(+ .ap-lan) { margin-bottom: 8px; }
 /* DRAWN like the message rather than like a button: it sits inside two lines
    of 10px text in a 288px panel, where anything with a real hit area would be
    the loudest thing in the box. That argument is about ink and it still holds
@@ -7547,67 +7674,50 @@ button.ap-err:active { transform: scale(0.97); }
   line-height: 1.5;
   color: var(--text-dim);
 }
-/* ── auto-switch controls ── */
-.ap-auto {
-  padding: 12px var(--panel-inset) 12px;
-  border-top: 1px solid var(--line);
-}
-/* Two lines, one decision each. The head says what the section is and whether
-   it is armed; the line 8px under it says where it trips.
-   The four things here used to sit on one row at one altitude, then on two
-   lines with the title alone on the first and every control crowded onto the
-   second — a heading over a toolbar, with the on/off switch pushed to the far
-   end of a line about a percentage. The switch is the section's state, so it
-   sits on the title's line the way Local network's does below, and both section
-   heads in this panel are one row drawn one way. The line under it is the
-   reading and the picker, plus `save` only while there is a pick to store —
-   after the picker, so arriving moves nothing the reader just pressed. 8 and 6
-   are steps on this panel's own 4/6/8/10 ladder rather than the topbar's. */
-.ap-auto-head {
+/* ── the policy rows ──
+   ONE POLICY, ONE ROW: its name, its setting, and its switch. Auto-switch was a
+   section — a caption, a line of controls under it, a readout repeating the
+   active row's percentage, a clock of its last check under a rule — for what is
+   one decision and one number. Local network's switch takes the same row in its
+   own view. The name pushes, so the setting and the switch sit together at the
+   far edge whatever else is on the row. */
+.ap-policy {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.ap-auto-ctl {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
+  min-height: 28px;
 }
 /* The one control that comes and goes, so it arrives rather than appears — from
-   a little smaller, the way the popup it answers closed. Backwards only: a fill
-   that outlived the entrance would hold `transform` over the press scale. */
-.ap-auto-ctl > .ap-manage-btn {
+   a little smaller. Backwards only: a fill that outlived the entrance would hold
+   `transform` over the press scale. */
+.ap-policy > .ap-manage-btn {
   animation: ap-commit-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
 }
 @keyframes ap-commit-in {
   from { opacity: 0; transform: scale(0.94); }
 }
-/* A real <h3> since the density pass, under the panel header's <h2>: a reader
-   walking headings should be able to find this section. Everything below was
-   already what it rendered as a <span>; `margin: 0` is the one line the promotion
-   needs, because the UA sheet gives an h3 1em top and bottom and that would put
-   a line and a half of air where the 8px below is doing the work.
-
-   THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL PULLING. `margin-left: auto`
-   on a control only works while that control is the leftmost one after the
-   title, and Local network's three glyphs are all conditional. One rule on the
-   thing that is always there survives every combination, in both heads. */
+/* A real <h3>, under the panel header's <h2>: a reader walking headings should
+   find it. A name now, in the row's own size and case — it was an uppercase
+   caption over a block of controls, and there is no block any more. `margin: 0`
+   undoes the UA sheet's 1em. THE TITLE PUSHES, RATHER THAN THE FIRST CONTROL
+   PULLING: one rule on the thing that is always there survives every
+   combination of the controls after it. */
 .ap-auto-title {
   margin: 0;
   margin-right: auto;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
 }
-
 /* Where the accounts panel's and the LAN dialog's switches sit — the far edge
    of the control line — and nothing about how they look, which is `.switch`'s
-   since #886. Whether the loop is armed at all is a different decision from
-   where it trips, and the whole of the rest of the row between them says so. */
+   since #886. */
 .ap-auto-state { margin-left: auto; }
+/* In a policy row the switch keeps a deliberate gap from the setting before it
+   rather than an auto margin of its own: two autos split the free space and float the setting
+   into the middle of the row. */
+.ap-policy .ap-auto-state { margin-left: 4px; }
+
 .ap-dot {
   width: 5px;
   height: 5px;
@@ -7629,18 +7739,61 @@ button.ap-err:active { transform: scale(0.97); }
    Everything below is the inside of it. The ladder is the panel's — 11px for a
    thing you read, 10px for a label beside it — and the gaps are 8 and 6 like
    the section above. */
-/* The section's frame is `.ap-auto`'s, seam and all. It had a second one of its
-   own — 14px either side of another rule — for following the panel's footnote
-   rather than a section, and the footnote now closes the roster instead. */
-/* The head's shape is `.ap-auto-head`'s now — one row, the title pushing — so
-   all this section adds up there is the switch giving its own auto back. With
-   glyphs between it and the title, two auto margins split the free space and
-   the whole group floats: measured, that left the switch four pixels short of
-   the panel's right edge and a seventeen-pixel hole in front of it where the
-   other gaps are six. What it takes instead is a deliberate one — the three
-   glyphs are acts, the switch is a state, and a gap is how a row says which is
-   which without a rule drawn between them. */
-.ap-lan > .ap-auto-head .ap-auto-state { margin-left: 4px; }
+/* Local network's view, under its header: the policy row, then whatever the
+   network has to say, then the machines. */
+.ap-lan { padding: 12px var(--panel-inset) 16px; }
+
+/* THE WAY IN, at the foot of the accounts. One row — the name, what state the
+   network is in, and a chevron that says the press goes somewhere — written as
+   a destination rather than a section: no switch, no list, no caption. It
+   takes the tone a door row takes, pulled out by 6px so the tone clears the
+   text and the text stays on the foot's inset. */
+.ap-nav {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 12px);
+  margin: 4px -6px 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ap-nav:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.ap-nav:active { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.ap-nav-glyph { flex: none; color: var(--muted); }
+.ap-nav-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ap-nav-name { font-size: 12px; font-weight: 500; }
+.ap-nav-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+.ap-nav-state[data-tone="bad"], .ap-nav-bad { color: var(--warn); }
+.ap-nav-state[data-tone="wait"] { color: var(--accent); }
+.ap-nav-chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+
 .ap-lan-row {
   display: flex;
   align-items: center;
@@ -8093,34 +8246,6 @@ button.ap-err:active { transform: scale(0.97); }
   white-space: nowrap;   /* "cswap auto" is one name; never break it in half */
 }
 
-/* Current over trigger, the way a meter is written — "29% / 90%" says both
-   numbers and their relationship in the width one label used to take. The
-   slash is drawn here rather than typed into the markup so it cannot be
-   selected, read aloud, or left behind when the live number is unknown.
-
-   THE TWO HALVES ARE ONE READING, so they are drawn as one. This was 10px of
-   --muted against a threshold sitting at 11px of --text one glyph away: the
-   figure that MOVES, the one the whole setting is racing, drawn quieter than
-   the constant it is racing and in the same ink as the punctuation between
-   them. "Ambient until it is close to tripping" is a good rule for a colour and
-   a bad one for a size — `.near` still takes --warn, and until then the number
-   is legible rather than hidden. What stays quiet is the slash, which is
-   punctuation and should be. */
-.ap-auto-now {
-  font-size: 11px;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-/* 6px, the row's own gap. It had 8 on the left and inherited the flex gap's 6
-   on the right, so the one glyph in the row whose whole job is to sit between
-   two things sat two pixels off centre between them. */
-.ap-auto-now::after {
-  content: "/";
-  margin-left: 6px;
-  color: var(--muted);
-  opacity: 0.45;
-}
-.ap-auto-now.near { color: var(--warn); }
 /* Native select, restyled rather than replaced — it keeps keyboard, mobile and
    screen-reader behaviour that a div-based menu would have to rebuild badly.
    The wrapper draws the chevron so the control can size to its own text. */
@@ -8179,72 +8304,11 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
 .ap-field:has(select:hover:not(:disabled))::after { color: var(--text); opacity: 1; }
 
-.ap-auto-foot {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line-soft);
-}
-.ap-auto-result {
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--muted);
-  min-width: 0;
-}
-
-/* Text-weight, because holding an account out of rotation is a preference to
-   flip, not an action to fire. */
-.ap-rotate {
-  position: relative;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.ap-rotate:hover:not(:disabled) { color: var(--text); }
-.ap-rotate:active:not(:disabled) { transform: scale(0.97); }
-.ap-rotate:disabled { cursor: default; opacity: var(--dim-off); }
-
-/* The row's other quota windows, opened from the footer the row already had.
-   Written in `.ap-rotate`'s language on purpose — the footer's size, no box, a
-   dotted rule under the word — because it belongs to the same tier: neither of
-   these is an action on the account, both are the reader saying how they want
-   the row to read. --muted rather than --text-dim so it holds 4.547:1 on the
-   active row as well as 4.70:1 on the panel, which is where every tier in this
-   footer sits. 11px since #857, which measured it at 29x13 at 9px. */
-.ap-lanes-more {
-  position: relative;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-.ap-lanes-more:hover { color: var(--text); }
-.ap-lanes-more:active { transform: scale(0.97); }
-/* The footer's two text-weight controls keep their look and get a 24px target
-   drawn around the word (#857): the transparent pseudo-element .ap-failure-x
-   uses, so nothing in the wrapping footer moves to make room for it. The fix
-   pill joins them (#884): it measured 84x20, and it sits inline in a row that
-   should not grow four pixels because of it. */
-.ap-rotate::after,
-.ap-lanes-more::after,
-button.ap-err::after,
+/* The empty state's retry and a warning's words keep their look and get a 24px
+   target drawn around them (#857, #884): a transparent pseudo-element, so the
+   line they sit in does not grow four pixels to hold it. */
 .ap-fix::after,
-.ap-lan-jump::after {
+.ap-issue::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -8655,6 +8719,17 @@ button.ap-err::after,
 }
 .ap-pop[role="menu"] .ap-pop-error { padding: 6px 10px 4px; }
 .ap-pop [aria-busy="true"] { cursor: progress; }
+
+/* A warning's explanation. Wider than the menu, because what it holds is a
+   paragraph rather than four words; the title carries the mark in the warning
+   ink and the words in the foreground, and the paragraph reads in the
+   secondary tier — it is the thing somebody opened this to read. */
+.ap-issue-pop { width: 252px; }
+.ap-issue-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.ap-issue-title[data-tone="warn"] .ap-warn-glyph { color: var(--warn); }
+.ap-issue-hint { color: var(--text-secondary); line-height: 1.5; }
+.ap-issue-when { color: var(--muted); }
+.ap-issue-who { color: var(--text); overflow-wrap: anywhere; }
 
 /* The one thing a move ever has to announce rather than show: that it
    relocated a SECOND account. It stands in the moved row's own freshness line
@@ -9082,7 +9157,7 @@ button.ap-err::after,
      arrives there without travelling. */
   .ap-lan-chev { transition: none; }
   .ap-manage-btn.danger.armed::after { animation: none; transform: scaleX(0); }
-  .ap-auto-ctl > .ap-manage-btn { animation: none; }
+  .ap-policy > .ap-manage-btn { animation: none; }
   /* Every press in the app lands here, not just this panel's — the scale is one
      convention and it has to switch off in one place, or the next control to
      adopt it quietly reintroduces the motion. */
@@ -9105,10 +9180,8 @@ button.ap-err::after,
   /* Every switch in the deck, one control since #886. */
   .switch:active:not(:disabled),
   .ap-field select:active:not(:disabled),
-  .ap-rotate:active:not(:disabled),
-  .ap-lanes-more:active,
-  .ap-lan-jump:active,
-  button.ap-err:active, button.qb-pace:active,
+  .ap-switch:active:not(:disabled), .ap-issue:active, .ap-notice-fix:active,
+  button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
   .autofit-resume:active,
@@ -9228,27 +9301,6 @@ button.ap-err::after,
   .sound-menu { animation: fadeIn 140ms ease-out; }
 }
 
-/* "numbers paused" — the collector cannot read an account the user is plainly
-   signed in as. Not an error colour: there is nothing for them to fix, and the
-   red badge this replaces was offering to sign them out of a live session. It
-   sits in the annotation tier with the other freshness notes. */
-/* `staleCopy` and `stopped` are two different sentences and were wearing one
-   class, which is how the second came to be drawn in the dimmest tone the panel
-   has beside a warning-coloured timestamp.
-
-   `.ap-stale-copy` is quiet ON PURPOSE (#721): it means the collector cannot
-   read this account while the user IS signed in as it — nothing for them to
-   fix, and a red badge would send them to re-log in for a problem they do not
-   have.
-
-   `.ap-stopped` is the opposite state. Nothing has been collected for half a
-   day and claude-swap says why: no stored login, a login that expired, a
-   keychain it cannot open. The account cannot be used from this deck, which is
-   the same rank as `.ap-err` beside it — so it takes the same tone and the same
-   size, and the row's one attention colour sits on the cause rather than on the
-   age of numbers that stopped mattering with it. */
-.ap-stale-copy { font-size: 10px; color: var(--text-dim); }
-.ap-stopped { color: var(--warn); }
 
 /* ── Browser watch ────────────────────────────────────────────────────────
    The topbar control is an outline like the seven beside it and gains nothing
@@ -11906,6 +11958,7 @@ input, textarea { caret-color: var(--accent); }
    than overlap. Nothing here changes for a mouse. */
 @media (pointer: coarse) {
   .ap-manage-btn,
+  .ap-switch,
   .ap-field select { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
@@ -11916,10 +11969,7 @@ input, textarea { caret-color: var(--accent); }
   .ap-pop .ap-manage-input { min-height: 36px; }
   .switch::after,
   .ap-fix::after,
-  .ap-rotate::after,
-  .ap-lanes-more::after,
-  button.ap-err::after,
-  .ap-lan-jump::after { width: max(100%, 32px); height: 32px; }
+  .ap-issue::after { width: max(100%, 32px); height: 32px; }
   .ap-failure-x::after { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
   .lan-switches { gap: 14px; }
 }

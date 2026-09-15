@@ -153,6 +153,7 @@ describe("what was migrated to the secondary tier", () => {
       // The Local network card while the section is off: the one sentence
       // that says what the section is for, read once before deciding to turn
       // it on. Prose, in a card whose other line is a verb in the accent.
+      ".ap-issue-hint",
       ".ap-lan-intro-text",
       ".bw-access dd",
       ".bw-empty-note",
