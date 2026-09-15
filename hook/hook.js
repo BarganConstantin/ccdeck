@@ -478,9 +478,30 @@ function main() {
     if (parsed && typeof parsed === "object" && !parsed.provider) {
       parsed.provider = PROVIDER;
     }
-    const taggedInput = JSON.stringify(parsed);
 
     const resolvedCwd = normPath(cwd);
+
+    // POST THE CWD WE DECIDED ON, not the one we were handed.
+    //
+    // This used to serialise `parsed` before normPath ran, so the payload —
+    // and therefore events.jsonl — carried the RAW cwd while capture was
+    // decided on the canonical one. The two spellings only coincide where
+    // nothing in the path is a symlink, a junction, a subst drive or an 8.3
+    // short name, which is why it held on the machine it was written on.
+    //
+    // Everywhere else it made a `--workspace` deck capture all day and replay
+    // nothing: `bin/deck.js:548` canonicalises the flag once, and replayScope
+    // compares the logged cwd against it with a pure string predicate. On
+    // macOS, `--workspace /tmp/proj` captures (the hook resolves both sides to
+    // /private/tmp/proj) and then comes back empty after a restart. Silently —
+    // replayLog does not count or warn about an out-of-scope line.
+    //
+    // The Codex watcher already stores the canonical form (index.mjs:2203,
+    // `cwd: await canonicalCwd(...)`, the same resolve+realpath this is), which
+    // is why the two providers disagreed on one board. One spelling in the log
+    // is the whole fix.
+    if (parsed && typeof parsed === "object") parsed.cwd = resolvedCwd;
+    const taggedInput = JSON.stringify(parsed);
 
     let files;
     try {
