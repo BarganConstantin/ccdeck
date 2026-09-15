@@ -287,20 +287,22 @@ describe("the row renders the windows, and the panel reads the same function", (
 
   it("points the disclosure at a group that exists in both states", () => {
     // `.ap-more` one row up makes its `aria-controls` conditional, because the
-    // manage block it names is not in the document while it is closed and an
-    // IDREF resolving to nothing is a dangling pointer rather than a
-    // relationship. Here the lane group is always rendered and only its
-    // contents change, so the same rule comes out the other way: unconditional.
+    // menu it names is not in the document while it is closed and an IDREF
+    // resolving to nothing is a dangling pointer rather than a relationship.
+    // Here the lane group is always rendered and only its contents change, so
+    // the same rule comes out the other way: unconditional.
     expect(panelCode).toMatch(/<div className="ap-lanes" id=\{`ap-lanes-\$\{a\.num\}`\}>/);
     expect(panelCode).toMatch(/aria-controls=\{`ap-lanes-\$\{a\.num\}`\}/);
     expect(panelCode).toMatch(/aria-expanded=\{lanesOpen\}/);
     // …and the conditional one is still conditional, so this is a decision
     // rather than a habit.
-    expect(panelCode).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-manage-\$\{a\.num\}` : undefined\}/);
+    expect(panelCode).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
   });
 
   it("sits in the footer the row already had, and only when it opens something", () => {
-    const meta = /<div className="ap-meta">([\s\S]*?)<\/div>\s*\n\s*\{menuFor/.exec(panelCode)![1];
+    // The footer is the last thing on the row now: the ⋯ opens a popover over
+    // the column rather than a block under this line.
+    const meta = /<div className="ap-meta">([\s\S]*?)<\/div>\s*\n\s*<\/li>/.exec(panelCode)![1];
     expect(meta).toMatch(/className="ap-lanes-more"/);
     expect(meta).toMatch(/\{more && \(/);
     expect(panelCode).toMatch(/const more = moreLabel\(rest\.length, lanesOpen, fuller\);/);

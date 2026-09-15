@@ -9,6 +9,7 @@
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState } from "react";
 import AddAccountDialog from "./AddAccountDialog";
+import AnchoredPopover from "./AnchoredPopover";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
@@ -28,7 +29,7 @@ import {
 } from "../accounts-reload";
 import { resetCountdown, shortAgoSec } from "../relative-time";
 import { shareExpiry } from "../share-bundle";
-import LanSyncSection from "./LanSyncSection";
+import LanSyncSection, { CONFIRM_GAP_MS } from "./LanSyncSection";
 
 interface Lane {
   id: string;
@@ -91,14 +92,24 @@ interface AutoStatus {
   settings: Record<string, { value: string | null; isDefault: boolean }>;
 }
 
+/** What an account's ⋯ is showing. Rename and Move are forms; Share is its
+ *  answer — the text to copy. */
+interface AccountMenu {
+  num: number;
+  view: "menu" | "rename" | "move" | "share";
+  /** Which end of the menu focus lands on when it opens. */
+  start?: "first" | "last";
+}
+
 const POLL_MS = 15_000;
-// How long the "a second account moved too" line stands. Long enough to read a
-// sentence the user did not ask for, short enough that a manage block left open
-// does not keep reporting a move from ten minutes ago. Same shape as the
-// panel's other transient states — `copied` at 1.8s, an armed remove at 4s.
+// How long the "a second account moved too" line stands on the moved row. Long
+// enough to read a sentence the user did not ask for, short enough that it does
+// not keep reporting a move from ten minutes ago. Same shape as the panel's
+// other transient states — `copied` at 1.8s, an armed remove at 4s.
 const SWAP_NOTE_MS = 8_000;
-// How long `save` stands as `saved`. The panel's other transient confirmations
-// — `copied` on a share — use the same 1.8s, and the word is the whole signal.
+// How long the threshold's `save` stands as `saved`. The panel's other
+// transient confirmation — `copied` on a share — uses the same 1.8s, and the
+// word is the whole signal.
 const SAVED_MS = 1_800;
 // Past this, a reload is called dead rather than slow. Both routes can spawn
 // cswap, and the server kills those at 20 seconds, so anything shorter would
@@ -141,6 +152,13 @@ function due(nextAt: number | null, nowSec: number): string {
   if (s <= 0)  return " · due";
   if (s < 60)  return ` · next in ${s}s`;
   return ` · next in ${Math.round(s / 60)}m`;
+}
+
+/** A verb from picker-commit.ts as a button in the popover says it. Those words
+ *  are lowercase because the row's pills are; the popover's buttons are in
+ *  sentence case, like every dialog button in the deck. */
+function sentence(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** How the server's re-capture of a `staleCopy` row is going (autoRecapture). */
@@ -356,19 +374,34 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   };
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const timerRef = useRef<number | null>(null);
-  // Which account's row is expanded into its edit controls. One at a time —
-  // the panel is 288px wide and two open rows leave nothing to look at.
-  const [menuFor, setMenuFor] = useState<number | null>(null);
+  // Which account's ⋯ is open, and what it is showing: the menu, or the one
+  // small form an item turned it into. One at a time — opening a second
+  // account's menu closes the first. It lies over the column rather than
+  // opening the row, so nothing held here decides any row's height.
+  const [menu, setMenu] = useState<AccountMenu | null>(null);
+  const menuFor = menu?.num ?? null;
+  // The same fact for a handler that returns after a render. A rename that
+  // lands after the reader has opened another account's menu must close its
+  // own popover, not theirs.
+  const menuRef = useRef(menu);
+  menuRef.current = menu;
+  // Why the last press in the popover did not work, said in the popover under
+  // the control that was pressed. A popover that closed on a refusal would
+  // look exactly like one that closed on success, so it stays open instead,
+  // holding the draft, and this is the line that says why.
+  const [menuError, setMenuError] = useState<Failure | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState("");
-  // Which account's alias was just stored. `save` is never disabled by the
-  // draft matching the alias any more — that was the block's resting state and
-  // it rendered at 1.98:1 — so the button confirms instead of greying out.
-  const [aliasSaved, setAliasSaved] = useState<number | null>(null);
   // Removal is irreversible, and there is no confirmation dialog anywhere in
   // this deck. The button becomes its own confirmation and gives up after a
   // few seconds, so a stray click can never be the second one.
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+  // When Remove was armed, so a double-click cannot be its own confirmation —
+  // the rule the LAN section's unpair already keeps (CONFIRM_GAP_MS). It
+  // matters more in the menu than it did on the row: an open menu lies over
+  // the next account's ⋯, and Remove, last in the list, is what a press aimed
+  // at that ⋯ lands on.
+  const removeArmedAt = useRef(0);
   const [share, setShare] = useState<{ num: number; blob: string; expiresAt: number } | null>(null);
   // The panel-level share, which is a different job from the one on a row:
   // moving your own set between your own machines rather than sending one
@@ -378,18 +411,15 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const [shareCopied, setShareCopied] = useState(false);
   // A move into an occupied slot relocates an account the user never picked.
   // Nothing else on screen says so — both accounts simply appear where they
-  // were not — so the slot row says it, in the block that did it.
+  // were not — so the moved row says it, in its own freshness line.
   const [swapNote, setSwapNote] = useState<SwapNote | null>(null);
   // What the slot picker is SHOWING, which is no longer what the store holds.
   // A select fires `change` on any keystroke that matches an option, so a
   // single `s` used to move an account and, into a taken slot, a second one
-  // with it (#516). The picker proposes now and the button beside it commits.
-  // Null is the account own slot, which is where the picker opens; only one
-  // manage block is ever open, so one draft covers the panel.
+  // with it (#516). The picker proposes now and the button under it commits.
+  // Null is the account's own slot, which is where the picker opens; only one
+  // popover is ever open, so one draft covers the panel.
   const [slotDraft, setSlotDraft] = useState<number | null>(null);
-  // Which block just had its slot control pressed with nothing to send. Same
-  // transient confirmation `save` gives an alias that was already stored.
-  const [slotDone, setSlotDone] = useState<number | null>(null);
   // The same two for the auto-switch threshold, which had the same defect with
   // a setting write on the other end. Null follows whatever the store holds.
   const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
@@ -525,10 +555,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     }
   }, [claim, release]);
 
-  /** Every store-changing action is one POST to the same route. */
+  /** Every store-changing action is one POST to the same route — and every one
+   *  of them is pressed inside an account's ⋯ popover, so its refusal is said
+   *  there, under the control that was pressed, rather than at the foot of a
+   *  panel the popover is lying over. */
   const admin = useCallback(async (body: Record<string, unknown>, tag: string) => {
     if (!claim(tag)) return null;
     setFailure(null);
+    setMenuError(null);
     try {
       const res = await fetch("/api/claude-accounts/admin", {
         method: "POST",
@@ -538,10 +572,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const out = await res.json().catch(() => null);
       // The admin route composes its `detail` with failureText(), so here the
       // server's own words are the message and explainFailure ranks them first.
-      if (!out?.ok) setFailure({ text: explainFailure(out, "command failed") });
+      if (!out?.ok) setMenuError({ text: explainFailure(out, "command failed") });
       return out;
     } catch {
-      setFailure({ text: "server unreachable" });
+      setMenuError({ text: "server unreachable" });
       return null;
     } finally {
       release();
@@ -609,14 +643,71 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     }
   };
 
+  /** Forget the popover and everything it was holding: an armed remove, a
+   *  share, a refusal. All three belonged to the account they were made on. */
+  const dropMenu = useCallback(() => {
+    setMenu(null);
+    setMenuError(null);
+    setConfirmRemove(null);
+    setShare(null);
+    setShareCopied(false);
+  }, []);
+
+  /** Open an account's ⋯ on its menu, closing any other one first. */
+  const openMenu = (num: number, start: "first" | "last" = "first") => {
+    dropMenu();
+    setSlotDraft(null);
+    setMenu({ num, view: "menu", start });
+  };
+
   /**
-   * Store the alias in the field, and say so.
+   * Close the popover and hand focus back to the ⋯ it came from.
    *
-   * Both endings are the same word. A draft that already matches the store is
-   * not a failure and not a no-op the user should have to detect — it is an
-   * alias that is saved — so it confirms without a round trip, and a draft that
-   * differs confirms once the store has it. `saved` replaces the disabled state
-   * the block used to open in.
+   * Only when focus was inside it, which is about to go, or has already
+   * fallen to <body> — a reader who moved on while a request was out is left
+   * where they put themselves, the rule panel-press.ts writes for every rescue
+   * in this panel. `only` is for a request that finished late: it closes its
+   * own account's popover and never one opened since.
+   */
+  const closeMenu = useCallback((only?: number) => {
+    const open = menuRef.current;
+    if (!open || (only != null && open.num !== only)) return;
+    const pop = document.getElementById(`ap-menu-${open.num}`);
+    if (pop?.contains(document.activeElement) || focusDropped(document.activeElement?.tagName ?? null)) {
+      document.getElementById(`ap-more-${open.num}`)?.focus();
+    }
+    dropMenu();
+  }, [dropMenu]);
+
+  // A popover left standing as the panel slides out would float over the
+  // canvas where the panel used to be; one whose account has left the store
+  // has nothing to hang from.
+  useEffect(() => { if (leaving) dropMenu(); }, [leaving, dropMenu]);
+  useEffect(() => {
+    if (menu && data?.accounts && !data.accounts.some(a => a.num === menu.num)) dropMenu();
+  }, [data, menu, dropMenu]);
+
+  /**
+   * Make a share for this account and turn the popover into it. Also what
+   * `Make a new share` does once the one on screen has expired.
+   */
+  const makeShare = async (num: number) => {
+    setShareCopied(false);
+    const out = await admin({ action: "share", account: num }, `share-${num}`);
+    // Closed while the request was out: the share is not shown to anybody.
+    if (!out?.ok || menuRef.current?.num !== num) return;
+    setShare({ num, blob: out.blob, expiresAt: out.expiresAt });
+    setMenu({ num, view: "share" });
+  };
+
+  /**
+   * Store the alias in the field, then close.
+   *
+   * A draft that already matches the store is not a failure and not a no-op
+   * the user should have to detect — it is an alias that is saved — so it
+   * closes without a round trip, and a draft that differs closes once the
+   * store has it. The row is the confirmation: it is showing the name. A
+   * refusal leaves the form open on the draft, with the reason under it.
    */
   const doAlias = async (num: number, stored: string | null) => {
     const { commit, alias } = aliasSave(aliasDraft, stored);
@@ -624,51 +715,49 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const out = await admin({ action: "alias", account: num, alias }, `alias-${num}`);
       await load(true);
       if (!out?.ok) return;
-      // The store now holds the trimmed value, so the field should too — or the
-      // next comparison is against a draft the store never saw.
-      setAliasDraft(alias);
     }
-    setAliasSaved(num);
-    window.setTimeout(() => setAliasSaved(n => (n === num ? null : n)), SAVED_MS);
+    closeMenu(num);
   };
 
   /**
-   * Send an account to another slot, then put the manage block back where its
-   * account went.
+   * Send an account to another slot, then close the popover and follow the
+   * account with focus.
    *
    * The reload alone is not enough: `cswap move` into an occupied slot is a
-   * swap, so the slot numbers this block is keyed by change hands underneath
-   * it. manageAfterMove decides what survives that; a refused move returns
-   * null and nothing here is touched, leaving the block open and armed exactly
-   * as the user left it with the failure box below to say why.
+   * swap, so the slot numbers this panel keys everything by change hands
+   * underneath it. manageAfterMove decides what survives that; a refused move
+   * returns null and nothing here is touched, leaving the form open and armed
+   * exactly as the user left it, with the refusal under it to say why.
    */
   const doMove = async (from: number, to: number) => {
     const out = await admin({ action: "move", account: from, slot: to }, `move-${from}`);
     const next = manageAfterMove(
-      { menuFor, confirmRemove, shareFor: share?.num ?? null, swapNote },
+      { menuFor: menuRef.current?.num ?? null, confirmRemove, shareFor: share?.num ?? null, swapNote },
       from,
       out,
     );
-    // The roster first, then the block, and never the other way round: the two
-    // disagree about who holds a slot for exactly as long as one has moved on
-    // and the other has not, and that disagreement IS the bug — the block
-    // rendered over a row belonging to somebody else. Both updates land in the
-    // same tick here, so no render is ever caught between them.
+    // The roster first, then the popover, and never the other way round: the
+    // two disagree about who holds a slot for exactly as long as one has moved
+    // on and the other has not, and that disagreement IS the bug — a form
+    // aimed at a row belonging to somebody else.
     await load(true);
     if (next) {
-      setMenuFor(next.menuFor);
+      // The account is where the picker said, so the form has nothing left to
+      // do. It closes rather than chase the row down the column; the row
+      // answers instead, by being in its new place and, after a swap, by
+      // saying so.
+      if (menuRef.current?.num === from) dropMenu();
       setConfirmRemove(next.confirmRemove);
       if (next.shareFor == null) { setShare(null); setShareCopied(false); }
       setSwapNote(next.swapNote);
       const note = next.swapNote;
       if (note) window.setTimeout(() => setSwapNote(n => (n === note ? null : n)), SWAP_NOTE_MS);
-      // The account is where the picker said, so the picker has nothing left to
-      // propose. A refused move keeps the draft: the block stays open on the
-      // pick the user made, ready to be pressed again under the failure box.
+      // A refused move keeps the draft: the form stays open on the pick the
+      // user made, ready to be pressed again under the refusal.
       setSlotDraft(null);
-      // The block followed its account into the slot it moved to, so the button
-      // that was pressed was unmounted and re-mounted a row away. Focus lands
-      // on the disclosure of the row the account is in now.
+      // The popover that held focus is gone, and the account now sits on a
+      // different row. Focus lands on that row's ⋯ — the account's, wherever
+      // the move put it.
       rescueFocus(next.menuFor);
     }
     return out;
@@ -683,18 +772,14 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
    * confirmation and no undo. The press is the decision now, and slotCommit
    * decides what the press means from the choice alone.
    *
-   * Both endings confirm, which is what `save` does one row above: a pick that
-   * is already where the account lives has nothing to send and is not a
-   * failure, and a pick that moved it is answered by the block following the
-   * account into its new slot.
+   * Both endings close the form, which is what `Save` does for a name: a pick
+   * that is already where the account lives has nothing to send and is not a
+   * failure — the account IS there — and a pick that moved it closes once the
+   * move has landed.
    */
   const doSlot = async (from: number, to: number, commit: PickerCommit) => {
-    if (commit.sends) {
-      const out = await doMove(from, to);
-      if (!out?.ok) return;
-    }
-    setSlotDone(from);
-    window.setTimeout(() => setSlotDone(n => (n === from ? null : n)), SAVED_MS);
+    if (!commit.sends) { closeMenu(from); return; }
+    await doMove(from, to);
   };
 
   /** The same rule for the threshold: the picker proposes, `save` stores it. */
@@ -910,27 +995,42 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     `.ap-alias` and leaves the address 31.98px, measured. */}
                 {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
                 <span className="ap-email" title={a.email ?? undefined}>{a.email}</span>
-                {/* aria-controls only while the block exists: an IDREF that
+                {/* THE WAY IN TO EVERYTHING ELSE, and quieter than `switch`
+                    beside it. It opens a menu over the column rather than
+                    opening the row, so pressing it moves nothing on screen.
+
+                    aria-controls only while the menu exists: an IDREF that
                     resolves to nothing is not a relationship, it is a dangling
                     pointer, and closed is exactly when there is nothing to
-                    point at. The id is what focus falls back to when a press
-                    unmounts its own control — see panel-press.ts. */}
-                <button type="button" id={`ap-more-${a.num}`}
-                  className={`ap-more${menuFor === a.num ? " on" : ""}`}
-                  aria-label={`Manage account ${a.num}`} aria-expanded={menuFor === a.num}
-                  aria-controls={menuFor === a.num ? `ap-manage-${a.num}` : undefined}
-                  title="Share, rename, move, remove"
-                  onClick={() => {
-                    setMenuFor(menuFor === a.num ? null : a.num);
-                    setAliasDraft(a.alias ?? "");
-                    setConfirmRemove(null);
-                    setShare(null);
-                    setShareCopied(false);
-                    setSwapNote(null);
-                    setAliasSaved(null);
-                    setSlotDraft(null);
-                    setSlotDone(null);
-                  }}>⋯</button>
+                    point at. The id is what the popover hangs from and what
+                    focus falls back to when a press unmounts its own control —
+                    see panel-press.ts. The name carries the account, because
+                    a column of identical "More actions" is a column of buttons
+                    a screen reader cannot tell apart; the tooltip does not
+                    need to, it appears over the row it belongs to. */}
+                <button type="button" id={`ap-more-${a.num}`} className="ap-more"
+                  aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
+                  aria-haspopup="menu" aria-expanded={menuFor === a.num}
+                  aria-controls={menuFor === a.num ? `ap-menu-${a.num}` : undefined}
+                  title="More actions"
+                  onClick={() => (menuFor === a.num ? closeMenu() : openMenu(a.num))}
+                  onKeyDown={e => {
+                    // Down opens at the first item and Up at the last, the way
+                    // a native menu button does. Enter and Space are the click.
+                    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                    e.preventDefault();
+                    openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
+                  }}>
+                  {/* AUTHORED, NOT TYPED, like the header's four. `⋯` was a
+                      glyph from whichever font had one, at a weight the icons
+                      around it do not share. Three dots on the same 14px grid
+                      and the same 1.3 stroke-weight the header draws at. */}
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+                    <circle cx="2.8" cy="7" r="1.15" />
+                    <circle cx="7" cy="7" r="1.15" />
+                    <circle cx="11.2" cy="7" r="1.15" />
+                  </svg>
+                </button>
                 {/* Three tiers, and they were inverted. The panel exists to say
                     which account is live, and that fact was carried by a wash
                     measuring 1.12:1 in dark while the `switch` it repeats on
@@ -1003,6 +1103,22 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   good numbers, and switching to it on that basis would be a
                   decision made on old information. */}
               <div className="ap-meta">
+                {/* A move into a taken slot relocated a second account, and
+                    this is the only place that says so. It stands at the head
+                    of the moved row's freshness line for eight seconds — news
+                    about the row, on the row, without a line of its own. The
+                    sentence naming who went where is its title. */}
+                {swapNote?.at === a.num && (() => {
+                  const other = data.accounts?.find(x => x.num === swapNote.displaced);
+                  const who = other?.alias ?? other?.email ?? "the account that was there";
+                  return (
+                    <span className="ap-swap-note"
+                      title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
+                           + `${who} now holds slot ${swapNote.displaced}.`}>
+                      swapped with slot {swapNote.displaced}
+                    </span>
+                  );
+                })()}
                 {/* The collector cannot read this account, but the CLI says the
                     user is signed in as it — so there is nothing for them to
                     fix and nothing red to say. What is true is smaller: these
@@ -1156,224 +1272,238 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     >collected {ago(a.fetchedAt, nowSec)}{due(a.nextAt, nowSec)}</span>
                   : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
               </div>
+            </li>
+            );
+          })}
+          </ul>
 
-              {menuFor === a.num && (
-                /* A named group, so a screen reader that has just heard "Manage
-                   account 2, expanded" is told what the three rows underneath
-                   belong to instead of walking into unattributed form fields. */
-                <div className="ap-manage" id={`ap-manage-${a.num}`}
-                  role="group" aria-label={`Manage account ${a.num}`}>
-                  <div className="ap-manage-name">
-                    {/* A real <label> still, only no longer on screen. The word
-                        `name` beside a field whose placeholder already reads
-                        `e.g. work` was a 34px gutter spent restating the field,
-                        and the same gutter on the two rows below pushed every
-                        control into two thirds of a 259px column. Hidden rather
-                        than dropped for an aria-label, because the association
-                        is what a screen reader and voice control both use, and
-                        2.5.3 has nothing to disagree with once no label shows. */}
-                    <label className="vis-hidden" htmlFor={`ap-alias-${a.num}`}>Alias</label>
-                    <input
-                      id={`ap-alias-${a.num}`}
-                      className="ap-manage-input"
-                      type="text"
-                      value={aliasDraft}
-                      onChange={e => setAliasDraft(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") doAlias(a.num, a.alias); }}
-                      /* The store's own bound, stated where the typing happens
-                         rather than discovered from a `bad_value` after a
-                         round trip. See ALIAS_MAX_LENGTH for why it matches the
-                         server exactly and why it is not what protects the
-                         panel's width. */
-                      maxLength={ALIAS_MAX_LENGTH}
-                      /* An example, not a narration of the empty state: "no
-                         alias" reads as a field whose value is those two words. */
-                      placeholder="e.g. work"
-                      spellCheck={false}
-                      /* The block is a form revealed by a button, and the field
-                         at the top of it is where the keyboard should land —
-                         otherwise reaching it means tabbing back through the
-                         switch, the lanes and the freshness line. It mounts
-                         only when the block opens, so this fires exactly then. */
-                      autoFocus
-                    />
-                    <button type="button" className="ap-manage-btn" {...pressProps(`alias-${a.num}`)}
-                      onClick={() => doAlias(a.num, a.alias)}
-                      title="A short name to show instead of the email"
-                    >{aliasSaved === a.num ? "saved" : "save"}</button>
-                  </div>
-
-                  {/* The picker and the press that acts on it, paired the way
-                      the alias field above is paired with `save`. It had been
-                      alone on the verb row, acting on its own `change` — which
-                      a `<select>` fires for a keystroke as readily as for a
-                      pick, so one letter matched an option by type-ahead and
-                      moved an account, and into a taken slot moved a second one
-                      nobody pointed at (#516). Nothing is sent until the button
-                      is pressed, and the button says which of the two it will
-                      do. */}
-                  {(() => {
-                    const choices = slotChoices((data.accounts ?? []).map(x => x.num), a.num);
-                    const picked = slotShowing(choices, slotDraft, a.num);
-                    const commit = slotCommit(choices, picked, a.num);
-                    return (
-                      <div className="ap-manage-slot">
-                        <label className="vis-hidden" htmlFor={`ap-slot-${a.num}`}>Slot</label>
-                        <span className="ap-field">
-                          <select
-                            id={`ap-slot-${a.num}`}
-                            value={String(picked)}
-                            {...pressProps(`move-${a.num}`)}
-                            onChange={e => setSlotDraft(Number(e.target.value))}
-                          >
-                            {/* `rotation order` named the number and never the
-                                effect; `swaps if the slot is taken` named the
-                                effect and left the reader to work out which
-                                slots those were — all of them but the last. On
-                                the options, the warning sits on the choice that
-                                carries it and the one harmless move is visible
-                                as the exception. */}
-                            {choices.map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
-                          </select>
-                        </span>
-                        <button type="button" className="ap-manage-btn" {...pressProps(`move-${a.num}`)}
-                          title={commit.title}
-                          onClick={() => doSlot(a.num, picked, commit)}
-                        >{slotDone === a.num ? commit.done : commit.label}</button>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Two verbs on one line. They were three labelled rows —
-                      `slot`, `share` and a `remove` under its own rule — each
-                      one a control with a word introducing it and a sentence
-                      explaining it. None of the three needed either once the
-                      controls said what they do: the picker names the slot and
-                      the consequence per option, and a button called `share` is
-                      not clarified by being told it is the share row. */}
-                  <div className="ap-manage-acts">
-                    <button type="button" className="ap-manage-btn" {...pressProps(`share-${a.num}`)}
-                      /* It said "carries a live login and expires in 10
-                         minutes", which reads as a lock with a timer on it. The
+          {/* THE ⋯ POPOVER, for whichever account has one open. Rendered once
+              rather than once per row, because only one is ever open and it is
+              drawn at the top of the document anyway (AnchoredPopover) — where
+              it sits in this tree decides nothing on screen. */}
+          {menu && (() => {
+            const a = data.accounts?.find(x => x.num === menu.num);
+            if (!a) return null;
+            const titleId = `ap-pop-title-${a.num}`;
+            // Under the control that was pressed, in every view. The popover
+            // stays open on a refusal, holding what the user had done.
+            const refusal = menuError && (
+              <p className="ap-pop-error" role="alert" title={menuError.raw || undefined}>{menuError.text}</p>
+            );
+            return (
+              <AnchoredPopover
+                anchorId={`ap-more-${a.num}`}
+                // The column the ⋯ scrolls in. Scrolled out of it, the
+                // popover closes rather than float over a row nobody can see.
+                boundaryId="accounts-panel"
+                id={`ap-menu-${a.num}`}
+                className="ap-pop"
+                role={menu.view === "menu" ? "menu" : "dialog"}
+                labelledBy={menu.view === "menu" ? `ap-more-${a.num}` : titleId}
+                start={menu.start}
+                onClose={dropMenu}
+              >
+                {menu.view === "menu" && (
+                  <>
+                    {/* Four words, where the block drew three forms and five
+                        controls before anything was chosen. Each item that
+                        needs more than a press turns this same surface into
+                        the one form it needs. The arrows walk the items, and
+                        Tab leaves the menu instead of stepping through it. */}
+                    <button type="button" role="menuitem" className="ap-menu-item"
+                      onClick={() => {
+                        setAliasDraft(a.alias ?? "");
+                        setMenuError(null);
+                        setMenu({ num: a.num, view: "rename" });
+                      }}>Rename</button>
+                    <button type="button" role="menuitem" className="ap-menu-item"
+                      onClick={() => {
+                        setSlotDraft(null);
+                        setMenuError(null);
+                        setMenu({ num: a.num, view: "move" });
+                      }}>Move to slot…</button>
+                    <button type="button" role="menuitem" className="ap-menu-item"
+                      {...pressProps(`share-${a.num}`)}
+                      /* It leads with what the reader is about to put on their
+                         clipboard, and describes the ten minutes as what they
+                         are: how long the OTHER deck will still take it. The
                          share is plain text with the account's token inside and
-                         an expiry nothing signs, so the sentence has to lead
-                         with what the reader is about to put on their clipboard
-                         and describe the ten minutes as what it is: how long
-                         the OTHER deck will still take it. */
+                         an expiry nothing signs. */
                       title={`Copy this account to another ${PRODUCT}. Anyone who has the text can use the account — treat it as the password. The other deck stops accepting it after 10 minutes; that does not make an escaped copy safe.`}
-                      onClick={async () => {
-                        setShareCopied(false);
-                        const out = await admin({ action: "share", account: a.num }, `share-${a.num}`);
-                        if (out?.ok) setShare({ num: a.num, blob: out.blob, expiresAt: out.expiresAt });
-                      }}>share</button>
-                    {/* Two clicks, and the second one expires. There is no
+                      onClick={() => makeShare(a.num)}
+                    >{busy === `share-${a.num}` ? "Sharing…" : "Share"}</button>
+                    <div role="separator" className="ap-menu-sep" />
+                    {/* Two presses, and the second one expires. There is no
                         confirmation dialog anywhere in this deck and removing an
-                        account cannot be undone, so it is pushed to the far edge
-                        of the row: 47px of empty space, measured, against the
-                        14px that separated it from `share` when it had a row of
-                        its own. `confirm` rather than `confirm remove` because
-                        the long form is 99px and would leave the row one pixel
-                        of slack and no gap at all — see the pinned width in
-                        styles.css, which is what stops the button moving out
-                        from under the second click as it arms. */}
+                        account cannot be undone, so the item is its own
+                        confirmation: the first press arms it and leaves the
+                        menu open, the four seconds it stays armed drain along
+                        its foot, and only a press inside them removes. It arms
+                        to the word unpair arms to in the LAN section (#839);
+                        the name spells out what is being confirmed for a reader
+                        who cannot see the row it replaced. */}
                     <button
                       type="button"
-                      className={`ap-manage-btn danger${confirmRemove === a.num ? " armed" : ""}`}
+                      role="menuitem"
+                      className={`ap-menu-item danger${confirmRemove === a.num ? " armed" : ""}`}
                       {...pressProps(`rm-${a.num}`)}
+                      aria-label={confirmRemove === a.num ? "Confirm remove" : undefined}
                       title={confirmRemove === a.num
                         ? "This deletes the stored credentials for this account"
                         : "Remove this account from claude-swap"}
                       onClick={() => {
                         if (confirmRemove !== a.num) {
                           setConfirmRemove(a.num);
+                          removeArmedAt.current = Date.now();
                           window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), 4000);
                           return;
                         }
+                        // A double-click is one decision, not two: its second
+                        // press lands before anybody could have read `Confirm`.
+                        if (Date.now() - removeArmedAt.current < CONFIRM_GAP_MS) return;
                         setConfirmRemove(null);
-                        admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(() => {
-                          setMenuFor(null);
+                        admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(out => {
                           load(true);
-                          // The row this button lived on is gone, so there is
-                          // no local anchor left and focus falls to the panel
+                          // Refused: the menu stays open and says why.
+                          if (!out?.ok) return;
+                          if (menuRef.current?.num === a.num) dropMenu();
+                          // The row this lived on is going, so there is no
+                          // local anchor left and focus falls to the panel
                           // reload — see rescueSelectors in panel-press.ts.
                           rescueFocus(null);
                         });
                       }}
-                    >{confirmRemove === a.num ? "confirm" : "remove"}</button>
-                  </div>
+                    >{busy === `rm-${a.num}` ? "Removing…" : confirmRemove === a.num ? "Confirm" : "Remove"}</button>
+                    {refusal}
+                  </>
+                )}
 
-                  {/* A move into an occupied slot relocates an account the user
-                      never picked, and this is the only place that says so. It
-                      is a row that exists for eight seconds and then does not,
-                      which is why the block can be two rows at rest and still
-                      report something that happens on one move in three. */}
-                  {swapNote?.at === a.num && (() => {
-                    const other = data.accounts?.find(x => x.num === swapNote.displaced);
-                    const who = other?.alias ?? other?.email ?? "the account that was there";
-                    return (
-                      <span className="ap-manage-hint ap-manage-swap"
-                        title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
-                             + `${who} now holds slot ${swapNote.displaced}.`}>
-                        swapped with slot {swapNote.displaced}
+                {menu.view === "rename" && (
+                  /* A form, so Enter is Save the way it is in every field —
+                     and never in the middle of an IME composition, which a
+                     keydown listener for Enter gets wrong. The title is the
+                     field's label: one line that says what the form is for and
+                     names the field, where the block had a hidden label and a
+                     placeholder doing the naming. */
+                  <form className="ap-pop-form" onSubmit={e => { e.preventDefault(); doAlias(a.num, a.alias); }}>
+                    <label className="ap-pop-title" id={titleId} htmlFor={`ap-alias-${a.num}`}>Rename account</label>
+                    <input
+                      id={`ap-alias-${a.num}`}
+                      className="ap-manage-input"
+                      type="text"
+                      value={aliasDraft}
+                      onChange={e => setAliasDraft(e.target.value)}
+                      /* The store's own bound, stated where the typing happens
+                         rather than discovered from a `bad_value` after a
+                         round trip. See ALIAS_MAX_LENGTH. */
+                      maxLength={ALIAS_MAX_LENGTH}
+                      /* An example, not a narration of the empty state: "no
+                         alias" reads as a field whose value is those two words. */
+                      placeholder="e.g. work"
+                      spellCheck={false}
+                      autoComplete="off"
+                      /* The keyboard lands in the field, with the name that is
+                         there selected, so typing replaces it and an arrow key
+                         edits it instead. */
+                      autoFocus
+                      onFocus={e => e.currentTarget.select()}
+                    />
+                    {refusal}
+                    <div className="ap-pop-actions">
+                      <button type="button" className="btn" onClick={() => closeMenu()}>Cancel</button>
+                      <button type="submit" className="btn primary" {...pressProps(`alias-${a.num}`)}
+                        title="A short name to show instead of the email">
+                        {busy === `alias-${a.num}` ? "…" : "Save"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* The picker and the press that acts on it (#516). A
+                    `<select>` fires `change` for a keystroke as readily as for
+                    a pick, so one letter once matched an option by type-ahead
+                    and moved an account — and into a taken slot, a second one
+                    nobody pointed at. Nothing is sent until the button is
+                    pressed, and the button says which of the two it will do:
+                    `Swap` for exactly the options marked `· swap`. */}
+                {menu.view === "move" && (() => {
+                  const choices = slotChoices((data.accounts ?? []).map(x => x.num), a.num);
+                  const picked = slotShowing(choices, slotDraft, a.num);
+                  const commit = slotCommit(choices, picked, a.num);
+                  return (
+                    // Not a form: with no text field in it there is nothing for
+                    // Enter to submit from, and the one way to send is the
+                    // press on the button — which is the point of #516.
+                    <div className="ap-pop-form">
+                      <label className="ap-pop-title" id={titleId} htmlFor={`ap-slot-${a.num}`}>Move to slot</label>
+                      <span className="ap-field">
+                        <select
+                          id={`ap-slot-${a.num}`}
+                          value={String(picked)}
+                          {...pressProps(`move-${a.num}`)}
+                          onChange={e => setSlotDraft(Number(e.target.value))}
+                          autoFocus
+                        >
+                          {/* The consequence rides on the option that carries
+                              it, and the one harmless move is visible as the
+                              exception — see slotChoices. */}
+                          {choices.map(c => <option key={c.slot} value={c.slot}>{c.label}</option>)}
+                        </select>
                       </span>
-                    );
-                  })()}
-
-                  {share?.num === a.num && (() => {
-                    const exp = shareExpiry(share.expiresAt, nowSec);
-                    const dead = exp.tone === "gone";
-                    return (
-                      <div className={`ap-share${dead ? " expired" : ""}`}>
-                        <code className="ap-share-blob">{share.blob}</code>
-                        <div className="ap-share-foot">
-                          {/* Past the expiry the import dialog on the other deck
-                              refuses this text, so offering to copy it is
-                              offering a dead end. That is the only thing the
-                              expiry does — see shareExpiry — and it is a
-                              statement about the dialog, not about the copy. */}
-                          <button type="button" className="ap-manage-btn" {...pressProps(`share-${a.num}`)}
-                            onClick={async () => {
-                              if (dead) {
-                                setShareCopied(false);
-                                const out = await admin({ action: "share", account: a.num }, `share-${a.num}`);
-                                if (out?.ok) setShare({ num: a.num, blob: out.blob, expiresAt: out.expiresAt });
-                                return;
-                              }
-                              if (await copyText(share.blob)) {
-                                setShareCopied(true);
-                                window.setTimeout(() => setShareCopied(false), 1800);
-                              }
-                            }}>
-                            {dead ? "make a new share" : shareCopied ? "copied" : "copy"}
-                          </button>
-                          {/* "carries a live login" was true and read as a
-                              caption. The text IS the login, and the countdown
-                              beside it is not what keeps anyone out — so the
-                              warning is the part that carries the colour, and
-                              the full explanation is one hover away rather than
-                              crammed into a 288px column. Kept to twenty
-                              characters so the two halves stay on one line at
-                              the panel's width; the sentence that does the
-                              explaining is the title. */}
-                          <span className="ap-manage-hint"
-                            title={"This text is the account's password. It is base64 of plain JSON — the expiry inside it is not signed, so anyone holding a copy can change it, "
-                                 + "and the login itself is in there in the clear either way. The countdown only says how long another deck's import dialog will still accept it. "
-                                 + "If a copy escapes, sign the account out and back in."}>
-                            <span className="ap-share-warn">this is the password</span>
-                            {" · "}
-                            <span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>
-                          </span>
-                        </div>
+                      {refusal}
+                      <div className="ap-pop-actions">
+                        <button type="button" className="btn" onClick={() => closeMenu()}>Cancel</button>
+                        <button type="button" className="btn primary" {...pressProps(`move-${a.num}`)}
+                          title={commit.title}
+                          onClick={() => doSlot(a.num, picked, commit)}
+                        >{busy === `move-${a.num}` ? "…" : sentence(commit.label)}</button>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  );
+                })()}
 
-                </div>
-              )}
-            </li>
+                {menu.view === "share" && share?.num === a.num && (() => {
+                  const exp = shareExpiry(share.expiresAt, nowSec);
+                  const dead = exp.tone === "gone";
+                  return (
+                    <div className={`ap-pop-form ap-share${dead ? " expired" : ""}`}>
+                      <p className="ap-pop-title" id={titleId}>Share account</p>
+                      <code className="ap-share-blob">{share.blob}</code>
+                      {/* The warning belongs to what the text IS, and the
+                          countdown is not what keeps anyone out — so the warning
+                          carries the colour, and the full explanation is one
+                          hover away rather than a paragraph in a popover. */}
+                      <p className="ap-pop-note"
+                        title={"This text is the account's password. It is base64 of plain JSON — the expiry inside it is not signed, so anyone holding a copy can change it, "
+                             + "and the login itself is in there in the clear either way. The countdown only says how long another deck's import dialog will still accept it. "
+                             + "If a copy escapes, sign the account out and back in."}>
+                        <span className="ap-share-warn">This is the password</span>
+                        {" · "}
+                        <span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>
+                      </p>
+                      {refusal}
+                      <div className="ap-pop-actions">
+                        <button type="button" className="btn" onClick={() => closeMenu()}>Done</button>
+                        {/* Past the expiry the import dialog on the other deck
+                            refuses this text, so offering to copy it is offering
+                            a dead end — see shareExpiry. */}
+                        <button type="button" className="btn primary" {...pressProps(`share-${a.num}`)} autoFocus
+                          onClick={async () => {
+                            if (dead) { await makeShare(a.num); return; }
+                            if (await copyText(share.blob)) {
+                              setShareCopied(true);
+                              window.setTimeout(() => setShareCopied(false), 1800);
+                            }
+                          }}>
+                          {dead ? "Make a new share" : shareCopied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </AnchoredPopover>
             );
-          })}
-          </ul>
+          })()}
 
           {/* No footnote under the roster. "These numbers only update while this
               panel is open" closed the list for a while; the owner asked for it

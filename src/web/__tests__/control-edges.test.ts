@@ -566,7 +566,6 @@ const CONTROLS: Control[] = [
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
-  { at: ".ap-more:hover", fillFrom: ".ap-more", states: [".ap-more.on"], beds: ACCOUNTS },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",

@@ -233,14 +233,19 @@ describe("both commit controls are reachable and named", () => {
     // 2.5.3 and voice control both read the visible label, and a name carried
     // only by `title` is one a touch user never sees — the defect the #381
     // sweep found twice in this same panel.
-    expect(panelCode).toMatch(/>\{slotDone === a\.num \? commit\.done : commit\.label\}<\/button>/);
+    // The slot's word in sentence case, since the picker moved from a pill row
+    // into the ⋯ popover's form — and still the commit's own word: `Swap` for
+    // exactly the options marked `· swap`.
+    expect(panelCode).toMatch(/>\{busy === `move-\$\{a\.num\}` \? "…" : sentence\(commit\.label\)\}<\/button>/);
     // `saved` only while the pick is the stored one: a second pick inside the
     // confirmation would otherwise sit behind a button claiming it was stored.
     expect(panelCode).toMatch(/>\{thresholdSaved && !thresholdCtl\.sends \? thresholdCtl\.done : thresholdCtl\.label\}<\/button>/);
   });
 
-  it("keeps the picker itself named by the hidden label it has always had", () => {
-    expect(panelCode).toMatch(/<label className="vis-hidden" htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Slot<\/label>/);
+  it("keeps the picker itself named by a real label", () => {
+    // Visible now. The row's block had no room for a label and hid it; the
+    // popover's form has a title, and the title is the label.
+    expect(panelCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
     expect(panelCode).toMatch(/aria-label="Switch threshold"/);
   });
 

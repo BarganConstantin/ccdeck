@@ -373,7 +373,9 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     // anything under it is annotation the sheet already has a token for.
     for (const theme of themes) {
       const panelBed = parseColor(TOK[theme]["--panel"]);
-      for (const sel of [".ap-manage-hint", ".ap-manage-hint.ap-manage-swap"]) {
+      // The swap notice moved from the block onto the moved row's footer and
+      // took its own name; the floor it is held to did not move.
+      for (const sel of [".ap-manage-hint", ".ap-swap-note"]) {
         expect(contrastRatio(resolve(decl(sel, "color")!, theme), panelBed), `${theme} ${sel}`)
           .toBeGreaterThanOrEqual(BODY);
       }
@@ -403,7 +405,9 @@ describe("the buttons stopped sharing the labels' colour (#325's first finding)"
     // test is for — the button is still never disabled by its draft matching
     // the store, and the busy dimming is still the same token at the same value.
     expect(panel).not.toMatch(/aliasDraft\.trim\(\)\s*===/);
-    expect(panel).toMatch(/className="ap-manage-btn" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
+    // `Save` is the rename form's primary now — the deck's own `.btn primary`
+    // rather than the row's pill — and it takes the same two attributes.
+    expect(panel).toMatch(/className="btn primary" \{\.\.\.pressProps\(`alias-\$\{a\.num\}`\)\}/);
     // The one place the rule is written, so it cannot be spelled two ways.
     expect(panel).toMatch(/const s = pressState\(busy, tag\);/);
     expect(panel).toMatch(/return \{ disabled: s\.disabled, "aria-busy": s\.busy \|\| working \};/);
@@ -446,51 +450,51 @@ describe("the ⋯ that opens all of it (2.5.8, and touch)", () => {
   });
 });
 
-describe("flex rows, and the labels off the screen", () => {
+describe("no row grid, and one form at a time", () => {
   it("keeps no label gutter and no row grid at all", () => {
     // #325 put the three rows on a `34px minmax(0,1fr) auto` grid so they ended
     // on one x. The gutter is what went next: 34px of every 259px row spent
-    // naming a control that names itself, on three rows, plus a fourth under a
-    // rule for one button. Flex lines now — name, slot, then verbs.
+    // naming a control that names itself. What must not come back is a column
+    // of words introducing controls that name themselves.
     //
-    // The count is not what this pins and never was; the gutter and the grid
-    // are. #516 took the slot picker off the verb row and gave it a line of its
-    // own, because a <select> that fires `change` on a keystroke cannot be the
-    // thing that acts and the commit control it needs did not fit — so the row
-    // is a field and a press, which is the name row's shape one line up. What
-    // must not come back is a column of words introducing controls that name
-    // themselves.
+    // The three flex lines that replaced the grid are gone too, since the ⋯
+    // stopped opening the row: the name field, the slot picker and the verbs
+    // were one block on screen at once, and each is now its own view in the
+    // popover, drawn only once its item is chosen.
     expect(bare).not.toMatch(/\.ap-manage-row\b/);
     expect(bare).not.toMatch(/\.ap-manage-label\b/);
     expect(bare).not.toMatch(/\.ap-manage-foot\b/);
     expect(panelCode).not.toMatch(/ap-manage-row|ap-manage-label|ap-manage-foot/);
-    for (const row of [".ap-manage-name", ".ap-manage-slot", ".ap-manage-acts"]) {
-      expect(decl(row, "display"), row).toBe("flex");
+    for (const gone of ["ap-manage-name", "ap-manage-slot", "ap-manage-acts"]) {
+      expect(bare, gone).not.toMatch(new RegExp(`\\.${gone}\\b`));
+      expect(panelCode, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
     }
-    // The field takes the line in both, so every row ends on the same x.
-    expect(decl(".ap-manage-input", "flex")).toBe("1");
-    expect(decl(".ap-manage-slot .ap-field", "flex")).toBe("1");
+    expect(decl(".ap-pop-form", "display")).toBe("flex");
+    expect(decl(".ap-pop-form", "flex-direction")).toBe("column");
   });
 
-  it("separates the irreversible action by distance, not by a rule of its own", () => {
-    // 6px from `share` before #325, then a row of its own 14px below it. Now
-    // the far end of the verb row: 47px, measured in the panel at 288px.
-    expect(decl(".ap-manage-acts .ap-manage-btn.danger", "margin-left")).toBe("auto");
-    // `remove` renders 57px wide and `confirm` 58px, so the floor holds both
-    // and the button cannot resize as it arms — one that grew would move out
-    // from under the second click, the click that has to land where aimed.
-    expect(parseFloat(decl(".ap-manage-acts .ap-manage-btn.danger", "min-width")!))
-      .toBeGreaterThanOrEqual(62);
+  it("separates the irreversible action with one rule, and nothing else in the menu", () => {
+    // Distance did it on the row — `remove` pushed 102px along a line of its
+    // own. In a list the same pause is a hairline, and there is exactly one:
+    // between the three acts that can be taken back and the one that cannot.
+    expect([...panelCode.matchAll(/role="separator"/g)]).toHaveLength(1);
+    expect(panelCode).toMatch(
+      /<div role="separator" className="ap-menu-sep" \/>\s*(?:\{\}\s*)?<button\s+type="button"\s+role="menuitem"\s+className=\{`ap-menu-item danger/,
+    );
+    expect(decl(".ap-menu-sep", "height")).toBe("1px");
   });
 
   it("keeps the two-step arm and its four-second expiry", () => {
-    expect(panel).toMatch(/confirmRemove === a\.num \? "confirm" : "remove"/);
+    expect(panel).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
     expect(panel).toMatch(/setConfirmRemove\(c => \(c === a\.num \? null : c\)\), 4000\)/);
     expect(bare).toMatch(/ap-disarm 4000ms linear forwards/);
   });
 
-  it("gives the two groups more air than the three cramped rows had", () => {
-    expect(parseFloat(decl(".ap-manage", "gap")!)).toBeGreaterThan(6);
+  it("binds a form's title to its field and sets the answers apart", () => {
+    // 6px from the title to the field it names, 12px from the field to the
+    // decision about it — the column's gap plus the answers' own margin.
+    expect(parseFloat(decl(".ap-pop-form", "gap")!)).toBe(6);
+    expect(parseFloat(decl(".ap-pop-actions", "margin-top")!)).toBe(6);
   });
 
   it("reads the slot picker from its left edge, not pinned to its own chevron", () => {
@@ -499,7 +503,7 @@ describe("flex rows, and the labels off the screen", () => {
     // so once the options became labels the selected `slot 2` sat 30px off the
     // left edge of a box built for `slot 3 · swap`.
     expect(decl(".ap-field select", "text-align")).toBe("right");
-    expect(decl(".ap-manage .ap-field select", "text-align")).toBe("left");
+    expect(decl(".ap-pop .ap-field select", "text-align")).toBe("left");
   });
 });
 
@@ -509,34 +513,39 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
     expect(decl(".ap-manage-input:hover", "border-color")).toBeTruthy();
   });
 
-  it("keeps the block's entrance exactly as it was — it earns it", () => {
-    expect(bare).toMatch(/animation: ap-manage-in 180ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both/);
+  it("arrives rather than appears, and briefly — a popover now, not a drawer", () => {
+    // The block eased down 4px over 180ms from under its row. The popover
+    // takes 120ms and 3px out of its anchor: shorter, because a menu is the
+    // thing standing between a press and what the press was for.
+    expect(bare).toMatch(/animation: pop-from-anchor 120ms cubic-bezier\(0\.23, 1, 0\.32, 1\)/);
+    expect(bare).not.toMatch(/ap-manage-in(?![\w-])/);
   });
 });
 
-describe("the disclosure and the block it opens are related (#325's seventh finding)", () => {
-  it("names the group, and points the button at it while it exists", () => {
-    expect(panel).toMatch(/id=\{`ap-manage-\$\{a\.num\}`\}/);
-    expect(panel).toMatch(/role="group" aria-label=\{`Manage account \$\{a\.num\}`\}/);
-    expect(panel).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-manage-\$\{a\.num\}` : undefined\}/);
+describe("the disclosure and what it opens are related (#325's seventh finding)", () => {
+  it("names the popover, and points the button at it while it exists", () => {
+    expect(panel).toMatch(/id=\{`ap-menu-\$\{a\.num\}`\}/);
+    // A menu while it is one, named by the button — whose own name carries the
+    // account — and a dialog named by its title once an item makes it a form.
+    expect(panel).toMatch(/role=\{menu\.view === "menu" \? "menu" : "dialog"\}/);
+    expect(panel).toMatch(/labelledBy=\{menu\.view === "menu" \? `ap-more-\$\{a\.num\}` : titleId\}/);
+    expect(panel).toMatch(/aria-controls=\{menuFor === a\.num \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(panel).toMatch(/aria-haspopup="menu"/);
   });
 
-  it("keeps a real label on both fields after taking the labels off the screen", () => {
-    // 2.5.3 asks that the accessible name contain the visible label: `NAME`
-    // above a field called "Alias for account 2" failed outright, and voice
-    // control asks harder than a screen reader does. With no label rendered
-    // there is nothing left to contradict — but the association still has to
-    // exist, so these are hidden <label for>s, not aria-labels on bare inputs.
-    // The class lost its `ap-` prefix in #373, which gave the utility three
-    // callers outside this panel; the assertion follows the rename, the shape
-    // it is asserting — a hidden <label for>, not an aria-label — does not.
-    expect(panel).toMatch(/<label className="vis-hidden" htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Alias<\/label>/);
-    expect(panel).toMatch(/<label className="vis-hidden" htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Slot<\/label>/);
+  it("gives both fields a real, visible label", () => {
+    // 2.5.3 asks that the accessible name contain the visible label, and voice
+    // control asks harder than a screen reader does. The row's block had no
+    // room for a label and hid one; each form in the popover has a title, and
+    // the title IS the <label for> — one line that names the field and says
+    // what the form is for. Still never an aria-label on a bare input.
+    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>Rename account<\/label>/);
+    expect(panel).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>Move to slot<\/label>/);
     expect(panel).not.toMatch(/aria-label=\{`Alias for account/);
     expect(panel).not.toMatch(/aria-label=\{`Slot for account/);
   });
 
-  it("hides those labels from the eye without hiding them from anything else", () => {
+  it("keeps the hiding utility in the tree, where a hidden label still names its field", () => {
     // `display: none` and `visibility: hidden` take an element out of the
     // accessibility tree too, which would leave both fields unnamed — the one
     // failure this class exists to avoid.

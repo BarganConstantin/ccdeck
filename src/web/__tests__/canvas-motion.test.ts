@@ -416,6 +416,12 @@ const EXEMPT: string[] = [
   // two pixels under the pointer and eased back under the dialog it had just
   // opened. The verb on the end of the row keeps its own 0.97.
   ".ap-lan-who",
+  // The rows of an account's ⋯ menu, for the reason the LAN list's are above:
+  // a menu answers a press the way a desktop menu does, its row's fill
+  // deepening and nothing moving. A row that scaled would slide its word out
+  // from under the pointer in the instant before the menu turns into the form
+  // that word opened.
+  ".ap-menu-item",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {

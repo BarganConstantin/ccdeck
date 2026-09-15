@@ -14,7 +14,9 @@ const lan = read("LanSyncSection.tsx");
 
 describe("one arm-then-confirm word for the in-panel destructive acts (#839)", () => {
   it("arms removing an account to confirm", () => {
-    expect(accounts).toMatch(/confirmRemove === a\.num \? "confirm" : "remove"/);
+    // Capitalised since the verb moved from a pill on the row into the ⋯
+    // menu, whose items are sentence case like every menu. Same word.
+    expect(accounts).toMatch(/confirmRemove === a\.num \? "Confirm" : "Remove"/);
   });
 
   it("arms unpairing a deck to the same word", () => {
