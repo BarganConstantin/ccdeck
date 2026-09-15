@@ -45,6 +45,8 @@ type Rec = {
   pid: number; port: number; token: string;
   workspace: string; persist: string | null; codex: boolean; claude: boolean;
   version?: string;
+  /** The Codex tree the deck tails, published since #1110. Absent on older records. */
+  codexHome?: string | null;
 };
 
 const WANT = { workspace: "", persist: "/log/events.jsonl", codex: true, claude: true };
@@ -156,7 +158,7 @@ describe("a start keeps at most one deck", () => {
   it("is asked of every start, respawns included, with nothing but the rule's inputs", () => {
     const call = /const plan = secondStart\(\{([\s\S]*?)\}\);/.exec(DECK)?.[1] ?? "";
     expect(call).toMatch(/live: await liveDecks\(\)/);
-    expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude \}/);
+    expect(call).toMatch(/want: \{ workspace, persist, codex: wantCodex, claude: wantClaude, codexHome \}/);
     expect(call).toMatch(/fresh: flags\.new === true/);
     expect(call).toMatch(/respawn: RESPAWN/);
     // A typo is not an input, so a misspelling cannot decide anything — the
@@ -208,6 +210,37 @@ describe("the deck found must be the deck we would have built", () => {
     expect(sameShape(rec({ codex: false }), WANT)).toBe(false);
     // No accounts panel, no hooks, no switcher.
     expect(sameShape(rec({ claude: false }), WANT)).toBe(false);
+  });
+
+  it("does not attach a start to a deck that reads another Codex tree", () => {
+    // #1110 put the tree a deck tails on its record, as `codexHome`; this is the
+    // start's half of the same rule. Before it, `CODEX_HOME=/srv/codex ccdeck`
+    // found the deck already reading ~/.codex, matched on the four fields above,
+    // and attached — so the tree it was started for was never read, and nothing
+    // said so. A different tree is a different canvas, and what a start does
+    // with a deck of a different shape is replace it.
+    const wantTree = (codexHome: string) => ({ ...WANT, codexHome });
+    const onHome = rec({ codexHome: "/home/u/.codex" });
+    expect(sameShape(onHome, wantTree("/home/u/.codex"))).toBe(true);
+    expect(sameShape(onHome, wantTree("/srv/codex"))).toBe(false);
+    expect(secondStart({ live: [onHome], want: wantTree("/srv/codex"), ours: OURS }).act).toBe("replace");
+    // Either side silent keeps today's answer: a record written before #1110
+    // cannot say, and `--stop`'s selector names no tree at all.
+    expect(sameShape(rec(), wantTree("/srv/codex"))).toBe(true);
+    expect(sameShape(onHome, WANT)).toBe(true);
+  });
+
+  it("is asked with the tree this start would read, spelled the way the record spells it", () => {
+    // Resolved beside the other three inputs, not inside the call — the case
+    // above holds the call to values already settled.
+    expect(DECK).toMatch(/const codexHome = codexHomeField\(wantCodex\);/);
+    // One function for both ends, so a start and a record cannot canonicalise
+    // the same tree two ways and disagree about a symlinked ~/.codex.
+    const installer = readFileSync(
+      fileURLToPath(new URL("../../server/installer.mjs", import.meta.url)), "utf8",
+    );
+    expect(installer).toMatch(/export function codexHomeField\(codex\)/);
+    expect(installer).toMatch(/codexHome: codexHomeField\(codex\)/);
   });
 
   it("never passes a deck older than the `claude` field for one, so it is replaced", () => {

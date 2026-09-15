@@ -755,12 +755,14 @@ function persistField(persist) {
  * The Codex tree as the record spells it: the canonical path of the CODEX_HOME
  * this process reads, or null for a --no-codex deck, which reads none. Shared by
  * the writer and by ensureDiscovery's comparison for the reason persistField
- * is. Worked out on every call rather than once at load: it is one realpath on a
- * five-second heartbeat, and a tree that did not exist when the deck started —
- * the first `codex login` creates it — is then named the way it is named once
- * it does.
+ * is, and exported for a start's own shape in bin/deck.js — so a start asking
+ * "does the running deck read my tree" spells the tree exactly the way the
+ * record it compares against does. Worked out on every call rather than once at
+ * load: it is one realpath on a five-second heartbeat, and a tree that did not
+ * exist when the deck started — the first `codex login` creates it — is then
+ * named the way it is named once it does.
  */
-function codexHomeField(codex) {
+export function codexHomeField(codex) {
   return codex !== false ? canonicalLogPath(CODEX_DIR) : null;
 }
 

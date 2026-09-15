@@ -61,6 +61,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { challengeDeck, isProcessAlive } from "./deck-probe.mjs";
+import { sameCodexTree } from "./log-writer.mjs";
 
 /**
  * Where every deck on this machine registers itself.
@@ -84,13 +85,25 @@ export function deckRegistryDir(env = process.env, home = undefined) {
  * either field existed carries `undefined` and fails — and a deck that old is
  * replaced rather than attached to, which is what a start does with any deck
  * it cannot vouch for.
+ *
+ * AND THE CODEX TREE, which is the one field that is not strict. #1110 put the
+ * tree a deck tails on its record, and until this read it a start for another
+ * tree matched on the four fields above and attached: `CODEX_HOME=/srv/codex
+ * ccdeck` opened the deck already reading ~/.codex, and the tree it was started
+ * for was never read by anything. A different tree is a different canvas, so it
+ * is a different shape. Compared by sameCodexTree, the log election's own rule
+ * for the same field — so the two cannot disagree about whether two spellings
+ * are one tree — which also means a side that does not say is taken as the
+ * same: a record written before #1110, and `--stop`'s selector, which names no
+ * tree, both keep the answer they had.
  */
 export function sameShape(record, want = {}) {
   if (!record) return false;
   return (record.workspace ?? "") === (want.workspace ?? "")
     && (record.persist ?? null) === (want.persist ?? null)
     && record.codex === (want.codex !== false)
-    && record.claude === (want.claude !== false);
+    && record.claude === (want.claude !== false)
+    && sameCodexTree(record.codexHome, want.codexHome);
 }
 
 /**
