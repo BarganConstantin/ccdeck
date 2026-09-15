@@ -104,12 +104,15 @@ function ownerOf({ platform, home }: { platform: string; home: string }, {
 
 // ── the module ──────────────────────────────────────────────────────────────
 
-// Nothing is executed: `run` answers from a table and `runDetached` only
-// records, so a regression shows up as a recorded argv rather than as a real
-// upgrade of the claude-swap on the machine running the suite.
-const { probeOk, detached } = vi.hoisted(() => ({
+// Nothing is executed: `run` answers from a table, and the upgrade command it
+// is handed is recorded rather than run — so a regression shows up as a
+// recorded argv rather than as a real upgrade of the claude-swap on the machine
+// running the suite. The recording moved from `runDetached` to `run` with
+// #1000, which made the upgrade a captured child; what each tool is asked to
+// do, which is what this file is about, did not change.
+const { probeOk, upgrades } = vi.hoisted(() => ({
   probeOk: { is: (_cmd: string) => false },
-  detached: [] as { cmd: string; args: string[] }[],
+  upgrades: [] as { cmd: string; args: string[] }[],
 }));
 
 const ok = (stdout: string) => ({ ok: true, code: 0, killed: false, stdout, stderr: "" });
@@ -117,6 +120,9 @@ const fail = () => ({ ok: false, code: "ENOENT", killed: false, stdout: "", stde
 
 vi.mock("../../server/exec.mjs", () => ({
   run: async (cmd: string, args: string[] = []) => {
+    // The upgrade, whichever tool it was aimed at: every spelling of it carries
+    // the word, and no probe does.
+    if (args.includes("upgrade")) { upgrades.push({ cmd, args }); return ok(""); }
     // The installed copy, so ensureCswap takes the "already present" path.
     if (/cswap(\.exe)?$/.test(cmd) && args[0] === "--version") return ok("claude-swap 0.25.0");
     // safePythons: the same answer on all three platforms, so a `python -m pipx`
@@ -127,7 +133,6 @@ vi.mock("../../server/exec.mjs", () => ({
     if (cmd === "where") return fail();
     return probeOk.is(cmd) ? ok("1.0.0") : fail();
   },
-  runDetached: (cmd: string, args: string[]) => { detached.push({ cmd, args }); },
 }));
 
 vi.mock("../../server/uv-bootstrap.mjs", () => ({
@@ -136,9 +141,16 @@ vi.mock("../../server/uv-bootstrap.mjs", () => ({
 }));
 
 // PyPI says there is something newer, without touching the network.
+//
+// The number matters since #1000: the deck now only chases a release inside the
+// version bound it installs with, so a fixture that advertises `9.9.9` — which
+// is what this said, and is the shape a takeover takes — produces no upgrade at
+// all and every case here would pass vacuously. 0.26.0 is a real release of
+// claude-swap and one the bound accepts. That `9.9.9` is refused is asserted on
+// purpose in cswap-version-bound.test.ts.
 vi.stubGlobal("fetch", async () => ({
   ok: true,
-  json: async () => ({ info: { version: "9.9.9" } }),
+  json: async () => ({ info: { version: "0.26.0" } }),
 }));
 
 // The update-check marker is written under homedir(), which reads $HOME on POSIX
@@ -180,7 +192,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  detached.length = 0;
+  upgrades.length = 0;
   rmTempDir(join(FAKE_HOME, ".agents-deck"));
   rmTempDir(UV_TOOL_DIR);
   rmTempDir(PIPX_HOME);
@@ -191,9 +203,13 @@ beforeEach(() => {
 async function dailyCheck() {
   vi.resetModules();
   // @ts-expect-error — .mjs server module, no types
-  const { ensureCswap } = await import("../../server/cswap-install.mjs");
+  const { ensureCswap, upgradeSettled } = await import("../../server/cswap-install.mjs");
   const state = await ensureCswap();
-  return { state, detached: [...detached] };
+  // ensureCswap returns before the upgrade finishes, deliberately — the boot
+  // does not wait for it. The test does, so nothing is still writing under the
+  // temp home after teardown has deleted it.
+  await upgradeSettled();
+  return { state, upgrades: [...upgrades] };
 }
 
 // ── 1. the machine with more than one installer ─────────────────────────────
@@ -388,11 +404,11 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     probeOk.is = cmd => cmd === "uv" || cmd === "pipx";
     mkdirSync(join(PIPX_HOME, "venvs", "claude-swap"), { recursive: true });
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
-    expect(state).toMatchObject({ state: "upgrading", version: "0.25.0", latest: "9.9.9", via: "pipx" });
-    expect(detached).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
-    expect(detached[0].cmd).not.toBe("uv");
+    expect(state).toMatchObject({ state: "upgrading", version: "0.25.0", latest: "0.26.0", via: "pipx" });
+    expect(upgrades).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
+    expect(upgrades[0].cmd).not.toBe("uv");
   });
 
   it("says nothing at all about a `pip install --user` copy, rather than saying something false", async () => {
@@ -402,11 +418,11 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     // while the version never moved.
     probeOk.is = cmd => cmd === "uv" || cmd === "pipx";
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
     expect(state).toEqual({ state: "present", version: "0.25.0" });
     expect(state).not.toHaveProperty("latest");
-    expect(detached).toEqual([]);
+    expect(upgrades).toEqual([]);
   });
 
   it("still upgrades normally when the one installer present is the one that owns it", async () => {
@@ -415,10 +431,10 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     probeOk.is = cmd => cmd === "uv";
     mkdirSync(join(UV_TOOL_DIR, "claude-swap"), { recursive: true });
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
     expect(state).toMatchObject({ state: "upgrading", via: "uv" });
-    expect(detached).toEqual([{ cmd: "uv", args: ["tool", "upgrade", "claude-swap"] }]);
+    expect(upgrades).toEqual([{ cmd: "uv", args: ["tool", "upgrade", "claude-swap"] }]);
   });
 
   it("lets the resolved executable settle it when both installers hold a copy", async () => {
@@ -431,10 +447,10 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     writeFileSync(join(pipxBin, "cswap"), "");
     process.env.AGENTS_DECK_CSWAP = join(pipxBin, "cswap");
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
     expect(state).toMatchObject({ state: "upgrading", via: "pipx" });
-    expect(detached).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
+    expect(upgrades).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
   });
 
   it("falls back to `python -m pipx` when pipx owns it but has no command of its own", async () => {
@@ -444,10 +460,10 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     probeOk.is = cmd => cmd === "uv" || cmd === "py" || cmd === "python3";
     mkdirSync(join(PIPX_HOME, "venvs", "claude-swap"), { recursive: true });
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
     expect(state.via).toMatch(/-m pipx$/);
-    expect(detached).toEqual([
+    expect(upgrades).toEqual([
       { cmd: state.via.replace(" -m pipx", ""), args: ["-m", "pipx", "upgrade", "claude-swap"] },
     ]);
   });
@@ -459,10 +475,10 @@ describe("the daily upgrade on a machine with more than one installer", () => {
     const probed: string[] = [];
     probeOk.is = cmd => { probed.push(cmd); return cmd === "uv" || cmd === "pipx"; };
 
-    const { state, detached } = await dailyCheck();
+    const { state, upgrades } = await dailyCheck();
 
     expect(state).toEqual({ state: "present", version: "0.25.0" });
-    expect(detached).toEqual([]);
+    expect(upgrades).toEqual([]);
     expect(probed).toEqual([]);
   });
 });

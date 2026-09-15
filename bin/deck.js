@@ -969,7 +969,13 @@ function writeSwapRows(swap, { late = false } = {}) {
         ? `installed via ${cs.via} but not on PATH ${G.dash} add ${
             process.platform === "win32" ? "%USERPROFILE%\\.local\\bin" : "~/.local/bin"
           }`
-        : `install failed${cs?.via ? ` via ${cs.via}` : ""}`;
+        // The deck asked for one version and a different one answered, so it
+        // declines to drive it. Naming both is the whole content of the row:
+        // "install failed" would be a lie about an install that succeeded, and
+        // the number that arrived is the thing a person needs to see.
+        : cs?.reason === "unexpected_version"
+          ? `refused v${cs.version} ${G.dash} asked for ${cs.want}, not driving it`
+          : `install failed${cs?.via ? ` via ${cs.via}` : ""}`;
     out += row({ mark: G.fail, tone: P.warn, label: "claude-swap", detail: how });
     // A URL is not an answer when someone just wants the panel to work. Print
     // the command for THIS machine, picked from what is already on it.

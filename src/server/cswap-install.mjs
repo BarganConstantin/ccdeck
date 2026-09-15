@@ -7,7 +7,7 @@
 // caller prints what this returns, and AGENTS_DECK_NO_INSTALL=1 turns it off
 // entirely. It is always best-effort — the deck's core function does not
 // depend on it, so a failure is reported and then ignored.
-import { run, runDetached } from "./exec.mjs";
+import { run } from "./exec.mjs";
 // The version comparator was written out here as well, identical apart from a
 // type guard this copy lacked, and only the self-update one was under test
 // (#374). No cycle: self-update.mjs imports node:* and ./exec.mjs, which this
@@ -138,6 +138,58 @@ export function cswapCandidates(platform = process.platform, env = process.env, 
 // — `cswap` is only the console script.
 const PKG = "claude-swap";
 
+// ── which versions of it this deck is willing to install ─────────────────────
+//
+// The install used to be the bare name — `uv tool install claude-swap` — which
+// means "whatever that project publishes next, forever", resolved on a machine
+// the author will never see, and then handed `cswap export -`, `add` and
+// `import`: every command in the accounts panel that carries a Claude refresh
+// token. Forty lines away, uv itself is fetched only after its SHA-256 is
+// checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
+// package that holds the credentials had no bound of any kind.
+//
+// FLOOR: the version the panel's command surface is written against. Below it
+// the subcommands and flags are not the ones claude-accounts.mjs sends, and a
+// resolver that answers with something older — a mirror, a private index on
+// PIP_INDEX_URL, a yank of everything newer — is answering a question the deck
+// did not ask.
+//
+// CEILING: the next major. claude-swap is 0.x and ships a minor every couple of
+// weeks, so a ceiling tight enough to stop a hostile 0.27 would stop every real
+// release too and rot within the month. What this ceiling does stop is the
+// shape a takeover actually takes — a version number picked to win every
+// resolution, `9.9.9` — and a 1.0 arriving unattended while the deck's caller
+// list still speaks 0.x.
+//
+// Spelled `~=0.26` and not `>=0.26,<1`, which is the same set. PEP 440's
+// compatible-release operator expands to `>= 0.26, == 0.*`, and the spelling
+// with no `<` or `>` in it cannot be read as redirection by anything that ever
+// sees this argument as text: `run` spawns with shell:false, but the Windows
+// leg routes a `.cmd`/`.bat` shim through cmd.exe (exec.mjs viaCmd), where `<`
+// and `>` are syntax while outside quotes. That quoting is correct and tested;
+// not needing it is better.
+const MIN_VERSION = "0.26";
+const MAX_VERSION = "1";                          // the first one this deck will not run
+const RANGE_SPEC  = `${PKG}~=${MIN_VERSION}`;     // >= 0.26, == 0.*
+
+/**
+ * True when `v` is a version this deck is willing to put in front of the user's
+ * credentials.
+ *
+ * Deliberately false for anything without a leading number, which is what
+ * `versionIn` answers ("installed") for a copy that printed no version at all.
+ * That is an absence of evidence rather than evidence of a bad version, so the
+ * two callers that can act on it check for it themselves rather than reading a
+ * `false` here as a verdict.
+ */
+export function isAcceptableVersion(v) {
+  if (typeof v !== "string" || !/^\d/.test(v)) return false;
+  return !isOlder(v, MIN_VERSION) && isOlder(v, MAX_VERSION);
+}
+
+/** Two version strings naming the same release — `0.26` and `0.26.0` do. */
+function sameVersion(a, b) { return !isOlder(a, b) && !isOlder(b, a); }
+
 /** True when `child` is `dir` or lives under it, in `platform`'s path flavour. */
 function underDir(child, dir, platform) {
   const { sep, normalize } = platform === "win32" ? winPath : posixPath;
@@ -220,10 +272,13 @@ function realpathOrSelf(p) {
  *
  * and pipx, given someone else's package, answers "Package is not installed.
  * Expected to find <PIPX_HOME>/venvs/claude-swap, but it does not exist." Both
- * go through runDetached, which reads no output and waits for no exit, so the
+ * went through runDetached, which read no output and waited for no exit, so the
  * refusal reached nobody while ensureCswap still reported "upgrading" and the
  * marker was already burned for the day. The version never moved and the deck
- * said it was moving, every launch, forever.
+ * said it was moving, every launch, forever. The upgrade is captured now (#1000)
+ * and a refusal is at least written down — but aiming it correctly is still
+ * this function's job, and a recorded failure is a worse outcome than one that
+ * never had to happen.
  *
  * Two signals, strongest first. The executable the deck actually runs, with its
  * symlinks followed, sitting inside one installer's directory is decisive —
@@ -435,11 +490,20 @@ async function safePythons() {
  * default. Several entries can share an owner — the bundled uv upgrades what
  * the system uv installed and vice versa, since both read UV_TOOL_DIR — so the
  * probe still decides WHICH of an owner's spellings runs.
+ *
+ * The INSTALL line carries a version specifier and the UPGRADE line carries the
+ * bare name, which is not an inconsistency: both installers record what they
+ * were asked for and re-resolve an upgrade against that recorded requirement —
+ * uv in the tool's `uv-receipt.toml`, pipx in `pipx_metadata.json`'s
+ * `package_or_url` — and neither `uv tool upgrade` nor `pipx upgrade` accepts a
+ * specifier in the first place. So the bound set here at install time is the
+ * bound every later upgrade of that install is resolved inside, and the deck
+ * states it once, where it is actually read.
  */
-async function installers() {
+async function installers(spec = RANGE_SPEC) {
   const out = [
-    { cmd: "uv",   probe: ["--version"], args: ["tool", "install", "claude-swap"], upgrade: ["tool", "upgrade", "claude-swap"], via: "uv",   owner: "uv" },
-    { cmd: "pipx", probe: ["--version"], args: ["install", "claude-swap"],         upgrade: ["upgrade", "claude-swap"],         via: "pipx", owner: "pipx" },
+    { cmd: "uv",   probe: ["--version"], args: ["tool", "install", spec], upgrade: ["tool", "upgrade", PKG], via: "uv",   owner: "uv" },
+    { cmd: "pipx", probe: ["--version"], args: ["install", spec],         upgrade: ["upgrade", PKG],         via: "pipx", owner: "pipx" },
   ];
   // A uv fetched on an earlier run counts as installed tooling from here on.
   const own = existingBootstrappedUv();
@@ -447,8 +511,8 @@ async function installers() {
     out.push({
       cmd: own,
       probe: ["--version"],
-      args: ["tool", "install", "claude-swap"],
-      upgrade: ["tool", "upgrade", "claude-swap"],
+      args: ["tool", "install", spec],
+      upgrade: ["tool", "upgrade", PKG],
       via: "uv (bundled)",
       owner: "uv",
     });
@@ -457,8 +521,8 @@ async function installers() {
     out.push({
       cmd: py,
       probe: ["-m", "pipx", "--version"],
-      args: ["-m", "pipx", "install", "claude-swap"],
-      upgrade: ["-m", "pipx", "upgrade", "claude-swap"],
+      args: ["-m", "pipx", "install", spec],
+      upgrade: ["-m", "pipx", "upgrade", PKG],
       via: `${py} -m pipx`,
       owner: "pipx",
     });
@@ -467,11 +531,21 @@ async function installers() {
 }
 
 async function installCswap() {
-  for (const { cmd, probe, args, via } of await installers()) {
+  // What to ask for is decided HERE, before anything is installed, so that what
+  // arrives can be checked against it afterwards — see ensureCswap. When the
+  // registry answers, the deck names one exact version and can then confirm
+  // that exact version came back; when it does not, the range still holds and
+  // the check falls back to the range. The lookup is the same one request the
+  // daily check already makes, bounded at six seconds in front of an install
+  // that takes minutes.
+  const want = await newestAcceptableOnPypi();
+  const spec = want ? `${PKG}==${want}` : RANGE_SPEC;
+
+  for (const { cmd, probe, args, via } of await installers(spec)) {
     if (!(await run(cmd, probe, { timeout: 8_000 })).ok) continue;
     const r = await run(cmd, args, { timeout: INSTALL_TIMEOUT_MS });
-    if (r.ok) return { ok: true, via };
-    return { ok: false, reason: "install_failed", via, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+    if (r.ok) return { ok: true, via, want, spec };
+    return { ok: false, reason: "install_failed", via, spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
   }
 
   // Nothing on the machine can install a Python application. Rather than hand
@@ -480,9 +554,9 @@ async function installCswap() {
   const boot = await bootstrapUv();
   if (!boot.ok) return { ok: false, reason: "no_installer", bootstrap: boot.reason, hint: await installHint() };
 
-  const r = await run(boot.bin, ["tool", "install", "claude-swap"], { timeout: INSTALL_TIMEOUT_MS });
-  if (r.ok) return { ok: true, via: `uv ${boot.version} (fetched)` };
-  return { ok: false, reason: "install_failed", via: "uv (fetched)", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+  const r = await run(boot.bin, ["tool", "install", spec], { timeout: INSTALL_TIMEOUT_MS });
+  if (r.ok) return { ok: true, via: `uv ${boot.version} (fetched)`, want, spec };
+  return { ok: false, reason: "install_failed", via: "uv (fetched)", spec, detail: (r.stderr || r.stdout).trim().slice(0, 300) };
 }
 
 /**
@@ -493,19 +567,38 @@ async function installCswap() {
  * uv is a single self-contained binary and is what claude-swap documents, so
  * that is what gets recommended; if the machine already has Python, pipx via
  * pip is offered instead because it uses something already installed.
+ *
+ * WHAT IS NOT HERE, AND WHY. This used to end in
+ * `curl -LsSf https://astral.sh/uv/install.sh | sh` — and its PowerShell twin
+ * `irm … | iex` — which is the exact command uv-bootstrap.mjs opens by naming
+ * and declining, for the exact reason given there: it executes whatever that
+ * URL happens to serve, with the user's privileges. This string is not
+ * scrollback. It reaches the browser as `hint` on the `no_cswap` roster reply
+ * and renders in the accounts panel as the command to run, and the machines
+ * that see it are disproportionately the ones that set
+ * AGENTS_DECK_NO_DOWNLOAD=1 — the reason the deck could not fetch a verified uv
+ * for them is often that they asked it not to fetch binaries. Handing that user
+ * a shell pipe is the same thing at one remove. A package manager's name is
+ * offered instead: slower to type, and the artifact is one somebody else has
+ * already checked.
  */
 export async function installHint() {
-  const uv = process.platform === "win32"
-    ? 'powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  (then: uv tool install claude-swap)'
-    : "curl -LsSf https://astral.sh/uv/install.sh | sh  (then: uv tool install claude-swap)";
+  const getUv = {
+    darwin: "brew install uv",
+    win32: "winget install --id astral-sh.uv -e",
+  }[process.platform]
+    // No pipe, and no command invented for a distribution that may not carry
+    // one: on Linux uv is packaged by some distributions and not others, so the
+    // honest answer is where to look.
+    || "install uv from your package manager — https://docs.astral.sh/uv/getting-started/installation/";
   for (const py of await safePythons()) {
     if ((await run(py, ["-c", "import sys"], { timeout: 5_000 })).ok) {
       // Quoted: a resolved Windows path routinely contains spaces.
       const q = /\s/.test(py) ? `"${py}"` : py;
-      return `${q} -m pip install --user pipx && ${q} -m pipx install claude-swap`;
+      return `${q} -m pip install --user pipx && ${q} -m pipx install "${RANGE_SPEC}"`;
     }
   }
-  return uv;
+  return `${getUv}  (then: uv tool install "${RANGE_SPEC}")`;
 }
 
 function updateCheckDue() {
@@ -519,37 +612,148 @@ function touchMarker() {
   } catch { /* ignore */ }
 }
 
-/** Newest claude-swap on PyPI, or null if the check fails. */
-async function latestOnPypi() {
+/**
+ * The newest claude-swap on PyPI that this deck would actually install, or null
+ * when the registry cannot be asked.
+ *
+ * "Newest acceptable" and not `info.version`, which is PyPI's own idea of
+ * latest and is bounded by nothing here. Reading that one and then installing
+ * inside a bound is two different questions answered by two different parties,
+ * and the disagreement between them is a daily lie of the kind this file has
+ * already been bitten by twice (#579): the day claude-swap ships 1.0.0, every
+ * deck would see a newer version, fire an upgrade its own specifier forbids,
+ * and print "upgrading to v1.0.0 in background" at every launch, forever, about
+ * a version that can never arrive. So the bound decides what "newest" means,
+ * once, and the upgrade decision and the install target are the same answer.
+ *
+ * Pre-releases are skipped — claude-swap publishes `0.21.0b1` and friends, and
+ * an unattended upgrade is not the place to chase them — as are releases whose
+ * every file has been yanked, which is the author withdrawing them.
+ */
+async function newestAcceptableOnPypi() {
   try {
     const res = await fetch("https://pypi.org/pypi/claude-swap/json", {
       signal: AbortSignal.timeout(6_000),
     });
     if (!res.ok) return null;
-    const v = (await res.json())?.info?.version;
-    return typeof v === "string" ? v : null;
+    const body = await res.json();
+    const releases = body?.releases;
+    const names = releases && typeof releases === "object"
+      ? Object.keys(releases)
+      // A body with no `releases` map still names one version, and it is judged
+      // by exactly the same rule as any other.
+      : (typeof body?.info?.version === "string" ? [body.info.version] : []);
+
+    let best = null;
+    for (const v of names) {
+      if (!/^\d+(\.\d+)*$/.test(v)) continue;          // final releases only
+      if (!isAcceptableVersion(v)) continue;
+      const files = releases?.[v];
+      if (Array.isArray(files) && files.length > 0 && files.every(f => f?.yanked)) continue;
+      if (best === null || isOlder(best, v)) best = v;
+    }
+    return best;
   } catch {
     return null;
   }
 }
 
 /**
- * Upgrade claude-swap in the background when a newer release exists.
+ * What the last background upgrade did, written where a person can read it.
  *
- * Detached and unawaited: an upgrade resolves a Python environment and can
- * take tens of seconds, which is not a thing to put in front of the server
- * starting. The running copy keeps working; the new one is there next launch.
+ * One file, overwritten, holding the last outcome only: this is a record of
+ * what landed on the machine, not a history of the project's releases.
+ */
+const UPGRADE_RECORD = join(homedir(), ".agents-deck", "cswap-upgrade.json");
+
+function recordUpgrade(entry) {
+  try {
+    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true });
+    writeFileSync(UPGRADE_RECORD, JSON.stringify(entry, null, 2) + "\n");
+  } catch { /* a note about an upgrade is not worth failing the upgrade over */ }
+}
+
+let _upgrade = null;
+
+/**
+ * The background upgrade started by the most recent `ensureCswap`, as a promise
+ * that resolves to what was recorded — or null when this run started none.
+ *
+ * Exported for its test rather than for a caller, the way resetCswapBin and
+ * cswapCandidates are: ensureCswap deliberately does not await this, so without
+ * a handle on it the only observable part of an upgrade would once again be the
+ * sentence printed before it happens.
+ */
+export function upgradeSettled() { return _upgrade; }
+
+/**
+ * Upgrade claude-swap in the background when a newer release exists, and find
+ * out what happened.
+ *
+ * STILL UNAWAITED, and that has not changed: an upgrade resolves a Python
+ * environment and can take tens of seconds, which is not a thing to put in
+ * front of the server starting. The running copy keeps working; the new one is
+ * there next launch.
+ *
+ * What changed is that it is no longer spawned BLIND. This was `runDetached`,
+ * which is `stdio: "ignore"` and no exit listener — so the deck fired a command
+ * that replaces the binary holding Claude refresh tokens and then had no way,
+ * ever, to say whether it ran, what it exited with, or which version came back.
+ * The whole announcement was one boot row naming the version being LEFT. A
+ * captured `run` costs nothing the detached one saved — nobody waits for either
+ * — and it buys the three facts worth having: it ran, it exited zero, and the
+ * version now answering is one this deck is willing to drive.
+ *
+ * `INSTALL_TIMEOUT_MS`, not `run`'s 20-second default: this is the same
+ * environment build the install path allows three minutes for, and a 20-second
+ * cap would report a healthy slow upgrade as a killed one.
  *
  * The command line comes from the installer entry rather than from its label,
  * and the ENTRY comes from cswapOwner rather than from whichever tool answers a
- * probe first: runDetached captures nothing, so an upgrade aimed at the wrong
- * tool fails where nobody can see it while the caller still reports
+ * probe first: an upgrade aimed at the wrong tool is refused, and used to be
+ * refused where nobody could see it while the caller still reported
  * "upgrading". Those are the two halves of "aimed at the wrong tool" — a right
  * argv sent to a tool that does not own the package is just as invisible as a
- * wrong argv, and was the longer-lived of the two.
+ * wrong argv, and was the longer-lived of the two. Both are now written down.
  */
-function upgradeInBackground({ cmd, upgrade }) {
-  runDetached(cmd, upgrade);
+function upgradeInBackground({ cmd, upgrade, via }, { from, want }) {
+  _upgrade = (async () => {
+    let entry;
+    try {
+      const r = await run(cmd, upgrade, { timeout: INSTALL_TIMEOUT_MS });
+      // The version read below must be taken AFTER the upgrade, and cswapBin
+      // memoizes the last `--version` it saw for PROBE_FRESH_MS. An upgrade
+      // that finds nothing to do returns in well under those five seconds, so
+      // without this the recorded "to" could be the reading from before the
+      // command ran — the one number this whole function exists to replace.
+      resetCswapBin();
+      const to = await cswapVersion();
+      entry = {
+        from,
+        want: want ?? null,
+        to,
+        at: new Date().toISOString(),
+        via: via ?? null,
+        ok: r.ok && typeof to === "string" && (to === "installed" || isAcceptableVersion(to)),
+        // Why not, when not. An upgrade that exits non-zero and one that lands
+        // a version outside the bound are very different events, and the second
+        // is the one worth a person's attention: the specifier this deck
+        // installs with does not permit it, so something other than that
+        // specifier decided what to install.
+        reason: !r.ok
+          ? "command_failed"
+          : (typeof to === "string" && to !== "installed" && !isAcceptableVersion(to))
+            ? "unexpected_version"
+            : null,
+        detail: r.ok ? null : (r.stderr || r.stdout).trim().slice(0, 300),
+      };
+    } catch (e) {
+      entry = { from, want: want ?? null, to: null, at: new Date().toISOString(), via: via ?? null,
+        ok: false, reason: "threw", detail: String(e?.message ?? e).slice(0, 300) };
+    }
+    recordUpgrade(entry);
+    return entry;
+  })();
 }
 
 /**
@@ -587,6 +791,11 @@ async function findUpgrader(owner) {
  * three minutes to arrive.
  */
 export async function ensureCswap({ onInstalling = null } = {}) {
+  // Whatever a previous call left behind is a previous call's outcome, and
+  // upgradeSettled() answering with it would be the same class of stale reading
+  // resetCswapBin exists to prevent.
+  _upgrade = null;
+
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") {
     const version = await cswapVersion();
     return version ? { state: "present", version } : { state: "skipped" };
@@ -602,17 +811,17 @@ export async function ensureCswap({ onInstalling = null } = {}) {
     // before Wi-Fi associates — burned the whole shared 24-hour window on a
     // check that never reached PyPI, and the next real chance was the day
     // after. self-update.mjs states this rule for itself in as many words.
-    const latest = await latestOnPypi();
+    const latest = await newestAcceptableOnPypi();
     touchMarker();
     if (latest && existing !== "installed" && isOlder(existing, latest)) {
       // Who owns it, not what is installed on the machine: an upgrade aimed at
-      // a tool that never installed this package is refused where runDetached
-      // cannot see it, and "upgrading" would then be a sentence printed daily
-      // about nothing. When nobody offered here owns it, "present" is the whole
-      // truth and is what gets said.
+      // a tool that never installed this package is refused, and "upgrading"
+      // would then be a sentence printed daily about nothing. When nobody
+      // offered here owns it, "present" is the whole truth and is what gets
+      // said.
       const found = await findUpgrader(cswapOwner(await cswapBin()));
       if (found) {
-        upgradeInBackground(found);
+        upgradeInBackground(found, { from: existing, want: latest });
         return { state: "upgrading", version: existing, latest, via: found.via };
       }
     }
@@ -635,7 +844,28 @@ export async function ensureCswap({ onInstalling = null } = {}) {
   // of the shell that launched us — cswapBin looks there directly, so this
   // confirms the install rather than confirming the user's PATH.
   const version = await cswapVersion();
-  return version
-    ? { state: "installed", via: result.via, version }
-    : { state: "unavailable", reason: "not_on_path", via: result.via };
+  if (!version) return { state: "unavailable", reason: "not_on_path", via: result.via };
+
+  // WHAT WAS ASKED FOR IS NOT WHAT ARRIVED. The deck names an exact version
+  // (or, with no registry answer, a range) on the install command line, so a
+  // different one coming back means something other than that specifier chose
+  // it — a local index, a shadowed `cswap` earlier on PATH, a resolver that did
+  // not honour the bound. The next thing this binary is handed is
+  // `cswap export -`, which prints a Claude refresh token to stdout. Refusing
+  // is the cheap half of that trade: the accounts panel stays dark and the boot
+  // row says why, against a copy of the tool the deck cannot account for.
+  //
+  // A version that does not parse at all — `versionIn` answers "installed" —
+  // is deliberately NOT refused. That is an absence of evidence, it is an
+  // outcome this file already treats as ordinary (see the `existing !==
+  // "installed"` guard above), and turning it into a dark panel would trade a
+  // supply-chain risk for a certain outage the day `cswap --version` changes
+  // how it prints.
+  if (version !== "installed") {
+    const wrong = result.want ? !sameVersion(version, result.want) : !isAcceptableVersion(version);
+    if (wrong) {
+      return { state: "unavailable", reason: "unexpected_version", version, want: result.want ?? RANGE_SPEC, via: result.via };
+    }
+  }
+  return { state: "installed", via: result.via, version };
 }
