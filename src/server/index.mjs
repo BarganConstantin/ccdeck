@@ -113,7 +113,51 @@ const MIME = {
 // Both bounds are now enforced on every push, evicting oldest-first until each
 // holds. See the eviction in pushEvent for why it is one splice and why the
 // newest event is never the one evicted.
-export const MAX_BUFFER = 2000;     // recent events kept for late SSE subscribers
+export const MAX_BUFFER = 2000;     // recent HOOK events kept for late SSE subscribers
+
+/**
+ * The enrichment this deck derives rather than receives, where only the newest
+ * one per session has ever been worth anything.
+ *
+ * These four are last-value-wins STATE, not history: a session's model, its
+ * token usage, its context fill and its name. Replaying an older UsageObserved
+ * on top of a newer one changes nothing a reader can see, which is precisely
+ * why they do not deserve a slot in a window measured in events.
+ *
+ * MEASURED, at one hook event per session every 3s — an ordinary tool-call
+ * cadence, well under every documented cap. Four scanners fire per hook event,
+ * throttled at 2.5s, 2.5s and 4s:
+ *
+ *   sessions=10   posted=60    seq_delta=160    amplification=2.67
+ *   sessions=200  posted=2000  seq_delta=5190   amplification=2.60
+ *
+ * Flat, near enough: every hook event costs about 2.6 ring slots. At 200
+ * sessions the 2000-entry ring held
+ * {"PostToolUse":800,"UsageObserved":800,"ContextObserved":400} and spanned
+ * 9.5 SECONDS — 60% of the resume window spent on state that is superseded
+ * moments later. Close the lid, switch networks, or let a tab sleep for fifteen
+ * seconds, and the Last-Event-ID is older than the ring's head: handleSse
+ * replays what is left and the client steps lastSeq over the gap, so the tool
+ * calls made in those seconds are never drawn and nothing reports the hole.
+ *
+ * `OutputObserved` is deliberately NOT here. It says something landed at a
+ * given moment, which is history — two of them are two events, not one value
+ * twice.
+ */
+const LAST_VALUE_WINS = new Set(["ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed"]);
+
+/**
+ * The ring's array-length backstop, distinct from its event budget.
+ *
+ * MAX_BUFFER now counts hook events only, so the array holds those plus
+ * whatever enrichment is interleaved among them — about 2.6x the budget at the
+ * amplification measured above. This is the ceiling for a ratio nobody has
+ * measured yet: a future scanner, or a cadence that makes enrichment denser
+ * still, must not be able to grow the array without bound. It is not the
+ * working limit and should never be the binding one; MAX_BUFFER_CHARS remains
+ * the memory bound.
+ */
+export const MAX_RING_ENTRIES = MAX_BUFFER * 4;
 
 // The byte budget, counted in CHARACTERS — the unit this file already measures
 // payloads in, and the unit MAX_CLIENT_BUFFER_BYTES is really written in
@@ -158,6 +202,21 @@ const events = [];                  // ring buffer
 // clearEventBuffer for the one place that empties both, and what went wrong the
 // day only one of them was emptied.
 let bufferedChars = 0;
+
+/**
+ * How many of the ring's entries are HOOK events — what MAX_BUFFER budgets.
+ *
+ * Third of the trio that has to move with `events`, for the same reason
+ * `bufferedChars` does and with the same consequence if it drifts: a count that
+ * names events the array no longer holds evicts against a budget already spent.
+ * See LAST_VALUE_WINS for what it excludes and why, and clearEventBuffer for
+ * the one place all three are emptied.
+ */
+let bufferedHookEvents = 0;
+
+/** Set on the envelopes MAX_BUFFER does not count, so eviction can decrement
+ *  the right total without re-reading a payload it already charged. */
+const ENRICHMENT = Symbol("ring enrichment");
 
 /**
  * What this payload will cost the ring, charged in characters.
@@ -266,6 +325,7 @@ const CHARS = Symbol("ring charge");
 function clearEventBuffer() {
   events.length = 0;
   bufferedChars = 0;
+  bufferedHookEvents = 0;
 }
 
 /**
@@ -284,6 +344,11 @@ function clearEventBuffer() {
 export function eventBufferStats() {
   return {
     events: events.length,
+    // What MAX_BUFFER budgets since #1032, and the only number a resuming
+    // client's window is actually measured in. `events` minus this is the
+    // enrichment riding along; the ratio between them is the amplification that
+    // used to spend the window — 2.6 measured at every session count tried.
+    hookEvents: bufferedHookEvents,
     chars: bufferedChars,
     oldestSeq: events.length > 0 ? events[0].seq : 0,
     newestSeq: events.length > 0 ? events[events.length - 1].seq : 0,
@@ -2778,11 +2843,46 @@ export function eventsSince(seq) {
 // model of each. SessionEnd is not a usable eviction signal (a killed CLI
 // never sends one, and Codex has no such hook at all), so entries expire by
 // least-recent use against a cap instead — the same shape pruneTranscriptScans
-// already uses for its per-path state. The cap sits far above any plausible
-// number of concurrent sessions, so a live session is never evicted; and an
-// evicted one that speaks again simply re-reads its transcript.
+// already uses for its per-path state.
+//
+// AND A LIVE SESSION IS NEVER EVICTED, which this comment used to assert on the
+// strength of the cap sitting "far above any plausible number of concurrent
+// sessions". The cap held; the claim around it did not, and the 257th
+// concurrent session is where that showed. forgetSession clears the three
+// read-throttle stamps and pruneTranscriptScans drops the byte cursor, so an
+// evicted session that speaks again does not "simply re-read its transcript" —
+// it re-reads it on EVERY event, and those re-reads are themselves pushEvent
+// calls, so the degradation feeds itself. Measured here, fresh deck per row,
+// 16 events per session, 21 KB transcripts:
+//
+//   N=200  posted=3200  synthetic=600   rchar=6 MB   rps=5614  p50=17ms
+//   N=256  posted=4096  synthetic=768   rchar=7 MB   rps=6341  p50=16ms
+//   N=300  posted=4800  synthetic=9159  rchar=77 MB  rps=2308  p50=97ms
+//
+// A 17% increase in session count: 11.9x the derived events, 11x the transcript
+// reads, ingest down 2.7x, p50 up 6x. Three per SESSION became three per EVENT.
+// A cliff, not a slope, sitting exactly on the constant — and the server's cap
+// (256) sits above the client's AGENT_CAP (200), so the UI cannot warn about a
+// number it will not draw.
+//
+// So the cap reaps only what it was always described as reaping: sessions
+// nothing has been heard from. A session with an event inside
+// OUTPUT_WATCH_WINDOW_MS is live by the same definition outputWatchOnce already
+// uses, and keeping it costs four numbers and a string.
 const sessionTouchedAt = new Map();   // sid -> ms of the last event seen
 const MAX_TRACKED_SESSIONS = 256;
+
+/**
+ * The absolute ceiling, above which even a live session is dropped.
+ *
+ * The age rule alone is unbounded in principle — nothing stops a machine from
+ * having ten thousand sessions inside five minutes — and an unbounded map is
+ * the leak this whole mechanism exists to end. This is a backstop, not the
+ * working limit: reaching it means something is wrong in a way no cache policy
+ * fixes, and dropping the least-recently-seen entries is still the least bad
+ * answer. Eight times the cap, which is forty times the client's AGENT_CAP.
+ */
+export const HARD_TRACKED_SESSIONS = MAX_TRACKED_SESSIONS * 8;
 
 /** The transcript watch, and how far back a session stays worth polling.
  *
@@ -2855,9 +2955,17 @@ function touchSession(sid) {
   // Re-insert so the Map's own insertion order *is* the LRU order and eviction
   // below is one key read rather than a scan of every session ever seen.
   sessionTouchedAt.delete(sid);
-  sessionTouchedAt.set(sid, Date.now());
-  while (sessionTouchedAt.size > MAX_TRACKED_SESSIONS) {
-    const oldest = sessionTouchedAt.keys().next().value;
+  const now = Date.now();
+  sessionTouchedAt.set(sid, now);
+  if (sessionTouchedAt.size <= MAX_TRACKED_SESSIONS) return;
+  // Insertion order IS recency, so the first entry still inside the window
+  // proves every entry after it is too, and the loop stops there rather than
+  // scanning. That is what keeps this O(evicted) and not O(sessions) on the hot
+  // path — which matters most in exactly the case that used to be worst.
+  const idleBefore = now - OUTPUT_WATCH_WINDOW_MS;
+  for (const [oldest, at] of sessionTouchedAt) {
+    if (sessionTouchedAt.size <= MAX_TRACKED_SESSIONS) break;
+    if (at >= idleBefore && sessionTouchedAt.size <= HARD_TRACKED_SESSIONS) break;
     sessionTouchedAt.delete(oldest);
     forgetSession(oldest);
   }
@@ -3672,9 +3780,14 @@ function pushEvent(raw, source, opts = {}) {
     // Charged AFTER redactDeckToken, like everything else in this function: the
     // payload being measured is the one that will be stored.
     [CHARS]: ENVELOPE_CHARS + payloadChars(raw),
+    // Decided once, here, beside the charge and for the same reason: eviction
+    // must never have to look at a payload again to know what it is giving
+    // back. See LAST_VALUE_WINS.
+    [ENRICHMENT]: raw != null && typeof raw === "object" && LAST_VALUE_WINS.has(raw.hook_event_name),
   };
   events.push(evt);
   bufferedChars += evt[CHARS];
+  if (!evt[ENRICHMENT]) bufferedHookEvents++;
 
   // Evict oldest-first until BOTH bounds hold — the count that has always been
   // here, and the byte budget #625 added. See MAX_BUFFER_CHARS for the numbers.
@@ -3704,16 +3817,33 @@ function pushEvent(raw, source, opts = {}) {
   // The difference worth knowing is that the head can now move in jumps rather
   // than one entry at a time; resumeSse's per-pass snapshot is what makes that
   // safe for a replay already in flight.
+  //
+  // THE COUNT BOUND IS HOOK EVENTS, NOT ENTRIES (#1032). It was entries, and
+  // the deck pushes about 1.6 derived events per hook event — so the window
+  // this ring IS shrank with the session count, to 9.5 measured seconds at 200
+  // sessions. Counting only what a user actually did restores a 2,000-event
+  // window at any number of sessions, and costs the array room for the
+  // enrichment interleaved among them, which MAX_RING_ENTRIES and
+  // MAX_BUFFER_CHARS both still bound.
+  //
+  // Enrichment falls off the head exactly as it always did — no entry is
+  // skipped, held back or reordered, and the ring stays contiguous in seq.
+  // What changed is only which entries the budget is spent on.
   let drop = 0;
   let freed = 0;
+  let freedHookEvents = 0;
   while (drop < events.length - 1
-    && (events.length - drop > MAX_BUFFER || bufferedChars - freed > MAX_BUFFER_CHARS)) {
+    && (bufferedHookEvents - freedHookEvents > MAX_BUFFER
+      || events.length - drop > MAX_RING_ENTRIES
+      || bufferedChars - freed > MAX_BUFFER_CHARS)) {
     freed += events[drop][CHARS];
+    if (!events[drop][ENRICHMENT]) freedHookEvents++;
     drop++;
   }
   if (drop > 0) {
     events.splice(0, drop);
     bufferedChars -= freed;
+    bufferedHookEvents -= freedHookEvents;
   }
 
   // Does this event reach the log at all? Not on a replay (it came from
