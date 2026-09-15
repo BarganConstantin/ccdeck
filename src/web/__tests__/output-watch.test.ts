@@ -13,6 +13,7 @@
 // split across two ticks. None of those are hypothetical — a transcript is
 // appended to by another process the whole time this runs.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { blockKindOf, blockTimeOf, blocksIn, createOutputWatch } from "../../server/output-watch.mjs";
 
 const T0 = Date.parse("2026-09-12T19:04:40.038Z");
@@ -308,5 +309,84 @@ describe("the watch across ticks", () => {
     w.note("", "/t.jsonl");
     w.note("s1", "");
     expect(w.size()).toBe(0);
+  });
+});
+
+describe("a tick that starts before the last one finished (#1089)", () => {
+  /** The fake file system, with its FIRST read held until the test lets it go
+   *  and a signal the moment it is being held. That is the exact interleave the
+   *  issue measured: the first tick has taken its offset and not yet written
+   *  the new one back. Timed ticks would only find it on a slow enough disk. */
+  function heldFirstRead() {
+    const fs = fakeFs();
+    let letGo!: () => void;
+    const held = new Promise<void>(r => { letGo = r; });
+    let entered!: () => void;
+    const inside = new Promise<void>(r => { entered = r; });
+    let reads = 0;
+    const io = {
+      stat: fs.io.stat,
+      async open(path: string) {
+        const h = await fs.io.open(path);
+        return {
+          async read(buf: Buffer, off: number, len: number, pos: number) {
+            if (reads++ === 0) { entered(); await held; }
+            return h.read(buf, off, len, pos);
+          },
+          close: h.close,
+        };
+      },
+    };
+    return { fs, io, inside, letGo };
+  }
+
+  it("reports the block once, not once per tick", async () => {
+    const { fs, io, inside, letGo } = heldFirstRead();
+    fs.put("/t.jsonl", "");
+    const w = createOutputWatch(io);
+    w.note("s1", "/t.jsonl");
+    await w.poll(["s1"]);                                  // first sight: the end
+    fs.append("/t.jsonl", rec("text", T0) + "\n");
+
+    const first = w.poll(["s1"]);
+    await inside;
+    const second = await w.poll(["s1"]);
+    letGo();
+    const reported = [...(await first), ...second];
+    // Two here is two OutputObserved for one block, persisted, and drawn onto
+    // the activity chart again after every restart.
+    expect(reported).toEqual([{ sid: "s1", kind: "text", at: T0 }]);
+  });
+
+  it("lets the next tick in once the first is done, and loses nothing that landed meanwhile", async () => {
+    const { fs, io, inside, letGo } = heldFirstRead();
+    fs.put("/t.jsonl", "");
+    const w = createOutputWatch(io);
+    w.note("s1", "/t.jsonl");
+    await w.poll(["s1"]);
+    fs.append("/t.jsonl", rec("text", T0) + "\n");
+
+    const first = w.poll(["s1"]);
+    await inside;
+    // Lands while the first tick is still reading, past the size it stat'ed.
+    fs.append("/t.jsonl", rec("thinking", T0 + 1000) + "\n");
+    expect(await w.poll(["s1"])).toEqual([]);
+    letGo();
+    expect(await first).toEqual([{ sid: "s1", kind: "text", at: T0 }]);
+    expect(await w.poll(["s1"])).toEqual([{ sid: "s1", kind: "thinking", at: T0 + 1000 }]);
+  });
+});
+
+describe("what the watch remembers about a file (#1089)", () => {
+  it("keeps no size of its own, because every decision is made from the stat it just took", () => {
+    // An absence, so it can only be read off the source. `entry.size` was
+    // written on four paths through a tick and read on none: every truncation
+    // and ceiling test compares the size `stat` just returned against the
+    // offset, and the map never leaves the closure, so nothing outside could
+    // have been reading it either. A field like that invites the next change to
+    // trust it, and it was never kept in step with anything.
+    const src = readFileSync(new URL("../../server/output-watch.mjs", import.meta.url), "utf8");
+    expect(src).not.toMatch(/entry\.size\b/);
+    expect(src).not.toMatch(/size:\s*null/);
   });
 });

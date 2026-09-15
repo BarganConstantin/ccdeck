@@ -3106,7 +3106,11 @@ let outputWatchTicks = 0;
  *  Resting sessions ride along on every RECAP_WATCH_EVERY-th tick for their
  *  recap alone, and their blocks are not reported: this answers for the
  *  sessions it calls live, and a resting one that starts working again fires a
- *  hook first, which makes it live the ordinary way. */
+ *  hook first, which makes it live the ordinary way.
+ *
+ *  A tick that starts while the last one is still reading gets nothing back:
+ *  the watch refuses the overlap itself, where the offset is — see `poll` in
+ *  output-watch.mjs for what two overlapping ticks used to report (#1089). */
 async function outputWatchOnce() {
   const now = Date.now();
   const cutoff = now - OUTPUT_WATCH_WINDOW_MS;

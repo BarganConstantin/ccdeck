@@ -120,8 +120,11 @@ export function blocksIn(chunk) {
 export function createOutputWatch(io = {}) {
   const statFile = io.stat ?? (p => stat(p));
   const openFile = io.open ?? (p => open(p, "r"));
-  /** sid -> { path, offset, size } — where this session's file is and how far
-   *  into it the watch has already looked. */
+  /** sid -> { path, offset } — where this session's file is and how far into it
+   *  the watch has already looked. No size beside them: every decision in
+   *  `pollOnce` is made from the size its own `stat` just returned, and the one
+   *  that used to be remembered here was written four times and read by
+   *  nothing (#1089). */
   const seen = new Map();
 
   /** Remember where a session's transcript is. Called for every hook payload
@@ -135,7 +138,7 @@ export function createOutputWatch(io = {}) {
     // Start at the END of a file the watch has not seen before. Everything
     // already in it happened before the deck looked, and replaying it would
     // report a morning's thinking as having just occurred.
-    seen.set(sid, { path, offset: null, size: null });
+    seen.set(sid, { path, offset: null });
   }
 
   function forget(sid) { seen.delete(sid); }
@@ -160,7 +163,7 @@ export function createOutputWatch(io = {}) {
    * a filter: nothing it does changes the blocks returned, and a throw inside
    * it stops at the tap rather than at the watch.
    */
-  async function poll(liveSids, onLines) {
+  async function pollOnce(liveSids, onLines) {
     const out = [];
     for (const sid of liveSids) {
       const entry = seen.get(sid);
@@ -170,15 +173,15 @@ export function createOutputWatch(io = {}) {
       const size = Number(st?.size ?? 0);
       // First sight: record where the end is and report nothing. The file's
       // whole history is older than this deck's interest in it.
-      if (entry.offset == null) { entry.offset = size; entry.size = size; continue; }
+      if (entry.offset == null) { entry.offset = size; continue; }
       // TRUNCATED OR REPLACED. A file that is now shorter than the byte this
       // watch was going to read from is not the file it was reading; seeking to
       // the old offset would return whatever now lives there. Start again at
       // the new end rather than guessing which bytes are which.
-      if (size < entry.offset) { entry.offset = size; entry.size = size; continue; }
+      if (size < entry.offset) { entry.offset = size; continue; }
       if (size === entry.offset) continue;
       // Past the ceiling, skip to the end. See MAX_TAIL_BYTES.
-      if (size - entry.offset > MAX_TAIL_BYTES) { entry.offset = size; entry.size = size; continue; }
+      if (size - entry.offset > MAX_TAIL_BYTES) { entry.offset = size; continue; }
 
       const from = entry.offset;
       const want = size - from;
@@ -194,7 +197,6 @@ export function createOutputWatch(io = {}) {
         const dec = new StringDecoder("utf8");
         text = dec.write(buf.subarray(0, Math.max(0, bytesRead))) + dec.end();
         entry.offset = from + Math.max(0, bytesRead);
-        entry.size = size;
       } catch {
         continue;
       } finally {
@@ -226,6 +228,45 @@ export function createOutputWatch(io = {}) {
       }
     }
     return out;
+  }
+
+  /** Whether a call is inside `pollOnce` right now. */
+  let polling = false;
+
+  /**
+   * `pollOnce`, one call at a time (#1089).
+   *
+   * A session's offset is read at the top of `pollOnce` and written back only
+   * after the `stat`, the `open` and the `read` it waits on, so a second call
+   * that enters while the first is inside any of them reads the same offset,
+   * reads the same bytes and answers with the same blocks — and the server
+   * pushes an OutputObserved for each copy. Measured through this module's own
+   * `io` seam, with the interleave exact rather than timed: one block appended,
+   * two overlapping ticks, two events. They are persisted, so the double count
+   * lands in events.jsonl and is drawn onto the activity chart again after
+   * every restart. The server ticks this off a 1500ms setInterval, which does
+   * not wait for the last tick to finish, and a tick that outruns 1500ms needs
+   * nothing more unusual than several live sessions on a slow or
+   * network-backed transcript directory.
+   *
+   * Its two siblings in index.mjs already refused re-entry: codexScanOnce with
+   * a boolean, scanTranscript by handing a second caller the read already in
+   * flight. The second shape is wrong here — a caller handed the same answer
+   * would push the same blocks again — so this is the boolean. An overlapping
+   * call answers with nothing and the call already inside answers for both.
+   * Nothing is lost by it: whatever lands meanwhile is past the offset the
+   * first call writes back, and the next tick reads it. It sits here rather
+   * than in outputWatchOnce because this is where the offset lives, and where
+   * the suite can drive the overlap without a clock.
+   */
+  async function poll(liveSids, onLines) {
+    if (polling) return [];
+    polling = true;
+    try {
+      return await pollOnce(liveSids, onLines);
+    } finally {
+      polling = false;
+    }
   }
 
   return { note, forget, clear, size, poll };
