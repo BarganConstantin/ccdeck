@@ -690,6 +690,59 @@ export function hasCodexInstalled() {
 }
 
 /**
+ * Whether an older deck's Codex forwarders are still in hooks.json, found
+ * without touching the file: `{ settingsPath, count }` when they are, null when
+ * they are not or when the file cannot be read.
+ *
+ * #253 stopped installing Codex hooks and #317 deleted the recipe, but a
+ * machine that ran a deck from before either still has up to nine marked
+ * entries in $CODEX_HOME/hooks.json, each pointing at a copy of the forwarder
+ * that is still on disk. Wherever Codex honours that file, every one of them
+ * posts to `/api/event` — which takes a post without a token — while the
+ * rollout watcher reads the same session off disk, so the session is ingested
+ * twice: both copies reach the event ring and events.jsonl, and only the ones
+ * that land inside the reducer's redelivery windows are folded on the card.
+ * uninstallHooks takes them out, and `--uninstall` is its only caller; nothing
+ * else ever looked (#983).
+ *
+ * READ ONLY, and that is the decision rather than an oversight. This runs on
+ * every boot, and a boot writes nothing under the Codex directory — bin/deck.js
+ * says so where it decides whether to watch Codex at all. The one retirement a
+ * boot does perform on another tool's file, the finish-sound hook above, rides
+ * on a write of Claude Code's settings.json that the boot was making anyway,
+ * and installHooks says that riding along is what makes it safe: one write,
+ * compared against the bytes just read, converging on every later boot. A sweep
+ * of hooks.json would have none of that. It would be the deck's first
+ * unasked-for write to a file it no longer manages, made on every machine that
+ * has Codex, to cure a condition only upgraded machines have. So this finds
+ * them, the banner names them with the command that removes them, and the user
+ * decides — the shape `--uninstall` already gives the LAN key: named, not
+ * removed, unless somebody asked.
+ *
+ * A file that cannot be read answers null rather than throwing. The boot must
+ * not die over a Codex file, and "your hooks are in there" said of a file
+ * nobody could parse would be a guess; `--uninstall` reports that case itself,
+ * out loud, when it is run.
+ */
+export async function leftoverCodexHooks() {
+  const settingsPath = PROVIDERS.codex.settingsPath;
+  let settings;
+  try {
+    ({ settings } = await readSettingsForWrite(settingsPath));
+  } catch {
+    return null;
+  }
+  const hooks = settings?.hooks;
+  if (!hooks || typeof hooks !== "object") return null;
+  let count = 0;
+  for (const group of Object.values(hooks)) {
+    if (!Array.isArray(group)) continue;
+    for (const g of group) if (isOurEntry(g)) count++;
+  }
+  return count > 0 ? { settingsPath, count } : null;
+}
+
+/**
  * The events log as the record spells it: an absolute path, or null when this
  * deck writes none. Shared by the writer and by ensureDiscovery's comparison,
  * so a file this process wrote can never read back as somebody else's.
