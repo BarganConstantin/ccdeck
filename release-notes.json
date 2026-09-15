@@ -29,7 +29,42 @@
     "a colour glyph is drawn edge to edge inside its advance and one word space",
     "after one reads as none. A second space here would be a lie in the data",
     "about a defect in the type, and the suite refuses both it and no space at",
-    "all."
+    "all.",
+    "",
+    "A release that genuinely has nothing to say is spelled TWICE: no key here,",
+    "and its version written into \"//nothing-to-say\" below. One spelling on its",
+    "own is ambiguous — a missing key reads the same whether it was a decision",
+    "or a forgotten step, and five releases in a row were once forgotten. The list",
+    "is what tells the two apart, and release-notes-current-version.test.ts fails",
+    "the release whose version is in neither place. Any key opening with // is a",
+    "note to the author and never a release."
+  ],
+  "//nothing-to-say": [],
+  "3.22.15": [
+    {
+      "title": "🖱️ Clicking a card opens its details",
+      "body": "Selecting an agent is inspecting it: a click, `j`/`k`, a session picked from the list and Enter on a focused card all open the detail panel — prompt, every tool call, tokens, timing. It used to open only with `D`, so anybody who closed it with its × and never found the key did not get it back. The × still closes it until the next selection, and `D` still toggles it.\n\n`D` with nothing selected now picks a card first — the session that has waited longest, or the one `j` would land on — instead of flipping a switch with nothing on screen to show for it."
+    },
+    {
+      "title": "⌨️ The keyboard and screen readers reach the whole deck",
+      "body": "Shortcuts keep working after a mouse click on a button. A click left focus on the button it pressed, and the key handler leaves a focused control its own keys, so every single-key shortcut was dead until you pressed Esc — with nothing on screen to say so.\n\nTab follows the page now — topbar, the accounts column, the canvas, usage, machine — instead of zig-zagging left and right across it, and a canvas card reached by Tab draws the focus ring. A screen reader hears each card by name, with its kind, state, model and cost, rather than every word on it run together; the machine panel has a heading its region is named by; and the theme button is named for the theme it switches to.\n\nWith **Reduce motion** set, the camera no longer flies across the canvas to a card."
+    },
+    {
+      "title": "💵 The money figures say what they measure",
+      "body": "The usage header's **$/min** is spend over a trailing window, and says which span it measured: `$3.54/min · 2 min`. It used to divide the live agents' cost by how long the longest of them had been running, so one deck read $2.39/min in a tab left open and $19.49/min in a tab opened minutes later.\n\nA quota bar's pace says **over pace** or **under pace**. It said `ahead`, which is how plain English says winning, on the very line meant to warn you that you are burning the window faster than it lasts.\n\nA card's clock reads `≥ 53m 52s` for a session this page joined after it had started, instead of presenting the part it saw as the whole of it — and that card's per-minute burn is left out rather than divided by the short clock."
+    },
+    {
+      "title": "↔️ Narrow windows keep every topbar control on screen",
+      "body": "At 400px six of the topbar's buttons sat past the right edge and the page scrolled sideways. The readouts give way first now and the controls stay; below 640px the side panels span the window instead of leaving the canvas a sliver; and the category filter wraps inside the canvas rather than being clipped by it.\n\nZoomed out, a card's name and a cluster's label stay readable instead of shrinking to about four pixels — which is the view a board of any size actually sits at."
+    },
+    {
+      "title": "🔑 A paired deck's dialog says which account that machine is on",
+      "body": "The lane of the account the other machine is working on takes the accent and a slow ring on that machine's end. An account is named only if that deck shares it: on one it does not share, the dialog reads \"on another account\" and never which. A new switch under **SHARE THESE ACCOUNTS**, on by default, turns the telling off, and paired decks then read \"current account hidden\".\n\n**This deck on the network** prints this deck's own fingerprint again. A pairing request asks you to match it against the one on the other machine's screen, and no screen here was showing it — so the one check a person can make against a rogue deck could not be made, on the step that hands over logins."
+    },
+    {
+      "title": "💬 The deck's messages send you somewhere worth going",
+      "body": "An empty canvas no longer ends with \"Make sure ccdeck is running\" while the page is plainly connected to it. The capture hints under that line, one per CLI, are the real reasons a canvas stays empty, and they stay. With the stream down the screen says whether this page lost a deck that was there or never found one, in those words, rather than naming the `/events` route nobody who typed `npx ccdeck` has seen.\n\nAnd a slow `claude-swap` now reads as a slow answer — \"still waiting on the deck server\" — instead of \"couldn't reach the deck server\", which sent people off to restart a server that was fine."
+    }
   ],
   "3.22.10": [
     {

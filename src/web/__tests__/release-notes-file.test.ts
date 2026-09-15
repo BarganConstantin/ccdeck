@@ -30,9 +30,13 @@ const pkg = JSON.parse(readFileSync(at("../../../package.json"), "utf8")) as {
   files: string[];
 };
 
-/** Every key that is meant to be a release — everything except the block the
- *  file carries its own instructions in. */
-const versionKeys = Object.keys(raw).filter(k => k !== "//");
+/** Every key that is meant to be a release — everything except the notes the
+ *  file carries to its own author. There are two of those now: `"//"`, the
+ *  instructions, and `"//nothing-to-say"`, the list that spells a deliberate
+ *  silence (#963). They are excluded by the `//` prefix rather than by name, so
+ *  that a third one cannot land here as a release with a malformed version —
+ *  which is the same rule `readNotes` applies, since neither is a version. */
+const versionKeys = Object.keys(raw).filter(k => !k.startsWith("//"));
 
 describe("the shape of release-notes.json", () => {
   it("keys every entry by a version, so none is quietly dropped", () => {
