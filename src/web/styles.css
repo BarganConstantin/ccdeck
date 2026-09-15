@@ -2587,6 +2587,38 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   overflow: hidden;
 }
 
+/* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
+   filter bar above and the controls and minimap in the corners, with the way
+   back in the same pill. A solid slab like the filter bar, so it reads over
+   whatever is drawn under it; the control edge and the press every labelled
+   control takes. Centred by auto margins, not a translate, so the press owns
+   the transform on its own. */
+.autofit-chip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 6;
+  width: max-content;
+  margin: 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.autofit-chip b { color: var(--accent); font-weight: 600; }
+.autofit-chip:hover { border-color: var(--accent); }
+.autofit-chip:active { transform: scale(0.97); }
+
 /* Filter chips above the canvas — small toolbar lets you toggle entire
    tool categories on/off when the canvas gets busy. Only appears when
    ≥2 categories are present, so a single-tool session stays uncluttered. */
@@ -8703,6 +8735,7 @@ button.ap-err::after {
   button.ap-err:active, button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
+  .autofit-chip:active,
   .bw-ep-head:active,
   /* The usage panel's one section that opens. Its chevron turns as well, and a
      rotation is the motion this block exists for — `transform: none` reaches

@@ -2486,30 +2486,27 @@ function Inner() {
   }), []);
   // Sticky "user took the wheel" flag. Once the user manually pans, zooms,
   // or drags a node, autofitting is suspended until they hit the recenter
-  // button. Persisted so a refresh respects the user's preference.
+  // button, or the chip the canvas shows while it is off.
+  //
+  // NOT PERSISTED (#820). It was, "so a refresh respects the user's
+  // preference", and what that bought was a pan from some earlier day still in
+  // force across every reload after it: new sessions landing off to one side
+  // of a mostly empty canvas that said nothing about why, the only sign a tint
+  // on a 14px crosshair. A pan is a decision about this look at the board, not
+  // a setting, so every load starts with the canvas fitting again. The key
+  // older builds wrote is cleared once, below, so it stops meaning anything.
   const AUTOFIT_KEY = "agent-dag.autoFitDisabled";
-  // Read once, in a `useState` initialiser. As the `useRef` argument this
-  // immediately-invoked function ran on every render (#612) — a third
-  // `localStorage.getItem` on the render path, beside the layout and the
-  // dismissed recaps — to answer a question only the first render asks. The ref
-  // and the state both start from that one read; the ref is what the callbacks
-  // and the interval below poll, the state is what renders.
-  const autoFitStored = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.localStorage.getItem(AUTOFIT_KEY) === "1"; } catch { return false; }
-  })[0];
-  const autoFitDisabledRef = useRef(autoFitStored);
-  const [autoFitDisabled, setAutoFitDisabled] = useState<boolean>(autoFitStored);
+  const autoFitDisabledRef = useRef(false);
+  const [autoFitDisabled, setAutoFitDisabled] = useState(false);
+  useEffect(() => { try { window.localStorage.removeItem(AUTOFIT_KEY); } catch {} }, []);
   const disableAutoFit = useCallback(() => {
     if (autoFitDisabledRef.current) return;
     autoFitDisabledRef.current = true;
     setAutoFitDisabled(true);
-    try { window.localStorage.setItem(AUTOFIT_KEY, "1"); } catch {}
   }, []);
   const enableAutoFitAndRefit = useCallback(() => {
     autoFitDisabledRef.current = false;
     setAutoFitDisabled(false);
-    try { window.localStorage.removeItem(AUTOFIT_KEY); } catch {}
     fitLeft(400);
   }, [rf, fitLeft]);
   useEffect(() => {
@@ -5068,6 +5065,20 @@ function Inner() {
             now={now}
             onOpenTool={setOpenedToolId}
           />
+          {/* The state the recenter tint used to be the only sign of (#820).
+              While the reader's own pan or zoom holds the view, new sessions
+              can land off-screen; this says so on the canvas they would be
+              looked for on, with the way back in the same place. */}
+          {autoFitDisabled && (
+            <button
+              type="button"
+              className="autofit-chip"
+              onClick={enableAutoFitAndRefit}
+              title="New sessions are not brought into view while you are moving it yourself"
+            >
+              Auto-fit off <span aria-hidden>·</span> <b>Resume</b>
+            </button>
+          )}
           {/* No React Flow fit-view button (#840). Recenter below does the same
               fit and also turns autofit back on, so two near-identical buttons
               sat side by side and the reader had to guess the difference. F
