@@ -661,7 +661,30 @@ export function createEngine({
     return all;
   };
 
-  /** The round in flight, or null. See `round` below. */
+  /**
+   * Where every round waits its turn — the whole list, or one deck from its own
+   * dialog — so that whichever is running is running alone. `round` and
+   * `roundOne` are the only two ways in, and both come through here.
+   *
+   * A LINE RATHER THAN A FLAG, because the two ways in want different things
+   * from what is already running and both have to end up behind it. A round
+   * asked for during a check cannot join it — a check asks one deck, and a
+   * round was asked to ask all of them — so it waits. A check asked for during
+   * a round can often join it, and sometimes cannot. Both need somewhere to
+   * stand that is after whatever is in flight, and this is it.
+   *
+   * The tail never rejects: `roundWith` reports a failure per peer instead of
+   * throwing, and anything else is swallowed here rather than left to stop
+   * every turn after it. The caller of the turn that threw still hears it.
+   */
+  let _turn = Promise.resolve();
+  const inTurn = job => {
+    const run = _turn.then(job);
+    _turn = run.then(() => {}, () => {});
+    return run;
+  };
+
+  /** The whole round in flight or waiting its turn, or null. See `round` below. */
   let _round = null;
 
   /**
@@ -680,8 +703,17 @@ export function createEngine({
    * caller that got `[]` for "a round is already running" would report "nothing
    * to sync" about a round that was at that moment moving a credential. This is
    * the shape `codexScanOnce` and ccusage's `_inflight` already use.
+   *
+   * THERE WAS A THIRD WAY IN, and it did not come through here (#1132). The
+   * `check now` in a deck's own dialog reaches `roundOne`, which called
+   * `roundWith` straight — so a press landing on the timer's round dialled the
+   * deck that round was already healing from, and the far side exported the
+   * same login twice for one account that needed repairing once. Both now take
+   * their turn in one line, above. A round joins only another whole round,
+   * never a check: joining a check would answer "ask every deck" with one
+   * deck's work and leave the rest waiting another minute.
    */
-  const round = () => (_round ??= oneRound().finally(() => { _round = null; }));
+  const round = () => (_round ??= inTurn(oneRound).finally(() => { _round = null; }));
 
   return {
     async apply(next) {
@@ -1018,13 +1050,49 @@ export function createEngine({
      *
      * `roundAt` is left alone: it says when EVERY paired deck was last asked,
      * and asking one of them does not make that true.
+     *
+     * IN TURN, LIKE EVERY ROUND (#1132). This called `roundWith` straight, past
+     * the guard `round` keeps, and a press during the timer's round dialled the
+     * deck that round was mid-way through healing from: the far side exported
+     * `[5, 5]` and this side imported twice. fillEmptySlot's verdict inside the
+     * lock limited what the second write could do on the forced path; it did
+     * not stop the dial, the export, or a second write behind one verdict.
+     *
+     * WHAT IS ALREADY RUNNING IS THE ANSWER, WHEN IT HAS ONE. The press waits
+     * for everything ahead of it, and if an ask of this deck finished in that
+     * time — the round was dialling it when the press landed, or reached it
+     * after — that ask was the check, and its result is returned instead of
+     * asking again. A second ask would be a second dial for nothing, and it
+     * would also be WORSE for the person who pressed. The dialog does not read
+     * this list: it redraws from `lastRound`, where a login that moved says
+     * "arrived last round". An ask after a heal finds that login healthy —
+     * importAccount drops the accounts cache, so the next read is claude-swap's
+     * — moves nothing, and writes that over the record. The lane repaired from
+     * this very deck a moment ago would stop saying so, in answer to the press
+     * that asked about it.
+     *
+     * AND ONLY THEN. When nothing that ran asked this deck after the press — the
+     * round had been past it already, or never had it on its list, as with a
+     * deck first heard mid-round — joining would be a check that checked
+     * nothing. So it asks this deck itself, in its turn, behind whatever was
+     * ahead of it and never beside it. Told apart by the record, not the clock:
+     * every ask writes a new one, so the same object before and after means
+     * nothing here asked this deck since the press. Keyed by the ROW, because
+     * that is what roundWith writes under, and a typed row's `fp` is the
+     * placeholder built from its address rather than the fingerprint asked for.
      */
     async roundOne(fp) {
       if (!beacon || typeof fp !== "string" || !fp) return null;
       const heard = [...beacon.peers.values()].find(p => p.fp === fp && stillListed(p, now()));
       const typed = [...manual.values()].find(p => learned.get(`${p.addr}:${p.port}`)?.fp === fp);
       const peer = heard ?? typed;
-      return peer ? roundWith(peer) : null;
+      if (!peer) return null;
+      const had = lastRound.get(peer.fp);
+      await _turn;
+      const got = lastRound.get(peer.fp);
+      if (got && got !== had) return got.done ?? [];
+      // A deck switched off while the press waited is not dialled after all.
+      return inTurn(() => (beacon ? roundWith(peer) : []));
     },
     /** Dial this address on every round from now on. Returns false for an
      *  address that is not one, rather than storing a row that can never
