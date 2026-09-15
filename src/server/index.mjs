@@ -2024,8 +2024,9 @@ function maybeResolveCodexMemory(sid, cwd, persist) {
 // than a second computation of the same rule, is what makes the printed path and
 // the tailed path unable to disagree.
 export { CODEX_SESSIONS_DIR };
-// sid -> the rollout's path, or null once a walk of the whole tree came back
-// without one. See findCodexRolloutPath for why a miss is kept (#992).
+// sid -> the rollout's path, or, once a walk of the whole tree came back without
+// one, the moment that walk began. See findCodexRolloutPath for why a miss is
+// kept (#992), and why only for CODEX_MISS_TTL_MS (#1134).
 const codexRolloutPathBySid = new Map();
 const lastCodexUsageReadAt = new Map();
 const pendingCodexUsageReads = new Set();
@@ -2033,6 +2034,9 @@ const CODEX_READ_THROTTLE_MS = 2500;
 // How many of the newest day directories a lookup reads when it is not owed
 // the whole tree: the bound listRecentCodexRollouts keeps for the watcher.
 const CODEX_RECENT_DAY_DIRS = 2;
+// How long a miss from the whole tree is believed before its id is owed one
+// more walk of it. See findCodexRolloutPath for why ten minutes.
+const CODEX_MISS_TTL_MS = 10 * 60 * 1000;
 // True while one lookup is walking the whole tree. One at a time; see below.
 let codexWholeTreeWalk = false;
 
@@ -2059,17 +2063,41 @@ let codexWholeTreeWalk = false;
  * directories. Bounding the first walk the way the watcher's listing is bounded
  * would find neither, and their usage would never show.
  *
- * A MISS FROM THE WHOLE TREE IS KEPT, as null, and every later lookup for that
- * id reads only the newest two day directories. Those are the only place a
- * rollout written after the walk can land, because Codex names a file for the
- * moment it creates it, and they are the bound listRecentCodexRollouts already
- * trusts for live sessions. So a hook that fires a moment before its rollout is
- * on disk is still answered on a later pass, and an id nothing will ever carry
- * costs about five readdirs a pass instead of the whole history. One caveat:
- * walkRolloutDays swallows every error it meets, so a walk that could not read
- * a directory still counts as having looked there. That is the one way a wrong
- * miss gets kept, and it costs one session its usage until forgetSession or a
- * restart clears the entry.
+ * A MISS FROM THE WHOLE TREE IS KEPT, as the moment that walk began, and every
+ * later lookup for that id reads only the newest two day directories. Those are
+ * the only place a rollout written after the walk can land, because Codex names
+ * a file for the moment it creates it, and they are the bound
+ * listRecentCodexRollouts already trusts for live sessions. So a hook that
+ * fires a moment before its rollout is on disk is still answered on a later
+ * pass, and an id nothing will ever carry costs about five readdirs a pass
+ * instead of the whole history. One caveat: walkRolloutDays swallows every
+ * error it meets, so a walk that could not read a directory still counts as
+ * having looked there. That is the one way a wrong miss gets kept.
+ *
+ * BUT NOT FOREVER (#1134). The newest two directories are where a rollout
+ * written after the walk lands, and they do not stay the newest two. A session
+ * whose first hook fired before its rollout existed, and whose next hook came
+ * after two newer day directories had appeared — a `codex resume` two days
+ * later — had its rollout in the third-newest directory, behind a miss that
+ * only forgetSession or a restart would ever clear. Its usage never showed,
+ * where the tree before #1111 found it; codex-kept-miss-expires-1134.test.ts
+ * has the measurement.
+ *
+ * So a kept miss is believed for CODEX_MISS_TTL_MS, and the first lookup after
+ * that is owed one more whole walk, on the same one-at-a-time terms as the
+ * first. Ten minutes closes the hole outright. A rollout drops out of the newest
+ * two directories only once two later calendar days have begun, which is never
+ * less than about a day after it was written (23 hours across a DST change), so
+ * by then every miss that could be hiding it has expired and the next lookup
+ * walks to it. It also keeps #992 fixed: an id nothing carries walks the whole
+ * tree once in ten minutes where it used to walk it every 2.5-second throttle
+ * window, 240 times as often, and reads its five directories in between. And
+ * the caveat above now costs a session ten minutes of usage rather than the
+ * rest of the process's life. It is the same ten minutes CODEX_STATE_TTL_MS
+ * keeps a rollout's cursor for, the other bound on this side that leans on the
+ * two-directory window. A clock that has gone backwards leaves a miss's age
+ * unknown, and such a miss is treated as expired: it costs one walk, where
+ * believing it would reopen the hole for however far the clock went back.
  *
  * AND ONE WHOLE-TREE WALK AT A TIME. Keeping the miss handles an id that comes
  * back; it does nothing for a caller that sends a new one every time. So a
@@ -2079,13 +2107,17 @@ let codexWholeTreeWalk = false;
  * readdirs each, not one walk each, all at once.
  *
  * The map is bounded as it was: forgetSession evicts it with every other
- * per-session cache, and a null is smaller than the path it stands in for.
+ * per-session cache, and a number is smaller than the path it stands in for.
  */
 async function findCodexRolloutPath(sid) {
   const cached = codexRolloutPathBySid.get(sid);
-  if (cached) return cached;
-  // Owed the whole tree: never looked for yet, and nobody else is walking it.
-  const whole = !codexRolloutPathBySid.has(sid) && !codexWholeTreeWalk;
+  if (typeof cached === "string") return cached;
+  // Owed the whole tree: never looked for yet, or the whole tree's last miss is
+  // no longer believed — and nobody else is walking it.
+  const startedAt = Date.now();
+  const age = typeof cached === "number" ? startedAt - cached : -1;
+  const missHolds = age >= 0 && age < CODEX_MISS_TTL_MS;
+  const whole = !missHolds && !codexWholeTreeWalk;
   if (whole) codexWholeTreeWalk = true;
   // Walk year → month → day → files, newest first. Codex includes the sid in the
   // filename (rollout-...-<sid>.jsonl) so a directory-scoped match is enough.
@@ -2106,9 +2138,11 @@ async function findCodexRolloutPath(sid) {
     if (whole) codexWholeTreeWalk = false;
   }
   // A hit is kept, as it always was. A miss is kept only when it is the whole
-  // tree's answer: a miss in the newest two directories says nothing about the
-  // rest of them.
-  if (found || whole) codexRolloutPathBySid.set(sid, found);
+  // tree's answer — a miss in the newest two directories says nothing about the
+  // rest of them — and it is kept as the moment that walk began, which is when
+  // it read the directories a rollout written since would be in.
+  if (found) codexRolloutPathBySid.set(sid, found);
+  else if (whole) codexRolloutPathBySid.set(sid, startedAt);
   return found;
 }
 
@@ -6614,10 +6648,10 @@ function originMatchesHost(origin, host) {
 // $CODEX_HOME/sessions. A miss was never kept, so every id no rollout carries
 // walked the whole history again on every throttled pass, and a burst of fresh
 // ids walked it once each, all at once. What bounds it now is
-// findCodexRolloutPath: at most one walk of the whole tree per id, never two in
-// flight, and every other lookup reads the newest two day directories. A caller
-// with an endless supply of fresh ids can keep that one walk busy; it cannot
-// make it two.
+// findCodexRolloutPath: at most one walk of the whole tree per id in any
+// CODEX_MISS_TTL_MS, never two in flight, and every other lookup reads the
+// newest two day directories. A caller with an endless supply of fresh ids can
+// keep that one walk busy; it cannot make it two.
 //
 // So the claim above holds again, with its scope written out: the worst a
 // caller does with this route is draw a session on the canvas that is not
