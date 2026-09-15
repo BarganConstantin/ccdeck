@@ -130,8 +130,25 @@ ${vars}
  */
 export function unitFor({ execPath, script, logPath, args = [], env = {}, product = "ccdeck" } = {}) {
   const cmd = [execPath, script, ...args].map(a => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
+  // QUOTED, AND `%` ESCAPED. systemd.exec(5) splits an Environment= assignment
+  // on whitespace unless the whole thing is double-quoted, and it expands `%`
+  // specifiers in the value. ExecStart above quotes its own arguments; this
+  // line did neither, so a scope directory with a space in it was truncated at
+  // the space. Handed to systemd itself:
+  //
+  //   $ systemd-analyze verify ccdeck.service
+  //   ccdeck.service:6: Invalid environment assignment, ignoring: Configs/.claude
+  //
+  // from `Environment=CLAUDE_CONFIG_DIR=/home/ana/My Configs/.claude`. The deck
+  // then received `/home/ana/My` — neither the shell's value nor the default,
+  // which is the two-registries outcome scopeEnv's own header describes: "two
+  // decks and two LAN keys on one machine". `%b` is the boot-ID specifier, so
+  // `/home/ana/100%backup` was rewritten just as quietly.
+  //
+  // The macOS branch was always safe: plistFor puts each value in its own
+  // <string> and XML-escapes it. Windows carries none of them.
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
-    .map(([k, v]) => `Environment=${k}=${v}`).join("\n");
+    .map(([k, v]) => `Environment="${k}=${String(v).replace(/%/g, "%%")}"`).join("\n");
   return `[Unit]
 Description=${product} — live deck of Claude Code + Codex agents
 After=default.target
@@ -359,9 +376,19 @@ export function installService({
   // shell that installed it: launchd hands the job a minimal environment,
   // systemd --user the same. That is right in production — the deck should see
   // the user's real home — and it is exactly what makes a login item impossible
-  // to test in a sandbox without this parameter. The end-to-end test passes
-  // HOME and the deck's own directories through here; nothing else does.
-  serviceEnv = {},
+  // to test in a sandbox without this parameter.
+  //
+  // DEFAULTED, NOT LEFT TO EACH CALLER TO REMEMBER. The scope directories
+  // belong in every login item this deck writes, and two of the three callers
+  // did not pass them: `--install` and `--install-service` wrote an item keyed
+  // to the default registries while the shell that typed them was keyed to
+  // CLAUDE_CONFIG_DIR — the two-decks-on-one-machine split scopeEnv's own
+  // header describes, arrived at from the two entry points whose whole purpose
+  // is to install. Only the first-start offer carried them. A caller that
+  // genuinely wants a different job environment — the sandboxed end-to-end
+  // test, which passes HOME and the deck's own directories — still says so,
+  // and replaces this outright rather than adding to it.
+  serviceEnv = scopeEnv(env),
   product = "ccdeck",
   fs = { mkdirSync, writeFileSync },
   run = spawnSync,

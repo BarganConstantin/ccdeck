@@ -1507,9 +1507,6 @@ if (!RESPAWN) {
         script: join(PKG_ROOT, "bin", "agent-dag.js"),
         logPath: join(deckLogDir(), "deck.log"),
         product: PRODUCT,
-        // The directories that decide WHICH deck this is, so the one started at
-        // login is the one started from this shell — see scopeEnv.
-        serviceEnv: svc.scopeEnv(process.env),
       });
       svc.writeServiceRecord(deckDataDir(), out.ok
         ? { installed: PKG_VERSION, at: new Date().toISOString(), path: out.path }

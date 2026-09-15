@@ -104,13 +104,34 @@ describe("the systemd unit", () => {
     // which child is the deck.
     const unit = unitFor(JOB);
     expect(unit).toContain("Type=simple");
-    expect(unit).toContain("Environment=AGENTS_DECK_DETACHED=1");
+    expect(unit).toContain('Environment="AGENTS_DECK_DETACHED=1"');
     expect(unit).not.toContain("Type=forking");
   });
 
   it("quotes a path with a space in it", () => {
     expect(unitFor({ ...JOB, script: "/opt/cc deck/bin/agent-dag.js" }))
       .toContain('ExecStart=/usr/bin/node "/opt/cc deck/bin/agent-dag.js" --no-open');
+  });
+
+  it("quotes an environment value too, and escapes the specifier character", () => {
+    // ExecStart quoted its arguments and the Environment= lines did neither.
+    // systemd.exec(5) splits an assignment on whitespace unless the whole
+    // assignment is double-quoted, and expands `%` specifiers in the value.
+    // Handed to systemd itself, before the fix:
+    //
+    //   $ systemd-analyze verify ccdeck.service
+    //   ccdeck.service:6: Invalid environment assignment, ignoring: Configs/.claude
+    //
+    // and the deck was started with CLAUDE_CONFIG_DIR=/home/ana/My — neither
+    // the shell's value nor the default, so the terminal and the login item
+    // ran two decks over two registries. `%b` is the boot ID, so a home with
+    // `100%backup` in it was rewritten just as quietly.
+    const unit = unitFor({
+      ...JOB,
+      env: { CLAUDE_CONFIG_DIR: "/home/ana/My Configs/.claude", CODEX_HOME: "/home/ana/100%backup" },
+    });
+    expect(unit).toContain('Environment="CLAUDE_CONFIG_DIR=/home/ana/My Configs/.claude"');
+    expect(unit).toContain('Environment="CODEX_HOME=/home/ana/100%%backup"');
   });
 
   it("appends rather than truncating, since deck.log is shared", () => {
