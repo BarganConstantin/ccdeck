@@ -2024,26 +2024,91 @@ function maybeResolveCodexMemory(sid, cwd, persist) {
 // than a second computation of the same rule, is what makes the printed path and
 // the tailed path unable to disagree.
 export { CODEX_SESSIONS_DIR };
+// sid -> the rollout's path, or null once a walk of the whole tree came back
+// without one. See findCodexRolloutPath for why a miss is kept (#992).
 const codexRolloutPathBySid = new Map();
 const lastCodexUsageReadAt = new Map();
 const pendingCodexUsageReads = new Set();
 const CODEX_READ_THROTTLE_MS = 2500;
+// How many of the newest day directories a lookup reads when it is not owed
+// the whole tree: the bound listRecentCodexRollouts keeps for the watcher.
+const CODEX_RECENT_DAY_DIRS = 2;
+// True while one lookup is walking the whole tree. One at a time; see below.
+let codexWholeTreeWalk = false;
 
+/**
+ * Where is this session's rollout, if it is anywhere under this tree?
+ *
+ * WHAT WAS WRONG (#992). A hit was kept and a miss was not, and the walk that
+ * answers a miss is the whole tree: one readdir per year, per month and per day
+ * under $CODEX_HOME/sessions, which only a hit ends early. So an id with no
+ * rollout here paid for that walk again on every pass maybeResolveCodex's
+ * 2.5-second throttle let through, for as long as its hooks kept firing. A Codex
+ * hook left over from an older install, for a session whose rollout lives
+ * under another CODEX_HOME, is enough. The id also arrives on `/api/event`,
+ * which takes no credential and throttles per id, so a local process could post
+ * a few hundred fresh ids and have every one of them walk every directory at
+ * once. Both were measured in codex-unresolved-session-walk-992.test.ts, over a
+ * tree holding one year of history. The same unresolvable id, posted twice one
+ * throttle window apart, read all 37 of that year's directories both times, and
+ * six fresh ids posted together had six walks of it in flight at once.
+ *
+ * THE FIRST LOOKUP STILL WALKS THE WHOLE TREE, newest first, as it always did.
+ * A session resumed from last month appends to last month's rollout, and one
+ * that has been running for three days has dropped out of the newest two
+ * directories. Bounding the first walk the way the watcher's listing is bounded
+ * would find neither, and their usage would never show.
+ *
+ * A MISS FROM THE WHOLE TREE IS KEPT, as null, and every later lookup for that
+ * id reads only the newest two day directories. Those are the only place a
+ * rollout written after the walk can land, because Codex names a file for the
+ * moment it creates it, and they are the bound listRecentCodexRollouts already
+ * trusts for live sessions. So a hook that fires a moment before its rollout is
+ * on disk is still answered on a later pass, and an id nothing will ever carry
+ * costs about five readdirs a pass instead of the whole history. One caveat:
+ * walkRolloutDays swallows every error it meets, so a walk that could not read
+ * a directory still counts as having looked there. That is the one way a wrong
+ * miss gets kept, and it costs one session its usage until forgetSession or a
+ * restart clears the entry.
+ *
+ * AND ONE WHOLE-TREE WALK AT A TIME. Keeping the miss handles an id that comes
+ * back; it does nothing for a caller that sends a new one every time. So a
+ * lookup that is owed the whole tree while another lookup is walking it reads
+ * the newest two directories instead, keeps nothing, and gets its full walk on
+ * a later pass. A burst of fresh ids costs one walk of the history plus a few
+ * readdirs each, not one walk each, all at once.
+ *
+ * The map is bounded as it was: forgetSession evicts it with every other
+ * per-session cache, and a null is smaller than the path it stands in for.
+ */
 async function findCodexRolloutPath(sid) {
   const cached = codexRolloutPathBySid.get(sid);
   if (cached) return cached;
+  // Owed the whole tree: never looked for yet, and nobody else is walking it.
+  const whole = !codexRolloutPathBySid.has(sid) && !codexWholeTreeWalk;
+  if (whole) codexWholeTreeWalk = true;
   // Walk year → month → day → files, newest first. Codex includes the sid in the
   // filename (rollout-...-<sid>.jsonl) so a directory-scoped match is enough.
   // The walk itself lives in codex-dir.mjs, shared with the watcher's listing
   // below and with codex-usage.mjs, so all three read one tree the same way.
   let found = null;
-  await walkRolloutDays((dayDir, files) => {
-    const hit = files.find(f => f.includes(sid) && f.endsWith(".jsonl"));
-    if (!hit) return;
-    found = join(dayDir, hit);
-    return STOP;
-  });
-  if (found) codexRolloutPathBySid.set(sid, found);
+  let dayDirs = 0;
+  try {
+    await walkRolloutDays((dayDir, files) => {
+      const hit = files.find(f => f.includes(sid) && f.endsWith(".jsonl"));
+      if (hit) {
+        found = join(dayDir, hit);
+        return STOP;
+      }
+      if (!whole && ++dayDirs >= CODEX_RECENT_DAY_DIRS) return STOP;
+    });
+  } finally {
+    if (whole) codexWholeTreeWalk = false;
+  }
+  // A hit is kept, as it always was. A miss is kept only when it is the whole
+  // tree's answer: a miss in the newest two directories says nothing about the
+  // rest of them.
+  if (found || whole) codexRolloutPathBySid.set(sid, found);
   return found;
 }
 
@@ -6282,6 +6347,17 @@ function originMatchesHost(origin, host) {
 // MAX_SCAN_CHUNK means no single read allocates more than 8 MiB whatever it is
 // pointed at; MAX_SCAN_BYTES_PER_PASS means no single POST walks more than 256
 // MiB of a file.
+//
+// #992 is the same question asked of the Codex half of this route, which the
+// paragraph above never covered. A `provider: "codex"` event carries a
+// `session_id` and no path, and the deck looks that id up by walking
+// $CODEX_HOME/sessions. A miss was never kept, so every id no rollout carries
+// walked the whole history again on every throttled pass, and a burst of fresh
+// ids walked it once each, all at once. What bounds it now is
+// findCodexRolloutPath: at most one walk of the whole tree per id, never two in
+// flight, and every other lookup reads the newest two day directories. A caller
+// with an endless supply of fresh ids can keep that one walk busy; it cannot
+// make it two.
 //
 // So the claim above holds again, with its scope written out: the worst a
 // caller does with this route is draw a session on the canvas that is not
