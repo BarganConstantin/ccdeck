@@ -402,7 +402,7 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
     process.exit(0);
   }
   const { canonicalLogPath } = await import(pathToFileURL(join(PKG_ROOT, "src/server/log-writer.mjs")).href);
-  const { hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
+  const { hasCodexInstalled, codexHomeField } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
   const { hasClaudeInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-dir.mjs")).href);
   const { liveDecks, sameShape } = await import(pathToFileURL(join(PKG_ROOT, "src/server/running-deck.mjs")).href);
 
@@ -417,6 +417,12 @@ if (flags.stop || flags.status || flags.logs || flags.install || flags.installSe
     codex: hasCodexInstalled(),
     claude: hasClaudeInstalled(),
   };
+  // And the Codex tree, the one field of a start's shape that is not a flag. A
+  // bare start has passed it since #1123 and replaces a deck on another tree, so
+  // without it here every tree matched, and `--status` could mark as "opens this
+  // one" exactly the deck the next `ccdeck` stops (#1134). Worked out by the
+  // function the start and the discovery record use, so all three agree.
+  mine.codexHome = codexHomeField(mine.codex);
 
   // ── --logs ────────────────────────────────────────────────────────────────
   // What the deck wrote where a terminal would have shown it. Printed RAW,

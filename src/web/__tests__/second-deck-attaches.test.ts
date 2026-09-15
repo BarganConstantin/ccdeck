@@ -225,9 +225,19 @@ describe("the deck found must be the deck we would have built", () => {
     expect(sameShape(onHome, wantTree("/srv/codex"))).toBe(false);
     expect(secondStart({ live: [onHome], want: wantTree("/srv/codex"), ours: OURS }).act).toBe("replace");
     // Either side silent keeps today's answer: a record written before #1110
-    // cannot say, and `--stop`'s selector names no tree at all.
+    // cannot say, and a selector that names no tree matches any tree.
     expect(sameShape(rec(), wantTree("/srv/codex"))).toBe(true);
     expect(sameShape(onHome, WANT)).toBe(true);
+  });
+
+  it("marks in --status the deck a bare start would open, Codex tree included", () => {
+    // #1134: `--status` built its "`ccdeck` opens this one" selector from the four
+    // flags alone, so every tree matched it. Once the start began passing its tree
+    // (the case above), the marker could name the very deck the next `ccdeck`
+    // replaces. The selector now carries the tree, worked out the start's way.
+    expect(DECK).toMatch(/mine\.codexHome = codexHomeField\(mine\.codex\);/);
+    const selector = DECK.slice(DECK.indexOf("const mine = {"), DECK.indexOf("const opens = decks.find"));
+    expect(selector).toContain("codexHomeField(");
   });
 
   it("is asked with the tree this start would read, spelled the way the record spells it", () => {
