@@ -25,7 +25,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
-import { isLoginOver, loginEndNotice, shouldPollLogin, type LoginServerState } from "../login-flow";
+import { isLoginOver, loginEndNotice, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
 import { explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
@@ -40,6 +40,11 @@ type LoginState = {
   error: string | null;
   account: { num: string | null; email: string; added: boolean } | null;
   expiresAt: number | null;
+  /** Whether the account the user was working in went back in front after the
+   *  sign-in moved the machine onto the new one, and — when it did not — which
+   *  account the machine is actually signed in as. See restoreWarning (#951). */
+  restored?: boolean;
+  activeAccount?: ActiveAccount | null;
 };
 
 type Props = {
@@ -300,6 +305,9 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
   }, [onChanged]);
 
   const done = login?.state === "done" ? login.account : null;
+  // The success screen's qualification: the account was added, and the machine
+  // did not go back to the one it was on. Null on every ordinary sign-in.
+  const restoreNote = restoreWarning({ restored: login?.restored, activeAccount: login?.activeAccount });
   // A sign-in that is over without having succeeded: the server's own "failed",
   // or the "idle" it reports once it no longer holds the flow at all. Both end
   // the same way — no spinner, no poll, and a sentence that says which of the
@@ -376,9 +384,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                 <p className="aa-note">
                   <strong>{done.email}</strong>
                   {done.added
-                    ? " is in the rotation. The account you were using is still active."
+                    // The second half of this sentence is a CLAIM about the
+                    // machine, and it is only the deck's to make when the
+                    // server says the switch back actually took (#951).
+                    ? (restoreNote ? " is in the rotation." : " is in the rotation. The account you were using is still active.")
                     : " was already managed, so its stored credentials were replaced."}
                 </p>
+                {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
                 <button type="button" className="btn primary" onClick={onClose}>Done</button>
               </div>
             ) : login?.state === "awaiting_code" || login?.state === "registering" ? (

@@ -68,3 +68,42 @@ export function loginEndNotice(
     message: localError || serverError || (vanished ? LOGIN_VANISHED : LOGIN_FAILED),
   };
 }
+
+/** Which account the machine ended up signed in as, when it is not the one the
+ *  user was working in. `email` is `""` for a slot the store holds no address
+ *  for, which readStore treats as a real state rather than as missing. */
+export type ActiveAccount = { num: string | null; email: string | null };
+
+/**
+ * The sentence for a sign-in that added the account but left the MACHINE on it.
+ *
+ * `cswap add` moves the live Claude login onto whatever it just added, and the
+ * server's `restoreActive` moves it back. When that does not work — the stored
+ * refresh token for the old slot is dead, or the switch timed out — the account
+ * really was added and the sign-in really did succeed, so "Sign-in failed"
+ * would be wrong. What is wrong is the success screen's own closing line: it
+ * said "The account you were using is still active" unconditionally, which on
+ * this path is the exact opposite of what happened, printed over a machine
+ * whose every running Claude Code session had just changed account (#951).
+ *
+ * So this is a qualification on a success, not a failure, and it returns null
+ * for every other case — including `restored` absent, which is what the poll
+ * sees on `awaiting_code` and `registering`. A warning that appeared during an
+ * ordinary sign-in would be trained straight past by the time it mattered.
+ *
+ * The ADDRESS is what makes it actionable: the accounts panel lists accounts by
+ * address, so naming one points the user at a row to switch back from. The slot
+ * number is the fallback for a store with no address, and the general sentence
+ * the fallback for no slot either — both of which still beat silence, because
+ * the thing the user must not do is close this dialog believing nothing moved.
+ */
+export function restoreWarning(
+  { restored, activeAccount }:
+  { restored?: boolean | null; activeAccount?: ActiveAccount | null },
+): string | null {
+  if (restored !== false) return null;
+  const who = activeAccount?.email || (activeAccount?.num != null ? `account ${activeAccount.num}` : null);
+  return who
+    ? `This machine is now signed in as ${who} — the account you were using could not be put back. Switch back from the accounts panel.`
+    : "The account you were using could not be put back — check which account this machine is signed in as from the accounts panel.";
+}
