@@ -649,10 +649,35 @@ export async function autoStatus() {
 
 // ── per-account rotation flag ──────────────────────────────────────────────
 
-/** Hold an account out of auto-rotation, or return it. */
+/** Hold an account out of auto-rotation, or return it.
+ *
+ *  UNDER THE MUTEX AND FOLLOWED BY AN INVALIDATION, like the nine other
+ *  mutations of claude-swap's store, and this was the one that was neither.
+ *
+ *  `cswap enable/disable` writes `accounts[N].disabled` in sequence.json, which
+ *  is the field the roster reads at claude-accounts.mjs:734 — so it is the
+ *  read-modify-write cswap-admin.mjs opens by explaining is why every mutation
+ *  goes through one mutex.
+ *
+ *  And the missing invalidation is what made the press look like a no-op. The
+ *  panel polls every 15s and each poll stamps `_lastReadAt`, so that stamp is
+ *  never more than 15s old. The press then reloads with ?refresh=1, and a
+ *  forced read needs `now - _lastReadAt >= FORCE_POLL_MS` (60s) — a quantity
+ *  that can never be reached while the panel is open. The read was refused
+ *  every time and `heldReading` handed back the pre-press roster: the chip did
+ *  not move, the button still said "hold out", and nothing had failed.
+ *  invalidateClaudeAccountsCache sets `_lastReadAt = 0`, which is what makes
+ *  the following forced read real work — the invalidator's own docblock says
+ *  so, and calls a floor that answers ?refresh=1 with the stale roster "the
+ *  guard being the bug". */
 export async function setAccountEnabled(accountNum, enabled) {
   const num = Number(accountNum);
   if (!Number.isInteger(num) || num < 1 || num > 999) return { ok: false, reason: "bad_account" };
-  const r = await run(await cswapBin(), [enabled ? "enable" : "disable", String(num)]);
-  return r.ok ? { ok: true } : { ok: false, reason: "command_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+  const { withStoreLock } = await import("./cswap-admin.mjs");
+  return withStoreLock(async () => {
+    const r = await run(await cswapBin(), [enabled ? "enable" : "disable", String(num)]);
+    if (!r.ok) return { ok: false, reason: "command_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };
+    invalidateClaudeAccountsCache();
+    return { ok: true };
+  });
 }

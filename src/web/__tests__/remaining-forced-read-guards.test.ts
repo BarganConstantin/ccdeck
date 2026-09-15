@@ -78,10 +78,11 @@
 // running the suite; and the store is seeded with nothing due, so nothing here
 // can spawn a `cswap` on a machine that happens to have one installed.
 import { describe, it, expect, afterAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // The filesystem, counted — one roster read is exactly two of these, sequence
 // .json and cache/usage.json. `hold` is how a case keeps a read open across an
@@ -524,6 +525,46 @@ describe("mayReadAccounts, the rule on its own", () => {
     expect(mayReadAccounts({ now, force: false, lastReadAt: now - 4_999 })).toBe(false);
     // Nothing has been read in this process, so the first read goes.
     expect(mayReadAccounts({ now, force: true, lastReadAt: 0 })).toBe(true);
+  });
+
+  it("refuses every forced read the panel can make, which is why a mutation must invalidate", async () => {
+    const { mayReadAccounts } = await freshAccountsModule();
+    // The arithmetic that turned a press into a no-op. AccountsPanel polls
+    // every 15s and each poll that passes stamps `_lastReadAt`, so while the
+    // panel is open that stamp is never older than POLL_MS. A forced read
+    // needs FLOOR_MS (60s). 15_000 >= 60_000 is false for every value the
+    // panel can produce, so `?refresh=1` is refused EVERY time and
+    // `heldReading` hands back the pre-press roster.
+    const POLL_MS = 15_000;      // AccountsPanel.tsx:94
+    const now = 10_000_000;
+    for (let age = 0; age <= POLL_MS; age += 1_000) {
+      expect(mayReadAccounts({ now, force: true, lastReadAt: now - age }), `age ${age}ms`).toBe(false);
+    }
+    // invalidateClaudeAccountsCache sets _lastReadAt = 0, which is the ONLY
+    // thing that gets a press past the floor. Every mutation of the store owes
+    // this call; setAccountEnabled was the one that did not make it.
+    expect(mayReadAccounts({ now, force: true, lastReadAt: 0 })).toBe(true);
+  });
+});
+
+describe("every mutation of the store pays the two costs a mutation owes", () => {
+  // The floor above is only safe because a mutation clears the stamp. A
+  // mutation that does not is indistinguishable from a press that did nothing.
+  const src = readFileSync(
+    fileURLToPath(new URL("../../server/cswap-auto.mjs", import.meta.url)), "utf8");
+
+  it("setAccountEnabled invalidates the roster, so the reload after the press is real work", () => {
+    const fn = src.slice(src.indexOf("export async function setAccountEnabled"));
+    const body = fn.slice(0, fn.indexOf("\n}\n") + 2);
+    expect(body).toContain("invalidateClaudeAccountsCache()");
+  });
+
+  it("and takes the store mutex, because enable/disable is a read-modify-write of sequence.json", () => {
+    const fn = src.slice(src.indexOf("export async function setAccountEnabled"));
+    const body = fn.slice(0, fn.indexOf("\n}\n") + 2);
+    expect(body).toContain("withStoreLock");
+    // The run must be INSIDE the lock, not beside it.
+    expect(body.indexOf("withStoreLock")).toBeLessThan(body.indexOf("cswapBin()"));
   });
 });
 
