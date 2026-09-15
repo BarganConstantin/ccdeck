@@ -143,6 +143,13 @@ export const GATES = [
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
+  // #1002's two mode assertions, the same shape as codex-auth-temp-collision's
+  // above and for the same reason: they read POSIX permission bits off a real
+  // file — the quarantined prefs.json, and the temp file the private key is
+  // staged in — and Windows has none to read. Everything else in that file,
+  // including every assertion about what is kept and what refuses to write,
+  // runs on all three legs.
+  { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // #673's end-to-end block. Creating a FILE symlink on Windows needs
   // SeCreateSymbolicLinkPrivilege, so the seven cases that make one, run a

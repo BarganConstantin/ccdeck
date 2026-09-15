@@ -153,15 +153,15 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the thirty-five platform-gated cases to skip on Windows, file by file", () => {
-    // Twenty-six behind `process.platform === "win32"`, eight behind the posix
+  it("expects the thirty-seven platform-gated cases to skip on Windows, file by file", () => {
+    // Twenty-eight behind `process.platform === "win32"`, eight behind the posix
     // runIf family, and sound-hook-park's read-only-directory case, whose probe
     // reports false on Windows because chmod there toggles a read-only bit that
     // does not stop a write into the directory. Written out per file rather
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 35,
+      total: 37,
       byFile: {
         "codex-auth-rename-retry.test.ts": 1,
         "codex-auth-temp-collision.test.ts": 3,
@@ -169,6 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
         "no-shell-hook-commands.test.ts": 2,
+        "prefs-corrupt-1002.test.ts": 2,
         "relay-guard.test.ts": 6,
         "settings-atomic-write.test.ts": 1,
         "settings-symlink-target.test.ts": 7,
@@ -354,7 +355,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(16);
+    expect(win32Sites).toBe(18);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

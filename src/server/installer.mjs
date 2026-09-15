@@ -909,4 +909,9 @@ export { AGENT_DAG_DIR, CLAUDE_DIR, CODEX_DIR };
 // repo for the same reasons settings.json is, and "never rename onto a link" is
 // one rule: codex-auth.mjs called a realpath of its own before this existed, and
 // two spellings of a rule are two things that can drift.
-export { readSettingsForWrite, writeFileAtomic, renameWithRetry, createTemp, resolveWriteTarget };
+// `stripBom` goes out on the same argument at the smallest scale. deck-prefs.mjs
+// now moves an unparseable prefs.json aside instead of writing defaults over it,
+// and "a BOM is not damage" has to be the same sentence in both files or a
+// Notepad-saved prefs.json gets quarantined for a mark the settings reader has
+// ignored since it was written.
+export { readSettingsForWrite, writeFileAtomic, renameWithRetry, createTemp, resolveWriteTarget, stripBom };
