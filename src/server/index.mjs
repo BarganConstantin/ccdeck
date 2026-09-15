@@ -3620,6 +3620,9 @@ export async function awayUpdateTick({ graceMs = AWAY_BOOT_GRACE_MS } = {}) {
   if (presence.looking(again) || activity.busy(again) || _restarting) return null;
   _awayTry = { target: step.target, at: again };
   if (step.act === "install") {
+    // Pinned before npm is spawned, never after it — see PINNED_MODULES. On a
+    // deck bin/deck.js has marked ready this is a promise that settled long ago.
+    await pinRunningBuild();
     su.startUpgrade({ pkgRoot: PKG_ROOT });
     return step.act;
   }
@@ -5185,6 +5188,11 @@ async function handleUpgrade(_req, res) {
   const { startUpgrade } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/self-update.mjs")).href
   );
+  // Every module this process will ever load, loaded BEFORE npm starts
+  // rewriting the tree they come from — see PINNED_MODULES. On a deck that has
+  // finished booting this settled long ago; it only waits for a press that
+  // lands in the first moments of a boot, or on a server nothing marked ready.
+  await pinRunningBuild();
   const out = startUpgrade({ pkgRoot: PKG_ROOT });
   send(res, out.ok ? 200 : 409, out);
 }
@@ -5285,9 +5293,18 @@ export function releaseRestart() {
  *
  *  Only /api/restart reads it, and only to answer honestly. Nothing is refused
  *  on the strength of it: the restart is still handed to the launcher, which
- *  holds it until it can run it (#448). */
+ *  holds it until it can run it (#448).
+ *
+ *  IT IS ALSO WHERE THE BUILD IS PINNED (#1042) — see PINNED_MODULES. After the
+ *  boot, so the laziness still keeps that work off the path to the socket; and
+ *  before anything can replace the tree, because `npm i -g` typed in a terminal
+ *  rewrites it exactly as startUpgrade's does, and the drift path then leaves
+ *  this process serving until an idle moment just the same. The promise is
+ *  handed back for the test that has to know when the pin has landed;
+ *  bin/deck.js has no reason to wait for it, and it never rejects. */
 export function markDeckReady() {
   _deckReady = true;
+  return pinRunningBuild();
 }
 
 /**
@@ -5659,6 +5676,84 @@ async function handleClaudeAccountAdmin(req, res) {
 
 function cswapAutoModule() {
   return import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-auto.mjs")).href);
+}
+
+/**
+ * Every server module this process reaches only through `import()`, and so
+ * reads off disk the first time it is wanted rather than at boot.
+ *
+ * THAT IS WHAT A SELF-UPDATE BROKE (#1042). Node caches an evaluated module by
+ * its URL for the life of the process, so everything already loaded keeps the
+ * code it booted with — which is the whole of why startUpgrade can leave this
+ * process serving and let the drift path restart it at an idle moment. A module
+ * NOT yet loaded had no such protection: PKG_ROOT is a fixed path, and
+ * `npm i -g` rewrites the tree under it. So the first look at the accounts panel
+ * after an install evaluated the NEW cswap-admin.mjs beside the OLD
+ * claude-accounts.mjs and exec.mjs — a mixed build nobody has ever run — and
+ * while npm was mid-reify the same `import()` found no file at all, which
+ * lan-engine's roundWith catches and files as that PEER's failed round: a
+ * credential sync that did not happen, recorded against the other machine
+ * rather than against the install. The window is not short. The idle
+ * restart waits on presence and activity, and with autoUpdate off it never
+ * comes.
+ *
+ * Reproduced with the tree swap done in a temp copy of the package: after
+ * `POST /api/upgrade`, every one of /api/codex-usage, /api/codex-quota,
+ * /api/browser-watch and /api/claude-accounts/login answered 500, and each one
+ * had evaluated a module out of the tree npm had just written.
+ *
+ * So the build is pinned instead. Each module below is imported once, after
+ * the boot (markDeckReady) and before any install can start (handleUpgrade and
+ * awayUpdateTick both await it), and every lazy import in this file is a cache
+ * hit from then on; their own static imports come with them. Measured, the
+ * whole list costs about 10ms and 8MB of RSS, and none of it does any work at
+ * import — nothing is spawned, read or written — so the laziness still does
+ * what it was for, which is keeping all of this off the path between
+ * `npx ccdeck` and a listening socket.
+ *
+ * The list is every local module that an `import()` in src/server names, and
+ * self-update-pins-build.test.ts reads the directory to keep it that way: a lazy
+ * import added later without a line here is this bug again.
+ */
+const PINNED_MODULES = [
+  "self-update.mjs",
+  "claude-accounts.mjs",
+  "cswap-admin.mjs",
+  "cswap-auto.mjs",
+  "quota.mjs",
+  "codex-usage.mjs",
+  "codex-quota.mjs",
+  "ccusage.mjs",
+  "browser-watch.mjs",
+  "browser-watch-store.mjs",
+  // system-metrics.mjs's two, on the platforms that have them, and the one
+  // installer.mjs reaches for while it rewrites the hooks.
+  "macmon.mjs",
+  "hwmonitor.mjs",
+  "retire-sound-hook.mjs",
+];
+
+let _pinned = null;
+
+/**
+ * Load every module in PINNED_MODULES, once per process.
+ *
+ * One at a time rather than all together. It costs nothing measurable, and it
+ * means no two of them are ever evaluating at once — the shape that turned an
+ * import cycle into an empty namespace (see boot-module-graph.test.ts).
+ *
+ * A module that fails to load is passed over rather than allowed to stop the
+ * rest: waiting will not make it load, and one bad file must not leave the
+ * others to be read off whatever npm writes next. The promise never rejects.
+ */
+export function pinRunningBuild() {
+  _pinned ??= (async () => {
+    for (const name of PINNED_MODULES) {
+      try { await import(pathToFileURL(join(PKG_ROOT, "src/server", name)).href); }
+      catch { /* see above */ }
+    }
+  })();
+  return _pinned;
 }
 
 async function handleCswapAuto(req, res) {
