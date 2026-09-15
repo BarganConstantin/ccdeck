@@ -783,7 +783,27 @@ function bump(state: GraphState, changed: boolean): boolean {
   return changed;
 }
 
-export function pruneOldAgents(state: GraphState, now: number, cap: number, graceMs: number): boolean {
+/** Told which sessions left the board entirely, so somebody can say so.
+ *
+ *  BOTH PRUNERS TAKE IT, and they take the same one (#1024). The server keeps
+ *  two caches that gate an emit on "has this changed" — `nameBySession` and
+ *  `modelBySession` — and `handleClear`'s comment states the rule they live
+ *  under: "anything answering 'has this changed' has to appear in BOTH places
+ *  that mean the client no longer has it". There was a third place, and it is
+ *  here: a session pruned out of `state.agents` is a session this page has
+ *  forgotten, and the server has no way to know it. So it is told, and
+ *  `forgetSession` on the other end drops the signature and the read stamps,
+ *  and the session's name arrives again on its next event.
+ *
+ *  CALLED ONLY FOR A SESSION WITH NOTHING LEFT ON THE BOARD. `pruneOldAgents`
+ *  evicts individual subtrees, and a root that goes while a sibling subagent
+ *  stays is not a session the page has forgotten — it still holds the name it
+ *  was sent. Reporting it would cost a transcript re-read for no change. */
+export type ForgetSession = (sessionId: string) => void;
+
+export function pruneOldAgents(
+  state: GraphState, now: number, cap: number, graceMs: number, onForget?: ForgetSession,
+): boolean {
   if (state.agents.size <= cap) return false;
   // Evictable on its own terms: finished, and finished long enough ago that it
   // is not still fading out under the user's eyes.
@@ -806,12 +826,17 @@ export function pruneOldAgents(state: GraphState, now: number, cap: number, grac
   stale.sort((x, y) => x.endedAt - y.endedAt); // oldest first
 
   let removed = 0;
+  // The sessions an eviction here touched, answered at the end rather than per
+  // agent: whether a session is gone is a question about the map AFTER the
+  // pass, not about the agent being deleted. See `ForgetSession`.
+  const touched = new Set<string>();
   const drop = (id: string): void => {
     const a = state.agents.get(id);
     if (!a) return;
     // #443: the agent's in-flight ids go with it. See `releaseToolIds`.
     releaseToolIds(state, a);
     state.agents.delete(id);
+    touched.add(a.sessionId);
     removed++;
   };
 
@@ -827,6 +852,11 @@ export function pruneOldAgents(state: GraphState, now: number, cap: number, grac
     if (kids.some(k => !evictable(k))) continue;
     for (const k of kids) drop(k.id);
     drop(c.id);
+  }
+  if (onForget && touched.size > 0) {
+    const left = new Set<string>();
+    for (const a of state.agents.values()) left.add(a.sessionId);
+    for (const sid of touched) if (!left.has(sid)) onForget(sid);
   }
   return bump(state, removed > 0);
 }
@@ -867,7 +897,9 @@ export function pruneOldAgents(state: GraphState, now: number, cap: number, grac
  *  a killed CLI sends no `SessionEnd`, and Codex has no such record at all. What
  *  changes is that a genuinely closed session is spent first when there is one,
  *  and an idle-but-open one is only spent when nothing better is available. */
-export function pruneDoneSessions(state: GraphState, now: number, cap: number, graceMs: number): boolean {
+export function pruneDoneSessions(
+  state: GraphState, now: number, cap: number, graceMs: number, onForget?: ForgetSession,
+): boolean {
   // sessionId -> { agent ids, latest endedAt, whether anything is still live,
   //                whether the session itself is known to be over }
   const sessions = new Map<string, { ids: string[]; endedAt: number; live: boolean; closed: boolean }>();
@@ -883,13 +915,15 @@ export function pruneDoneSessions(state: GraphState, now: number, cap: number, g
     else s.live = true;
   }
 
-  const finished = [...sessions.values()]
-    .filter(s => !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
+  // Kept as [id, session] pairs rather than values alone: the id is what a
+  // session that leaves the board has to be reported by. See `ForgetSession`.
+  const finished = [...sessions]
+    .filter(([, s]) => !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
     // Genuinely-closed sessions first, and oldest-finished first within each
     // group — so the old ordering is exactly what remains when nothing on the
     // board is known to be closed, which is every board a Codex-only or a
     // kill-the-terminal user ever sees.
-    .sort((x, y) => (x.closed === y.closed ? x.endedAt - y.endedAt : x.closed ? -1 : 1));
+    .sort(([, x], [, y]) => (x.closed === y.closed ? x.endedAt - y.endedAt : x.closed ? -1 : 1));
 
   // Sessions still inside the grace period already count against the cap, so
   // the board settles at `cap` rather than briefly overshooting it.
@@ -898,7 +932,7 @@ export function pruneDoneSessions(state: GraphState, now: number, cap: number, g
   if (over <= 0) return false;
 
   let removed = false;
-  for (const s of finished) {
+  for (const [sid, s] of finished) {
     if (over <= 0) break;
     for (const id of s.ids) {
       // #443: the session is evicted whole, so every agent in it releases the
@@ -907,6 +941,9 @@ export function pruneDoneSessions(state: GraphState, now: number, cap: number, g
       if (a) releaseToolIds(state, a);
       state.agents.delete(id);
     }
+    // Whole, so there is nothing left to check: the page has forgotten this
+    // session and the server has to be told. See `ForgetSession`.
+    onForget?.(sid);
     over--;
     removed = true;
   }

@@ -5681,6 +5681,73 @@ async function handleClear(res) {
   });
 }
 
+/** The most session ids one press of this may name. A board holding more than
+ *  the server tracks at all cannot be describing anything the server still
+ *  remembers, and a body is not a reason to walk an unbounded list. */
+const MAX_FORGET_IDS = MAX_TRACKED_SESSIONS;
+
+/**
+ * POST /api/forget — the client's own pruners, saying what left the board.
+ *
+ * THE THIRD PLACE THE RULE HAD TO REACH (#1024). `handleClear`'s comment states
+ * it: "anything answering 'has this changed' has to appear in BOTH places that
+ * mean the client no longer has it — here, and in forgetSession." There was a
+ * third, and the server never heard about it — `pruneDoneSessions` and
+ * `pruneOldAgents` in the page, which run every 250ms at cap 6 / grace 2
+ * minutes, and #445's own measurement says 7 of 20 evicted sessions went on to
+ * emit more events.
+ *
+ * Usage, context and the ROOT model all come back on their own: the first two
+ * are not change-gated, and `pushEvent` stamps `raw.model` on every payload.
+ * `sessionName`/`sessionTitle` and the per-subagent models do not, because
+ * `nameBySession` and `modelBySession` still hold the signature that gates the
+ * emit. Measured against a real deck over a real transcript, sandboxed HOME:
+ *
+ *     SessionNamed while the session was on the board: ["reducer-audit"]
+ *     --- the client prunes S5, and tells nobody ---
+ *     events for S5 after the resume: UserPromptSubmit, UsageObserved,
+ *       UserPromptSubmit, UsageObserved, ContextObserved, …
+ *     SessionNamed among them: false
+ *
+ * A session evicted while idle and then resumed showed as unnamed in the sidebar
+ * and on the card for the rest of the day, with no way to recover but reloading
+ * the tab.
+ *
+ * `forgetSession` is the whole of the answer and it already exists — this route
+ * is the client's half of a call the server has been making to itself since the
+ * LRU cap was added. It drops the read stamps along with the signatures, for the
+ * reason `handleClear` lists them: clearing only the signatures would leave the
+ * next hook event inside MODEL_READ_THROTTLE_MS, so nothing would be re-read and
+ * the name would still be missing.
+ *
+ * NOT DROPPING THE CHANGE GATE INSTEAD, which was the other option in the
+ * report. The gate is what keeps a per-pass emit from becoming ~683 events
+ * saying nothing out of 685 records, and the reducer absorbing repeats correctly
+ * is not a reason to send them.
+ *
+ * Costs nothing when it is wrong. A session named here that the deck is still
+ * hearing from re-reads its transcript once and re-emits what it finds, which
+ * the reducer's assign-don't-append handlers apply idempotently.
+ */
+async function handleForget(req, res) {
+  const raw = await readBody(req).catch(() => null);
+  let body = null;
+  try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
+  const ids = Array.isArray(body?.ids) ? body.ids : null;
+  if (!ids) return send(res, 400, { ok: false, reason: "bad_request" });
+  let forgotten = 0;
+  for (const sid of ids.slice(0, MAX_FORGET_IDS)) {
+    if (typeof sid !== "string" || sid === "") continue;
+    // Out of the LRU as well, so the cap is not spent on a session nothing is
+    // tracking any more. A session that speaks again is re-inserted by
+    // `touchSession` as what it now is: one the deck has just heard from.
+    sessionTouchedAt.delete(sid);
+    forgetSession(sid);
+    forgotten++;
+  }
+  return send(res, 200, { ok: true, forgotten });
+}
+
 function handleHealth(_req, res) {
   send(res, 200, {
     ok: true,
@@ -6470,6 +6537,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // POST /api/clear — wipe in-memory buffer + persistence file (UI reset)
     if (req.method === "POST" && url.pathname === "/api/clear") return guard(handleClear(res), res);
 
+    // POST /api/forget — the sessions the page's own pruners dropped. The same
+    // sentence as `__clear`, about part of the board rather than all of it.
+    // Above the 404 below, which is what every real route has to be.
+    if (req.method === "POST" && url.pathname === "/api/forget") return guard(handleForget(req, res), res);
+
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //
     // serveStatic falls back to index.html for a path it cannot find, which is
@@ -6495,6 +6567,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
       return send(res, 404, { error: "not found" });
     }
+
     if (req.method === "GET") return serveStatic(req, res, url);
     send(res, 405, { error: "method not allowed" });
   };
