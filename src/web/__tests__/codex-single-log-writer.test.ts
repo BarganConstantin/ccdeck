@@ -13,7 +13,7 @@
 // with the hook's copy of it, and must cover exactly the decks that read the
 // same file — and a running deck that draws a rollout it was not elected to log.
 import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
@@ -56,13 +56,14 @@ const { AGENT_DAG_DIR, CODEX_DIR, discoveryPath, writeDiscovery, ensureDiscovery
 };
 // @ts-expect-error — .mjs server module, no types
 const logWriter = await import("../../server/log-writer.mjs");
-const { codexCwdInWorkspace, electWriters, writesCodexLog } = logWriter as {
+const { codexCwdInWorkspace, electWriters, sameCodexTree, writesCodexLog } = logWriter as {
   codexCwdInWorkspace: (cwd: string | null, workspace: string, platform?: string) => boolean;
   electWriters: (decks: Deck[], platform?: string) => Set<Deck>;
+  sameCodexTree: (a: unknown, b: unknown, platform?: string) => boolean;
   writesCodexLog: (o: { decks: Deck[]; pid: number; cwd: string | null; platform?: string }) => boolean;
 };
 
-type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean };
+type Deck = { pid: number; port: number; workspace?: string; persist?: string | null; codex?: boolean; codexHome?: string | null };
 
 // Belt and braces: the server sweeps the discovery dir it resolves and the
 // watcher walks the Codex home it resolves, so if either override were ignored
@@ -112,7 +113,7 @@ describe("deciding which deck logs a rollout it is tailing", () => {
   const THEIR_PID = 78;
   const CWD = "/srv/proj";
   const deck = (pid: number, port: number, over: Partial<Deck> = {}): Deck =>
-    ({ pid, port, workspace: "", persist: "/home/u/.claude/agent-dag/events.jsonl", codex: true, ...over });
+    ({ pid, port, workspace: "", persist: "/home/u/.claude/agent-dag/events.jsonl", codex: true, codexHome: "/home/u/.codex", ...over });
   const self = deck(MY_PID, 4325);
   const writes = (decks: Deck[], platform = "linux") =>
     writesCodexLog({ decks, pid: MY_PID, cwd: CWD, platform });
@@ -158,6 +159,56 @@ describe("deciding which deck logs a rollout it is tailing", () => {
     const old = deck(THEIR_PID, 4317);
     delete old.codex;
     expect(writes([self, old])).toBe(false);
+  });
+
+  // #982. Two decks sharing one events.jsonl, both unscoped, one of them
+  // launched from a shell carrying its own CODEX_HOME. The rollout lives in this
+  // deck's tree. codexCwdInWorkspace answers yes for every unscoped deck and
+  // `codex: true` never said whose rollouts, so the election grouped the two
+  // and handed the line to the lower port — the deck that never opened the
+  // file — and the one deck that did read it wrote nothing. The end-to-end case
+  // at the bottom of this file is the same thing with the deck running.
+  it("writes when the other deck is tailing a different Codex tree", () => {
+    expect(writes([self, deck(THEIR_PID, 4317, { codexHome: "/proj/.codex" })])).toBe(true);
+  });
+
+  it("still defers to a lower-port deck reading the same tree", () => {
+    // The half that must not move: this is the duplication the election exists
+    // to end, and it is the ordinary case.
+    expect(writes([self, deck(THEIR_PID, 4317, { codexHome: "/home/u/.codex" })])).toBe(false);
+  });
+
+  it("assumes a deck too old to name its tree is reading this one", () => {
+    // A mixed-version machine during an upgrade, which is the ordinary way to
+    // meet a record without the field. Guessing "a different tree" here would
+    // elect two writers for one file; guessing "the same one" is what every
+    // version before this field did, and it is the same fail-safe the missing
+    // `codex` flag already takes above.
+    const old = deck(THEIR_PID, 4317);
+    delete old.codexHome;
+    expect(writes([self, old])).toBe(false);
+  });
+
+  it("assumes the same of a deck whose own record is too old to name one", () => {
+    // The mirror: this deck is the new one in the pair, or its record predates
+    // the field. Same answer, for the same reason.
+    const mine = deck(MY_PID, 4325);
+    delete mine.codexHome;
+    expect(writes([mine, deck(THEIR_PID, 4317)])).toBe(false);
+  });
+
+  it("treats two spellings of one Codex tree as one where the filesystem does", () => {
+    const win = "C:\\Users\\J\\.codex";
+    const pair = [
+      deck(MY_PID, 4325, { codexHome: win, persist: "C:\\Users\\J\\.claude\\events.jsonl" }),
+      deck(THEIR_PID, 4317, { codexHome: win.toLowerCase(), persist: "C:\\Users\\J\\.claude\\events.jsonl" }),
+    ];
+    // One directory on Windows and on macOS, so one writer between them.
+    expect(writesCodexLog({ decks: pair, pid: MY_PID, cwd: "C:\\srv\\proj", platform: "win32" })).toBe(false);
+    expect(sameCodexTree(win, win.toLowerCase(), "darwin")).toBe(true);
+    // Two real directories on Linux, each needing its own reader and its own
+    // writer — the same rule canonicalLogPath keeps for the log itself.
+    expect(sameCodexTree(win, win.toLowerCase(), "linux")).toBe(false);
   });
 
   it("writes while it has no discovery record of its own to be elected by", () => {
@@ -287,6 +338,42 @@ describe("the Codex setting in the discovery record", () => {
       expect(JSON.parse(readFileSync(discoveryPath(), "utf8")).codex).toBe(true);
     }
   });
+
+  // #982: `codex: true` says a deck tails rollouts and never said whose. That
+  // is the only thing the election could have grouped on, and CODEX_HOME
+  // relocates the tree wholesale — which is the whole reason codex-dir.mjs
+  // exists (#375).
+  it("names the Codex tree this deck actually tails, by its one spelling", async () => {
+    await writeDiscovery({ port: 4326, workspace: "", token: TOKEN, persist: LOG, codex: true });
+    // The tree this process reads, canonicalised the way the log path beside it
+    // is: two spellings of one directory in one machine's records would put two
+    // decks reading one tree into two groups and elect both. On macOS the temp
+    // dir is itself one — /var/folders is a link to /private/var/folders — so
+    // there this case would fail on the as-spelled value.
+    expect(CODEX_DIR).toBe(FAKE_CODEX);
+    expect(JSON.parse(readFileSync(discoveryPath(), "utf8")).codexHome).toBe(realpathSync.native(CODEX_DIR));
+  });
+
+  it("names no tree for a --no-codex deck, which tails none", async () => {
+    await writeDiscovery({ port: 4326, workspace: "", token: TOKEN, persist: LOG, codex: false });
+    expect(JSON.parse(readFileSync(discoveryPath(), "utf8")).codexHome).toBeNull();
+  });
+
+  it("replaces a record that names another tree, or names none", async () => {
+    // The same argument the `codex` flag's own case makes one block up: left out
+    // of ensureDiscovery's comparison, a record missing the field passes as ours
+    // forever and the field never appears at all. `{}` is the record a deck from
+    // before this change left behind under a pid this one now has.
+    for (const stale of [{ codexHome: "/somewhere/else/.codex" }, {}]) {
+      writeFileSync(discoveryPath(), JSON.stringify({
+        pid: process.pid, port: 4326, workspace: "", token: TOKEN, persist: LOG, codex: true,
+        claude: true, watch: true, version: "", parent: null, ...stale,
+      }));
+      const res = await ensureDiscovery({ port: 4326, workspace: "", token: TOKEN, persist: LOG, codex: true });
+      expect(res.rewritten).toBe(true);
+      expect(JSON.parse(readFileSync(discoveryPath(), "utf8")).codexHome).toBe(realpathSync.native(CODEX_DIR));
+    }
+  });
 });
 
 // The whole thing, running: a deck tailing a rollout that a second, lower-port
@@ -407,6 +494,33 @@ describe("a deck tailing a rollout another deck was elected to log", () => {
     expect(await waitFor(() => drawn().some(p => p.hook_event_name === "PostToolUse"))).toBe(true);
     expect(logged().map(e => e.payload)).toMatchObject([
       { hook_event_name: "PostToolUse", session_id: SID, tool_use_id: "call_ONE" },
+    ]);
+  }, 20000);
+
+  it("keeps the log when that deck comes back reading another Codex tree", async () => {
+    // #982's shape, end to end and with the deck really running. The other deck
+    // is back, still alive, still on the lower port, still `codex: true`, still
+    // answering its challenge — and its CODEX_HOME is somewhere this rollout
+    // does not live, so it cannot have the file open.
+    //
+    // Before the record carried the tree, this deck drew call_TWO and handed the
+    // line to that deck, which wrote nothing: the canvas had the tool call and
+    // events.jsonl never did. That is #695's symptom, through a hole its fix
+    // left open.
+    writeFileSync(OTHER, JSON.stringify({
+      pid: process.ppid, port: otherPort, workspace: "", token: OTHER_TOKEN, persist: LOG,
+      codex: true, codexHome: join(FAKE_HOME, "a-tree-this-rollout-is-not-in", ".codex"),
+    }));
+    appendFileSync(ROLLOUT,
+      line({ type: "response_item", payload: { type: "function_call", name: "shell", call_id: "call_TWO", arguments: "{}" } }),
+      "utf8");
+
+    // Drawn first, so a failure below can only mean "drawn and not recorded".
+    expect(await waitFor(() => drawn().some(p => p.tool_use_id === "call_TWO"))).toBe(true);
+    expect(await waitFor(() => logged().length >= 2)).toBe(true);
+    expect(logged().map(e => e.payload)).toMatchObject([
+      { hook_event_name: "PostToolUse", session_id: SID, tool_use_id: "call_ONE" },
+      { hook_event_name: "PreToolUse", session_id: SID, tool_use_id: "call_TWO" },
     ]);
   }, 20000);
 });

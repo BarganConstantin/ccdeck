@@ -156,6 +156,32 @@ export function codexCwdInWorkspace(cwd, workspace, platform = process.platform)
 }
 
 /**
+ * Do two discovery records name the same Codex tree? Each argument is a
+ * record's `codexHome`: the canonical path of the CODEX_HOME that deck tails.
+ *
+ * Anything that is not a non-empty string answers yes. That is a record written
+ * before the field existed — a machine halfway through an upgrade is the
+ * ordinary way to meet one — and guessing "a different tree" there would elect
+ * a second writer for one log on every machine with an older deck still up.
+ * Guessing "the same tree" is what every deck did before the field existed,
+ * which is the fail-safe writesCodexLog below already takes for a record too old
+ * to carry `codex` at all.
+ *
+ * Case is folded where the filesystem folds it, exactly as electWriters folds
+ * the log path: on Windows and macOS two spellings that differ only in case are
+ * one directory with one reader, and on Linux they are two directories, each
+ * read by its own deck. The other ways to spell one directory — a symlinked
+ * ~/.codex, an 8.3-shortened USERPROFILE, /tmp against /private/tmp — are
+ * settled before the value is published (writeDiscovery in installer.mjs runs
+ * it through canonicalLogPath), so two records compared here already agree on
+ * everything but case.
+ */
+export function sameCodexTree(a, b, platform = process.platform) {
+  if (typeof a !== "string" || a === "" || typeof b !== "string" || b === "") return true;
+  return foldsCase(platform) ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/**
  * Does this deck append a rollout's events to its log, or is another deck doing
  * it? `decks` is every deck registered right now, `pid` identifies this one
  * among them, and `cwd` is the workspace the rollout is running in.
@@ -169,6 +195,18 @@ export function codexCwdInWorkspace(cwd, workspace, platform = process.platform)
  * mean the rollout's events reach no log at all. A deck too old to say either
  * way is assumed to be tailing, which is what it was doing before this field
  * existed.
+ *
+ * A deck reading a different Codex tree is left out for the same reason (#982).
+ * CODEX_HOME moves the whole tree, so two decks on one machine can share one
+ * events.jsonl while reading two different sets of rollouts — and for an
+ * unscoped deck the workspace test above answers yes to every cwd, so it tells
+ * them apart not at all. The record's `codex: true` said a deck tails rollouts
+ * and never said whose. So the lower-port deck won the line for a rollout its
+ * own tree does not hold and appended nothing, the deck that was reading it
+ * stood down, and the shared log recorded none of the session while the canvas
+ * drew all of it: #695's symptom, from a deck that is alive, answers its
+ * challenge, and is simply looking somewhere else. The same deck launched with
+ * a stale CODEX_HOME is the duller version of it.
  */
 export function writesCodexLog({ decks, pid, cwd, platform = process.platform }) {
   const live = Array.isArray(decks) ? decks : [];
@@ -184,6 +222,7 @@ export function writesCodexLog({ decks, pid, cwd, platform = process.platform })
   for (const d of live) {
     if (!d || d.pid === self.pid) continue;
     if (d.codex === false) continue;
+    if (!sameCodexTree(self.codexHome, d.codexHome, platform)) continue;
     if (!codexCwdInWorkspace(cwd, d.workspace ?? "", platform)) continue;
     group.push(d);
   }

@@ -12,6 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { CODEX_HOME } from "./codex-dir.mjs";
+import { canonicalLogPath } from "./log-writer.mjs";
 import { shellQuoteArg } from "./exec.mjs";
 import { PRODUCT } from "./brand.mjs";
 
@@ -697,6 +698,19 @@ function persistField(persist) {
   return typeof persist === "string" && persist !== "" ? persist : null;
 }
 
+/**
+ * The Codex tree as the record spells it: the canonical path of the CODEX_HOME
+ * this process reads, or null for a --no-codex deck, which reads none. Shared by
+ * the writer and by ensureDiscovery's comparison for the reason persistField
+ * is. Worked out on every call rather than once at load: it is one realpath on a
+ * five-second heartbeat, and a tree that did not exist when the deck started —
+ * the first `codex login` creates it — is then named the way it is named once
+ * it does.
+ */
+function codexHomeField(codex) {
+  return codex !== false ? canonicalLogPath(CODEX_DIR) : null;
+}
+
 // Every deck's token lives in this directory, and writeFileAtomic's temp file is
 // created beside its target with whatever the umask allows — 0644 on most
 // machines — so for the moment before the rename the token would sit in a
@@ -752,6 +766,23 @@ export async function writeDiscovery({ port, workspace, token, persist = null, c
     // than win it and record a rollout it is not even reading. See
     // writesCodexLog in src/server/log-writer.mjs.
     codex: codex !== false,
+    // And WHOSE rollouts. `codex: true` says this deck tails them and never said
+    // from where, while CODEX_HOME moves the whole tree — #375 was five modules
+    // disagreeing about where it points. Two decks sharing one events.jsonl can
+    // therefore be reading two different trees, and the election grouped them
+    // anyway, because an unscoped deck's workspace contains every cwd and this
+    // was the one field that could have told them apart. The lower-port deck won
+    // a rollout it had never opened, the deck reading it stood down, and the
+    // shared log recorded nothing of that session (#982).
+    //
+    // Canonical rather than as spelled, for the reason canonicalLogPath gives
+    // the log path above (#793): a symlinked ~/.codex, an 8.3-shortened
+    // USERPROFILE or /tmp against /private/tmp would otherwise put two decks
+    // reading one tree into two groups and elect them both — the duplicate the
+    // election exists to end. Only this published copy is canonicalised.
+    // codex-dir.mjs goes on reading and writing through the spelling the user
+    // chose, which it has to for a symlinked home (see codexHome() there).
+    codexHome: codexHomeField(codex),
     // Does this deck run Browser Watch? The watch elects a single writer among
     // the decks on a machine, and it elected on port alone — so an older ccdeck
     // that predates the feature won the election by having the lower port and
@@ -813,12 +844,15 @@ export function discoveryPath() {
  * is cheap (one small read), so the deck checks rather than assumes.
  *
  * A file this process wrote is left alone, mode included. Anything else — no
- * file, unreadable, another pid, a stale port, token, events log, Codex or
- * Claude setting, or a version left by the deck this process replaced — is
- * replaced. Every field another deck decides by is compared, the
+ * file, unreadable, another pid, a stale port, token, events log, Codex setting
+ * or Codex tree, Claude setting, or a version left by the deck this process
+ * replaced — is replaced. Every field another deck decides by is compared, the
  * log path included: leave one out and a record missing it would pass as ours
  * forever, which for the log path means no deck can tell which of them share a
- * file and they all write their own copy of every event again.
+ * file and they all write their own copy of every event again. The Codex tree
+ * is compared strictly for the same reason: a record from before the field
+ * existed has none, and `undefined` must read as "rewrite", never as a
+ * --no-codex deck's null.
  */
 export async function ensureDiscovery({ port, workspace, token, persist = null, codex = true, claude = true, version = "", parent = null }) {
   const file = discoveryPath();
@@ -831,6 +865,7 @@ export async function ensureDiscovery({ port, workspace, token, persist = null, 
       && (d.token ?? "") === (token ?? "")
       && (d.persist ?? null) === persistField(persist)
       && d.codex === (codex !== false)
+      && d.codexHome === codexHomeField(codex)
       && d.claude === (claude !== false)
       && (d.version ?? "") === (typeof version === "string" ? version : "")
       && (d.parent ?? null) === (Number.isInteger(parent) ? parent : null)) {
