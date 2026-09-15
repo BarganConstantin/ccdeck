@@ -360,30 +360,29 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(CONTROL).not.toMatch(/Resume/);
   });
 
-  it("draws that state as a polarity step, not as a hue", () => {
-    // #370's finding, on a second surface. Greyscale, a photocopy and every
-    // colour vision deficiency keep a luminance inversion and lose a hue swap,
-    // so the glyph goes from lighter-than-its-bed to darker-than-its-bed in
-    // dark and the other way in light. Amber rather than the accent because
-    // amber is what a frozen canvas is drawn in everywhere else on this deck.
+  it("draws that state in amber, as a tint and a glyph rather than a block", () => {
+    // Amber rather than the accent because amber is what a frozen canvas is
+    // drawn in everywhere else on this deck. It was a solid --warn fill with
+    // the glyph inverted, the loudest thing on the canvas; the canvas chrome
+    // went quiet, and the state is carried by the glyph leaving the resting
+    // --muted for --warn, on a tint of the same amber.
     const on = '.react-flow__controls-button[aria-pressed="true"]';
-    expect(decl(on, "background")).toBe("var(--warn)");
-    expect(decl(on, "color")).toBe("var(--bg)");
-    expect(decl(".react-flow__controls-button", "color")).toBe("var(--text)");
-    expect(decl(".react-flow__controls-button", "background")).toBe("var(--panel)");
+    expect(decl(on, "background")).toBe("color-mix(in srgb, var(--warn) 16%, transparent)");
+    expect(decl(on, "color")).toBe("var(--warn)");
+    expect(decl(".react-flow__controls-button", "color")).toBe("var(--muted)");
+    expect(decl(".react-flow__controls-button", "background")).toBe("transparent");
     // Keyed on the attribute, so the pixels and the tree cannot disagree.
     expect(css).not.toMatch(/\.react-flow__controls-button\.paused/);
   });
 
-  it("answers the pointer while pressed, which the fill alone would not", () => {
-    // The unpressed hover repaints the background and the pressed state has
-    // already claimed it, so without a channel of its own a pressed Pause would
-    // give the pointer nothing — the wall #370 hit on the topbar toggles. The
-    // halo it answered with cannot work here: `.react-flow__controls` is
-    // `overflow: hidden` and clips one. An inset keyline is not clipped.
+  it("answers the pointer while pressed, which the tint alone would not", () => {
+    // The unpressed hover brings up the control fill and the pressed state has
+    // its own background, so a pressed Pause answers with a deeper tint of the
+    // same amber. The stack no longer clips (a focus ring has to show), so
+    // nothing here has to be drawn inset.
     const hover = bodyOf('.react-flow__controls-button[aria-pressed="true"]:hover');
-    expect(declIn(hover, "box-shadow")).toBe("inset 0 0 0 2px var(--bg)");
-    expect(decl(".react-flow__controls", "overflow")).toBe("hidden");
+    expect(declIn(hover, "background")).toBe("color-mix(in srgb, var(--warn) 24%, transparent)");
+    expect(decl(".react-flow__controls", "overflow")).toBeNull();
   });
 
   it("adds no press obligation, because it is React Flow's own button underneath", () => {

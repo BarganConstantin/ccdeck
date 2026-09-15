@@ -370,24 +370,27 @@ describe("nothing on the render path reads a CSS custom property", () => {
     expect(app).toMatch(/maskColor=\{palette\["--minimap-mask"\]\}/);
   });
 
-  it("hands MiniMap a memoised nodeColor and a memoised style, not fresh ones", () => {
-    // The two props that defeated `memo(MiniMap)` and `memo(MiniMapNodes)`.
-    // Both must be identifiers — an inline arrow or an object literal here is
-    // a new identity on every render, which is the whole of #613.
+  it("hands MiniMap a memoised nodeColor and no style object at all", () => {
+    // The props that defeated `memo(MiniMap)` and `memo(MiniMapNodes)`. The
+    // node colour must be an identifier — an inline arrow here is a new
+    // identity on every render, which is the whole of #613. The style object
+    // that used to be the second such prop is gone: the minimap's surface,
+    // edge and radius are the stylesheet's now (.react-flow__minimap), on the
+    // same tokens as the control stack, so there is no object to memoise.
     const minimap = /<MiniMap\b[\s\S]*?\/>/.exec(app);
     expect(minimap, "no <MiniMap> in App.tsx").not.toBeNull();
     expect(minimap![0]).toMatch(/nodeColor=\{[A-Za-z_$][\w$]*\}/);
-    expect(minimap![0]).toMatch(/style=\{[A-Za-z_$][\w$]*\}/);
+    expect(minimap![0]).not.toMatch(/\bstyle=/);
     expect(minimap![0]).not.toMatch(/=>/);
     expect(minimap![0]).not.toMatch(/cssVar/);
   });
 
-  it("rebuilds those two on the palette and on nothing else", () => {
+  it("rebuilds the node colour on the palette and on nothing else", () => {
     // Keyed on `palette`, which only a theme flip replaces. Keyed on `theme`
-    // itself they would be rebuilt during the render that flips it — before the
+    // itself it would be rebuilt during the render that flips it — before the
     // effect writes `data-theme` — and would hold the OLD colours forever.
     expect(app).toMatch(/const paletteToken = useMemo\(\(\) => paletteReader\(palette\), \[palette\]\);/);
-    expect(app).toMatch(/const minimapStyle = useMemo\(\s*\(\) => \(\{[\s\S]*?\}\),\s*\[palette\],\s*\);/);
+    expect(app).not.toMatch(/const minimapStyle\b/);
     expect(app).toMatch(/\[paletteToken\],/);
   });
 

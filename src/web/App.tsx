@@ -1029,8 +1029,18 @@ type PaneTransform = Extract<
   { k: number }
 >;
 
+/** The zoom range's two ends, as React Flow's own zoom buttons read them.
+ *  Module-level so `useStore` gets the same selector every render. */
+const zoomAtMax = (s: ReactFlowState) => s.transform[2] >= s.maxZoom;
+const zoomAtMin = (s: ReactFlowState) => s.transform[2] <= s.minZoom;
+
 function Inner() {
   const rf = useReactFlow();
+  // Whether the canvas's own zoom buttons can go any further, which is the
+  // one fact they need from the store. Booleans, so this re-renders when a
+  // limit is reached or left, not on every zoom frame.
+  const zoomMaxed = useStore(zoomAtMax);
+  const zoomMinned = useStore(zoomAtMin);
   // The same store React Flow's own viewport helpers read, and the only way to
   // reach the pane's d3-zoom behaviour from here. `useStoreApi` rather than
   // `useStore`: this is never rendered from, only called into, so a subscription
@@ -2084,16 +2094,6 @@ function Inner() {
   const minimapNodeFill = useCallback(
     (node: MinimapNode) => minimapNodeColor(node, paletteToken),
     [paletteToken],
-  );
-  /** Hoisted out of the JSX for the same reason: an object literal in a prop is
-   *  a new object every render, and `memo(MiniMap)` compares by identity. */
-  const minimapStyle = useMemo(
-    () => ({
-      background: palette["--panel"],
-      border: `1px solid ${palette["--line"]}`,
-      borderRadius: 8,
-    }),
-    [palette],
   );
   const [everConnected, setEverConnected] = useState(false);
   // On the FIRST run this is redundant and known to be: the bootstrap wrote the
@@ -5150,14 +5150,33 @@ function Inner() {
               fit and also turns autofit back on, so two near-identical buttons
               sat side by side and the reader had to guess the difference. F
               still fits from the keyboard. */}
-          <Controls showInteractive={false} showFitView={false}>
+          <Controls showInteractive={false} showFitView={false} showZoom={false}>
+            {/* Zoom in and out, drawn here rather than left to React Flow, so
+                the pair wears the same 14px stroke glyphs as the five below
+                them (React Flow's are filled shapes a weight heavier and 2px
+                smaller) and names itself in words. The same calls React Flow's
+                own buttons make, with the same limits: each goes disabled at
+                its end of the zoom range. */}
+            <ControlButton onClick={() => rf.zoomIn()} title="Zoom in" aria-label="Zoom in" disabled={zoomMaxed}>
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+            </ControlButton>
+            <ControlButton onClick={() => rf.zoomOut()} title="Zoom out" aria-label="Zoom out" disabled={zoomMinned}>
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+                <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+            </ControlButton>
+            {/* data-nudge while auto-fit is off: the glyph steps up to the
+                foreground, because pressing it now would do something. It was
+                the accent; the canvas's Auto-fit chip is what says why. */}
             <ControlButton
               onClick={enableAutoFitAndRefit}
               title={autoFitDisabled
                 ? "Recenter view + re-enable autofit"
                 : "Recenter view (autofit already on)"}
               aria-label="Recenter view"
-              style={autoFitDisabled ? { color: "var(--accent)" } : undefined}
+              data-nudge={autoFitDisabled ? "" : undefined}
             >
               {/* crosshair / target — recenter affordance */}
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -5196,7 +5215,12 @@ function Inner() {
                 canvas is drawn in everywhere else on this deck — the pill at the
                 other end of the bar and the dot inside it — and the pill and
                 this control were a matched pair before it moved. */}
+            {/* data-group-start: the first of a group, which the stack marks
+                with a gap and a hairline. The groups are the view (zoom,
+                recenter), the canvas's state (pause, re-arrange), the one
+                that empties it (clear), and help. */}
             <ControlButton
+              data-group-start=""
               onClick={togglePause}
               title={pauseTitle({ paused, held: pauseGate.size, dropped: pauseGate.dropped })}
               aria-label={PAUSE_LABEL}
@@ -5243,6 +5267,8 @@ function Inner() {
                 is not lost — it is the dialog's own heading, one click away,
                 which is where the user reads it when it matters. */}
             <ControlButton
+              data-group-start=""
+              data-danger=""
               onClick={() => requestClear("button")}
               title="Clear the canvas and the server's event log — asks first (C)"
               aria-label="Clear the canvas"
@@ -5268,6 +5294,7 @@ function Inner() {
                 is in the tooltip the way every other control on this deck
                 names its own. */}
             <ControlButton
+              data-group-start=""
               onClick={() => setKeyHelpOpen(o => !o)}
               title="Keyboard shortcuts (?)"
               aria-label="Open the keyboard shortcuts"
@@ -5288,7 +5315,11 @@ function Inner() {
             nodeColor={minimapNodeFill}
             nodeStrokeWidth={2}
             maskColor={palette["--minimap-mask"]}
-            style={minimapStyle}
+            // The frame the view is showing, outlined. The minimap's surface
+            // sits close to the canvas now (.react-flow__minimap), so the mask
+            // alone no longer separates it well; a --line keyline does, in
+            // the same neutral the chrome's edges are drawn in.
+            maskStrokeColor={palette["--line"]}
           />
         </ReactFlow>
       </main>

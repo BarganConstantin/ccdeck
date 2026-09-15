@@ -35,6 +35,11 @@
      belongs to controls; #325 declined to do that and #332 keeps declining. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* The canvas's own instruments (the control stack, the minimap): a surface
+     and an edge that sit most of the way back toward the canvas, so they read
+     as part of it rather than as floating panels. */
+  --chrome-bg: color-mix(in srgb, var(--panel) 60%, var(--bg));
+  --chrome-edge: color-mix(in srgb, var(--line) 60%, var(--bg));
   /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
      --ctl-edge is the right weight for a control alone on a wide bar. Six of
      them inside a 268px popover is a different picture: two selects, two
@@ -167,6 +172,11 @@
   /* Identical to the dark block by construction — see the note there. */
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
+  /* The canvas's own instruments (the control stack, the minimap): a surface
+     and an edge that sit most of the way back toward the canvas, so they read
+     as part of it rather than as floating panels. */
+  --chrome-bg: color-mix(in srgb, var(--panel) 60%, var(--bg));
+  --chrome-edge: color-mix(in srgb, var(--line) 60%, var(--bg));
   /* THE EDGE AND FILL THE SOUND MENU'S CONTROLS DRAW, quieter than the app's.
      --ctl-edge is the right weight for a control alone on a wide bar. Six of
      them inside a 268px popover is a different picture: two selects, two
@@ -3064,72 +3074,101 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 @keyframes dashflow { to { stroke-dashoffset: -10; } }
 .react-flow__attribution { display: none; }
+/* ---------------- canvas chrome: the control stack and the minimap ---------
+   Two instruments that sit ON the canvas and have to stay under it, because
+   the sessions are what the eye is for. They share one surface and one edge
+   (--chrome-bg and --chrome-edge, most of the way back toward the canvas
+   where a floating panel stands on --panel and --line), one radius (--r-ctl,
+   a step under the panels' --r-panel) and no elevation. Quiet, not hidden:
+   the edge still says where each one stops. */
 .react-flow__controls {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
   box-shadow: none;
-  overflow: hidden;
 }
+/* No box per button. Each one is a --ctl-h target around a 14px glyph in
+   --muted, named by the glyph, which is what 1.4.11 asks for when a boundary
+   is absent, so the 1px rules that used to fence every glyph are gone. Hover
+   brings up the control fill and the foreground, the toolbar's own answer.
+   React Flow's stylesheet sizes these at 16px plus 5px of padding with a 12px
+   cap on the icon; both are overridden here, not added to. */
 .react-flow__controls-button {
-  background: var(--panel);
-  color: var(--text);
-  border-bottom: 1px solid var(--line);
-  fill: var(--text);
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--muted);
+  transition: background 120ms, color 120ms;
 }
-/* The stack's own outline and the rules between its buttons stay --line: they
-   are the frame around a group, not the identification of one control. Each
-   button inside is named by its glyph, which is what 1.4.11 asks for when a
-   boundary is absent — so only the hover fill moves, because --bg-soft gave it
-   nothing to show on white. */
-.react-flow__controls-button:hover { background: var(--ctl-fill); }
-/* The one toggle in a stack of commands, drawn the way this deck draws the
-   toggles it already had: the fill goes to the state colour and the glyph
-   inverts with it, which is #370's finding applied to a second surface. Every
-   other button in this column reports nothing between presses because there is
-   nothing to report; Pause is a setting that stays on, so it needs a resting
-   appearance that says which of its two states it is in.
-   Amber rather than the accent, because amber is what "the canvas is frozen"
-   is drawn in everywhere else on this deck — `.pill.paused` at the other end of
-   the topbar and the dot beside it. The two used to be a matched pair with the
-   Resume button between them; the pair survives the move.
-   Measured on --panel, which is the only bed this stack has: the fill stands
-   12.55:1 off it in dark and 5.43:1 in light, and the glyph reads 13.56:1 /
-   4.79:1 on top of the fill — visible as a block and legible as a mark. The
-   step is a POLARITY inversion in both themes, not a hue shift: --text on
-   --panel is lighter than its bed in dark and darker in light, and --bg on
-   --warn is the opposite in each. That is the one channel greyscale and every
-   colour vision deficiency keep.
+.react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
+.react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
+.react-flow__controls-button:disabled { opacity: var(--dim-off); }
+/* The groups, by what each control acts on: the view (zoom in, zoom out,
+   recenter), the canvas's own state (pause, re-arrange), the one that empties
+   it (clear), and help. A group starts 6px further down, on a short hairline
+   centred in that gap: a rhythm and a mark, not a box per group. */
+.react-flow__controls-button[data-group-start] {
+  position: relative;
+  margin-top: 6px;
+}
+.react-flow__controls-button[data-group-start]::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 6px;
+  right: 6px;
+  height: 1px;
+  background: var(--line);
+}
+/* Recenter while auto-fit is off: the press would do something, so the glyph
+   steps up to the foreground, and the canvas's own "Auto-fit off · Resume"
+   chip says why. Not the accent: this is a hint, not data or focus. */
+.react-flow__controls-button[data-nudge] { color: var(--text); }
+/* Clear asks before it destroys anything, so at rest it is as neutral as its
+   neighbours and only the pointer warms it. */
+.react-flow__controls-button[data-danger]:hover { color: var(--err); }
+/* Pause, the one toggle in a stack of commands. Every other button here
+   reports nothing between presses because there is nothing to report; Pause is
+   a setting that stays on, so it needs a resting look for each state. Amber
+   rather than the accent, because amber is what "the canvas is frozen" is
+   drawn in everywhere else on this deck, and the topbar's paused pill says the
+   same thing in words. It used to be a solid amber block with the glyph
+   inverted, the loudest object on the canvas while nothing needed anyone; it
+   is an amber tint and an amber glyph now, plain about the state (the glyph
+   leaves the resting --muted for --warn) without shouting it.
    Keyed on the ARIA attribute, so the pixels and the accessibility tree are one
-   fact and a control cannot look pressed while announcing nothing — the same
-   rule `button.btn.icon-btn[aria-pressed="true"]` states for the bar.
-   No `cursor`, no `:active`, no transition of its own: this is React Flow's own
-   button class with a state added, and the press, the pointer feedback and the
-   reduced-motion answer are whatever that class already had. A new pressable
-   name here would owe all five of the obligations canvas-motion.test.ts
-   enumerates, and none of them would be buying anything. */
+   fact. No `cursor` and no `:active`: this is React Flow's own button class
+   with a state added, which keeps it out of the five obligations
+   canvas-motion.test.ts enumerates for a pressable name. */
 .react-flow__controls-button[aria-pressed="true"] {
-  background: var(--warn);
-  color: var(--bg);
-  fill: var(--bg);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
 }
-/* The pressed state repaints the background, which is the only channel the
-   unpressed hover one rule up has — so without this a pressed Pause answers the
-   pointer with nothing at all. #370 hit the same wall on the topbar toggles and
-   answered it with a halo. A halo cannot work here: the stack around these
-   buttons is `overflow: hidden`, and it would clip one against the group edge.
-   An INSET keyline instead, in the glyph colour, which is the idiom the
-   topbar's `[aria-expanded="true"]` controls already use. It adds
-   rather than replaces: the fill and the glyph are untouched, so every ratio
-   measured above is exactly what it was, and one value serves both themes
-   because --bg is already the colour the glyph inverted to. Shifting the fill
-   was the other option and it is the one that would have needed two values —
-   mixing the amber toward --text moves it 1.24:1 in light and 1.00:1 in dark,
-   where --warn and --text sit at the same luminance, and mixing it toward --bg
-   takes the light glyph from 4.79:1 to 3.74:1 to buy the same step. */
+/* A pressed Pause still answers the pointer: the tint deepens. */
 .react-flow__controls-button[aria-pressed="true"]:hover {
-  box-shadow: inset 0 0 0 2px var(--bg);
+  background: color-mix(in srgb, var(--warn) 24%, transparent);
 }
+/* The minimap, on the control stack's surface and edge (see the top of this
+   block). React Flow gives it a white slab; this replaces it, and replaces the
+   inline style built from the palette that used to. The edge comes up to
+   --line under the pointer, the one moment it is being looked for, and
+   `overflow: hidden` clips the drawing's square corners to the radius. */
+.react-flow__minimap {
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+  transition: border-color 120ms;
+}
+.react-flow__minimap:hover { border-color: var(--line); }
 
 /* ---------------- agent node ---------------- */
 
