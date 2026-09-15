@@ -254,8 +254,16 @@ export function identityFrom(secret) {
  *
  * PER CONNECTION, never stored. The old design sealed credentials under one
  * long-lived group key, which meant a single recorded transfer stayed readable
- * to anybody who ever learned the passphrase. This gives forward secrecy for
- * free: the ephemeral halves are gone when the socket is.
+ * to anybody who ever learned the passphrase.
+ *
+ * NOT FORWARD-SECRET, whatever this used to say. It said "the ephemeral halves
+ * are gone when the socket is", and there are no ephemeral halves: `secret` and
+ * `peerPub` are the two decks' LONG-TERM keys, and everything else that goes
+ * into this is in a recording of the handshake. So whoever later holds either
+ * private key can derive this key for any connection they recorded, and open
+ * whatever was sealed under it — the frames after the handshake included (see
+ * frameChannel). Closing that takes an ephemeral X25519 pair per connection,
+ * which is a change to the handshake and not one to make in passing.
  */
 export function sessionKey(secret, peerPub, transcript) {
   const priv = createPrivateKey({ key: Buffer.from(secret, "base64"), format: "der", type: "pkcs8" });
@@ -891,9 +899,15 @@ export function transferChallenge(key, { nonce, accountKey, fromFp, toFp }) {
  * The additional data binds the ciphertext to the two decks and the account, so
  * a blob captured on one exchange cannot be replayed into another as if it were
  * about something else.
+ *
+ * `iv` IS RANDOM UNLESS THE CALLER OWNS A COUNTER, and exactly one does. A
+ * random 96-bit nonce is safe for the handful of seals a connection makes this
+ * way; frameChannel seals every frame of a connection and derives each nonce
+ * from the frame's number instead, so that a repeat is impossible rather than
+ * unlikely and a frame's place in the conversation is part of what its tag
+ * proves. Nothing else passes one.
  */
-export function seal(key, plaintext, aad) {
-  const iv = randomBytes(12);
+export function seal(key, plaintext, aad, iv = randomBytes(12)) {
   const c = createCipheriv("aes-256-gcm", key, iv);
   c.setAAD(Buffer.from(aad, "utf8"));
   const body = Buffer.concat([c.update(plaintext, "utf8"), c.final()]);
@@ -902,16 +916,208 @@ export function seal(key, plaintext, aad) {
 
 /** The other half. Returns null rather than throwing on every failure — a
  *  wrong tag, a wrong key, a truncated body and a hand-built packet all mean
- *  the same thing to the caller, which is "do not use this". */
+ *  the same thing to the caller, which is "do not use this".
+ *
+ *  THE TAG IS ALL SIXTEEN BYTES OR NOTHING. Without `authTagLength` node takes
+ *  whatever length `setAuthTag` is handed, down to four bytes — measured on
+ *  Node 24: a tag cut to its first four bytes opened, with nothing but a
+ *  DEP0182 warning on stderr to say so. A 32-bit tag is one forgery in four
+ *  billion tries instead of none, on the value that decides whether a frame or
+ *  a credential is genuine. `seal` has only ever written sixteen, so no deck of
+ *  any version is refused by this. */
 export function open(key, { iv, tag, body }, aad) {
   try {
-    const d = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64"));
+    const d = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64"), { authTagLength: 16 });
     d.setAAD(Buffer.from(aad, "utf8"));
     d.setAuthTag(Buffer.from(tag, "base64"));
     return Buffer.concat([d.update(Buffer.from(body, "base64")), d.final()]).toString("utf8");
   } catch {
     return null;
   }
+}
+
+// ── the frames after the handshake ──────────────────────────────────────────
+//
+// SEALED, EVERY ONE, AND UNTIL #810 NONE OF THEM WAS. The handshake proves both
+// keys and derives one for the connection, and that key sealed exactly two
+// things: the credential inside `have`, and the version card. Everything else
+// was a JSON line on a TCP socket. Captured through a relay on loopback between
+// two engines of the version before this, the round that healed one account
+// and added another read, after `ok`:
+//
+//   {"t":"manifest","accounts":[{"key":"claude1@sapec.md@@org-1","email":"claude1@sapec.md","alive":true},…],"current":{"key":"claude1@sapec.md@@org-1"}}
+//   {"t":"want","key":"claude2@sapec.md@@org-2","nonce":"…","proof":"…"}
+//   {"t":"have","key":"claude2@sapec.md@@org-2","sealed":{…}}
+//
+// So anybody on the same network segment could read every address a deck
+// shares, which of its copies are broken, which one the machine is on, and
+// which one is being repaired. No credential left that way and nobody could
+// pose as a deck; what leaked was which accounts are on which machines, which
+// is the one thing the share list promises to tell nobody else. And it was not
+// only readable: nothing after `ok` carried a MAC, so a manifest could be
+// rewritten in flight and the panel would draw whatever it was handed.
+//
+// ONE KEY PER DIRECTION, AND A COUNTER FOR A NONCE. Both ends start from the
+// same session key, so a single frame key would have both of them sealing frame
+// 0, frame 1, … under one key — and AES-GCM under a repeated nonce hands over
+// the XOR of the two plaintexts and the means to forge. So each direction gets
+// its own key and its own IV out of HKDF, the way sessionKey gets its own, and
+// the labels name the direction by ROLE rather than by fingerprint: two decks
+// holding one key (a copied ~/.claude) have one fingerprint between them, and a
+// label built from it would be the same label twice. The nonce is the IV XORed
+// with the frame's number, which is TLS 1.3's per-record nonce (RFC 8446 §5.3)
+// over its per-direction write key and write IV (§7.3).
+//
+// THE NUMBER IS NEVER SENT. Each end counts what it has sealed and what it has
+// opened, and opens the next frame under the number it expects next. A frame
+// played twice, two frames swapped, one dropped from the middle, one lifted
+// from another connection, or one sent back to the deck that sealed it — each
+// is opened under the wrong number or the wrong key, its tag does not match,
+// and the connection ends. There is no second try: a channel that has refused
+// one frame refuses every one after it, and the socket goes with it.
+//
+// THE ANNOUNCEMENT RIDES INSIDE THE CHALLENGE, and that is the whole defence
+// against being talked back down to plain text. An older deck has to keep
+// working, so a peer that says nothing about sealing is answered in the clear —
+// which makes "says nothing" exactly what a middleman would try to arrange. A
+// flag of its own in `hello` or `challenge` is a flag nobody signs: the proofs
+// cover the two fingerprints and the two challenges and nothing else, and an
+// older deck will never cover more. Delete the flag both ways and each end sees
+// a peer older than it is. Fold the flag into a new kind of proof and each end
+// falls back to the old kind for the peer it now believes is old — the same
+// round, readable, with nothing on either side to say so.
+//
+// The challenge is the one field every deck already binds. It goes verbatim
+// into the transcript sessionKey derives from, and into both proofs. So a deck
+// of this version marks its own (`<32 hex>.seal1`), an older deck carries that
+// as the opaque string it always took, and a middleman who takes the mark off
+// either challenge leaves the two ends deriving different keys: the caller's
+// proof fails at the listener and the handshake ends before a frame is sent.
+// TLS 1.3 puts its downgrade sentinel in ServerHello.random for the same reason
+// (RFC 8446 §4.1.3) — it is the field the older handshake already covers.
+//
+// WHICH IS WHY A `|` IN A CHALLENGE IS REFUSED. The transcript joins its four
+// fields with `|` and no lengths, so a middleman who could put one inside a
+// challenge could move characters from one challenge into the other and leave
+// both ends agreeing on the transcript, and so on the key, while each read a
+// different challenge from its peer than the one that peer sent. Every deck
+// sends hex, so a deck of this version takes letters, digits, `.`, `_` and `-`
+// and refuses anything else before it derives a key from it.
+//
+// WHAT IT DOES NOT HIDE: how long each frame is and when it was sent — a
+// manifest of ten accounts is longer than one of two. And it is exactly as
+// strong as the session key it starts from; see sessionKey for what that is.
+
+/** What a deck of this version appends to its challenge to say it seals every
+ *  frame after the handshake. A word with a number rather than a bit, so a
+ *  later frame format is a new word an older deck simply does not recognise. */
+export const SEALS = "seal1";
+
+/** Letters, digits, `.`, `_` and `-`, bounded. Ours are 38 characters and an
+ *  older deck's are 32; the bound is only there so a challenge is never the
+ *  largest thing a stranger can make this hash. */
+const CHALLENGE = /^[0-9A-Za-z._-]{1,128}$/;
+
+/** This deck's challenge for one connection: sixteen fresh random bytes, and
+ *  the mark that says it seals — unless it is speaking as a deck from before
+ *  #810, which is how the suite plays one. */
+export function challengeFor({ seals = true } = {}) {
+  const nonce = randomBytes(16).toString("hex");
+  return seals ? `${nonce}.${SEALS}` : nonce;
+}
+
+/** A challenge a peer sent, or null for one no deck sends — see "WHICH IS WHY
+ *  A `|` IN A CHALLENGE IS REFUSED" above. */
+export function readChallenge(raw) {
+  return typeof raw === "string" && CHALLENGE.test(raw) ? raw : null;
+}
+
+/** Whether the deck that made this challenge said it seals. */
+export function sealsFrames(challenge) {
+  return typeof challenge === "string" && challenge.endsWith(`.${SEALS}`);
+}
+
+/** Which way a frame is going, named by who dialled — never by fingerprint,
+ *  for the reason above. */
+const WAY = Object.freeze({ caller: "caller->listener", listener: "listener->caller" });
+
+/**
+ * The key and IV each end seals its own frames with, from one connection's
+ * session key.
+ *
+ * HKDF like sessionKey, one label per direction and per purpose: `key` and `iv`
+ * are separate expansions rather than one long one cut in two, the way RFC 8446
+ * §7.3 takes a write key and a write IV from one traffic secret.
+ */
+export function frameKeys(key) {
+  const derive = (way, what, length) => Buffer.from(hkdfSync("sha256", key, Buffer.alloc(0),
+    Buffer.from(`ccdeck-lan-v${PROTOCOL}|frames|${way}|${what}`, "utf8"), length));
+  const one = way => ({ way, key: derive(way, "key", 32), iv: derive(way, "iv", 12) });
+  return { caller: one(WAY.caller), listener: one(WAY.listener) };
+}
+
+/** Frame n's nonce: its direction's IV, XORed with n as a 64-bit big-endian
+ *  number in the last eight bytes (RFC 8446 §5.3). */
+function frameNonce(iv, n) {
+  const out = Buffer.alloc(12);
+  out.writeBigUInt64BE(BigInt(n), 4);
+  for (let i = 0; i < out.length; i++) out[i] ^= iv[i];
+  return out;
+}
+
+/**
+ * One end of a sealed connection: wrap what this end sends, unwrap what the
+ * other end sent — in order, once each.
+ *
+ * `role` is which end this is: "caller" for the deck that dialled, "listener"
+ * for the deck that answered. Each end seals under its own direction's key and
+ * opens under the other's, so a frame only ever opens at the deck it was sealed
+ * for.
+ *
+ * On the wire a frame is `{ sealed, tag }` and nothing else — not the verb, not
+ * the number, not the nonce. The number is the one each end already expects,
+ * and a frame that is not the one expected, or that carries anything beside
+ * those two fields, does not open.
+ */
+export function frameChannel(key, role) {
+  if (role !== "caller" && role !== "listener") throw new Error(`no such end: ${role}`);
+  const keys = frameKeys(key);
+  const out = keys[role];
+  const inn = keys[role === "caller" ? "listener" : "caller"];
+  let sent = 0;
+  let opened = 0;
+  let broken = false;
+  // The number goes in the additional data as well as the nonce. The nonce
+  // alone binds it; this says so in the one place a reader looks for what a
+  // tag covers, and it survives anybody changing how the nonce is built.
+  const aad = (way, n) => `ccdeck-lan-v${PROTOCOL}|frame|${way}|${n}`;
+  return {
+    wrap(obj) {
+      // 2^53 frames is not a connection anybody holds open — a round is a
+      // handful — but a counter that wrapped would be a nonce used twice, and
+      // refusing is cheaper than arguing about it.
+      if (!Number.isSafeInteger(sent + 1)) throw new Error("this connection has sealed all it may");
+      const n = sent++;
+      const { tag, body } = seal(out.key, JSON.stringify(obj), aad(out.way, n), frameNonce(out.iv, n));
+      return { sealed: body, tag };
+    },
+    unwrap(frame) {
+      if (broken) return null;
+      const shaped = !!frame && typeof frame === "object" && !Array.isArray(frame)
+        && Object.keys(frame).length === 2 && typeof frame.sealed === "string" && typeof frame.tag === "string";
+      const text = shaped
+        ? open(inn.key, { iv: frameNonce(inn.iv, opened).toString("base64"), tag: frame.tag, body: frame.sealed },
+          aad(inn.way, opened))
+        : null;
+      let msg = null;
+      if (text != null) { try { msg = JSON.parse(text); } catch { msg = null; } }
+      // A record, which is what frameReader asks of a plain frame: a sealed
+      // array is no more a frame than an unsealed one.
+      if (!msg || typeof msg !== "object" || Array.isArray(msg)) { broken = true; return null; }
+      opened++;
+      return msg;
+    },
+  };
 }
 
 // ── which copy wins ─────────────────────────────────────────────────────────
@@ -992,11 +1198,19 @@ export function plan(local, remote) {
  * this deck cannot use is worth nothing to a peer, so saying so plainly is what
  * stops a peer asking for it.
  *
- * Emails are in it, in the clear inside the encrypted channel. That is a
- * deliberate line: a manifest only ever reaches a deck that has already proved
- * it holds the passphrase, and the panel has to name the account it is offering
- * to heal. Hashing the email would buy nothing against that reader and would
- * cost the one thing the row needs to say.
+ * Emails are in it, and the manifest is sealed on its way. This said "in the
+ * clear inside the encrypted channel" until #810, and there was no such
+ * channel: the handshake derived a key and sealed a credential and a version
+ * card with it, and nothing else — so every email in this list crossed the
+ * network readable by anybody on it. Between two decks that both seal, every
+ * frame after the handshake now is (see frameChannel). Toward a deck from
+ * before that it still travels plain, because that deck cannot open anything
+ * else, until it updates.
+ *
+ * Plain emails INSIDE the seal are a deliberate line: a manifest only ever
+ * reaches a deck that proved the key somebody here accepted, and the panel has
+ * to name the account it is offering to heal. Hashing the email would buy
+ * nothing against that reader and would cost the one thing the row needs to say.
  *
  * `shared` is the user's list. An account absent from it is absent from the
  * manifest entirely — not listed as withheld, which would tell the group that

@@ -28,7 +28,7 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
-import { connectToPeer, createBeacon, createSyncServer, sendFrame, MAX_FRAME_BYTES } from "./lan-socket.mjs";
+import { connectToPeer, createBeacon, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { randomBytes } from "node:crypto";
@@ -189,6 +189,15 @@ export function createEngine({
   /** This deck's own card — its version and its machine — handed to every
    *  paired deck and to nobody else. See lan-about.mjs. */
   about = null,
+  /** Whether this deck seals every frame after the handshake with a deck that
+   *  says it does too — see frameChannel in lan-sync.mjs. Nothing in the deck
+   *  turns it off; the suite does, to play a deck from before #810, which is
+   *  the only way to show that one still heals. */
+  sealFrames = true,
+  /** Where the listener binds: every interface, which is what a peer dials,
+   *  unless the suite says loopback — a test deck has no business being
+   *  reachable from the office for the seconds it runs. */
+  host,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
@@ -314,7 +323,9 @@ export function createEngine({
   /** Frames from a deck that finished the handshake AND that somebody here has
    *  accepted. Nothing reaches this before both, which is the whole point of
    *  where the two checks sit. `ctx.key` is this connection's key and no other
-   *  connection's — see sessionKey. */
+   *  connection's — see sessionKey. `ctx.send` seals whatever it is handed when
+   *  both ends said they seal, so nothing below has to know which kind of deck
+   *  asked — see frameChannel. */
   const serve = async (msg, ctx) => {
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
@@ -422,6 +433,7 @@ export function createEngine({
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
+        sealFrames,
       });
       // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
       //
@@ -455,10 +467,22 @@ export function createEngine({
           if (i === -1) return;
           let parsed;
           try { parsed = JSON.parse(buf.slice(0, i)); } catch { return give(reject, new Error("bad reply")); }
-          give(resolve, parsed);
+          // THROUGH THE CONNECTION'S OWN READER, and on a sealed connection
+          // that is the only way in. A reply that does not open is not a reply
+          // with something wrong in it; it is a connection that stopped being
+          // the one the handshake proved — altered, replayed, or plain where
+          // both ends agreed to seal — so the round ends here instead of
+          // reading it as it stands. See frameChannel.
+          const got = conn.read(parsed);
+          if (conn.sealed && !got) {
+            conn.sock.destroy();
+            return give(reject, new Error("a reply from that deck did not open"));
+          }
+          give(resolve, got);
         };
         conn.sock.on("data", onData);
-        sendFrame(conn.sock, frame);
+        // And out through its own writer, which seals whenever the reader opens.
+        conn.send(frame);
       });
 
       // WHO IS ACTUALLY THERE. A typed address is a row that says `192.168.1.5:54340`
@@ -692,7 +716,7 @@ export function createEngine({
       // back — so the pin drifts to a free port rather than failing.
       server = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
-        name: cfg.name, handlers: serve, onError, prefer: cfg.port,
+        name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames,
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
         // Somebody used the token. They are pinned, and the token is retired —
@@ -858,6 +882,7 @@ export function createEngine({
             // one. Stopping at the first that ANSWERS is right; stopping at the
             // first that answers CORRECTLY is what it was supposed to mean.
             inviteProvesBack: inv.provesBack,
+            sealFrames,
           });
           const { list } = addTrusted(cfg.trusted, {
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),

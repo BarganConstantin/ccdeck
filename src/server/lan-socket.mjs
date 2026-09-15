@@ -90,8 +90,9 @@ export function broadcastTargets(ifaces) {
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, cleanName, handshakeTranscript, hostId, notePeer, proof, proofOk,
-  inviteProof, inviteProofBack, readBeacon, readPub, sessionKey, trustedPeer,
+  beaconPayload, beaconVerdict, challengeFor, cleanName, frameChannel, handshakeTranscript, hostId,
+  notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge, readPub,
+  sealsFrames, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 
@@ -395,7 +396,9 @@ export function sendFrame(sock, obj) {
  * lesson has.
  *
  * `handlers` is called only with authenticated frames, and it never sees the
- * handshake at all.
+ * handshake at all. On a sealed connection it is handed each frame already
+ * opened, and `ctx.send` seals whatever it is given — see frameChannel.
+ * `ctx.sealed` says which kind of connection it is on.
  */
 export function createSyncServer({
   fp, pub, name, secret, handlers, onError, host = "0.0.0.0", prefer = 0,
@@ -424,6 +427,11 @@ export function createSyncServer({
    *  case that slept for the real value would be thirty seconds of CI per run
    *  and would still only be checking a timer. */
   idleMs = IDLE_MS,
+  /** Whether this deck seals every frame after the handshake with a peer that
+   *  says it does too — see frameChannel. On in every real deck. False makes
+   *  this listener announce nothing and seal nothing, which is the wire every
+   *  deck before #810 speaks, and is how the suite plays one. */
+  sealFrames = true,
 } = {}) {
   let server = null;
   const live = new Set();
@@ -468,8 +476,21 @@ export function createSyncServer({
     let peerName = "";
     let peerPort = null;
     let key = null;
-    const myChallenge = randomBytes(16).toString("hex");
+    // Carrying this deck's mark when it seals, inside the one field the
+    // handshake already binds — see "THE ANNOUNCEMENT RIDES INSIDE THE
+    // CHALLENGE" in lan-sync.mjs.
+    const myChallenge = challengeFor({ seals: sealFrames });
     let theirChallenge = null;
+    /** The sealed channel, once the handshake is done and both challenges said
+     *  so; null for a peer that did not, which is answered in the clear exactly
+     *  as before. Set once and never changed. */
+    let chan = null;
+    /** Called at the moment `authed` turns true, so the first frame after `ok`
+     *  in either direction is already the sealed kind. Both challenges are
+     *  known by then, and the caller's proof has just said it saw the same two
+     *  this end did. */
+    const sealedChannel = () =>
+      (sealsFrames(myChallenge) && sealsFrames(theirChallenge) ? frameChannel(key, "listener") : null);
 
     // Armed before the first byte is read, and cleared only by a completed
     // handshake. A socket that connects and says nothing is the cheapest
@@ -504,6 +525,10 @@ export function createSyncServer({
     const refuse = why => {
       onError?.("frame", new Error(why));
       const bye = () => { try { sock.destroy(); } catch { /* already gone */ } };
+      // SEALED, A REFUSAL IS A CLOSE. Once both ends seal nothing leaves this
+      // socket in the clear, not even a word about why — and a peer whose frame
+      // would not open has nothing it could do with the word anyway.
+      if (chan) { bye(); return; }
       try { sock.write(`${JSON.stringify({ t: "no", why })}\n`, bye); }
       catch { bye(); return; }
       setTimeout(bye, 250).unref?.();
@@ -525,7 +550,10 @@ export function createSyncServer({
         // end holds the private half of the key they claimed — which is the
         // only thing a pin can later be checked against.
         if (msg.t === "hello") {
-          if (theirChallenge || typeof msg.challenge !== "string") return refuse("bad hello");
+          // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
+          // would let the transcript come out the same on both ends while each
+          // read a different challenge. See readChallenge.
+          if (theirChallenge || !readChallenge(msg.challenge)) return refuse("bad hello");
           const them = readPub(msg.pub);
           // The fingerprint is a hash of the key, so a hello whose two halves
           // disagree is not a deck with a stale field, it is somebody trying to
@@ -603,6 +631,7 @@ export function createSyncServer({
             onInviteUsed?.({ fp: peerFp, pub: peerPub, name: peerName, port: peerPort,
               addr: sock.remoteAddress?.replace(/^::ffff:/, "") ?? "" });
             authed = true;
+            chan = sealedChannel();
             clearTimeout(deadline);
             sendFrame(sock, {
               t: "ok", fp, name,
@@ -635,6 +664,7 @@ export function createSyncServer({
         }
 
         authed = true;
+        chan = sealedChannel();
         clearTimeout(deadline);
         // And ours, so the caller knows it reached the deck it pinned rather
         // than something standing in the way of one. Plus the invite, when one
@@ -651,7 +681,17 @@ export function createSyncServer({
         });
         return;
       }
-      handlers?.(msg, { sock, peerFp, key, send: obj => sendFrame(sock, obj) });
+      // SEALED FROM HERE WHEN BOTH ENDS SAID SO, AND ONLY SEALED. A frame that
+      // does not open is refused and the socket goes with it — see
+      // frameChannel for what "does not open" covers: altered, replayed,
+      // reordered, dropped, sent back, or simply plain. There is no reading it
+      // as it stands instead; that fallback would be the downgrade.
+      const frame = chan ? chan.unwrap(msg) : msg;
+      if (!frame) return refuse("a sealed frame did not open");
+      handlers?.(frame, {
+        sock, peerFp, key, sealed: !!chan,
+        send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
+      });
     }, refuse));
   };
 
@@ -720,9 +760,13 @@ export function connectToPeer({
    *  not from a deck that cannot — see mintInvite. False leaves this path
    *  exactly as it shipped, for a token minted by an older deck. */
   inviteProvesBack = false,
+  /** Whether this deck seals every frame after the handshake with a deck that
+   *  says it does too — see frameChannel. False announces nothing and seals
+   *  nothing, exactly as every deck before #810 dials; only the suite asks. */
+  sealFrames = true,
 }) {
   return new Promise((resolve, reject) => {
-    const myChallenge = randomBytes(16).toString("hex");
+    const myChallenge = challengeFor({ seals: sealFrames });
     const sock = net.createConnection({ host, port });
     sock.setEncoding("utf8");
     let settled = false;
@@ -773,7 +817,7 @@ export function connectToPeer({
           : "the other deck refused this handshake"));
       }
       if (msg.t === "challenge") {
-        if (theirFp || typeof msg.challenge !== "string") return fail(new Error("bad challenge"));
+        if (theirFp || !readChallenge(msg.challenge)) return fail(new Error("bad challenge"));
         const them = readPub(msg.pub);
         if (!them || them.fp !== msg.fp) return fail(new Error("bad challenge"));
         // THE PIN, CHECKED BEFORE ANYTHING ELSE. A deck we have paired with is
@@ -823,13 +867,22 @@ export function connectToPeer({
           return fail(new Error("that deck does not hold the invite"));
         }
       }
+      // Sealed from here when both challenges said so. The listener decided
+      // the same at the same moment from the same two strings, and the proof
+      // just checked is what says it saw the same two. See frameChannel.
+      const chan = sealsFrames(myChallenge) && sealsFrames(theirChallenge) ? frameChannel(key, "caller") : null;
       settled = true;
       clearTimeout(timer);
       sock.removeAllListeners("close");
       resolve({
-        sock, key,
+        sock, key, sealed: !!chan,
         peerFp: theirFp, peerPub: theirPub, peerName: cleanName(msg.name, ""),
-        send: obj => sendFrame(sock, obj),
+        send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
+        /** What a frame from the other end says — or null on a sealed
+         *  connection when it does not open, which ends the connection: every
+         *  frame after it would fail too. On a connection to a deck from before
+         *  #810, a plain frame passes through as it arrived. */
+        read: frame => (chan ? chan.unwrap(frame) : frame),
       });
     }, fail));
   });
