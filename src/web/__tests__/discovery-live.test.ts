@@ -12,7 +12,7 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { randomBytes } from "node:crypto";
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { rmTempDir } from "./rm-temp-dir";
@@ -134,6 +134,22 @@ describe("a discovery file that goes missing under a running deck", () => {
     expect(res.rewritten).toBe(false);
     // A rewrite would stamp a new startedAt — proof this was a read, not a write.
     expect(read()).toEqual(before);
+  });
+
+  // #1069. hook.js forgets a record whose port lets both challenge deadlines
+  // pass only once nothing has stamped it for a minute, so the stamp is what
+  // keeps a live-but-busy deck registered. It has to move on the check that
+  // rewrites nothing — that is every check a healthy deck ever makes.
+  it("stamps the file on every check, so a reader can tell it is still being kept", async () => {
+    await writeDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    utimesSync(FILE, hourAgo, hourAgo);
+    const before = read();
+
+    const res = await ensureDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
+    expect(res.rewritten).toBe(false);
+    expect(read(), "a stamp is not a rewrite").toEqual(before);
+    expect(Date.now() - statSync(FILE).mtimeMs, "the record kept its hour-old mtime").toBeLessThan(60_000);
   });
 
   // A file under our own pid that we did not write: a deck from a previous run
