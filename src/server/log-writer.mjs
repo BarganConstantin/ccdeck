@@ -374,6 +374,106 @@ export function appendQueueStats() {
 }
 
 const mb = chars => `${(chars / 1024 / 1024).toFixed(0)}MB`;
+// ─── What the queue failed to write ───────────────────────────────────────
+//
+// `.catch(() => {})` was the only handler anywhere on this path, and a failed
+// `open(filePath, "a")` was indistinguishable from a successful append from
+// every vantage point in the process. MEASURED, on a sandboxed deck whose
+// `--history` names a file inside a directory the user cannot write:
+//
+//   POST /api/event acknowledged: 10 of 10
+//   log file on disk?             false
+//   /api/health mentions the log? false
+//   /api/version canRestart:      true
+//
+// Ten events the deck told the hook it had recorded, nothing on disk, nothing
+// said on any console, and the Restart button still offering itself. That last
+// line is the one that costs: the button exists precisely BECAUSE a restart
+// without a log wipes the canvas irrecoverably, and it was gating on whether a
+// log had been CONFIGURED rather than on whether one was being written. The
+// press then lands on `replayLog`'s `if (!existsSync(filePath)) return 0` and
+// the whole session history is gone.
+//
+// Who gets there without trying: `--history` accepts any path — a read-only or
+// full volume, a removable drive unmounted while the deck runs, a directory
+// whose permissions changed under it. `startServer` even creates the parent
+// inside a bare `try {} catch {}`, so the failure is already swallowed once
+// before the first line is ever written.
+//
+// So the chain counts what it could not write, and says so once. The numbers
+// are what make the loss observable without watching a canvas come back empty,
+// for the same reason `eventBufferStats` exists one file over.
+let failedLines = 0;
+let failedChars = 0;
+/**
+ * The paths currently inside an EPISODE of failing, and how many lines each
+ * episode has lost so far: path -> { lines }.
+ *
+ * An episode rather than a one-shot flag, because the interesting failures are
+ * transient — a volume that fills and is emptied, a drive that is unplugged and
+ * returns — and a path complained about once and never again would report the
+ * first outage of a long-lived deck and stay silent through every later one.
+ * The episode closes on the next append to that path that LANDS, which is the
+ * only evidence available that the condition is over.
+ */
+const failingPaths = new Map();
+
+/**
+ * What the appender has failed to write, and whether it is failing now.
+ *
+ * Exported for the reason `eventBufferStats` and `MAX_BUFFER_CHARS` are: a loss
+ * whose only observable effect is a canvas that comes back empty after a
+ * restart is a loss no test can assert. `failing` is the number of paths inside
+ * an open failure episode — this process appends to exactly one log, so on a
+ * deck it is 0 or 1, and 1 means the log being drawn is not the log being kept.
+ *
+ * `failedLines` / `failedChars` are cumulative for the life of the process and
+ * count lines that were ATTEMPTED and did not land. A line the queue refused
+ * to accept in the first place is a different number and belongs beside this
+ * one rather than tangled into it.
+ *
+ * `filePath` NARROWS `failing` to one log, and a caller deciding what to do
+ * about its own log has to pass it. A process can outlive the log it was
+ * started with — `startServer` may be called again with a different `--history`
+ * on a restart, and the suite does exactly that — so an unscoped count would
+ * let a path that failed and was abandoned veto a deck whose current log is
+ * perfectly writable.
+ *
+ * @param {string|null} [filePath] the log to ask about; omit for every path
+ */
+export function appendFailureStats(filePath = null) {
+  const failing = filePath == null ? failingPaths.size : (failingPaths.has(filePath) ? 1 : 0);
+  return { failedLines, failedChars, failing };
+}
+
+/**
+ * One append landed. If this path was failing, that is the end of the episode
+ * and the size of the hole it left is worth one line.
+ */
+function noteAppendLanded(filePath) {
+  const episode = failingPaths.get(filePath);
+  if (!episode) return;
+  failingPaths.delete(filePath);
+  console.error(`${PRODUCT}: writing ${filePath} works again — ${episode.lines} event(s) were dropped while it did not, and are not in the log`);
+}
+
+/**
+ * One append did not land. Count it, and open an episode if this is the first.
+ *
+ * ONE LINE PER EPISODE, not one per failure. A read-only log fails on every
+ * event the deck draws, so per-failure this would be thousands of lines onto
+ * the terminal the deck paints its own banner over — which is its own version
+ * of the problem being fixed.
+ */
+function noteAppendFailed(filePath, line, err) {
+  failedLines++;
+  failedChars += typeof line === "string" ? line.length : 0;
+  const episode = failingPaths.get(filePath);
+  if (episode) { episode.lines++; return; }
+  failingPaths.set(filePath, { lines: 1 });
+  const why = err && err.message ? err.message : String(err);
+  console.error(`${PRODUCT}: cannot write the event log ${filePath} (${why}) — events are being drawn but not recorded, and a restart will not bring them back`);
+}
 
 /**
  * Append one already-serialized line to the shared log, whole.
@@ -441,6 +541,21 @@ export function appendLogLine(filePath, line) {
   pendingChars += charged;
   const tail = (appendTails.get(filePath) ?? Promise.resolve())
     .then(() => writeWholeLine(filePath, line))
+    // Counted, and reported once per episode — see noteAppendFailed. The order
+    // of these four steps is the whole of the union between the append-queue
+    // ceiling (#1030) and the failure counter (#991), and each link needs the
+    // one before it:
+    //
+    //   * the failure handler comes BEFORE the `catch`, or the rejection has
+    //     already been swallowed by the time anything could count it;
+    //   * the `catch` stays, because the map cleanup below chains a bare
+    //     `.then` on this tail and "never rejects" is the contract every caller
+    //     of this function has — neither handler above may be what breaks it;
+    //   * `finally` comes LAST, so the charge is given back whether the write
+    //     landed, failed, or a handler here threw on its way past. It would run
+    //     on a rejection anyway; what the ordering buys is that it cannot be
+    //     skipped by anything the two lines above do.
+    .then(() => noteAppendLanded(filePath), err => noteAppendFailed(filePath, line, err))
     .catch(() => {})
     // The charge is released when the line is written or has failed trying —
     // which is the moment the closure holding it becomes collectable, and so
@@ -494,6 +609,71 @@ export function drainAppends(ms = 3000) {
   // and a rejection here would skip the rest of the drain.
   return Promise.race([
     Promise.all(pending.map(p => Promise.resolve(p).catch(() => {}))).then(() => true),
+    deadline,
+  ]).finally(() => clearTimeout(bell));
+}
+
+/**
+ * Wait for everything queued for one log to land, bounded.
+ *
+ * `appendTails` is this module's alone: pushEvent calls appendLogLine
+ * fire-and-forget and the 200 goes out on the next statement, so nothing
+ * outside here could see the queue, let alone wait on it. The two operations
+ * that MOVE the file out from under it consulted neither.
+ *
+ * MEASURED, on a sandboxed deck — one 3 MB PostToolUse on the wire with eight
+ * small envelopes queued behind it, then `POST /api/clear`:
+ *
+ *   POST /api/clear answered:       {"ok":true,"log":"cleared", ...}
+ *   file right after the truncate:  0 bytes
+ *   file 2.5s after the Clear:      564 bytes, 3 line(s)
+ *   sessions surviving the Clear:   before-clear
+ *
+ * The ring was emptied, the file was truncated, `__clear` went out over SSE and
+ * the canvas was blank — and then the queue drained into the now-empty file.
+ * The next restart replays those lines, so sessions the user explicitly and
+ * irreversibly cleared come back. That is #698's residue by a different route,
+ * and it survives the ownership gate that fixed #698 because it happens on the
+ * deck that DOES own the file.
+ *
+ * And the rename, with one 24 MB line and one small line queued, the rename
+ * performed while the chain was still running:
+ *
+ *   events.jsonl    size: 65
+ *   events.jsonl.1  size: 25165897
+ *
+ * A descriptor opened before the rename completes into the renamed inode, so
+ * the line being appended lands in the archive rather than the live log.
+ *
+ * BOUNDED, for the reason the fire-and-forget shape exists at all: no caller
+ * may wait on the disk indefinitely, and that has to stay true of a caller that
+ * is answering an HTTP request. A deadline reached is the old behaviour, which
+ * is no worse than before.
+ *
+ * THE SIBLING OF drainAppends ABOVE, and deliberately not folded into it. That
+ * one is the exit's: every path, once, on the way out. This one is asked of a
+ * single log by two operations that are about to MOVE it, and it is asked while
+ * the deck goes on running — so the paths it must not wait for are the other
+ * logs a long-lived process has written, which drainAppends is right to include
+ * and this one would be wrong to.
+ *
+ * @param {string} filePath the log to wait on
+ * @param {number} [ms]     how long to wait before giving up
+ * @returns {Promise<boolean>} whether the queue actually drained
+ */
+export function flushAppends(filePath, ms = 3000) {
+  const tail = appendTails.get(filePath);
+  if (!tail) return Promise.resolve(true);
+  let bell;
+  const deadline = new Promise(resolve => {
+    bell = setTimeout(() => resolve(false), ms);
+    bell.unref?.();
+  });
+  return Promise.race([
+    // The tail never rejects — appendLogLine's own catch sees to that — but a
+    // rejection here would skip the clearTimeout and leave the caller hanging,
+    // so it is handled rather than assumed away.
+    Promise.resolve(tail).then(() => true, () => true),
     deadline,
   ]).finally(() => clearTimeout(bell));
 }
