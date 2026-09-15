@@ -13,6 +13,9 @@ import { run } from "./exec.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
 import { invalidateQuotaCache } from "./quota.mjs";
+// The one store mutex. A tick is the only thing in the deck that moves the live
+// account with nobody watching, which is why it of all writers must queue.
+import { withStoreLock } from "./store-lock.mjs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -307,9 +310,28 @@ function summarise(stdout) {
   };
 }
 
-/** Evaluate a tick for real. May switch the active account. */
+/**
+ * Evaluate a tick for real. May switch the active account.
+ *
+ * UNDER THE STORE MUTEX (#1039). `cswap auto --once` is not a question: it
+ * reads sequence.json, decides, and writes it back, which is the unlocked
+ * read-modify-write cswap-admin.mjs's header opens by explaining and the reason
+ * every mutation there goes through one lock. This one was outside it, and it
+ * is the writer least likely to be noticed — nobody presses it. The interval
+ * floor is MIN_INTERVAL_S = 15 s (claude-swap's own) and one `cswap add` is
+ * allowed sixty, so a tick landing inside a sign-in takes no coincidence at
+ * all: whichever write lands second drops the other's record, and the deck
+ * reports a rotation that was silently undone, or the account the user has just
+ * added is gone.
+ *
+ * A tick skipped because the lock was busy is not a tick lost — `tick()` already
+ * says as much about its own guard: the next interval is at most fifteen
+ * seconds away and the work is idempotent by design. Here it is not even
+ * skipped, only queued.
+ */
 async function runAutoTick() {
-  const r = await run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS });
+  const r = await withStoreLock(async () =>
+    run(await cswapBin(), ["auto", "--once", "--json"], { timeout: TICK_TIMEOUT_MS }));
   // A KILLED RUN IS NOT A QUIET ONE. `run`'s timeout path deliberately keeps an
   // 8 KB tail of whatever the child managed to print, so `!r.ok && !r.stdout`
   // is false for a tick that emitted its `{"event":"poll"}` line and then
@@ -673,7 +695,13 @@ export async function autoStatus() {
 export async function setAccountEnabled(accountNum, enabled) {
   const num = Number(accountNum);
   if (!Number.isInteger(num) || num < 1 || num > 999) return { ok: false, reason: "bad_account" };
-  const { withStoreLock } = await import("./cswap-admin.mjs");
+  // Statically, from store-lock.mjs, like the tick above. #950 reached for it
+  // through a dynamic `import("./cswap-admin.mjs")` to avoid adding a static
+  // edge between two modules that already imported each other, which was the
+  // right call while the lock lived inside one of them. It no longer does
+  // (#1039), and store-lock.mjs imports nothing at all — so there is no edge to
+  // avoid, and the same function arrives without loading the admin surface to
+  // get it.
   return withStoreLock(async () => {
     const r = await run(await cswapBin(), [enabled ? "enable" : "disable", String(num)]);
     if (!r.ok) return { ok: false, reason: "command_failed", detail: (r.stderr || r.stdout).trim().slice(0, 300) };

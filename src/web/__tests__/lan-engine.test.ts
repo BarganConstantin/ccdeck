@@ -718,12 +718,26 @@ describe("a heal that healed nothing", () => {
   const engine = readFileSync(
     fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8",
   );
+  const admin = readFileSync(
+    fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8",
+  );
+  // The forced half moved out of the route and into cswap-admin's
+  // `fillEmptySlot` with #1040, so that the verdict and the write could be one
+  // critical section instead of a check out here and a lock in there. The rules
+  // it carries did not change; they are asserted where the code now is.
+  const fillEmptySlot = (() => {
+    const at = admin.indexOf("export async function fillEmptySlot");
+    // Empty rather than thrown when it is not there: a file that cannot be
+    // collected reports one failure for the whole suite, and the cases below
+    // are about several different rules.
+    return at === -1 ? "" : admin.slice(at, admin.indexOf("\n}", at));
+  })();
 
   it("requires the account to have actually arrived", () => {
     // `ok` alone is no longer the whole answer, on either path.
     expect(src).not.toContain("return !!out?.ok;");
     expect(src).toContain("if (out.added === true) return { ok: true };");
-    expect(src).toContain("if (!landed(forced.results)) return { ok: false,");
+    expect(fillEmptySlot).toContain("if (!landed(forced.results)) return { ok: false,");
   });
 
   it("carries a reason, because refused and skipped are different sentences", () => {
@@ -748,12 +762,28 @@ describe("a heal that healed nothing", () => {
     // touch: claude-swap replaces a slot "iff its usage row is quarantined as
     // refresh-token-dead" and is "never triggered by the live store's
     // `no credentials` state".
-    expect(src).toContain('if (now !== "no_credentials") return { ok: false,');
-    expect(src).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
+    expect(fillEmptySlot).toContain('if (now !== "no_credentials") return { ok: false,');
+    expect(fillEmptySlot).toContain('const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });');
     // ASKED NOW rather than read from the ten-minute cache: somebody who signed
     // in two minutes ago still reads as `no_credentials` there, and acting on
     // that would replace the login they had just created.
-    expect(src).toContain("const now = await verdictNow(email, org ?? \"\");");
+    expect(fillEmptySlot).toContain("const now = await verdictNow(email, org ?? \"\");");
+
+    // AND INSIDE THE LOCK THAT THEN WRITES (#1040). Fresh was not enough by
+    // itself: the read sat outside the store mutex and importAccount takes it
+    // from within, so a forced import could queue for the length of a sign-in —
+    // `cswap add` 60 s, `cswap list` 60 s, `cswap switch` 30 s — and then run
+    // holding a verdict taken before any of it. The verdict is the first thing
+    // awaited inside the critical section, and nothing may be awaited above it,
+    // because anything that is re-opens the window by exactly its own duration.
+    const lock = fillEmptySlot.indexOf("withStoreLock");
+    const verdict = fillEmptySlot.indexOf("await verdictNow");
+    expect(lock, "the fill does not take the lock at all").toBeGreaterThan(-1);
+    expect(verdict, "the verdict is read before the lock is held").toBeGreaterThan(lock);
+    expect(
+      fillEmptySlot.slice(lock, verdict),
+      "something is awaited between taking the lock and re-reading the verdict",
+    ).not.toMatch(/await /);
   });
 
   it("keeps the promise the flag was never passed for", () => {
@@ -762,16 +792,20 @@ describe("a heal that healed nothing", () => {
     // sends can make a slot report that it holds nothing. `only` narrows it to
     // the one account, so a bundle carrying several cannot ride in behind it.
     expect(src).toContain("NO `force`, ever");
-    expect(src).toMatch(/nothing a peer sends can make a slot report that it holds\s*\n\s*\/\/ nothing/);
+    expect(src).toMatch(/nothing a peer sends can make a slot report that it holds nothing/);
     // Sliced to the end of the property rather than by a character count: the
-    // reasoning above the forced call is long, and a window that stopped short
-    // of it would assert the flag is absent from a block that does not contain
-    // it either way.
+    // reasoning above the call is long, and a window that stopped short of it
+    // would assert the flag is absent from a block that does not contain it
+    // either way. The route delegates the forced path now, so the flag is not
+    // in this block at all — which is the same assertion at full strength.
     const at = src.indexOf("importAccount: async (blob, step)");
-    const block = src.slice(at, src.indexOf("return { ok: true, filled: true };", at));
-    // Exactly one forced call, and it carries `only`.
-    expect((block.match(/force: true/g) ?? []).length).toBe(1);
-    expect(block).toMatch(/force: true, only: \{ email, org/);
+    const block = src.slice(at, src.indexOf("\n  },", at));
+    expect(block).not.toMatch(/force:\s*true/);
+    // And exactly one forced call in the deck, carrying `only`. `--force`
+    // overwrites every account it matches, so narrowing to the one the verdict
+    // was about is what keeps an overwrite a named act.
+    expect((fillEmptySlot.match(/force: true/g) ?? []).length).toBe(1);
+    expect(fillEmptySlot).toMatch(/force: true, only: \{ email, org/);
   });
 
   it("still takes a plain true, which is what the suite hands it", () => {
@@ -1192,5 +1226,84 @@ describe("the invite, and the half of it that was never checked", () => {
     const res = await b.e.join(old);
     expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
     expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+  }, 20_000);
+});
+
+// #1040, second half. `round` walks the peer list one deck at a time, under a
+// comment that reasons about the store taking one mutation at a time — and both
+// of those are statements about a round running ALONE. Two ways in, and nothing
+// stopping them from meeting: the self-scheduling timer (SYNC_MS, or ASKING_MS
+// while somebody is waiting), and `POST /api/lan/sync` calling
+// `lanEngine.round()` straight from the "Sync now" press.
+//
+// WHAT WAS OBSERVED: a press landing while the timer's round was mid-import gave
+// two rounds over the same peer list. Both dialled the same deck, both were
+// offered the same account, and both wrote it — the assertions below counted two
+// exports on the far side and two imports on this one for a single account that
+// needed repairing once. On the real store that is two `cswap import --force`
+// calls for the same slot, and with #1040's other half in place they are two
+// writes standing behind one verdict: whichever finishes second is the
+// credential this machine keeps, chosen by nothing.
+//
+// The guard joins rather than skips, because the press has a reply to send. A
+// press answered with `[]` would tell the user "nothing to sync" about a round
+// that was at that moment moving a credential, which is a worse sentence than a
+// slow one.
+describe("two rounds at once", () => {
+  it("is one round, and the press joins the one already running", async () => {
+    const mine = store([{ num: 2, email: "claude2@sapec.md", orgUuid: "org-2", alive: false }]);
+    const theirs = store([{ num: 5, email: "claude2@sapec.md", orgUuid: "org-2", alive: true }]);
+    const shared = [K("claude2@sapec.md", "org-2")];
+
+    // The import is held open, because that is the part of a round that takes
+    // real time on a real machine — `cswap import` is a subprocess — and it is
+    // the only part during which a second round does damage rather than merely
+    // wasting a dial.
+    const gates: Array<() => void> = [];
+    let reached!: () => void;
+    const importing = new Promise<void>(r => { reached = r; });
+    const a = await deck(mine, "Deck-A", shared, {
+      importAccount: async (blob: string) => {
+        mine.imported.push(blob);
+        reached();
+        await new Promise<void>(r => gates.push(r));
+        return true;
+      },
+    });
+    const b = await deck(theirs, "Deck-B", shared);
+    await point(a, b, b.port);
+
+    const timer = a.e.round();
+    await importing;             // a credential is being written right now
+    const press = a.e.round();   // and somebody presses "Sync now"
+    expect(press, "the press started a second round over the first").toBe(timer);
+
+    for (const open of gates.splice(0)) open();
+    const [byTimer, byPress] = await Promise.all([timer, press]);
+    expect(byPress).toEqual(byTimer);
+    expect(byTimer).toEqual([{
+      key: K("claude2@sapec.md", "org-2"), email: "claude2@sapec.md",
+      action: "heal", ok: true, why: null,
+    }]);
+    // One dial, one export, one import — for one account that needed repairing
+    // once.
+    expect(theirs.exported).toEqual([5]);
+    expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+
+  it("runs again once the first has finished, since the guard is not a latch", async () => {
+    // A guard that never cleared would make every later round a no-op for the
+    // life of the deck, which is the same feature broken the other way.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 9, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const shared = [K("claude1@sapec.md", "org-1")];
+    const a = await deck(mine, "Deck-A", shared);
+    const b = await deck(theirs, "Deck-B", shared);
+    await point(a, b, b.port);
+    const first = a.e.round();
+    await first;
+    const second = a.e.round();
+    expect(second, "the finished round was handed back a second time").not.toBe(first);
+    expect(await second).toEqual([]);
   }, 20_000);
 });
