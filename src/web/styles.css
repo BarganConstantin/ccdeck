@@ -5586,6 +5586,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   color: var(--muted);
 }
 
+/* A plain inset block (#862). It wore a 3px accent stripe down its left edge
+   on top of this hairline, which spent the accent on a static quote; the
+   soft ground and the border are enough to say "this is what was typed". */
 .session-summary .ss-prompt {
   font-size: 12px;
   line-height: 1.55;
@@ -5593,7 +5596,6 @@ button.tool.clickable:last-child { border-bottom: none; }
   padding: 10px 12px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-word;
