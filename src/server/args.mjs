@@ -131,13 +131,33 @@ export function isOneShot(flags = {}) {
 
 export function parseArgs(args) {
   const out = { unknown: [], incomplete: [] };
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
+  // END OF OPTIONS. A bare `--` is the POSIX separator, and reporting it as an
+  // unknown option warned about a token the user typed on purpose.
+  const end = args.indexOf("--");
+  const argv = end === -1 ? args : args.slice(0, end);
+  for (let i = 0; i < argv.length; i++) {
+    // `--port=4400`, split here so the dispatch below sees the two halves it
+    // already knows how to read.
+    //
+    // WHY IT MATTERS MORE THAN THE CONVENTION. Unsplit, `--port=4400` landed in
+    // `unknown` and `flags.port` stayed undefined — and bin/deck.js reads "no
+    // usable port" and "no port asked for" as the same thing, so
+    // `ccdeck --stop --port=4317` did not narrow the stop, it ended every deck
+    // on the machine. The `=` form is the commonest CLI convention there is,
+    // and this module's own header names this class of mistake as its reason
+    // for existing: "`ccdeck --prot 4500` booted on 4317 and said nothing."
+    const eq = argv[i].startsWith("--") ? argv[i].indexOf("=") : -1;
+    const a = eq > 2 ? argv[i].slice(0, eq) : argv[i];
+    const joined = eq > 2 ? argv[i].slice(eq + 1) : undefined;
     // The value of the flag just matched, or `undefined` when there is nothing
     // usable there. Closes over `i` so it can decline to advance it: not
     // consuming is what hands the token back to the loop.
     const value = (expects) => {
-      const next = args[i + 1];
+      if (joined !== undefined) {
+        if (joined.trim() === "") { out.incomplete.push({ flag: a, expects }); return undefined; }
+        return joined;
+      }
+      const next = argv[i + 1];
       if (next === undefined || looksLikeFlag(next)) {
         out.incomplete.push({ flag: a, expects });
         return undefined;
@@ -177,7 +197,7 @@ export function parseArgs(args) {
     else if (a === "--no-codex") out.noCodex = true;
     else if (a === "--claude") out.claude = true;
     else if (a === "--no-claude") out.noClaude = true;
-    else out.unknown.push(a);
+    else out.unknown.push(argv[i]);   // the token as typed, `=` half included
   }
   return out;
 }

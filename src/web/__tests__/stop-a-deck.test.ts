@@ -367,3 +367,45 @@ afterAll(() => {
   process.env = prevEnv;
   rmTempDir(DIR);
 });
+
+// AN OFF SWITCH MUST FAIL CLOSED.
+//
+// `--stop --port <n>` is the only form that narrows a stop. The selector reads
+// "no usable port" and "no port asked for" as the same value, and the second
+// means EVERY deck — so `ccdeck --stop --port 431x`, or `--port $UNSET` in a
+// script, ended every deck on the machine and exited 0 with "stopped … stopped
+// … stopped". The guard that refuses a bad port sits ~270 lines below the
+// one-shot block, which always exits before reaching it.
+//
+// Three spellings reach it, and `--port 431x` was the worst: a legal value
+// token to the parser, so it landed in neither `unknown` nor `incomplete` and
+// was silent at every layer.
+describe("a stop that asked for one deck never ends them all", () => {
+  it("refuses a --port value the parser could not use, before the selector runs", () => {
+    const refusal = DECK.indexOf("refusing to stop every deck when you asked for one.");
+    const selector = DECK.indexOf("const named = flags.port != null && isPortValue(flags.port)");
+    expect(refusal).toBeGreaterThan(0);
+    expect(selector).toBeGreaterThan(0);
+    expect(refusal, "the refusal has to run first, or it refuses nothing").toBeLessThan(selector);
+  });
+
+  it("treats a --port given with no value as asking for one, not as asking for none", () => {
+    // `--port` with nothing after it leaves flags.port undefined, which is the
+    // same shape as "no --port at all" — so the refusal reads `incomplete`
+    // rather than the absent value.
+    expect(DECK).toContain('(flags.incomplete ?? []).some(x => x.flag === "--port" || x.flag === "-p")');
+  });
+
+  it("reports unknown and incomplete flags from the one-shot block itself", () => {
+    // --help promises "Anything else on the command line is reported as an
+    // unknown option and then ignored". reportUnknownFlags lives below this
+    // block and cannot be called from it, so the rows are written inline.
+    const oneShot = DECK.indexOf("if (flags.stop || flags.status || flags.logs || flags.install");
+    const unknown = DECK.indexOf("unknown option${tone.reset}");
+    const missing = DECK.indexOf("missing value${tone.reset}");
+    expect(unknown).toBeGreaterThan(oneShot);
+    expect(missing).toBeGreaterThan(oneShot);
+    // Below the block's own tone/glyphs, or it is a temporal dead zone (#797).
+    expect(unknown).toBeGreaterThan(DECK.indexOf("const tone = palette(colorProfile("));
+  });
+});
