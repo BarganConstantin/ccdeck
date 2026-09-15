@@ -637,7 +637,7 @@ const persist = flags.noPersist
   // share a path still elect one writer for it.
   : canonicalLogPath(flags.history ?? join(deckLogDir(), "events.jsonl"));
 
-const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled } =
+const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
 // CODEX_SESSIONS_DIR comes along because the banner below names the directory
 // the watcher tails, and the watcher lives in that module. Recomputing the path
@@ -750,7 +750,7 @@ process.on("SIGHUP", () => { showCursor(); dieOfSignal("SIGHUP"); });
 // into each string as trailing spaces, so any new row, or any label a character
 // longer, silently broke the alignment of every other one.
 const LABELS = [
-  "workspace", "Claude hooks", "Codex sessions", "claude-swap", "accounts",
+  "workspace", "Claude hooks", "Codex sessions", "Codex hooks", "claude-swap", "accounts",
   "ccusage", "update", "name", "server ready", "log", "unknown option",
   "missing value",
 ];
@@ -922,7 +922,13 @@ function startupWork() {
     new Promise(r => setTimeout(() => r(null), 1200)),
   ]);
 
-  return { hooks, cswap, cswapInstalling, ccusage, update };
+  // An older deck's Codex forwarders, looked for and never touched — see
+  // leftoverCodexHooks for why a boot names them rather than removing them.
+  // Asked with --no-codex too: the entries fire whether or not this deck is
+  // watching the rollouts, and one file read is the whole cost.
+  const codexHooks = leftoverCodexHooks().catch(() => null);
+
+  return { hooks, cswap, cswapInstalling, ccusage, update, codexHooks };
 }
 
 /** The same work, said out loud, in a fixed order — a boot whose rows arrive in
@@ -978,6 +984,27 @@ async function reportStartup(jobs) {
     write(row({ mark: G.ok, label: "Codex sessions", detail: `watching ${fileLink(CODEX_SESSIONS_DIR)}` }));
   } else {
     write(row({ label: "Codex sessions", detail: `skipped ${G.dash} no ~/.codex/, or --no-codex` }));
+  }
+
+  // #983. A machine that ran a deck from before #253 still has that deck's
+  // forwarders in Codex's hooks.json, and nothing but `--uninstall` ever looked.
+  // Where Codex honours the file, each one posts the session to /api/event while
+  // the watcher above reads the same session off disk, so it arrives twice. Both
+  // copies go into the ring and events.jsonl; the reducer's two-second
+  // redelivery windows fold some of them on the card and not others, and a
+  // duplicate that shows only sometimes reads as a reducer bug, which is where
+  // it would otherwise be chased. Saying nothing was the one answer the issue
+  // ruled out. So: one row, in the place the deck already talks about Codex,
+  // naming the file and the command. `keep`, because a remedy cut off by an
+  // ellipsis is no remedy. The clause about arriving twice is said only while
+  // the watcher runs, since without it the forwarders are the only copy.
+  const leftover = await jobs.codexHooks;
+  if (leftover) {
+    const twice = wantCodex ? ", so Codex sessions can arrive twice" : "";
+    write(row({
+      mark: G.warn, tone: P.warn, label: "Codex hooks", keep: true,
+      detail: `left by an older deck in ${fileLink(leftover.settingsPath)}${twice} ${G.dash} \`${INVOKED_AS ?? PRODUCT} --uninstall\` takes them out`,
+    }));
   }
 
   // Bounded, because this is the job that made a first boot look hung: on a
