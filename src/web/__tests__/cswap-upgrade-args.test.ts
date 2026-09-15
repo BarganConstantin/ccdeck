@@ -23,12 +23,15 @@ import { join } from "node:path";
 
 const BUNDLED = join("/fake-deck", "tools", "uv", "uv");
 
-// Nothing is executed: `run` answers from a table and `runDetached` only
-// records, so a regression shows up as the wrong recorded argv rather than as
-// a real upgrade on the machine running the suite.
-const { probeOk, detached } = vi.hoisted(() => ({
+// Nothing is executed: `run` answers from a table, and the upgrade command it
+// is handed is recorded rather than run — so a regression shows up as the wrong
+// recorded argv rather than as a real upgrade on the machine running the suite.
+// The recording moved from `runDetached` to `run` with #1000, which made the
+// upgrade a captured child; what each tool is asked to do, which is what this
+// file is about, did not change.
+const { probeOk, upgrades } = vi.hoisted(() => ({
   probeOk: { is: (_cmd: string) => false },
-  detached: [] as { cmd: string; args: string[] }[],
+  upgrades: [] as { cmd: string; args: string[] }[],
 }));
 
 const ok = (stdout: string) => ({ ok: true, code: 0, killed: false, stdout, stderr: "" });
@@ -36,6 +39,9 @@ const fail = () => ({ ok: false, code: "ENOENT", killed: false, stdout: "", stde
 
 vi.mock("../../server/exec.mjs", () => ({
   run: async (cmd: string, args: string[] = []) => {
+    // The upgrade, whichever tool it was aimed at: every spelling of it carries
+    // the word, and no probe does.
+    if (args.includes("upgrade")) { upgrades.push({ cmd, args }); return ok(""); }
     // The installed copy, so ensureCswap takes the "already present" path.
     if (/cswap(\.exe)?$/.test(cmd) && args[0] === "--version") return ok("claude-swap 0.25.0");
     // safePythons: make the answer the same on all three platforms — a python
@@ -45,7 +51,6 @@ vi.mock("../../server/exec.mjs", () => ({
     if (cmd === "where") return fail();
     return probeOk.is(cmd) ? ok("1.0.0") : fail();
   },
-  runDetached: (cmd: string, args: string[]) => { detached.push({ cmd, args }); },
 }));
 
 vi.mock("../../server/uv-bootstrap.mjs", () => ({
@@ -54,9 +59,16 @@ vi.mock("../../server/uv-bootstrap.mjs", () => ({
 }));
 
 // PyPI says there is something newer, without touching the network.
+//
+// The number matters since #1000: the deck now only chases a release inside the
+// version bound it installs with, so a fixture that advertises `9.9.9` — which
+// is what this said, and is the shape a takeover takes — produces no upgrade at
+// all and every case here would pass vacuously. 0.26.0 is a real release of
+// claude-swap and one the bound accepts. That `9.9.9` is refused is asserted on
+// purpose in cswap-version-bound.test.ts.
 vi.stubGlobal("fetch", async () => ({
   ok: true,
-  json: async () => ({ info: { version: "9.9.9" } }),
+  json: async () => ({ info: { version: "0.26.0" } }),
 }));
 
 // The update-check marker is written under homedir(), which reads $HOME on
@@ -99,7 +111,7 @@ afterAll(() => {
  * that same installer owns the claude-swap that is there.
  */
 async function upgradeWith(available: (cmd: string) => boolean, owner: "uv" | "pipx" = "uv") {
-  detached.length = 0;
+  upgrades.length = 0;
   probeOk.is = available;
   // The marker throttles the check to once a day, and the module caches both the
   // resolved binary and the python list — a fresh instance per case.
@@ -110,43 +122,47 @@ async function upgradeWith(available: (cmd: string) => boolean, owner: "uv" | "p
     { recursive: true });
   vi.resetModules();
   // @ts-expect-error — .mjs server module, no types
-  const { ensureCswap } = await import("../../server/cswap-install.mjs");
+  const { ensureCswap, upgradeSettled } = await import("../../server/cswap-install.mjs");
   const state = await ensureCswap();
-  return { state, detached: [...detached] };
+  // ensureCswap returns before the upgrade finishes, deliberately — the boot
+  // does not wait for it. The test does, so nothing is still writing under the
+  // temp home after teardown has deleted it.
+  await upgradeSettled();
+  return { state, upgrades: [...upgrades] };
 }
 
 describe("the background claude-swap upgrade", () => {
   it("gives the bundled uv a uv command line, not a pipx one", async () => {
-    const { state, detached } = await upgradeWith(cmd => cmd === BUNDLED);
+    const { state, upgrades } = await upgradeWith(cmd => cmd === BUNDLED);
 
     expect(state).toMatchObject({ state: "upgrading", version: "0.25.0", via: "uv (bundled)" });
-    expect(detached).toEqual([{ cmd: BUNDLED, args: ["tool", "upgrade", "claude-swap"] }]);
+    expect(upgrades).toEqual([{ cmd: BUNDLED, args: ["tool", "upgrade", "claude-swap"] }]);
     // The regression exactly: uv exits 2 on `-m`, and says nothing anyone sees.
-    expect(detached[0].args).not.toContain("-m");
+    expect(upgrades[0].args).not.toContain("-m");
   });
 
   it("still uses the right command line for uv, pipx and python -m pipx", async () => {
     const uv = await upgradeWith(cmd => cmd === "uv");
     expect(uv.state).toMatchObject({ state: "upgrading", via: "uv" });
-    expect(uv.detached).toEqual([{ cmd: "uv", args: ["tool", "upgrade", "claude-swap"] }]);
+    expect(uv.upgrades).toEqual([{ cmd: "uv", args: ["tool", "upgrade", "claude-swap"] }]);
 
     const pipx = await upgradeWith(cmd => cmd === "pipx", "pipx");
     expect(pipx.state).toMatchObject({ state: "upgrading", via: "pipx" });
-    expect(pipx.detached).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
+    expect(pipx.upgrades).toEqual([{ cmd: "pipx", args: ["upgrade", "claude-swap"] }]);
 
     // `py` on Windows, `python3` elsewhere — whichever safePythons found.
     const py = await upgradeWith(cmd => cmd === "py" || cmd === "python3", "pipx");
     expect(py.state).toMatchObject({ state: "upgrading" });
     expect(py.state.via).toMatch(/-m pipx$/);
-    expect(py.detached).toEqual([
+    expect(py.upgrades).toEqual([
       { cmd: py.state.via.replace(" -m pipx", ""), args: ["-m", "pipx", "upgrade", "claude-swap"] },
     ]);
   });
 
   it("upgrades nothing when no installer answers", async () => {
-    const { state, detached } = await upgradeWith(() => false);
+    const { state, upgrades } = await upgradeWith(() => false);
 
     expect(state).toEqual({ state: "present", version: "0.25.0" });
-    expect(detached).toEqual([]);
+    expect(upgrades).toEqual([]);
   });
 });
