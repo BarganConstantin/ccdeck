@@ -23,6 +23,13 @@ import { join } from "node:path";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(web, "styles.css"), "utf8");
+/** The sheet with its prose removed, for the same reason `literals` below keeps
+ *  only quoted spans: a property NAMED in a comment — `repeat(var(--n), 1fr)`
+ *  in the note explaining why the core strip stopped using one — is prose about
+ *  a rule, not a rule. Read against the raw text it counts as a live read, and
+ *  the property it describes can never be retired without the sweep calling the
+ *  explanation itself the dangling half. */
+const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {
@@ -41,11 +48,11 @@ const literals = [...tsx.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)]
   .join("\n");
 
 /** `--x:` in any declaration — :root, but also the per-category .tool-burst rules. */
-const declared = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+const declared = new Set([...rules.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
 /** A whole-string token: either JS writes it as an inline style (--spawn-dx on a
  *  bubble, --rot on a confetti bit) or reads it back through cssVar(). */
 const namedInJs = new Set([...tsx.matchAll(/"(--[\w-]+)"/g)].map(m => m[1]));
-const readInCss = new Set([...css.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
+const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 const readInTsx = new Set([...tsx.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 
 describe("custom properties have both a writer and a reader", () => {
