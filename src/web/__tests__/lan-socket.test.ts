@@ -44,7 +44,8 @@ import { fingerprint, hostId, identityFrom, readBeacon, ANNOUNCE_MS, PROTOCOL } 
 // @ts-expect-error — plain .mjs server modules, no types
 import {
   broadcastTargets, connectToPeer, createBeacon, createSyncServer, directedBroadcast, frameReader,
-  sendFrame, DISCOVERY_PORT, HANDSHAKE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
+  sendFrame, DISCOVERY_PORT, HANDSHAKE_MS, IDLE_MS, MAX_FRAME_BYTES, MAX_SOCKETS,
+  MAX_SOCKETS_PER_HOST,
 } from "../../server/lan-socket.mjs";
 
 /** One caller and one listener for the whole file. Identities are the point of
@@ -392,6 +393,75 @@ describe("a caller who is trying to cost something", () => {
     expect(results.filter(Boolean).length).toBeGreaterThanOrEqual(4);
     for (const so of socks) so.destroy();
   }, 10_000);
+
+  // SILENCE IS THE CASE THE TWO ABOVE LOOK LIKE THEY COVER AND DO NOT. The
+  // first sends `{t:"manifest"}`, which takes the `refuse` path and frees the
+  // socket immediately; the second asserts the cap exists rather than that a
+  // legitimate peer can still get in. Neither drives a caller that says nothing
+  // at all, which is the cheapest thing on the network and was the whole of it.
+  //
+  // Measured against this listener with a trusted caller, before the share:
+  //
+  //     baseline handshake:                OK
+  //     with 16 silent sockets held:       REFUSED: peer closed the connection
+  //     with 16 idle authed sockets held:  REFUSED, and still refused 11s later
+  //
+  // No key, no trust, not one byte sent. The cap was deliberate and documented
+  // and simply not apportioned, so whoever grabbed it first had all of it, and
+  // the HANDSHAKE_MS deadline reclaiming those sockets only meant re-dialling
+  // on a shorter cycle held it there. The second line is the worse one: that
+  // deadline is cleared at `authed` and nothing replaced it, so `live` shrank
+  // on close alone and a peer that authenticated and went quiet held its share
+  // for as long as its process lived — a lease rather than a rate limit.
+  it("gives one host a share of the table rather than the whole of it", async () => {
+    // Everything on loopback is one host, which is exactly what makes this
+    // drivable: what is counted is how much of the table a single address is
+    // allowed to occupy, and therefore how much is left for every other deck.
+    const { s } = server();
+    const port = await s.start();
+    const socks = Array.from({ length: MAX_SOCKETS + 4 }, () => net.createConnection({ port, host: "127.0.0.1" }));
+    for (const so of socks) so.on("error", () => { /* the reset on refusal */ });
+    const closes = socks.map(so => new Promise<boolean>(res => {
+      so.on("close", () => res(true));
+      setTimeout(() => res(false), 900);
+    }));
+    const refused = (await Promise.all(closes)).filter(Boolean).length;
+    expect(socks.length - refused, "one silent host held more than its share")
+      .toBe(MAX_SOCKETS_PER_HOST);
+    // Which is the property, stated the way it matters: the rest of the table
+    // was never the attacker's to take.
+    expect(MAX_SOCKETS - MAX_SOCKETS_PER_HOST).toBeGreaterThan(0);
+    for (const so of socks) so.destroy();
+  }, 10_000);
+
+  it("reclaims a socket that goes quiet after it has authenticated", async () => {
+    // `idleMs` rather than the shipped IDLE_MS, so this runs in a few hundred
+    // milliseconds instead of half a minute — the timer is the same timer.
+    const { s } = server({ idleMs: 400 });
+    const port = await s.start();
+    const held = [];
+    for (let i = 0; i < MAX_SOCKETS_PER_HOST; i++) {
+      held.push(await connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 2000 }));
+    }
+    // The share is taken, by connections that proved who they are and then said
+    // nothing — so one more from the same host is refused.
+    await expect(connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 1500 }))
+      .rejects.toThrow();
+    // And handed back when they have been silent long enough. Before this there
+    // was no deadline of any kind past `authed`, so this never came round.
+    await new Promise(r => setTimeout(r, 900));
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller(), timeoutMs: 2000 });
+    expect(peer.peerFp).toBeTruthy();
+    peer.sock.destroy();
+    for (const h of held) h.sock.destroy();
+  }, 15_000);
+
+  it("does not let the idle deadline decide a handshake", async () => {
+    // It is armed before the first byte, like the handshake deadline, and it
+    // has to be the looser of the two or it would be cutting off slow decks
+    // rather than quiet ones.
+    expect(IDLE_MS).toBeGreaterThan(HANDSHAKE_MS);
+  });
 });
 
 describe("reading frames off a socket", () => {
