@@ -1234,6 +1234,28 @@ let discoveryFile = null;
 // this deck is registered, and given back by the exit handler on every way out
 // before that. See src/server/boot-lock.mjs.
 let bootLock = null;
+// HERE, not at the bottom with SIGINT and SIGTERM, and this line is the whole
+// of the fix for #980.
+//
+// This file is an ES module with top-level `await`, so its statements run in
+// source order and a handler registered at the bottom does not exist until the
+// boot has got there. Three `process.exit()` calls sit between the gate below
+// and that point — the yield when another deck came up first, the ATTACH that
+// every `ccdeck` typed beside a running deck takes, and the exit of a boot
+// whose server could not bind — and the explicit release further down is on the
+// one path none of them take. So the handler that was written to cover "every
+// way out" covered only the ways out it was already past.
+//
+// What the leftover file costs is a start that has to wait the lock out: the
+// next `ccdeck` finds it, and recovers through `!alive(holder.pid)` — unless
+// the OS has recycled that pid onto a live process, which Windows does
+// routinely. Then the only way past is BOOT_LOCK_STALE_MS measured from when
+// the lock was WRITTEN, so a start a few seconds after an attach polls for the
+// remainder of thirty before it can so much as ask whether a deck is up.
+//
+// Synchronous, because `exit` allows nothing else, and a no-op once the lock
+// has been given back at the registration below.
+process.on("exit", () => { bootLock?.release(); });
 
 // This worker does not outlive the supervisor that started it (#702).
 //
@@ -1775,11 +1797,10 @@ async function shutdown(code = 0) {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 process.on("beforeExit", () => { discovery?.stop(); if (discoveryFile) removeDiscovery(discoveryFile); });
-// Every way out, including the attach and the boot that fails before it
-// registers: a lock left behind would hold the next start for thirty seconds
-// before it could judge the holder gone. Synchronous, because `exit` allows
-// nothing else, and a no-op once the lock has been given back.
-process.on("exit", () => { bootLock?.release(); });
+// The boot lock's `exit` handler is NOT here with its siblings. It is armed up
+// beside `let bootLock = null;`, above the start gate, because the three exits
+// this file takes before reaching this line are the ones it exists for — see
+// the note there (#980).
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

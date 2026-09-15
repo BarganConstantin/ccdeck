@@ -160,10 +160,48 @@ describe("where bin/deck.js holds it", () => {
   });
 
   it("gives it back on every way out, from a handler that exists before the gate", () => {
-    expect(DECK).toMatch(/process\.on\("exit", \(\) => \{ bootLock\?\.release\(\); \}\);/);
-    // Declared with the other things shutdown asks about, above the first line
-    // shutdown can be reached from (#448) — a `const` at the gate would be in
-    // its temporal dead zone for every exit before it.
+    // Observed on a sandbox deck: `ccdeck` typed beside a running one takes the
+    // attach exit, and `<config>/agent-dag/boot.lock` was still on disk
+    // afterwards carrying the attaching process's now-dead pid. bin/deck.js is
+    // an ES module with top-level `await`, so its statements run in source
+    // order: the handler was registered 440 lines BELOW the three
+    // `process.exit()` calls it was written to cover — the yield, the attach,
+    // and the boot whose server could not bind — and the explicit release is on
+    // the one path none of them take. #980.
+    //
+    // This case used to assert
+    //
+    //   expect(DECK).toMatch(/process\.on\("exit", …bootLock\?\.release\(\)…/);
+    //   expect(at("let bootLock = null;")).toBeGreaterThan(0);
+    //   expect(at("let bootLock = null;")).toBeLessThan(at("dieWithParent(…)"));
+    //
+    // — which proves the handler exists SOMEWHERE and then compares the
+    // position of the DECLARATION, never of the registration. Both halves were
+    // true of the leaking file, so the case passed while the property in its own
+    // title was false. The declaration's position is a different rule (#448),
+    // and it is now checked under its own name below.
+    const arm = 'process.on("exit", () => { bootLock?.release(); });';
+    expect(at(arm)).toBeGreaterThan(0);
+    expect(at(arm)).toBeLessThan(at("bootLock = await takeBootLock("));
+    // And before each of the three exits it has to survive, named one by one so
+    // a fourth added above the handler fails here rather than quietly joining
+    // them: the yield, the attach, and the boot that could not bind.
+    for (const exit of [
+      'if (plan.act === "yield") {',
+      'if (plan.act === "attach") {',
+      'server failed: ${bound.err.message}',
+    ]) {
+      expect(at(exit)).toBeGreaterThan(0);
+      expect(at(arm)).toBeLessThan(at(exit));
+    }
+  });
+
+  it("declares it above the first line shutdown can be reached from", () => {
+    // #448's rule, which the case above used to be a check of by accident. A
+    // `const` at the gate would be in its temporal dead zone for every exit
+    // before it, and `shutdown` is reachable from the moment dieWithParent is
+    // armed — so the declaration has to come first or an early exit dies of a
+    // ReferenceError instead of tidying up.
     expect(at("let bootLock = null;")).toBeGreaterThan(0);
     expect(at("let bootLock = null;")).toBeLessThan(at("dieWithParent(() => shutdown(0));"));
   });
