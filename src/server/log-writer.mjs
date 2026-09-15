@@ -805,11 +805,20 @@ export function flushAppends(filePath, ms = 3000) {
  * in order; only the answer goes out first — and `outcome.error` is then still
  * undefined, which means "not known yet" rather than "worked".
  *
+ * THE ARCHIVE'S REMOVAL IS REPORTED TOO. An archive still there after a Clear is
+ * the whole history again at the next boot — the replay falls back to it once
+ * the live log is empty (#1130) — so a Clear that emptied the live file but could
+ * not remove the archive has not done what it says. This used to swallow that
+ * unlink's error the way it once swallowed the truncate's. A missing archive
+ * counts as removed, as a missing log counts as empty.
+ *
  * @param {string}   filePath   the log to empty
  * @param {string[]} [archives] older generations of it, removed in the same turn
  * @param {number}   [ms]       how long to wait for the turn to be over
- * @param {{ error?: Error | null }} [outcome] filled in when the turn runs:
- *        `error` is the truncate's failure, or null once the file is empty
+ * @param {{ error?: Error | null, archiveError?: Error | null }} [outcome]
+ *        filled in when the turn runs: `error` is the truncate's failure, or null
+ *        once the file is empty; `archiveError` is the first archive that could
+ *        not be removed, or null once none is left
  * @returns {Promise<boolean>} whether it was over before the deadline
  */
 export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
@@ -820,7 +829,12 @@ export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
       err => { outcome.error = err?.code === "ENOENT" ? null : (err ?? new Error("truncate failed")); },
     )
     .then(async () => {
-      for (const older of archives) await unlink(older).catch(() => {});
+      let first = null;
+      for (const older of archives) {
+        try { await unlink(older); }
+        catch (err) { if (err?.code !== "ENOENT" && !first) first = err ?? new Error("unlink failed"); }
+      }
+      outcome.archiveError = first;
     })
     .catch(() => {});
   appendTails.set(filePath, turn);
