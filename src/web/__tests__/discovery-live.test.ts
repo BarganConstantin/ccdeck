@@ -173,21 +173,36 @@ describe("a discovery file that goes missing under a running deck", () => {
     });
   }
 
-  it("keeps the file readable by its owner alone", async () => {
+  // -- THREE CASES THAT STOPPED RUNNING WITHOUT SAYING SO (#994) ------------
+  //
+  // All three below used to gate themselves from INSIDE the body: the first
+  // wrapped its only assertion in `if (process.platform !== "win32") { ... }`,
+  // and the other two opened with `if (process.platform === "win32") return;`.
+  // On Windows the first ran `ensureDiscovery` and then asserted nothing, and
+  // the other two did nothing at all; vitest reported all three as passed,
+  // because a body that returns early has not failed.
+  //
+  // skip-gates.mjs exists precisely so a case that stops running on one leg
+  // goes red rather than quiet. The register states, per gate site, when the
+  // case is expected to skip; skip-gate-inventory.test.ts re-derives the sites
+  // from these sources and fails when the two disagree; publish.yml compares
+  // the register against what vitest actually reported on each leg. A gate
+  // written as an `if` inside the body is invisible to all three, so the
+  // Windows leg could report these three as passing for as long as anyone
+  // cared to look. `it.skipIf` is the form the register can read, and the entry
+  // added for this file names three sites and three cases.
+  it.skipIf(process.platform === "win32")("keeps the file readable by its owner alone", async () => {
     // The token is the deck's key material — see writeDiscovery. Windows has no
     // POSIX mode to check; NTFS inherits per-user ACLs from the profile dir.
     await ensureDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
-    if (process.platform !== "win32") {
-      expect(statSync(FILE).mode & 0o777).toBe(0o600);
-    }
+    expect(statSync(FILE).mode & 0o777).toBe(0o600);
   });
 
   // The write goes through writeFileAtomic, which replaces the file by renaming
   // a fresh one over it — a fresh inode carries the umask's mode, not the old
   // file's, unless something pins it. So the mode is checked after an overwrite
   // too, and from a target deliberately left wider than it should be.
-  it("puts the mode back on a rewrite, not only on the first write", async () => {
-    if (process.platform === "win32") return;
+  it.skipIf(process.platform === "win32")("puts the mode back on a rewrite, not only on the first write", async () => {
     await writeDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
     chmodSync(FILE, 0o644);
     await writeDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
@@ -197,8 +212,7 @@ describe("a discovery file that goes missing under a running deck", () => {
   // The atomic write's temp file is created beside the target and holds the same
   // token, and it is born with whatever the umask allows. Nobody but the owner
   // can reach into a 0700 directory to read it in the moment before the rename.
-  it("keeps the discovery directory closed to other users", async () => {
-    if (process.platform === "win32") return;
+  it.skipIf(process.platform === "win32")("keeps the discovery directory closed to other users", async () => {
     chmodSync(AGENT_DAG_DIR, 0o755);
     await writeDiscovery({ port: PORT, workspace: WORKSPACE, token: TOKEN });
     expect(statSync(AGENT_DAG_DIR).mode & 0o777).toBe(0o700);

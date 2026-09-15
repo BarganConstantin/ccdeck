@@ -131,6 +131,28 @@ describe("where the claude-swap store is", () => {
     expect(backupRoot()).toBe(join(FAKE_HOME, ".local/share/claude-swap"));
   });
 
+  // #796, DRIVEN RATHER THAN READ (#994). The tilde was pinned two files away,
+  // in cross-platform-794-797.test.ts, as three `toContain`s over the source of
+  // this very resolver — which held of a resolver that sent every `~` to the
+  // home fallback before reaching the expansion, since all three strings
+  // survive a line like that being added above them. And that fallback is the
+  // bug: claude-swap runs `expanduser` and then `is_absolute`, so a systemd unit
+  // or a Dockerfile setting `XDG_DATA_HOME=~/data` has cswap in ~/data while the
+  // deck reads ~/.local/share, and seedFirstAccount then runs `cswap add`
+  // against a store it believes is empty.
+  //
+  // Gated off Windows, and registered: the rule is Linux's "starts with /", and
+  // on Windows node's join puts a drive letter and backslashes on the expanded
+  // value, so there it is correctly ignored and this would be asserting the
+  // fallback. See the entry in skip-gates.mjs.
+  it.skipIf(process.platform === "win32")("expands a leading ~ before deciding whether it is absolute", () => {
+    process.env.XDG_DATA_HOME = "~/data";
+    expect(backupRoot()).toBe(join(FAKE_HOME, "data", "claude-swap"));
+    // A bare `~`, which expanduser takes as the home directory itself.
+    process.env.XDG_DATA_HOME = "~";
+    expect(backupRoot()).toBe(join(FAKE_HOME, "claude-swap"));
+  });
+
   it("falls back to the home directory when XDG_DATA_HOME is unset", () => {
     expect(backupRoot()).toBe(join(FAKE_HOME, ".local/share/claude-swap"));
   });
