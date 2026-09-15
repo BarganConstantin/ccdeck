@@ -6290,9 +6290,19 @@ async function handleClear(res) {
   // stays `ok`, and says which half did not happen, here and in the terminal.
   // A turn still on the chain at the deadline has no error yet and keeps the
   // answer it always had.
-  const failed = mineToEmpty && emptyOutcome.error ? emptyOutcome.error : null;
-  if (failed) {
-    console.error(`${PRODUCT}: Clear could not empty the event log ${sharing.path} (${failed.code ?? failed.message}) — the canvas is clear, but that history will come back at the next boot`);
+  //
+  // AND THE ARCHIVE, for the same reason: one that survives a Clear is the whole
+  // history again at the next boot, because the replay falls back to it once the
+  // live log is empty (#1130). Either half failing makes the answer "failed", and
+  // each says which it was.
+  const truncateFailed = mineToEmpty && emptyOutcome.error ? emptyOutcome.error : null;
+  const archiveFailed = mineToEmpty && emptyOutcome.archiveError ? emptyOutcome.archiveError : null;
+  const failed = truncateFailed ?? archiveFailed;
+  if (truncateFailed) {
+    console.error(`${PRODUCT}: Clear could not empty the event log ${sharing.path} (${truncateFailed.code ?? truncateFailed.message}) — the canvas is clear, but that history will come back at the next boot`);
+  }
+  if (archiveFailed) {
+    console.error(`${PRODUCT}: Clear could not remove the event log's archive ${sharing.path}.1 (${archiveFailed.code ?? archiveFailed.message}) — the canvas is clear, but that history will come back at the next boot`);
   }
   return send(res, 200, {
     ok: true,

@@ -12,6 +12,11 @@
 // platform or privilege gate. The swap has to come after the boot: a deck handed
 // a directory as its log refuses it while reading it back at startup
 // (`EISDIR ... read`), long before any Clear could be pressed.
+//
+// The same trick covers the archive. An archive path that is a non-empty
+// DIRECTORY cannot be removed as a file, by anyone, on any of the three systems,
+// while the live log still truncates. An archive that survives a Clear is the
+// whole history again at the next boot, so that half is reported too.
 
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -46,7 +51,7 @@ if (!resolve(String(claudeConfigDir())).startsWith(resolve(CONFIG))) {
   throw new Error(`refusing to run: resolved ${claudeConfigDir()}, outside ${CONFIG}`);
 }
 
-type Outcome = { error?: (Error & { code?: string }) | null };
+type Outcome = { error?: (Error & { code?: string }) | null; archiveError?: (Error & { code?: string }) | null };
 const empty = emptyLog as (file: string, archives?: string[], ms?: number, outcome?: Outcome) => Promise<boolean>;
 const headers = () => ({ "content-type": "application/json", "x-ccdeck-token": (hookToken as () => string)() });
 
@@ -54,6 +59,7 @@ const headers = () => ({ "content-type": "application/json", "x-ccdeck-token": (
 // gives: no case binds a port another has only just released.
 const PORT_REFUSED = 4660;
 const PORT_EMPTIED = 4661;
+const PORT_ARCHIVE = 4662;
 
 async function boot(port: number, persist: string): Promise<Server> {
   return await (startServer as (o: Record<string, unknown>) => Promise<Server>)({
@@ -101,6 +107,21 @@ describe("emptyLog's outcome", () => {
     expect(done.error).toBeNull();
     expect(readFileSync(file, "utf8")).toBe("");
   });
+
+  it("carries an archive it could not remove, and counts a missing one as removed", async () => {
+    const live = join(SANDBOX, "with-archive.jsonl");
+    writeFileSync(live, "one line\n");
+    const stuck = live + ".1";
+    mkdirSync(join(stuck, "inside"), { recursive: true });   // a directory is not removed as a file
+    const outcome: Outcome = {};
+    await empty(live, [stuck], 3000, outcome);
+    expect(outcome.error, "the live log itself emptied").toBeNull();
+    expect(outcome.archiveError, "the archive that stayed is reported").toBeTruthy();
+
+    const gone: Outcome = {};
+    await empty(live, [join(SANDBOX, "no-such-archive.jsonl.1")], 3000, gone);
+    expect(gone.archiveError).toBeNull();
+  });
 });
 
 describe("a Clear whose log refused the truncate", () => {
@@ -145,7 +166,35 @@ describe("a Clear whose log emptied", () => {
       const reply = await clear(PORT_EMPTIED);
       expect(reply.log).toBe("cleared");
       expect(reply).not.toHaveProperty("error");
-      expect(said.mock.calls.filter(c => String(c[0]).includes("Clear could not empty"))).toEqual([]);
+      expect(said.mock.calls.filter(c => String(c[0]).includes("Clear could not"))).toEqual([]);
+    } finally {
+      said.mockRestore();
+    }
+  });
+});
+
+describe("a Clear whose log's archive could not be removed", () => {
+  let deck: Server | null = null;
+  afterAll(() => stop(deck));
+
+  it("answers that the log was not cleared, and names the archive in the terminal", async () => {
+    const persist = join(SANDBOX, "deck-archive", "events.jsonl");
+    mkdirSync(join(SANDBOX, "deck-archive"), { recursive: true });
+    writeFileSync(persist, "");
+    deck = await boot(PORT_ARCHIVE, persist);
+    // After the boot, for the reason the refused case gives: the archive becomes
+    // a directory with something in it, which no unlink removes. The live log is
+    // an ordinary file and truncates.
+    mkdirSync(join(persist + ".1", "inside"), { recursive: true });
+    const said = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const reply = await clear(PORT_ARCHIVE);
+      expect(reply.ok, "the canvas was still cleared").toBe(true);
+      expect(reply.log).toBe("failed");
+      expect(typeof reply.error).toBe("string");
+      const lines = said.mock.calls.map(c => String(c[0])).filter(s => s.includes("Clear could not remove the event log's archive"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain(persist + ".1");
     } finally {
       said.mockRestore();
     }
