@@ -32,7 +32,7 @@ import { createActivity } from "./activity.mjs";
 import { createOutputWatch } from "./output-watch.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs";
@@ -3590,9 +3590,22 @@ const lanEngine = createEngine({
   // is a pairing that goes one-way at the next restart.
   onDial: async entry => {
     try {
-      const manual = Array.isArray(_prefs?.lan?.manual) ? _prefs.lan.manual : [];
-      if (manual.includes(entry)) return;
-      _prefs = await writePrefs({ lan: { manual: [...manual, entry] } });
+      // COMPUTED INSIDE THE JOB, out of what the write is about to read, rather
+      // than out of `_prefs` — which is a module-level copy refreshed only when
+      // a previous write resolves, not "the one on disk". `writePrefs` merges
+      // field by field and cannot merge two writes of one field: the patch here
+      // is the WHOLE array, so a stale one wins. Pressing accept on a heard deck
+      // at the moment an invite round fires this dropped the dialled address out
+      // of `lan.manual`, which is the failure the comment above describes.
+      _prefs = await updatePrefs(prev => {
+        const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
+        return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
+      });
+      // AND RECONCILE THE ENGINE'S DIAL LIST with what was just written. The
+      // disk is now right, but `setPeers` replaces the list wholesale from
+      // `_prefs` on every settings write — so a write that raced this one, and
+      // whose `_prefs` predates it, would still take the address away.
+      lanEngine.setPeers(_prefs.lan.manual);
     } catch { /* dialled this session; the next round re-adds it */ }
   },
   onIdentity: async secret => {
@@ -3603,7 +3616,12 @@ const lanEngine = createEngine({
       // one — so they stayed invisible to each other with a correct file on
       // disk. `apply` restarts only when the id it is holding differs from the
       // one it is given, so this settles after one pass rather than looping.
-      await applyLanPrefs();
+      //
+      // The key is handed over HERE rather than read back off `_prefs`, because
+      // `applyLanPrefs` no longer round-trips the three fields the engine
+      // authors — see what it does and does not pass. This is the one caller
+      // that legitimately changes one of them, and it is holding the new value.
+      await applyLanPrefs({ secret });
     } catch { /* the next start picks it up; a shared id is the cost until then */ }
   },
   onError: (what, err) => {
@@ -3614,29 +3632,81 @@ const lanEngine = createEngine({
   },
 });
 
+/**
+ * What prefs is entitled to tell the LAN engine, and what it is not.
+ *
+ * THREE FIELDS ARE THE ENGINE'S OWN AND ARE LOADED ONCE. `trusted`, `secret`
+ * and `port` are written BY the engine, through `onTrust`, `onIdentity` and
+ * `onPort` — prefs is where they are kept between runs, not where they are
+ * decided. Handing them back on every settings write round-trips the engine's
+ * live state through a module-level copy of a file, and that copy is stale for
+ * as long as one of those writes is queued.
+ *
+ * WHAT THAT COST, reproduced with two real engines and a real handshake: press
+ * accept on deck B, and `lanEngine.accept` adds it to `cfg.trusted`
+ * synchronously and queues `onTrust`. In the same second another tab flips
+ * notifications; that handler's `writePrefs` is queued BEHIND `onTrust`'s, but
+ * its `applyLanPrefs` runs on the `_prefs` it assigned — merged from a disk read
+ * taken before `onTrust` wrote. `apply` does `cfg = { ...cfg, ...next }`, so the
+ * whole array is replaced:
+ *
+ *     B trusted after accept                : old-deck-fp, 6ef-127-19e-79e
+ *     B trusted after a plain settings write: old-deck-fp
+ *
+ * `GET /api/lan` reads `lanEngine.status()`, so the panel then shows B unpaired
+ * while prefs.json says paired, and B's calls are refused. The next `onTrust`
+ * from any source writes `cfg.trusted` back to disk without B, making it
+ * permanent.
+ *
+ * So `load` is true exactly once per boot, where reading them off the file IS
+ * the right answer, and false thereafter. The one caller that legitimately
+ * changes one of them afterwards passes it in directly — see `onIdentity`.
+ *
+ * Exported because it is the rule rather than the plumbing, and the plumbing
+ * around it is a module-level engine no test can reach.
+ */
+export function lanApplyFields(prefs, { load = false, env = process.env } = {}) {
+  const lan = prefs?.lan ?? {};
+  const page = {
+    // The file's answer unless the machine said no: AGENTS_DECK_NO_LAN=1 is
+    // how a launch script — or this repo's own test suite — keeps a deck off
+    // the network now that the default is on.
+    enabled: lanEnabled(prefs, env),
+    name: lan.name || defaultName(),
+    shared: Array.isArray(lan.shared) ? lan.shared : [],
+    autoAsk: lan.autoAsk !== false,
+    autoAccept: lan.autoAccept !== false,
+    // Whether paired decks are told which shared account this one is on.
+    shareActive: lan.shareActive !== false,
+    // Names somebody here gave other decks. The engine only hands them to
+    // the page, so a change never restarts anything.
+    aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},
+  };
+  if (!load) return page;
+  return {
+    ...page,
+    secret: lan.secret || "",
+    trusted: Array.isArray(lan.trusted) ? lan.trusted : [],
+    port: lan.port || 0,
+  };
+}
+
+/** Whether the engine has already been handed the three fields it authors.
+ *  Reset by `startServer`, because a boot is what reads them off the file. */
+let _lanLoaded = false;
+
 /** Push whatever is in prefs at the engine. Called at boot and after every
- *  write, so there is one source of truth and it is the file. */
-async function applyLanPrefs() {
+ *  write, so there is one source of truth and it is the file — for the fields
+ *  the file is the source of truth FOR. See `lanApplyFields`.
+ *
+ *  `also` is for a caller holding a value the engine itself just produced and
+ *  that has to take effect now; nothing else may name one of the three. */
+async function applyLanPrefs(also = null) {
   const lan = _prefs?.lan ?? {};
+  const load = !_lanLoaded;
+  _lanLoaded = true;
   try {
-    await lanEngine.apply({
-      // The file's answer unless the machine said no: AGENTS_DECK_NO_LAN=1 is
-      // how a launch script — or this repo's own test suite — keeps a deck off
-      // the network now that the default is on.
-      enabled: lanEnabled(_prefs),
-      name: lan.name || defaultName(),
-      secret: lan.secret || "",
-      shared: Array.isArray(lan.shared) ? lan.shared : [],
-      trusted: Array.isArray(lan.trusted) ? lan.trusted : [],
-      port: lan.port || 0,
-      autoAsk: lan.autoAsk !== false,
-      autoAccept: lan.autoAccept !== false,
-      // Whether paired decks are told which shared account this one is on.
-      shareActive: lan.shareActive !== false,
-      // Names somebody here gave other decks. The engine only hands them to
-      // the page, so a change never restarts anything.
-      aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},
-    });
+    await lanEngine.apply({ ...lanApplyFields(_prefs, { load }), ...(also ?? {}) });
     // Wholesale, so removing an address in the panel really stops it being
     // dialled rather than only taking the row away.
     lanEngine.setPeers(lan.manual);
@@ -3757,11 +3827,16 @@ async function handleLanPeer(req, res) {
       // saved.
       if (added.dialled) {
         const entry = `${added.addr}:${added.port}`;
-        const manual = Array.isArray(_prefs?.lan?.manual) ? _prefs.lan.manual : [];
-        if (!manual.includes(entry)) {
-          try { _prefs = await writePrefs({ lan: { manual: [...manual, entry] } }); }
-          catch { /* it is dialled this session; the next accept re-adds it */ }
+        // Inside the job, like `onDial` — the same whole-array patch computed
+        // from the same stale copy, and the same address lost when two of them
+        // land in one turn.
+        try {
+          _prefs = await updatePrefs(prev => {
+            const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
+            return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
+          });
         }
+        catch { /* it is dialled this session; the next accept re-adds it */ }
       }
       return send(res, 200, { ok: true, added, ...lanEngine.status() });
     }
@@ -3778,13 +3853,19 @@ async function handleLanPeer(req, res) {
     // name of its own choosing. An empty name takes the alias away.
     //
     // The whole map is rebuilt from the one on disk rather than sent by the
-    // page, so two tabs renaming two decks cannot undo each other.
+    // page, so two tabs renaming two decks cannot undo each other. It is
+    // rebuilt inside the write's own job for that to be true: `_prefs` is a
+    // module-level copy refreshed only when a previous write resolves, and the
+    // patch is the whole map — so two renames in one turn both read before
+    // either job ran, both answered 200, and the first name was never written.
     case "alias": {
       if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
       const name = cleanAlias(body.name);
-      const next = { ...(_prefs?.lan?.aliases ?? {}) };
-      if (name) next[fp] = name; else delete next[fp];
-      _prefs = await writePrefs({ lan: { aliases: next } });
+      _prefs = await updatePrefs(prev => {
+        const next = { ...(prev?.lan?.aliases ?? {}) };
+        if (name) next[fp] = name; else delete next[fp];
+        return { lan: { aliases: next } };
+      });
       await lanEngine.apply({ aliases: _prefs.lan.aliases });
       return send(res, 200, { ok: true, ...lanEngine.status() });
     }
@@ -6132,6 +6213,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // `!== false` rather than a cast: a caller that omits the field means "yes",
   // which is how every embedder that predates this option keeps working.
   _providers = { claude: claude !== false, codex: codex !== false };
+  // A boot is the one moment the file, and not the engine, is the authority on
+  // the key, the pairings and the port. See lanApplyFields.
+  _lanLoaded = false;
   // The away-update's clock. The boot grace counts from here, and the timer is
   // unref'd so it never keeps a process alive on its own. It does nothing until
   // the launcher has handed down a restart — see awayGate's `supervised`.
