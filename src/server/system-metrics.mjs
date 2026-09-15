@@ -1281,6 +1281,57 @@ export const WIN_THERMAL_PS = [
   "$r = [ordered]@{}",
   // Get-Counter, not Get-CimInstance: this is the half that works unelevated.
   "try { $r.perf = @((Get-Counter -Counter '\\Thermal Zone Information(*)\\High Precision Temperature' -EA Stop).CounterSamples | ForEach-Object { @{ i = $_.InstanceName; v = $_.CookedValue } }) } catch {}",
+  // THE SAME COUNTER UNDER THE NAME THIS WINDOWS CALLS IT.
+  //
+  // Performance-counter set and counter names are LOCALIZED. That is why PDH
+  // ships `PdhAddEnglishCounter` beside `PdhAddCounter` at all, and
+  // `Get-Counter -Counter` takes a localized path: hand it the English one on a
+  // German, French, Japanese or Russian Windows and it answers "The specified
+  // object was not found on the computer." `-EA Stop` plus `catch {}` turns
+  // that into silence, so the line above falls straight through to MSAcpi —
+  // which this module's own header says needs elevation a deck never has — and
+  // then to LibreHardwareMonitor, which is only there if the user installed it.
+  // A machine with real ACPI thermal zones and a non-English display language
+  // therefore drew no Thermal section at all, indistinguishable from the
+  // modern-Intel-laptop case the section is written to tolerate.
+  //
+  // This is the class #552 fixed one module over: exec.mjs spends two screens
+  // on "Windows ships cmd.exe in every language it ships in, and these
+  // sentences are translated with it", and there is a C_LOCALE block in this
+  // very file for the same reason.
+  //
+  // Perflib is the documented map between the two spellings. `…\Perflib\009`
+  // holds a REG_MULTI_SZ of alternating index and ENGLISH name; the parallel
+  // `…\Perflib\CurrentLanguage` holds index and LOCAL name. Look the two
+  // English names up to get their indices, read the local names at the same
+  // indices, and build the path out of those.
+  //
+  // SECOND, NOT FIRST, and that is what makes it safe to add: an English
+  // Windows never reaches this line, because `$r.perf` is already filled. It
+  // can only turn a machine that was reporting nothing into one that reports
+  // something.
+  //
+  // NOT ONE DOUBLE QUOTE, for the reason the whole of this string has none: it
+  // travels as a single `-Command` argument on a Windows command line. The
+  // counter path is concatenated rather than interpolated so that no quoting
+  // form beyond the single quote is needed anywhere in it.
+  //
+  // REASONED, NOT REPRODUCED. The localization of counter names is documented
+  // Microsoft behaviour and the Perflib layout is documented with it, but no
+  // localized Windows was available to run this against, and CI's runners are
+  // English — so what CI proves about this line is that it parses and runs
+  // clean on a real Windows, not that it resolves a German counter name.
+  "if (-not $r.perf) { try { "
+    + "$en = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Perflib\\009' -EA Stop).Counter; "
+    + "$lo = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Perflib\\CurrentLanguage' -EA Stop).Counter; "
+    + "$byIndex = @{}; for ($i = 1; $i -lt $lo.Count; $i += 2) { $byIndex[$lo[$i-1]] = $lo[$i] }; "
+    + "$set = $null; $ctr = $null; "
+    + "for ($i = 1; $i -lt $en.Count; $i += 2) { "
+    + "if ($en[$i] -eq 'Thermal Zone Information') { $set = $byIndex[$en[$i-1]] } "
+    + "elseif ($en[$i] -eq 'High Precision Temperature') { $ctr = $byIndex[$en[$i-1]] } }; "
+    + "if ($set -and $ctr) { $r.perf = @((Get-Counter -Counter ('\\' + $set + '(*)\\' + $ctr) -EA Stop).CounterSamples "
+    + "| ForEach-Object { @{ i = $_.InstanceName; v = $_.CookedValue } }) } "
+    + "} catch {} }",
   "if (-not $r.perf) { try { $r.acpi = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -EA Stop | ForEach-Object { @{ i = $_.InstanceName; v = $_.CurrentTemperature } }) } catch {} }",
   // Depth matters: the default of 2 turns the inner hashtables into the string
   // "System.Collections.Hashtable" and this parser would see nothing at all.
@@ -1748,8 +1799,17 @@ function sampleCpu() {
   // Free — os.loadavg() reads a kernel value, no syscall worth the name — so it
   // rides the CPU tick rather than earning a timer. Windows returns [0,0,0],
   // which is not a reading and is not recorded as one.
+  //
+  // THE PLATFORM TEST IS THE WHOLE TEST. It used to be joined by
+  // `load.some(n => n > 0)`, which reads as belt and braces and is not: Node
+  // documents `os.loadavg()` as always [0,0,0] on Windows, so the platform test
+  // alone already excludes every non-reading — and the extra clause could only
+  // ever reject a reading that was REAL. `/proc/loadavg` on a genuinely quiet
+  // Linux box says `0.00 0.00 0.00`, so "Queued work" recorded no points at all
+  // for every quiet minute, and after the machine woke the chart read as though
+  // the deck had been switched off through them.
   const load = os.loadavg();
-  if (process.platform !== "win32" && load.some(n => n > 0)) record("load:1m", Math.round(load[0] * 100) / 100);
+  if (process.platform !== "win32") record("load:1m", Math.round(load[0] * 100) / 100);
 }
 
 /**
@@ -1823,7 +1883,12 @@ export function stopSystemMetrics() {
 export function systemSnapshot() {
   const cpu = cpuHistory.length ? cpuHistory[cpuHistory.length - 1] : null;
   const load = os.loadavg();
-  const hasLoad = process.platform !== "win32" && load.some(n => n > 0);
+  // Platform alone, for the reason spelled out beside the `load:1m` record in
+  // sampleCpu: Node's own contract makes the platform test sufficient, and the
+  // `load.some(n => n > 0)` that used to join it here rejected nothing except a
+  // real reading of zero. MachinePanel gates the whole section on `{loadavg &&
+  // …}`, so an idle Linux box had the section disappear from under it.
+  const hasLoad = process.platform !== "win32";
   return {
     ok: true,
     cpu,

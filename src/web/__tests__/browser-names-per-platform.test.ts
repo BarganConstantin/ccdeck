@@ -73,10 +73,22 @@ describe("the process name each platform actually uses", () => {
 });
 
 describe("quitting a browser", () => {
-  it("kills the process, not the display name with its spaces removed", async () => {
+  it("names the process, not the display name with its spaces removed", async () => {
+    // `"Google Chrome"` became `GoogleChrome.exe` and `google-chrome`, and
+    // neither is a process on either platform, so this reaction was offered on
+    // Windows and Linux and could never once have worked. That is what this
+    // case has always been about and it is unchanged: the name comes from the
+    // table in browser-presence.mjs.
+    //
+    // WHAT IT NO LONGER SAYS is `["/IM", "chrome.exe", "/F"]`. That spelling
+    // force-killed all four Chrome-family channels at once and took every
+    // unsaved tab with it (#1028); the Windows leg now asks PowerShell which
+    // WINDOWED processes of that name belong to this install before it closes
+    // anything, so the name shows up in the query rather than in a kill.
     const win = recorder();
     await quitBrowser("chrome", "win32", { run: win.run });
-    expect(win.calls[0]).toMatchObject({ cmd: "taskkill", args: ["/IM", "chrome.exe", "/F"] });
+    expect(win.calls[0].cmd.toLowerCase()).toContain("powershell");
+    expect(win.calls[0].args.at(-1)).toContain("Get-Process -Name chrome");
 
     const lin = recorder();
     await quitBrowser("edge", "linux", { run: lin.run });

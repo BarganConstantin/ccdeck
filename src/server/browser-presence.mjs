@@ -98,6 +98,66 @@ export function processName(key, platform = process.platform) {
   return table[key] ?? null;
 }
 
+/**
+ * The other browser keys this platform cannot tell apart from `key` by process
+ * name alone.
+ *
+ * Read the win32 table above and the collision is plain: four keys, one name.
+ * Chrome, Chrome Beta, Chrome Canary and Chromium all ship their executable as
+ * `chrome.exe` on Windows — and so does every renderer any of them starts — so
+ * `tasklist /FI "IMAGENAME eq chrome.exe"` and `taskkill /IM chrome.exe` are
+ * both answers about ALL FOUR. The Linux table has the same three-way collision
+ * on `chrome`.
+ *
+ * Exported so the reaction can ask the question before it acts, rather than
+ * each caller re-deriving it from a table it would have to be looking at. An
+ * empty list is the ordinary answer — `msedge`, `brave` and `vivaldi` name one
+ * browser each — and it means the image name IS the install.
+ */
+export function sharesProcessName(key, platform = process.platform) {
+  const table = APP_NAME[platform] ?? APP_NAME.linux;
+  const mine = table[key];
+  if (!mine) return [];
+  return Object.keys(table).filter(k => k !== key && table[k] === mine);
+}
+
+/**
+ * The path fragment that tells one Windows install of a shared image name from
+ * another.
+ *
+ * The four Chrome-family channels collide on `chrome.exe` and do NOT collide on
+ * where they are installed: the installer gives each channel its own directory,
+ * and the same directory name is the one that appears in the user-data root
+ * `browser-profiles.mjs` already knows — `Google\Chrome SxS\User Data` beside
+ * `Google\Chrome SxS\Application\chrome.exe`. So a process's own executable
+ * path names its channel even when its image name does not.
+ *
+ * WITH THE SEPARATORS ON BOTH SIDES, which is the whole of the discrimination:
+ * `\Google\Chrome\` does not occur in `…\Google\Chrome Beta\Application\…` or in
+ * `…\Google\Chrome SxS\Application\…`, while a bare `Chrome` occurs in all
+ * three. A fragment rather than a full path because the same channel installs
+ * per-machine under `%ProgramFiles%` and per-user under `%LOCALAPPDATA%`, and
+ * anchoring on either one would miss the other half of the installs.
+ *
+ * REASONED FROM DOCUMENTED INSTALLER LAYOUT, NOT MEASURED HERE: this table says
+ * where Google's installer puts each channel, and no Windows machine was
+ * available to confirm it. What the code does with a non-match is therefore the
+ * important half, and it is deliberately the safe one — see quitBrowser, which
+ * falls back to asking rather than to killing, and never widens its reach on a
+ * miss.
+ */
+const WIN_INSTALL_DIR = {
+  chrome: "\\Google\\Chrome\\",
+  "chrome-beta": "\\Google\\Chrome Beta\\",
+  "chrome-canary": "\\Google\\Chrome SxS\\",
+  chromium: "\\Chromium\\",
+};
+
+/** Where this browser is installed, as a path fragment, or null when the
+ *  platform has no such distinction to make or the deck does not know one. */
+export const installMarker = (key, platform = process.platform) =>
+  platform === "win32" ? (WIN_INSTALL_DIR[key] ?? null) : null;
+
 /** Every address the relay currently resolves to.
  *
  *  Empty is not an error — a machine with no `dig`, or one where the name is
