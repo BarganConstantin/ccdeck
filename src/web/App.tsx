@@ -68,7 +68,7 @@ const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
-import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
+import { autoLayout, bubblePush, columnsWouldChange, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps, type Frame } from "./layout";
 import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
@@ -260,6 +260,8 @@ const DONE_SESSION_GRACE_MS = 2 * 60_000;
  *  it. Named because the answer to "should this animate" is asked of it too. */
 const OPENING_FIT_MS = 400;
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
+/** The frame the stored layout was packed into columns for — see #995. */
+const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
 const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
 const SUMMARY_DISMISSED_KEY = "agent-dag.summariesDismissed";
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
@@ -473,6 +475,38 @@ function saveLayout(
   } catch { /* quota / private mode — ignore */ }
 }
 
+/**
+ * The frame the stored layout's column count was chosen for.
+ *
+ * Kept beside the layout rather than inside it because it answers a different
+ * question: `loadLayout` restores WHERE the nodes were, this restores WHAT THE
+ * BOARD WAS SHAPED FOR. A deck reopened on a different monitor restores a
+ * perfectly valid set of coordinates that were packed for a frame this window
+ * does not have, and without this there is nothing to compare the new frame
+ * against — the board comes back as however many columns the old window wanted
+ * and stays that way until R (#995).
+ *
+ * Null when absent, which is what every layout stored before this existed reads
+ * as. That is "no evidence", not "a frame of zero": the reframe effect records
+ * the first measurement and compares nothing.
+ */
+function loadLayoutFrame(): Frame | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_FRAME_KEY);
+    if (!raw) return null;
+    const f = JSON.parse(raw);
+    if (!(typeof f?.width === "number" && typeof f?.height === "number")) return null;
+    if (!(f.width > 0 && f.height > 0)) return null;
+    return { width: f.width, height: f.height };
+  } catch { return null; }
+}
+
+function saveLayoutFrame(frame: Frame): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(LAYOUT_FRAME_KEY, JSON.stringify(frame)); } catch {}
+}
+
 function loadViewport(): { x: number; y: number; zoom: number } | null {
   if (typeof window === "undefined") return null;
   try {
@@ -495,6 +529,10 @@ function clearStoredLayout(): void {
   // doesn't strand the other.
   try { window.localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch {}
   try { window.localStorage.removeItem(VIEWPORT_STORAGE_KEY); } catch {}
+  // The frame goes with the layout it describes. Left behind, it claims the
+  // board that R is about to rebuild was packed for a window that may not be
+  // the one on screen, and the first frame change would relayout again.
+  try { window.localStorage.removeItem(LAYOUT_FRAME_KEY); } catch {}
 }
 
 /** Build a portable JSON snapshot of a single session (root + every
@@ -631,6 +669,28 @@ function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => vo
   };
 }
 
+/**
+ * How much room each agent's bubbles need.
+ *
+ * ToolBursts keeps the last four tools as a permanent trail — no time-based
+ * culling — so an agent that has called a tool occupies its lane for as long as
+ * it is on the canvas, and every pass that places a box has to be told. Without
+ * it the next rank is placed 160px away and lands on top of bubbles that reach
+ * 420px out, and the repair passes — which run far more often than dagre does —
+ * pack the neighbours straight back over the chips.
+ *
+ * A named function rather than four lines inside snapshotToFlow because the
+ * reframe effect has to ask layout.ts the same question about the same board
+ * (#995), and a second copy of this loop is a second thing to keep in step.
+ */
+function laneMap(state: GraphState): Map<string, number> {
+  const lanes = new Map<string, number>();
+  for (const a of state.agents.values()) {
+    if (a.tools.length > 0) lanes.set(a.id, Math.min(4, a.tools.length));
+  }
+  return lanes;
+}
+
 function snapshotToFlow(
   state: GraphState,
   now: number,
@@ -745,17 +805,7 @@ function snapshotToFlow(
   // result is worth. Only nodes without a position are laid out, and only
   // nodes that end up overlapping get moved. The relayout button (R) is the
   // way to ask for a full reflow.
-  // How much room each agent's bubbles need. ToolBursts keeps the last four
-  // tools as a permanent trail — no time-based culling — so an agent that has
-  // called a tool occupies its lane for as long as it is on the canvas, and
-  // every pass that places a box has to be told. Without it the next rank is
-  // placed 160px away and lands on top of bubbles that reach 420px out, and
-  // the repair passes — which run far more often than dagre does — pack the
-  // neighbours straight back over the chips.
-  const lanes = new Map<string, number>();
-  for (const a of state.agents.values()) {
-    if (a.tools.length > 0) lanes.set(a.id, Math.min(4, a.tools.length));
-  }
+  const lanes = laneMap(state);
   // A lane appearing is a structural change, so it invalidates the cached
   // arrangement the way a new node or a re-measured card does.
   //
@@ -2742,6 +2792,79 @@ function Inner() {
     },
     [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick],
   );
+
+  // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
+  //
+  // Seeded from storage, because the frame a restored layout was built in is
+  // not this window's: a deck reopened after a monitor change comes back with
+  // coordinates that are internally consistent and shaped for a canvas that is
+  // no longer there.
+  //
+  // Read through a lazy initialiser and held in a ref, the shape `restoredLayout`
+  // uses: `useRef(loadLayoutFrame())` would put a localStorage read on the
+  // render path for an answer only the first render asks for (#612).
+  const restoredLayoutFrame = useState(loadLayoutFrame)[0];
+  const lastLayoutFrameRef = useRef<Frame | null>(restoredLayoutFrame);
+  // Re-column when the frame changes ENOUGH TO CHANGE THE ANSWER.
+  //
+  // autoLayout picks the column count by scoring each arrangement against the
+  // frame a fit will show it in, but the key that decides whether it runs again
+  // — visible agent ids plus the two size versions — says nothing about the
+  // frame. Closing the accounts and usage panels on a 1280px window takes the
+  // frame from 457.5 to 963.2 flow units (measured in Firefox against this
+  // sheet), which is the difference between one column and two for a board of
+  // four to six sessions. Nothing reconsidered it, so the board stayed a tall
+  // strip beside empty canvas until the user pressed R.
+  //
+  // Adding the frame to `layoutSig` would not have done this: the branch that
+  // re-columns is inside `if (missing.length > 0)`, and with every node already
+  // placed a signature change reaches only separateOverlaps. Re-columning means
+  // dropping the cached positions, which is what R does — minus the pins, which
+  // are the user's own placements and survive here as they do in joinSessions.
+  //
+  // Gated on the ANSWER changing rather than on the frame moving. The frame
+  // steps on every 40px of a window drag; the column count changes at a handful
+  // of widths, and re-laying out on anything less would throw away the
+  // arrangement fillGapsWithNewSessions built for a change that moves nothing.
+  useEffect(() => {
+    if (!settled || dragging) return;
+    const frame: Frame = { width: availableWidth, height: availableHeight };
+    if (!(frame.width > 0 && frame.height > 0)) return;
+    const prev = lastLayoutFrameRef.current;
+    lastLayoutFrameRef.current = frame;
+    saveLayoutFrame(frame);
+    if (!prev || (prev.width === frame.width && prev.height === frame.height)) return;
+    const opts = {
+      direction: "LR" as const,
+      pinned: pinnedRef.current,
+      measured: measuredRef.current,
+      lanes: laneMap(stateRef.current),
+    };
+    if (!columnsWouldChange(nodes, edges, opts, prev, frame)) return;
+    for (const id of Array.from(positionsRef.current.keys())) {
+      if (!pinnedRef.current.has(id)) positionsRef.current.delete(id);
+    }
+    provisionalRef.current.clear();
+    lastLayoutSigRef.current = "";
+    rerender();
+    // Same 80ms handleRelayout waits: React and React Flow get one paint to
+    // settle the new positions before the camera is asked to frame them.
+    window.setTimeout(() => {
+      // The board is only rebuilt during the render `rerender` scheduled —
+      // positionsRef holds nothing but the pins until then — so this is the
+      // first moment there is a new arrangement to store. It has to be stored
+      // here because the debounced save is keyed on layoutSig, which a frame
+      // change does not move: without this the next reload would restore the
+      // arrangement this pass just replaced, beside a frame record saying it
+      // was packed for the new window.
+      saveLayout(positionsRef.current, pinnedRef.current);
+      if (autoFitDisabledRef.current) return;
+      fitLeft(500);
+    }, 80);
+    // `nodes` and `edges` are read, not watched: they are rebuilt four times a
+    // second and this has to run when the FRAME moves, on whatever board was on
+    // screen at that moment.
+  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft]);
 
   // Invisible per-session drag-handle nodes. One per session, sized to the
   // bounding box of that session's agent nodes and rendered behind them
