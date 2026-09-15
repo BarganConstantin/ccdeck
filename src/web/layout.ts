@@ -279,7 +279,20 @@ function layoutSession(
   return { positions, width, height, pinnedBox };
 }
 
-export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {}): Node[] {
+/** One session after dagre, waiting to be packed into a column. */
+type LaidSession = ReturnType<typeof layoutSession> & { sid: string };
+type Column = LaidSession[];
+
+/**
+ * Every session run through dagre on its own, plus the gap the packer leaves
+ * between columns.
+ *
+ * Split out from autoLayout because this is the expensive half and the packing
+ * below is the cheap one: `columnsWouldChange` scores the SAME sessions against
+ * two frames, and doing that by calling autoLayout twice would run dagre twice
+ * for an answer that does not depend on it.
+ */
+function laySessions(nodes: Node[], edges: Edge[], opts: LayoutOptions): { laid: LaidSession[]; gap: number } {
   const direction = opts.direction ?? "LR";
   const pinned = opts.pinned ?? new Map();
   const measured = opts.measured ?? new Map();
@@ -301,18 +314,24 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
     ...layoutSession(sessions.get(sid)!, edges, direction, measured, pinned, lanes),
   }));
 
-  // Sessions are cut into columns in id order, so they read down and then
-  // across, and a session is never split across a boundary — each one is read
-  // as a block, the thing the canvas exists to show. A column is as wide as
-  // what landed in it: sizing every column to the widest session in the graph
-  // made one wide session set the pitch for all of them.
-  const gap = columnGap(nodes, measured);
-  type Column = Array<typeof laid[number]>;
-  const widthOf = (col: Column) =>
-    col.reduce((w, s) => Math.max(w, s.width), 0) + TOOL_LANE_W;
-  const heightOf = (col: Column) =>
-    col.reduce((h, s) => h + s.height, 0) + SESSION_GAP * Math.max(0, col.length - 1);
+  return { laid, gap: columnGap(nodes, measured) };
+}
 
+/** A column is as wide as what landed in it: sizing every column to the widest
+ *  session in the graph made one wide session set the pitch for all of them. */
+const widthOf = (col: Column) =>
+  col.reduce((w, s) => Math.max(w, s.width), 0) + TOOL_LANE_W;
+const heightOf = (col: Column) =>
+  col.reduce((h, s) => h + s.height, 0) + SESSION_GAP * Math.max(0, col.length - 1);
+
+/**
+ * The columns these sessions want in a frame of this shape.
+ *
+ * Sessions are cut into columns in id order, so they read down and then across,
+ * and a session is never split across a boundary — each one is read as a block,
+ * the thing the canvas exists to show.
+ */
+function packColumns(laid: LaidSession[], gap: number, frameW: number, frameH: number): Column[] {
   // Fill a column until the next session would take it past `limit`. Wrap only
   // when something is already in the column — a session taller than the limit
   // has to start somewhere, and a fresh column would leave the previous one
@@ -356,7 +375,6 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
   // size from splitting further — the worry the old cap of two answered by
   // refusing a third column however tall the other two had grown.
   let columns: Column[] = [laid];
-  const frameW = opts.availableWidth ?? 0, frameH = opts.availableHeight ?? 0;
   if (frameW > 0 && frameH > 0) {
     const zoomOf = (cols: Column[]) => fitZoom(
       cols.reduce((w, c) => w + widthOf(c), 0) + gap * (cols.length - 1),
@@ -370,6 +388,53 @@ export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {
       if (zoom > best + 1e-9) { best = zoom; columns = cols; }
     }
   }
+  return columns;
+}
+
+/** The frame a fit shows the board in, in flow units at full size. */
+export interface Frame { width: number; height: number }
+
+/**
+ * Would this board be cut into a different number of columns in `after` than it
+ * was in `before`?
+ *
+ * The column count is a function of the frame and has been since the fit
+ * scoring landed, but nothing recomputed it when the frame moved: the cache key
+ * snapshotToFlow keeps is visible agent ids plus the two size versions, and a
+ * rail panel opening or a window resize changes none of them. So a board packed
+ * into one column for a 457px frame stayed one column in the 963px frame left
+ * behind when the panels closed — a tall strip beside empty canvas until the
+ * user pressed R (#995).
+ *
+ * Asked as "would the answer differ" rather than "has the frame moved" on
+ * purpose. The frame moves on every 40px step of a window drag, and re-laying
+ * out on each of those would throw away the arrangement `fillGapsWithNewSessions`
+ * built up for a change that moves nothing. The column count, by contrast,
+ * changes at a handful of widths, and at exactly those widths the board on
+ * screen is the wrong shape.
+ *
+ * Both frames are scored against ONE dagre pass, because the sessions are the
+ * same in both; only the packing differs.
+ */
+export function columnsWouldChange(
+  nodes: Node[],
+  edges: Edge[],
+  opts: LayoutOptions,
+  before: Frame,
+  after: Frame,
+): boolean {
+  // A frame of zero is "not measured yet", not "a frame that wants one column".
+  if (!(before.width > 0 && before.height > 0 && after.width > 0 && after.height > 0)) return false;
+  const { laid, gap } = laySessions(nodes, edges, opts);
+  if (laid.length < 2) return false;
+  return packColumns(laid, gap, before.width, before.height).length
+    !== packColumns(laid, gap, after.width, after.height).length;
+}
+
+export function autoLayout(nodes: Node[], edges: Edge[], opts: LayoutOptions = {}): Node[] {
+  const pinned = opts.pinned ?? new Map();
+  const { laid, gap } = laySessions(nodes, edges, opts);
+  const columns = packColumns(laid, gap, opts.availableWidth ?? 0, opts.availableHeight ?? 0);
 
   const finalPositions = new Map<string, { x: number; y: number }>();
   let offsetX = 0;
