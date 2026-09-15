@@ -610,7 +610,7 @@ export function createEngine({
    *  is to key on. */
   const learned = new Map();
 
-  const round = async () => {
+  const oneRound = async () => {
     if (!beacon) return [];
     const all = [];
     // Heard first, typed second, and a typed one is skipped when the beacon
@@ -622,14 +622,36 @@ export function createEngine({
     const seen = new Set(heard.map(p => `${p.addr}:${p.port}`));
     for (const peer of [...heard, ...[...manual.values()].filter(p => !seen.has(`${p.addr}:${p.port}`))]) {
       // Sequential rather than parallel. The store takes one mutation at a
-      // time anyway (cswap-admin's lock), and two peers healing the same
-      // account at once would race for a slot number claude-swap assigns as
-      // max+1 without a lock of its own.
+      // time anyway (the mutex in store-lock.mjs), and two peers healing the
+      // same account at once would race for a slot number claude-swap assigns
+      // as max+1 without a lock of its own.
       all.push(...await roundWith(peer));
     }
     roundAt = now();
     return all;
   };
+
+  /** The round in flight, or null. See `round` below. */
+  let _round = null;
+
+  /**
+   * One round at a time, and the one already running is the answer (#1040).
+   *
+   * The sequential loop above reasons about peers being dialled one after
+   * another, which is a statement about the WHOLE round and was only ever true
+   * of a round running alone. Two ways in, and they meet: a self-scheduling
+   * timer (SYNC_MS, or ASKING_MS while somebody is waiting) and the "Sync now"
+   * press, which calls this straight from the route. A press landing on the
+   * timer's round gave two rounds walking the same peer list, each reading the
+   * same slot as empty and each force-importing a credential over the other —
+   * and the second one's blob wins for no reason anybody chose.
+   *
+   * JOINING rather than skipping, because the press has a reply to send: a
+   * caller that got `[]` for "a round is already running" would report "nothing
+   * to sync" about a round that was at that moment moving a credential. This is
+   * the shape `codexScanOnce` and ccusage's `_inflight` already use.
+   */
+  const round = () => (_round ??= oneRound().finally(() => { _round = null; }));
 
   return {
     async apply(next) {

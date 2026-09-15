@@ -19,7 +19,23 @@ import { run, runDetached } from "./exec.mjs";
 // The CLI identity oracle, already written and already trusted by the account
 // admin routes. #721 needs the same answer, so it reuses the same function
 // rather than shelling out a second way to ask one question.
-import { currentIdentity } from "./cswap-admin.mjs";
+//
+// FROM claude-identity.mjs, NOT FROM cswap-admin.mjs. This one import was the
+// single edge that closed the only static import cycle in src/server —
+// cswap-admin.mjs imports this file back for `backupRoot`,
+// `invalidateClaudeAccountsCache` and `verdictNow` — and a cycle is not merely
+// untidy: two dynamic imports entering one concurrently are each handed the
+// other module's half-built namespace, which has no exports on it at all. The
+// boot wires `repairStaleCopyWith` across exactly that pair, and on CI it was
+// handed two empty namespaces and wired nothing, silently. The oracle lives in
+// a module that imports only leaves now, so both sides can reach it and neither
+// closes a loop.
+import { currentIdentity } from "./claude-identity.mjs";
+// The one mutex, from the module that exists so that both halves of the
+// accounts surface can reach it. Not from cswap-admin.mjs, which imports THIS
+// file: the dependency has to go the other way, and a lock imported over a
+// cycle is a lock that may not be there yet when a mutation wants it.
+import { withStoreLock } from "./store-lock.mjs";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -849,6 +865,20 @@ export function invalidateClaudeAccountsCache() {
  * Claude Code's own lock files, in its order, with its staleness values, or it
  * can interleave with Claude Code's token refresh and clobber it. cswap does
  * that; a second implementation racing it would be worse than useless.
+ *
+ * AND IT TAKES THE DECK'S OWN MUTEX (#1039). Holding Claude Code's lock files
+ * says nothing about claude-swap's sequence.json, which `cswap switch` reads
+ * and writes with no file lock of its own — the same unlocked read-modify-write
+ * cswap-admin.mjs's header opens by explaining. `cancelLogin` already queues
+ * ITS `cswap switch` behind this lock and spells out why: running one beside an
+ * in-flight `cswap add` means whichever write lands second drops the other's
+ * record, so the account just signed in is registered and immediately lost, or
+ * the rotation is silently undone. This route is the same hazard with a click
+ * instead of a cancel, and it ran outside the lock entirely.
+ *
+ * The validation stays OUTSIDE the lock. A slot number that is not one is not a
+ * mutation and must not wait behind somebody else's sixty-second `cswap add`
+ * to be told so.
  */
 export function switchClaudeAccount(accountNum) {
   // Straight into an exec argument, so nothing but a slot number gets through.
@@ -859,13 +889,13 @@ export function switchClaudeAccount(accountNum) {
 
   // Argument vector, never a shell — and resolved through exec.mjs so the
   // Windows `.exe`/`.cmd` shim is found too.
-  return cswapBin()
+  return withStoreLock(() => cswapBin()
     .then(bin => run(bin, ["switch", String(num)], { timeout: 30_000 }))
     .then(r => {
       if (r.ok) return { ok: true, output: r.stdout.trim() };
       const reason = r.code === "ENOENT" ? "no_cswap" : r.killed ? "timeout" : "switch_failed";
       return { ok: false, reason, output: (r.stderr || r.stdout).trim().slice(0, 500) };
-    });
+    }));
 }
 
 
@@ -916,36 +946,51 @@ export async function seedFirstAccount() {
   if (process.env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (existsSync(SEED_MARKER)) return { state: "already-tried" };
 
-  // Empty store only. A store with accounts in it is the user's, not ours, and
-  // a store we cannot parse is treated the same way.
-  // No file at all is the fresh install this exists for; a file that will not
-  // parse is a store in an unknown state. readJson answers null to both, so
-  // they are told apart before deciding, because they call for opposite
-  // decisions — seed, and keep well away.
-  const seqPath = join(backupRoot(), "sequence.json");
-  const before = existsSync(seqPath) ? accountCount(await readJson(seqPath)) : 0;
-  if (before > 0) return { state: "has-accounts", count: before };
-  if (before < 0) return { state: "unreadable-store" };
+  // THE TEST AND THE WRITE ARE ONE CRITICAL SECTION (#1039). The whole guard
+  // below is a read of sequence.json — "only when the store holds no accounts
+  // at all, so nothing can be overwritten or reordered" — followed by a `cswap
+  // add` that assigns a slot as max+1 with no file lock of its own. Outside the
+  // mutex that pair is exactly the read-modify-write cswap-admin.mjs's header
+  // says every mutation must go through, and #796 is what it costs when the
+  // read and the write disagree about what is in the store: an add against a
+  // populated store, re-pointing activeAccountNumber with nothing here to put
+  // it back. This runs unawaited at boot, so there is no user to notice.
+  //
+  // The two refusals above stay outside: neither touches the store, and a deck
+  // that has already seeded must not wait behind a stranger's mutation to say
+  // so on every start.
+  return withStoreLock(async () => {
+    // Empty store only. A store with accounts in it is the user's, not ours, and
+    // a store we cannot parse is treated the same way.
+    // No file at all is the fresh install this exists for; a file that will not
+    // parse is a store in an unknown state. readJson answers null to both, so
+    // they are told apart before deciding, because they call for opposite
+    // decisions — seed, and keep well away.
+    const seqPath = join(backupRoot(), "sequence.json");
+    const before = existsSync(seqPath) ? accountCount(await readJson(seqPath)) : 0;
+    if (before > 0) return { state: "has-accounts", count: before };
+    if (before < 0) return { state: "unreadable-store" };
 
-  // Mark before running, not after: if `cswap add` half-succeeds or the process
-  // dies mid-way, the retry-forever loop is the worse outcome.
-  try {
-    await mkdir(dirname(SEED_MARKER), { recursive: true });
-    await writeFile(SEED_MARKER, new Date().toISOString());
-  } catch { /* best-effort — worst case it is attempted again */ }
+    // Mark before running, not after: if `cswap add` half-succeeds or the process
+    // dies mid-way, the retry-forever loop is the worse outcome.
+    try {
+      await mkdir(dirname(SEED_MARKER), { recursive: true });
+      await writeFile(SEED_MARKER, new Date().toISOString());
+    } catch { /* best-effort — worst case it is attempted again */ }
 
-  const r = await run(await cswapBin(), ["add"], { timeout: 60_000 });
-  if (!r.ok) {
-    return { state: "failed", detail: (r.stderr || r.stdout).trim().slice(0, 200) };
-  }
+    const r = await run(await cswapBin(), ["add"], { timeout: 60_000 });
+    if (!r.ok) {
+      return { state: "failed", detail: (r.stderr || r.stdout).trim().slice(0, 200) };
+    }
 
-  invalidateClaudeAccountsCache();
-  const count = existsSync(seqPath) ? accountCount(await readJson(seqPath)) : 0;
-  if (count > 0) {
-    // Collect straight away. Otherwise the first thing the user sees is their
-    // account listed with "never fetched" beside it, waiting on a poll cycle
-    // for numbers that are the reason the panel exists.
-    runDetached(await cswapBin(), ["list"]);
-  }
-  return count > 0 ? { state: "added", count } : { state: "nothing-to-add" };
+    invalidateClaudeAccountsCache();
+    const count = existsSync(seqPath) ? accountCount(await readJson(seqPath)) : 0;
+    if (count > 0) {
+      // Collect straight away. Otherwise the first thing the user sees is their
+      // account listed with "never fetched" beside it, waiting on a poll cycle
+      // for numbers that are the reason the panel exists.
+      runDetached(await cswapBin(), ["list"]);
+    }
+    return count > 0 ? { state: "added", count } : { state: "nothing-to-add" };
+  });
 }

@@ -3573,7 +3573,9 @@ const lanEngine = createEngine({
     return out?.ok ? out.blob : null;
   },
   importAccount: async (blob, step) => {
-    const { importAccount, landed } = await import("./cswap-admin.mjs");
+    // `landed` is not needed out here any more: the only call that read it was
+    // the forced import, which fillEmptySlot now owns along with it.
+    const { importAccount, fillEmptySlot } = await import("./cswap-admin.mjs");
     const [want, wantOrg] = String(step?.key ?? "").split("@@");
     // NO `force`, ever, and this is the line where that promise is kept. A
     // plain import adds an account that is missing and replaces exactly one
@@ -3625,29 +3627,30 @@ const lanEngine = createEngine({
     // and the account somebody most needed repaired was the one the feature
     // could not repair.
     //
-    // ASKED NOW, NOT READ FROM THE CACHE. The cached verdicts are up to ten
-    // minutes old, which is right for a label and wrong for a decision that
-    // writes a credential: somebody who signed in two minutes ago still reads
-    // as `no_credentials` there, and acting on that would replace the login
-    // they had just created.
-    const { verdictNow } = await import("./claude-accounts.mjs");
-    const email = want, org = wantOrg;
-    const now = await verdictNow(email, org ?? "");
-    if (now !== "no_credentials") return { ok: false, why: "claude-swap kept the slot it already has" };
-
     // FILLING AN EMPTY SLOT, WHICH IS NOT OVERWRITING A WORKING ONE — and the
-    // promise above survives word for word. A peer cannot reach this: the
-    // verdict comes from THIS machine's claude-swap, about THIS machine's
-    // store, and nothing a peer sends can make a slot report that it holds
-    // nothing. Narrowed to the one account with `only`, so a bundle carrying
-    // several cannot ride in behind it.
-    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });
-    if (!forced?.ok) return { ok: false, why: forced?.reason ?? "import refused" };
-    // `added` counts `imported` alone, and a forced replace is `healed` — see
-    // landed, which is the difference between a repair and a repair reported as
-    // a failure.
-    if (!landed(forced.results)) return { ok: false, why: "claude-swap kept the slot it already has" };
-    return { ok: true, filled: true };
+    // promise above survives word for word. A peer cannot reach it: the verdict
+    // comes from THIS machine's claude-swap, about THIS machine's store, and
+    // nothing a peer sends can make a slot report that it holds nothing.
+    //
+    // THE VERDICT AND THE WRITE ARE ONE CRITICAL SECTION, which is why this is
+    // one call and not the pair it used to be (#1040).
+    //
+    // The verdict was already being asked for fresh rather than read from the
+    // ten-minute cache, under a comment naming the exact reason: "somebody who
+    // signed in two minutes ago still reads as `no_credentials` there, and
+    // acting on that would replace the login they had just created". That
+    // sentence is kept, and the read that served it moved rather than went —
+    // see fillEmptySlot, which opens with it.
+    //
+    // Freshness alone only SHORTENED the window. The asking happened out here
+    // while the writing took the store mutex inside importAccount, so the two
+    // were never one critical section: `registerSignedIn` holds that mutex for
+    // `cswap add` (60 s), `cswap list` (60 s) and `restoreActive`'s `cswap
+    // switch` (30 s), and a forced import queued behind one still acted on a
+    // verdict taken before any of it began. fillEmptySlot re-reads the verdict
+    // as its first statement INSIDE the lock, so the promise holds by
+    // construction rather than by how long the queue happened to be.
+    return fillEmptySlot(blob, { email: want, org: wantOrg ?? "" });
   },
   // The deck's own long-term key, kept so a restart is the same deck rather
   // than a stranger to everybody who has paired with it. Written once, on the
@@ -6310,10 +6313,43 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // handed to the roster read here, by the server that is actually running,
   // rather than wired at import — see repairStaleCopyWith.
   if (_providers.claude) {
-    void Promise.all([
-      import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href),
-      cswapAdminModule(),
-    ]).then(([accounts, admin]) => accounts.repairStaleCopyWith(admin.autoRecapture), () => {});
+    // THIS WIRING IS WHERE AN IMPORT CYCLE SHOWED UP AS A SILENT NO-OP, and it
+    // is the cycle that has been fixed rather than this line — see
+    // claude-identity.mjs.
+    //
+    // claude-accounts.mjs used to take `currentIdentity` from cswap-admin.mjs
+    // while cswap-admin.mjs took `backupRoot`, `invalidateClaudeAccountsCache`
+    // and `verdictNow` back, which was the only static import cycle in
+    // src/server. Two dynamic imports entering a cycle concurrently are each
+    // handed the other module's HALF-BUILT namespace rather than waiting for
+    // it, and a half-built namespace has no exports on it at all: measured on
+    // CI, both came back with zero keys, so `accounts.repairStaleCopyWith` was
+    // a TypeError in a promise nothing awaits. The repair was never wired and
+    // nothing said so — every test passed, and the run exited 1 on an unhandled
+    // rejection alone.
+    //
+    // Several importers reach this pair within a few ticks at boot —
+    // `cswapAutoModule()` below imports claude-accounts.mjs too, and
+    // `startServer` can be called again before this has settled — so it was a
+    // timing defect that any change to those import lists could trip, and
+    // sequencing one call site was never going to be enough.
+    //
+    // Asked for one at a time anyway, which is now belt as well as braces: with
+    // no cycle left, a concurrent pair would simply wait for each other.
+    // boot-module-graph.test.ts asserts the braces — that src/server has no
+    // import cycles at all — rather than trying to police call sites.
+    void (async () => {
+      let accounts, admin;
+      // An import that genuinely fails stays tolerated, exactly as the
+      // `() => {}` this replaced tolerated it: the wiring is best-effort. A
+      // namespace that arrives WITHOUT the function is a different thing and
+      // must stay loud, because that is the failure described above.
+      try {
+        accounts = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href);
+        admin = await cswapAdminModule();
+      } catch { return; }
+      accounts.repairStaleCopyWith(admin.autoRecapture);
+    })();
   }
   const removed = await sweepStaleDiscovery();
   if (removed > 0) console.log(`  swept ${removed} stale discovery file(s)`);

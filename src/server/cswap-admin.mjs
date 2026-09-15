@@ -14,16 +14,19 @@
 //
 // And `cswap add` takes no lock while assigning the next slot as max+1. Two
 // concurrent adds pick the same number and the second write silently drops the
-// first account's record. Nothing upstream prevents it, so every mutation here
-// goes through one mutex.
-import { AsyncLocalStorage } from "node:async_hooks";
+// first account's record. Nothing upstream prevents it, so every mutation that
+// touches the store goes through one mutex — the one in store-lock.mjs, which
+// lives outside this file precisely so that the writers in claude-accounts.mjs
+// and cswap-auto.mjs queue on the same lock rather than on one of their own.
 import { existsSync } from "node:fs";
 import { brotliCompressSync, brotliDecompressSync, constants as zlibConstants } from "node:zlib";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { looksMissing, pathLookup, run, runDetached, runInteractive } from "./exec.mjs";
-import { backupRoot, invalidateClaudeAccountsCache } from "./claude-accounts.mjs";
+import { backupRoot, invalidateClaudeAccountsCache, verdictNow } from "./claude-accounts.mjs";
+import { withStoreLock } from "./store-lock.mjs";
+import { adminClaudeBin, currentIdentity } from "./claude-identity.mjs";
 import { claudeCliCandidates } from "./claude-dir.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { PRODUCT } from "./brand.mjs";
@@ -83,35 +86,12 @@ const SHARE_MAX_BYTES = 2 << 20;
 
 // ── serialization ────────────────────────────────────────────────────────────
 
-let _chain = Promise.resolve();
-
-// Whether the code running right now is itself the mutation holding the lock.
-// Async context rather than a plain boolean, which could not tell that apart
-// from another request that merely arrived while the lock was held — and would
-// wave that one through, which is the opposite of a mutex.
-const _holder = new AsyncLocalStorage();
-
-/**
- * One store mutation at a time.
- *
- * Not defence against another process — that would need claude-swap's own file
- * lock, which `add` does not take either. This is defence against ourselves:
- * two browser tabs, or a double-click, are enough to race a slot assignment.
- *
- * Re-entrant, because a mutation that reaches for the lock from inside one
- * would otherwise wait for itself forever: the chain cannot advance past the
- * outer link until it settles, and the outer link is blocked on this call. It
- * already has exclusive access, so it simply runs.
- */
-export function withStoreLock(fn) {
-  if (_holder.getStore()) return Promise.resolve().then(fn);
-  const held = () => _holder.run(true, fn);
-  const next = _chain.then(held, held);
-  // Keep the chain alive even when a link rejects, or every later mutation
-  // inherits the failure.
-  _chain = next.then(() => {}, () => {});
-  return next;
-}
+// Re-exported rather than defined here, and rather than left here for this
+// module's own callers to import from wherever. It IS the same function — one
+// module instance, one chain — and the tests that reach for it through this
+// module keep working, but the definition sits in store-lock.mjs so that the
+// writers outside this file can queue on it too. See #1039.
+export { withStoreLock };
 
 // ── shared helpers ───────────────────────────────────────────────────────────
 
@@ -124,74 +104,19 @@ export function withStoreLock(fn) {
 // the resolver. Reported from Windows on 2026-08-14.
 
 /**
- * Which `claude` the account surface runs: the configured one, else the first
- * candidate this machine actually has, else the bare name.
+ * Which `claude` the account surface runs, and who it says is signed in.
  *
- * WHY THIS IS NOT `AGENTS_DECK_CLAUDE ?? "claude"` ANY MORE (#570). That was
- * the whole of this module's resolution, and it feeds every child the accounts
- * panel starts — `claude auth status --json` for `currentIdentity`, and the
- * `claude auth login` whose output the sign-in dialog reads a link out of. On a
- * machine whose `claude` is at `~/.local/bin/claude` but whose deck was started
- * from something that never sourced a shell rc — a LaunchAgent, a systemd user
- * unit, pm2, a desktop shortcut — the bare name is an ENOENT, so the login
- * child is dead within milliseconds, the flow reports `no_url`, and the dialog
- * shows "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE
- * to its full path." That sentence is a real remedy and it is why this was a
- * smaller bug than #553; it is still a request to spell out a path the deck had
- * already found for itself, because `hasClaudeInstalled()` stat'ed that exact
- * file at boot to decide this was a Claude machine, and since #553 the quota
- * panel beside this one runs the same binary without being told anything.
- *
- * SO IT READS THE SAME LIST, ON THE SAME TERMS #553 SETTLED ON. The list is
- * `claudeCliCandidates` in claude-dir.mjs, whose other two readers are
- * `hasClaudeInstalled()` — the boot question this module's whole surface hangs
- * off — and `quotaClaudeBin` in quota.mjs. This is the same question at a third
- * site, so nothing here is decided again:
- *
- *   - AGENTS_DECK_CLAUDE first, and it is the one thing that skips the list
- *     entirely. It is documented in the README as "full path to the `claude`
- *     CLI", it is what the failure message above tells people to set, and
- *     someone who set it has already been through this once — second-guessing
- *     them with a stat would be answering a question they have closed. An empty
- *     value reads as unset, the way `AGENTS_DECK_CSWAP` does in cswapBin.
- *   - Then the candidate list's own order, unchanged: PATH first on POSIX, the
- *     two known install directories first on Windows. Preferring a different
- *     copy would silently change which binary signs somebody in on every
- *     machine that has two, and a `claude auth login` that suddenly runs a
- *     different binary is a credential path, not a detail.
- *   - The bare name is only answered with when PATH actually holds it, and
- *     `pathLookup` is a yes/no gate rather than the path it found, so spawn's
- *     own resolution — and, on Windows, exec.mjs's PATHEXT walk, since `claude`
- *     there is `claude.exe` or `claude.cmd` and never the bare word — stays in
- *     charge of the PATH case exactly as before.
- *   - The absolute candidates are stat'ed only once PATH has come up empty, so
- *     the common case costs one stat rather than a directory walk. Against what
- *     follows it — a whole Claude Code process, and a browser sign-in a human
- *     is walking through — that is not a cost worth naming.
- *
- * Pure, with the platform, environment, home directory and existence check all
- * parameters, so the Windows branch is checkable from the platforms this repo
- * is actually developed on. Exported for that test rather than for a caller
- * (#383): `claudeBin` below is the only one, and it hands back the real
- * machine's answer.
+ * Both moved to claude-identity.mjs and are re-exported here, which is where
+ * every caller and every test already reaches for them. The move is not
+ * cosmetic: `currentIdentity` was the one thing claude-accounts.mjs imported
+ * from this file, and that import was the single edge closing the only static
+ * import cycle in src/server. Two concurrent dynamic imports entering that
+ * cycle were each handed the other module's half-built namespace — no exports
+ * on it at all — which is how the boot's stale-copy repair came to be wired to
+ * `undefined` on CI while every test passed. claude-identity.mjs imports only
+ * leaves, so it can be reached from either side without closing anything.
  */
-export function adminClaudeBin(platform = process.platform, env = process.env,
-                               home = homedir(), exists = existsSync) {
-  if (env.AGENTS_DECK_CLAUDE) return env.AGENTS_DECK_CLAUDE;
-  const sep = platform === "win32" ? "\\" : "/";
-  // process.env is case-insensitive on Windows; an injected plain object in a
-  // test is not, and %Path% is how the variable is actually spelled there.
-  const pathEnv = env.PATH ?? env.Path ?? env.path ?? "";
-  for (const c of claudeCliCandidates(platform, env, home)) {
-    if (c.includes(sep)) { if (exists(c)) return c; }
-    else if (pathLookup(c, platform, { pathEnv, exists })) return c;
-  }
-  // Nothing on PATH and nothing at any known install directory. The bare name
-  // is still the right last resort — POSIX `execvp` and cmd.exe's own search
-  // both deserve their turn at a layout no list here knows — and the ENOENT it
-  // produces is what failureText turns into the AGENTS_DECK_CLAUDE sentence.
-  return "claude";
-}
+export { adminClaudeBin, currentIdentity };
 
 async function claudeBin() {
   return adminClaudeBin();
@@ -230,29 +155,6 @@ export function newSlot(before, after) {
   return fresh.length === 1 ? fresh[0] : null;
 }
 
-/**
- * Anthropic's own view of who is signed in. Null when it cannot be read.
- *
- * Exported for its test rather than for a caller (#383). Both callers are inside
- * the login flow and neither can show what was parsed: `spawnLogin` keeps only
- * `identity?.email` as the address to restore to, and `submitLoginCode` turns
- * the whole thing into a pass/fail — a null there is the difference between a
- * sign-in the deck accepts and one it reports as "signed in, but the claude CLI
- * still reports nobody logged in". The success path, where the email read here
- * is what matches the new credential to a cswap slot, is reachable only with a
- * real signed-in CLI on the machine running the suite. See
- * cswap-identity.test.ts.
- */
-export async function currentIdentity() {
-  const r = await run(await claudeBin(), ["auth", "status", "--json"], { timeout: 20_000 });
-  if (!r.ok) return null;
-  try {
-    const j = JSON.parse(r.stdout);
-    return j?.loggedIn ? { email: j.email ?? "", orgId: j.orgId ?? "" } : null;
-  } catch {
-    return null;
-  }
-}
 
 // ── login ────────────────────────────────────────────────────────────────────
 
@@ -1263,6 +1165,59 @@ export async function importAccount(blob, { force = false, only = null } = {}) {
       email: arrived.length === 1 ? arrived[0].email : null,
       output: firstUseful(r.stdout),
     };
+  });
+}
+
+/**
+ * Put a peer's copy of one account into a slot that holds nothing — and decide
+ * that the slot holds nothing INSIDE the lock that then writes to it.
+ *
+ * THE PROMISE THIS KEEPS, and why it needed moving (#1040). A plain `cswap
+ * import` never touches a slot that is present: it adds what is missing and
+ * replaces only a row claude-swap has quarantined as refresh-token-dead, and is
+ * "never triggered by the live store's `no credentials` state". So the one case
+ * pairing exists for — an account this machine has no login for at all — was
+ * the one case a plain import would not repair, and repairing it means
+ * `--force`, which overwrites whatever is there.
+ *
+ * What makes that safe is the verdict: claude-swap, asked about THIS machine's
+ * store, saying the slot holds no credentials. Nothing a peer sends can make a
+ * slot say that. The verdict was already being asked for fresh rather than read
+ * from the ten-minute cache, under a comment that names the exact reason —
+ * "somebody who signed in two minutes ago still reads as `no_credentials`
+ * there, and acting on that would replace the login they had just created".
+ *
+ * But the freshness fix only shortened the window; it did not close it, because
+ * the read was outside the mutex and the write takes it. The queue in between
+ * is long: `registerSignedIn` holds the lock for `cswap add` (60 s), `cswap
+ * list` (60 s) and `restoreActive`'s `cswap switch` (30 s), so a forced import
+ * could sit for up to two and a half minutes holding a verdict taken before any
+ * of it — and then run, replacing the login that had just been created with a
+ * peer's older blob. Which is the sentence that comment wrote out.
+ *
+ * Re-reading inside the lock makes the check and the write one critical
+ * section, so the promise holds by construction rather than by timing.
+ * `importAccount` takes the same lock again and the lock is re-entrant, so the
+ * whole decision is one uninterrupted hold.
+ *
+ * Narrowed to the one account with `only`: a forced import of a whole bundle
+ * would rewrite every matching credential on this machine, and a fresh token
+ * replaced by a stale one is not recoverable from here.
+ */
+export async function fillEmptySlot(blob, { email, org } = {}) {
+  return withStoreLock(async () => {
+    // FIRST STATEMENT INSIDE THE LOCK. Anything awaited before this re-opens
+    // the window it exists to close.
+    const now = await verdictNow(email, org ?? "");
+    if (now !== "no_credentials") return { ok: false, why: "claude-swap kept the slot it already has" };
+
+    const forced = await importAccount(blob, { force: true, only: { email, org: org ?? "" } });
+    if (!forced?.ok) return { ok: false, why: forced?.reason ?? "import refused" };
+    // `added` counts `imported` alone, and a forced replace is `healed` — see
+    // landed, which is the difference between a repair and a repair reported as
+    // a failure.
+    if (!landed(forced.results)) return { ok: false, why: "claude-swap kept the slot it already has" };
+    return { ok: true, filled: true };
   });
 }
 
