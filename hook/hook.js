@@ -70,6 +70,53 @@ function normPath(p) {
 }
 
 /**
+ * The same rule, off the main thread — and this is the one main() runs.
+ *
+ * A SYNCHRONOUS fs CALL CANNOT BE BOUNDED BY A TIMER ON THE SAME THREAD. While
+ * fs.realpathSync.native is in the kernel this thread runs nothing, and the
+ * `setTimeout` that is supposed to end this process is on that thread. So a
+ * path that does not answer does not cost CAP_MS, it costs whatever the path
+ * costs. Measured with one registry entry the filesystem never answers for, and
+ * a healthy deck registered beside it (#1018):
+ *
+ *   STILL ALIVE after 12008ms — cap never fired
+ *   deck saw: []            — never even challenged
+ *
+ * The realistic trigger is not exotic and is not the deck's fault: `$HOME` on
+ * NFS/autofs/SMB, a CLAUDE_CONFIG_DIR on a network share, or — the widest
+ * surface of the three — the SESSION'S OWN cwd on a network or FUSE mount,
+ * which is a directory this process is handed rather than one it chose.
+ * fs.realpath.native goes to libuv's threadpool instead, so the event loop
+ * keeps its turn: the deadline fires, the decks that DID answer are challenged
+ * and posted to, and the same run now reads
+ *
+ *   deck saw: challenge@431ms, POST /api/event@435ms
+ *
+ * WHAT IS LEFT, said plainly rather than left to be discovered. Node's exit
+ * joins libuv's threadpool, so while a request is still executing in one of
+ * those threads `process.exit(0)` does not complete either — measured: the
+ * timer fires on time, calls exit, and the process is still there. Ending the
+ * process by signal instead would trade a slow hook for a hook that looks like
+ * it failed, which is the worse of the two in the user's own session. So the
+ * residue is: the event is delivered on time, and a filesystem that never
+ * answers at all is ended by the host CLI's own timeout — which is why that
+ * timeout has to be a value this process can actually finish under, and is now
+ * 3s in installer.mjs rather than 2s. A filesystem call that comes back late
+ * rather than never — the ordinary stalled mount — costs nothing now.
+ *
+ * `cb` is called exactly once and never with an error: a path that does not
+ * resolve keeps its resolved form, which is exactly what the sync one's empty
+ * catch does with it. The sync normPath stays — it is the statement of the rule
+ * that workspace-one-meaning.test.ts walks one table of paths through against
+ * the server's canonicalCwd, and a predicate is easier to pin than a callback.
+ */
+function normPathAsync(p, cb) {
+  const r = path.resolve(p);
+  try { fs.realpath.native(r, (err, out) => cb(err ? r : out)); }
+  catch { cb(r); }
+}
+
+/**
  * Does this platform's filesystem treat two spellings that differ only in case
  * as the same directory? Exported for tests: the platform is a parameter so
  * both answers can be checked from either kind of machine.
@@ -283,7 +330,7 @@ function sameProof(got, want) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// Two round trips happen per target, and main()'s hard cap is 1500ms, so the
+// Two round trips happen per target, and main()'s hard cap is CAP_MS, so the
 // pair has to fit inside it with room to spare. The challenge is a bodyless GET
 // to a loopback port — sub-millisecond when a deck is there, and instant
 // ECONNREFUSED when nothing is.
@@ -297,6 +344,51 @@ function sameProof(got, want) {
 // ghost port with nothing behind it refuses instantly and delays no one.
 const CHALLENGE_TIMEOUT_MS = 400;
 const POST_TIMEOUT_MS = 1000;
+
+// The third phase that can stall, and the one that had no deadline at all:
+// reading the registry and canonicalising the paths in it. See discoverTargets
+// for what it is bounding and why one unanswering path must not cost the event
+// for every other deck on the machine.
+const DISCOVERY_TIMEOUT_MS = 400;
+
+// How long the canonical spelling of the session's cwd is worth waiting for
+// before the merely-resolved one is used instead. Half the phase, so a cwd that
+// never answers still leaves the registry scan a turn — see discoverTargets.
+const CWD_TIMEOUT_MS = 200;
+
+/**
+ * The whole of this process's life, MEASURED FROM WHEN NODE STARTED rather than
+ * from when main() ran — see the deadline main() sets.
+ *
+ * 1900ms is not the sum of the phase deadlines, and it is not meant to be. Four
+ * phases now carry one — discovery 400, the challenge's two attempts 400 + 400,
+ * the POST 1000 — and they only stack to 2200 if all three surfaces stall on
+ * the same run: an unanswering filesystem, a port that accepts and says
+ * nothing, and a deck that takes the body and never replies. Each deadline
+ * bounds its own pathology; this one is the backstop over all of them, and it
+ * is what a reader should believe rather than the addition.
+ *
+ * What it is NOT is the whole cost of a hook run, and that was the bug it hid.
+ * Claude Code executes the command through `sh -c`, so a fork/exec, Node's own
+ * startup and the read of a stdin payload that is routinely megabytes — a Read
+ * or a Grep result arrives whole in `tool_response` — all happened BEFORE the
+ * old timer was armed, and were charged to the host's clock anyway.
+ *
+ * Measured through the exact installed command shape, one ghost record stalling
+ * the challenge and a deck that answers the handshake and then never answers
+ * the POST (#1018):
+ *
+ *   idle, 16 cores, 134-byte payload:  1.847s  1.837s  1.836s
+ *   48 busy workers:                   1.978s  2.010s  2.190s   <- past timeout: 2
+ *   48 busy workers + 2MB payload:     2.160s  2.126s  2.165s   <- past timeout: 2
+ *
+ * The machine the retry in prove() exists for — "the full test suite, 335 files
+ * in parallel" — is exactly the machine whose startup is slow enough to push the
+ * total past the declared timeout, and being killed there costs the deck a
+ * truncated body and the user the full timeout on that turn, because PreToolUse
+ * blocks the tool call until every matching hook returns.
+ */
+const CAP_MS = 1900;
 
 /**
  * Ask the listener to prove it is the deck that wrote `d`. `cb` is called
@@ -317,10 +409,11 @@ function prove(d, cb, attempt = 0) {
   // miss that window, and the event is then dropped with nothing on screen to
   // say so. A big build or a machine running several agents is the same shape.
   //
-  // One retry, only on the deadline, and the budget still fits: 400 + 400 for
-  // the challenge and 1000 for the POST, under the 1900ms cap main() sets —
-  // which is itself under the two-second timeout the installed hook entry
-  // carries, so Claude Code never has to kill this process.
+  // One retry, only on the deadline: 400 + 400 for the challenge and 1000 for
+  // the POST, inside the CAP_MS this process gives itself, which is inside the
+  // timeout the installed hook entry declares — see CAP_MS for what that
+  // relation is and why the second attempt is the expensive half of it when the
+  // port answering is not a deck at all.
   const retryOnTimeout = () => {
     if (settled) return;
     if (attempt >= 1) return finish(false);
@@ -397,8 +490,30 @@ function prove(d, cb, attempt = 0) {
  * stands, and a merely busy one can miss the 400ms deadline. Deleting another
  * deck's registration on that evidence trades a bug that loses log lines for one
  * that loses a whole deck's events, and it buys nothing now that the election no
- * longer believes the record: a ghost that survives on disk costs one instant
- * ECONNREFUSED per hook run and decides nothing.
+ * longer believes the record.
+ *
+ * WHAT THAT LAST CLAUSE USED TO SAY, AND WHAT IT COSTS. It said "a ghost that
+ * survives on disk costs one instant ECONNREFUSED per hook run and decides
+ * nothing", and that is true only while NOTHING is listening on the port the
+ * record names. Measured, one healthy deck plus one unremovable record naming a
+ * port that accepts a connection and then says nothing (#1018):
+ *
+ *   healthy deck alone                        34ms  36ms  33ms
+ *   + ghost whose port refuses                34ms  40ms  38ms
+ *   + ghost whose port accepts and is silent  837ms  837ms  834ms
+ *
+ * The retry above turns one 400ms deadline into two, and the barrier makes
+ * every honest deck's POST wait for the slowest challenge in the set. So it is
+ * 833ms on every event, permanently: the record is unremovable by design once
+ * the OS has recycled the dead deck's pid onto anything long-lived, and 4317 —
+ * the deck's own default — is also the standard OTLP collector port, so a
+ * listener being there is not far-fetched.
+ *
+ * It is left standing here rather than fixed in passing. Every remedy is a
+ * change to the deletion policy this paragraph exists to argue for — unlink on
+ * a failed challenge past some age, say, using the `startedAt` the record
+ * already carries — and that deserves its own change and its own evidence, not
+ * a rider on a timing fix.
  */
 function proveTargets(targets, cb) {
   const ok = new Array(targets.length).fill(false);
@@ -434,12 +549,184 @@ function post(d, body, persists, done) {
   req.end();
 }
 
+/**
+ * Read one discovery record and decide whether the deck it describes captures
+ * this session. `done` runs exactly once; a target that qualifies is pushed onto
+ * `found` before it does.
+ *
+ * Nothing here is synchronous any more, and that is the point: see
+ * normPathAsync. The record lives in <claude config dir>/agent-dag/, which is
+ * under $HOME by default, and the workspace it names is any directory on the
+ * machine — a stalled mount under either used to stop this whole process dead.
+ */
+function readRecord(file, resolvedCwd, found, done) {
+  const full = path.join(DIR, file);
+  fs.readFile(full, "utf8", (err, text) => {
+    if (err) return done();
+    let d;
+    try { d = JSON.parse(text); } catch { return done(); }
+    // THE SERVER'S GUARD, VERBATIM PLUS THE PORT RANGE. This read
+    // `typeof d.workspace !== "string" || !d.pid || !d.port`, which has two
+    // holes and both are reachable from one hand-edited file:
+    //
+    //   • `d.workspace` is a property access, and it sat OUTSIDE the try —
+    //     so a record of `null` threw before the guard could refuse it;
+    //   • `!d.port` admits any truthy non-port. `"http"`, `-1` and `{}` all
+    //     passed, reached http.request({ port }) and threw SYNCHRONOUSLY
+    //     inside the forEach below, before a single socket was opened.
+    //
+    // Either way: exit 1, a Node stack trace on stderr, and — measured — ZERO
+    // POSTs to a healthy deck registered alongside. Claude Code surfaces a
+    // non-zero exit as `<hook> hook error` with the first stderr line, on
+    // every tool call, and nothing removes the record: pid 1 is init, so
+    // isAlive is true forever and the unlink below never fires.
+    //
+    // index.mjs:2156 reads these same files and always refused them. Two
+    // readers of one directory disagreeing is the bug; this is the stronger
+    // half, which is the one that belongs in the process that cannot afford
+    // to throw.
+    //
+    // IT IS INSIDE THE fs CALLBACK NOW, and that is where it has to be rather
+    // than merely where it ended up. The reads are asynchronous (#1018), so the
+    // throw this refuses would no longer come out of a loop in main() — it
+    // would come out of a callback, where the only thing left to catch it is
+    // the process-level handler main() installs. Refusing the record here is
+    // what keeps that handler a last resort instead of the mechanism.
+    // hook-read-only.test.ts runs the real script against each of these shapes,
+    // so the guard is proved on the path it actually sits on.
+    if (!d || typeof d.pid !== "number"
+        || !Number.isInteger(d.port) || d.port < 1 || d.port > 65535
+        || typeof d.workspace !== "string") return done();
+    // A missing token is not a reason to drop the file here — prove() decides
+    // what a target has to prove, and a deck older than the handshake can
+    // prove nothing. See requiresProof.
+
+    if (!isAlive(d.pid)) return fs.unlink(full, () => done());
+
+    // "" is machine-wide and must never reach normPath: resolving it would
+    // produce this hook's own cwd — the agent's — and scope a deck that asked
+    // for no scope at all. Any other spelling is canonicalized here, which is
+    // now a second pass over a path bin/deck.js already canonicalized before
+    // publishing it — kept because a deck old enough to have published a
+    // relative one is still entitled to its events.
+    if (d.workspace === "") {
+      if (capturesSession(resolvedCwd, "")) found.push(d);
+      return done();
+    }
+    normPathAsync(d.workspace, ws => {
+      if (capturesSession(resolvedCwd, ws)) found.push(d);
+      done();
+    });
+  });
+}
+
+/**
+ * Every deck whose workspace contains this cwd, and nothing else decides it.
+ *
+ * This used to sort the matches by how long each deck's workspace path was
+ * and deliver only to the longest — so a deck scoped to /Users/x/proj TOOK
+ * that tree's sessions away from a machine-wide deck, which then sat there
+ * showing nothing while `--all` promised it captured every session on this
+ * machine. Nothing documented that, and the server's own Codex capture never
+ * did it: each deck tails the rollout files itself and evaluates its own
+ * workspace, so a Codex session inside a scoped tree appeared on both decks
+ * while the Claude session beside it appeared on one. One flag, one path,
+ * two answers.
+ *
+ * The fan-out is the documented meaning and the one kept: `--workspace` says
+ * which sessions a deck captures, not which sessions it takes from the decks
+ * around it. It is also what electWriters assumes — several decks drawing one
+ * event is the case it exists to keep from being written to one log several
+ * times.
+ *
+ * AND IT IS A PHASE WITH A DEADLINE, like the challenge and the POST. It is
+ * three filesystem calls deep — canonicalise the cwd, list the directory, read
+ * and canonicalise each record — and every one of them is a path this process
+ * was handed rather than one it chose. One that does not answer used to take
+ * the event away from every OTHER deck on the machine as well, because the
+ * whole scan had to finish before anything was challenged. Now the deadline
+ * hands back whatever answered in time and the rest of the run proceeds: a
+ * healthy deck registered beside a stalled record still gets its event.
+ *
+ * The cwd gets a deadline INSIDE that one, and it does not abort the phase, it
+ * downgrades: a session's cwd is the one path here this process did not choose,
+ * and if the mount it is on will not canonicalise it, `path.resolve` of it is
+ * still an answer. It is the same answer normPath gives for a path that does
+ * not resolve at all, it is what a machine-wide deck needs (which is the
+ * default), and it is right for a scoped deck too wherever nothing in the path
+ * is a symlink, a junction or an 8.3 short name. Giving up on the whole phase
+ * instead would hand every deck on the machine nothing.
+ *
+ * `cb` runs exactly once, with a snapshot — a read that lands after the
+ * deadline may still push, and must not change the set already being acted on.
+ */
+function discoverTargets(cwd, cb) {
+  const found = [];
+  // The spelling capture was actually decided on, handed back so the payload
+  // can carry the same one — see main(). It starts as the merely-resolved form
+  // because that is what scan() falls back to, so there is no window in which
+  // this names a spelling nothing was compared against.
+  let usedCwd = path.resolve(cwd);
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    cb(found.slice(), usedCwd);
+  };
+  const timer = setTimeout(finish, DISCOVERY_TIMEOUT_MS);
+
+  let scanned = false;
+  // Assigned below, and read from a callback normPathAsync may run
+  // synchronously — so it is declared first rather than closed over as a
+  // `const` that would still be in its dead zone.
+  let cwdTimer = null;
+  const scan = resolvedCwd => {
+    if (scanned || settled) return;
+    scanned = true;
+    usedCwd = resolvedCwd;
+    clearTimeout(cwdTimer);
+    fs.readdir(DIR, (err, names) => {
+      if (settled) return;
+      if (err) return finish();
+      // `${pid}.json`, which is what writeDiscovery names them — not every
+      // `.json` in the directory. DIR is ~/.claude/agent-dag/, and that is not
+      // a registry: it is the deck's old home. prefs.json lived there and
+      // deck-home.mjs's migration leaves the original where it is, so on every
+      // upgraded machine this was reading and parsing the deck's 0600
+      // private-key file on every tool call. It was never leaked — no top-level
+      // `workspace`, so the guard dropped it — but it is the one file in there
+      // guaranteed to have a shape readRecord does not expect.
+      const files = names.filter(f => /^\d+\.json$/.test(f));
+      if (!files.length) return finish();
+      let pending = files.length;
+      const one = () => { if (--pending <= 0) finish(); };
+      for (const file of files) readRecord(file, resolvedCwd, found, one);
+    });
+  };
+  cwdTimer = setTimeout(() => scan(path.resolve(cwd)), CWD_TIMEOUT_MS);
+  normPathAsync(cwd, scan);
+}
+
 function main() {
-  // Hard cap so a stuck server can never wedge the host CLI. 1900ms, which is
-  // the challenge's two attempts (400 + 400) plus the POST's 1000 with a little
-  // room — and still under the two-second timeout the installed hook entry
-  // carries, so this process ends itself rather than being killed.
-  setTimeout(() => process.exit(0), 1900);
+  // Hard cap so a stuck server can never wedge the host CLI: this process ends
+  // itself rather than being killed. CAP_MS says what the budget is; this line
+  // is about WHEN THE CLOCK STARTED.
+  //
+  // It starts when Node did, not when main() ran. The old timer was armed here
+  // and counted only what came after, so the `sh -c` fork/exec and the
+  // interpreter startup that Claude Code is already timing were spent outside
+  // the budget and charged to it anyway — which is how a 1900ms cap declared
+  // under a `timeout: 2` came out at 2.19s on a loaded box (#1018).
+  // process.uptime() is how far into that budget we already are.
+  //
+  // The floor is deliberate. A startup slow enough to eat the whole budget is a
+  // machine under real load, which is exactly when a deck is worth posting to;
+  // exiting before opening a loopback socket would drop the event to save
+  // nothing. installer.mjs declares the timeout from the other side and has to
+  // stay strictly above CAP_MS plus that startup — hook-budget.test.ts pins the
+  // two numbers against each other so they cannot drift apart again.
+  setTimeout(() => process.exit(0), Math.max(200, CAP_MS - Math.round(process.uptime() * 1000)));
 
   // AND NOTHING THIS PROCESS DOES MAY REACH THE HOST CLI'S TRANSCRIPT.
   //
@@ -479,123 +766,64 @@ function main() {
       parsed.provider = PROVIDER;
     }
 
-    const resolvedCwd = normPath(cwd);
+    // Discover, prove, elect, post — four phases, each with a deadline of its
+    // own, and none of them able to stop the timer above from ending this
+    // process. See discoverTargets for why the first one is a phase at all.
+    discoverTargets(cwd, (targets, resolvedCwd) => {
+      if (!targets.length) return process.exit(0);
 
-    // POST THE CWD WE DECIDED ON, not the one we were handed.
-    //
-    // This used to serialise `parsed` before normPath ran, so the payload —
-    // and therefore events.jsonl — carried the RAW cwd while capture was
-    // decided on the canonical one. The two spellings only coincide where
-    // nothing in the path is a symlink, a junction, a subst drive or an 8.3
-    // short name, which is why it held on the machine it was written on.
-    //
-    // Everywhere else it made a `--workspace` deck capture all day and replay
-    // nothing: `bin/deck.js:548` canonicalises the flag once, and replayScope
-    // compares the logged cwd against it with a pure string predicate. On
-    // macOS, `--workspace /tmp/proj` captures (the hook resolves both sides to
-    // /private/tmp/proj) and then comes back empty after a restart. Silently —
-    // replayLog does not count or warn about an out-of-scope line.
-    //
-    // The Codex watcher already stores the canonical form (index.mjs:2203,
-    // `cwd: await canonicalCwd(...)`, the same resolve+realpath this is), which
-    // is why the two providers disagreed on one board. One spelling in the log
-    // is the whole fix.
-    if (parsed && typeof parsed === "object") parsed.cwd = resolvedCwd;
-    const taggedInput = JSON.stringify(parsed);
-
-    let files;
-    try {
-      // `${pid}.json`, which is what writeDiscovery names them — not every
-      // `.json` in the directory. DIR is ~/.claude/agent-dag/, and that is not
-      // a registry: it is the deck's old home. prefs.json lived there and
-      // deck-home.mjs's migration leaves the original where it is, so on every
-      // upgraded machine this was reading and parsing the deck's 0600
-      // private-key file on every tool call. It was never leaked — no top-level
-      // `workspace`, so the guard dropped it — but it is the one file in there
-      // guaranteed to have a shape this loop does not expect.
-      files = fs.readdirSync(DIR).filter(f => /^\d+\.json$/.test(f));
-    } catch { return process.exit(0); }
-    if (!files.length) return process.exit(0);
-
-    // Every deck whose workspace contains this cwd, and nothing else decides it.
-    //
-    // This used to sort the matches by how long each deck's workspace path was
-    // and deliver only to the longest — so a deck scoped to /Users/x/proj TOOK
-    // that tree's sessions away from a machine-wide deck, which then sat there
-    // showing nothing while `--all` promised it captured every session on this
-    // machine. Nothing documented that, and the server's own Codex capture never
-    // did it: each deck tails the rollout files itself and evaluates its own
-    // workspace, so a Codex session inside a scoped tree appeared on both decks
-    // while the Claude session beside it appeared on one. One flag, one path,
-    // two answers.
-    //
-    // The fan-out is the documented meaning and the one kept: `--workspace` says
-    // which sessions a deck captures, not which sessions it takes from the decks
-    // around it. It is also what electWriters below already assumes — several
-    // decks drawing one event is the case it exists to keep from being written
-    // to one log several times.
-    const targets = [];
-    for (const file of files) {
-      let d;
-      try { d = JSON.parse(fs.readFileSync(path.join(DIR, file), "utf8")); } catch { continue; }
-      // THE SERVER'S GUARD, VERBATIM PLUS THE PORT RANGE. This read
-      // `typeof d.workspace !== "string" || !d.pid || !d.port`, which has two
-      // holes and both are reachable from one hand-edited file:
+      // POST THE CWD WE DECIDED ON, not the one we were handed.
       //
-      //   • `d.workspace` is a property access, and it sat OUTSIDE the try —
-      //     so a record of `null` threw before the guard could refuse it;
-      //   • `!d.port` admits any truthy non-port. `"http"`, `-1` and `{}` all
-      //     passed, reached http.request({ port }) and threw SYNCHRONOUSLY
-      //     inside the forEach below, before a single socket was opened.
+      // This used to serialise `parsed` before normPath ran, so the payload —
+      // and therefore events.jsonl — carried the RAW cwd while capture was
+      // decided on the canonical one. The two spellings only coincide where
+      // nothing in the path is a symlink, a junction, a subst drive or an 8.3
+      // short name, which is why it held on the machine it was written on.
       //
-      // Either way: exit 1, a Node stack trace on stderr, and — measured — ZERO
-      // POSTs to a healthy deck registered alongside. Claude Code surfaces a
-      // non-zero exit as `<hook> hook error` with the first stderr line, on
-      // every tool call, and nothing removes the record: pid 1 is init, so
-      // isAlive is true forever and the unlink below never fires.
+      // Everywhere else it made a `--workspace` deck capture all day and replay
+      // nothing: `bin/deck.js:548` canonicalises the flag once, and replayScope
+      // compares the logged cwd against it with a pure string predicate. On
+      // macOS, `--workspace /tmp/proj` captures (the hook resolves both sides to
+      // /private/tmp/proj) and then comes back empty after a restart. Silently —
+      // replayLog does not count or warn about an out-of-scope line.
       //
-      // index.mjs:2156 reads these same files and always refused them. Two
-      // readers of one directory disagreeing is the bug; this is the stronger
-      // half, which is the one that belongs in the process that cannot afford
-      // to throw.
-      if (!d || typeof d.pid !== "number"
-          || !Number.isInteger(d.port) || d.port < 1 || d.port > 65535
-          || typeof d.workspace !== "string") continue;
-      // A missing token is not a reason to drop the file here — prove() decides
-      // what a target has to prove, and a deck older than the handshake can
-      // prove nothing. See requiresProof.
+      // The Codex watcher already stores the canonical form (index.mjs:2203,
+      // `cwd: await canonicalCwd(...)`, the same resolve+realpath this is), which
+      // is why the two providers disagreed on one board. One spelling in the log
+      // is the whole fix.
+      //
+      // THE SPELLING COMES BACK FROM discoverTargets now rather than being
+      // computed here, because canonicalising a cwd is a filesystem call and
+      // those belong inside that phase's deadline (#1018). What it hands back is
+      // whatever capture was actually decided on: the canonical spelling when
+      // the mount answered for it, and `path.resolve(cwd)` when it did not.
+      // That is this rule, not an exception to it — the log has to carry the
+      // spelling the match was made against, whichever one that turned out to
+      // be. A deck that captured on the resolved spelling and replayed on the
+      // canonical one is the same empty board this comment was written about.
+      //
+      // It also sits after the early return above, so a machine with no deck
+      // listening no longer serialises a payload nobody is going to read: a
+      // Read or a Grep result arrives whole in `tool_response` and is routinely
+      // megabytes.
+      if (parsed && typeof parsed === "object") parsed.cwd = resolvedCwd;
+      const taggedInput = JSON.stringify(parsed);
 
-      if (!isAlive(d.pid)) {
-        try { fs.unlinkSync(path.join(DIR, file)); } catch {}
-        continue;
-      }
+      // See proveTargets for what the other order cost. A record whose pid is
+      // merely alive has established nothing: it may be a deck that died and had
+      // its pid recycled, and electing one of those to write the log meant
+      // nobody wrote it (#695).
+      proveTargets(targets, proven => {
+        if (!proven.length) return process.exit(0);
 
-      // "" is machine-wide and must never reach normPath: resolving it would
-      // produce this hook's own cwd — the agent's — and scope a deck that asked
-      // for no scope at all. Any other spelling is canonicalized here, which is
-      // now a second pass over a path bin/deck.js already canonicalized before
-      // publishing it — kept because a deck old enough to have published a
-      // relative one is still entitled to its events.
-      const ws = d.workspace === "" ? "" : normPath(d.workspace);
-      if (capturesSession(resolvedCwd, ws)) targets.push(d);
-    }
+        // One deck per events log records this event; the others only draw it.
+        const writers = electWriters(proven);
 
-    if (!targets.length) return process.exit(0);
+        let pending = proven.length;
+        const done = () => { if (--pending <= 0) process.exit(0); };
 
-    // Prove, elect, post — in that order, and see proveTargets for what the
-    // other order cost. A record whose pid is merely alive has established
-    // nothing: it may be a deck that died and had its pid recycled, and electing
-    // one of those to write the log meant nobody wrote it (#695).
-    proveTargets(targets, proven => {
-      if (!proven.length) return process.exit(0);
-
-      // One deck per events log records this event; the others only draw it.
-      const writers = electWriters(proven);
-
-      let pending = proven.length;
-      const done = () => { if (--pending <= 0) process.exit(0); };
-
-      for (const d of proven) post(d, taggedInput, writers.has(d), done);
+        for (const d of proven) post(d, taggedInput, writers.has(d), done);
+      });
     });
   });
 }

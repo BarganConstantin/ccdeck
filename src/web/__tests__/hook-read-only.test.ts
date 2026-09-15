@@ -236,6 +236,69 @@ describe("a registry holding something that is not a deck record", () => {
     });
   }
 
+  it("still hands the event to the deck registered beside it", async () => {
+    // WHAT THE EIGHT ABOVE CANNOT SEE, and it is the half that matters.
+    //
+    // They assert silence, and silence is what main()'s `uncaughtException`
+    // handler produces whether the guard refused the record or not: weaken the
+    // guard back to `!d.port` and every one of them still passes, because the
+    // TypeError is caught and the process still ends at 0 with an empty stderr.
+    // What the guard buys, and the handler cannot, is the EVENT. A port of
+    // `"http"` reaches http.request({ port }) while the targets are being
+    // challenged and throws there, so the healthy deck sitting in the same
+    // registry is never posted to — measured that way round, the difference is
+    // one delivered event against none.
+    //
+    // It is also the half that had to be re-established when the registry reads
+    // went asynchronous (#1018): the throw now comes out of an fs callback
+    // rather than a loop in main(), so "the handler catches it" and "the deck
+    // gets its event" came apart even further. The record has to be refused
+    // where it is read.
+    const token = randomBytes(16).toString("hex");
+    const deck = honestDeck(token);
+    const server: Server = createServer(deck.handler);
+    await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+    const { port } = server.address() as AddressInfo;
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-hook-bad-plus-good-"));
+    try {
+      const reg = join(dir, "claude", "agent-dag");
+      mkdirSync(reg, { recursive: true });
+      writeFileSync(join(reg, "1.json"), '{"pid":1,"port":"http","workspace":""}', "utf8");
+      writeFileSync(join(reg, `${process.pid}.json`), JSON.stringify({
+        pid: process.pid, port, workspace: "", token, startedAt: new Date().toISOString(),
+      }), "utf8");
+      // `spawn`, not the `spawnSync` the shapes above use: this is the one test
+      // in the block whose listener has to ANSWER, and a synchronous spawn
+      // blocks the event loop that listener is on — the hook then talks to a
+      // server that cannot reply and the assertion fails for a reason that has
+      // nothing to do with the hook.
+      const child = spawn(process.execPath, [COPY, "--provider", "claude"], {
+        env: { ...process.env, CLAUDE_CONFIG_DIR: join(dir, "claude"), HOME: dir, USERPROFILE: dir },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stderr = "";
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", c => { stderr += c; });
+      child.stdin.end(JSON.stringify({
+        hook_event_name: "PreToolUse", session_id: "s1", cwd: dir,
+        tool_name: "Bash", tool_use_id: "t1",
+      }));
+      const code = await new Promise<number | null>((done, fail) => {
+        child.on("error", fail);
+        child.on("exit", c => done(c));
+      });
+      expect(code, stderr.split("\n")[0]).toBe(0);
+      expect(stderr).toBe("");
+      expect(deck.seen, "the deck that is a deck was still posted to").toEqual(["/api/event"]);
+    } finally {
+      rmTempDir(dir);
+      await new Promise<void>(done => {
+        server.closeAllConnections?.();
+        server.close(() => done());
+      });
+    }
+  });
+
   it("ignores a .json in the deck's home that is not a record at all", () => {
     // DIR is ~/.claude/agent-dag/, which is the deck's old home rather than a
     // registry: prefs.json lived there and deck-home.mjs's migration leaves the

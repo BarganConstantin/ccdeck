@@ -416,10 +416,31 @@ async function installHookScript(installDir) {
   return dst;
 }
 
+/**
+ * The entry Claude Code and Codex run, and the one number in it that is a
+ * promise about time.
+ *
+ * `timeout` is in SECONDS and it is a kill: when it expires the host CLI takes
+ * the hook down where it stands, which on a PreToolUse means the deck is handed
+ * a truncated body and the user waits the whole of it before the tool call
+ * proceeds. So the declared value has to be strictly larger than the worst the
+ * hook can spend on itself, and it was not. hook.js caps itself at CAP_MS =
+ * 1900ms, that cap now runs from Node's start rather than from main()'s, and
+ * what is still outside it is only the `sh -c` fork/exec — but 1900 + a fork
+ * under load does not fit in 2000. Measured through the installed command
+ * shape with a deck that stops answering mid-run: 1.84s idle, 1.98-2.19s with
+ * the box loaded (#1018).
+ *
+ * 3 is a backstop, not a budget: the hook ends itself first in every case it
+ * can see, and this is what covers the ones it cannot — a payload large enough
+ * that parsing it starves the timer, or a filesystem thread that cannot be
+ * interrupted at all. hook-budget.test.ts pins this number against hook.js's
+ * own cap so raising one without the other fails.
+ */
 function buildHookEntry(command) {
   return {
     [MARK_KEY]: true,
-    hooks: [{ type: "command", command, timeout: 2 }],
+    hooks: [{ type: "command", command, timeout: 3 }],
   };
 }
 

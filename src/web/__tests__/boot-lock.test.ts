@@ -78,7 +78,12 @@ describe("one start at a time", () => {
     // narrow one excludes it twice over.
     expect(BOOT_LOCK_FILE.endsWith(".json")).toBe(false);
     const hook = readFileSync(fileURLToPath(new URL("../../../hook/hook.js", import.meta.url)), "utf8");
-    expect(hook).toMatch(/readdirSync\(DIR\)\.filter\(f => \/\^\\d\+\\\.json\$\/\.test\(f\)\)/);
+    // The listing is fs.readdir now, not fs.readdirSync — a synchronous call
+    // there could not be preempted by the hook's own exit timer, which is #1018
+    // and not this file's business. The filter is, so the directory read and
+    // the filter are asserted separately and the pair survives that change.
+    expect(hook).toMatch(/fs\.readdir\(DIR,/);
+    expect(hook).toMatch(/\.filter\(f => \/\^\\d\+\\\.json\$\/\.test\(f\)\)/);
     // And the rule itself, rather than only its spelling: whatever the filter
     // is, it must refuse this name.
     expect(/^\d+\.json$/.test(BOOT_LOCK_FILE)).toBe(false);
