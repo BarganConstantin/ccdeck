@@ -32,7 +32,7 @@
 // 60ms so the enable/disable window is a place this file can stand rather than a
 // thing it has to race, and `cswap auto --once` is held open on demand.
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -227,5 +227,50 @@ describe("one tick at a time", () => {
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(ticks()).toBe(2);
+  });
+});
+
+describe("a boot that is still setting up claude-swap", () => {
+  // #1043. index.mjs arms this loop the moment the port binds, while bin/deck.js
+  // may still be installing claude-swap, or has just fired an upgrade of it that
+  // ensureCswap does not wait for. The launcher now says when the tool is quiet,
+  // through startServer, and initCswapAuto hands that on to every tick.
+  // cswap-auto-boot-order.test.ts proves the whole chain with the real
+  // bin/deck.js; these two pin the half that lives in this module.
+
+  /** What initCswapAuto restores from: a user who had the switch on. */
+  const persistedOn = () =>
+    writeFileSync(join(HOME, ".agents-deck", "cswap-auto.json"), JSON.stringify({ enabled: true }));
+
+  it("holds the boot's first tick until the launcher says the tool is quiet", async () => {
+    let quiet!: () => void;
+    const settled = new Promise<void>(r => { quiet = r; });
+    persistedOn();
+    try {
+      await mod.initCswapAuto({ after: settled });
+      await rest(40);
+      expect(ticks(), "a tick ran while claude-swap was still being set up").toBe(0);
+      quiet();
+      await rest(40);
+      expect(ticks(), "the tick the boot queued never ran once the tool was quiet").toBe(1);
+    } finally {
+      quiet();
+    }
+  });
+
+  it("runs nothing for a user who turned it off while the tick waited", async () => {
+    let quiet!: () => void;
+    const settled = new Promise<void>(r => { quiet = r; });
+    persistedOn();
+    try {
+      await mod.initCswapAuto({ after: settled });
+      await rest(40);
+      await mod.setAutoEnabled(false);
+      quiet();
+      await rest(40);
+      expect(ticks(), "a tick ran for a switch the user turned off while it waited").toBe(0);
+    } finally {
+      quiet();
+    }
   });
 });

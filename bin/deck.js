@@ -899,6 +899,27 @@ function startupWork() {
     return { cs, seed: await seedFirstAccount().catch(() => ({ state: "failed" })) };
   })().catch(() => null);
 
+  // WHEN THE TOOL IS QUIET, which is not the same as when the job above settles
+  // (#1043). The auto-switch drives this same claude-swap — every tick is
+  // `cswap auto --once`, which moves the user's live Claude credentials — and
+  // the server arms it the moment the port binds, while this job is still in
+  // ensureCswap. So the server holds every tick until this resolves, and it has
+  // two halves because the job covers only the first: ensureCswap answers
+  // "upgrading" as soon as it has FIRED an upgrade it deliberately does not
+  // await, and that upgrade is a uv or pipx environment being rewritten for
+  // tens of seconds after this job has returned. upgradeSettled() is the handle
+  // on it, and null when nothing was started.
+  //
+  // Not markDeckReady, the other place "the boot is over" gets said:
+  // reportStartup stops waiting for claude-swap the moment the install
+  // announces itself, so the deck is marked ready with the install still
+  // running. Never rejects — a job that failed has nothing left running.
+  const cswapQuiet = cswap.then(async () => {
+    if (!wantClaude) return;
+    const { upgradeSettled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/cswap-install.mjs")).href);
+    await upgradeSettled();
+  }).catch(() => {});
+
   // ccusage backs the usage-history modal. Primed at boot rather than on first
   // open so a cold machine pays the install while the deck is still starting.
   // Nothing is lost by skipping the prime: runCcusage falls back to npx, so the
@@ -928,7 +949,7 @@ function startupWork() {
   // watching the rollouts, and one file read is the whole cost.
   const codexHooks = leftoverCodexHooks().catch(() => null);
 
-  return { hooks, cswap, cswapInstalling, ccusage, update, codexHooks };
+  return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks };
 }
 
 /** The same work, said out loud, in a fixed order — a boot whose rows arrive in
@@ -1509,6 +1530,15 @@ bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
   }
 }
 
+// The one fact the auto-switch has to wait for and the server cannot see for
+// itself: that the claude-swap it drives is not being installed or upgraded
+// underneath it (#1043). startupWork is what knows, and it has not run yet — it
+// runs beside the server rather than before it (#483) — so the server is handed
+// a promise here and startupWork settles it below. A respawn runs no startup
+// work and installs nothing, so there it settles at once. See cswapQuiet.
+let settleCswap;
+const cswapQuiet = new Promise(r => { settleCswap = r; });
+
 const starting = startServer({
   port, persist, workspace, codex: wantCodex, claude: wantClaude,
   // Withheld when nothing is supervising us: without a parent, exiting is just
@@ -1520,6 +1550,8 @@ const starting = startServer({
   // shutdown() is a hoisted declaration precisely so it is callable from the
   // first instruction of this module — see the long note beside it (#448).
   onStop: () => shutdown(0),
+  // Every auto-switch tick waits on this until claude-swap is quiet — see above.
+  cswapQuiet,
 }).then(s => ({ ok: true, s }), err => ({ ok: false, err }));
 
 // Once-per-session setup — hook install, tool probes, registry lookups, and the
@@ -1528,8 +1560,11 @@ const starting = startServer({
 // restart that feels instant and one that makes you wonder whether it worked.
 if (!RESPAWN) {
   const jobs = startupWork();
+  jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs);
+} else {
+  settleCswap();
 }
 
 // Usually settled long ago by the time we get here, which is the point: `step`
