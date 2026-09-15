@@ -4792,13 +4792,21 @@ async function handleStop(req, res) {
   send(res, 200, { ok: true, pid: process.pid });
 }
 
+/**
+ * WITH A DEADLINE OF ITS OWN (#1011). Source 3 is `claude --print /usage`, and
+ * its cost is the sum of three spawns under a 15-second timeout with two
+ * 1.2-second sleeps between them — 47.4 seconds, measured — which nothing here
+ * had ever added up. The budget is quota.mjs's, because the "not yet" answer it
+ * expires into is made of that module's own last-known-good reading; the read
+ * carries on behind it and publishes for the next poll.
+ */
 async function handleQuota(req, res) {
-  const { fetchClaudeQuota } = await import(
+  const { fetchClaudeQuota, QUOTA_DEADLINE_MS } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
   );
   const url = new URL(req.url, "http://localhost");
   const force = url.searchParams.get("refresh") === "1";
-  const quota = await fetchClaudeQuota({ force });
+  const quota = await fetchClaudeQuota({ force, deadlineMs: QUOTA_DEADLINE_MS });
   send(res, 200, quota);
 }
 

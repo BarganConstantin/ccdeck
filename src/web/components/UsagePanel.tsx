@@ -284,6 +284,24 @@ function QuotaBar({ pct, label, reset, resetAt, windowSec, limitReached, nowSec 
 const QUOTA_POLL_MS = 60_000;
 
 /**
+ * How long this side holds a /api/quota request open.
+ *
+ * The server now answers within a budget of its own (#1011), so on a deck this
+ * page is talking to, this never fires. It is here for the deck this page is
+ * talking to on a bad day: a bare `fetch(url)` has no deadline at all, and a
+ * request nobody will ever answer is held until the tab is closed. What that
+ * cost, measured before the server side was bounded, was a panel reading
+ * "Checking…" for 47 seconds and one fewer socket in the browser's per-origin
+ * pool for the whole of it — the pool is six, and the board's event stream
+ * already holds one.
+ *
+ * Comfortably above the server's five seconds rather than near it: a deadline
+ * that raced the answer would turn a slow-but-successful read into a failure,
+ * which is the opposite of the point. This is the outer net, not the budget.
+ */
+const QUOTA_REQUEST_MS = 20_000;
+
+/**
  * @param enabled whether this deck watches Claude Code at all. False stops the
  *   poll rather than only hiding its output: /api/quota is not a cheap read —
  *   it can spawn `claude --print /usage` — and a machine with no Claude Code
@@ -305,9 +323,9 @@ function useQuota(enabled: boolean) {
     if (forceRefresh) { busyRef.current = true; setLoading(true); }
     try {
       const url = forceRefresh ? "/api/quota?refresh=1" : "/api/quota";
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(QUOTA_REQUEST_MS) });
       if (res.ok) setQuota(await res.json());
-    } catch { /* server unreachable */ }
+    } catch { /* server unreachable, or a request that outlived its usefulness */ }
     finally { if (forceRefresh) { busyRef.current = false; setLoading(false); } }
   };
 

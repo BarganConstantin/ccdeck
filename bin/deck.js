@@ -1709,6 +1709,25 @@ async function shutdown(code = 0) {
     if (tty && code !== RESTART_CODE && code !== UPGRADE_CODE) {
       write(`\n\n  ${P.warn}${G.stop}  shutting down${G.ellipsis}${P.reset}\n`);
     }
+    // WHAT THIS DECK STARTED, ENDED WITH IT. Every deadline in exec.mjs lives
+    // in a timer in THIS process — `run` states the outcome and only then kills
+    // — so an exit that reaps nothing leaves the hung tool a deadline exists
+    // for with nothing left anywhere that will ever stop it. Measured on a
+    // sandboxed deck (#1012): SIGINT at 05:26:22.706, deck gone within 200ms,
+    // and its `claude --print /usage` child — spawned at 05:26:18.078 under a
+    // 15-second deadline — still running at 05:26:35.204, reparented to init.
+    // A whole Claude Code process, orphaned by a Ctrl+C.
+    //
+    // FIRST, so it is ahead of both exits below, and cheap enough to be: a
+    // POSIX signal lands synchronously, and on Windows killTree's taskkill is
+    // already a running process by the time spawn() returns and outlives this
+    // one. No corpse is waited for, and the only await is a module already in
+    // the cache — anything that spawned a child loaded exec.mjs to do it — so
+    // the ~200ms exit that is the rest of shutdown's good behaviour stays that.
+    try {
+      const { killLiveChildren } = await import(pathToFileURL(join(PKG_ROOT, "src/server/exec.mjs")).href);
+      killLiveChildren();
+    } catch { /* exec.mjs never loaded, so nothing was ever spawned */ }
     // Stopped first, always: a tick landing after the unlink would re-register a
     // deck that is on its way out, and leave the file behind for the hooks to
     // find once nothing is listening.
