@@ -21,8 +21,11 @@
 // tab. Only quitting takes anything back.
 import { run } from "./exec.mjs";
 // The one table of process names, shared with the presence probe so the reaction
-// and the "is it running" answer can never disagree about what to look for.
-import { processName } from "./browser-presence.mjs";
+// and the "is it running" answer can never disagree about what to look for —
+// and, with it, the two questions that table cannot answer on its own: which
+// browsers this platform cannot tell apart by name, and where each of those is
+// installed.
+import { installMarker, processName, sharesProcessName } from "./browser-presence.mjs";
 
 /** Reactions this platform can actually carry out, in the order the panel
  *  should offer them. Never a list the caller has to filter again. */
@@ -231,12 +234,154 @@ export async function quitBrowser(browserKey, platform = process.platform, deps 
   // the other probe reads them from, so the two cannot drift apart.
   const proc = processName(browserKey, platform);
   if (!proc) return { ok: false, reason: "unknown_browser" };
-  if (platform === "win32") {
-    const r = await exec("taskkill", ["/IM", `${proc}.exe`, "/F"]).catch(() => null);
-    return { ok: r?.ok === true, reason: r?.ok ? "quit" : "taskkill_failed" };
-  }
+  if (platform === "win32") return await quitWindows(browserKey, proc, exec);
   const r = await exec("pkill", ["-x", proc]).catch(() => null);
   return { ok: r?.ok === true, reason: r?.ok ? "quit" : "pkill_failed" };
+}
+
+/**
+ * The windowed processes of one image name, and where each was run from.
+ *
+ * `MainWindowHandle -ne 0` is the filter that makes the whole thing safe to
+ * send a close to. Every renderer, GPU process and utility process a Chromium
+ * browser starts carries the SAME image name as the browser itself, has no
+ * window, and cannot be asked to close — only forced. Selecting on the window
+ * handle leaves exactly the processes a WM_CLOSE means something to, which is
+ * the set the user is thinking of when they arm this reaction.
+ *
+ * `Path` rides along because it is what tells the four Chrome-family channels
+ * apart; see installMarker.
+ *
+ * `-ErrorAction SilentlyContinue` because "no process of that name" is the
+ * ordinary answer — the browser may have been closed by hand between the visit
+ * and the poll — and it is not a reason to print a stack.
+ *
+ * SINGLE QUOTES THROUGHOUT AND NOT ONE DOUBLE QUOTE, deliberately. This is a
+ * `-Command` string and the whole of it has to survive being one argv entry on
+ * a Windows command line; the repo has already paid for the other spelling once
+ * (see notify, above: PowerShell documents that a string `-Command` must be the
+ * LAST parameter, and everything after it is appended to the command TEXT). A
+ * script with no embedded double quote has nothing in it for Node's
+ * command-line construction to have to escape.
+ *
+ * `proc` is interpolated, and it comes from the fixed APP_NAME table in
+ * browser-presence.mjs and from nowhere else — the same rule closeTabScript
+ * keeps for the application name it interpolates. No value a user or a web page
+ * chose reaches this string.
+ */
+export const windowedProcessesPs = proc =>
+  `Get-Process -Name ${proc} -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object Id,Path | ConvertTo-Json -Compress`;
+
+/**
+ * The process ids from that listing which belong to this install.
+ *
+ * `marker` null means the image name IS the install — `msedge`, `brave`,
+ * `vivaldi` — so every windowed process of that name is wanted. A marker means
+ * the name is shared and only the ones whose executable sits under it are.
+ *
+ * A row with NO readable path is dropped rather than kept. `Get-Process` cannot
+ * read `.Path` for a process this session may not open, and a row the deck
+ * cannot attribute is one it must not claim: keeping it would put the
+ * unattributable processes back into a set whose entire purpose is to exclude
+ * the ones that are not this browser. Erring towards closing nothing is the
+ * only direction that cannot take somebody's tabs with it.
+ *
+ * `ConvertTo-Json` emits a bare object rather than an array when the listing
+ * has exactly one row — one browser window is the common case — so a single
+ * object is read as readily as a list.
+ */
+export function pickInstallPids(json, marker) {
+  let rows;
+  try { rows = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return []; }
+  if (!rows) return [];
+  if (!Array.isArray(rows)) rows = [rows];
+  const want = marker ? marker.toLowerCase() : null;
+  const out = [];
+  for (const r of rows) {
+    const pid = Number(r?.Id);
+    if (!Number.isInteger(pid) || pid <= 0) continue;
+    if (want) {
+      const path = typeof r?.Path === "string" ? r.Path : "";
+      if (!path.toLowerCase().includes(want)) continue;
+    }
+    if (!out.includes(pid)) out.push(pid);
+  }
+  return out;
+}
+
+/**
+ * Quit a browser on Windows — by asking it to close, and asking only the one
+ * the finding came from.
+ *
+ * WHAT THIS USED TO BE, because it is the reason the function exists (#1028):
+ *
+ *     exec("taskkill", ["/IM", `${proc}.exe`, "/F"])
+ *
+ * Two separate faults, and both of them cost the user work.
+ *
+ * `/F` is TerminateProcess. It is not a request and nothing gets to refuse it:
+ * no beforeunload, no session write, no "restore pages?" on the next launch.
+ * The other two legs of this same function are graceful — macOS sends the
+ * AppleScript `quit`, Linux sends SIGTERM through `pkill -x` — so Windows was
+ * the one platform where arming this reaction meant losing whatever was typed
+ * into every open form. Without `/F`, taskkill posts WM_CLOSE, which is the
+ * Windows spelling of the same polite request the other two legs make, and
+ * which Chrome honours by saving its session first.
+ *
+ * `/IM chrome.exe` is every Chrome-family process on the machine. Four browser
+ * keys share that image name (see sharesProcessName), so a user who armed this
+ * for a finding in Canary lost stable Chrome, Beta, Canary and Chromium at
+ * once — while the very same reaction on the very same finding quits Canary
+ * alone on macOS, where the table distinguishes "Google Chrome" from "Google
+ * Chrome Canary". Selecting the pids first and passing them with `/PID` is what
+ * makes the Windows reaction as narrow as the macOS one.
+ *
+ * THE FALLBACK NEVER WIDENS THE DAMAGE, only the reach. If PowerShell cannot be
+ * reached at all, this asks the image name to close — the same set the old code
+ * touched, and still without `/F`, so the worst case here is strictly gentler
+ * than the best case was before. It says which of the two it did, because a
+ * reaction that quietly closed three more browsers than it was asked to is
+ * something the reader has to be able to see in the log.
+ *
+ * And a browser with no window open is reported, not worked around. That is the
+ * case where the old code would have closed somebody else's browser instead of
+ * this one, and "could not" is the honest answer — the same rule react() keeps
+ * for every other failure it prints.
+ */
+async function quitWindows(browserKey, proc, exec) {
+  // The filter is applied only where the name is ambiguous. Narrowing an image
+  // name that already names one browser would mean a Brave installed somewhere
+  // this table did not predict is a Brave the reaction refuses to close.
+  const shared = sharesProcessName(browserKey, "win32").length > 0;
+  const marker = shared ? installMarker(browserKey, "win32") : null;
+
+  // Ambiguous AND unknown to the install table: there is no way to tell this
+  // browser's processes from three others', so the only honest answers are the
+  // broad graceful close or nothing. Broad-and-graceful, said out loud.
+  if (shared && !marker) return await closeByImage(proc, exec, "quit_family");
+
+  const listed = await exec("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command", windowedProcessesPs(proc),
+  ]).catch(() => null);
+
+  if (!listed?.ok) return await closeByImage(proc, exec, "quit_family");
+
+  const pids = pickInstallPids(String(listed.stdout ?? "").trim(), marker);
+  if (!pids.length) return { ok: false, reason: "no_window" };
+
+  // One taskkill with every pid on it rather than one per pid: a browser with
+  // four windows open is four processes only on the rarest Chromium build, but
+  // a profile the user runs twice is two, and closing one of them and reporting
+  // success would leave the session this reaction exists to take back.
+  const r = await exec("taskkill", pids.flatMap(pid => ["/PID", String(pid)])).catch(() => null);
+  return { ok: r?.ok === true, reason: r?.ok ? "quit" : "taskkill_failed" };
+}
+
+/** Ask every window of an image name to close. Graceful — never `/F`. */
+async function closeByImage(proc, exec, reason) {
+  const r = await exec("taskkill", ["/IM", `${proc}.exe`]).catch(() => null);
+  return { ok: r?.ok === true, reason: r?.ok ? reason : "taskkill_failed" };
 }
 
 /**
@@ -279,6 +424,14 @@ export async function react(reaction, episode, { platform = process.platform, de
   }
 
   const out = await quitBrowser(episode.browser, platform, deps);
-  done.push(out.ok ? "quit the browser" : `could not quit the browser — ${out.reason}`);
+  // `quit_family` is the Windows fallback that could not tell four browsers
+  // sharing one image name apart and asked all of them to close. It succeeded,
+  // so it is not a `could not` line — but a reaction that closed three more
+  // browsers than the reader armed it for is not "quit the browser" either, and
+  // the log is the only place they would ever find out.
+  done.push(
+    out.reason === "quit_family"
+      ? "asked every window of that browser's family to close — this platform cannot tell its channels apart by process name"
+      : out.ok ? "quit the browser" : `could not quit the browser — ${out.reason}`);
   return done;
 }

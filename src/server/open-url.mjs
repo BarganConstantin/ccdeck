@@ -98,8 +98,28 @@ export function launchers(url, { platform = process.platform, env = process.env,
     // not wait for openUrl.
     const tries = [{
       file: "powershell.exe",
-      // The URL as its own argv entry rather than inside a script string, where
-      // `;` and `&` are PowerShell's own operators.
+      // THIS IS NOT A SEPARATE ARGV CHANNEL, and the comment that used to sit
+      // here said it was: "the URL as its own argv entry rather than inside a
+      // script string, where `;` and `&` are PowerShell's own operators."
+      // There is no such entry. `powershell.exe -Command` documents that the
+      // value must be the LAST parameter, *"because any characters typed after
+      // the command are interpreted as the command parameters"* — everything
+      // after it is appended to the command TEXT and parsed by PowerShell, so
+      // `Start-Process` and the URL arrive as one script line whatever argv
+      // they were handed in as.
+      //
+      // The repo has already discovered this one module over. browser-react.mjs
+      // records it verbatim for the toast: the same shape, the same wrong
+      // assumption, and a notification that "never appeared on Windows, for the
+      // reaction that is the default".
+      //
+      // Nothing is broken today, which is why this is a comment repair rather
+      // than a code one: the only caller passes a loopback URL this deck built
+      // itself, and the `cmd /c start` fallback below would catch a parse
+      // failure anyway. What was wrong is a file whose stated job is to encode
+      // platform knowledge recording a safety property it does not have — and
+      // the next caller to pass a URL with a query string in it would have
+      // trusted that sentence.
       args: ["-NoProfile", "-NonInteractive", "-Command", "Start-Process", url],
     }];
     const viaCmd = startCommand(url, env);

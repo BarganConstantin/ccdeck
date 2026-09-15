@@ -25,6 +25,7 @@
 // module's platform code: pure exported parsers, checked from a machine that is
 // not the platform they are for.
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
 
 // @ts-expect-error — a plain .mjs module, no types
 const { parseWinThermal, tempFromPerfCounterJson, zoneLabel, WIN_THERMAL_PS } =
@@ -63,6 +64,110 @@ describe("the command sent to PowerShell", () => {
     expect(WIN_THERMAL_PS).toContain("catch {}");
     expect(WIN_THERMAL_PS).toContain("-EA Stop");
   });
+});
+
+// A Windows that does not call the counter what this command calls it (#1028).
+//
+// Performance-counter set and counter names are LOCALIZED — that is the entire
+// reason PDH ships `PdhAddEnglishCounter` beside `PdhAddCounter`. `Get-Counter
+// -Counter` takes a LOCALIZED path, so the English one above answers "The
+// specified object was not found on the computer." on a German, French,
+// Japanese or Russian Windows. `-EA Stop` plus `catch {}` makes that silent,
+// and the chain then falls to MSAcpi — which this module's own header says
+// needs an elevation a deck never has — and then to LibreHardwareMonitor, which
+// is only installed if the user installed it. A localized machine with real
+// ACPI zones therefore drew no Thermal section at all, indistinguishable from
+// the modern-Intel-laptop case the section is written to tolerate.
+//
+// The measurement behind the file header — "a Windows 10 19045 box" — was made
+// on an ENGLISH one, and the case beside it pins the English string, so nothing
+// here could have seen this.
+//
+// REASONED, NOT REPRODUCED, and said plainly because it matters which of the
+// two this is. The localization of counter names and the Perflib index tables
+// are documented Microsoft behaviour; no localized Windows was available, and
+// CI's runners are English, so neither this suite nor the matrix can show a
+// German counter name being resolved. What the last case here DOES measure is
+// the thing that could actually regress for everyone: that the whole command,
+// with the new block in it, parses and runs clean on a real Windows.
+describe("the counter under the name this Windows calls it", () => {
+  it("tries English first, then the local name, then the elevated source", () => {
+    // The order is the whole of the safety argument for adding the middle one.
+    // An English Windows fills `$r.perf` on the first attempt and never reaches
+    // the second, so the block cannot take anything away from the machines the
+    // command already worked on — it can only turn a machine that was reporting
+    // nothing into one that reports something.
+    const english = WIN_THERMAL_PS.indexOf("'\\Thermal Zone Information(*)\\High Precision Temperature'");
+    const perflib = WIN_THERMAL_PS.indexOf("Perflib");
+    const wmi = WIN_THERMAL_PS.indexOf("Get-CimInstance");
+
+    expect(english).toBeGreaterThan(-1);
+    expect(perflib).toBeGreaterThan(-1);
+    expect(english).toBeLessThan(perflib);
+    expect(perflib).toBeLessThan(wmi);
+  });
+
+  it("only runs the lookup when the English attempt produced nothing", () => {
+    // `$r.perf` is what the first attempt fills. The guard in front of the
+    // Perflib block has to be the same one the WMI attempt uses, or the second
+    // query runs on every 30-second sample on every English machine as well.
+    const block = WIN_THERMAL_PS.slice(WIN_THERMAL_PS.indexOf("Perflib") - 200, WIN_THERMAL_PS.indexOf("Perflib"));
+    expect(block).toContain("if (-not $r.perf)");
+  });
+
+  it("reads both halves of the index table, since one alone names nothing", () => {
+    // `…\Perflib\009` maps index -> ENGLISH name and `…\Perflib\CurrentLanguage`
+    // maps the same index -> the local name. Either on its own is useless: the
+    // English table is where the two names being looked for can be recognised,
+    // and the local table is the only place the string Get-Counter will accept
+    // exists.
+    expect(WIN_THERMAL_PS).toContain("Perflib\\009");
+    expect(WIN_THERMAL_PS).toContain("Perflib\\CurrentLanguage");
+    expect(WIN_THERMAL_PS).toContain("'Thermal Zone Information'");
+    expect(WIN_THERMAL_PS).toContain("'High Precision Temperature'");
+  });
+
+  it("carries no double quote, because the whole command is one argv entry", () => {
+    // This string is handed to `powershell.exe -Command` as a single argument,
+    // and PowerShell documents that a string `-Command` must be the LAST
+    // parameter because everything after it is appended to the command TEXT.
+    // browser-react.mjs records what that cost the first time. A script with no
+    // embedded double quote has nothing in it for Node's Windows command-line
+    // construction to have to escape, which is why the counter path is
+    // concatenated from single-quoted pieces rather than interpolated into a
+    // double-quoted one.
+    expect(WIN_THERMAL_PS).not.toContain('"');
+  });
+
+  it("parses and runs clean on a real Windows, where there is one", () => {
+    // WHERE THE MEASUREMENT HAPPENS, and the reason this case is here at all.
+    // PowerShell parses the ENTIRE `-Command` string before it executes any of
+    // it, so a syntax error anywhere in the block added above would not degrade
+    // the thermal reading on a localized Windows — it would destroy it on every
+    // Windows, English ones included, and the `catch {}` around the individual
+    // queries would not save it. Nobody in this repo can run PowerShell to
+    // check that by hand; the windows-latest leg can, on every push.
+    //
+    // Un-gated on purpose: the other two legs assert the one property they can
+    // and say which authority answered, so a leg that silently stopped reaching
+    // PowerShell shows up as a failure rather than as a green skip.
+    if (process.platform !== "win32") {
+      expect(WIN_THERMAL_PS.startsWith("$r = [ordered]@{}")).toBe(true);
+      return;
+    }
+    const out = execFileSync("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command", WIN_THERMAL_PS,
+    ], { encoding: "utf8", maxBuffer: 4 << 20, timeout: 60_000 });
+
+    // `{}` is the honest answer from a machine with no thermal hardware, which
+    // is what a cloud runner is — so what is asserted is that the command
+    // completed and printed something this module's own parser can read, not
+    // that a temperature came back.
+    const text = out.trim();
+    expect(text.length).toBeGreaterThan(0);
+    expect(() => JSON.parse(text)).not.toThrow();
+    expect(Array.isArray(parseWinThermal(text))).toBe(true);
+  }, 90_000);
 });
 
 describe("what a machine with nothing to say produces", () => {
