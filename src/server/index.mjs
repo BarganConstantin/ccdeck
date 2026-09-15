@@ -5199,13 +5199,15 @@ async function resumeSse(req, res, lastId) {
     for (const e of batch) {
       if (e.seq <= sentThrough) continue;
       if (closed || res.destroyed) return;
-      // Marked with `replay:true` on the envelope so the client can suppress
-      // turn-cleanup side effects (exitAt stamping, autofit churn) until the
-      // live stream takes over. Without this the reducer's UserPromptSubmit
-      // handler treats replayed events as a real new turn — hiding prior-turn
-      // subagents using the event's stale receivedAt, which collides with
-      // wall-clock visibility gates and yields the "nodes appear then vanish"
-      // symptom on refresh.
+      // Marked with `replay:true` on the envelope for the page, which reads it in
+      // two places: the SSE handler coalesces renders while it is set and draws
+      // once at `replay-end`, and `chimeFor` stays quiet for it, so a reconnect
+      // does not play every Stop in the ring. The reducer never reads it — its
+      // turn cleanup keys on each event's own time, which comes out right for
+      // replayed and live events alike (HookEnvelope.replay in types.ts, and
+      // dead-surface-993 pins it). This used to say the reducer's
+      // UserPromptSubmit handler depended on the tag to tell a replayed prompt
+      // from a new turn; nothing there reads it.
       const tagged = { ...e, replay: true };
       // Through envelopeJson for the reason writeJsonArray is: the ring may be
       // holding an envelope `JSON.stringify` cannot walk. pushEvent takes the
