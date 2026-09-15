@@ -58,7 +58,7 @@ describe("each topbar button can say its name (#836)", () => {
     expect(css).toMatch(/\n\.tb-word \{ display: none; \}/);
     const wide = /@media \(min-width: 1600px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(wide).toMatch(/\.topbar \.tb-word \{ display: inline; font-size: 12px; line-height: 1; \}/);
-    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 10px 0 9px; \}/);
+    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 10px; \}/);
     // The height is still the one control height (line-height is the word's).
     expect(wide).not.toMatch(/(?<!line-)height/);
   });

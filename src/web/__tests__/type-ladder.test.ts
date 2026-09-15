@@ -341,7 +341,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();
-    expect(decl(".up-refresh-btn", "padding")).toBe("1px 7px");
+    // 1px 8px since #887 put padding on the space ladder (7px is off it).
+    expect(decl(".up-refresh-btn", "padding")).toBe("1px 8px");
   });
 });
 
