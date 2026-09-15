@@ -376,7 +376,7 @@ export const WELCOME_STEPS: GuideStep[] = [
   {
     art: <LanSyncArt />,
     line: "Your machines repair each other's expired logins over the local network.",
-    tip: "Local network is the last section of the Claude accounts panel.",
+    tip: "The Claude accounts panel links to it from its top line.",
   },
   { art: <StartArt />, line: "Run claude or codex in any folder. It shows up here on its own." },
 ];

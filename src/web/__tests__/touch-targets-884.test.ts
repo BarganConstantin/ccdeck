@@ -52,7 +52,7 @@ const top = rulesOf(withoutMedia(css));
 const coarse = rulesOf(mediaBody("@media (pointer: coarse) {"));
 const bodyIn = (rules: typeof top, sel: string) => rules.filter(r => r.sels.includes(sel)).map(r => r.body).join("\n");
 
-const DRAWN = [".switch::after", ".ap-fix::after", ".ap-rotate::after", ".ap-lanes-more::after", "button.ap-err::after"];
+const DRAWN = [".switch::after", ".ap-fix::after", ".ap-rotate::after", ".ap-lanes-more::after", "button.ap-err::after", ".ap-lan-jump::after"];
 
 describe("the 24px floor on the panel's smallest controls (#884)", () => {
   it("gives the two controls that carry their own height a 24px minimum", () => {
