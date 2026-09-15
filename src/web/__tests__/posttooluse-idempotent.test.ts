@@ -338,9 +338,8 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
     expect(billable(twice)).toEqual(billable(once));
     // The in-flight call is still in flight and still owned, in both.
     expect(twice.toolIndex.has(toolKey("s", "b2"))).toBe(true);
-    expect(twice.toolOwner.get(toolKey("s", "b2"))).toBe("s");
+    expect(twice.toolIndex.get(toolKey("s", "b2"))?.agentId).toBe("s");
     expect([...twice.toolIndex.keys()].sort()).toEqual([...once.toolIndex.keys()].sort());
-    expect([...twice.toolOwner.keys()].sort()).toEqual([...once.toolOwner.keys()].sort());
   });
 
   it("bills the session once no matter how many times the log is read", () => {
@@ -354,12 +353,12 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
   });
 });
 
-describe("#444 — trimTools releases an id only where the maps still name that call", () => {
+describe("#444 — trimTools releases an id only where the index still names that call", () => {
   /** The collision #443 found and left open here: one `tool_use_id`, two
    *  `ToolCall` objects. The first settles, a re-delivered `PreToolUse` arrives
    *  while a subagent is live, `findTool` misses on both the index (the settle
    *  cleared it) and the subagent's own list, and a second call is pushed there
-   *  with both maps re-pointed at it. */
+   *  with the index re-pointed at it. */
   function twoCallsOneId(): GraphState {
     let state = fresh();
     state = send(state, T0, { hook_event_name: "SessionStart", session_id: "s", cwd: "/repo", model: MODEL });
@@ -386,7 +385,7 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     const state = twoCallsOneId();
     const live = state.toolIndex.get(toolKey("s", "dup-1"));
     expect(live).toBeDefined();
-    expect(state.toolOwner.get(toolKey("s", "dup-1"))).toBe("s::k9");
+    expect(live?.agentId).toBe("s::k9");
     expect(root(state, "s").tools[0]).not.toBe(live);
 
     // Push the root's own history past the window so its stale copy of `dup-1`
@@ -409,7 +408,7 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     // running call that its own PostToolUse could reach only by the resurrection
     // scan and that the stale sweep could never settle at all.
     expect(s.toolIndex.get(toolKey("s", "dup-1"))).toBe(live);
-    expect(s.toolOwner.get(toolKey("s", "dup-1"))).toBe("s::k9");
+    expect(s.toolIndex.get(toolKey("s", "dup-1"))?.agentId).toBe("s::k9");
 
     // And it still settles the ordinary way, through the index.
     s = send(s, T0 + 20 * MIN, {
@@ -419,12 +418,11 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     expect(live!.ok).toBe(true);
     expect(live!.endedAt).toBe(T0 + 20 * MIN);
     expect(s.toolIndex.has(toolKey("s", "dup-1"))).toBe(false);
-    expect(s.toolOwner.has(toolKey("s", "dup-1"))).toBe(false);
   });
 
   it("still releases the ids of the calls it really is evicting", () => {
     // The guard must not turn the eviction into a leak: an in-flight call that
-    // falls out of the window is unreachable afterwards and its map entries have
+    // falls out of the window is unreachable afterwards and its index entry has
     // to go, which is what this loop was written for in the first place.
     let s = fresh();
     s = send(s, T0, { hook_event_name: "SessionStart", session_id: "s2", cwd: "/repo", model: MODEL });
@@ -437,7 +435,6 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     const reachable = new Set(root(s, "s2").tools.map(t => toolKey("s2", t.id)));
     expect(reachable.size).toBe(MAX_TOOLS_PER_AGENT);
     expect([...s.toolIndex.keys()].filter(k => !reachable.has(k))).toEqual([]);
-    expect([...s.toolOwner.keys()].filter(k => !reachable.has(k))).toEqual([]);
   });
 });
 
@@ -471,7 +468,7 @@ describe("#444 — the neighbouring rules are untouched", () => {
     expect(state.toolIndex.has(toolKey("cx", "cx-1"))).toBe(true);
   });
 
-  it("#443 — a pruned agent still releases only the ids the maps name it for", () => {
+  it("#443 — a pruned agent still releases only the ids the index names it for", () => {
     const state = (() => {
       let s = fresh();
       s = send(s, T0, { hook_event_name: "SessionStart", session_id: "s3", cwd: "/repo", model: MODEL });
@@ -493,10 +490,9 @@ describe("#444 — the neighbouring rules are untouched", () => {
 
     expect(pruneOldAgents(state, T0 + 5 * SEC, 1, 0)).toBe(true);
     // The subagent went and took its own in-flight id with it; the root survived
-    // and kept both of its entries.
+    // and kept its entry, which still names the root as the call's owner.
     expect(state.toolIndex.has(toolKey("s3", "lost-1"))).toBe(false);
-    expect(state.toolOwner.has(toolKey("s3", "lost-1"))).toBe(false);
     expect(state.toolIndex.has(toolKey("s3", "root-1"))).toBe(true);
-    expect(state.toolOwner.get(toolKey("s3", "root-1"))).toBe("s3");
+    expect(state.toolIndex.get(toolKey("s3", "root-1"))?.agentId).toBe("s3");
   });
 });

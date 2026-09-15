@@ -74,7 +74,6 @@ describe("PreToolUse idempotence on tool_use_id", () => {
     expect(root.tools[0].ok).toBe(true);
     expect(inFlight(root)).toEqual([]);
     expect(state.toolIndex.size).toBe(0);
-    expect(state.toolOwner.size).toBe(0);
   });
 
   it("keeps one entry when the re-delivery lands after the call settled", () => {
@@ -186,6 +185,6 @@ describe("PreToolUse idempotence on tool_use_id", () => {
     expect(root.tools.length).toBe(1);
     expect(sub.tools.length).toBe(0);
     expect(sub.toolCount).toBe(0);
-    expect(state.toolOwner.get(toolKey(SESSION, "t1"))).toBe(SESSION);
+    expect(state.toolIndex.get(toolKey(SESSION, "t1"))?.agentId).toBe(SESSION);
   });
 });

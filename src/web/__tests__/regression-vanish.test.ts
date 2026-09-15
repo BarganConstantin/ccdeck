@@ -193,6 +193,5 @@ describe("regression — nodes must not vanish from live incremental updates", (
     state = applyEvent(state, envelope({ hook_event_name: "__clear" }, T(30_000)));
     expect(state.agents.size).toBe(0);
     expect(state.toolIndex.size).toBe(0);
-    expect(state.toolOwner.size).toBe(0);
   });
 });

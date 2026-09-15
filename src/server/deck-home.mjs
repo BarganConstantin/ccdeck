@@ -55,7 +55,7 @@ const APP = "ccdeck";
 /** Point the deck's whole home somewhere else in one variable. The escape
  *  hatch for a portable install, a test, or anybody who simply wants it
  *  elsewhere; it wins over every rule below. */
-export const HOME_ENV = "CCDECK_HOME";
+const HOME_ENV = "CCDECK_HOME";
 
 /** Where the deck kept everything before this, and where two of its files still
  *  live. Also the place a migration reads from. */

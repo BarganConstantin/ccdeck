@@ -506,9 +506,16 @@ export interface HookEnvelope {
    *  not be represented. See `payload`. */
   unserializable?: boolean;
   /** Server stamps `true` on events re-sent during the SSE-connect ring-
-   *  buffer drain. The reducer uses this to suppress turn-cleanup logic
-   *  (e.g. retiring prior-turn subagents on UserPromptSubmit) so refreshing
-   *  the page doesn't make every past subagent vanish. */
+   *  buffer drain. App.tsx's SSE handler is what reads it, for two things:
+   *  the coalescer holds a replay to one render at `replay-end`, and
+   *  `chimeFor` stays quiet for it, so a reconnect does not play every Stop in
+   *  the ring.
+   *
+   *  The reducer does NOT read it. `applyEvent` never branches on replay: its
+   *  turn cleanup keys on event time, which comes out right for live and
+   *  replayed events alike (see UserPromptSubmit in reducer.ts). A `replay`
+   *  branch there would bring back the flash-then-vanish that approach
+   *  fixed. */
   replay?: boolean;
   /** Identifies the server process that assigned `seq`. The counter restarts
    *  at 1 on every boot, so a changed epoch means "the numbering restarted,

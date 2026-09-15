@@ -85,7 +85,7 @@ export const NO_SPEND_HISTORY: SpendHistory = { samples: [], last: new Map(), wa
 /** How far back the rate looks. */
 export const SPEND_WINDOW_MS = 10 * 60_000;
 /** Less than this and a rate is a guess: say nothing yet. */
-export const SPEND_MIN_SPAN_MS = 60_000;
+const SPEND_MIN_SPAN_MS = 60_000;
 /** The panel recomputes four times a second; a sample every few seconds is
  *  plenty for a ten-minute window and keeps the list to about 120 entries. */
 export const SAMPLE_EVERY_MS = 5_000;

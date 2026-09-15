@@ -166,7 +166,6 @@ describe("per-agent tool history", () => {
     const root = state.agents.get(SESSION)!;
     expect(root.tools.some(t => t.id === "lost")).toBe(false);
     expect(state.toolIndex.has("lost")).toBe(false);
-    expect(state.toolOwner.has("lost")).toBe(false);
     // The settled calls left the index on their own PostToolUse.
     expect(state.toolIndex.size).toBe(0);
     expect(root.tools.filter(t => t.endedAt == null)).toEqual([]);

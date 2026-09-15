@@ -214,7 +214,7 @@ const TRAILING_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * still shows its money; it simply will not match the board, which is the same
  * thing that happens to a session from another machine.
  */
-export function sessionIdFromPeriod(period: string): string {
+function sessionIdFromPeriod(period: string): string {
   return TRAILING_UUID.exec(period)?.[0] ?? period;
 }
 

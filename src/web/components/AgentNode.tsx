@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { sessionHue } from "../reducer";
 import { billedInputTokens, cacheWriteBreakdown, costForUsage, fmtCost, fmtCostRate, ratesForModel, UNPRICED_LABEL } from "../pricing";
@@ -25,6 +25,10 @@ import { elapsed } from "../duration";
 // the column cap in #521 is only sound while both surfaces show the same field.
 import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
+import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
+import { useNow } from "../use-now";
+import { recapShown } from "../session-recap";
+import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -97,11 +101,6 @@ function agentCostTooltip(a: UsageBearing): string {
     `all models                            = ${fmtCost(agentCost(a).total)}`,
   ].join("\n");
 }
-import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
-import { memo } from "react";
-import { useNow } from "../use-now";
-import { recapShown } from "../session-recap";
-import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,

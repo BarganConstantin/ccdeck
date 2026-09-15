@@ -29,7 +29,7 @@ export type PanelPhase = "gone" | "entering" | "here" | "leaving";
  * lands on `here` and not on `entering`: the panel never went anywhere, so
  * replaying its entrance would animate a movement that did not happen.
  */
-export function nextPhase(open: boolean, phase: PanelPhase): PanelPhase {
+function nextPhase(open: boolean, phase: PanelPhase): PanelPhase {
   if (open) return phase === "gone" ? "entering" : phase === "leaving" ? "here" : phase;
   return phase === "gone" ? "gone" : "leaving";
 }

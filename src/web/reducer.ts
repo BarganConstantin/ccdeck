@@ -175,11 +175,10 @@ function extractModel(node: unknown, depth = 0): string | null {
 export interface GraphState {
   agents: Map<string, AgentNodeData>;
   /** `toolKey(session_id, tool_use_id)` → the call still in flight under it.
-   *  Keyed on the pair and never on the bare id; see `toolKey`. */
+   *  Keyed on the pair and never on the bare id; see `toolKey`. The agent a
+   *  call belongs to is the call's own `agentId`, which is what `blockedCall`
+   *  reads. */
   toolIndex: Map<string, ToolCall>;
-  /** `toolKey(session_id, tool_use_id)` → owning agent.id, so PostToolUse can
-   *  settle the right agent's tool. */
-  toolOwner: Map<string, string>;
   /** Per-session LIFO stack of active subagent ids — used to attribute incoming
    *  PreToolUse to the deepest live subagent, since CC tool-call hooks don't
    *  carry agent_id themselves. */
@@ -236,7 +235,6 @@ export function initialState(): GraphState {
   return {
     agents: new Map(),
     toolIndex: new Map(),
-    toolOwner: new Map(),
     activeSubagentStack: new Map(),
     subagentTombstones: new Map(),
     lastSeq: 0,
@@ -282,11 +280,11 @@ function subagentIdFor(sessionId: string, agentId: string): string {
   return `${sessionId}::${agentId}`;
 }
 
-/** The key both id-keyed tool maps are written under: the session the call
- *  belongs to, joined to the `tool_use_id` the session named it by.
+/** The key `toolIndex` is written under: the session the call belongs to,
+ *  joined to the `tool_use_id` the session named it by.
  *
- *  #1009. `toolIndex` and `toolOwner` used to be keyed on the bare
- *  `tool_use_id`, and a `tool_use_id` is not unique on this board. It is unique
+ *  #1009. `toolIndex` used to be keyed on the bare `tool_use_id`, and a
+ *  `tool_use_id` is not unique on this board. It is unique
  *  within ONE session, because within a session one process allocates it; the
  *  deck holds every session on the machine at once and those allocators have
  *  nothing in common. Codex is the plain case — the watcher forwards the
@@ -312,7 +310,7 @@ function subagentIdFor(sessionId: string, agentId: string): string {
  *  half on purpose. A join that cannot be re-split is the whole point, since
  *  nothing ever parses this back apart — it is only ever compared.
  *
- *  Exported for the tests, which read both maps directly and would otherwise
+ *  Exported for the tests, which read the index directly and would otherwise
  *  each hand-roll the separator — the one way a suite can go green against a
  *  key shape the reducer no longer writes. */
 export function toolKey(sessionId: string, toolUseId: string): string {
@@ -584,30 +582,24 @@ function trimTools(state: GraphState, a: AgentNodeData): void {
       // An evicted call can still be in-flight; leaving it in the live index
       // would strand an entry no PostToolUse or stale sweep can ever reach.
       //
-      // Only where the maps still point at THIS call, which is the guard #443
+      // Only where the index still points at THIS call, which is the guard #443
       // put on `releaseToolIds` and flagged as missing here. A `tool_use_id` does
       // not belong to one `ToolCall` for good: a `PreToolUse` re-delivered after
       // its call settled finds nothing in `toolIndex` and pushes a second call
-      // under the same id, re-pointing both maps at it. Deleting by id alone
+      // under the same id, re-pointing the index at it. Deleting by id alone
       // then let the eviction of the OLD copy — which this loop reaches on a
       // window that is 200 calls wide and says nothing about the new one — strand
       // the live call: gone from `toolIndex`, so its own `PostToolUse` could only
       // find it by the resurrection scan and the stale sweep could never settle
-      // it, and gone from `toolOwner`, so its usage would be attributed by the
-      // `tc.agentId` fallback instead of by the map.
+      // it.
       //
-      // `toolIndex` decides for both maps rather than each guarding itself,
-      // because the two are written and cleared as a pair and only the index
-      // identifies the call itself. `releaseToolIds` can ask `toolOwner` about
-      // the agent id it is evicting; here the surviving copy can sit on the very
-      // agent whose history is being trimmed — `resolveOwner` hands a
-      // re-delivered `PreToolUse` back to the root whenever no subagent is live —
-      // so owner equality would hold for both copies and guard nothing.
+      // The guard compares the call itself, not the agent holding it: the
+      // surviving copy can sit on the very agent whose history is being trimmed
+      // — `resolveOwner` hands a re-delivered `PreToolUse` back to the root
+      // whenever no subagent is live — so agent equality would hold for both
+      // copies and guard nothing.
       const key = toolKey(a.sessionId, t.id);
-      if (state.toolIndex.get(key) === t) {
-        state.toolIndex.delete(key);
-        state.toolOwner.delete(key);
-      }
+      if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
     }
   }
   // Entries below the blob window are always trimmed already, so this walks
@@ -749,15 +741,15 @@ function sessionEvidenceAt(root: AgentNodeData): number {
  *  has already settled finds neither — the index entry went with the settle —
  *  and `resolveOwner` then hands it to whoever the attribution stack names NOW,
  *  which is a different agent whenever a subagent started in between. That pushes
- *  a second `ToolCall` under the same id and re-points both maps at the new
- *  owner, while the first object stays in the old agent's `tools` array. Deleting
+ *  a second `ToolCall` under the same id and re-points the index at it, while
+ *  the first object stays in the old agent's `tools` array. Deleting
  *  by id alone would let the pruning of a long-finished agent quietly evict a
  *  live call belonging to one that is still running, and `toolIndex` is read for
  *  precisely the calls that have NOT settled: `blockedCall` walks it to
  *  decide which subagent a permission prompt is about, so the next prompt would
- *  lose the agent it belongs to (#361). Requiring the map to still point at THIS
- *  call, and at THIS agent, keeps the release to entries the departing agent
- *  actually still owns.
+ *  lose the agent it belongs to (#361). Requiring the index to still point at
+ *  THIS call keeps the release to entries the departing agent actually still
+ *  owns.
  *
  *  The late `PostToolUse` this file protects everywhere else is unaffected. For
  *  an agent that survives, nothing here runs at all; for one that does not, the
@@ -768,7 +760,6 @@ function releaseToolIds(state: GraphState, a: AgentNodeData): void {
   for (const t of a.tools) {
     const key = toolKey(a.sessionId, t.id);
     if (state.toolIndex.get(key) === t) state.toolIndex.delete(key);
-    if (state.toolOwner.get(key) === a.id) state.toolOwner.delete(key);
   }
 }
 
@@ -1087,9 +1078,9 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
     // Nothing runs away as a result. `trimTools` evicts an in-flight call from
     // `toolIndex` once it falls out of the 200-per-agent window, and the bubble
     // goes with the agent when the session is pruned — as, since #443, do that
-    // agent's entries in `toolIndex` and `toolOwner`, which is what this
-    // sentence had been claiming for two releases while both pruners deleted the
-    // agent and left the maps alone. Codex is where that mattered: this `continue`
+    // agent's entries in `toolIndex`, which is what this sentence had been
+    // claiming for two releases while both pruners deleted the agent and left
+    // the index alone. Codex is where that mattered: this `continue`
     // is what makes pruning the only bound left here. Only an explicit "codex"
     // is exempt — an event recorded before `provider` existed replays without
     // one and must keep the Claude behaviour it was swept with.
@@ -1197,7 +1188,6 @@ export function sweepStaleTools(state: GraphState, now: number, maxMs: number): 
         // the session comes back — the same un-reap `lastEventAt` performs for
         // the root above.
         state.toolIndex.delete(toolKey(a.sessionId, t.id));
-        state.toolOwner.delete(toolKey(a.sessionId, t.id));
         changed = true;
       }
     }
@@ -2121,7 +2111,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // same field on the same node. They are the same string: `resolveOwner`
       // only ever returns a node of `p.session_id ?? "unknown"`.
       state.toolIndex.set(toolKey(owner.sessionId, id), tc);
-      state.toolOwner.set(toolKey(owner.sessionId, id), owner.id);
       trimTools(state, owner);
       break;
     }
@@ -2227,7 +2216,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // `PreToolUse` filed it under: the resurrection path above only accepts a
       // call off an agent of this same session, so the two agree on both halves.
       state.toolIndex.delete(key);
-      state.toolOwner.delete(key);
       break;
     }
     case "SubagentStart": {
@@ -2513,7 +2501,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
           // shared across every session on the board, so a bare delete here
           // would release another session's live call.
           state.toolIndex.delete(toolKey(owner.sessionId, t.id));
-          state.toolOwner.delete(toolKey(owner.sessionId, t.id));
         }
       }
       // ...and only `SessionEnd` says the SESSION is over (#445). `Stop` is a

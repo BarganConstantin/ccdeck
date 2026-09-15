@@ -31,7 +31,7 @@
 // No surface anywhere says either happened. A user reading the deck sees one
 // session that ran a command it did not run, and another that ran nothing.
 //
-// THE FIX is that both maps are keyed on the session joined to the tool id, so
+// THE FIX is that the index is keyed on the session joined to the tool id, so
 // the two sessions file under two keys and neither can reach the other's call.
 // The `PostToolUse` resurrection scan is scoped the same way: it used to walk
 // every agent on the board and settle the first `tools` entry whose bare id
@@ -90,8 +90,8 @@ function fresh(): GraphState {
 }
 
 /** The call this session drew under this id, or undefined. Read off the agent's
- *  own list rather than off either map, because "is it on the board" is the
- *  question the issue is about and the maps are what was wrong. */
+ *  own list rather than off the index, because "is it on the board" is the
+ *  question the issue is about and the index is what was wrong. */
 function callOf(state: GraphState, agentId: string, toolId: string): ToolCall | undefined {
   return state.agents.get(agentId)?.tools.find(t => t.id === toolId);
 }
@@ -139,12 +139,11 @@ describe("#1009 — one tool_use_id in two sessions is two calls", () => {
 
     expect(state.toolIndex.get(toolKey("X-alpha", "call_1"))).toBe(callOf(state, "X-alpha", "call_1"));
     expect(state.toolIndex.get(toolKey("X-beta", "call_1"))).toBe(callOf(state, "X-beta", "call_1"));
-    expect(state.toolOwner.get(toolKey("X-alpha", "call_1"))).toBe("X-alpha");
-    expect(state.toolOwner.get(toolKey("X-beta", "call_1"))).toBe("X-beta");
+    expect(state.toolIndex.get(toolKey("X-alpha", "call_1"))?.agentId).toBe("X-alpha");
+    expect(state.toolIndex.get(toolKey("X-beta", "call_1"))?.agentId).toBe("X-beta");
     // Two entries where the bare-id map could only ever hold one, which is the
     // arithmetic of the whole bug: the second write overwrote the first.
     expect(state.toolIndex.size).toBe(2);
-    expect(state.toolOwner.size).toBe(2);
   });
 
   it("lands each session's result on its own bubble and on nobody else's", () => {
@@ -169,7 +168,6 @@ describe("#1009 — one tool_use_id in two sessions is two calls", () => {
     expect(state.toolIndex.has(toolKey("X-alpha", "call_1"))).toBe(true);
     // Only beta's entry was released.
     expect(state.toolIndex.has(toolKey("X-beta", "call_1"))).toBe(false);
-    expect(state.toolOwner.has(toolKey("X-beta", "call_1"))).toBe(false);
 
     // ...and alpha's own outcome, whenever it arrives, still settles alpha with
     // alpha's response. The key is not a way of losing the second half.
@@ -181,7 +179,6 @@ describe("#1009 — one tool_use_id in two sessions is two calls", () => {
     expect(alpha.response).toEqual({ alpha: "8 passed" });
     expect(beta.response).toEqual({ beta: "done" });
     expect(state.toolIndex.size).toBe(0);
-    expect(state.toolOwner.size).toBe(0);
   });
 
   it("does not spend the pause gate's protection on another session's call", () => {

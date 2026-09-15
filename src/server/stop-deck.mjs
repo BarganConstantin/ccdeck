@@ -35,11 +35,11 @@ import { isProcessAlive } from "./deck-probe.mjs";
 
 /** Long enough for a loopback POST and the deck's own teardown to begin; short
  *  enough that a wedged deck does not hold the terminal. */
-export const STOP_ASK_MS = 2000;
+const STOP_ASK_MS = 2000;
 /** How long a deck gets to actually disappear after each rung. A clean shutdown
  *  drains SSE connections and closes the listener; 1500ms of that is the
  *  fallback timer in bin/deck.js's shutdown(), so this has to outlast it. */
-export const STOP_GONE_MS = 3000;
+const STOP_GONE_MS = 3000;
 
 /**
  * Ask one deck to end itself, politely.

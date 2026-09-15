@@ -3654,11 +3654,13 @@ let _awayNothingUntil = 0;
 /**
  * One tick of the away-update. Returns what it did, or null.
  *
- * Exported so a test can drive it without waiting out the boot grace — the one
- * input that is a policy rather than a fact, and so the only one it may pass.
- * Every clock is the real one: presence and activity are stamped with it.
+ * Every clock is the real one: presence and activity are stamped with it, and
+ * the boot grace is AWAY_BOOT_GRACE_MS. This used to be exported and take the
+ * grace as an argument, so a test could drive it without waiting that out; the
+ * tests drive awayGate and awayUpdateStep in auto-update.mjs instead, and the
+ * one caller left is the `_awayTimer` interval.
  */
-export async function awayUpdateTick({ graceMs = AWAY_BOOT_GRACE_MS } = {}) {
+async function awayUpdateTick() {
   const now = Date.now();
   if (!awayGate({
     enabled: _prefs?.autoUpdate !== false,
@@ -3668,7 +3670,7 @@ export async function awayUpdateTick({ graceMs = AWAY_BOOT_GRACE_MS } = {}) {
     looking: presence.looking(now),
     busy: activity.busy(now),
     quietMs: activity.quietMs(now),
-    graceMs,
+    graceMs: AWAY_BOOT_GRACE_MS,
   })) return null;
   // A standing "nothing newer", unless the clock has moved back past it.
   if (now < _awayNothingUntil && _awayNothingUntil - now <= AWAY_RECHECK_MS) return null;

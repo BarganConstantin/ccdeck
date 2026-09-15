@@ -76,7 +76,7 @@ export const CRASH_CEILING = 5;
 /** The window those five are counted in. */
 export const CRASH_WINDOW_MS = 10 * 60 * 1000;
 /** The first wait, doubling per crash inside the window. */
-export const CRASH_BACKOFF_MS = 1000;
+const CRASH_BACKOFF_MS = 1000;
 /** …and where the doubling stops. Past this the delay is no longer protecting
  *  anything: five attempts at 30s already span most of the window. */
 export const CRASH_BACKOFF_MAX_MS = 30_000;

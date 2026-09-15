@@ -11,7 +11,7 @@
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 
 /** The types worth compressing; images and fonts are compressed already. */
-export const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".svg", ".map"]);
+const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".svg", ".map"]);
 
 /** Vite's output under assets/: `<name>-<hash>.<ext>`, the hash eight or more
  *  characters of base64url. */
