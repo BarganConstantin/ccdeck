@@ -310,6 +310,15 @@ export function mayForceRead(now = Date.now()) {
  * Ten simultaneous requests before any of them finishes would otherwise be ten
  * concurrent copies of the same database, all of which the floor lets through
  * because none of them has completed yet to move the clock.
+ *
+ * AND SINCE THE FLOOR ADVANCES (#989), HOW MANY RUN AT ONCE IS NOT ONLY A COST
+ * (#1131). Every read starts from where the last one finished, so two reads
+ * running together start from the same place — neither has finished to move
+ * it — and each folds the same rows into what the profile has contributed.
+ * Measured with a Refresh pressed during a poll and the next poll landing
+ * during the Refresh: five program pages reported as seven, and the two extra
+ * never went away. So there is one read in flight at a time, forced or not,
+ * and every caller that finds one waits for it.
  */
 export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
   // THE FORCE IS HANDLED BEFORE THE IN-FLIGHT SHARE, not after.
@@ -339,9 +348,29 @@ export async function fetchBrowserWatch({ force = false, ...opts } = {}) {
   // A forced caller chains off the read in flight rather than joining it: that
   // one was started before the cache was cleared, so its answer is the stale
   // one this press asked to replace.
-  if (_inflight) return forced ? _inflight.then(() => browserWatchSnapshot(opts)) : _inflight;
-  _inflight = browserWatchSnapshot(opts).finally(() => { _inflight = null; });
-  return _inflight;
+  //
+  // AND THE CHAIN BECOMES THE READ IN FLIGHT (#1131). It used to be returned
+  // and not stored, so the slot emptied the moment the read it waited on
+  // finished — while this one was still copying the database — and the next
+  // ordinary poll found nothing in flight and started a read of its own, from
+  // the same floor. Stored, that poll joins this read, which is all `_inflight`
+  // ever promised it.
+  if (_inflight) return forced ? occupy(_inflight.then(() => browserWatchSnapshot(opts))) : _inflight;
+  return occupy(browserWatchSnapshot(opts));
+}
+
+/**
+ * Put `read` in the in-flight slot until it settles.
+ *
+ * ONLY THE READ STILL IN THE SLOT EMPTIES IT. A forced read chained off the one
+ * before takes the slot from it, and the one before finishes first — so a
+ * `finally` that emptied the slot unconditionally, which is what stood here,
+ * would empty it under the forced read and let the next poll start another.
+ */
+function occupy(read) {
+  const held = read.finally(() => { if (_inflight === held) _inflight = null; });
+  _inflight = held;
+  return held;
 }
 
 /**
@@ -588,7 +617,7 @@ const _lastRead = new Map();
 const _lastCount = new Map();
 
 /** What a profile has contributed before its first read. */
-function nothingSeen() {
+export function nothingSeen() {
   return {
     /** The oldest and newest visit times seen, and the newest a PERSON made. */
     oldest: null,
@@ -618,20 +647,46 @@ function nothingSeen() {
     open: [],
     settledTo: -Infinity,
     /**
-     * The only raw visits this module keeps between polls: the ones an open
-     * verdict can still be judged against, which is everything newer than
-     * `settledTo - quietMs` — at most twice the quiet gate of browsing, half an
-     * hour at the default. Bounded by the clock, where the cache before #989
-     * held every visit since the deck booted.
+     * The only raw visits this module keeps between polls: every visit newer
+     * than `settledTo`, and the TIME of the newest visit a person made at or
+     * before it. Bounded by the clock, where the cache before #989 held every
+     * visit since the deck booted.
+     *
+     * NOT PRUNED BY THE GATE IN FORCE, SINCE #1131. It was everything newer
+     * than `settledTo - quietMs`, which is what that gate needs and less than a
+     * longer one does. With the gate lengthened from 15 minutes to 60, the
+     * person's visit forty minutes before a program page had already been
+     * dropped, and the next poll reported two pages that `classify` over the
+     * same rows under the 60-minute gate reports none of.
+     *
+     * Every verdict still open is newer than `settledTo`, so of the visits a
+     * person made at or before that line the newest is the nearest to every one
+     * of them, and the rest can never decide anything, under any gate: the hour
+     * the panel offers, or the day `normalise` accepts from a hand edit. Kept,
+     * that one visit makes the evidence complete whatever the gate is changed
+     * to. It is kept as a time and nothing else, because the gate asks when a
+     * person was at the browser and never where. What is held comes to one gate
+     * of browsing and one timestamp, where it was two gates of addresses.
      */
     window: [],
+    /** The gate the open verdicts were last judged under, so a changed one is
+     *  applied on the next poll whether or not that poll read anything. */
+    judgedUnder: null,
   };
 }
 
-/** Fold one real read's rows into what the profile has contributed. Mutates
- *  `seen`, which is the object `_lastRead` holds. */
-function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
-  if (rows.length === 0) return;
+/** Fold one real read's rows into what the profile has contributed, and judge
+ *  again whatever is still open. Mutates `seen`, which is the object `_lastRead`
+ *  holds. Exported for tests, with `nothingSeen`: what is held between polls
+ *  is the question #989 was about, and a snapshot cannot see it. */
+export function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
+  // NOTHING NEW UNDER THE SAME GATE IS NOTHING TO DO. A gate that has changed
+  // since the open verdicts were judged is applied with no new rows at all
+  // (#1131): the settings route drops the cache, the read after it finds the
+  // file as it was and returns nothing, and returning here on that left a
+  // lengthened gate unapplied until the browser next wrote — the panel still
+  // listing a page the new gate hides.
+  if (rows.length === 0 && (seen.newest === null || seen.judgedUnder === quietMs)) return;
   for (const row of rows) {
     if (seen.oldest === null || row.timeMs < seen.oldest) seen.oldest = row.timeMs;
     if (seen.newest === null || row.timeMs > seen.newest) seen.newest = row.timeMs;
@@ -661,8 +716,17 @@ function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
   }
   seen.open = verdicts.filter(f => f.timeMs > settleTo);
   seen.settledTo = settleTo;
-  // Nothing older than `settleTo - quietMs` can silence a verdict still open.
-  seen.window = evidence.filter(r => r.timeMs > settleTo - quietMs);
+  seen.judgedUnder = quietMs;
+  // Everything newer than the line, and of what a person did at or before it
+  // only the newest, as a time: `window` in `nothingSeen` says why that one
+  // visit is all any gate can ask for.
+  let person = null;
+  for (const r of evidence) {
+    if (r.timeMs > settleTo || isProgramNavigation(r.transition)) continue;
+    if (person === null || r.timeMs > person) person = r.timeMs;
+  }
+  seen.window = evidence.filter(r => r.timeMs > settleTo);
+  if (person !== null) seen.window.unshift({ url: "", timeMs: person, transition: 0 });
 }
 
 
@@ -799,15 +863,35 @@ export async function browserWatchSnapshot({
   let lastHuman = null;
 
   for (const profile of profiles) {
-    const read = await visitsFor(profile, {
-      // From where this profile's last read finished, or from the deck's start
-      // on its first. The count is always taken above the deck's start, which
-      // is what makes it the running total the delta below comes out of.
-      sinceChromeTime: _floor.get(profile.historyPath) ?? sinceChromeTime,
-      countSince: sinceChromeTime,
-      copyDir,
-      deps,
-    });
+    // From where this profile's last read finished, or from the deck's start
+    // on its first. The count is always taken above the deck's start, which
+    // is what makes it the running total the delta below comes out of.
+    const floor = _floor.get(profile.historyPath) ?? sinceChromeTime;
+    let read = await visitsFor(profile, { sinceChromeTime: floor, countSince: sinceChromeTime, copyDir, deps });
+    // A READ THAT ANOTHER READ OVERTOOK IS NOT ABSORBED (#1131). One read in
+    // flight at a time is `fetchBrowserWatch`'s rule, and a forced read slipping
+    // past it is what counted five program pages as seven. This is the same
+    // rule where the floor is read and moved, so it holds for every caller: if
+    // the floor is not where it was when this read took it, another read of
+    // this profile finished meanwhile and absorbed the rows above it, which are
+    // the rows this one holds. Such a read is dropped whole and moves nothing.
+    // Its cache entry goes too, so a visit only it had seen is read on the next
+    // poll rather than whenever the browser next writes.
+    //
+    // ON THE FLOOR, NOT ON A VISIT ID. Rows carry no id, and giving them one
+    // means a second column in both backends' SELECT and a set of ids that
+    // either grows with every visit since boot — the retention #989 took out —
+    // or is pruned with the window and misses a copy older than it, which the
+    // first read after an afternoon with the panel shut returns. A row's time
+    // cannot stand in for an id either: `timeMs` is truncated to the
+    // millisecond while the floor is in microseconds, so two visits in one
+    // millisecond compare equal and the later is dropped as a copy of the
+    // first. The floor is exact, being the value every row of the read was
+    // selected against.
+    if (!read.cached && !read.degraded && (_floor.get(profile.historyPath) ?? sinceChromeTime) !== floor) {
+      cache.delete(profile.historyPath);
+      read = { ...read, rows: [], cached: true };
+    }
     if (read.degraded) anyDegraded = true;
     const key = `${profile.browser}/${profile.profile}`;
     // Everything this profile has contributed since the deck started. A read
@@ -815,13 +899,19 @@ export async function browserWatchSnapshot({
     // "nothing": the list must not empty itself because one poll found the file
     // untouched or the browser holding a lock.
     const seen = _lastRead.get(key) ?? nothingSeen();
+    const judge = { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser };
     if (!read.cached && !read.degraded) {
       // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
       // nothing new hands its floor back as the watermark, so storing that
       // changes nothing.
       _floor.set(profile.historyPath, read.watermark);
-      absorb(seen, read.rows, { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser });
+      absorb(seen, read.rows, judge);
       _lastRead.set(key, seen);
+    } else {
+      // Nothing read, and the gate may still have changed since the open
+      // verdicts were judged: `?quiet=` overrides it per request and drops no
+      // cache. `absorb` does nothing unless it has.
+      absorb(seen, [], judge);
     }
     const findings = seen.settled.concat(seen.open);
     const { oldest, human, byProgram } = seen;
