@@ -793,23 +793,32 @@ export function flushAppends(filePath, ms = 3000) {
  * that, if the rename fell between the two.
  *
  * Never rejects, like every other call into this queue. A file that is not
- * there is already empty. A truncate that fails for any other reason is what a
- * Clear has always done on that volume — the ring is emptied either way — and
- * the older generations are still removed.
+ * there is already empty. A truncate that fails for any other reason leaves the
+ * file as it was — the ring is emptied either way, and the older generations
+ * are still removed — and that failure is written into `outcome`, because the
+ * caller is about to tell somebody the history is gone (#1140). It used to be
+ * swallowed here and nowhere read it back, so a Clear on a read-only volume
+ * answered "cleared" over a log the next boot replayed in full.
  *
  * BOUNDED, by flushAppends and for its reason: the caller is answering an HTTP
  * request. A deadline reached leaves the turn on the chain, where it is still
- * in order; only the answer goes out first.
+ * in order; only the answer goes out first — and `outcome.error` is then still
+ * undefined, which means "not known yet" rather than "worked".
  *
  * @param {string}   filePath   the log to empty
  * @param {string[]} [archives] older generations of it, removed in the same turn
  * @param {number}   [ms]       how long to wait for the turn to be over
+ * @param {{ error?: Error | null }} [outcome] filled in when the turn runs:
+ *        `error` is the truncate's failure, or null once the file is empty
  * @returns {Promise<boolean>} whether it was over before the deadline
  */
-export function emptyLog(filePath, archives = [], ms = 3000) {
+export function emptyLog(filePath, archives = [], ms = 3000, outcome = {}) {
   const turn = (appendTails.get(filePath) ?? Promise.resolve())
     .then(() => truncate(filePath, 0))
-    .catch(() => {})
+    .then(
+      () => { outcome.error = null; },
+      err => { outcome.error = err?.code === "ENOENT" ? null : (err ?? new Error("truncate failed")); },
+    )
     .then(async () => {
       for (const older of archives) await unlink(older).catch(() => {});
     })
