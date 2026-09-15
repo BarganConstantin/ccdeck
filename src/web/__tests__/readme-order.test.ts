@@ -360,15 +360,29 @@ describe("the social preview card (#441)", () => {
   });
 });
 
-describe("the two npm badges, which name two different packages", () => {
-  it("says which package the download count belongs to", () => {
-    // Deliberate — one tarball goes out under three names and the counts are
-    // per name — but `npm/v/ccdeck` beside an unlabelled `npm/dm/agents-deck`,
-    // under an h1 that says ccdeck, reads as a copy-paste slip. Labelling it is
-    // the honest fix; calling it "all names" would be a new false string, since
-    // the badge counts one of the three.
-    expect(readme).toContain("npm/dm/agents-deck");
-    expect(readme).toContain("label=agents-deck%20downloads");
+describe("the npm badges, which name the one package that ships", () => {
+  it("counts the downloads of the package the version badge and the workflow name", () => {
+    // WHAT THIS USED TO PIN, and the fact it rested on:
+    //
+    //   expect(readme).toContain("npm/dm/agents-deck");
+    //   expect(readme).toContain("label=agents-deck%20downloads");
+    //
+    // "Deliberate — one tarball goes out under three names and the counts are
+    // per name." Labelling the agents-deck count was the honest answer while
+    // that held. It stopped holding at b8198a8 ("publish ccdeck and nothing
+    // else"): publish.yml now publishes ccdeck alone, agents-deck and agent-dag
+    // stay frozen at their last version, and an `npx agents-deck` run restarts
+    // as `npx ccdeck`. A monthly count of a frozen name can only fall while the
+    // installs it stood for land on ccdeck's, so the one downloads badge counts
+    // the package that ships: the one the version badge beside it names (#779).
+    expect(readme).toContain("img.shields.io/npm/dm/ccdeck");
+    expect(readme).not.toMatch(/img\.shields\.io\/npm\/[a-z]+\/(?:agents-deck|agent-dag)\b/);
+
+    // And the premise, read where it lives. If a second name is ever published
+    // again, this fails, and the badge has to say which count it shows again,
+    // the way it did before.
+    const publishSteps = read(".github", "workflows", "publish.yml").match(/- name: Publish to npm \([^)]*\)/g);
+    expect(publishSteps).toEqual(["- name: Publish to npm (ccdeck)"]);
   });
 });
 
