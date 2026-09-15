@@ -373,7 +373,13 @@ export function frameReader(onFrame, onRefuse, max = MAX_FRAME_BYTES) {
       if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
         dead = true; buf = ""; onRefuse("not an object"); return;
       }
-      onFrame(msg);
+      // A HANDLER THAT THROWS ENDS ITS CONNECTION, NOT THE PROCESS. This runs
+      // inside the socket's `data` event, where nothing above catches, so a
+      // throw from a frame handler took the whole deck down — and every frame
+      // read here has come off the network before anybody is trusted. The
+      // handlers are meant never to throw; this is what holds when one does.
+      try { onFrame(msg); }
+      catch { dead = true; buf = ""; onRefuse("bad frame"); return; }
       if (dead) return;
     }
   };
@@ -496,6 +502,10 @@ export function createSyncServer({
      *  so; null for a peer that did not, which is answered in the clear exactly
      *  as before. Set once and never changed. */
     let chan = null;
+    /** Set by `refuse`, and read first by every frame after it. A refusal is the
+     *  end of this socket, and nothing the peer sent in the same write may be
+     *  read against whatever state the refusal left half-set. */
+    let refused = false;
     /** Called at the moment `authed` turns true, so the first frame after `ok`
      *  in either direction is already the sealed kind. Both challenges are
      *  known by then, and the caller's proof has just said it saw the same two
@@ -534,6 +544,7 @@ export function createSyncServer({
      * receive window is full and whose callback therefore never comes.
      */
     const refuse = why => {
+      refused = true;
       onError?.("frame", new Error(why));
       const bye = () => { try { sock.destroy(); } catch { /* already gone */ } };
       // SEALED, A REFUSAL IS A CLOSE. Once both ends seal nothing leaves this
@@ -546,6 +557,12 @@ export function createSyncServer({
     };
 
     sock.on("data", frameReader(msg => {
+      // NOTHING AFTER A REFUSAL. The reader hands over every frame in a chunk,
+      // and `refuse` destroys the socket without stopping it. So a `hello`
+      // refused after its challenge was stored and before a key existed could
+      // be followed, in the same write, by an `auth` that reached `proof` with
+      // no key: a throw in this handler, and the end of the process.
+      if (refused) return;
       if (!authed) {
         // FOUR MESSAGES, and the order is chosen so that a stranger who merely
         // connects receives nothing derived from a key.
@@ -630,7 +647,10 @@ export function createSyncServer({
           sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
           return;
         }
-        if (msg.t !== "auth" || !theirChallenge) return refuse("expected auth");
+        // A key, too: a challenge on record says a `hello` arrived, not that one
+        // was accepted. Unreachable after the guard at the top of this handler,
+        // and stated anyway, because it is the rule `proof` below depends on.
+        if (msg.t !== "auth" || !theirChallenge || !key) return refuse("expected auth");
         const want = proof(key, {
           challenge: theirChallenge, peerChallenge: myChallenge,
           fromFp: peerFp, toFp: fp, direction: "hello",
