@@ -82,7 +82,7 @@ const root = (state: GraphState) => state.agents.get(SESSION)!;
 /** Kinds handled above the switch that return before any node is created. They
  *  are enrichment the server derives FROM a session it is already drawing, and
  *  a node conjured by one would be a session that never emitted a hook. */
-const OBSERVED_ONLY = ["ModelObserved", "ContextObserved", "SessionNamed", "UsageObserved"];
+const OBSERVED_ONLY = ["ModelObserved", "ContextObserved", "SessionNamed", "SessionRecapped", "UsageObserved"];
 
 const KINDS = [
   "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",

@@ -3377,6 +3377,105 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   flex-shrink: 0;
 }
 
+/* The ※ pin: the one mark a resting card carries when Claude Code has left it
+   a recap. The glyph button's own hit area and focus ring, in the session's
+   colour — a graphic, held to 3:1, which the card's --accent clears as text.
+   Held down while its note is open, so the card says which note is its own. */
+.agent-node .recap-pin {
+  flex: none;
+  color: var(--accent);
+}
+.agent-node .recap-pin[aria-expanded="true"] {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* The recap itself: a node of its own beside the session root, open by itself
+   once the session comes to rest (RecapNoteNode). A node like the cards — laid
+   out by the same pass, moved by the same drags, fitted by the same fit — so it
+   takes a card's depth and radius, with the panel's plate and a hairline of the
+   session's colour. It is not inside the card, so it rebuilds the card's
+   --accent from the hue it is handed. */
+.recap-note {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  position: relative;
+  width: 300px;
+  padding: 9px 12px 11px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 10px;
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-size: 12px;
+  cursor: grab;
+}
+/* The tie to the card (RecapTieEdge): a thread with beads on it. A hairline in
+   the session's colour, at the lightness the live session edges are held to on
+   the canvas; round dots strung along it; a bead where it is fastened at each
+   end. Beads, where the canvas's other edges are solid or dashed — those mean a
+   call, this means "said by". Decoration, so it takes no pointer. */
+.recap-tie {
+  --tie: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  pointer-events: none;
+}
+.recap-tie-thread {
+  fill: none;
+  stroke: var(--tie);
+  stroke-width: 1;
+  stroke-opacity: 0.35;
+}
+.recap-tie-beads {
+  fill: none;
+  stroke: var(--tie);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 7;
+}
+.recap-tie-end {
+  fill: var(--tie);
+}
+/* At the far tier a card keeps its title and nothing else. The note keeps its
+   box, so nothing under it moves, and draws only its mark. */
+.canvas-wrap[data-detail="far"] .recap-note-age,
+.canvas-wrap[data-detail="far"] .recap-note-close,
+.canvas-wrap[data-detail="far"] .recap-note-text {
+  visibility: hidden;
+}
+.recap-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.recap-note-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-note-age {
+  font-size: 11px;
+  color: var(--muted);
+}
+.recap-note-close {
+  margin-left: auto;
+  margin-right: -6px;
+}
+.recap-note-text {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  /* Eight lines hold every recap measured here — 305 characters at most, about
+     seven lines at this width. The clamp is for the one that does not fit,
+     which keeps its whole text in the note's tooltip and the detail panel. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  overflow: hidden;
+}
+
 /* The "this deck cannot see approval prompts on this session" row (#398).
    Same geometry as .waiting-row so the two occupy the slot identically, and
    deliberately the QUIETEST styling of the three: --muted, no border, a hollow
@@ -3847,6 +3946,14 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+/* The name is the pill's only when the card cannot say it. At the `full` tier
+   the root card prints the same name on a row of its own, and the pill — held
+   at its own size since #846 while the cards shrink — drew the second copy
+   larger than the first. At `mid` and `far` the card's row draws at 4-6px or
+   not at all, and the pill is where the name is read. See SessionClusters.tsx. */
+.canvas-wrap[data-detail="full"] .cluster-label-name {
+  display: none;
 }
 .cluster-label:hover {
   filter: brightness(1.25);
@@ -4629,6 +4736,29 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   opacity: 0.75;
 }
 
+/* The recap as the row's last line. Three lines where the card has two: this is
+   the column a person reads down to choose which session to go back to, and it
+   is wider than a card. Secondary tier, like the card's. */
+.session-list .sl-recap {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-secondary);
+}
+/* The same drawn ※ that leads the card's balloon, so the two read as one
+   thing. Muted: a list row carries no session colour to borrow. */
+.session-list .sl-recap .recap-glyph {
+  margin-right: 5px;
+  vertical-align: -1px;
+  color: var(--muted);
+}
+
 /* ---------------- detail panel: hero + sections ---------------- */
 
 .detail-hero {
@@ -4912,6 +5042,16 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* The recap whole, in the panel with room for it. The prompts below are --text
+   because they are the person's own words; this is Claude Code summarising, so
+   it takes the secondary tier the card and the session list use. */
+.detail-recap {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 /* A background task's notice, which Claude Code submits through the same hook
    as a human's typing (#834). It keeps its place in time but reads as an event,

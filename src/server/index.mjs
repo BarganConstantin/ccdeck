@@ -30,6 +30,8 @@ import { createActivity } from "./activity.mjs";
 // What a session is producing between its tool calls — the 16.5% of measured
 // time the hooks cannot see. See output-watch.mjs.
 import { createOutputWatch } from "./output-watch.mjs";
+// Claude Code's "※ recap:" line — see session-recap.mjs.
+import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
@@ -744,6 +746,7 @@ function newTranscriptState() {
     subagentModels: {},
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
+    recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
     // bucket above stays the whole-transcript sum and is what every token count
@@ -951,6 +954,9 @@ function foldTranscriptLine(state, line) {
   // totals and the context counts, so naming costs no read of its own — see the
   // block above `maybeResolveSessionName` for why that beat a tail read.
   foldSessionNamingLine(state, line);
+  // The recap rides the same pass for the same reason, and costs the ordinary
+  // line two substring tests. See session-recap.mjs.
+  foldRecapLine(state, line);
 
   // Model. Only a line that mentions a model can change it, and parsing the
   // rest is what made the full rescan expensive.
@@ -1587,12 +1593,18 @@ const pendingNameReads = new Set();     // sid currently being read
  *  through a live server" — which stated a test contract no test had (#798).
  *  What is worth pinning is the parsing, and that is `foldSessionNamingLine`,
  *  which IS exported and which session-name.test.ts drives line at a time the
- *  way `foldTranscriptLine` does. This wrapper is a scan and two null checks. */
+ *  way `foldTranscriptLine` does. This wrapper is a scan and two null checks.
+ *
+ *  The recap comes back beside the naming because it comes off the same scan:
+ *  `naming` is null when the transcript has no naming record, `recap` when no
+ *  recap is standing. See session-recap.mjs, and `noteRecap` below. */
 async function readSessionNamingFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
-  if (!state.agentName && !state.aiTitle) return null;
-  return { agentName: state.agentName, aiTitle: state.aiTitle };
+  const naming = (state.agentName || state.aiTitle)
+    ? { agentName: state.agentName, aiTitle: state.aiTitle }
+    : null;
+  return { naming, recap: state.recap ?? null };
 }
 
 function maybeResolveSessionName(payload) {
@@ -1607,7 +1619,10 @@ function maybeResolveSessionName(payload) {
   lastNameReadAt.set(sid, now);
   pendingNameReads.add(sid);
   readSessionNamingFromTranscript(tp)
-    .then(naming => {
+    .then(read => {
+      if (!read) return;
+      noteRecap(sid, read.recap);
+      const naming = read.naming;
       if (!naming) return;
       const sig = `${naming.agentName ?? ""}\u0000${naming.aiTitle ?? ""}`;
       if (nameBySession.get(sid) === sig) return;
@@ -1621,6 +1636,43 @@ function maybeResolveSessionName(payload) {
     })
     .catch(() => {})
     .finally(() => pendingNameReads.delete(sid));
+}
+
+// ─── Session recap ───────────────────────────────────────────────────────
+// Claude Code's "※ recap:" line (see session-recap.mjs). It comes off the
+// transcript cursor like the naming above, and its emit is gated the same way:
+// on a CHANGE, keyed by the recap's own timestamp, so a pass that re-reads a
+// recap already sent says nothing. A session that never had one emits nothing
+// at all — the first word about a session's recap is always a recap.
+//
+// TWO ROADS IN, BECAUSE NO HOOK FIRES WHEN IT LANDS. The cursor runs off hook
+// events, and a recap is written three minutes into a silence that has none.
+// So the output watch, which already stats these files between events, hands
+// every tail it reads to `onRecapTail`, and a tail carrying a recap asks the
+// cursor to fold the file. The cursor stays the one place the rule lives: a
+// recap a later turn retired is retired whichever road found it.
+const recapBySession = new Map();       // sid -> `${at}` last sent, "" once retired
+
+function noteRecap(sid, recap) {
+  const sig = recap ? String(recap.at) : "";
+  const prev = recapBySession.get(sid);
+  if (prev === sig) return;
+  if (prev === undefined && !recap) return;
+  recapBySession.set(sid, sig);
+  pushEvent({
+    hook_event_name: "SessionRecapped",
+    session_id: sid,
+    recap: recap ? { text: recap.text, at: recap.at } : null,
+  }, "internal");
+}
+
+/** The output watch's tap. Only a tail carrying the recap mark costs a scan,
+ *  and the scan is the cursor's own: it folds the bytes it has not seen yet. */
+function onRecapTail(sid, text, path) {
+  if (!path || !text.includes(RECAP_MARK)) return;
+  scanTranscript(path)
+    .then(state => { if (state) noteRecap(sid, state.recap ?? null); })
+    .catch(() => {});
 }
 
 // ─── Context enrichment ──────────────────────────────────────────────────
@@ -2943,16 +2995,44 @@ const OUTPUT_WATCH_WINDOW_MS = 5 * 60_000;
 const OUTPUT_WATCH_MS = 1_500;
 let outputWatchTimer = null;
 
+/** How long a quiet session is still worth a `stat` for its recap, and how
+ *  often it gets one.
+ *
+ *  The five minutes above are sized to a session that is WORKING. A recap is
+ *  the opposite case: Claude Code writes it once a finished turn has sat three
+ *  minutes AND the terminal has lost focus, so it lands whenever the person
+ *  walks away — a median 3.1 minutes after the turn on this machine, and an
+ *  hour after it for somebody who stayed at the terminal first. A session that
+ *  quiet is producing nothing, so every fourth tick is plenty: a recap reaches
+ *  the deck within six seconds of being written, and a resting session costs a
+ *  `stat` every six seconds rather than every one and a half. */
+const RECAP_WATCH_WINDOW_MS = 12 * 60 * 60_000;
+const RECAP_WATCH_EVERY = 4;
+let outputWatchTicks = 0;
+
 /** One tick: stat the recent sessions' transcripts, read only what grew, and
  *  say what landed. Everything expensive about this is guarded inside the watch
- *  — a session that wrote nothing costs one `stat`. */
+ *  — a session that wrote nothing costs one `stat`.
+ *
+ *  Resting sessions ride along on every RECAP_WATCH_EVERY-th tick for their
+ *  recap alone, and their blocks are not reported: this answers for the
+ *  sessions it calls live, and a resting one that starts working again fires a
+ *  hook first, which makes it live the ordinary way. */
 async function outputWatchOnce() {
-  const cutoff = Date.now() - OUTPUT_WATCH_WINDOW_MS;
-  const live = [];
-  for (const [sid, at] of sessionTouchedAt) if (at >= cutoff) live.push(sid);
-  if (!live.length) return;
-  const found = await outputWatch.poll(live);
+  const now = Date.now();
+  const cutoff = now - OUTPUT_WATCH_WINDOW_MS;
+  const restingCutoff = now - RECAP_WATCH_WINDOW_MS;
+  const withResting = outputWatchTicks++ % RECAP_WATCH_EVERY === 0;
+  const live = new Set();
+  const polled = [];
+  for (const [sid, at] of sessionTouchedAt) {
+    if (at >= cutoff) { live.add(sid); polled.push(sid); }
+    else if (withResting && at >= restingCutoff) polled.push(sid);
+  }
+  if (!polled.length) return;
+  const found = await outputWatch.poll(polled, onRecapTail);
   for (const f of found) {
+    if (!live.has(f.sid)) continue;
     pushEvent({
       hook_event_name: "OutputObserved",
       session_id: f.sid,
@@ -2985,6 +3065,8 @@ function forgetSession(sid) {
   // ring has rolled past the original SessionNamed shows that session unnamed
   // for the rest of its life.
   nameBySession.delete(sid);
+  // The recap's gate, for the same reason — see noteRecap.
+  recapBySession.delete(sid);
   lastNameReadAt.delete(sid);
   modelLastReadAt.delete(sid);
   lastUsageReadAt.delete(sid);
@@ -5579,6 +5661,7 @@ async function handleClear(res) {
   // longer has it — here, and in forgetSession.
   outputWatch.clear();
   nameBySession.clear();
+  recapBySession.clear();
   modelBySession.clear();
   // The read stamps go with them. Clearing only the signatures would leave
   // the next hook event inside MODEL_READ_THROTTLE_MS, so the transcript

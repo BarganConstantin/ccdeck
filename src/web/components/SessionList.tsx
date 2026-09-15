@@ -13,9 +13,10 @@ import { SESSION_SPEND_LABEL } from "../board-usage";
 // session was last seen on — see usage-models.ts (#686).
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { WaitingBlock } from "../types";
+import type { SessionRecap, WaitingBlock } from "../types";
 import { shortModel, modelFamily } from "../model-label";
-import { blockedToolTooltip, stateLabel, waitingSentence } from "./AgentNode";
+import { recapShown } from "../session-recap";
+import { RecapMark, blockedToolTooltip, stateLabel, waitingSentence } from "./AgentNode";
 
 export interface Row {
   sessionId: string;
@@ -23,6 +24,10 @@ export interface Row {
   cwdBasename?: string;
   state: "active" | "done" | "err";
   waiting?: WaitingBlock | null;
+  /** Claude Code's recap while it still describes the session — the rule is
+   *  session-recap.ts's, the same one the card asks. Null on every other row,
+   *  which keeps exactly the shape it had. */
+  recap?: SessionRecap | null;
   modelId?: string;
   toolCount: number;
   cost: number;
@@ -74,6 +79,7 @@ export function buildRows(state: GraphState, now: number): Row[] {
       cwdBasename: a.cwdBasename,
       state: a.state,
       waiting: a.waiting,
+      recap: recapShown(a),
       modelId: a.model,
       toolCount,
       cost,
@@ -232,6 +238,12 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
                       <span className="sl-elapsed" title={`Started ${new Date(r.startedAt).toLocaleString()}`}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>
                     )}
                 </div>
+                {/* Claude Code's recap, while it still describes the session.
+                    Three lines here against the card's two: this is the column
+                    a person reads down to choose which session to go back to,
+                    and it is wider than a card. All of it is the title, and all
+                    of it is in the detail panel. */}
+                {r.recap && <span className="sl-recap" title={r.recap.text}><RecapMark />{r.recap.text}</span>}
               </div>
             </button>
           );

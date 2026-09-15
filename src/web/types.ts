@@ -281,6 +281,12 @@ export interface AgentNodeData {
    *  18 named sessions ends up with the two byte-identical — so the reducer
    *  drops this one when they match, or the tooltip just repeats the card. */
   sessionTitle?: string;
+  /** Claude Code's recap: the "※ recap:" line it writes into the transcript
+   *  once a finished turn has sat for three minutes with the terminal out of
+   *  focus. Root only — the newest one no later turn has retired yet, as the
+   *  server last read it. Whether it still describes the session is a question
+   *  for session-recap.ts, which every surface that draws it asks. */
+  recap?: SessionRecap;
   prompts: PromptEntry[];
   toolCount: number;
   /** Root nodes only. True when this session's node was created by something
@@ -462,6 +468,15 @@ export interface AgentNodeData {
   context?: ContextBreakdown;
 }
 
+/** Claude Code's recap of a session — the "※ recap:" line, as a card can show
+ *  it (the terminal's "(disable recaps in /config)" taken off) — and when
+ *  Claude Code wrote it. See src/server/session-recap.mjs. */
+export interface SessionRecap {
+  text: string;
+  /** The transcript line's own timestamp, epoch ms. */
+  at: number;
+}
+
 export interface HookEnvelope {
   seq: number;
   receivedAt: number;
@@ -535,6 +550,9 @@ export interface HookPayload {
    *  means the scan has nothing to say, never that the name was cleared. */
   sessionName?: string | null;
   sessionTitle?: string | null;
+  /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
+   *  transcript last showed it, or null once a later turn has retired it. */
+  recap?: SessionRecap | null;
   /** Codex-only: per-turn identifier for tool-call attribution. */
   turn_id?: string;
   /** Codex-only: emitted by sessions/<sid>/event_msg/task_started events,

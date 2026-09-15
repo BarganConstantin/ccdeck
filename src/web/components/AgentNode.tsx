@@ -100,6 +100,8 @@ function agentCostTooltip(a: UsageBearing): string {
 import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types";
 import { memo } from "react";
 import { useNow } from "../use-now";
+import { recapShown } from "../session-recap";
+import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -153,6 +155,15 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
   // carry an agent-name and 4.1% carry an ai-title, and not one of them
   // carries a name without a title. See session-display.ts for the sweep.
   const naming = sessionDisplay(data.sessionName, data.sessionTitle);
+  // Null unless the session is resting on a turn Claude Code has summarised —
+  // see session-recap.ts for the whole rule.
+  const recap = recapShown(data);
+  // The note opens by itself the moment there is a recap, and stays shut once
+  // it has been closed — for THAT recap; the next one opens again. Asked of
+  // every card, because a hook cannot wait for the recap (recap-note.ts).
+  const noteKey = recap ? recapKey(data.sessionId, recap.at) : null;
+  const noteDismissed = useRecapDismissed(noteKey);
+  const noteOpen = recap != null && !noteDismissed;
 
   return (
     // --accent itself is built in styles.css from this hue: the token that
@@ -167,6 +178,21 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
           <StatePill state={data.state} />
           <span className="label" title={cardTooltip}>{data.label}</span>
           {data.synthetic && <span className="synth-tag" title="No SessionStart captured — synthesised">?</span>}
+          {/* Claude Code's ※, in the session's colour, beside the name: the
+              card's own mark that a recap is there, and the switch for its
+              note. The note opens by itself, so this is how it is put away
+              and brought back. The click stops here, so it does not also
+              select the card. */}
+          {recap && noteKey && (
+            <button
+              type="button"
+              className="glyph-btn recap-pin"
+              aria-label="Claude Code's recap"
+              aria-expanded={noteOpen}
+              title={noteOpen ? "Hide the recap" : "Show Claude Code's recap"}
+              onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
+            ><RecapMark /></button>
+          )}
         </div>
         <div className="head-right">
           {hasContextSignal && data.onOpenContext && (
@@ -510,6 +536,23 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
       <span className="waiting-said">{waitingLabel(waiting)}</span>
       <b>{elapsed(waiting.since, undefined, now)}</b>
     </div>
+  );
+}
+
+/** Claude Code's own mark for a recap: the ※ the terminal prints in front of
+ *  one. Drawn rather than typed — U+203B comes from whichever fallback font a
+ *  platform has, at whatever weight that font chose, and this has to be the
+ *  same small figure on macOS, Windows and Linux. Decoration beside the word
+ *  "recap", so it is hidden from assistive technology. */
+export function RecapMark() {
+  return (
+    <svg className="recap-glyph" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
+      <path d="M3.3 3.3l5.4 5.4M8.7 3.3l-5.4 5.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <circle cx="6" cy="1.2" r="1.05" fill="currentColor" />
+      <circle cx="6" cy="10.8" r="1.05" fill="currentColor" />
+      <circle cx="1.2" cy="6" r="1.05" fill="currentColor" />
+      <circle cx="10.8" cy="6" r="1.05" fill="currentColor" />
+    </svg>
   );
 }
 

@@ -152,8 +152,15 @@ export function createOutputWatch(io = {}) {
    * Sessions the caller believes are live, and no others: a finished session's
    * file can still be appended to by a later turn, and the deck has its own
    * rules about what counts as live. This asks no questions about that.
+   *
+   * `onLines`, when given, is handed each session's new whole lines as one
+   * string, with the file they came from. The watch is the only reader that
+   * looks at a transcript while a session is resting, and resting is exactly
+   * when Claude Code writes its recap (see session-recap.mjs). It is a tap, not
+   * a filter: nothing it does changes the blocks returned, and a throw inside
+   * it stops at the tap rather than at the watch.
    */
-  async function poll(liveSids) {
+  async function poll(liveSids, onLines) {
     const out = [];
     for (const sid of liveSids) {
       const entry = seen.get(sid);
@@ -214,6 +221,9 @@ export function createOutputWatch(io = {}) {
       // Oldest first, so a reader that refuses to move backwards accepts the
       // whole run rather than only its last member.
       for (const b of blocksIn(text)) out.push({ sid, kind: b.kind, at: b.at });
+      if (onLines) {
+        try { onLines(sid, text, entry.path); } catch { /* the tap's failure, not the watch's */ }
+      }
     }
     return out;
   }

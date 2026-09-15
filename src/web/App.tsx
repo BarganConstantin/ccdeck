@@ -20,6 +20,8 @@ import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
+import RecapNoteNode from "./components/RecapNoteNode";
+import RecapTieEdge from "./components/RecapTieEdge";
 import ToolBursts, { mcpChipIdentity } from "./components/ToolBursts";
 import SessionSummary from "./components/SessionSummary";
 import ContextModal from "./components/ContextModal";
@@ -43,7 +45,7 @@ import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
-import { pruneSelection, pruneStaleEntries, measuredNodeIds } from "./prune";
+import { liveNodeIds, pruneSelection, pruneStaleEntries, measuredNodeIds } from "./prune";
 import { spotlightUnion } from "./spotlight";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
@@ -86,6 +88,8 @@ import { fmtCost, fmtCostRate } from "./pricing";
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
+import { recapShown } from "./session-recap";
+import { isRecapDismissed, isRecapNoteId, recapKey, recapNoteId, useRecapNotesVersion } from "./recap-note";
 import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
@@ -137,7 +141,17 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "";
 }
 
-const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode };
+const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };
+/** The recap note's tie to its card — see RecapTieEdge. At module scope like
+ *  nodeTypes, since a new object each render makes React Flow warn and remount. */
+const edgeTypes = { recapTie: RecapTieEdge };
+/** A recap note's size before React Flow has measured it — the sheet's width,
+ *  and about a card's height — and the gap it keeps to the left of its card:
+ *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
+ *  would put it. */
+const RECAP_NOTE_W = 300;
+const RECAP_NOTE_H = 130;
+const RECAP_NOTE_GAP = 160;
 
 /** The class React Flow puts on the wrapper it renders around every node — the
  *  element it makes tabbable, not the .agent-node card AgentNode draws inside
@@ -807,6 +821,46 @@ function snapshotToFlow(
         className: cls,
       });
     }
+    // Claude Code's recap, as a node of its own beside the root — RecapNoteNode
+    // holds why a node and not something drawn over the canvas. Built only while
+    // the recap still describes the session and nobody has put it away, and tied
+    // to the root by an edge FROM the note, which is also what makes dagre rank
+    // it to the left of the card.
+    const recap = a.kind === "root" ? recapShown(a) : null;
+    const noteKey = recap ? recapKey(a.sessionId, recap.at) : null;
+    if (recap && noteKey && !isRecapDismissed(noteKey)) {
+      const noteId = recapNoteId(a.id);
+      const hue = sessionHue(a.sessionId);
+      const mn = measured.get(noteId);
+      // A second shape of node in an array typed for cards. Every reader here
+      // that treats a node's data as a card's checks the node's type first —
+      // the frame, the minimap, the click, the j/k step.
+      nodes.push({
+        id: noteId,
+        type: "recapNote",
+        position: { x: 0, y: 0 },
+        data: { sessionId: a.sessionId, parentId: a.id, recap, noteKey, hue },
+        className: spotlitOut ? "rf-spotlit-out" : undefined,
+        selectable: false,
+        // Not a keyboard stop either, like the session drag handles: Enter on a
+        // focused node selects its id, and a note's id is not an agent's. Its ×
+        // is still a button, and still reached by Tab.
+        focusable: false,
+        ariaLabel: `Claude Code's recap for ${a.label}`,
+        ...(mn ? { width: mn.width, height: mn.height } : null),
+      } as unknown as (typeof nodes)[number]);
+      edges.push({
+        id: `e:recap:${a.id}`,
+        source: noteId,
+        target: a.id,
+        type: "recapTie",
+        className: "recap-edge",
+        // Decoration: not a stop for Tab. It draws no hit area to click either
+        // (RecapTieEdge renders none, and the sheet gives it no pointer).
+        focusable: false,
+        style: { "--session-hue": hue } as React.CSSProperties,
+      });
+    }
   }
   // Only rerun dagre when the structure or measured sizes actually change.
   // Between layouts, reuse cached positions so per-event renders don't shift
@@ -832,6 +886,17 @@ function snapshotToFlow(
   // `positions` looks — see placement.ts. Without that, the one write that
   // exists to keep a node on screen for a frame was also the write that told
   // this filter the node had been laid out.
+  // A recap note that is not on the board forgets where the layout put it, so
+  // the next one is placed beside its card as the card sits THEN — a note put
+  // away before its card moved must not come back to where the card used to
+  // be. Where somebody DRAGGED one is a pin, and pins are kept (liveNodeIds).
+  const shownNotes = new Set(nodes.filter(n => n.type === "recapNote").map(n => n.id));
+  for (const id of Array.from(positions.keys())) {
+    if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
+      positions.delete(id);
+      provisional.delete(id);
+    }
+  }
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
@@ -849,9 +914,28 @@ function snapshotToFlow(
       // or a new column to the right lets the fit show the board largest.
       fillGapsWithNewSessions(
         nodes, positions, pinned, measured,
-        new Set(missing.map(n => n.id)), lanes,
+        // Cards only: a recap note joins a session that is already here, and
+        // offered a hole it was taken for a session of its own and dropped in
+        // a gap at the foot of some column, nowhere near its card.
+        new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,
         { width: availableWidth, height: availableHeight },
       );
+      // A recap note joining a card that is already on the canvas goes to the
+      // LEFT of that card, where R puts it too. It is tied to its root by an
+      // edge, but a card somebody has dragged is pinned, and dagre lays out only
+      // what still flows — so the note was laid out on its own and the overlap
+      // pass slid it underneath the card. Placed from the card, it cannot be.
+      for (const n of missing) {
+        if (n.type !== "recapNote") continue;
+        const rootId = (n.data as { parentId?: string } | undefined)?.parentId;
+        if (!rootId) continue;
+        const root = pinned.get(rootId) ?? (isUnplaced(rootId, positions, provisional) ? undefined : positions.get(rootId));
+        if (!root) continue;
+        const nw = measured.get(n.id)?.width ?? RECAP_NOTE_W;
+        const nh = measured.get(n.id)?.height ?? RECAP_NOTE_H;
+        const rh = measured.get(rootId)?.height ?? RECAP_NOTE_H;
+        recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
+      }
     }
     separateOverlaps(nodes, positions, pinned, measured, lanes);
     lastLayoutSigRef.current = sig;
@@ -874,17 +958,18 @@ function snapshotToFlow(
   // restored from storage before the event log has replayed, so pruning them
   // against an empty agent map would wipe the whole saved arrangement on every
   // page load and re-derive it with dagre.
-  pruneStaleEntries(positions, state.agents);
+  const live = liveNodeIds(state.agents.values());
+  pruneStaleEntries(positions, live);
   // A mark normally lives one frame — the pass it asks for clears it — but an
   // agent that leaves between the stamp and that pass would leave its id in the
   // set for the life of the tab, which is the leak the size cache below had.
-  pruneStaleEntries(provisional, state.agents);
+  pruneStaleEntries(provisional, live);
   // Drop pins for agents that are gone. Pinned positions are restored from
   // localStorage on every load, so without this a drag from some previous run
   // outlives the agent it belonged to and keeps claiming that spot on the
   // canvas — where a later session, laid out from the top, gets stacked
   // straight onto it.
-  pruneStaleEntries(pinned, state.agents);
+  pruneStaleEntries(pinned, live);
   // Drop measurements for nodes that no longer exist. This cache is not
   // restored from storage, but it is not rebuilt either: nothing but the Clear
   // button ever removed an id, so a tab left open for days holds a size for
@@ -2784,6 +2869,10 @@ function Inner() {
   const availableHeight = canvasSize.h > 0
     ? Math.max(0, (canvasSize.h - FIT_MARGIN * 2) * FIT_FILL) : 0;
 
+  // Put away and brought back through recap-note.ts, and the note nodes are
+  // built from it: a × has to rebuild the canvas now, not on the next tick.
+  const recapNotesVersion = useRecapNotesVersion();
+
   // Rebuilt on every render, drags included.
   //
   // Freezing it during a drag was tried and reverted: it looks like an obvious
@@ -2802,7 +2891,7 @@ function Inner() {
       );
       return flow;
     },
-    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick],
+    [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion],
   );
 
   // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
@@ -3086,7 +3175,8 @@ function Inner() {
    *  tested without a canvas; what stays here is the two things that need one,
    *  the fit and the focus. */
   const stepAgent = useCallback((direction: 1 | -1) => {
-    const current = nodesRef.current;
+    // Cards only: a recap note is a node on the canvas, not a stop for j and k.
+    const current = nodesRef.current.filter(n => n.type === "agent");
     const targetId = stepTarget(
       current.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })),
       primarySelectedIdRef.current,
@@ -4797,6 +4887,7 @@ function Inner() {
              The edge keeps role="img" and its label, which is harmless — the
              target node already carries the name. */
           edgesFocusable={false}
+          edgeTypes={edgeTypes}
           fitView={!restoredViewport}
           /* The opening frame is React Flow's own, and it goes through the same
              d3 transition every other viewport animation does — so a deck that
@@ -4838,6 +4929,9 @@ function Inner() {
           deleteKeyCode={null}
           onNodeClick={(e, n) => {
             if (n.type === "sessionGroup") { clearSelection(); return; }
+            // A recap note speaks for its session, so a click on it selects the
+            // root — whose detail panel holds the whole recap.
+            if (n.type === "recapNote") { selectAgent((n.data as { parentId: string }).parentId, e.shiftKey); return; }
             selectAgent(n.id, e.shiftKey);
           }}
           onPaneClick={() => clearSelection()}
@@ -5515,6 +5609,21 @@ function Detail({
           )}
         </div>
       </header>
+
+      {/* Claude Code's recap, whole — the one surface with the room for all of
+          it. The card clamps it to two lines and the session list to three;
+          this is where it is read. Same rule as both, from session-recap.ts. */}
+      {(() => {
+        const recap = recapShown(agent);
+        if (!recap) return null;
+        const written = promptTime(recap.at, now);
+        return (
+          <section className="detail-section">
+            <h3>Recap <span className="section-count" title={written.title}>{written.label}</span></h3>
+            <p className="detail-recap">{recap.text}</p>
+          </section>
+        );
+      })()}
 
       {agent.tools.length > 0 && (
         <section className="detail-section">

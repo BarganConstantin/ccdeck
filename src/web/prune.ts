@@ -4,6 +4,8 @@
 
 /** Anything that can answer "how many agents do I know about, and is this one
  *  of them" — a Map of agents keyed by id, or a plain Set of ids. */
+import { recapNoteId } from "./recap-note";
+
 type LiveIds = { readonly size: number; has(id: string): boolean };
 
 /** Anything keyed by node id that can drop an entry — the position, pin and
@@ -73,12 +75,35 @@ export function pruneSelection(selected: ReadonlySet<string>, live: LiveIds): Se
  * re-measure it on the next, so the handle ids are named here explicitly.
  */
 export function measuredNodeIds(
-  agents: Iterable<{ id: string; sessionId: string }>,
+  agents: Iterable<{ id: string; sessionId: string; kind?: string }>,
 ): Set<string> {
   const ids = new Set<string>();
   for (const a of agents) {
     ids.add(a.id);
     ids.add(`group:${a.sessionId}`);
+    // A root's recap note is a node too, and is measured like one.
+    if (a.kind === "root") ids.add(recapNoteId(a.id));
+  }
+  return ids;
+}
+
+/**
+ * Every id a canvas node can hold while these agents live: the agents, and each
+ * root's recap note.
+ *
+ * The caches pruned against this — positions, placeholders, pins — are keyed by
+ * node id, and a recap note is a node with no agent of its own. Pruned against
+ * the agent map alone it lost its place on every pass, was laid out again the
+ * next, and forgot where somebody had dragged it. Kept for as long as its root
+ * is, open or not, so a note somebody dragged returns to that spot when it is
+ * put away and brought back. Where the LAYOUT put a note is forgotten while it
+ * is closed (snapshotToFlow), so an undragged note comes back beside its card.
+ */
+export function liveNodeIds(agents: Iterable<{ id: string; kind?: string }>): Set<string> {
+  const ids = new Set<string>();
+  for (const a of agents) {
+    ids.add(a.id);
+    if (a.kind === "root") ids.add(recapNoteId(a.id));
   }
   return ids;
 }

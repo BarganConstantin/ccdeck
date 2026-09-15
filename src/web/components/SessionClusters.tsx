@@ -112,7 +112,10 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     // The card then settled one PAD larger than the handle it exists to trace:
     // an 18px rim of visible session box that no session drag responds to, and
     // half the breathing room layout.ts budgets between two stacked sessions.
-    if (n.type !== "agent") continue;
+    // A recap note is a member too: it is laid out, fitted and moved with its
+    // session (RecapNoteNode), so the frame — which traces what a session drag
+    // moves — goes round it as well as round the cards.
+    if (n.type !== "agent" && n.type !== "recapNote") continue;
     const d = n.data as AgentNodeData;
     if (!d?.sessionId) continue;
     // Skip retiring agents — they're fading out. Including them keeps the
@@ -522,9 +525,20 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
                   and the only field the session colour needs to mark. The other
                   two step down to the annotation tier and to normal weight; the
                   separators go with them, so the run reads as one strong word
-                  followed by its qualifiers rather than as three equals. */}
+                  followed by its qualifiers rather than as three equals.
+
+                  THE NAME IS THERE ONLY WHEN THE CARD CANNOT SAY IT. The root
+                  card prints the same name on its own row, so at a zoom where
+                  that row reads, the pill was the name a second time — and
+                  since #846 the pill keeps its size while the cards shrink, the
+                  second copy was the larger one, three times the width of the
+                  card it labels. The sheet hides this span at the `full` detail
+                  tier, where the card's row is legible; at `mid` and `far` the
+                  card's row draws at 4-6px or not at all, and the pill is the
+                  only place left to read it. Its separator lives inside the span
+                  so the two leave together. The tooltip keeps all three fields. */}
               {c.label}
-              {c.name ? <>{SEP}<span className="cluster-label-name">{c.name}</span></> : null}
+              {c.name ? <span className="cluster-label-name">{SEP + c.name}</span> : null}
               {c.shortId ? <span className="cluster-label-id">{SEP + c.shortId}</span> : null}
             </button>
           </React.Fragment>

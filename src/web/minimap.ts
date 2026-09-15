@@ -55,6 +55,8 @@ export function minimapNodeColor(
   // rank() instead of inventing a sixth definition of "waiting": permission and
   // asked, never idle.
   if (isAlarming(node.data?.waiting)) return cssVar("--warn");
+  // A recap note is a note, not a state, so it takes the quiet tone.
+  if (node.type === "recapNote") return cssVar("--muted");
   const state = node.data?.state;
   if (state === "err") return cssVar("--err");
   if (state === "active") return cssVar("--inflight");

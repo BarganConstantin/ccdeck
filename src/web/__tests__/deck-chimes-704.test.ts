@@ -28,7 +28,7 @@ describe("which envelope earns a tone", () => {
     for (const kind of [
       "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
       "SubagentStop", "SessionEnd", "SessionStart",
-      "ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed",
+      "ModelObserved", "UsageObserved", "ContextObserved", "SessionNamed", "SessionRecapped",
     ]) {
       expect(chimeFor(env(kind), false), `${kind} must be silent`).toBeNull();
     }

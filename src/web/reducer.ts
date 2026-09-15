@@ -1329,6 +1329,10 @@ const WAITING_KEEPERS = new Set([
   // when the deck has time to notice its name, and clearing the badge there
   // would hide the one thing the card is trying to say.
   "SessionNamed",
+  // And the recap, which is written precisely BECAUSE nothing is moving: three
+  // minutes after a turn ended, with the "Your turn" badge already up. It is
+  // the badge's explanation, not the end of it.
+  "SessionRecapped",
 ]);
 
 /**
@@ -1724,6 +1728,29 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       if (root.sessionTitle && shown
           && root.sessionTitle.toLowerCase() === shown.toLowerCase()) {
         root.sessionTitle = undefined;
+      }
+    }
+    return state;
+  }
+
+  // SessionRecapped carries Claude Code's recap — the "※ recap:" line it writes
+  // into a finished turn's silence — off the same transcript cursor, and off
+  // the watch that reads that file between hook events, since no hook fires
+  // when the line lands. Session root only, and never a node of its own: a
+  // recap is about a session the deck is already drawing.
+  //
+  // `recap: null` is the server saying a later turn retired it; an absent or
+  // malformed one says nothing and changes nothing. Whether a standing recap
+  // still describes the session is NOT decided here — the prompt that makes it
+  // history can arrive before the server's retirement does — so session-recap.ts
+  // asks that where the recap is drawn.
+  if (name === "SessionRecapped") {
+    const root = state.agents.get(sessionId);
+    if (root) {
+      const r = p.recap;
+      if (r === null) root.recap = undefined;
+      else if (r && typeof r.text === "string" && r.text.trim() && Number.isFinite(r.at)) {
+        root.recap = { text: r.text.trim(), at: r.at };
       }
     }
     return state;

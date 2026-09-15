@@ -165,13 +165,13 @@ describe("the events that carry no cwd", () => {
   });
 
   it("lets an enrichment event follow the session it belongs to", () => {
-    // ModelObserved / UsageObserved / SessionNamed / ContextObserved carry
-    // session_id and nothing else. In scope, they must arrive; out of scope,
-    // they must not.
+    // ModelObserved / UsageObserved / SessionNamed / ContextObserved /
+    // SessionRecapped carry session_id and nothing else. In scope, they must
+    // arrive; out of scope, they must not.
     const admits = replayScope("/srv/proj");
     expect(admits({ hook_event_name: "SessionStart", session_id: "in", cwd: "/srv/proj/a" })).toBe(true);
     expect(admits({ hook_event_name: "SessionStart", session_id: "out", cwd: "/elsewhere" })).toBe(false);
-    for (const name of ["ModelObserved", "UsageObserved", "SessionNamed", "ContextObserved"]) {
+    for (const name of ["ModelObserved", "UsageObserved", "SessionNamed", "ContextObserved", "SessionRecapped"]) {
       expect(admits({ hook_event_name: name, session_id: "in" }), name).toBe(true);
       expect(admits({ hook_event_name: name, session_id: "out" }), name).toBe(false);
     }

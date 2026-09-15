@@ -170,6 +170,8 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-rest",
       ".bw-row-detail",
       ".bw-settings-note",
+      // The same recap, whole, in the detail panel.
+      ".detail-recap",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
       ".sa-why",
@@ -177,6 +179,8 @@ describe("what was migrated to the secondary tier", () => {
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
       ".sd-door-sub",
+      // And three lines of it in the session list.
+      ".session-list .sl-recap",
     ]);
   });
 
