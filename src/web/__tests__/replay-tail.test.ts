@@ -83,10 +83,13 @@ beforeAll(async () => {
   });
   try {
     // Port 0 so this cannot collide with a deck already up on this machine.
-    // `claude: false, codex: false` so nothing is installed and no watcher runs
-    // — the replay is the only thing under test.
+    // `codex: false` so no watcher runs and the replay is the only thing under
+    // test. `claude` stays TRUE, and since #1004 that is load-bearing rather
+    // than incidental: the boot replay is gated on the providers the same way
+    // live capture always was, so a deck told it is watching neither CLI
+    // replays nothing at all — and the log below is a log of Claude events.
     server = await startServer({
-      port: 0, host: "127.0.0.1", persist: LOG, workspace: "", codex: false, claude: false,
+      port: 0, host: "127.0.0.1", persist: LOG, workspace: "", codex: false, claude: true,
     });
   } finally {
     warn.mockRestore();

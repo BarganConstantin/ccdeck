@@ -4269,8 +4269,38 @@ function pushEvent(raw, source, opts = {}) {
  *   log order — it remembers, so the order matters and it is not reusable across
  *   two replays.
  */
-export function replayScope(workspace, platform = process.platform) {
-  if (!workspace || typeof workspace !== "string") {
+export function replayScope(workspace, platform = process.platform, providers = null) {
+  // WHICH CLIS THIS DECK IS WATCHING, and the half of `--no-codex` that did not
+  // exist (#1004). Live capture is gated on the provider — `if (codex)
+  // startCodexWatcher(...)`, and the Claude hook is only installed when
+  // `_providers.claude` — and the boot replay was not, so a deck started with
+  // `--no-codex` printed
+  //
+  //     Codex sessions   skipped — no ~/.codex/, or --no-codex
+  //
+  // and then filled its canvas with Codex sessions out of the machine-wide
+  // events.jsonl, frozen mid-turn, which no live path could ever close because
+  // the watcher that would have is the one that was skipped. Measured on a log
+  // of two Claude lines and two Codex lines replayed with `codex: false`:
+  //
+  //     in the ring: [ 'claude:claude-1:SessionStart', 'claude:claude-1:PreToolUse',
+  //                    'codex:codex-1:SessionStart',  'codex:codex-1:PreToolUse' ]
+  //
+  // The mirror case is worse: a `--no-claude` deck replays Claude sessions while
+  // `providers.claude` is false, so App.tsx hides the accounts panel and the
+  // sound controls — sessions on screen the deck has deliberately taken the
+  // controls for away.
+  //
+  // It costs one comparison per line. `provider: "codex"` is stamped on every
+  // payload the Codex watcher emits, its cwd-less enrichment included, and the
+  // Claude side is the complement — which is what types.ts already says
+  // `provider` means ("defaults to claude for replay events written before
+  // multi-provider support"). So this needs no per-session memory of its own and
+  // leaves `orderDependent` alone.
+  const claudeOn = providers?.claude !== false;
+  const codexOn = providers?.codex !== false;
+  const scoped = !!workspace && typeof workspace === "string";
+  if (!scoped && claudeOn && codexOn) {
     const all = () => true;
     // Every caller gets the same answer for the same payload, forever. That is
     // what lets replayLog read the log from its end — see `orderDependent` on
@@ -4294,12 +4324,17 @@ export function replayScope(workspace, platform = process.platform) {
    * whenever it is set. Making a scoped replay cheap needs an index of where a
    * workspace's lines are, which is a different change from this one.
    */
-  admits.orderDependent = true;
+  admits.orderDependent = scoped;
   return admits;
 
   function admits(payload) {
     if (!payload || typeof payload !== "object") return false;
     if (payload.hook_event_name === "__clear") return true;
+    // The provider gate, ahead of the workspace one and exempting `__clear` for
+    // the same reason it does: the marker carries no provider, and a deck that
+    // dropped it would replay a canvas the user had explicitly cleared.
+    if (!(payload.provider === "codex" ? codexOn : claudeOn)) return false;
+    if (!scoped) return true;
     const sid = typeof payload.session_id === "string" ? payload.session_id : null;
     const cwd = typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : null;
     if (cwd) {
@@ -4385,12 +4420,15 @@ export function replayScope(workspace, platform = process.platform) {
  * MiB — which is why the count bound was the only one anything pinned, and why
  * the byte bound was the one that broke. Production passes neither argument. */
 export async function replayLog(filePath, workspace = "", {
-  maxEvents = MAX_BUFFER, maxChars = MAX_BUFFER_CHARS,
+  maxEvents = MAX_BUFFER, maxChars = MAX_BUFFER_CHARS, providers = null,
 } = {}) {
   if (!existsSync(filePath)) return 0;
   let skipped = 0;
   let skippedBytes = 0;
-  const admits = replayScope(workspace);
+  // `providers` is the second scope this deck has, and it goes the same way the
+  // first one does — into the predicate, so the replay rule stays pinned equal
+  // to the live rule rather than being a second notion of it. See replayScope.
+  const admits = replayScope(workspace, process.platform, providers);
   const replay = (evt) =>
     pushEvent(evt.payload, evt.source ?? "replay", { receivedAt: evt.receivedAt, replay: true });
   const parse = (line) => {
@@ -6360,7 +6398,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // line above, and the replay has to answer the same question the live paths
     // answer with the same string. Passed rather than read off the module scope
     // so replayLog states what it depends on. See replayScope.
-    const replayed = await replayLog(persistPath, _workspace);
+    //
+    // `_providers` goes with it, and for the same reason: it gates the two live
+    // capture paths a few lines down (`if (codex) startCodexWatcher`, and the
+    // hook install above), and until #1004 it reached neither the replay nor
+    // anything else but the health payload.
+    const replayed = await replayLog(persistPath, _workspace, { providers: _providers });
     if (replayed > 0) {
       // Don't broadcast replays as live; SSE clients catch up via Last-Event-ID
       // already. Just keep the buffer + seq counter primed.

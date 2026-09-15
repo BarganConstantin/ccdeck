@@ -264,10 +264,13 @@ afterAll(async () => {
 describe("a scoped deck's canvas at boot", () => {
   it("holds the sessions under its workspace and no others", async () => {
     // Port 0 so this cannot collide with a deck already up on this machine.
-    // `claude: false, codex: false` so nothing is installed and no watcher runs
-    // — the replay is the only thing under test.
+    // `codex: false` so no watcher runs and the replay is the only thing under
+    // test. `claude` stays TRUE, and since #1004 that is load-bearing rather
+    // than incidental: the replay is gated on the providers as well as on the
+    // workspace — the same fix, one field over — so a deck told it is watching
+    // neither CLI replays nothing, and every line seeded below is Claude's.
     server = await startServer({
-      port: 0, host: "127.0.0.1", persist: LOG, workspace: TREE1, codex: false, claude: false,
+      port: 0, host: "127.0.0.1", persist: LOG, workspace: TREE1, codex: false, claude: true,
     });
 
     const replayed = eventsSince(0);
