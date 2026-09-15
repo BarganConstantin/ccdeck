@@ -184,6 +184,25 @@ export interface GraphState {
    *  PreToolUse to the deepest live subagent, since CC tool-call hooks don't
    *  carry agent_id themselves. */
   activeSubagentStack: Map<string, string[]>;
+  /** Subagent node id → the `receivedAt` of a `SubagentStop` that arrived
+   *  before the matching `SubagentStart`, so the Start can be told that this
+   *  subagent is already over (#1023).
+   *
+   *  The two hook POSTs are separate processes and each spends up to 800 ms in
+   *  `prove()`'s two-attempt challenge before posting, so a fast subagent's
+   *  Stop overtaking its own Start needs no unusual conditions. Without a record
+   *  of it, `SubagentStop` had nothing to write to — `lookupSubagent` refuses to
+   *  manifest a node at end-of-life, and rightly — so the Stop was discarded and
+   *  the Start that followed left an `active` node with no `endedAt` and no
+   *  second Stop coming. `pruneOldAgents` needs `done` and `pruneDoneSessions`
+   *  needs nothing live, so that pinned the WHOLE session on the board for the
+   *  life of the tab.
+   *
+   *  Bounded by construction: an entry is written only by a Stop that found no
+   *  node, consumed by the Start it was waiting for, and dropped by the next
+   *  write once it is older than `HOOK_REDELIVERY_WINDOW_MS` — past which it
+   *  could no longer be the same subagent anyway. */
+  subagentTombstones: Map<string, number>;
   lastSeq: number;
   /** Which server process the `lastSeq` counter belongs to — the `epoch` the
    *  envelopes carry. Stays null while talking to a server too old to stamp it. */
@@ -219,6 +238,7 @@ export function initialState(): GraphState {
     toolIndex: new Map(),
     toolOwner: new Map(),
     activeSubagentStack: new Map(),
+    subagentTombstones: new Map(),
     lastSeq: 0,
     seqEpoch: null,
     totalEvents: 0,
@@ -614,6 +634,49 @@ function promptAlreadyRecorded(a: AgentNodeData, at: number, text: string): bool
     if (prev.text === text && prev.at <= at + PROMPT_REDELIVERY_WINDOW_MS) return true;
   }
   return false;
+}
+
+/** How far apart two events with no payload of their own to tell them apart can
+ *  land and still be ONE moment reaching the deck twice rather than two.
+ *
+ *  Deliberately the same number as `PROMPT_REDELIVERY_WINDOW_MS`, and arrived at
+ *  the same way: it is a bound on the WIRE, not on the work. Every copy is
+ *  stamped by the process that handled it — a log replay carries the original
+ *  writer's `receivedAt` and lands on the same millisecond, while the hook's
+ *  fan-out has each deck stamp its own arrival, bounded by the hook's 1500 ms
+ *  hard cap on that whole fan-out. Two separate hook processes racing each other
+ *  (`SubagentStart` and `SubagentStop` are two, each spending up to 800 ms in
+ *  `prove()`'s challenge before posting) are bounded by the same cap.
+ *
+ *  The number has to be SMALL, because what it refuses is legitimate the rest of
+ *  the time. A `Stop` hook that blocks and lets the agent carry on emits a
+ *  second genuine `Stop`; Claude Code reuses an `agent_id` for a second Task and
+ *  that Task must bring the node back fully. Neither fits inside two seconds:
+ *  a turn that opens and closes again, or a subagent's whole life plus the next
+ *  dispatch of it, is a model round trip at minimum. Everything inside this
+ *  window is the wire talking twice. */
+export const HOOK_REDELIVERY_WINDOW_MS = 2_000;
+
+/** The newest moment this root holds FIRST-HAND evidence of, in the one shape a
+ *  terminal event can be checked against: when the session began, and when its
+ *  newest turn was opened.
+ *
+ *  Deliberately not "the newest event of any kind" (`lastEventAt`). Tool traffic
+ *  lands milliseconds either side of a `Stop` — several decks' fan-out copies of
+ *  one `PostToolUse` are stamped by whichever process handled them — so ranking a
+ *  `Stop` against it would refuse ordinary turn endings over millisecond jitter
+ *  and leave the root `active` for ever, which is worse than the bug being fixed.
+ *  A session's own start and its prompts are coarse: the gap from a prompt to the
+ *  `Stop` that answers it is a model turn, seconds at the very least. An event
+ *  claiming to end a turn that had not been opened yet is out of order, and there
+ *  is no jitter narrow enough to make that reading wrong. */
+function sessionEvidenceAt(root: AgentNodeData): number {
+  // Scanned rather than read off the end: the list is in ARRIVAL order, and
+  // `promptAlreadyRecorded`'s own note records that a replay can append an old
+  // prompt after newer ones when the original copy was never seen.
+  let newest = root.startedAt;
+  for (const prompt of root.prompts) if (prompt.at > newest) newest = prompt.at;
+  return newest;
 }
 
 /** Drop an agent's tool ids out of the two id-keyed maps, for an agent that is
@@ -1806,7 +1869,23 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // one, and a resumed terminal ranked as closed forever is the exact
       // mistake this flag exists to stop making.
       root.closedAt = undefined;
-      root.startedAt = root.startedAt || now;
+      // `endedAt` travels with `closedAt` here for the same reason it does three
+      // cases below at `UserPromptSubmit`, and it was the one field this branch
+      // forgot: a session that is starting has not ended. Without it a second
+      // `SessionStart` — `/clear` on a resumed id, or a re-attached terminal —
+      // left an `active` card whose elapsed clock was frozen at the previous
+      // ending, counting from a moment the card no longer claims.
+      root.endedAt = undefined;
+      // The EARLIEST beginning we have heard of, not the first one recorded.
+      // `root.startedAt || now` kept whichever event happened to create the node,
+      // and that is not always the earliest: hook POSTs are fire-and-forget and
+      // separately stamped, so a `SessionStart` can land behind the first tool
+      // call of the session it starts. The old form then held a start time later
+      // than the session's real one and printed a duration short by the delay,
+      // on the one card that had just stopped saying it joined late. `Math.min`
+      // is also what makes this line order-independent, which is the property
+      // the retraction above it exists to preserve.
+      root.startedAt = Math.min(root.startedAt ?? now, now);
       if (!root.cwd && p.cwd) { root.cwd = p.cwd; root.cwdBasename = basename(p.cwd); }
       if (root.label === "session" && p.cwd) root.label = basename(p.cwd) ?? "session";
       break;
@@ -2057,6 +2136,61 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       const key = explicitSubagentKey(p);
       if (!key) break;
       const sub = ensureSubagent(state, sessionId, key, p, now);
+      const lbl = subagentLabel(p);
+      if (lbl) sub.label = lbl;
+
+      // THE ENDING THIS START ALREADY HAS, WHEREVER IT CAME FROM (#1023).
+      //
+      // Two arrivals reach this line looking identical to the one the
+      // resurrection below is for, and neither of them is a second Task:
+      //
+      //   THE STOP GOT HERE FIRST. `SubagentStart` and `SubagentStop` are two
+      //   separate hook processes, each spending up to 800 ms in `prove()`'s
+      //   two-attempt challenge before it posts, so a fast subagent's Stop
+      //   overtaking its own Start needs no unusual conditions at all. The Stop
+      //   left a tombstone rather than being discarded; this reads it.
+      //
+      //   THIS START IS A RE-DELIVERY, landing after the Stop it belongs to.
+      //   Same end state, same cause — several decks on one events.jsonl, a hook
+      //   retry, a replayed log region.
+      //
+      // Either way the node was `done` a moment ago and this event resurrects
+      // it: `active`, no `endedAt`, and its key back on the attribution stack
+      // with no second Stop coming for it. `pruneOldAgents` needs `done` and
+      // `pruneDoneSessions` needs nothing live, so THE WHOLE SESSION becomes
+      // unevictable for the life of the tab, `runningSessionCount` has the tab
+      // strip and the favicon claiming work in progress with nothing behind it,
+      // and the stranded stack key hands every unkeyed Pre/PostToolUse of the
+      // next turn to a subagent that finished. That last part is what
+      // `pushActive` was hardened against in #675 — that fix covered the stack
+      // and not the node, and this order gets past it because the key is
+      // genuinely not on the stack at the time.
+      //
+      // The reducer cannot read intent off these payloads, so it does what
+      // `promptAlreadyRecorded`, `Notification`'s `Math.min(prev.since, now)`
+      // and `outcomeApplied` all do with the same ambiguity: it puts a clock on
+      // it. Inside the window, this is the wire delivering one subagent's life
+      // out of order. Outside it, a genuine second Task — CC does reuse a key
+      // for one — and the resurrection below runs exactly as it always has.
+      const tombstonedAt = state.subagentTombstones.get(sub.id);
+      if (tombstonedAt != null) state.subagentTombstones.delete(sub.id);
+      const endedRecently = sub.endedAt != null && now - sub.endedAt <= HOOK_REDELIVERY_WINDOW_MS;
+      const stoppedFirst = tombstonedAt != null && now - tombstonedAt <= HOOK_REDELIVERY_WINDOW_MS;
+      if (endedRecently || stoppedFirst) {
+        // Settled, and settled at the same numbers whichever order the pair
+        // arrived in — which is the whole point, this reducer's first line
+        // being "same events in any order = same end state". The Stop's own
+        // stamp is the ending; the Start's is the beginning, pulled back to it
+        // when the wire delivered them the wrong way round so the card cannot
+        // print a node that ended before it began.
+        const endedAt = stoppedFirst ? tombstonedAt : sub.endedAt!;
+        sub.state = "done";
+        sub.endedAt = endedAt;
+        sub.startedAt = Math.min(sub.startedAt, endedAt);
+        popActive(state, sessionId, key);
+        break;
+      }
+
       sub.state = "active";
       sub.startedAt = sub.startedAt || now;
       // Resurrected subagent: a prior UserPromptSubmit flagged exitAt while
@@ -2065,8 +2199,6 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // back fully visible — not get filtered out after EXIT_ANIM_MS.
       sub.exitAt = undefined;
       sub.endedAt = undefined;
-      const lbl = subagentLabel(p);
-      if (lbl) sub.label = lbl;
       pushActive(state, sessionId, key);
       break;
     }
@@ -2076,9 +2208,33 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // Lookup, don't create — a Stop without a prior Start is a no-op,
       // not a reason to manifest a phantom node.
       const sub = lookupSubagent(state, sessionId, key, p);
-      if (!sub) break;
+      if (!sub) {
+        // ...but it is no longer FORGOTTEN (#1023). Refusing to manifest a
+        // phantom node at end-of-life is right — a stray `parent_tool_use_id`
+        // on somebody else's terminal event must not conjure a subagent — and
+        // throwing the fact away was not. The Start this Stop belongs to may
+        // still be in flight behind it, and it is the only thing that can act
+        // on this: see the note there. One line per orphaned Stop, dropped when
+        // consumed or when it is too old to be about the same subagent.
+        for (const [id, at] of state.subagentTombstones) {
+          if (now - at > HOOK_REDELIVERY_WINDOW_MS) state.subagentTombstones.delete(id);
+        }
+        state.subagentTombstones.set(subagentIdFor(sessionId, key), now);
+        break;
+      }
       sub.state = "done";
-      sub.endedAt = now;
+      // EARLIEST, not latest, for the reason `Notification` keeps the earliest
+      // `since`: the ending belongs to the moment it happened, and a second copy
+      // of one Stop landing later is not the subagent working for longer. Left
+      // as `= now`, a re-delivery moved the node to the back of `pruneOldAgents`
+      // eviction queue and lengthened the duration printed on its card — 3000 to
+      // 9000 in the run #1023 filed. `Math.min` rather than "keep whichever
+      // arrived first" so the answer does not depend on delivery order either.
+      //
+      // A genuine second Task is unaffected: `SubagentStart` clears `endedAt`
+      // when it re-arms the node, so the second life's Stop finds nothing to be
+      // earlier than.
+      sub.endedAt = Math.min(sub.endedAt ?? now, now);
       popActive(state, sessionId, key);
       break;
     }
@@ -2120,8 +2276,60 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // keyed). Clearing it costs those events nothing and keeps the root's own
       // next turn from being attributed to them.
       const root = ensureRoot(state, sessionId, now, false);
+
+      // THIS WAS THE ONE TERMINAL HANDLER WITH NO RE-DELIVERY GUARD (#1022).
+      //
+      // `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notification` and
+      // `pushActive` all carry one, each with a comment asserting that
+      // duplicates are routine on this wire — several live decks appending to
+      // one events.jsonl, a hook retry, the whole history replayed into every
+      // tab that opens. Everything below this line is destructive, and a second
+      // copy used to run all of it again: re-stamp `endedAt`, settle whatever
+      // the session was holding as failed, and drop the attribution stack.
+      //
+      // The damage needs the next turn to have already started, and nothing
+      // stops it doing so — 223 of 250 `Stop`s on this machine's logs were
+      // followed by another prompt on the same session. Turn one's `Stop`
+      // arriving twice, three seconds into turn two, drew a live `npm test` red
+      // with "the turn ended before this call returned", flipped the card to
+      // `done`, raised the error count and dropped the stack mid-turn — healing
+      // only when the command's real `PostToolUse` landed, which for that
+      // command is four minutes.
+      //
+      // Two readings, and they are separate facts:
+      //
+      //   OUT OF ORDER. The event reports a boundary older than evidence this
+      //   root already holds — a `Stop` stamped before the prompt that opened
+      //   the turn now running. A replayed copy carries the original writer's
+      //   `receivedAt`, so this is what the common re-delivery looks like, and
+      //   it used to drag `endedAt` BACKWARDS past the prompt. It is also the
+      //   symmetric check `SessionStart` has had since #445 and `SessionEnd`
+      //   never did: `closedAt` is what ranks the eviction queue, and a
+      //   `SessionEnd` that predates the session's own newest turn spends a
+      //   terminal the human is sitting in front of.
+      //
+      //   A DUPLICATE OF THE ENDING ALREADY RECORDED. Same boundary, fresh
+      //   stamp, inside the window the wire can scramble things by — and a
+      //   prompt opened a turn AFTER that recorded ending, so this copy cannot
+      //   be the new turn's own ending: no turn opens and closes again inside
+      //   the re-delivery window. Both halves are required. A `Stop` hook that
+      //   blocks and lets the agent continue produces a second, genuine `Stop`
+      //   moments after the first with NO prompt in between, and that one must
+      //   still end the turn.
+      //
+      // Refusing the event outright rather than half of it, because every line
+      // below is written from the same false premise. A turn whose real ending
+      // is refused is left `active`, which is what `sweepStaleSessions` is for;
+      // a live command drawn red is not recoverable for the length of the
+      // command.
+      const evidenceAt = sessionEvidenceAt(root);
+      if (now < evidenceAt) break;
+      const lastEnd = root.lastTurnEndAt;
+      if (lastEnd != null && evidenceAt > lastEnd && now <= lastEnd + HOOK_REDELIVERY_WINDOW_MS) break;
+
       root.state = "done";
       root.endedAt = now;
+      root.lastTurnEndAt = now;
       // A TURN THAT ENDED CANNOT STILL BE HOLDING ITS OWN TOOL CALL.
       //
       // The hook POSTs are fire-and-forget, so a call whose PostToolUse fired
@@ -2144,8 +2352,30 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // safety. The note above this block records that background subagents
       // outlive the turn that dispatched them, 65 times out of 65 — so their
       // calls are still genuinely running here and are left exactly alone.
-      // They carry an agent id and live on their own node; this walks the root
-      // node and nothing else.
+      //
+      // WHAT THE PAYLOAD SAID, NOT WHICH NODE THE CALL WAS DRAWN ON (#1022).
+      // This used to walk `root.tools` and nothing else, and the sentence
+      // justifying that — "they carry an agent id and live on their own node" —
+      // was only half true. The agent id half is; the node half is not. While a
+      // Task is live, the root's OWN tool calls carry no `agent_id` at all, and
+      // `resolveOwner`'s stack heuristic hands an unkeyed event to the deepest
+      // live subagent — which is right for drawing it on the canvas and fatal
+      // here, because the same log that measures 65 background subagents open
+      // across a `Stop` measures them open across 65 of 65. So for every session
+      // with a Task running at the turn boundary the sweep walked an empty list,
+      // and the lost `Bash` this rule exists to settle went on pulsing in flight
+      // exactly as it did before the rule was written. `sweepStaleTools` cannot
+      // reach it either: its clock is the SESSION's silence, and a background
+      // subagent keeps the session loud.
+      //
+      // `explicitSubagentId` is the honest discriminator and is recorded for
+      // precisely this kind of question — see its declaration in types.ts, and
+      // #361, which reads it for the same reason. Absent means the payload named
+      // nobody, which is what the root's own calls look like wherever they were
+      // drawn; present means the payload named a subagent, whose work outlives
+      // this boundary even when its `SubagentStart` was lost and the call landed
+      // on the root by fallback.
+      //
       // CLAUDE ONLY, for the reason `sweepStaleTools` carries the same guard:
       // on Codex a missing result means the call has NOT finished — it is
       // parked on a human who has not approved it yet — rather than that its
@@ -2155,23 +2385,38 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
       // recorded before `provider` existed replays without one and keeps the
       // Claude behaviour it was swept with, so only an explicit "codex" is
       // exempt.
-      for (const t of root.provider === "codex" ? [] : root.tools) {
-        if (t.endedAt != null) continue;
-        t.endedAt = now;
-        t.ok = false;
-        // Says what was seen, and never why. The deck knows the turn ended
-        // without a result; it does not know whether the tool failed, or
-        // succeeded into a socket that had gone. Asserting the second is the
-        // expensive kind of wrong — see the sweep's own note on this.
-        t.errorPreview = t.outcomeGap
-          ? "no result reached the deck — events were dropped while the deck was paused"
-          : "the turn ended before this call returned";
-        // Out of the live index for the same reason the sweep drops it: the id
-        // is no longer held open. A late outcome still lands — the PostToolUse
-        // handler falls back to scanning the owner's tool list and resurrects
-        // the call, un-saying this.
-        state.toolIndex.delete(toolKey(root.sessionId, t.id));
-        state.toolOwner.delete(toolKey(root.sessionId, t.id));
+      // EVERY AGENT OF THIS SESSION, settled by what the PAYLOAD said rather
+      // than by which node the call was drawn on. `resolveOwner` hands an event
+      // with no agent_id to the deepest live subagent, so while a background
+      // Task is live the root's OWN calls are not on `root.tools` — which is
+      // exactly the configuration this sweep claimed safety from. The boundary
+      // is unchanged: a call carrying an explicit agent_id is a subagent's own
+      // and is still left alone.
+      for (const owner of root.provider === "codex" ? [] : state.agents.values()) {
+        if (owner.sessionId !== sessionId) continue;
+        for (const t of owner.tools) {
+          if (t.endedAt != null) continue;
+          if (t.explicitSubagentId != null) continue;
+          t.endedAt = now;
+          t.ok = false;
+          // Says what was seen, and never why. The deck knows the turn ended
+          // without a result; it does not know whether the tool failed, or
+          // succeeded into a socket that had gone. Asserting the second is the
+          // expensive kind of wrong — see the sweep's own note on this.
+          t.errorPreview = t.outcomeGap
+            ? "no result reached the deck — events were dropped while the deck was paused"
+            : "the turn ended before this call returned";
+          // Out of the live index for the same reason the sweep drops it: the id
+          // is no longer held open. A late outcome still lands — the PostToolUse
+          // handler falls back to scanning the owner's tool list and resurrects
+          // the call, un-saying this.
+          //
+          // Keyed on the session, not the bare id (#1009): the id namespace is
+          // shared across every session on the board, so a bare delete here
+          // would release another session's live call.
+          state.toolIndex.delete(toolKey(owner.sessionId, t.id));
+          state.toolOwner.delete(toolKey(owner.sessionId, t.id));
+        }
       }
       // ...and only `SessionEnd` says the SESSION is over (#445). `Stop` is a
       // turn boundary on both providers — Claude fires it when the main agent

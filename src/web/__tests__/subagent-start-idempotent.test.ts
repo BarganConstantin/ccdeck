@@ -19,10 +19,14 @@ const SUB = `${SESSION}::sub-1`;
 
 let seq = 0;
 
-function send(state: GraphState, payload: HookPayload): GraphState {
+/** Events land a millisecond apart unless a case says otherwise. `at` is for the
+ *  cases that care WHEN — the re-arm below is separated from the Stop before it
+ *  by a gap no re-delivery can cross, because that gap is the only thing telling
+ *  a second Task apart from the same Task's Start arriving twice (#1023). */
+function send(state: GraphState, payload: HookPayload, at?: number): GraphState {
   const env: HookEnvelope = {
     seq: ++seq,
-    receivedAt: 1_000 + seq,
+    receivedAt: at ?? 1_000 + seq,
     source: "hook",
     payload: { session_id: SESSION, ...payload },
   };
@@ -111,18 +115,56 @@ describe("SubagentStart idempotence on the active-subagent stack", () => {
   it("still re-arms a key CC reuses for a second Task after the first one stopped", () => {
     // The guard only ignores a key the stack is *currently* carrying — a key
     // that came off on SubagentStop is free to go back on.
+    //
+    // #1023 narrowed WHEN. This case used to send the three events a
+    // millisecond apart and assert the re-arm, and at a millisecond the
+    // reducer cannot tell a second Task from the first Task's own Start
+    // arriving twice out of order — which is the failure that pinned whole
+    // sessions on the board for the life of the tab. The requirement it was
+    // written for is real and is still pinned here; it is the SPACING that
+    // carries it, and five minutes is what a re-invoked Task actually looks
+    // like. The millisecond version now lives one case down, asserting the
+    // opposite.
+    const FIRST_TASK = 5_000;
+    const SECOND_TASK = FIRST_TASK + 5 * 60_000;
     let state = start();
-    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" });
-    state = send(state, { hook_event_name: "SubagentStop", agent_id: "sub-1" });
-    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" });
+    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" }, FIRST_TASK);
+    state = send(state, { hook_event_name: "SubagentStop", agent_id: "sub-1" }, FIRST_TASK + 1_000);
+    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" }, SECOND_TASK);
 
     expect(state.activeSubagentStack.get(SESSION)).toEqual(["sub-1"]);
     const sub = state.agents.get(SUB)!;
     expect(sub.state).toBe("active");
     expect(sub.endedAt).toBeUndefined();
 
-    state = send(state, { hook_event_name: "PreToolUse", tool_name: "Glob", tool_use_id: "t1" });
+    state = send(state, { hook_event_name: "PreToolUse", tool_name: "Glob", tool_use_id: "t1" }, SECOND_TASK + 1);
     expect(sub.tools.map(t => t.name)).toEqual(["Glob"]);
+  });
+
+  it("does not re-arm a key whose Stop landed a millisecond ago", () => {
+    // Same three events, one millisecond apart instead of five minutes. On this
+    // wire that is one subagent's Start reaching the deck twice — several decks
+    // appending to one events.jsonl, a hook retry, a replayed log region — and
+    // not a Task re-invoked between two consecutive milliseconds.
+    //
+    // Observed before the guard: the node went back to `active` with `endedAt`
+    // cleared and its key back on the attribution stack, with no second Stop
+    // coming for either. `pruneOldAgents` needs `done` and `pruneDoneSessions`
+    // needs nothing live, so the WHOLE session stopped being evictable for the
+    // life of the tab, and the stranded key had `resolveOwner` hand the root's
+    // own unkeyed tool calls to a subagent that had finished.
+    let state = start();
+    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" });
+    state = send(state, { hook_event_name: "SubagentStop", agent_id: "sub-1" });
+    const stoppedAt = state.agents.get(SUB)!.endedAt;
+    state = send(state, { hook_event_name: "SubagentStart", agent_id: "sub-1" });
+
+    const sub = state.agents.get(SUB)!;
+    expect(sub.state).toBe("done");
+    expect(sub.endedAt).toBe(stoppedAt);
+    expect(state.activeSubagentStack.get(SESSION)).toBeUndefined();
+    expect(pruneOldAgents(state, 1_000_000, /*cap*/ 1, /*graceMs*/ 1_000)).toBe(true);
+    expect(state.agents.has(SUB)).toBe(false);
   });
 
   it("does not merge a duplicate key across sessions", () => {
