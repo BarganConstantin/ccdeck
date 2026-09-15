@@ -7,7 +7,7 @@
 // idle/just-finished sessions looking empty next to a wall of "DONE" cards.
 // They live on a layer above React Flow's nodes and follow the canvas
 // pan/zoom via useViewport().
-import React from "react";
+import React, { memo } from "react";
 import { useViewport } from "reactflow";
 import type { AgentNodeData, ToolCall } from "../types";
 import {
@@ -851,8 +851,6 @@ interface ToolBurstsProps {
   /** Open the existing ToolModal for the given tool id. */
   onOpenTool?: (toolId: string) => void;
 }
-
-import { memo } from "react";
 
 export default function ToolBursts({ agents, visibleAgentIds, positions, pinned, measured, spotlight, hiddenCategories, now, onOpenTool }: ToolBurstsProps) {
   // Deliberately NOT subscribed to the viewport. useViewport() fires on every

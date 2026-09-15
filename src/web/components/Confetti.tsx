@@ -23,7 +23,6 @@ import { createPortal } from "react-dom";
 type Props = {
   /** What to burst from — usually the success mark, which is an SVG. */
   anchor: React.RefObject<Element | null>;
-  /** Milliseconds before the whole thing removes itself. */
 };
 
 const COUNT = 18;

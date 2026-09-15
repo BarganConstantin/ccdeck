@@ -230,7 +230,6 @@ describe("a session that genuinely died mid-call", () => {
     const state = dead();
     reap(state);
     expect(state.toolIndex.has("t1")).toBe(false);
-    expect(state.toolOwner.has("t1")).toBe(false);
     // Idempotent: a settled call is not swept a second time on the next tick, so
     // the 250ms interval does not re-render forever.
     expect(reap(state)).toBe(false);

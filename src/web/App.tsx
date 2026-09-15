@@ -73,7 +73,7 @@ import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSy
 import type { LanStranger } from "./components/LanSyncSection";
 import { autoLayout, bubblePush, columnsWouldChange, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps, type Frame } from "./layout";
 import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
-import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
+import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
 import { restoreLayout, type StoredLayout } from "./stored-layout";

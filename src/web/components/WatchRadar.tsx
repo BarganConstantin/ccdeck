@@ -69,7 +69,6 @@ export default function WatchRadar({
   findings,
   watching,
   palette,
-  now = () => Date.now(),
 }: {
   browsers: RadarBrowser[];
   findings: RadarBlip[];
@@ -79,7 +78,6 @@ export default function WatchRadar({
    *  getComputedStyle on the render path is the thing the deck's palette exists
    *  to have already done. */
   palette: Palette;
-  now?: () => number;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   // Seeded with null and filled on every render, rather than seeded with an
@@ -116,7 +114,7 @@ export default function WatchRadar({
       const pale = isLight(palette["--bg"]);
       const sweepMix = pale ? 42 : 26;
       const beamAlpha = pale ? 0.85 : 0.65;
-      const t = now();
+      const t = Date.now();
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = canvas.clientWidth;
@@ -226,7 +224,7 @@ export default function WatchRadar({
 
     draw();
     return () => { stop = true; cancelAnimationFrame(raf); };
-  }, [now, palette]);
+  }, [palette]);
 
   return (
     <canvas

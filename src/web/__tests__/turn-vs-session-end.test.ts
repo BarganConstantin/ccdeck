@@ -465,10 +465,9 @@ describe("pruneOldAgents never leaves an agent pointing at a deleted parent", ()
     expect(pruneOldAgents(s, T0 + 60 * MIN, 1, AGENT_GRACE_MS)).toBe(true);
     // The evicted agent's in-flight id went with it...
     expect(s.toolIndex.has(toolKey("sess-t", "sub-call"))).toBe(false);
-    expect(s.toolOwner.has(toolKey("sess-t", "sub-call"))).toBe(false);
     // ...and the surviving root's did not, because the root was never deleted.
     expect(s.toolIndex.has(toolKey("sess-t", "root-call"))).toBe(true);
-    expect(s.toolOwner.get(toolKey("sess-t", "root-call"))).toBe("sess-t");
+    expect(s.toolIndex.get(toolKey("sess-t", "root-call"))?.agentId).toBe("sess-t");
   });
 });
 
