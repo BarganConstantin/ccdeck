@@ -726,6 +726,16 @@ function main() {
   // nothing. installer.mjs declares the timeout from the other side and has to
   // stay strictly above CAP_MS plus that startup — hook-budget.test.ts pins the
   // two numbers against each other so they cannot drift apart again.
+  //
+  // AND THIS LINE FIRING IS NOT THE SAME AS THIS PROCESS ENDING. Node's exit
+  // joins libuv's threadpool, so `process.exit(0)` does not complete while a
+  // filesystem request is still executing in one of those threads — measured,
+  // the timer runs on time, calls exit, and the process is still there. Moving
+  // the reads off the main thread is what lets the timer run at all and what
+  // gets the event delivered; it is NOT on its own a guarantee that this
+  // process ends itself. normPathAsync says the whole of it, including why
+  // ending by signal instead would be the worse trade. Read that before
+  // concluding a timer plus async fs closes this.
   setTimeout(() => process.exit(0), Math.max(200, CAP_MS - Math.round(process.uptime() * 1000)));
 
   // AND NOTHING THIS PROCESS DOES MAY REACH THE HOST CLI'S TRANSCRIPT.
