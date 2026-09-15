@@ -36,6 +36,10 @@ export interface Failure {
   text: string;
   raw?: string;
   reload?: true;
+  /** The account row a refused switch is about (#827), so the refusal is said
+   *  on that row rather than at the foot of the panel, far from the button
+   *  that was pressed. Absent for everything else. */
+  row?: number;
 }
 
 /** One of the panel's two GETs, once it has come back. */

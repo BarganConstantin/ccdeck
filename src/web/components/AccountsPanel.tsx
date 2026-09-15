@@ -334,6 +334,11 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
+  /** The account a switch from this panel just landed on (#827), said on its
+   *  own row until the next switch or until it stops being the active one. The
+   *  `active` chip moving rows used to be the only answer, and a screen reader
+   *  heard nothing at all. */
+  const [switched, setSwitched] = useState<{ num: number; name: string } | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const timerRef = useRef<number | null>(null);
   // Which account's row is expanded into its edit controls. One at a time —
@@ -561,9 +566,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const activePct = laneSplit(activeAcct?.lanes ?? []).peak?.pct ?? null;
   const nearTrigger = activePct != null && activePct >= Number(threshold) - 15;
 
-  const doSwitch = async (num: number) => {
+  const doSwitch = async (num: number, name: string) => {
     if (!claim(`switch-${num}`)) return;
     setFailure(null);
+    setSwitched(null);
     try {
       const res = await fetch("/api/claude-accounts/switch", {
         method: "POST",
@@ -571,10 +577,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
         body: JSON.stringify({ account: num }),
       });
       const body = await res.json().catch(() => null);
-      if (!body?.ok) setFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body) });
+      // Both answers land on the row that was pressed (#827): the refusal is
+      // tagged with it, and a switch that took names the account it took to.
+      if (!body?.ok) setFailure({ text: explainCommandFailure(body, "the switch failed"), raw: commandOutput(body), row: num });
+      else setSwitched({ num, name });
       await load(true);
     } catch {
-      setFailure({ text: "server unreachable" });
+      setFailure({ text: "server unreachable", row: num });
     } finally {
       release();
       // A switch that landed replaces this button with the `active` marker,
@@ -920,11 +929,33 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                     type="button"
                     className="ap-manage-btn ap-switch"
                     {...pressProps(`switch-${a.num}`)}
-                    onClick={() => doSwitch(a.num)}
+                    onClick={() => doSwitch(a.num, a.alias ?? a.email ?? `account ${a.num}`)}
                     title={`Switch to ${a.alias ?? a.email}`}
                   >{busy === `switch-${a.num}` ? "…" : "switch"}</button>
                 )}
               </div>
+
+              {/* THE ANSWER TO A SWITCH, on the row it was about (#827). A refusal
+                  used to render under the whole auto-switch block, far from the
+                  button that was pressed. A switch that took says so on the row
+                  it took to, with the one thing nothing else on screen says:
+                  what happens to the sessions already running. That is
+                  claude-swap's own answer, not a guess: no restart, the next
+                  message, or up to about 30 seconds where macOS keeps the login
+                  in the Keychain. */}
+              {failure?.row === a.num && (
+                <div className="ap-failure ap-row-failure" role="alert">
+                  <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
+                  <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
+                    aria-label="Dismiss this message" title="Dismiss">×</button>
+                </div>
+              )}
+              {a.active && switched?.num === a.num && (
+                <p className="ap-switched">
+                  Now active. New sessions start on it; ones already running pick it up on
+                  their next message, up to about 30 seconds later on macOS.
+                </p>
+              )}
 
               {/* One lane at rest: the one that runs out first, which is the
                   only one that decides anything. The group keeps its id in both
@@ -1458,12 +1489,18 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
             </div>
           )}
 
-          {/* Announced, because a switch that failed is the answer to a click
-              that happened somewhere else in the panel, and dismissible,
-              because nothing else here clears it: the next action does, and
-              until then a stale refusal sits under a roster that has since
-              moved on. */}
-          {failure && (
+          {/* The switch that took, said out loud (#827). Always mounted, empty at
+              rest, the way App's blocked-session region is: a status that
+              appears already holding its text is one a screen reader may never
+              read. The row says the same thing to the eye. */}
+          <div className="vis-hidden" role="status" aria-atomic="true">
+            {switched ? `Now active: ${switched.name}` : ""}
+          </div>
+          {/* Announced, and dismissible, because nothing else here clears it:
+              the next action does, and until then a stale refusal sits under a
+              roster that has since moved on. Everything but a refused switch,
+              which is said on the row that was pressed (#827). */}
+          {failure && failure.row == null && (
             <div className="ap-failure" role="alert">
               <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
               <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
