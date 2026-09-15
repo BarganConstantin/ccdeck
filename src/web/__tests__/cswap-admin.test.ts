@@ -6,12 +6,13 @@
 // live credential that has to stop working on its own.
 import { describe, it, expect, vi, afterAll } from "vitest";
 import { brotliCompressSync } from "node:zlib";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain JS module, no types
-import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
+import { stripTerminalEscapes, extractLoginUrl, newSlot, moveOutcome, wrapShare, unwrapShare, removePromptMatches, countCodePrompts, firstUseful, addFailureText, failureText, importAccount, narrowBundle, identityKey, startLogin, loginState, cancelLogin, submitLoginCode, withStoreLock, SHARE_TTL_MS } from "../../server/cswap-admin.mjs";
 // @ts-expect-error — plain JS module, no types
 import { looksMissing } from "../../server/exec.mjs";
 // @ts-expect-error — plain JS module, no types
@@ -798,6 +799,52 @@ describe("cancelLogin and the store lock", () => {
     expect(await withStoreLock(async () => withStoreLock(async () => "inner"))).toBe("inner");
     // And the lock still works afterwards.
     expect(await withStoreLock(async () => "after")).toBe("after");
+  });
+});
+
+// The seal's AAD binds the ENVELOPE to the key that was asked for and says
+// nothing about the contents, and a share payload is `{ accounts: [...] }` — a
+// bundle. So narrowing is what keeps a peer asked for one account from
+// delivering four, and it has to work WITHOUT `force`, because the plain
+// import path is the one that runs on every sync round.
+describe("a bundle is cut to the account that was asked for", () => {
+  const bundle = (...emails: string[]) => JSON.stringify({
+    version: 1,
+    activeAccountNumber: 2,
+    accounts: emails.map((email, i) => ({ email, organizationUuid: "org-1", number: i + 1 })),
+  });
+
+  it("keeps only the requested identity and drops the riders", () => {
+    const cut = narrowBundle(bundle("a@x.test", "b@x.test", "c@x.test"),
+      identityKey("b@x.test", "org-1"));
+    expect(cut.ok).toBe(true);
+    const out = JSON.parse((cut as { payload: string }).payload);
+    expect(out.accounts.map((a: { email: string }) => a.email)).toEqual(["b@x.test"]);
+  });
+
+  it("refuses a bundle that does not carry what was asked for, rather than unpacking it", () => {
+    // A peer that answers a `want` for A with a bundle of B, C and D gets a
+    // refusal, not three new accounts.
+    const cut = narrowBundle(bundle("b@x.test", "c@x.test"), identityKey("a@x.test", "org-1"));
+    expect(cut).toEqual({ ok: false, reason: "not_in_bundle" });
+  });
+
+  it("does not carry the active pointer across when it named a dropped account", () => {
+    // activeAccountNumber 2 belongs to the rider, so narrowing to account 1
+    // must not leave the cut bundle pointing at a slot it no longer holds.
+    const cut = narrowBundle(bundle("a@x.test", "b@x.test"), identityKey("a@x.test", "org-1"));
+    expect(JSON.parse((cut as { payload: string }).payload).activeAccountNumber).toBe(null);
+  });
+
+  it("narrows without implying force, which is what lets the sync round use it", () => {
+    // `overwrite = force === true && narrowing` in importAccount, so `only`
+    // alone cuts the bundle and still passes `import -` rather than
+    // `import - --force`. Read off the source, because the branch that proves
+    // it is inside a call that spawns claude-swap.
+    const src = readFileSync(
+      fileURLToPath(new URL("../../server/cswap-admin.mjs", import.meta.url)), "utf8");
+    expect(src).toContain("const overwrite = force === true && narrowing;");
+    expect(src).toContain('const args = overwrite ? ["import", "-", "--force"] : ["import", "-"];');
   });
 });
 
