@@ -218,7 +218,12 @@ describe("the headline", () => {
     // answers, so an absent totals block is summed rather than trusted.
     const t = rangeTotals({ days: RANGE.days });
     expect(t.cost).toBeCloseTo(723.56 + 52.27 + 24.37, 6);
-    expect(t.tokens).toBeGreaterThan(0);
+    // Every token the three model rows carry, which is to the token the figure
+    // the totals block would have stated. `toBeGreaterThan(0)` was the whole
+    // check here (#778), and a fold that dropped the cache-read column — 98% of
+    // this range — or the cache writes would have passed it.
+    expect(t.tokens).toBe(RANGE.totals.totalTokens);
+    expect(t.cacheReadTokens).toBe(RANGE.totals.cacheReadTokens);
   });
 
   it("is all zeroes for a range with nothing in it, not a crash", () => {

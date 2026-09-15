@@ -412,6 +412,116 @@ describe("what the split does not explain still costs money", () => {
   });
 });
 
+describe("cache tokens are priced at the model that wrote them, and at the TTL they were written at", () => {
+  // THE TWO HALVES WERE EACH TESTED AND THEIR COMPOSITION WAS NOT (#994). Every
+  // fixture above carries `cache_creation_input_tokens: 0` and
+  // `cache_read_input_tokens: 0`, and the files that drive the 1-hour/5-minute
+  // split properly — cache-write-ttl, subagent-usage, transcript-incremental —
+  // never mention `usageByModel`. So no test had ever put a cache token through
+  // a per-model bucket, which is the one place cache tokens are priced on a
+  // session that switched model.
+  //
+  // On an agentic session cache reads and writes are most of the bill, and the
+  // way this breaks is quiet. A bucket that loses its TTL split prices every
+  // 1-hour write at the 5-minute rate — 1.25x input instead of 2x — and the
+  // remainder cannot rescue it: `remainderUsage` decides whether anything is
+  // left over from the four headline counts alone, and those still sum to the
+  // flat total. The figure printed is smaller, confident, and wrong. Measured
+  // on this fixture with the reducer's `usageFromWire` dropping
+  // `cacheCreate1hTokens`: `agentCost` read $1.02006 for a session that cost
+  // $1.43256, 28.8% under, and every case in this file stayed green.
+  //
+  // Written in the field order of a live transcript, the one cache-write-ttl
+  // copies: `cache_creation` after `server_tool_use`, past the first `}` where
+  // the usage-block capture stops, so the sub-object is read the way the
+  // scanner really has to read it.
+  function cachedTurn(model: string, t: { input: number; output: number; read: number; h1: number; m5: number }): string {
+    return JSON.stringify({
+      type: "assistant",
+      isSidechain: false,
+      message: {
+        model,
+        role: "assistant",
+        content: [{ type: "text", text: "x" }],
+        usage: {
+          input_tokens: t.input,
+          cache_creation_input_tokens: t.h1 + t.m5,
+          cache_read_input_tokens: t.read,
+          output_tokens: t.output,
+          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+          service_tier: "standard",
+          cache_creation: { ephemeral_1h_input_tokens: t.h1, ephemeral_5m_input_tokens: t.m5 },
+        },
+      },
+    });
+  }
+
+  /** An Opus turn that wrote mostly 1-hour cache, then a Sonnet turn that wrote
+   *  only 1-hour cache — so each bucket's split is different, and neither can
+   *  pass by borrowing the other's. */
+  function writeCachedSwitch(name: string): string {
+    const path = sandboxed(name);
+    writeFileSync(path, [
+      cachedTurn(OPUS, { input: 10, output: 1_000, read: 400_000, h1: 90_000, m5: 10_000 }),
+      cachedTurn(SONNET, { input: 5, output: 500, read: 200_000, h1: 50_000, m5: 0 }),
+    ].join("\n") + "\n");
+    return path;
+  }
+
+  it("carries reads, writes and the 1h/5m split into each model's own bucket", async () => {
+    const path = writeCachedSwitch("cached-switch.jsonl");
+
+    // The scanner's half: each bucket holds its own model's cache lines, in the
+    // wire spelling the usage event carries them in.
+    const byModel = await sessionUsageByModel(path);
+    expect(byModel[OPUS]).toMatchObject({
+      cache_read_input_tokens: 400_000, cache_creation_input_tokens: 100_000,
+      ephemeral_1h_input_tokens: 90_000, ephemeral_5m_input_tokens: 10_000,
+    });
+    expect(byModel[SONNET]).toMatchObject({
+      cache_read_input_tokens: 200_000, cache_creation_input_tokens: 50_000,
+      ephemeral_1h_input_tokens: 50_000, ephemeral_5m_input_tokens: 0,
+    });
+
+    // The reducer's half: the same lines in the client's spelling, TTL and all.
+    const { root } = await deckState(path, SONNET);
+    expect(root.usageByModel?.[OPUS]).toMatchObject({
+      cacheReadTokens: 400_000, cacheCreateTokens: 100_000,
+      cacheCreate1hTokens: 90_000, cacheCreate5mTokens: 10_000,
+    });
+    expect(root.usageByModel?.[SONNET]).toMatchObject({
+      cacheReadTokens: 200_000, cacheCreateTokens: 50_000,
+      cacheCreate1hTokens: 50_000, cacheCreate5mTokens: 0,
+    });
+    // The buckets explain the whole flat total, so there is no remainder for
+    // the current model to absorb and hide a missing field in.
+    expect(usageByModelEntries(root)).toHaveLength(2);
+  });
+
+  it("bills each model's 1-hour writes at that model's 1-hour rate", async () => {
+    const { root } = await deckState(writeCachedSwitch("cached-switch-cost.jsonl"), SONNET);
+
+    // Priced by hand from the rate card rather than through costForUsage, so
+    // this case does not inherit whatever costForUsage might get wrong. $/MTok:
+    //   Opus 5    input 5  output 25  cache read 0.5  write 5m 6.25  write 1h 10
+    //   Sonnet 5  input 2  output 10  cache read 0.2  write 5m 2.5   write 1h 4
+    // Sonnet at its introductory rate, which is what NOW is pinned for.
+    const opusWrites = (10_000 * 6.25 + 90_000 * 10) / 1e6;                     // $0.9625
+    const sonnetWrites = (50_000 * 4) / 1e6;                                    // $0.2
+    const opus = (10 * 5 + 1_000 * 25 + 400_000 * 0.5) / 1e6 + opusWrites;      // $1.18755
+    const sonnet = (5 * 2 + 500 * 10 + 200_000 * 0.2) / 1e6 + sonnetWrites;     // $0.24501
+
+    const cost = agentCost(root, NOW);
+    expect(cost.total).toBeCloseTo(opus + sonnet, 9);                          // $1.43256
+    expect(cost.cacheWrite).toBeCloseTo(opusWrites + sonnetWrites, 9);
+    // What the lost split prints instead, named so a regression to it fails with
+    // both numbers on screen: every write at the 5-minute rate.
+    const lostSplit = opus + sonnet - (90_000 * (10 - 6.25) + 50_000 * (4 - 2.5)) / 1e6;
+    expect(lostSplit).toBeCloseTo(1.02006, 9);
+    expect(cost.total).not.toBeCloseTo(lostSplit, 3);
+  });
+});
+
 describe("a session that never switched is priced exactly as it always was", () => {
   it("matches the single multiplication when one model produced everything", async () => {
     const path = writeSwitchingTranscript("single.jsonl", OPUS, OPUS);

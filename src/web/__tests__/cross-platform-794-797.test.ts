@@ -10,7 +10,10 @@
 // asking what platform it is running on, which is how this suite reaches all
 // three from any one of them.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { rmTempDir } from "./rm-temp-dir";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -25,6 +28,7 @@ const { browserRoots } = await import("../../server/browser-profiles.mjs");
 const { unregisteredDetail, glyphs } = await import("../../server/term.mjs");
 // @ts-expect-error — ditto
 const { upgradeRefusalText } = await import("../../server/supervisor.mjs");
+const { upgradeBlock } = await import("../../server/self-update.mjs");
 
 describe("#794 — the Linux browser table", () => {
   it("names every root browserRoots emits, which is the invariant that was broken", () => {
@@ -71,36 +75,73 @@ describe("#795 — asking whether a directory is writable", () => {
     // FILE_ATTRIBUTE_DIRECTORY and never consults the ACL, and both arguments
     // are always directories — so `not_writable` could never be reported and
     // the banner offered an update that dies in npm with EPERM.
+    //
+    // WHICH BRANCH RUNS WHERE is the one thing still read out of the source,
+    // because no machine but a Windows one can tell accessSync's answer from a
+    // write's — everywhere else the two agree. What each branch ANSWERS is
+    // driven below, on every leg.
     const src = read("../../server/self-update.mjs");
     expect(src).toContain('if (process.platform !== "win32") {');
-    expect(src).toContain('writeFileSync(probe, "", { flag: "wx" });');
-    // `wx` so a collision reads as "not writable" instead of clobbering a file,
-    // and the probe is always removed.
-    expect(src).toContain("unlinkSync(probe);");
   });
 
-  it("keeps accessSync on POSIX, where it is correct and cheaper", () => {
-    const src = read("../../server/self-update.mjs");
-    expect(src).toContain("accessSync(p, FS.W_OK)");
-  });
+  // Both branches of dirWritable, driven through upgradeBlock against a
+  // directory that can be written and one that cannot be reached at all (#994).
+  //
+  // These were three `toContain`s — the probe's `writeFileSync(… { flag: "wx" })`,
+  // its `unlinkSync(probe)`, and POSIX's `accessSync(p, FS.W_OK)` — which held
+  // just as well of a probe whose `catch` answered `true`. Every write that
+  // failed would then read as writable: #795's own symptom, the banner
+  // offering an update that dies in npm with EPERM, brought back by a different
+  // line with all three strings still in place.
+  //
+  // `process.platform` is forced for the length of one synchronous call, so
+  // the Windows branch runs on Linux and macOS as well and the POSIX branch on
+  // Windows. The unreachable directory is a path through a regular FILE, which
+  // refuses a write and an access check alike on every platform and for root
+  // too — a read-only directory would read as writable to root, and does
+  // nothing at all on Windows.
+  for (const platform of ["win32", "linux"] as const) {
+    it(`answers from the filesystem on the ${platform} branch, and leaves nothing behind`, () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "ccdeck-795-"));
+      const optedOut = process.env.AGENTS_DECK_NO_INSTALL;
+      delete process.env.AGENTS_DECK_NO_INSTALL;
+      const real = Object.getOwnPropertyDescriptor(process, "platform")!;
+      try {
+        const pkg = join(sandbox, "lib", "pkg");
+        mkdirSync(pkg, { recursive: true });
+        const blocker = join(sandbox, "not-a-dir");
+        writeFileSync(blocker, "");
+
+        let open: unknown, shut: unknown;
+        Object.defineProperty(process, "platform", { ...real, value: platform });
+        try {
+          open = upgradeBlock(pkg);
+          shut = upgradeBlock(join(blocker, "pkg"));
+        } finally {
+          Object.defineProperty(process, "platform", real);
+        }
+
+        expect(open, "a directory this process can write reads as blocked").toBeNull();
+        expect(shut, "a directory nothing can write reads as writable").toBe("not_writable");
+        // `wx` so a collision reads as "not writable" instead of clobbering a
+        // file, and the probe is removed whichever way the write went.
+        expect(readdirSync(pkg), "the probe was left in the package").toEqual([]);
+        expect(readdirSync(join(sandbox, "lib")), "the probe was left beside it").toEqual(["pkg"]);
+      } finally {
+        if (optedOut === undefined) delete process.env.AGENTS_DECK_NO_INSTALL;
+        else process.env.AGENTS_DECK_NO_INSTALL = optedOut;
+        rmTempDir(sandbox);
+      }
+    });
+  }
 });
 
-describe("#796 — XDG_DATA_HOME with a leading tilde", () => {
-  it("is expanded before the absoluteness test, the way cswap does it", async () => {
-    // claude-swap's paths.py runs `Path(os.path.expanduser(xdg))` and THEN
-    // `is_absolute()`, with a docstring naming systemd units and Dockerfiles —
-    // neither of which gets shell expansion. Unexpanded, the deck read
-    // ~/.local/share while cswap read ~/data, and seedFirstAccount then treated
-    // a store that was merely elsewhere as empty and ran `cswap add` against a
-    // populated one.
-    const src = read("../../server/claude-accounts.mjs");
-    expect(src).toContain('raw === "~" ? homedir()');
-    expect(src).toContain('raw?.startsWith("~/") ? join(homedir(), raw.slice(2))');
-    // The absoluteness test still stands, so a relative value is still ignored
-    // rather than joined onto the cwd.
-    expect(src).toContain('if (xdg && xdg.startsWith("/")) return join(xdg, "claude-swap");');
-  });
-});
+// #796 — XDG_DATA_HOME with a leading tilde — is driven through backupRoot()
+// in backup-root-shared.test.ts now, beside the other shapes the variable can
+// take (#994). It was pinned here as three `toContain`s over the resolver's
+// source, which held of a resolver that sent every `~` to the home fallback
+// before reaching the expansion: all three strings survive a line like that
+// being added above them.
 
 describe("#797 — punctuation the console may not have", () => {
   it("takes the dash as a parameter, like renameNotice already did", () => {
