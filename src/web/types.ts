@@ -432,6 +432,22 @@ export interface AgentNodeData {
    *  by it, so the card, the session list, `runningSessionCount` and the favicon
    *  show exactly what they showed before. */
   closedAt?: number;
+  /** When the newest turn-ending event this root has accepted said the turn
+   *  ended — `Stop` or `SessionEnd`, whichever landed last — and the ONE field
+   *  here that the next turn does not clear.
+   *
+   *  `endedAt` cannot answer "have I already been told this turn ended", because
+   *  `UserPromptSubmit` wipes it the moment the next turn opens, which is
+   *  exactly the window in which a re-delivered `Stop` does its damage (#1022):
+   *  the second copy lands mid-turn-two, settles the live tool call as failed,
+   *  flips the card to `done` and drops the attribution stack, and the deck has
+   *  nothing left to recognise it by. This survives that wipe and is read for
+   *  that one comparison only.
+   *
+   *  Never rendered, never ranked on, never cleared. It is a re-delivery
+   *  fingerprint, the root's counterpart of `outcomeApplied` on a `ToolCall` —
+   *  a record of WHO settled the node rather than THAT it is settled. */
+  lastTurnEndAt?: number;
   /** Server-derived breakdown of what's in the context window. Only the root
    *  agent carries this — subagent context isn't separately observable.
    *
