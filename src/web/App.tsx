@@ -52,6 +52,7 @@ import { createRenderCoalescer } from "./coalesce";
 import { createPauseGate } from "./pause";
 import { readStored } from "./storage";
 import { THEME_KEY, storedTheme, type Theme } from "./theme";
+import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
 import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
@@ -1333,6 +1334,10 @@ function Inner() {
   // Declared here because the version check keys off it: a restart ends with
   // the SSE stream reconnecting.
   const [live, setLive] = useState(false);
+  /** This tab's stream is queued behind other deck tabs' streams (#830), which
+   *  is a full browser and not a dead server: see the SSE effect and
+   *  tab-census.ts. */
+  const [tabCapped, setTabCapped] = useState(false);
   const [version, setVersion] = useState<VersionInfo | null>(null);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
@@ -2236,8 +2241,26 @@ function Inner() {
       setTimeout: (fn, ms) => window.setTimeout(fn, ms),
       clearTimeout: (id) => window.clearTimeout(id),
     });
+    // TOO MANY TABS IS NOT A DEAD SERVER (#830). A browser keeps at most six
+    // live HTTP/1.1 connections to one address and every deck tab holds one
+    // here, so a seventh tab's stream waits in the browser's own queue: no
+    // `open`, no `error`, and every fetch from this tab queued behind it, so it
+    // cannot ask the server either. The tabs can still hear one another, so a
+    // tab whose stream has not opened asks which of the others are streaming,
+    // and the hero says so when enough are to explain the wait.
+    let streaming = false;
+    const census = typeof BroadcastChannel === "function"
+      ? joinCensus(new BroadcastChannel(CENSUS_CHANNEL), Math.random().toString(36).slice(2), () => streaming)
+      : null;
+    const probe = window.setInterval(() => {
+      if (streaming || !census) return;
+      void census.ask(600).then(peers => { if (!streaming) setTabCapped(tooManyTabs(peers)); });
+    }, 3_000);
     es.addEventListener("open", () => { setLive(true); setEverConnected(true); });
     es.addEventListener("error", () => { setLive(false); setLiveSince(null); });
+    // What this tab answers a census with, kept beside the stream it describes.
+    es.addEventListener("open", () => { streaming = true; setTabCapped(false); });
+    es.addEventListener("error", () => { streaming = false; });
     es.addEventListener("replay-end", () => {
       replayActiveRef.current = false;
       coalescer.flush();
@@ -2262,6 +2285,8 @@ function Inner() {
     return () => {
       es.close();
       coalescer.cancel();
+      window.clearInterval(probe);
+      census?.leave();
     };
     // Deliberately not keyed on `paused`: a pause must not tear this stream
     // down, because the reconnect carries no Last-Event-ID and the server
@@ -4813,7 +4838,9 @@ function Inner() {
         onPointerUpCapture={markCanvasInput}
         onWheelCapture={markCanvasInput}
       >
-        {agentCount === 0 && <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={() => setTourOpen(true)} />}
+        {agentCount === 0 && (!live && tabCapped
+          ? <TabCapHero />
+          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={() => setTourOpen(true)} />)}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,
@@ -5416,6 +5443,29 @@ function Inner() {
           onCancel={() => setClearConfirmOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** The hero for a tab whose stream is queued behind other deck tabs' streams
+ *  (#830). Not the server: the server is fine, and the other deck tabs in this
+ *  browser are live. Said as what to do, because the browser connects this tab
+ *  the moment one of the others closes. */
+function TabCapHero() {
+  return (
+    <div className="empty-hero">
+      <div className="orbit-stack" aria-hidden>
+        <div className="core" />
+        <div className="orbit r1"><span className="dot" /><span className="dot b" /></div>
+        <div className="orbit r2"><span className="dot" /><span className="dot b" /></div>
+        <div className="orbit r3"><span className="dot" /><span className="dot b" /></div>
+      </div>
+      <h2>Too many {PRODUCT} tabs are open</h2>
+      <p>
+        This browser keeps at most six live connections to one address, and
+        other <code>{PRODUCT}</code> tabs are holding them. Close one and this
+        tab connects on its own.
+      </p>
     </div>
   );
 }
