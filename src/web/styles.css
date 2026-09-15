@@ -2921,8 +2921,21 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
      glow on top of a full hue inversion of the card's outline — three of the
      twelve channels that were all saying the one word `running`, and the two
      that made the card a lamp. A hue swap from --line to --inflight on the
-     outline is not subtle; it does not need lighting. */
-  box-shadow: var(--shadow-1);
+     outline is not subtle; it does not need lighting.
+
+     AND IT SAYS IT WITHOUT A box-shadow OF ITS OWN. Taking the glow away was
+     written as a reset to `var(--shadow-1)` — byte-identical to the base rule
+     above, so it changed nothing about the resting card and its only remaining
+     effect was to outrank `.agent-node:hover`, which is (0,2,0) and earlier.
+     Measured in Firefox on the real sheet, dark theme, hovered:
+
+       .agent-node.state-active -> rgba(0,0,0,0.25) 0 6px 18px   (--shadow-1, the RESTING value)
+       .agent-node.state-done   -> rgba(0,0,0,0.32) 0 10px 24px  (--shadow-2, the lift)
+
+     so on a board with one running session and three finished ones, the three
+     finished cards lifted under the pointer and the running one — the card you
+     are most likely to point at — did not. The base supplies --shadow-1 and
+     the hover supplies --shadow-2; this rule needs to say neither. */
 }
 .agent-node.state-done { border-color: rgba(134,239,172,0.5); }
 .agent-node.state-err { border-color: rgba(252,165,165,0.6); }
@@ -3800,7 +3813,15 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    would have dropped the only text in this layer under AA. Same gesture,
    mirrored: the pill deepens instead, and the ratio goes up rather than down.
    A hover that lowers a contrast is not a hover. */
-:root[data-theme="light"] .cluster-label:hover { filter: brightness(0.9); }
+:root[data-theme="light"] .cluster-label:hover {
+  filter: brightness(0.9);
+  /* The ring had to come back with it. `:root[data-theme="light"]
+     .cluster-label` is (0,3,0) against the hover's (0,2,0), so this theme kept
+     the resting 1px/4px shadow under the pointer and the currentColor outline
+     the dark hover draws never appeared. Measured, light theme, hovered:
+     `rgba(15,23,42,0.08) 0 1px 4px` — the resting value. */
+  box-shadow: 0 4px 14px rgba(15,23,42,0.16), 0 0 0 1px currentColor;
+}
 
 /* ---------------- floating tool bursts ---------------- */
 
@@ -4215,6 +4236,28 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
 }
 :root[data-theme="light"] .tool-burst.status-err {
   border-color: rgba(185,28,28,0.55);
+  /* THE RED CAME BACK. `:root[data-theme="light"] .tool-burst` above is
+     (0,3,0) and beats `.tool-burst.status-err`'s (0,2,0), so redoing only the
+     border here left the failed bubble wearing the same neutral slate shadow
+     as every success beside it — separated by one 0.55-alpha line. Measured in
+     Firefox on the real sheet, light theme, resting:
+
+       .tool-burst.status-err  -> rgba(15,23,42,0.1) 0 2px 8px, rgba(15,23,42,0.04) 0 0 0 1px
+       .tool-burst.status-done -> the same two layers, to the byte
+
+     which is the state the argument at .status-done says the design must not
+     reach: success is flat so that failure is findable, and failure was flat
+     too. The inflight twin above was given its colour back; this one was
+     missed. Same geometry as the dark rule — a 1px ring and a 12px glow — in
+     the deep red this theme's border already uses. */
+  box-shadow: 0 0 0 1px rgba(185,28,28,0.22), 0 4px 12px rgba(185,28,28,0.20);
+}
+/* And the lift, for the same reason: `.tool-burst.clickable:hover` is (0,3,0)
+   too and is written EARLIER, so on the light theme the hover resolved to the
+   resting shadow and `transition: box-shadow 120ms` animated a property that
+   never changed. Dark's geometry, in slate at --shadow-2's own weight. */
+:root[data-theme="light"] .tool-burst.clickable:hover {
+  box-shadow: 0 6px 18px rgba(15,23,42,0.16), 0 0 0 1px var(--cat-accent, rgba(15,23,42,0.14));
 }
 :root[data-theme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);
@@ -5428,8 +5471,11 @@ button.tool.clickable:last-child { border-bottom: none; }
 }
 :root[data-theme="light"] .agent-node.state-active {
   border-color: rgba(126,34,206,0.65);
-  /* The dark rule's reasoning, in the other theme. */
-  box-shadow: var(--shadow-1);
+  /* The dark rule's reasoning, in the other theme — including its silence
+     about box-shadow. This twin is (0,4,0), so it outranked the hover whatever
+     the order, and light was broken the same way: hovered, the running card
+     measured `rgba(15,23,42,0.1) 0 4px 14px` (--shadow-1) against a finished
+     card's `rgba(15,23,42,0.16) 0 10px 28px` (--shadow-2). */
 }
 /* Opaque, not a wash. The alphas these two carried were transplanted from the
    dark rules, where 0.5 over #14161b still reads; over a white node they landed
