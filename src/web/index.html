@@ -29,7 +29,14 @@
          Vite leaves untouched in the built HTML (it rewrites only scripts with
          a src or type="module"). Deliberately dependency-free, and kept honest
          against resolveTheme() in theme.ts by theme-first-paint.test.ts, which
-         runs this exact text. -->
+         runs this exact text.
+
+         Since #885 it also answers the machine. With nothing stored this wrote
+         "dark" whatever the operating system was set to, so a light-desktop
+         user met a dark deck on their first ever load and had to find the T
+         key to leave it. A stored choice still wins over the machine; the
+         media query only decides what "never chosen" means. -->
+
     <script>
       (function () {
         var stored = null;
@@ -37,7 +44,16 @@
         // blocked, so the property read is inside the try, not just getItem.
         // A refused store must cost a preference and never the boot.
         try { stored = window.localStorage.getItem("agent-dag.theme"); } catch (e) {}
-        document.documentElement.setAttribute("data-theme", stored === "light" ? "light" : "dark");
+        if (stored !== "light" && stored !== "dark") {
+          // Nothing stored, or nothing this version can read: ask the machine.
+          // Its own try, because a refused store and a missing matchMedia are
+          // different failures and the first must not skip the second.
+          stored = "dark";
+          try {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) stored = "light";
+          } catch (e) {}
+        }
+        document.documentElement.setAttribute("data-theme", stored);
       })();
     </script>
   </head>

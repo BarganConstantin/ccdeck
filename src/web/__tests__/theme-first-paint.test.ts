@@ -22,10 +22,15 @@
 // inputs, throwing store included. Plain node, no DOM: `new Function` with
 // `window` and `document` as parameters shadows the globals the script reaches
 // for, so the browser is never involved.
+//
+// #885 added a second input to that one rule: what the MACHINE asks for, when
+// nothing is stored. Everything above still holds — the copies must agree, and
+// the answer must still arrive before the first frame — so the media query is
+// written twice as well, and `boot()` below now models it alongside the store.
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolveTheme, storedTheme, THEME_KEY, type Theme } from "../theme";
+import { resolveTheme, storedTheme, systemPrefersLight, THEME_KEY, type Theme } from "../theme";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const html = read("../index.html");
@@ -45,17 +50,26 @@ function bootstrapOf(source: string): { body: string; at: number } {
 
 type Refusal = "getter" | "getItem" | "missing";
 
+/** What the machine says, as `boot` has to model it. "light" and "dark" are an
+ *  OS with a preference; "none" is a browser whose `matchMedia` matches
+ *  neither, "absent" is one that has no `matchMedia` at all, and "throws" is
+ *  one whose call raises — the deck has to come up in all five. */
+type System = "light" | "dark" | "none" | "absent" | "throws";
+
 /**
- * Runs the shipped bootstrap over one store and reports the data-theme it
- * wrote, plus the key it asked for.
+ * Runs the shipped bootstrap over one store and one machine, and reports the
+ * data-theme it wrote, the key it asked for and the media query it asked with.
  *
  * `stored` is the value the tab has; a Refusal instead models a browser that
  * will not hand the store over — the getter itself raising SecurityError under
  * "Block All Cookies" is the real-world case, and the one a try around getItem
  * alone would miss.
  */
-function boot(stored: string | null | Refusal): { applied?: string; asked?: string } {
-  const out: { applied?: string; asked?: string } = {};
+function boot(
+  stored: string | null | Refusal,
+  system: System = "dark",
+): { applied?: string; asked?: string; queried?: string } {
+  const out: { applied?: string; asked?: string; queried?: string } = {};
   const refuse = () => { throw new Error("SecurityError: The operation is insecure."); };
   const store = { getItem: (key: string) => { out.asked = key; return stored as string | null; } };
 
@@ -63,7 +77,18 @@ function boot(stored: string | null | Refusal): { applied?: string; asked?: stri
     stored === "getter" ? { get: refuse }
     : stored === "getItem" ? { value: { getItem: refuse } }
     : stored === "missing" ? { value: undefined }
-    : { value: store });
+    : { value: store }) as Record<string, unknown>;
+
+  if (system !== "absent") {
+    window.matchMedia = (query: string) => {
+      out.queried = query;
+      if (system === "throws") throw new TypeError("matchMedia is not a function");
+      // The real object answers the query it was handed. Modelled the same way
+      // so a bootstrap that asked for `(prefers-color-scheme: dark)` and then
+      // inverted the answer would be visible here rather than passing.
+      return { matches: system === "none" ? false : query.includes(system) };
+    };
+  }
 
   const document = { documentElement: {
     setAttribute(name: string, value: string) { if (name === "data-theme") out.applied = value; },
@@ -82,10 +107,66 @@ describe("resolveTheme", () => {
   it("falls back to dark for a value nothing wrote or this version cannot read", () => {
     // null is both "never chosen" and "store refused" — readStored collapses
     // the two — and an unknown string is what a future version could leave
-    // behind. All three land on the default the sheet already paints.
+    // behind. All three land on the default the sheet already paints, on a
+    // machine that has not asked for anything else.
     for (const value of [null, undefined, "", "LIGHT", "system", "purple"]) {
       expect(resolveTheme(value)).toBe("dark");
     }
+  });
+
+  it("hands every one of those to the machine instead, when the machine asked for light (#885)", () => {
+    // THE DEFECT, in one line. Measured in Firefox 155 against the built
+    // dist/web/index.html with an empty store and the OS set to light:
+    // (prefers-color-scheme: light) matched, (…: dark) did not, and the
+    // document still came up data-theme="dark". Every value that means "this
+    // deck has never been told" has to reach the same second question.
+    for (const value of [null, undefined, "", "LIGHT", "system", "purple"]) {
+      expect(resolveTheme(value, true), `${String(value)} ignored the machine`).toBe("light");
+      expect(resolveTheme(value, false)).toBe("dark");
+    }
+  });
+
+  it("lets a stored choice outrank the machine, in both directions", () => {
+    // The machine decides what "never chosen" means and nothing else. A reader
+    // who pressed T on a light desktop asked for dark ON PURPOSE, and an OS
+    // preference that could overturn that would make the toggle unusable — it
+    // would come back every reload.
+    expect(resolveTheme("dark", true)).toBe("dark");
+    expect(resolveTheme("light", false)).toBe("light");
+  });
+
+  it("still answers without a browser at all, which is where it is first called", () => {
+    // systemPrefersLight guards `matchMedia` with a typeof INSIDE its try, and
+    // this file runs in bare node with no window — so this is the real absent
+    // case rather than a mock of one. App calls storedTheme from a useState
+    // initialiser and src/web has no error boundary: a throw here is a blank
+    // deck, not a lost preference.
+    expect(() => systemPrefersLight()).not.toThrow();
+    expect(systemPrefersLight()).toBe(false);
+  });
+
+  it("survives a matchMedia that throws rather than losing the mount", () => {
+    const glob = globalThis as unknown as Record<string, unknown>;
+    glob.matchMedia = () => { throw new TypeError("Illegal invocation"); };
+    try {
+      expect(() => systemPrefersLight()).not.toThrow();
+      expect(systemPrefersLight()).toBe(false);
+    } finally { delete glob.matchMedia; }
+  });
+
+  it("asks whether the machine wants LIGHT, not whether it wants dark", () => {
+    // Not the same question, and the difference is the whole default. A browser
+    // with no preference at all matches `light` and matches neither `dark` nor
+    // `no-preference`, so `not (prefers-color-scheme: dark)` and
+    // `(prefers-color-scheme: light)` agree on every machine that HAS a
+    // preference and disagree on the ones that do not.
+    const glob = globalThis as unknown as Record<string, unknown>;
+    let asked = "";
+    glob.matchMedia = (q: string) => { asked = q; return { matches: true }; };
+    try {
+      expect(systemPrefersLight()).toBe(true);
+      expect(asked).toBe("(prefers-color-scheme: light)");
+    } finally { delete glob.matchMedia; }
   });
 
   it("gives the deck a theme even when the browser refuses the store", () => {
@@ -144,12 +225,57 @@ describe("the inline bootstrap in index.html", () => {
 
   it("reaches the same answer as resolveTheme for every input, so the two copies cannot drift", () => {
     // The bootstrap is dependency-free by necessity, which makes it a second
-    // implementation of one rule. This is the seam that keeps it honest.
-    for (const stored of [null, "light", "dark", "", "LIGHT", "system", "purple"]) {
-      const expected: Theme = resolveTheme(stored);
-      expect(boot(stored).applied).toBe(expected);
+    // implementation of one rule. This is the seam that keeps it honest — and
+    // since #885 the rule has two inputs, so the seam runs over both.
+    for (const system of ["light", "dark", "none", "absent", "throws"] as const) {
+      const light = system === "light";
+      for (const stored of [null, "light", "dark", "", "LIGHT", "system", "purple"]) {
+        const expected: Theme = resolveTheme(stored, light);
+        expect(boot(stored, system).applied, `${String(stored)} on a ${system} machine`).toBe(expected);
+      }
+      expect(boot("getter", system).applied).toBe(resolveTheme(null, light));
     }
-    expect(boot("getter").applied).toBe(resolveTheme(null));
+  });
+
+  it("boots into the theme the machine asked for when nothing is stored (#885)", () => {
+    // WHAT WAS OBSERVED: Firefox 155, headless, ui.systemUsesDarkTheme = 0,
+    // serving the built dist/web/index.html over 127.0.0.1 with an empty
+    // store — (prefers-color-scheme: light) true, (…: dark) false,
+    // localStorage["agent-dag.theme"] null, and the document came up
+    // data-theme="dark". With the same prefs and ui.systemUsesDarkTheme = 1 it
+    // also came up dark, which is right by accident rather than by decision.
+    expect(boot(null, "light").applied, "a light desktop still gets the dark deck").toBe("light");
+    expect(boot(null, "dark").applied).toBe("dark");
+  });
+
+  it("asks the machine for light rather than for the absence of dark", () => {
+    // The one query that differs on a browser reporting no preference at all,
+    // which is the case that decides the deck's default for everyone who has
+    // never touched an OS theme setting.
+    expect(boot(null, "light").queried).toBe("(prefers-color-scheme: light)");
+  });
+
+  it("does not ask the machine at all once a choice is stored", () => {
+    // The T toggle has to survive a reload on a machine that disagrees with it,
+    // and the cheapest proof is that the query is never even run.
+    const onLight = boot("dark", "light");
+    expect(onLight.applied).toBe("dark");
+    expect(onLight.queried, "the machine was consulted over a stored choice").toBeUndefined();
+    const onDark = boot("light", "dark");
+    expect(onDark.applied).toBe("light");
+    expect(onDark.queried).toBeUndefined();
+  });
+
+  it("still writes a theme where matchMedia is missing or refuses", () => {
+    // Two separate `try`s in the shipped text, because a store that throws and
+    // a matchMedia that throws are different failures — one catch around both
+    // would let a blocked store skip the machine entirely, which is precisely
+    // the profile that has no stored preference to fall back on.
+    for (const system of ["absent", "throws"] as const) {
+      expect(() => boot(null, system)).not.toThrow();
+      expect(boot(null, system).applied).toBe("dark");
+      expect(boot("getter", system).applied).toBe("dark");
+    }
   });
 
   it("adds no flash in the other direction for the default theme", () => {
@@ -208,6 +334,10 @@ describe("the built output", () => {
     // runs from prepublishOnly, so the publish path always has one.
     const built = readFileSync(dist, "utf8");
     expect(bootstrapOf(built).body).toContain(THEME_KEY);
+    // The machine half has to survive the copy too: a minifier that dropped the
+    // media query would leave every first-time light user on the dark deck and
+    // nothing else would change, which is exactly how #885 went unnoticed.
+    expect(bootstrapOf(built).body).toContain("(prefers-color-scheme: light)");
     expect(bootstrapOf(built).at).toBeLessThan(built.indexOf('<script type="module"'));
     expect(bootstrapOf(built).at).toBeLessThan(built.indexOf("</head>"));
   });
