@@ -153,14 +153,22 @@ describe("the file on disk", () => {
     // This file is on disk, which is where a half-written save and a hand edit
     // both come from. A throw here would reach a route that has no other reason
     // to fail.
+    //
+    // Surviving is not the same as forgetting, which is what #1003 cost: the
+    // bytes are moved aside before this returns, and the emptiness below is a
+    // fresh archive rather than a verdict on the old one. watch-store-corrupt-
+    // 1003.test.ts is where that half is held down.
     const home = mkdtempSync(join(tmpdir(), "bw-store-"));
     try {
       await writeStore({ settings: DEFAULTS, episodes: [] }, home);
       const { writeFileSync } = await import("node:fs");
       writeFileSync(storePath(home), "{ this is not json");
-      const back = await readStore(home);
+      const back = await readStore(home, { warn: () => {} } as never);
       expect(back.settings).toEqual(DEFAULTS);
       expect(back.episodes).toEqual([]);
+      const { readdirSync } = await import("node:fs");
+      expect(readdirSync(join(home, "agent-dag", "browser-watch")).filter(f => f.includes(".corrupt-")))
+        .toHaveLength(1);
     } finally { rmTempDir(home); }
   });
 

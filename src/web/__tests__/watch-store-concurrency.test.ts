@@ -115,8 +115,15 @@ describe("a caller that owns one field", () => {
 describe("what a corrupt file still does", () => {
   it("reads as empty rather than throwing, which is why the writes above matter", async () => {
     writeFileSync(storePath(HOME), "{not json");
-    const back = await readStore(HOME);
+    const back = await readStore(HOME, { warn: () => {} } as never);
     expect(back.episodes).toEqual([]);
+    // Empty is what the CALLER sees; the bytes are not gone. The header above
+    // describes the collision that made a state.json unparseable in six runs
+    // out of eight, and #1003 is what happened next — the empty read became the
+    // merge base of the following write, so the archive the collision damaged
+    // was replaced by nothing at all. It is moved aside first now.
+    expect(readdirSync(join(HOME, "agent-dag", "browser-watch")).filter(f => f.includes(".corrupt-")))
+      .toHaveLength(1);
     // And a write puts it back in order.
     await writeStore({ settings, episodes: episodes(2), dismissed: [] }, HOME);
     expect((await readStore(HOME)).episodes).toHaveLength(2);

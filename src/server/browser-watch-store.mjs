@@ -17,12 +17,25 @@
 // `~/.claude/agent-dag`: readLiveDecks() reads every `.json` in that directory
 // and would have to keep skipping this one forever. A subdirectory is not a
 // name it can collide with.
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+//
+// AND THE READ IS THE OTHER HALF OF THAT SENTENCE, which took #1003 to notice.
+// An archive whose whole premise is that the browser's own copy can be erased
+// has to survive its own file being damaged, and what this module did when it
+// met one was read it as an empty archive — same answer as "no file yet" — and
+// then let the next ten-second poll write that emptiness over it. A file that
+// cannot be parsed is now moved aside and said out loud; only a genuinely
+// ABSENT file starts clean. See loadStore.
+import { appendFile, mkdir, open, readFile, unlink } from "node:fs/promises";
 // The rename, with the Windows retry ladder installer.mjs wrote for exactly
-// this call. See the note over `writeNow` (#786).
-import { renameWithRetry } from "./installer.mjs";
+// this call. See the note over `writeNow` (#786). `stripBom` comes from the same
+// module for the reason its export block gives: a rule spelled twice is a rule
+// that drifts, and "a BOM is not damage" has to mean the same thing here as it
+// does on settings.json, or a state.json somebody opened in Notepad gets
+// quarantined for a mark the settings reader has ignored since it was written.
+import { renameWithRetry, stripBom } from "./installer.mjs";
 import { join } from "node:path";
 import { claudeConfigDir } from "./claude-dir.mjs";
+import { PRODUCT } from "./brand.mjs";
 
 /** Reactions the panel can arm. `close-tab` is macOS-only and the server is the
  *  one that says so — a client cannot be trusted to know what the OS can do,
@@ -54,8 +67,23 @@ const STORE_VERSION = 2;
  *  person could open and read. Trimmed oldest-first. */
 const KEEP = 500;
 
-const storeDir = (home = claudeConfigDir()) => join(home, "agent-dag", "browser-watch");
+/** Exported so the boot-time temp sweep can be handed this directory by name
+ *  rather than by a second spelling of the path. `sweepTempFiles` does not
+ *  recurse — deck-home.mjs:229 walks the directories it is given and nothing
+ *  under them — so the archive's own `.tmp` files, about 2.5 MB each with a
+ *  full 500-episode store, were outside every sweep the deck has ever run. */
+export const storeDir = (home = claudeConfigDir()) => join(home, "agent-dag", "browser-watch");
 export const storePath = (home = claudeConfigDir()) => join(storeDir(home), "state.json");
+
+/** Where the bytes of a state.json nothing could parse are put.
+ *
+ *  `Date.now()` rather than an ISO timestamp because a colon is not a legal
+ *  filename character on Windows, and a quarantine that cannot be created on
+ *  the platform it is protecting is not a quarantine. Beside the file it came
+ *  from, so nobody has to be told where to look — and it does not end in `.tmp`,
+ *  so the sweep that now reaches this directory will not carry it off. */
+export const quarantinePath = (home = claudeConfigDir(), at = Date.now()) =>
+  `${storePath(home)}.corrupt-${at}`;
 
 /** The plain-text log, which is the one file here a person opens themselves.
  *  state.json is the deck's own record and is JSON because the deck reads it
@@ -179,10 +207,132 @@ export const episodeKey = (host, startMs) => `${host}\u0000${startMs}`;
  *  it cannot be. */
 const DISMISS_KEEP = 2000;
 
-export async function readStore(home = claudeConfigDir(), deps = {}) {
+/** The refusal `updateStore` throws rather than merge onto a base it knows is
+ *  not what is on disk. Shaped like installer.mjs's SETTINGS_UNREADABLE and
+ *  deck-prefs' PREFS_UNREADABLE, which is this same policy on the other two
+ *  files the deck rewrites in place: a file we cannot reproduce is never
+ *  treated as an empty one. */
+function unreadableStore(path, why) {
+  const err = new Error(
+    `${path} could not be read (${why}). Refusing to overwrite it — the episodes ` +
+    `in there are this deck's own record of what a program did in the browser, and ` +
+    `nothing can re-derive them. Fix the file or move it aside, then restart ${PRODUCT}.`,
+  );
+  err.code = "WATCH_STORE_UNREADABLE";
+  err.storePath = path;
+  err.why = why;
+  return err;
+}
+
+/**
+ * Complaints already made, so a poll does not repeat one six times a minute.
+ *
+ * THE DIVERGENCE FROM deck-prefs, and the reason for it. prefs.json is read at
+ * boot and when somebody presses something; this file is read by the panel's
+ * ten-second poll and by the badge's background one, for as long as the deck is
+ * up. A quarantine that succeeded says its piece once by construction — the
+ * damaged file is gone from that name afterwards — but the two failures that
+ * CANNOT clear themselves, an unreadable file and a quarantine the filesystem
+ * refused, would otherwise put the same line on stderr every ten seconds
+ * forever, which is how a warning becomes something people filter out.
+ *
+ * Keyed on the path and the reason, not on a bare flag: two different things
+ * going wrong with two different files are two things somebody needs told.
+ */
+const _said = new Set();
+function sayOnce(warn, key, line) {
+  if (_said.has(key)) return;
+  _said.add(key);
+  warn(line);
+}
+
+/**
+ * Read the store, and say WHICH of four things happened — because three of them
+ * hand back the same empty archive and only one of them means it.
+ *
+ * WHY THE SOURCE IS PART OF THE ANSWER (#1003). The old read caught every
+ * failure the same way — one bare `catch` marked "absent or corrupt" — which is
+ * a defensible answer to a question about VALUES and a catastrophic one as the
+ * merge base of a write, because `updateStore` asked it that question on every
+ * single write. Measured end to end against a state.json truncated to half its
+ * length, the way a machine that died between the write and the rename leaves
+ * one: the archive read as empty, and the next poll wrote an archive holding
+ * only what Chrome itself still remembered — which is precisely the copy this
+ * feature exists because an intruder can erase. The dismissals went with it and
+ * the settings went back to defaults in the same write, and nothing anywhere
+ * said a word.
+ *
+ *   "file"       parsed. This is the deck's own record.
+ *   "missing"    ENOENT, and only ENOENT. Nothing has been written yet;
+ *                an empty archive, silently, which is what a first run is.
+ *   "corrupt"    bytes that are not JSON. Moved aside to `quarantined` BEFORE
+ *                this returns, so nothing can write over them.
+ *   "unreadable" the read itself failed for some reason other than absence — a
+ *                permission, a directory in the way. The file is still there
+ *                and still unread, which is exactly when a write must not land.
+ */
+export async function loadStore(home = claudeConfigDir(), deps = {}) {
   const read = deps.readFile ?? readFile;
-  let parsed = null;
-  try { parsed = JSON.parse(await read(storePath(home), "utf8")); } catch { /* absent or corrupt */ }
+  const warn = deps.warn ?? console.error;
+  const path = storePath(home);
+  const empty = () => ({ settings: normalise(null), episodes: [], dismissed: [], migrated: false });
+
+  let raw;
+  try {
+    raw = await read(path, "utf8");
+  } catch (err) {
+    if (err?.code === "ENOENT") return { store: empty(), source: "missing", quarantined: "" };
+    sayOnce(warn, `${path} read`,
+      `${PRODUCT}: could not read ${path}: ${err?.message ?? err}. Leaving it alone — ` +
+      `the episode archive will not be written until it can be read.`);
+    return { store: empty(), source: "unreadable", quarantined: "" };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(stripBom(raw));
+  } catch (err) {
+    const why = err?.message ?? String(err);
+    const mv = deps.rename ?? renameWithRetry;
+    const to = quarantinePath(home);
+    try {
+      await mv(path, to);
+    } catch (moveErr) {
+      // ENOENT means somebody else moved it between the read and the rename —
+      // a second deck on the same home, or this deck's own poll racing its own
+      // write queue. The bytes are safe, just not under a name this read chose,
+      // and what is at `path` now is nothing.
+      if (moveErr?.code === "ENOENT") return { store: empty(), source: "missing", quarantined: "" };
+      // Anything else and the damaged file is STILL THERE, unread and
+      // unprotected. Saying so is the whole point: `updateStore` refuses on it.
+      sayOnce(warn, `${path} quarantine`,
+        `${PRODUCT}: ${path} could not be read as JSON (${why}), and could not be moved ` +
+        `aside either: ${moveErr?.message ?? moveErr}. The episode archive will not be ` +
+        `written until it is fixed or moved.`);
+      return { store: empty(), source: "corrupt", quarantined: "" };
+    }
+    warn(
+      `${PRODUCT}: ${path} could not be read as JSON (${why}). It has been kept as ${to} ` +
+      `and Browser Watch is starting a fresh archive — the episodes this deck recorded ` +
+      `are in that file, so do not delete it if you want them back.`,
+    );
+    return { store: empty(), source: "corrupt", quarantined: to };
+  }
+  return { store: shapeStore(parsed), source: "file", quarantined: "" };
+}
+
+/** What is on disk, or an empty archive — the VALUES alone, for the callers
+ *  that want nothing else. `loadStore` is the same read with the answer to "and
+ *  was that really the deck's own file?" still attached; anything about to
+ *  write must ask that question, and does. */
+export async function readStore(home = claudeConfigDir(), deps = {}) {
+  return (await loadStore(home, deps)).store;
+}
+
+/** The parsed document as the rest of the deck reads it. Unchanged from what
+ *  `readStore` always did; it is a function of its own now only because the
+ *  read above has three other answers to give. */
+function shapeStore(parsed) {
   const settings = normalise(parsed?.settings);
 
   // A VERSION BUMP DROPS THE EPISODES AND KEEPS THE SETTINGS, because the two
@@ -276,10 +426,37 @@ export async function writeStore(state, home = claudeConfigDir(), deps = {}) {
   return serialized(() => writeNow(state, home, deps));
 }
 
+/**
+ * The temp file, on disk and FLUSHED, before anything renames it.
+ *
+ * A rename orders the DIRECTORY ENTRY; it does not order the bytes. A machine
+ * that loses power just after one can come up with the new entry pointing at
+ * blocks that were never written — the classic file of zero bytes, and the
+ * ordinary outcome of a crash for a writer that does not sync. installer.mjs's
+ * writeFileAtomic has fsync'd for exactly this reason since it was written, and
+ * this is the file where the argument is strongest: a truncated state.json is a
+ * lost archive, and the archive exists because the browser's own copy can be
+ * erased by whoever is driving it.
+ *
+ * Signature-compatible with `writeFile` on purpose. `deps.writeFile` is the seam
+ * the suite drives a fake filesystem through, and a staging step that changed
+ * its shape would be a second thing for every caller of that seam to know.
+ */
+async function writeAndSync(path, body, encoding) {
+  const fh = await open(path, "w");
+  try {
+    await fh.writeFile(body, encoding);
+    await fh.sync();
+  } finally {
+    await fh.close();
+  }
+}
+
 /** The write itself, already inside the queue. */
 async function writeNow(state, home, deps) {
   const mk = deps.mkdir ?? mkdir;
-  const write = deps.writeFile ?? writeFile;
+  const write = deps.writeFile ?? writeAndSync;
+  const drop = deps.unlink ?? unlink;
   // `renameWithRetry`, not `rename` (#786). Same Windows rule as deck-prefs,
   // and the stakes are higher here: none of the three writers catches the
   // throw, so a refused rename 500s `GET /api/browser-watch` and the panel goes
@@ -297,14 +474,29 @@ async function writeNow(state, home, deps) {
   // the calls inside one, and there are three writers in this process — the
   // poll's snapshot, the settings route and the dismiss route — with nothing
   // between them. Measured with a full 500-episode archive (~2.5 MB, past the
-  // 512 KiB writeFile chunk): eight concurrent runs left state.json unparseable
+  // 512 KiB write chunk): eight concurrent runs left state.json unparseable
   // in six of them and failed one call with ENOENT, renaming a temp file the
-  // other writer had already renamed away. readStore swallows a corrupt file,
-  // so the next poll reported an empty archive and no dismissals at all — total
-  // loss of the one file this feature exists to keep.
+  // other writer had already renamed away. readStore swallowed a corrupt file
+  // then, so the next poll reported an empty archive and no dismissals at all —
+  // total loss of the one file this feature exists to keep. That second half is
+  // no longer true of any cause, which is #1003 and `loadStore` above; this
+  // counter is what stops this particular cause from arising at all.
   const tmp = `${storePath(home)}.${process.pid}.${++_writeSeq}.tmp`;
-  await write(tmp, body, "utf8");
-  await mv(tmp, storePath(home));
+  let landed = false;
+  try {
+    await write(tmp, body, "utf8");
+    await mv(tmp, storePath(home));
+    landed = true;
+  } finally {
+    // A REFUSED WRITE MUST NOT LEAVE ITS STAGING FILE. Each of these is about
+    // 2.5 MB with a full archive, and nothing ever unlinked one: a rename the
+    // Windows ladder could not outlast, a full disk, a permission — every one
+    // of them left a copy of the whole archive lying beside it. That is only
+    // half the litter, because a deck KILLED between the two never reaches this
+    // line at all; the other half is the boot sweep, which now gets handed this
+    // directory (see `storeDir`, and bin/deck.js's sweepTempFiles call).
+    if (!landed) await drop(tmp).catch(() => {});
+  }
 }
 
 /**
@@ -321,10 +513,23 @@ async function writeNow(state, home, deps) {
  * So a caller that owns one field passes a function instead: it runs inside the
  * same queue the write does, against the state on disk at that moment, and no
  * other writer can slip between the read and the write.
+ *
+ * AND IT REFUSES RATHER THAN MUTATE A BASE THAT IS NOT WHAT IS ON DISK (#1003).
+ * `current` exists to PRESERVE what the caller does not own; handed an empty
+ * archive because `loadStore` could not read the file, it preserves nothing and
+ * this becomes the call that destroys the episodes. So the two failures that
+ * read as empty are separated: a file already moved aside is safe to start
+ * clean over, and one still sitting there unread is not. installer.mjs's
+ * readSettingsForWrite is the same policy on settings.json and deck-prefs'
+ * writePrefs is the same policy on prefs.json.
  */
 export async function updateStore(mutate, home = claudeConfigDir(), deps = {}) {
   return serialized(async () => {
-    const current = await readStore(home, deps);
+    const { store: current, source, quarantined } = await loadStore(home, deps);
+    if (source === "unreadable") throw unreadableStore(storePath(home), "the read failed");
+    if (source === "corrupt" && !quarantined) {
+      throw unreadableStore(storePath(home), "it is not JSON and could not be moved aside");
+    }
     const next = (await mutate(current)) ?? current;
     await writeNow(next, home, deps);
     return next;
