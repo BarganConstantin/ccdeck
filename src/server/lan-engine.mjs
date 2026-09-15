@@ -194,6 +194,12 @@ export function createEngine({
    *  turns it off; the suite does, to play a deck from before #810, which is
    *  the only way to show that one still heals. */
   sealFrames = true,
+  /** Whether this deck mixes a key pair made for each connection into that
+   *  connection's key, with a deck that says it does too — see sessionKey in
+   *  lan-sync.mjs. Nothing in the deck turns this off either; the suite does,
+   *  to play a deck of #810's version, which seals and does not mix. It rides
+   *  on `sealFrames`: with that off, this deck says neither. */
+  ephemeral = true,
   /** Where the listener binds: every interface, which is what a peer dials,
    *  unless the suite says loopback — a test deck has no business being
    *  reachable from the office for the seconds it runs. */
@@ -433,7 +439,7 @@ export function createEngine({
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
-        sealFrames,
+        sealFrames, ephemeral,
       });
       // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
       //
@@ -716,7 +722,7 @@ export function createEngine({
       // back — so the pin drifts to a free port rather than failing.
       server = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
-        name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames,
+        name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames, ephemeral,
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
         // Somebody used the token. They are pinned, and the token is retired —
@@ -882,7 +888,7 @@ export function createEngine({
             // one. Stopping at the first that ANSWERS is right; stopping at the
             // first that answers CORRECTLY is what it was supposed to mean.
             inviteProvesBack: inv.provesBack,
-            sealFrames,
+            sealFrames, ephemeral,
           });
           const { list } = addTrusted(cfg.trusted, {
             fp: conn.peerFp, pub: conn.peerPub, name: conn.peerName || inv.name, at: now(),

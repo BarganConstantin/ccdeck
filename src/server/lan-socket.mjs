@@ -90,9 +90,9 @@ export function broadcastTargets(ifaces) {
 import net from "node:net";
 import { randomBytes } from "node:crypto";
 import {
-  beaconPayload, beaconVerdict, challengeFor, cleanName, frameChannel, handshakeTranscript, hostId,
-  notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge, readPub,
-  sealsFrames, sessionKey, trustedPeer,
+  beaconPayload, beaconVerdict, challengeFor, cleanName, ephemeralPair, frameChannel, handshakeTranscript,
+  hostId, mixesEphemeral, notePeer, proof, proofOk, inviteProof, inviteProofBack, readBeacon, readChallenge,
+  readEphemeral, readPub, sealsFrames, sessionKey, trustedPeer,
   ANNOUNCE_MS, MAX_BEACON_BYTES, MAX_MANIFEST_BYTES,
 } from "./lan-sync.mjs";
 
@@ -432,6 +432,12 @@ export function createSyncServer({
    *  this listener announce nothing and seal nothing, which is the wire every
    *  deck before #810 speaks, and is how the suite plays one. */
   sealFrames = true,
+  /** Whether this deck mixes a key pair made for each connection into its key,
+   *  with a peer that says it does too — see sessionKey. On in every real
+   *  deck. False makes this listener's challenge say only that it seals, which
+   *  is the wire of a deck of #810's version, and is how the suite plays one.
+   *  It rides on `sealFrames`, as it does on the wire. */
+  ephemeral = true,
 } = {}) {
   let server = null;
   const live = new Set();
@@ -476,11 +482,16 @@ export function createSyncServer({
     let peerName = "";
     let peerPort = null;
     let key = null;
-    // Carrying this deck's mark when it seals, inside the one field the
-    // handshake already binds — see "THE ANNOUNCEMENT RIDES INSIDE THE
-    // CHALLENGE" in lan-sync.mjs.
-    const myChallenge = challengeFor({ seals: sealFrames });
+    // Carrying this deck's marks — that it seals, and that it mixes a key pair
+    // of its own into the key — inside the one field the handshake already
+    // binds. See "THE ANNOUNCEMENT RIDES INSIDE THE CHALLENGE" and EPHEMERAL
+    // in lan-sync.mjs.
+    const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
     let theirChallenge = null;
+    /** What the key was derived over, kept so the invite proofs below are made
+     *  over the same string rather than rebuilt from its parts — which, once
+     *  the ephemeral keys are in it, only the `hello` branch holds all of. */
+    let transcript = null;
     /** The sealed channel, once the handshake is done and both challenges said
      *  so; null for a peer that did not, which is answered in the clear exactly
      *  as before. Set once and never changed. */
@@ -549,6 +560,13 @@ export function createSyncServer({
         // value. What the exchange establishes is that whoever is on the other
         // end holds the private half of the key they claimed — which is the
         // only thing a pin can later be checked against.
+        //
+        // AND, FROM #1120, ONE KEY PAIR MORE AT EACH END, made for this
+        // connection alone: the caller's public half rides in `hello` as
+        // `epk`, ours in `challenge`. Public too, and in the clear too. What
+        // they buy is a connection key that is gone once both ends have let go
+        // of the private halves, whoever takes either long-term key later —
+        // see sessionKey.
         if (msg.t === "hello") {
           // A string of letters, digits, `.`, `_` and `-` — a `|` inside it
           // would let the transcript come out the same on both ends while each
@@ -575,8 +593,41 @@ export function createSyncServer({
           // of a fixed 288px column and left a complete, plausible sentence.
           peerName = cleanName(msg.name, "");
           peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
-          key = sessionKey(secret, peerPub, handshakeTranscript(peerFp, fp, theirChallenge, myChallenge));
-          sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge });
+          // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
+          // the proofs bind decide it, never whether a field turned up. Once
+          // both say so, a hello with no usable key is refused rather than
+          // answered the old way, because answering the old way is the
+          // downgrade. See EPHEMERAL in lan-sync.mjs.
+          //
+          // A KEY OFFERED IS A KEY ANSWERED, whatever the challenges say, so
+          // what this end sends depends only on what it was sent. When the two
+          // do not mix, ours goes out and is never used. That happens only
+          // between two decks of this version whose challenges somebody edited
+          // on the way, and there it takes the dialler on to a proof this end
+          // refuses by name — `bad proof`, as for every other edit to a
+          // challenge — rather than stopping it one message short. Made here
+          // and not when the socket opened, so a connection that never says
+          // hello costs what it always did.
+          const theirEphemeral = readEphemeral(msg.epk);
+          const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
+          if (mixing && !theirEphemeral) return refuse("bad hello");
+          let mine = theirEphemeral && mixesEphemeral(myChallenge) ? ephemeralPair() : null;
+          const epk = mine?.pub;
+          transcript = mixing
+            ? handshakeTranscript(peerFp, fp, theirChallenge, myChallenge, theirEphemeral, epk)
+            : handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
+          // A key X25519 cannot use throws in here, and nothing above this
+          // handler catches it — see readPub for what that throw used to do.
+          try {
+            key = sessionKey(secret, peerPub, transcript,
+              mixing ? { role: "listener", priv: mine.priv, peer: theirEphemeral } : null);
+          } catch {
+            return refuse("bad hello");
+          } finally {
+            // The private half, let go before a byte of the reply is written.
+            mine = null;
+          }
+          sendFrame(sock, { t: "challenge", fp, pub, name, challenge: myChallenge, ...(epk ? { epk } : {}) });
           return;
         }
         if (msg.t !== "auth" || !theirChallenge) return refuse("expected auth");
@@ -615,7 +666,8 @@ export function createSyncServer({
         // socket table one scope out is also `live`, and widening this block
         // widened the shadow with it.
         const offer = invite();
-        const transcript = handshakeTranscript(peerFp, fp, theirChallenge, myChallenge);
+        // Over the transcript the key came from — the ephemeral keys in it
+        // when the two mix — which is the string the dialler proved over too.
         const heldInvite = !!offer && typeof msg.invite === "string"
           && proofOk(inviteProof(offer.code, transcript), msg.invite);
         // AND THE CODE, BACK. The session proof says "I hold the private half
@@ -764,15 +816,25 @@ export function connectToPeer({
    *  says it does too — see frameChannel. False announces nothing and seals
    *  nothing, exactly as every deck before #810 dials; only the suite asks. */
   sealFrames = true,
+  /** Whether this deck mixes a key pair made for the connection into its key,
+   *  with a deck that says it does too — see sessionKey. False dials exactly
+   *  as a deck of #810's version does; only the suite asks. */
+  ephemeral = true,
 }) {
   return new Promise((resolve, reject) => {
-    const myChallenge = challengeFor({ seals: sealFrames });
+    const myChallenge = challengeFor({ seals: sealFrames, ephemeral });
+    // Made before the other deck is heard from, because the public half goes
+    // in the hello. Let go of once the key is derived — unused, when the deck
+    // that answers turns out not to mix — and on every way out below.
+    let mine = mixesEphemeral(myChallenge) ? ephemeralPair() : null;
+    const myEpk = mine?.pub;
     const sock = net.createConnection({ host, port });
     sock.setEncoding("utf8");
     let settled = false;
     const fail = err => {
       if (settled) return;
       settled = true;
+      mine = null;
       sock.destroy();
       reject(err instanceof Error ? err : new Error(String(err)));
     };
@@ -789,13 +851,19 @@ export function connectToPeer({
       // — that one is ephemeral and useless to dial. Without it a deck can
       // accept an incoming request and still have no way to reach back, so the
       // pairing is mutual on paper and one-way in fact.
-      sendFrame(sock, { t: "hello", fp, pub, name, port: myPort, challenge: myChallenge });
+      // `epk` is this connection's key pair, offered: a deck from before #1120
+      // reads past a field it does not know, and one of this version answers.
+      sendFrame(sock, {
+        t: "hello", fp, pub, name, port: myPort, challenge: myChallenge, ...(myEpk ? { epk: myEpk } : {}),
+      });
     });
 
     let theirChallenge = null;
     let theirFp = null;
     let theirPub = null;
     let key = null;
+    /** What the key was derived over; the invite proofs are made over it too. */
+    let transcript = null;
     sock.on("data", frameReader(msg => {
       if (settled) return;
       // A deck that heard us and said no. Each reason is a different problem
@@ -829,7 +897,25 @@ export function connectToPeer({
         theirChallenge = msg.challenge;
         theirFp = them.fp;
         theirPub = them.pub;
-        key = sessionKey(secret, theirPub, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge));
+        // Mixed when both challenges say so, as at the listener, and then the
+        // listener's key is required: a deck of this version that says it
+        // mixes and sends no key is not an older deck, it is a deck whose key
+        // was taken out on the way. Refused, and never read the old way.
+        const mixing = mixesEphemeral(myChallenge) && mixesEphemeral(theirChallenge);
+        const theirEphemeral = mixing ? readEphemeral(msg.epk) : null;
+        if (mixing && !theirEphemeral) return fail(new Error("bad challenge"));
+        transcript = mixing
+          ? handshakeTranscript(fp, theirFp, myChallenge, theirChallenge, myEpk, theirEphemeral)
+          : handshakeTranscript(fp, theirFp, myChallenge, theirChallenge);
+        try {
+          key = sessionKey(secret, theirPub, transcript,
+            mixing ? { role: "caller", priv: mine.priv, peer: theirEphemeral } : null);
+        } catch {
+          return fail(new Error("bad challenge"));
+        } finally {
+          // Used or not, the private half goes now.
+          mine = null;
+        }
         sendFrame(sock, {
           t: "auth",
           proof: proof(key, {
@@ -839,7 +925,7 @@ export function connectToPeer({
           // Only when joining on an invite. Sent in the same frame as the
           // session proof so a deck that holds a token is paired in one round
           // trip rather than being queued behind somebody else's press.
-          ...(code ? { invite: inviteProof(code, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge)) } : {}),
+          ...(code ? { invite: inviteProof(code, transcript) } : {}),
         });
         return;
       }
@@ -862,7 +948,7 @@ export function connectToPeer({
       // the rest of the list, so a deck answering at a stale or borrowed
       // address costs one failed address instead of winning the whole token.
       if (code && inviteProvesBack) {
-        const back = inviteProofBack(code, handshakeTranscript(fp, theirFp, myChallenge, theirChallenge));
+        const back = inviteProofBack(code, transcript);
         if (!proofOk(back, msg.inviteProof)) {
           return fail(new Error("that deck does not hold the invite"));
         }
