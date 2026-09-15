@@ -2340,12 +2340,35 @@ function Inner() {
       // rather than one of its own: the periodic mechanism the three sweeps
       // below already share is the whole of what this needed.
       if (sweepStaleSessions(stateRef.current, t, STALE_SESSION_MS)) changed = true;
+      // AND THE SERVER IS TOLD WHAT LEFT (#1024). Both pruners below drop whole
+      // sessions, and the server keeps two caches that gate an emit on "has this
+      // changed" — a session's name and each subagent's model. Nothing told them
+      // the page had forgotten a session, so a session evicted while idle and
+      // then resumed never got a `SessionNamed` again and showed as unnamed in
+      // the sidebar and on the card for the rest of the day, recoverable only by
+      // reloading the tab. #445's own measurement: 7 of 20 evicted sessions went
+      // on to emit more events.
+      //
+      // One POST for the whole tick rather than one per session, because the two
+      // pruners run back to back and a cap coming down by six is six ids, not
+      // six requests.
+      const forgotten: string[] = [];
+      const forget = (sid: string) => { forgotten.push(sid); };
       // Prune long-finished agents so memory doesn't grow over multi-day
       // sessions. Keeps most-recent AGENT_CAP — past 5 minutes since done.
-      if (pruneOldAgents(stateRef.current, t, AGENT_CAP, AGENT_GRACE_MS)) changed = true;
+      if (pruneOldAgents(stateRef.current, t, AGENT_CAP, AGENT_GRACE_MS, forget)) changed = true;
       // Keep the canvas to the last few finished sessions, so a long day of
       // work doesn't bury the running ones under everything already done.
-      if (pruneDoneSessions(stateRef.current, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS)) changed = true;
+      if (pruneDoneSessions(stateRef.current, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget)) changed = true;
+      if (forgotten.length > 0) {
+        // Failure is not worth reporting and not worth retrying: the worst it
+        // costs is the state this fixes, which is what every deck had before.
+        fetch("/api/forget", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ids: forgotten }),
+        }).catch(() => {});
+      }
       // And the selection along with them, so it never names an agent that has
       // been evicted (#576). Run unconditionally rather than under `changed`:
       // a `__clear` over SSE empties the map through applyEvent, which this
