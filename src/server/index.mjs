@@ -3234,7 +3234,7 @@ function handlePrefsRead(req, res) {
 
 /** POST a patch. Fields nobody sent keep their value — see writePrefs. */
 async function handlePrefsWrite(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -3309,7 +3309,7 @@ export async function awayUpdateTick({ graceMs = AWAY_BOOT_GRACE_MS } = {}) {
 /** POST {tab, looking} — a tab saying whether it is being looked at. See
  *  presence.mjs, and src/web/presence.ts for the sender. */
 async function handlePresence(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -3561,7 +3561,7 @@ function handleLanStatus(req, res) {
  * than offering something its owner has forgotten they sent.
  */
 async function handleLanInvite(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   switch (body?.action) {
@@ -3587,7 +3587,7 @@ async function handleLanInvite(req, res) {
 }
 
 async function handleLanPeer(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   const fp = body && typeof body.fp === "string" ? body.fp : null;
@@ -3647,7 +3647,7 @@ async function handleLanPeer(req, res) {
  *  dialog. A deck that only calls in has no address here, and says so rather
  *  than reporting a round that asked nobody. */
 async function handleLanSync(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* the whole-list press sends nothing to read */ }
   const fp = body && typeof body.fp === "string" ? body.fp : null;
@@ -4112,6 +4112,13 @@ export async function replayLog(filePath, workspace = "", {
 }
 
 function send(res, status, body, headers = {}) {
+  // ALREADY ANSWERED. A handler that replies after something upstream has
+  // already written a status would otherwise throw ERR_HTTP_HEADERS_SENT out
+  // of the route and become a 500 — or, on a streamed answer, corrupt it. The
+  // oversize path below relies on this: readBody answers 413 itself and then
+  // rejects into a caller whose own `send(res, 400, ...)` must be a no-op
+  // rather than a second reply.
+  if (res.headersSent) return;
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
@@ -4267,24 +4274,60 @@ async function serveStatic(req, res, url) {
   }
 }
 
-/** Collect a request body as a string, capped so a bad client can't fill memory. */
-function readBody(req, limit = 64_000) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.setEncoding("utf8");
-    req.on("data", c => {
-      body += c;
-      if (body.length > limit) { req.destroy(); reject(new Error("body too large")); }
-    });
-    req.on("end", () => resolve(body));
-    req.on("error", reject);
-  });
-}
-
 // How long an oversized POST is drained after it has been refused, so the 413
 // reaches a poster that is still uploading. Generous next to hook.js's own
 // one-second budget, and finite so nothing can sit on the socket indefinitely.
 const OVERSIZE_DRAIN_MS = 10_000;
+
+/**
+ * Collect a request body as a string, capped so a bad client can't fill memory.
+ *
+ * IT ANSWERS BEFORE IT HANGS UP, which it did not. `req.destroy()` ran ahead of
+ * the reject, so the caller's own `send(res, 400, ...)` had no socket left to
+ * write to: every one of the eleven routes through here replied to an oversized
+ * body with a bare connection reset. Measured with a 70 KB body — `curl` exit
+ * 56, "failure receiving network data", no status line, and nothing in the log.
+ * `POST /api/lan/sync` is the one that matters, because its caller is another
+ * deck rather than a person: it saw a reset it could not tell from a deck that
+ * had died, and reported a network error rather than "too big".
+ *
+ * handleEventIngest was fixed for exactly this and its comment asserts this
+ * function already got it right. It did not; this is that fix, in the shape
+ * that one worked out and documents at length:
+ *
+ *   • answer 413 here, so there is a status on the wire;
+ *   • keep reading and throw it away, because the poster is still mid-upload
+ *     and hanging up now lands its next write on a dead socket — it aborts with
+ *     EPIPE and discards the answer already sitting in its receive buffer;
+ *   • bound the drain, because draining forever is its own denial of service.
+ *
+ * The reject still fires, so the callers' `.catch(() => null)` and their
+ * `send(res, 400, ...)` are unchanged — `send` is a no-op once the headers have
+ * gone out.
+ */
+function readBody(req, res = null, limit = 64_000) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    let refused = false;
+    req.setEncoding("utf8");
+    req.on("data", c => {
+      if (refused) return;
+      body += c;
+      if (body.length > limit) {
+        refused = true;
+        body = "";
+        if (res) send(res, 413, { error: "body too large" });
+        req.resume();
+        const grace = setTimeout(() => req.destroy(), OVERSIZE_DRAIN_MS);
+        grace.unref?.();
+        req.on("close", () => clearTimeout(grace));
+        reject(new Error("body too large"));
+      }
+    });
+    req.on("end", () => { if (!refused) resolve(body); });
+    req.on("error", reject);
+  });
+}
 
 // `persist` is false when the hook posted this event to another deck as well
 // and elected that one to write it to the log they share. The event is still
@@ -4308,8 +4351,10 @@ function handleEventIngest(req, res, persist = true) {
       // the connection had gone — indistinguishable from a deck that died or
       // was never there, and nothing in the exchange to tell those apart. `end`
       // never fires on a destroyed request either, so the handler below got no
-      // second chance to speak. readBody above gets this right already, by
-      // rejecting into a caller that replies.
+      // second chance to speak. readBody above was believed to get this right
+      // by rejecting into a caller that replies; it destroyed the socket first,
+      // so all eleven of its routes answered an oversized body with the same
+      // bare reset. It answers and drains now, in this shape.
       send(res, 413, { error: "event too large" });
       // Then keep reading, and throw it away. Answering is not enough on its
       // own, because the poster is still mid-upload when the answer goes out:
@@ -4574,7 +4619,7 @@ async function handleRestart(req, res) {
 
   let wantUpgrade = false;
   if (req.method === "POST") {
-    const body = await readBody(req).catch(() => null);
+    const body = await readBody(req, res).catch(() => null);
     try { wantUpgrade = JSON.parse(body ?? "")?.upgrade === true; } catch { /* a plain restart */ }
   }
   let mode = null;
@@ -4763,7 +4808,7 @@ export const isCliDate = (v) => v === undefined || /^\d{8}$/.test(v);
  * reaches a handler, which is exactly the pair a GET deliberately skips.
  */
 async function handleBrowserWatchSettings(req, res) {
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -4817,7 +4862,7 @@ async function handleBrowserWatchDismiss(req, res) {
   // isAuthorizedMutation on every non-GET before a handler sees it, which is
   // the pair its GET twin deliberately skips. A second check here would be a
   // second thing to keep correct.
-  const raw = await readBody(req).catch(() => null);
+  const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* handled below */ }
   const host = typeof body?.host === "string" ? body.host : null;
@@ -4925,7 +4970,7 @@ async function handleClaudeAccountSwitch(req, res) {
   const { switchClaudeAccount, invalidateClaudeAccountsCache } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/claude-accounts.mjs")).href
   );
-  const body = await readBody(req).catch(() => null);
+  const body = await readBody(req, res).catch(() => null);
   let parsed = null;
   try { parsed = JSON.parse(body ?? ""); } catch { /* handled below */ }
   if (!parsed || typeof parsed !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -4973,7 +5018,7 @@ async function handleAccountLoginState(_req, res) {
  */
 async function handleClaudeAccountAdmin(req, res) {
   const admin = await cswapAdminModule();
-  const body = await readBody(req).catch(() => null);
+  const body = await readBody(req, res).catch(() => null);
   let parsed = null;
   try { parsed = JSON.parse(body ?? ""); } catch { /* handled below */ }
   if (!parsed || typeof parsed !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
@@ -5021,7 +5066,7 @@ async function handleCswapAuto(req, res) {
  */
 async function handleCswapAutoAction(req, res) {
   const mod = await cswapAutoModule();
-  const body = await readBody(req).catch(() => null);
+  const body = await readBody(req, res).catch(() => null);
   let parsed = null;
   try { parsed = JSON.parse(body ?? ""); } catch { /* handled below */ }
   if (!parsed || typeof parsed !== "object") return send(res, 400, { ok: false, reason: "bad_request" });

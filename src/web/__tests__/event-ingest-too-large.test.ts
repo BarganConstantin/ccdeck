@@ -8,10 +8,15 @@
 // apart. `end` never fires on a destroyed request either, so the handler had no
 // second chance to say anything.
 //
-// readBody (64 KB, everywhere else) gets this right by rejecting into a caller
-// that replies. This route now answers 413 first and drops the socket only once
-// the reply has flushed, since destroying a socket discards whatever is still
-// queued on it.
+// readBody (64 KB, everywhere else) was believed to get this right by
+// rejecting into a caller that replies. It did not: it called `req.destroy()`
+// BEFORE the reject, so the caller's `send(res, 400, ...)` had no socket left
+// and all eleven of those routes answered an oversized body with the same bare
+// reset. It answers 413 and drains now, in the shape this route worked out —
+// the cases at the bottom of this file are that fix.
+//
+// This route answers 413 first and drops the socket only once the reply has
+// flushed, since destroying a socket discards whatever is still queued on it.
 //
 // hook/hook.js is the only client that posts here. It reads the response and
 // then calls its finish callback, and it holds a 1-second timeout over the
@@ -71,10 +76,11 @@ afterAll(async () => {
  * be measuring as a test failure. A response, if one arrives, is the answer;
  * the error only speaks when nothing else does.
  */
-function postBytes(bytes: number, path = "/api/event"): Promise<{ status: number | null; body: string; err: string | null }> {
+function postBytes(bytes: number, path = "/api/event", extra: Record<string, string> = {}): Promise<{ status: number | null; body: string; err: string | null }> {
   return new Promise((done) => {
     let answered = false;
-    const req = request({ host: "127.0.0.1", port, path, method: "POST", headers: { "Content-Type": "application/json" } }, res => {
+    const headers = { "Content-Type": "application/json", ...extra };
+    const req = request({ host: "127.0.0.1", port, path, method: "POST", headers }, res => {
       answered = true;
       let body = "";
       res.setEncoding("utf8");
@@ -143,5 +149,49 @@ describe("POST /api/event past the 5 MB cap", () => {
     });
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body).ok).toBe(true);
+  });
+});
+
+// The eleven routes that go through readBody's 64 KB cap. `/api/prefs` stands
+// for them: the path is the shared helper, not the handler.
+//
+// `/api/lan/sync` is the one that made this worth fixing rather than noting —
+// its caller is another deck, not a person, and a reset is indistinguishable
+// from a deck that died, so a peer reported a network error where the answer
+// was "too big".
+describe("a body past readBody's 64 KB cap", () => {
+  // A request the mutation guard admits: a same-origin POST from the deck's own
+  // page is what these routes exist for, and without it the 401 lands before
+  // readBody ever runs.
+  const asPage = (path: string, bytes: number) => postBytes(bytes, path, {
+    Origin: `http://127.0.0.1:${port}`,
+  });
+
+  it("answers 413 rather than resetting the connection", async () => {
+    const r = await asPage("/api/prefs", 128 << 10);
+    expect(r.err, "a reset here is the bug this closes").toBeNull();
+    expect(r.status).toBe(413);
+    expect(r.body).toContain("body too large");
+  });
+
+  it("answers once, not twice, though the caller replies too", async () => {
+    // readBody sends the 413 and still rejects, so the caller's own
+    // `send(res, 400, ...)` runs. `send` is a no-op once the headers have gone
+    // out — without that guard this throws ERR_HTTP_HEADERS_SENT and the route
+    // becomes a 500.
+    const r = await asPage("/api/prefs", 128 << 10);
+    expect(r.status).toBe(413);
+    expect(r.body.trim().endsWith("}"), "one JSON document, not two").toBe(true);
+  });
+
+  it("leaves the server healthy afterwards", async () => {
+    await asPage("/api/prefs", 128 << 10);
+    const health = await new Promise<number | null>(done => {
+      request({ host: "127.0.0.1", port, path: "/api/health", method: "GET" }, res => {
+        res.resume();
+        res.on("end", () => done(res.statusCode ?? null));
+      }).on("error", () => done(null)).end();
+    });
+    expect(health).toBe(200);
   });
 });
