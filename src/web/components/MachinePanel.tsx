@@ -308,8 +308,15 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
         <div className="sd-section" role="group" aria-label="Cores">
           <OpensHistory group="cores" title="Core history" action="Show core history" label="Cores">
           {/* One column per core. The aggregate in the topbar cannot tell a
-              saturated machine from one hot single-threaded job; this can. */}
-          <div className="sd-cores" style={{ "--n": perCore.length } as React.CSSProperties}>
+              saturated machine from one hot single-threaded job; this can.
+
+              No `--n` any more: the strip counted its own columns into a
+              custom property so the grid could repeat a 1fr track that many
+              times, and that had no minimum — at 64 threads a column measured
+              1.93px and at 128 it measured zero. The strip wraps now and the
+              count is the number of children, which the layout can see for
+              itself. */}
+          <div className="sd-cores">
             {perCore.map((v, i) => (
               <span key={i} className="sd-core" title={`core ${i + 1}: ${v}%`}>
                 {/* A fraction of a full-height column, not a height (#505).

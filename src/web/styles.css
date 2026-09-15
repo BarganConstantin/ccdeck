@@ -1148,20 +1148,22 @@ button.btn.sm-hear {
 }
 /* The number is a READING, not a label, and it was set in --text at the weight
    of one. Dim and tabular: it stops competing with the two words above it, and
-   it stops shuffling by a pixel as the thumb moves through 8, 9, 10. */
+   it stops shuffling by a pixel as the thumb moves through 8, 9, 10. Wide
+   enough, too, that "100%" does not push the slider narrower than "0%" did.
+
+   ONE RULE, because two of them seven lines apart argued the opposite cases and
+   only one of them shipped. A bare `.sm-read` sat under this and restated
+   `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
+   so both declarations were dead and its comment described a span that has
+   never been drawn that way. Reading either rule alone gave the wrong answer
+   about what ships. The span is rendered in exactly one place, SoundMenu.tsx's
+   `.sound-menu` subtree, so the descendant selector loses nothing. */
 .sound-menu .sm-read {
+  min-width: 34px;
+  text-align: right;
   color: var(--muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-}
-/* Tabular, so stepping the value does not shuffle the row, and wide enough that
-   "100%" does not push the slider narrower than "0%" did. */
-.sm-read {
-  min-width: 34px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  color: var(--text);
 }
 /* The one control here the platform draws entirely: only the box it sits in is
    ours, and `accent-color` tints the open list where the platform honours it. */
@@ -1420,12 +1422,18 @@ button.btn.sm-hear {
   cursor: default;
   animation: rail-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-/* Where the right rail actually starts, which is NOT a constant: the usage
-   panel clears the detail panel at 368px, and drops to 8px when that panel is
-   closed (`.app:not(:has(.detail)) .usage-panel`, further down this sheet).
-   Pinning 368 here is what made this panel sit 360px away from usage whenever
-   the detail panel was shut — the rail had moved and only one of the two
-   panels knew. A variable so the pair cannot drift apart again. */
+/* Where the right rail actually starts, which is NOT a constant: it clears the
+   detail panel at 368px and drops to 8px when that panel is closed.
+   Pinning 368 in the machine panel is what made it sit 360px away from usage
+   whenever the detail panel was shut — the rail had moved and only one of the
+   two panels knew. A variable so the pair cannot drift apart again.
+
+   AND BOTH PANELS READ IT NOW. Until #1026 the usage panel still carried its
+   own literal 368 and its own `:not(:has(.detail))` override further down the
+   sheet, so the promise on this line held for the machine panel alone and the
+   pair could still drift — by 40px, in the direction the very next edit to the
+   detail panel's width would take it. The two rules that said the number twice
+   are gone; this is the only place it is written. */
 .app { --rail-r: 368px; }
 .app:not(:has(.detail)) { --rail-r: 8px; }
 
@@ -1442,6 +1450,37 @@ button.btn.sm-hear {
 @media (max-width: 640px) {
   .app .usage-panel,
   .app .sysdetail { left: 8px; right: 8px; width: auto; }
+  /* AND THEY STACK, because spanning the window is only half an answer. Both
+     are `position: fixed; top: 60px; z-index: 20`, and this block used to
+     change the horizontal box alone — so with both panels open they occupied
+     the IDENTICAL rectangle and the later one in DOM order, the machine panel,
+     painted over the whole of the usage panel. Measured in Firefox at a 500px
+     viewport, both open:
+
+       .usage-panel  left 8  right 492  top 57  bottom 257
+       .sysdetail    left 8  right 492  top 57  bottom 257   — 96,800px² of overlap
+
+     against the desktop layout at 1200px, which is the design and is untouched:
+
+       .usage-panel  left 552  right 832
+       .sysdetail    left 252  right 532   — the 20px gap .shifted exists to open
+
+     Both panels persist their open state, so a user who leaves the pair open on
+     a desktop and then opens the deck on a phone saw one panel and a `U` key
+     that flipped `aria-expanded` with nothing on screen moving.
+
+     Usage keeps the top because it keeps it everywhere else; the machine panel
+     takes the bottom. The cap is half the viewport less the chrome each end, so
+     the two cannot grow into each other whatever they contain — 8px of daylight
+     between them at any height. This is not the stacking the owner turned down
+     for #847: that was one column on a DESKTOP, where the pair fits side by
+     side. Here nothing fits beside anything. */
+  .app .usage-panel { max-height: calc(50vh - 38px); }
+  .app .sysdetail {
+    top: auto;
+    bottom: 8px;
+    max-height: calc(50vh - 38px);
+  }
 }
 /* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
    same object: both fixed at the same top, both 280px, both opened by a button
@@ -1492,12 +1531,35 @@ button.btn.sm-hear {
 
 /* One column per core, so the shape of the load is visible — a saturated
    machine and one hot single-threaded job read identically in the aggregate. */
+/* WRAPPED, WITH A FLOOR, because `repeat(var(--n), 1fr)` has no minimum and
+   --n is `os.cpus().length` with no cap anywhere in the chain. Measured in
+   Firefox against the real sheet, in this panel's 250px content box:
+
+     12 threads   19px per column
+     64 threads   1.93px per column
+     128 threads  0px — the 2px gaps consume the entire width and every core
+                  renders at zero, so the strip is blank
+
+   which is the distinction this section exists to draw — "a saturated machine
+   and one hot single-threaded job read identically" — failing exactly on the
+   machines big enough for it to matter. A 64-core workstation is squarely
+   inside this deck's audience.
+
+   Flex rather than grid: `flex-wrap` is the only one of the two that can let a
+   row it cannot fit become two rows. Below the wrap point the layout is
+   identical to the grid it replaces — `flex: 1 1 3px` over a 2px gap
+   distributes the leftover exactly as `1fr` did, and 12 threads still measure
+   19px each. Above it the strip grows downward, in a panel that already
+   scrolls, rather than showing nothing. No core is hidden and none is narrower
+   than 3px, which is the width the 2px corner radius needs to still read as a
+   bar. */
 .sd-cores {
-  display: grid;
-  grid-template-columns: repeat(var(--n), 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: 2px;
-  height: 26px;
 }
+.sd-cores .sd-core { flex: 1 1 3px; min-width: 3px; height: 26px; }
 .sd-core {
   display: flex;
   align-items: flex-end;
@@ -5490,7 +5552,16 @@ button.tool.clickable:last-child { border-bottom: none; }
   animation: rail-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   position: fixed;
   top: 60px;
-  right: 368px; /* clear the detail panel */
+  /* THE SAME VARIABLE THE MACHINE PANEL READS. This was a literal 368 with a
+     duplicate override further down the sheet — `.app:not(:has(.detail))
+     .usage-panel { right: 8px }` — which is the exact two-places-one-number
+     shape --rail-r was introduced to end, and it left the variable's promise
+     ("a variable so the pair cannot drift apart again", at its definition)
+     true of only one of the two panels it names. Widening the detail panel and
+     moving --rail-r with it, which its own comment invites, moved the machine
+     panel and left this one behind: the designed 20px between them opens to
+     60px and the usage panel's right edge slides under the detail panel. */
+  right: var(--rail-r);
   width: 280px;
   max-height: calc(100vh - 76px);
   overflow-y: auto;
@@ -6003,9 +6074,6 @@ button.tool.clickable:last-child { border-bottom: none; }
   text-align: center;
   line-height: 1.6;
 }
-
-/* Shift usage-panel left when session-list is closed (detail panel shifts too) */
-.app:not(:has(.detail)) .usage-panel { right: 8px; }
 
 /* ── quota bars ── */
 .up-quota-section { padding-top: 10px; border-top: none; }
@@ -9703,10 +9771,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   box-shadow: inset 0 -1px 0 var(--line);
 }
 .pl-body .pl-table thead th { padding-bottom: 6px; }
+/* No `padding-right` here. It carried `8px !important` — one of only three
+   !important declarations in this sheet, and the one that could never apply:
+   pid is the sixth column, so `.pl-body .pl-table th:nth-child(6)` below sets
+   `padding-right: 18px !important` at (0,3,1) against this rule's (0,1,0), and
+   two !importants are settled by specificity like anything else. It read as the
+   pid column's own padding and was never the pid column's padding. */
 .pl-pid-h {
   width: 72px;
   text-align: right;
-  padding-right: 8px !important;
   font-size: 10px;
   font-weight: 500;
   color: var(--muted);
@@ -9740,7 +9813,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .pl-body .pl-table td:nth-child(4),
 .pl-body .pl-table th:nth-child(6),
 .pl-body .pl-table td:nth-child(6) { padding-right: 18px !important; }
-.pl-body .pl-table th:nth-child(2) { width: 66px; }
+/* `.sd-procs` IS ON THIS TABLE ALREADY, and naming it here is what makes this
+   override an override. Without it this selector is (0,3,1) and so is the
+   panel's `:is(.sysdetail, .pl-body) .sd-procs th:nth-child(2) { width: 40px }`
+   — `:is()` takes the specificity of its most specific argument — so the 66px
+   this line exists to set won on SOURCE ORDER alone. Sorting this sheet into
+   sections, which changes no rule, would have silently dropped the modal's
+   memory column to the 40px measured for a 280px panel. (0,4,1) now, and the
+   order is no longer load-bearing. */
+.pl-body .pl-table.sd-procs th:nth-child(2) { width: 66px; }
 .pl-body .pl-table th:nth-child(3) { width: 54px; }
 .pl-body .pl-table th:nth-child(4) { width: 52px; }
 .pl-body .pl-table th:nth-child(5) { width: 92px; }
