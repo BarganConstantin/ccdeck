@@ -178,7 +178,7 @@ export const GATES = [
 
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
 
-  { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 2 },
+  { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 3 },
 
   { file: "theme-first-paint.test.ts", gate: "it.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 1 },
   // #962's four cases, which read dist/web/assets rather than dist/web/index

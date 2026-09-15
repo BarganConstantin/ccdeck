@@ -34,13 +34,13 @@ import { claudeConfigDir } from "./claude-dir.mjs";
 import { discoverProfiles } from "./browser-profiles.mjs";
 import { msToChromeTime, readVisitsSince } from "./browser-history.mjs";
 import { classify, toEpisodes, defaultExclusions, isProgramNavigation } from "./agent-activity.mjs";
-import { appendLog, logPath, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
+import { appendLog, logPath, logSize, mergeEpisodes, readStore, undismissed, updateStore, writeStore } from "./browser-watch-store.mjs";
 import { browserSurvey } from "./browser-presence.mjs";
 import { available, performable, react } from "./browser-react.mjs";
 import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchCommand, verdict } from "./relay-guard.mjs";
 
 /**
- * The moment this deck started, and the only floor any read uses.
+ * The moment this deck started, and where every profile's first read begins.
  *
  * THE WATCH LOOKS FORWARD, NEVER BACK. An earlier version swept thirty days of
  * Chrome's history on every open, which answered "what happened while you were
@@ -62,6 +62,26 @@ import { RELAY_HOST, hostsPath, readKillswitch, extensionReport, killswitchComma
  * first read.
  */
 const STARTED_MS = Date.now() - Math.round(process.uptime() * 1000);
+
+/**
+ * Where each profile's next read starts, keyed by history path: the watermark
+ * the last successful read handed back.
+ *
+ * EVERY READ USED TO START AT STARTED_MS (#989), so the window never moved. The
+ * note above stops the read going BACKWARD — a month of somebody's browsing is
+ * "a great deal of somebody's private life to hold in memory" — and nothing
+ * stopped it growing FORWARD: a deck up for a week asked for a week of browsing
+ * every time the browser wrote, which is constantly while anybody uses it, and
+ * kept the answer in `cache`. `readVisitsSince` computes a watermark for exactly
+ * this — "store it and hand it back next poll" — and nothing in `src/` read it.
+ *
+ * Seeded from STARTED_MS, so a profile's first read still begins when the deck
+ * did and nothing before that is read. Moved only by a read that succeeded: a
+ * degraded one hands its floor back unchanged, so the window it missed is asked
+ * for again rather than skipped. Not cleared by `invalidateBrowserWatchCache`,
+ * for the reason given there.
+ */
+const _floor = new Map();
 
 /** One cached read per profile: the mtime it was taken at, and what it found.
  *  Keyed by history path, so two browsers and two profiles never share an
@@ -202,19 +222,28 @@ function pidAlive(pid) {
   catch (e) { return !!e && (e.code === "EPERM" || e.code === "EACCES"); }
 }
 
-async function visitsFor(profile, { sinceChromeTime, copyDir, deps = {} }) {
+async function visitsFor(profile, { sinceChromeTime, countSince, copyDir, deps = {} }) {
   const stamp = mtimeMs(profile.historyPath, deps);
   if (stamp === null) return { rows: [], degraded: true, reason: "no-history-file", stamp: null };
 
   const hit = cache.get(profile.historyPath);
-  if (hit && hit.stamp === stamp && hit.since === sinceChromeTime) return { ...hit.value, cached: true };
+  // KEYED ON THE mtime ALONE (#989). The floor moves on every read that finds
+  // something, so a key that carried it would miss on the very next poll and
+  // re-copy the database to learn nothing. An mtime that has not moved means
+  // the browser has written nothing, which is nothing above any floor.
+  if (hit && hit.stamp === stamp) return { ...hit.value, rows: [], cached: true };
 
   const read = await (deps.readVisitsSince ?? readVisitsSince)(
-    profile.historyPath, sinceChromeTime, { copyDir },
+    profile.historyPath, sinceChromeTime, { copyDir, countSince },
   );
-  const value = { rows: read.rows, degraded: read.degraded, reason: read.reason, stamp };
-  cache.set(profile.historyPath, { stamp, since: sinceChromeTime, value });
-  return value;
+  // AND NO ROWS ARE KEPT HERE (#989). This entry used to hold `read.rows`: every
+  // visit since the deck booted, the user's own browsing included, query
+  // strings and all, for the life of the process — and a repeat look needs none
+  // of it. A cached poll reads no rows and returns none; what the profile has
+  // contributed is carried by `_lastRead`.
+  const value = { degraded: read.degraded, reason: read.reason, stamp };
+  cache.set(profile.historyPath, { stamp, value });
+  return { ...value, rows: read.rows, watermark: read.watermark, total: read.total ?? null };
 }
 
 /** Drop every cached read. The panel's refresh control calls this: an mtime that
@@ -224,10 +253,16 @@ export function invalidateBrowserWatchCache() {
   cache.clear();
   _lastForced = 0;
   surveyCache = { atMs: 0, rows: [] };
-  // The memo of what each profile last really said goes with it. It exists to
-  // stand in for a read the cache skipped, and there are no skipped reads left
-  // to stand in for.
-  _lastRead.clear();
+  // `_lastRead` and `_floor` STAY, since #989. `_lastRead` used to be a memo
+  // standing in for a read the cache had skipped, and clearing it cost nothing:
+  // the next poll re-read every visit since the deck started and rebuilt it.
+  // That read no longer happens. The next poll starts at `_floor`, so
+  // `_lastRead` is the only record of what the reads before it found, and
+  // clearing it would erase them rather than re-read them. Winding `_floor`
+  // back instead would bring the every-visit-since-boot read back on every
+  // press of Refresh. A Refresh means "look again now", not "forget what you
+  // saw".
+  //
   // _lastCount is DELIBERATELY NOT cleared. It is not a cache of what was
   // read — it is the record of what has already been REPORTED, and the log it
   // feeds survives this reset too. Clearing it made the next read compute its
@@ -539,13 +574,96 @@ let _checkedMs = 0;
  * cannot happen.
  *
  * Process-scoped, like STARTED_MS: it describes a window that begins when this
- * deck begins, and a deck that restarts re-reads everything anyway.
+ * deck begins, and a deck that restarts begins it again.
+ *
+ * AN ACCUMULATOR SINCE #989, NOT A MEMO. A read now returns only what is newer
+ * than the one before it (see `_floor`), so there is no whole answer left to
+ * keep a copy of: each real read is folded in by `absorb`, and every poll —
+ * cached, degraded or real — answers from what has built up.
  */
 const _lastRead = new Map();
 
-/** How many rows each profile had at its last real read, so a row can report
- *  what was ADDED rather than the running total. */
+/** How many visits each profile held above the deck's start at its last real
+ *  read, so a row can report what was ADDED rather than the running total. */
 const _lastCount = new Map();
+
+/** What a profile has contributed before its first read. */
+function nothingSeen() {
+  return {
+    /** The oldest and newest visit times seen, and the newest a PERSON made. */
+    oldest: null,
+    newest: null,
+    human: null,
+    /** How many of those visits Chrome marked as coming from an API. */
+    byProgram: 0,
+    /**
+     * Findings whose verdict can no longer change, and those that still can.
+     *
+     * THE QUIET GATE IS WHY THIS IS TWO LISTS. `classify` reports a program
+     * navigation only when no HUMAN visit falls within `quietMs` of it, on
+     * either side, so a verdict depends on visits that may arrive in a later
+     * read. Classifying each read's rows on their own is a different
+     * computation, and wrong in the direction that matters: the person's visits
+     * from the read before would be missing from the gate, and a program page
+     * opened while they sat at the browser would be reported.
+     *
+     * What saves it is that the question SETTLES. Only a human visit less than
+     * `quietMs` from a candidate can silence it, and every later read returns
+     * visits newer than `newest`, so once `newest` is `quietMs` past a candidate
+     * nothing still to come can change its answer. Verdicts up to `settledTo`
+     * are final and kept; the ones after it are recomputed on every read from
+     * `window`, the same computation the whole-history classify was.
+     */
+    settled: [],
+    open: [],
+    settledTo: -Infinity,
+    /**
+     * The only raw visits this module keeps between polls: the ones an open
+     * verdict can still be judged against, which is everything newer than
+     * `settledTo - quietMs` — at most twice the quiet gate of browsing, half an
+     * hour at the default. Bounded by the clock, where the cache before #989
+     * held every visit since the deck booted.
+     */
+    window: [],
+  };
+}
+
+/** Fold one real read's rows into what the profile has contributed. Mutates
+ *  `seen`, which is the object `_lastRead` holds. */
+function absorb(seen, rows, { quietMs, classifyOpts, browser }) {
+  if (rows.length === 0) return;
+  for (const row of rows) {
+    if (seen.oldest === null || row.timeMs < seen.oldest) seen.oldest = row.timeMs;
+    if (seen.newest === null || row.timeMs > seen.newest) seen.newest = row.timeMs;
+    // PAGES A PROGRAM OPENED, which is not the same as findings. A finding also
+    // has to clear the quiet gate; this is every navigation Chrome marked as
+    // coming from an API, whether or not anybody was at the keyboard. It is the
+    // figure the overview shows, because a panel about what programs did should
+    // count what programs did — the total row count it showed before was, on a
+    // measured profile, 78% the reader's own browsing.
+    if (isProgramNavigation(row.transition)) seen.byProgram += 1;
+    else if (seen.human === null || row.timeMs > seen.human) seen.human = row.timeMs;
+  }
+  // The visits still in play from earlier reads, then this read's.
+  const evidence = seen.window.concat(rows);
+  // MONOTONIC, so a quiet gate the reader has just lengthened cannot move the
+  // line back and re-open a verdict already kept, which would list that finding
+  // twice: once settled and once open.
+  const settleTo = Math.max(seen.settledTo, seen.newest - quietMs);
+  const verdicts = classify(evidence, classifyOpts)
+    // Tagged with the browser they came from, which is the one thing a reaction
+    // cannot work out for itself: closing a tab means telling ONE application
+    // to close it, and a finding that has forgotten which browser it was in can
+    // only be guessed at.
+    .map(f => ({ ...f, browser }));
+  for (const f of verdicts) {
+    if (f.timeMs > seen.settledTo && f.timeMs <= settleTo) seen.settled.push(f);
+  }
+  seen.open = verdicts.filter(f => f.timeMs > settleTo);
+  seen.settledTo = settleTo;
+  // Nothing older than `settleTo - quietMs` can silence a verdict still open.
+  seen.window = evidence.filter(r => r.timeMs > settleTo - quietMs);
+}
 
 
 /** Whether the archive gained or altered anything worth a disk write. Compared
@@ -637,6 +755,7 @@ export async function browserWatchSnapshot({
         lastHumanMs: null,
         quietMs: quietMs ?? 15 * 60_000,
         logPath: logPath(),
+        logBytes: await (deps.logSize ?? logSize)(),
         checkedMs: _checkedMs,
         checks: _checks,
         archived: archived.length,
@@ -650,11 +769,13 @@ export async function browserWatchSnapshot({
   }
 
   const profiles = (deps.discoverProfiles ?? discoverProfiles)(platform, env, undefined, deps.fs);
-  // Fixed for the life of the process, which is also what keeps the mtime cache
-  // working: a floor computed from `now` moves every millisecond and would land
-  // in the cache key as a value that never repeats — that bug shipped once, and
-  // it re-read and re-copied every database on every request while looking
-  // perfectly correct, because only the cost was wrong.
+  // Fixed for the life of the process. It is where each profile's first read
+  // begins, what the running count is taken above, and what the panel says it
+  // covers. It is no longer every read's floor (see `_floor`), and no floor is
+  // in the mtime cache's key: one computed from `now` once landed there as a
+  // value that never repeats — that bug shipped, and it re-read and re-copied
+  // every database on every request while looking perfectly correct, because
+  // only the cost was wrong.
   const sinceMs = STARTED_MS;
   // Chrome counts microseconds from 1601, and `msToChromeTime` is where that
   // conversion lives — its own doc names this caller. The inline copy that used
@@ -678,37 +799,32 @@ export async function browserWatchSnapshot({
   let lastHuman = null;
 
   for (const profile of profiles) {
-    const read = await visitsFor(profile, { sinceChromeTime, copyDir, deps });
+    const read = await visitsFor(profile, {
+      // From where this profile's last read finished, or from the deck's start
+      // on its first. The count is always taken above the deck's start, which
+      // is what makes it the running total the delta below comes out of.
+      sinceChromeTime: _floor.get(profile.historyPath) ?? sinceChromeTime,
+      countSince: sinceChromeTime,
+      copyDir,
+      deps,
+    });
     if (read.degraded) anyDegraded = true;
-    // Tagged with the browser they came from, which is the one thing a reaction
-    // cannot work out for itself: closing a tab means telling ONE application to
-    // close it, and a finding that has forgotten which browser it was in can
-    // only be guessed at.
     const key = `${profile.browser}/${profile.profile}`;
-    let findings = classify(read.rows, { ...opts, exclude })
-      .map(f => ({ ...f, browser: profile.browser }));
-    // Everything this profile contributes, so a cached poll can hand back what
-    // the last real one found instead of erasing it.
-    let oldest = null;
-    let human = null;
-    // PAGES A PROGRAM OPENED, which is not the same as findings. A finding also
-    // has to clear the quiet gate; this is every navigation Chrome marked as
-    // coming from an API, whether or not anybody was at the keyboard. It is the
-    // figure the overview shows, because a panel about what programs did should
-    // count what programs did — the total row count it showed before was, on a
-    // measured profile, 78% the reader's own browsing.
-    let byProgram = 0;
-    for (const row of read.rows) {
-      if (oldest === null || row.timeMs < oldest) oldest = row.timeMs;
-      if (isProgramNavigation(row.transition)) byProgram += 1;
-      else if (human === null || row.timeMs > human) human = row.timeMs;
+    // Everything this profile has contributed since the deck started. A read
+    // that says "unchanged", or that could not be taken, means "as before", not
+    // "nothing": the list must not empty itself because one poll found the file
+    // untouched or the browser holding a lock.
+    const seen = _lastRead.get(key) ?? nothingSeen();
+    if (!read.cached && !read.degraded) {
+      // THE FLOOR MOVES HERE, and only on a read that succeeded. A read with
+      // nothing new hands its floor back as the watermark, so storing that
+      // changes nothing.
+      _floor.set(profile.historyPath, read.watermark);
+      absorb(seen, read.rows, { quietMs, classifyOpts: { ...opts, exclude }, browser: profile.browser });
+      _lastRead.set(key, seen);
     }
-    if (read.cached) {
-      // Carried across a cached poll like everything else here: a read that
-      // says "unchanged" means "as before", not "nothing".
-      ({ findings, oldest, human, byProgram } =
-        _lastRead.get(key) ?? { findings: [], oldest: null, human: null, byProgram: 0 });
-    } else if (!read.degraded) _lastRead.set(key, { findings, oldest, human, byProgram });
+    const findings = seen.settled.concat(seen.open);
+    const { oldest, human, byProgram } = seen;
     const where = `${profile.name}/${profile.profile}`;
     if (read.degraded) note("warn", `${where} — ${read.reason ?? "could not read"}`, now);
     // A poll that found the file unchanged says nothing at all.
@@ -717,17 +833,26 @@ export async function browserWatchSnapshot({
       // `, 0 flagged` on every line is what made them all look alike: the
       // count that matters is the one that is not zero, and printing the zero
       // beside it buried the difference. Absence is the message.
-      // THE DELTA, NOT THE RUNNING TOTAL. `read.rows` is every row since this
-      // deck started, so re-reporting its length made the feed a counter
-      // dressed as a log: "2 visits", "4 visits", "7 visits" are not three
-      // events of those sizes, they are one number growing. Each row is now a
-      // discrete fact — what this browser added since the last time the file
-      // moved — which is what a log line is supposed to be.
+      // THE DELTA, NOT THE RUNNING TOTAL. `n` is every visit since this deck
+      // started, so re-reporting it made the feed a counter dressed as a log:
+      // "2 visits", "4 visits", "7 visits" are not three events of those
+      // sizes, they are one number growing. Each row is now a discrete fact —
+      // what this browser added since the last time the file moved — which is
+      // what a log line is supposed to be.
       //
       // And a read that added nothing says nothing. Chrome touches this file
       // for reasons of its own, so an mtime that moved is not proof that
       // anything happened; only a row count that grew is.
-      const n = read.rows.length;
+      //
+      // THE COUNT, NOT THE ROWS, SINCE #989. The rows were the running total
+      // while every read began at the deck's start. Now they are only what is
+      // newer than the last read, and a cleared history returns none of them —
+      // the same answer a quiet minute gives — so the fall below could never
+      // be seen. `read.total` is the running total again, counted above the
+      // deck's start from the same copy. With no count to go on (a sqlite3 that
+      // printed it some other way) the rows are what is known to have been
+      // added, and that is never mistaken for a fall.
+      const n = read.total ?? (_lastCount.get(key) ?? 0) + read.rows.length;
       const added = n - (_lastCount.get(key) ?? 0);
       _lastCount.set(key, n);
       if (added < 0) {
@@ -770,7 +895,9 @@ export async function browserWatchSnapshot({
       name: profile.name,
       profile: profile.profile,
       hasClaudeExt: profile.hasClaudeExt,
-      visits: read.rows.length,
+      // The running total the feed's deltas add up to, carried across a cached
+      // or failed read like everything else here.
+      visits: _lastCount.get(key) ?? 0,
       // What a program opened, ungated. The overview reads this; `visits` stays
       // because the feed's deltas are computed against it and the two numbers
       // answer different questions.
@@ -910,6 +1037,10 @@ export async function browserWatchSnapshot({
       lastHumanMs: lastHuman,
       quietMs: quietMs ?? 15 * 60_000,
       logPath: logPath(),
+      // What that file holds on disk, both generations, beside its name
+      // (#989). It was the one store in this feature with no cap, and the panel
+      // named it without ever saying how large it had grown.
+      logBytes: await (deps.logSize ?? logSize)(),
       // When the deck last FINISHED a poll, and how many it has done. The
       // panel's liveness reads from these; the heartbeat row that used to
       // carry it is gone. Not `lastWrittenMs` — that is the History file's

@@ -75,8 +75,14 @@ describe("the server counts it separately from the total", () => {
     const { fileURLToPath } = await import("node:url");
     const server = readFileSync(
       fileURLToPath(new URL("../../server/browser-watch.mjs", import.meta.url)), "utf8");
-    expect(server).toMatch(/byProgram \} =\s*_lastRead\.get\(key\)/);
-    expect(server).toMatch(/_lastRead\.set\(key, \{ findings, oldest, human, byProgram \}\)/);
+    //
+    // Carried by ACCUMULATING since #989 rather than by memoising the last real
+    // read: a read now returns only what is new, so there is no whole answer to
+    // keep a copy of. Every poll reads the figure out of the accumulator, and
+    // only a real read adds to it.
+    expect(server).toMatch(/const seen = _lastRead\.get\(key\) \?\? nothingSeen\(\);/);
+    expect(server).toMatch(/if \(isProgramNavigation\(row\.transition\)\) seen\.byProgram \+= 1;/);
+    expect(server).toMatch(/const \{ oldest, human, byProgram \} = seen;/);
   });
 
   it("keeps `visits` too, because the feed's deltas are computed against it", async () => {
@@ -88,9 +94,12 @@ describe("the server counts it separately from the total", () => {
     const { fileURLToPath } = await import("node:url");
     const server = readFileSync(
       fileURLToPath(new URL("../../server/browser-watch.mjs", import.meta.url)), "utf8");
-    expect(server).toMatch(/visits: read\.rows\.length,/);
-    expect(server).toMatch(/const n = read\.rows\.length;/);
+    // Both from `_lastCount`, the running total of visits since the deck
+    // started — `read.rows.length` until #989 made each read return only what
+    // is new.
+    expect(server).toMatch(/visits: _lastCount\.get\(key\) \?\? 0,/);
+    expect(server).toMatch(/const n = read\.total \?\? \(_lastCount\.get\(key\) \?\? 0\) \+ read\.rows\.length;/);
     expect(server, "the delta is being computed against the program count")
-      .not.toMatch(/const n = byProgram/);
+      .not.toMatch(/const n = .*byProgram/);
   });
 });

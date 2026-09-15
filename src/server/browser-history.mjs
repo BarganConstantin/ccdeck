@@ -148,6 +148,34 @@ const visitsSql = (floor) =>
   " ORDER BY v.visit_time";
 
 /**
+ * How many visits the profile still holds above `floor`, for `opts.countSince`.
+ *
+ * WHAT IT IS FOR (#989). The caller used to floor every read at the moment the
+ * deck started, so the number of rows a read returned was a running total, and
+ * a DROP in it was how the watch noticed a browsing history being cleared — the
+ * one action that destroys the evidence this feature collects. A caller whose
+ * floor advances gets only what is new, and a cleared history then answers zero
+ * rows, which is exactly what a quiet minute answers. This is the running total
+ * again, without the rows.
+ *
+ * FLOORED, NEVER THE WHOLE TABLE. Chrome deletes visits older than ninety days
+ * on its own schedule, and a person can delete one old page from their history
+ * without clearing anything. A count of every visit would fall for both, and
+ * the caller would report each as a history "cleared or trimmed". Counted above
+ * the moment the caller started watching, it falls only when something it has
+ * already seen is deleted, which is the only fall the old running total could
+ * ever show.
+ *
+ * A SECOND STATEMENT, NOT A COLUMN ON THE ONE ABOVE: a column would come back
+ * on no rows at all for the read that matched nothing, and that read is the one
+ * that has to see a cleared history. Same copy, so the count and the rows
+ * describe the same moment of a file another program is still writing. CAST for
+ * the header's reason, so the CLI and node:sqlite hand it over in one spelling.
+ */
+const countSql = (floor) =>
+  `SELECT CAST(COUNT(*) AS TEXT) n FROM visits WHERE visit_time > ${floor}`;
+
+/**
  * The floor as a run of digits, or "0".
  *
  * Two jobs, and the second is the one that matters. It normalises "no watermark
@@ -319,11 +347,16 @@ export const stagingRoot = (home = claudeConfigDir()) =>
 /**
  * Every navigation newer than `sinceChromeTime`.
  *
- * `{ rows, watermark, degraded, reason }`
+ * `{ rows, watermark, total, degraded, reason }`
  *   rows       [{ url, timeMs, transition }], oldest first
  *   watermark  the newest chrome time seen, as a string, or the input unchanged
  *              when there was nothing to see — store it and hand it back next
  *              poll
+ *   total      how many visits the profile holds above `opts.countSince`, read
+ *              from the same copy as `rows`; null when no count was asked for
+ *              or none could be read, and NEVER 0 for "could not read", because
+ *              a caller comparing totals would take that zero for a history
+ *              somebody emptied. See `countSql`.
  *   degraded   true when no rows could be read for a reason that is not "no new
  *              navigations": no SQLite reader on this machine, no readable copy,
  *              a torn image. The caller falls back to the file's mtime in all of
@@ -335,16 +368,17 @@ export const stagingRoot = (home = claudeConfigDir()) =>
  *
  * `opts.copyDir` is the root the copy of the locked file is staged UNDER — each
  * call gets its own `mkdtemp` directory inside it, so the copy's own path is
- * never one a caller or anybody else can predict. `opts.backend` skips the probe
- * when the caller already resolved it; `opts.deps` injects the filesystem, the
- * runner and the import for tests.
+ * never one a caller or anybody else can predict. `opts.countSince` is a chrome
+ * time to count visits above, and asks for `total`; left out, no count runs.
+ * `opts.backend` skips the probe when the caller already resolved it;
+ * `opts.deps` injects the filesystem, the runner and the import for tests.
  *
  * NEVER THROWS. Not "rarely" — this is called from a poll in the deck's own
  * process and the inputs are a file another program owns, so the failure modes
  * are ordinary rather than exceptional.
  */
 export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
-  const { copyDir = stagingRoot(), backend } = opts;
+  const { copyDir = stagingRoot(), backend, countSince } = opts;
   const deps = opts.deps ?? {};
   const {
     copyFile: copy = copyFile,
@@ -362,12 +396,16 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
   // normalised floor where it was not, so the answer is always a string a later
   // call can be handed.
   const unchanged = floor === String(sinceChromeTime ?? "").trim() ? String(sinceChromeTime) : floor;
+  // Through the same validation as the floor, for the same reason: on the CLI
+  // path it is pasted into SQL text.
+  const countFloor = countSince === undefined ? null : chromeFloor(countSince);
 
   const chosen = backend ?? await sqliteBackend(opts.deps);
   if (!chosen || chosen.kind === "none") {
     return {
       rows: [],
       watermark: unchanged,
+      total: null,
       degraded: true,
       reason: "no-sqlite-reader: node:sqlite needs Node 22.5+ and no sqlite3 was found on PATH",
     };
@@ -426,16 +464,16 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
     // them are "no rows this poll", none of them is a reason to stop polling.
     await discard(remove, copyPath);
     await discard(remove, stage);
-    return { rows: [], watermark: unchanged, degraded: true, reason: `copy-failed: ${why(err)}` };
+    return { rows: [], watermark: unchanged, total: null, degraded: true, reason: `copy-failed: ${why(err)}` };
   }
 
-  let raw;
+  let read;
   try {
-    raw = chosen.kind === "node-sqlite"
-      ? await readViaNode(copyPath, floor, importSqlite)
-      : await readViaCli(copyPath, floor, chosen.bin, exec);
+    read = chosen.kind === "node-sqlite"
+      ? await readViaNode(copyPath, floor, countFloor, importSqlite)
+      : await readViaCli(copyPath, floor, countFloor, chosen.bin, exec);
   } catch (err) {
-    return { rows: [], watermark: unchanged, degraded: true, reason: `unreadable-copy: ${why(err)}` };
+    return { rows: [], watermark: unchanged, total: null, degraded: true, reason: `unreadable-copy: ${why(err)}` };
   } finally {
     // A 21 MB file per poll. Left behind, this fills the staging directory at
     // the rate the deck polls — and the copy is a full, unencrypted list of
@@ -449,7 +487,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
 
   const rows = [];
   let top = floor;
-  for (const row of raw) {
+  for (const row of read.raw) {
     const timeMs = chromeTimeToMs(row?.t);
     // A row with no URL or an unreadable time is dropped rather than repaired.
     // It cannot be drawn and it must not become the watermark, because a
@@ -466,7 +504,7 @@ export async function readVisitsSince(historyPath, sinceChromeTime, opts = {}) {
   // today, and the watermark is the one value whose being wrong loses rows
   // forever rather than for one poll — so it is computed from what was read
   // instead of from an assumption about how it was sorted.
-  return { rows, watermark: rows.length ? top : unchanged, degraded: false, reason: null };
+  return { rows, watermark: rows.length ? top : unchanged, total: read.total, degraded: false, reason: null };
 }
 
 /**
@@ -507,14 +545,23 @@ async function discard(remove, path) {
  * conversion that the schema happens to ask for — and that is a thing to rely on
  * only when there is no alternative. Here there is one.
  */
-async function readViaNode(file, floor, importSqlite) {
+async function readViaNode(file, floor, countFloor, importSqlite) {
   const { DatabaseSync } = await importSqlite();
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    return db.prepare(visitsSql("?")).all(BigInt(floor));
+    const raw = db.prepare(visitsSql("?")).all(BigInt(floor));
+    const total = countFloor === null ? null : countOf(db.prepare(countSql("?")).get(BigInt(countFloor))?.n);
+    return { raw, total };
   } finally {
     try { db.close(); } catch { /* already closed, or never opened cleanly */ }
   }
+}
+
+/** A count as a number, or null. Both backends hand it over as a run of digits
+ *  — `countSql` casts it — and anything else is not a count this can vouch for. */
+function countOf(n) {
+  const digits = String(n ?? "").trim();
+  return /^\d+$/.test(digits) ? Number(digits) : null;
 }
 
 // sqlite3 -ascii separators: 0x1F between columns, 0x1E after every row
@@ -539,8 +586,13 @@ const RECORD = "\u001e";
  * default is ENOBUFS, which arrives looking like a broken database rather than
  * like a large one.
  */
-async function readViaCli(file, floor, bin, exec) {
-  const res = await exec(bin, ["-readonly", "-ascii", file, visitsSql(floor)], {
+async function readViaCli(file, floor, countFloor, bin, exec) {
+  // BOTH STATEMENTS IN ONE INVOCATION, COUNT FIRST. sqlite3(1) runs its SQL
+  // argument as a script, and a second spawn per poll is the cost this backend
+  // is already the fallback for. COUNT(*) answers exactly one row on any table,
+  // empty included, so the first record is the count and the rest are visits.
+  const sql = countFloor === null ? visitsSql(floor) : `${countSql(countFloor)};${visitsSql(floor)}`;
+  const res = await exec(bin, ["-readonly", "-ascii", file, sql], {
     timeout: 15_000,
     maxBuffer: 64 << 20,
   });
@@ -550,11 +602,22 @@ async function readViaCli(file, floor, bin, exec) {
     const said = why(res?.stderr || res?.stdout || "");
     throw new Error(`sqlite3 exited ${res?.code ?? "?"}${said ? `: ${said}` : ""}`);
   }
+  const records = String(res.stdout ?? "").split(RECORD);
+  // Checked rather than trusted. A count record is a bare run of digits and a
+  // visit record never is — it carries two 0x1F separators — so a first record
+  // that is not one is left in place to be read as a visit, and the count comes
+  // back null: a sqlite3 that printed it some other way costs the count, not a
+  // URL.
+  let total = null;
+  if (countFloor !== null) {
+    total = countOf(records[0]);
+    if (total !== null) records.shift();
+  }
   const out = [];
-  for (const record of String(res.stdout ?? "").split(RECORD)) {
+  for (const record of records) {
     if (!record) continue;
     const [url, t, tr] = record.split(UNIT);
     out.push({ url, t, tr });
   }
-  return out;
+  return { raw: out, total };
 }

@@ -25,7 +25,7 @@
 // then let the next ten-second poll write that emptiness over it. A file that
 // cannot be parsed is now moved aside and said out loud; only a genuinely
 // ABSENT file starts clean. See loadStore.
-import { appendFile, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
 // The rename, with the Windows retry ladder installer.mjs wrote for exactly
 // this call. See the note over `writeNow` (#786). `stripBom` comes from the same
 // module for the reason its export block gives: a rule spelled twice is a rule
@@ -90,6 +90,47 @@ export const quarantinePath = (home = claudeConfigDir(), at = Date.now()) =>
  *  back; this is the same events in the shape `tail -f` wants. */
 export const logPath = (home = claudeConfigDir()) => join(storeDir(home), "watch.log");
 
+/** The one generation kept behind it. `.1` rather than a datestamp because this
+ *  is `tail -f`'s file and `logrotate`'s convention is the one a person reading
+ *  it already knows — and because a name that changes is a name nothing can
+ *  overwrite, which is how a rotation that bounds nothing gets written. */
+export const rolledLogPath = (home = claudeConfigDir()) => `${logPath(home)}.1`;
+
+/**
+ * How large watch.log may grow before it is rolled over (#989).
+ *
+ * EVERY OTHER STORE IN THIS MODULE HAS A CAP. `KEEP` holds the archive to 500
+ * episodes, `DISMISS_KEEP` holds dismissals to 2000, and the panel's feed is
+ * held to 200 lines — while this file, the one that writes out EVERY ADDRESS in
+ * full, grew for the life of the install and nothing ever trimmed it. With the
+ * watch on by default, a machine where something drives a browser in a loop
+ * builds a plaintext list of every address it touched, without end.
+ *
+ * TWO MEBIBYTES. An episode of twenty addresses with query strings is about
+ * 2 KB of this file, so the cap is on the order of a thousand episodes: twice
+ * the archive beside it, which `KEEP` sizes at about two years of the measured
+ * rate. It is only reached where something drives a browser far more often than
+ * that, and that machine must not fill its disk reporting it.
+ *
+ * ONE GENERATION, `watch.log.1`, so the most this costs on disk is a number a
+ * reader can state: twice the cap, plus one append that was larger on its own.
+ */
+const LOG_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * What the log holds on disk right now, both generations, in bytes — for the
+ * panel, which names the file and now its size. Never throws: 0 is the answer
+ * for a log never written, and a coverage field is not where a stat error goes.
+ */
+export async function logSize(home = claudeConfigDir(), deps = {}) {
+  const st = deps.stat ?? stat;
+  let total = 0;
+  for (const file of [logPath(home), rolledLogPath(home)]) {
+    try { total += (await st(file)).size; } catch { /* not there, or not readable */ }
+  }
+  return total;
+}
+
 /**
  * Append one episode, and EVERY ADDRESS IN IT, oldest first.
  *
@@ -112,6 +153,11 @@ export const logPath = (home = claudeConfigDir()) => join(storeDir(home), "watch
  * the only part of this feature that outlives the process by design — the panel
  * shows what this deck has seen, this file is what somebody reads three days
  * later without opening the panel at all.
+ *
+ * ROLLED OVER, NOT EDITED, at LOG_MAX_BYTES (#989), which keeps that rule: the
+ * whole file moves to `watch.log.1` and the next append starts a new one. No
+ * line this function wrote is ever changed. Trimming the oldest lines out in
+ * place was the other way to bound it, and it is the edit the rule forbids.
  */
 export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
   if (!episodes.length) return;
@@ -136,7 +182,42 @@ export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
     return [head, ...rows].join("\n");
   };
   await mk(storeDir(home), { recursive: true });
-  await add(logPath(home), episodes.map(block).join("\n") + "\n", "utf8");
+  const text = episodes.map(block).join("\n") + "\n";
+  await rollIfFull(home, Buffer.byteLength(text, "utf8"), deps);
+  await add(logPath(home), text, "utf8");
+}
+
+/**
+ * Move the log aside when this append would carry it past the cap.
+ *
+ * MEASURED BEFORE THE WRITE, so the cap is a ceiling rather than a line the file
+ * sits above until the next append. The one overshoot left is a single append
+ * larger than the whole cap, written whole on purpose: an episode split across
+ * two files would leave addresses under no summary line, and that line and its
+ * indented addresses are what `grep -v '^ '` and `grep '^  '` separate.
+ *
+ * A ROTATION THAT FAILS MUST NOT COST THE APPEND. This is the record of what a
+ * program did in somebody's browser. A full disk, a Windows handle still open on
+ * `watch.log.1`, a permission on the directory: each is a reason to write a
+ * larger file than intended, and none is a reason to write nothing. The next
+ * append tries again.
+ *
+ * `renameWithRetry` for the reason #786 gives over `writeNow`: on Windows a
+ * rename loses to anything still holding a handle, and this is a file people
+ * open to read.
+ */
+async function rollIfFull(home, adding, deps) {
+  const st = deps.stat ?? stat;
+  const mv = deps.rename ?? renameWithRetry;
+  try {
+    const { size } = await st(logPath(home));
+    if (size === 0 || size + adding <= LOG_MAX_BYTES) return;
+    await mv(logPath(home), rolledLogPath(home));
+  } catch {
+    // No log yet (the ordinary first call), or the filesystem refused. Either
+    // way the append is the thing that matters and it is not this function's to
+    // cancel.
+  }
 }
 
 /**
