@@ -104,6 +104,13 @@ function registry(versions: string[], yanked: string[] = []) {
 
 const FAKE_HOME = mkdtempSync(join(tmpdir(), "ccdeck-cswap-bound-"));
 const UV_TOOL_DIR = join(FAKE_HOME, "uv-tools");
+// Named rather than left to default, for the reason cswap-upgrade-owner.test.ts
+// names it: `cswapOwner` decides who owns the install from which venv
+// directories exist, and pipx's default home on Windows is read from
+// %LOCALAPPDATA% rather than from the home directory — so on that leg alone a
+// pipx on the runner could be counted as a second owner, and a second owner is
+// no owner. Pointed under the temp home, the answer is the same on all three.
+const PIPX_HOME = join(FAKE_HOME, "pipx");
 const RECORD = join(FAKE_HOME, ".agents-deck", "cswap-upgrade.json");
 const prev = {
   HOME: process.env.HOME,
@@ -111,17 +118,19 @@ const prev = {
   NO_INSTALL: process.env.AGENTS_DECK_NO_INSTALL,
   CSWAP: process.env.AGENTS_DECK_CSWAP,
   UV_TOOL_DIR: process.env.UV_TOOL_DIR,
+  PIPX_HOME: process.env.PIPX_HOME,
 };
 process.env.HOME = FAKE_HOME;
 process.env.USERPROFILE = FAKE_HOME;
 process.env.UV_TOOL_DIR = UV_TOOL_DIR;
+process.env.PIPX_HOME = PIPX_HOME;
 delete process.env.AGENTS_DECK_NO_INSTALL;
 delete process.env.AGENTS_DECK_CSWAP;
 
 afterAll(() => {
   for (const [key, was] of [["HOME", prev.HOME], ["USERPROFILE", prev.USERPROFILE],
     ["AGENTS_DECK_NO_INSTALL", prev.NO_INSTALL], ["AGENTS_DECK_CSWAP", prev.CSWAP],
-    ["UV_TOOL_DIR", prev.UV_TOOL_DIR]] as const) {
+    ["UV_TOOL_DIR", prev.UV_TOOL_DIR], ["PIPX_HOME", prev.PIPX_HOME]] as const) {
     if (was === undefined) delete process.env[key];
     else process.env[key] = was;
   }
@@ -312,8 +321,10 @@ describe("a claude-swap the deck did not ask for", () => {
 
     const { state } = await boot();
 
-    // Below the floor is not merely old: the panel's command surface is written
-    // against 0.26, and claude-swap's flags have moved inside 0.x before.
+    // Below the floor is what a stale mirror or a private index answers with,
+    // and it is the one direction a version check tends not to look. A copy the
+    // USER installed at 0.9.0 is left alone; this is a 0.9.0 that arrived in
+    // answer to the deck's own bounded install.
     expect(state).toEqual({
       state: "unavailable", reason: "unexpected_version",
       version: "0.9.0", want: "claude-swap~=0.26", via: "uv",

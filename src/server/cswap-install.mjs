@@ -148,11 +148,15 @@ const PKG = "claude-swap";
 // checked against the one Astral publishes beside it (uv-bootstrap.mjs). The
 // package that holds the credentials had no bound of any kind.
 //
-// FLOOR: the version the panel's command surface is written against. Below it
-// the subcommands and flags are not the ones claude-accounts.mjs sends, and a
-// resolver that answers with something older — a mirror, a private index on
+// FLOOR: the newest release at the time this bound was written, which is the
+// version the accounts panel is developed and exercised against. It is NOT a
+// claim that 0.25 would fail — nothing here has tested that, and a copy the
+// user installed themselves is left alone whatever its number. What it says is
+// that the deck has an opinion at all, so that a resolver answering an install
+// with something much older — a stale mirror, a private index on
 // PIP_INDEX_URL, a yank of everything newer — is answering a question the deck
-// did not ask.
+// did not ask, and can be told so. Raise it deliberately, with claude-swap's
+// release notes open.
 //
 // CEILING: the next major. claude-swap is 0.x and ships a minor every couple of
 // weeks, so a ceiling tight enough to stop a hostile 0.27 would stop every real
@@ -168,7 +172,10 @@ const PKG = "claude-swap";
 // leg routes a `.cmd`/`.bat` shim through cmd.exe (exec.mjs viaCmd), where `<`
 // and `>` are syntax while outside quotes. That quoting is correct and tested;
 // not needing it is better.
-const MIN_VERSION = "0.26";
+// Dated for the reason uv-bootstrap.mjs dates its FALLBACK_VERSION: a floor
+// rots silently. Nothing fails when it falls behind — it simply stops being the
+// version anyone is developing against — so no test and no user will report it.
+const MIN_VERSION = "0.26";                       // latest on PyPI as of 2026-09-15
 const MAX_VERSION = "1";                          // the first one this deck will not run
 const RANGE_SPEC  = `${PKG}~=${MIN_VERSION}`;     // >= 0.26, == 0.*
 
