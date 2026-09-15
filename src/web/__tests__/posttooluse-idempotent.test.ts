@@ -46,6 +46,7 @@ import {
   STALE_SESSION_MS,
   sweepStaleSessions,
   sweepStaleTools,
+  toolKey,
   type GraphState,
 } from "../reducer";
 import { costForUsage } from "../pricing";
@@ -261,7 +262,7 @@ describe("#444 — a LATE outcome is not a duplicate and still lands", () => {
     expect(swept.ok).toBe(false);
     expect(swept.errorPreview).toBe("session ended before this call returned");
     expect(swept.endedAt).toBe(T0 + SEC);
-    expect(state.toolIndex.has("tt")).toBe(false);
+    expect(state.toolIndex.has(toolKey("sess-e", "tt"))).toBe(false);
     expect(swept.usage).toBeUndefined();
 
     const lateAt = sweptAt + 5 * MIN;
@@ -336,8 +337,8 @@ describe("#444 — replaying a whole log twice gives the state replaying it once
     const twice = replay(2);
     expect(billable(twice)).toEqual(billable(once));
     // The in-flight call is still in flight and still owned, in both.
-    expect(twice.toolIndex.has("b2")).toBe(true);
-    expect(twice.toolOwner.get("b2")).toBe("s");
+    expect(twice.toolIndex.has(toolKey("s", "b2"))).toBe(true);
+    expect(twice.toolOwner.get(toolKey("s", "b2"))).toBe("s");
     expect([...twice.toolIndex.keys()].sort()).toEqual([...once.toolIndex.keys()].sort());
     expect([...twice.toolOwner.keys()].sort()).toEqual([...once.toolOwner.keys()].sort());
   });
@@ -383,9 +384,9 @@ describe("#444 — trimTools releases an id only where the maps still name that 
 
   it("keeps the live copy when the old one falls out of the root's window", () => {
     const state = twoCallsOneId();
-    const live = state.toolIndex.get("dup-1");
+    const live = state.toolIndex.get(toolKey("s", "dup-1"));
     expect(live).toBeDefined();
-    expect(state.toolOwner.get("dup-1")).toBe("s::k9");
+    expect(state.toolOwner.get(toolKey("s", "dup-1"))).toBe("s::k9");
     expect(root(state, "s").tools[0]).not.toBe(live);
 
     // Push the root's own history past the window so its stale copy of `dup-1`
@@ -407,8 +408,8 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     // Deleting by id alone took the live entry with the evicted one, which left a
     // running call that its own PostToolUse could reach only by the resurrection
     // scan and that the stale sweep could never settle at all.
-    expect(s.toolIndex.get("dup-1")).toBe(live);
-    expect(s.toolOwner.get("dup-1")).toBe("s::k9");
+    expect(s.toolIndex.get(toolKey("s", "dup-1"))).toBe(live);
+    expect(s.toolOwner.get(toolKey("s", "dup-1"))).toBe("s::k9");
 
     // And it still settles the ordinary way, through the index.
     s = send(s, T0 + 20 * MIN, {
@@ -417,8 +418,8 @@ describe("#444 — trimTools releases an id only where the maps still name that 
     });
     expect(live!.ok).toBe(true);
     expect(live!.endedAt).toBe(T0 + 20 * MIN);
-    expect(s.toolIndex.has("dup-1")).toBe(false);
-    expect(s.toolOwner.has("dup-1")).toBe(false);
+    expect(s.toolIndex.has(toolKey("s", "dup-1"))).toBe(false);
+    expect(s.toolOwner.has(toolKey("s", "dup-1"))).toBe(false);
   });
 
   it("still releases the ids of the calls it really is evicting", () => {
@@ -433,10 +434,10 @@ describe("#444 — trimTools releases an id only where the maps still name that 
         tool_use_id: `c-${i}`, tool_input: { command: "true" }, model: MODEL,
       });
     }
-    const reachable = new Set(root(s, "s2").tools.map(t => t.id));
+    const reachable = new Set(root(s, "s2").tools.map(t => toolKey("s2", t.id)));
     expect(reachable.size).toBe(MAX_TOOLS_PER_AGENT);
-    expect([...s.toolIndex.keys()].filter(id => !reachable.has(id))).toEqual([]);
-    expect([...s.toolOwner.keys()].filter(id => !reachable.has(id))).toEqual([]);
+    expect([...s.toolIndex.keys()].filter(k => !reachable.has(k))).toEqual([]);
+    expect([...s.toolOwner.keys()].filter(k => !reachable.has(k))).toEqual([]);
   });
 });
 
@@ -451,7 +452,7 @@ describe("#444 — the neighbouring rules are untouched", () => {
     expect(sweepStaleTools(state, T0 + STALE_SESSION_MS + 2 * MIN, STALE_SESSION_MS)).toBe(false);
     const call = root(state, "sess-f").tools[0];
     expect(call.endedAt).toBeUndefined();
-    expect(state.toolIndex.has("tt")).toBe(true);
+    expect(state.toolIndex.has(toolKey("sess-f", "tt"))).toBe(true);
   });
 
   it("#397 — a Codex call waiting on a human is still never swept", () => {
@@ -467,7 +468,7 @@ describe("#444 — the neighbouring rules are untouched", () => {
     const call = state.agents.get("cx")!.tools[0];
     expect(call.endedAt).toBeUndefined();
     expect(call.ok).toBeUndefined();
-    expect(state.toolIndex.has("cx-1")).toBe(true);
+    expect(state.toolIndex.has(toolKey("cx", "cx-1"))).toBe(true);
   });
 
   it("#443 — a pruned agent still releases only the ids the maps name it for", () => {
@@ -493,9 +494,9 @@ describe("#444 — the neighbouring rules are untouched", () => {
     expect(pruneOldAgents(state, T0 + 5 * SEC, 1, 0)).toBe(true);
     // The subagent went and took its own in-flight id with it; the root survived
     // and kept both of its entries.
-    expect(state.toolIndex.has("lost-1")).toBe(false);
-    expect(state.toolOwner.has("lost-1")).toBe(false);
-    expect(state.toolIndex.has("root-1")).toBe(true);
-    expect(state.toolOwner.get("root-1")).toBe("s3");
+    expect(state.toolIndex.has(toolKey("s3", "lost-1"))).toBe(false);
+    expect(state.toolOwner.has(toolKey("s3", "lost-1"))).toBe(false);
+    expect(state.toolIndex.has(toolKey("s3", "root-1"))).toBe(true);
+    expect(state.toolOwner.get(toolKey("s3", "root-1"))).toBe("s3");
   });
 });

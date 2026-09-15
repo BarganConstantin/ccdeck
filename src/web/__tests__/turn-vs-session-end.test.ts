@@ -56,6 +56,7 @@ import {
   STALE_SESSION_MS,
   sweepStaleSessions,
   sweepStaleTools,
+  toolKey,
   type GraphState,
 } from "../reducer";
 import { blockedSessions, runningSessionCount } from "../ambient-counts";
@@ -463,11 +464,11 @@ describe("pruneOldAgents never leaves an agent pointing at a deleted parent", ()
     // Cap 1: the subagent goes, the root is kept.
     expect(pruneOldAgents(s, T0 + 60 * MIN, 1, AGENT_GRACE_MS)).toBe(true);
     // The evicted agent's in-flight id went with it...
-    expect(s.toolIndex.has("sub-call")).toBe(false);
-    expect(s.toolOwner.has("sub-call")).toBe(false);
+    expect(s.toolIndex.has(toolKey("sess-t", "sub-call"))).toBe(false);
+    expect(s.toolOwner.has(toolKey("sess-t", "sub-call"))).toBe(false);
     // ...and the surviving root's did not, because the root was never deleted.
-    expect(s.toolIndex.has("root-call")).toBe(true);
-    expect(s.toolOwner.get("root-call")).toBe("sess-t");
+    expect(s.toolIndex.has(toolKey("sess-t", "root-call"))).toBe(true);
+    expect(s.toolOwner.get(toolKey("sess-t", "root-call"))).toBe("sess-t");
   });
 });
 

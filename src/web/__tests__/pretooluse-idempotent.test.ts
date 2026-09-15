@@ -10,6 +10,7 @@ import {
   initialState,
   MAX_TOOLS_PER_AGENT,
   sweepStaleTools,
+  toolKey,
 } from "../reducer";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
@@ -185,6 +186,6 @@ describe("PreToolUse idempotence on tool_use_id", () => {
     expect(root.tools.length).toBe(1);
     expect(sub.tools.length).toBe(0);
     expect(sub.toolCount).toBe(0);
-    expect(state.toolOwner.get("t1")).toBe(SESSION);
+    expect(state.toolOwner.get(toolKey(SESSION, "t1"))).toBe(SESSION);
   });
 });

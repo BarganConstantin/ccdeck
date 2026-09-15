@@ -34,7 +34,7 @@
 // node and nothing else — and the tests below pin that boundary from both
 // sides.
 import { describe, it, expect } from "vitest";
-import { applyEvent, initialState, type GraphState } from "../reducer";
+import { applyEvent, initialState, toolKey, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 
 const SESSION = "sess-turn-end";
@@ -137,10 +137,10 @@ describe("a turn that ended is not still holding its own tool call", () => {
 
   it("drops the settled id from the live index", () => {
     let state = running();
-    expect(state.toolIndex.has("t1")).toBe(true);
+    expect(state.toolIndex.has(toolKey(SESSION, "t1"))).toBe(true);
     state = send(state, T0 + 30 * SEC, { hook_event_name: "Stop", provider: "claude" });
-    expect(state.toolIndex.has("t1")).toBe(false);
-    expect(state.toolOwner.has("t1")).toBe(false);
+    expect(state.toolIndex.has(toolKey(SESSION, "t1"))).toBe(false);
+    expect(state.toolOwner.has(toolKey(SESSION, "t1"))).toBe(false);
   });
 
   it("settles every call the root was holding, not just the first", () => {

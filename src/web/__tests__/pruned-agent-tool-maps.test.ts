@@ -1,5 +1,6 @@
-// #443. `toolIndex` and `toolOwner` are keyed by tool_use_id and live for the
-// whole board, not per agent. Four sites used to write or clear them —
+// #443. `toolIndex` and `toolOwner` are keyed by session + tool_use_id (#1009
+// made the session half of that key; before it they were keyed on the bare id)
+// and live for the whole board, not per agent. Four sites used to write or clear them —
 // `PreToolUse` sets both, `PostToolUse` clears both when the call settles,
 // `trimTools` clears both when a call falls out of the 200-per-agent window, and
 // `sweepStaleTools` clears both when it settles a lost call — and every one of
@@ -41,6 +42,7 @@ import {
   STALE_SESSION_MS,
   sweepStaleSessions,
   sweepStaleTools,
+  toolKey,
   type GraphState,
 } from "../reducer";
 import type { HookEnvelope, HookPayload, ToolCall } from "../types";
@@ -68,20 +70,26 @@ function fresh(): GraphState {
   return initialState();
 }
 
-/** Ids the board can still reach: every call held by a surviving agent. An
- *  entry in either map that is not in here is an orphan by definition, since
- *  every reader and every deleter goes through the owning agent. */
-function reachableIds(state: GraphState): Set<string> {
-  const ids = new Set<string>();
-  for (const a of state.agents.values()) for (const t of a.tools) ids.add(t.id);
-  return ids;
+/** Map keys the board can still reach: every call held by a surviving agent,
+ *  under the key the reducer files it by. An entry in either map that is not in
+ *  here is an orphan by definition, since every reader and every deleter goes
+ *  through the owning agent.
+ *
+ *  Keys and not bare ids since #1009. A bare `tool_use_id` names at most one
+ *  entry per map, so a set of them could not have told the two sessions of a
+ *  collision apart — which is the whole failure that issue reported, and this
+ *  helper would have called both of them reachable and seen nothing. */
+function reachableKeys(state: GraphState): Set<string> {
+  const keys = new Set<string>();
+  for (const a of state.agents.values()) for (const t of a.tools) keys.add(toolKey(a.sessionId, t.id));
+  return keys;
 }
 
 function orphans(state: GraphState): { index: string[]; owner: string[] } {
-  const reach = reachableIds(state);
+  const reach = reachableKeys(state);
   return {
-    index: [...state.toolIndex.keys()].filter(id => !reach.has(id)),
-    owner: [...state.toolOwner.keys()].filter(id => !reach.has(id)),
+    index: [...state.toolIndex.keys()].filter(k => !reach.has(k)),
+    owner: [...state.toolOwner.keys()].filter(k => !reach.has(k)),
   };
 }
 
@@ -157,13 +165,13 @@ describe("#443 — a pruned agent releases its tool ids", () => {
     expect(pruneOldAgents(state, at, /*cap*/ 1, /*graceMs*/ 0)).toBe(true);
 
     expect([...state.agents.keys()]).toEqual(["sess-b"]);
-    expect(state.toolIndex.has("lost-1")).toBe(false);
-    expect(state.toolOwner.has("lost-1")).toBe(false);
+    expect(state.toolIndex.has(toolKey("sess-b", "lost-1"))).toBe(false);
+    expect(state.toolOwner.has(toolKey("sess-b", "lost-1"))).toBe(false);
     expectNoOrphans(state);
     // The surviving root keeps its own call in flight — the release is scoped to
     // the agent that left, not to the session it belonged to.
-    expect(state.toolIndex.has("root-1")).toBe(true);
-    expect(state.toolOwner.get("root-1")).toBe("sess-b");
+    expect(state.toolIndex.has(toolKey("sess-b", "root-1"))).toBe(true);
+    expect(state.toolOwner.get(toolKey("sess-b", "root-1"))).toBe("sess-b");
   });
 
   it("keeps both maps bounded by the surviving agents across a day of sessions", () => {
@@ -212,8 +220,8 @@ describe("#443 — the late PostToolUse still lands", () => {
     const at = T0 + 5 * MIN;
     expect(pruneDoneSessions(state, at, 0, 2 * MIN)).toBe(true);
     expect(state.agents.has("sess-gone")).toBe(false);
-    expect(state.toolIndex.has("live-1")).toBe(true);
-    expect(state.toolOwner.get("live-1")).toBe("sess-live");
+    expect(state.toolIndex.has(toolKey("sess-live", "live-1"))).toBe(true);
+    expect(state.toolOwner.get(toolKey("sess-live", "live-1"))).toBe("sess-live");
 
     state = send(state, at + SEC, {
       hook_event_name: "PostToolUse", session_id: "sess-live",
@@ -226,7 +234,7 @@ describe("#443 — the late PostToolUse still lands", () => {
     expect(call.response).toEqual({ stdout: "built" });
     // Settled the normal way, so the id is out of both maps for the usual reason.
     expectNoOrphans(state);
-    expect(state.toolIndex.has("live-1")).toBe(false);
+    expect(state.toolIndex.has(toolKey("sess-live", "live-1"))).toBe(false);
   });
 
   it("still resurrects a swept call on an agent that survived the prune", () => {
@@ -339,8 +347,8 @@ describe("#443 — releasing is scoped to the ids the departing agent still owns
     expect(root.tools[0].endedAt).toBe(T0 + 2 * SEC);
     expect(sub.tools[0].endedAt).toBeUndefined();
     // Both maps point at the live one.
-    expect(state.toolIndex.get("dup-1")).toBe(sub.tools[0]);
-    expect(state.toolOwner.get("dup-1")).toBe(SUB);
+    expect(state.toolIndex.get(toolKey("sess-d", "dup-1"))).toBe(sub.tools[0]);
+    expect(state.toolOwner.get(toolKey("sess-d", "dup-1"))).toBe(SUB);
   });
 
   /** The same re-delivery, mirrored: the settled copy is the SUBAGENT's and the
@@ -404,8 +412,8 @@ describe("#443 — releasing is scoped to the ids the departing agent still owns
 
     // Releasing by id alone would have taken this with the subagent, because the
     // subagent's own list still held a settled `dup-2`.
-    expect(state.toolIndex.get("dup-2")).toBe(live);
-    expect(state.toolOwner.get("dup-2")).toBe("sess-d2");
+    expect(state.toolIndex.get(toolKey("sess-d2", "dup-2"))).toBe(live);
+    expect(state.toolOwner.get(toolKey("sess-d2", "dup-2"))).toBe("sess-d2");
     expectNoOrphans(state);
   });
 
@@ -426,8 +434,8 @@ describe("#443 — releasing is scoped to the ids the departing agent still owns
     }
 
     // And nothing departed, so nothing was released.
-    expect(state.toolIndex.get("dup-1")).toBe(live);
-    expect(state.toolOwner.get("dup-1")).toBe(SUB);
+    expect(state.toolIndex.get(toolKey("sess-d", "dup-1"))).toBe(live);
+    expect(state.toolOwner.get(toolKey("sess-d", "dup-1"))).toBe(SUB);
     expectNoOrphans(state);
   });
 
@@ -463,7 +471,7 @@ describe("#443 — the neighbouring rules are untouched", () => {
     const call = state.agents.get("sess-e")!.tools[0];
     expect(call.endedAt).toBeUndefined();
     expect(call.ok).toBeUndefined();
-    expect(state.toolIndex.has("sess-e-call")).toBe(true);
+    expect(state.toolIndex.has(toolKey("sess-e", "sess-e-call"))).toBe(true);
   });
 
   it("#436: the sweep still measures the session's silence, not the call's age", () => {
@@ -488,8 +496,8 @@ describe("#443 — the neighbouring rules are untouched", () => {
 
     const call = state.agents.get("sess-f")!.tools.find(t => t.id === "long-1")!;
     expect(call.endedAt).toBeUndefined();
-    expect(state.toolIndex.has("long-1")).toBe(true);
-    expect(state.toolOwner.get("long-1")).toBe("sess-f");
+    expect(state.toolIndex.has(toolKey("sess-f", "long-1"))).toBe(true);
+    expect(state.toolOwner.get(toolKey("sess-f", "long-1"))).toBe("sess-f");
   });
 
   it("#442: a reaped session still loses its attribution stack, and now its ids", () => {

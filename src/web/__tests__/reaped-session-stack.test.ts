@@ -37,6 +37,7 @@ import {
   STALE_SESSION_MS,
   sweepStaleSessions,
   sweepStaleTools,
+  toolKey,
   type GraphState,
 } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
@@ -301,7 +302,7 @@ describe("what clearing the stack does not disturb", () => {
     expect(lost.ok).toBe(false);
     expect(lost.errorPreview).toBe("session ended before this call returned");
     expect(lost.endedAt).toBe(T0 + 5 * SEC);
-    expect(state.toolIndex.has("lost")).toBe(false);
+    expect(state.toolIndex.has(toolKey(SESSION, "lost"))).toBe(false);
     expect(state.activeSubagentStack.get(SESSION)).toBeUndefined();
   });
 
@@ -321,7 +322,7 @@ describe("what clearing the stack does not disturb", () => {
     const call = root(state).tools.find(t => t.id === "cx1")!;
     expect(call.endedAt).toBeUndefined();
     expect(call.ok).toBeUndefined();
-    expect(state.toolIndex.has("cx1")).toBe(true);
+    expect(state.toolIndex.has(toolKey(SESSION, "cx1"))).toBe(true);
   });
 
   it("leaves a whole reaped session reclaimable, as it was before", () => {
