@@ -339,6 +339,16 @@
   --dim-stale: 0.45;
 }
 
+/* The space and radius ladders (#887), closed the way the type ladder below is
+   and held by spacing-ladder-887.test.ts:
+     space   0 · 1 · 2 · 3 · 4 · 5 · 6 · 8 · 10 · 12 · 14 · 16 · 18 · 20 · 24 · 32 · 40
+     radius  0 · 1 · 2 · 3 · 4 · 6 · 8 · 10 · 12 · 16 · 18, 999px for a pill, 50% for a circle
+   Every gap and padding sits on the first and every border-radius on the
+   second. Below 6px every pixel is a step, because in 10 and 11px type a
+   one-pixel pad or a two-pixel hairline gap is an optical choice; from 6px up
+   it is even pixels. A var() or calc() is its token's business, not the
+   ladder's. */
+
 /* The type ladder: 9 · 10 · 11 · 12 · 13 · 14 · 16 · 18 · 22 · 26 · 34.
    Eleven steps, and no font-size in this file may be anything else.
 
@@ -709,7 +719,7 @@ button:focus-visible { outline-offset: 1px; }
   flex: none;
   gap: 5px;
   min-height: 24px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: none;
@@ -811,7 +821,7 @@ button:focus-visible { outline-offset: 1px; }
 .tb-word { display: none; }
 @media (min-width: 1600px) {
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
-  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 10px 0 9px; }
+  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 10px; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
@@ -1026,7 +1036,7 @@ button.btn.sm-channel-action {
 
 /* One tone: a heading with its preview beside it, two rows of controls, and the
    line saying which turns it covers. */
-.sm-tone { display: flex; flex-direction: column; gap: 9px; }
+.sm-tone { display: flex; flex-direction: column; gap: 10px; }
 .sm-tone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* The caption the shortcuts sheet's group headings already are, restated for a
    heading that is not in that grid. */
@@ -2079,7 +2089,7 @@ button.btn.sm-hear {
   align-items: center;
   gap: 6px;
   min-height: 24px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
@@ -2457,7 +2467,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 5px 3px 9px;
+  padding: 3px 5px 3px 10px;
   border: 1px solid var(--ctl-edge);
   border-radius: 999px;
   background: var(--ctl-fill);
@@ -2485,7 +2495,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   color: var(--text);
   background: var(--line);
   border-radius: 999px;
-  padding: 2px 7px;
+  padding: 2px 8px;
 }
 /* Sits directly after the message, not pinned to the far edge: the Usage panel
    is position:fixed at z-index 20 and covers the right end of this row, so a
@@ -2503,7 +2513,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 
 /* The one action in the row. Filled, because everything else here is text. */
 .ver-banner .ver-act {
-  padding: 3px 11px;
+  padding: 3px 12px;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--warn) 16%, transparent);
@@ -3226,7 +3236,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   width: min(560px, 92vw);
   max-height: 80vh;
   overflow: auto;
-  padding: 18px 20px 22px;
+  padding: 18px 20px 24px;
   color: var(--text);
 }
 .ctx-modal-head {
@@ -3365,7 +3375,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .state-pill {
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 1px 8px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -3417,7 +3427,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   align-items: center;
   gap: 6px;
   margin-top: 7px;
-  padding: 3px 7px;
+  padding: 3px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
   font-size: 10px;
@@ -3480,7 +3490,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
   width: 300px;
-  padding: 9px 12px 11px;
+  padding: 10px 12px 12px;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
   border-radius: 10px;
@@ -3569,7 +3579,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   align-items: center;
   gap: 6px;
   margin-top: 7px;
-  padding: 3px 7px;
+  padding: 3px 8px;
   font-size: 10px;
   font-weight: 600;
   min-width: 0;
@@ -3729,7 +3739,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
      wrap still waits for the genuine extremes it was added for. The row reads
      as five groups either way, because each is a bold figure against a muted
      word — a stronger boundary than the three pixels given up. */
-  gap: 2px 9px;
+  gap: 2px 10px;
 }
 .agent-node .meta > * { flex: 0 0 auto; }
 .agent-node .meta b { color: var(--text); font-weight: 600; }
@@ -3834,7 +3844,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .model-chip {
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 1px 8px;
   margin-left: 6px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -4140,7 +4150,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 11px 5px 9px;
+  padding: 5px 12px 5px 10px;
   border-radius: 999px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -4592,7 +4602,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .session-list .sl-count {
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
@@ -4671,8 +4681,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .session-list .sl-row {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
-  padding: 9px calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
+  gap: 10px;
+  padding: 10px calc(var(--panel-inset) - var(--sl-card-gutter) - var(--sl-card-edge));
   background: transparent;
   /* Longhands rather than the `1px solid transparent` shorthand this was,
      because the width is now a term in the padding above and has to be the
@@ -4999,7 +5009,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .detail-section h3 .section-count {
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
@@ -5038,7 +5048,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px 3px 7px;
+  padding: 3px 10px 3px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--bg-soft);
@@ -5195,7 +5205,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   border: 1px solid var(--line);
   border-bottom-width: 2px;
   border-radius: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   text-align: center;
   min-width: 38px;
 }
@@ -5532,7 +5542,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .session-summary .ss-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 22px;
+  gap: 24px;
   padding: 18px 18px 20px;
   background: linear-gradient(180deg, rgba(134,239,172,0.05), transparent);
   border-bottom: 1px solid var(--line);
@@ -5555,7 +5565,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .session-summary .ss-models { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .session-summary .ss-hero-right { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; }
-.cost-bar.cost-bar-lg { height: 14px; border-radius: 7px; }
+.cost-bar.cost-bar-lg { height: 14px; border-radius: 999px; }
 .session-summary .ss-cost-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5754,8 +5764,8 @@ button.tool.clickable:last-child { border-bottom: none; }
 .empty-hero code {
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  padding: 2px 7px;
-  border-radius: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
   color: var(--text);
   font-size: 12px;
 }
@@ -6322,7 +6332,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 .up-session-row {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: 12px;
   padding: 3px 0;
 }
@@ -6390,7 +6400,7 @@ button.tool.clickable:last-child { border-bottom: none; }
    for both of them. The `color: var(--muted)` is gone for the same reason it
    stays on `.up-close`: there it is what the sheet asks of the × by name, here
    it was only a second spelling of the shared rule. */
-.up-refresh-btn { padding: 1px 7px; }
+.up-refresh-btn { padding: 1px 8px; }
 .up-quota-bars { display: flex; flex-direction: column; gap: 10px; }
 .qb-row { display: flex; flex-direction: column; gap: 3px; }
 .qb-meta {
@@ -6593,7 +6603,7 @@ button.qb-pace::after {
 .uh-range-btn {
   font: inherit; font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  padding: 2px 9px; border: none; border-radius: 999px;
+  padding: 2px 10px; border: none; border-radius: 999px;
   color: var(--muted); background: transparent; cursor: pointer;
   transition: background 120ms, color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -7041,7 +7051,7 @@ button.qb-pace::after {
   padding: 0;
 }
 .ap-account {
-  padding: 9px var(--panel-inset) 8px;
+  padding: 10px var(--panel-inset) 8px;
   border-bottom: 1px solid var(--line-soft);
 }
 /* The tint is not the state channel and never could have been. At the 6% it
@@ -7142,7 +7152,7 @@ button.qb-pace::after {
    1.4.1 territory. */
 .ap-badge-active {
   flex-shrink: 0;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--accent);
   color: var(--bg);
@@ -7159,7 +7169,7 @@ button.qb-pace::after {
    not a thing to press. */
 .ap-badge-held {
   flex-shrink: 0;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--ctl-fill);
   color: var(--text);
@@ -7291,8 +7301,8 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-empty .ap-cmd {
   display: block;
   margin: 6px 0 2px;
-  padding: 7px 9px;
-  border-radius: 5px;
+  padding: 8px 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--accent) 7%, transparent);
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -7398,7 +7408,7 @@ button.ap-err:active { transform: scale(0.97); }
 }
 /* ── auto-switch controls ── */
 .ap-auto {
-  padding: 12px var(--panel-inset) 11px;
+  padding: 12px var(--panel-inset) 12px;
   border-top: 1px solid var(--line);
 }
 /* Two lines, one decision each. The head says what the section is and whether
@@ -7518,10 +7528,10 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-lan-pick {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   padding: 3px 4px;
   margin: 0 -4px;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   color: var(--text);
@@ -7648,7 +7658,7 @@ button.ap-err:active { transform: scale(0.97); }
   grid-template-areas:
     "dot  name  verb"
     ".    state verb";
-  column-gap: 7px;
+  column-gap: 8px;
   row-gap: 1px;
   align-items: center;
   min-width: 0;
@@ -7813,8 +7823,8 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-lan-token {
   display: block;
   margin-top: 8px;
-  padding: 7px 8px;
-  border-radius: 5px;
+  padding: 8px 8px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--text) 6%, transparent);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
@@ -8001,8 +8011,8 @@ button.ap-err:active { transform: scale(0.97); }
   background: var(--ctl-fill);
   color: var(--text);
   border: 1px solid var(--ctl-edge);
-  border-radius: 5px;
-  padding: 2px 19px 2px 7px;
+  border-radius: 6px;
+  padding: 2px 20px 2px 8px;
   /* The 24px target floor (#884): it measured 53x23. */
   min-height: 24px;
   font: inherit;
@@ -8412,7 +8422,7 @@ button.ap-err::after,
    pressing a button eased, which is felt long before it is noticed. */
 .ap-manage-input {
   min-width: 0;
-  padding: 3px 7px;
+  padding: 3px 8px;
   border: 1px solid var(--ctl-edge);
   border-radius: 6px;
   background: var(--ctl-fill);
@@ -8430,7 +8440,7 @@ button.ap-err::after,
    into (styles.css:11), and a label that dim would trade one 1.4.3 failure for
    another. */
 .ap-manage-btn {
-  padding: 3px 9px;
+  padding: 3px 10px;
   /* The 24px target floor (#884): the pill measured 51x23, a pixel under it,
      on the `switch` verb every inactive account row carries. */
   min-height: 24px;
@@ -8549,7 +8559,7 @@ button.ap-err::after,
 .aa-field input {
   flex: 1;
   min-width: 0;
-  padding: 7px 11px;
+  padding: 8px 12px;
   border: 1px solid var(--ctl-edge);
   border-radius: 8px;
   /* --bg-soft, not --ctl-fill: the placeholder here is --text-dim. */
@@ -8656,7 +8666,7 @@ button.ap-err::after,
   width: 6px;
   height: 9px;
   margin: -4px 0 0 -3px;
-  border-radius: 1.5px;
+  border-radius: 2px;
   background: var(--accent);
   opacity: 0;
   /* Two animations, not one: a single timing function governs every property
@@ -9011,7 +9021,7 @@ button.ap-err::after,
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  border-radius: 7px;
+  border-radius: 999px;
   background: var(--warn);
   color: var(--bg);
   font-size: 9px;
@@ -10250,7 +10260,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .pl-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 22px;
+  gap: 10px 24px;
   /* 12px at the bottom and not 10: with the footnote band gone this is the
      last thing in the dialog, so its bottom edge is the modal's outer frame and
      matches the 12px above the title. */
@@ -11003,7 +11013,7 @@ input, textarea { caret-color: var(--accent); }
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: baseline;
   column-gap: 16px;
-  row-gap: 7px;
+  row-gap: 8px;
   margin: 0;
 }
 .lan-fact { display: contents; }
@@ -11210,7 +11220,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-do {
   align-self: center;
   min-height: 24px;
-  padding: 3px 7px;
+  padding: 3px 8px;
   font-size: 10px;
 }
 /* UNPAIR IS NOT PART OF READING THE LIST. It is the one act in this section
@@ -11421,7 +11431,7 @@ input, textarea { caret-color: var(--accent); }
    the only thing larger than the gaps inside them, so the eye groups on
    distance alone; at 20px it was barely over the 14px a heading and its field
    already sit apart, and the two methods ran together. */
-.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 26px; }
+.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 24px; }
 /* The field is the row: one input and the verb that commits it, with nothing
    to the left, because the section heading above already says which of the two
    ways in this is. */
@@ -11608,7 +11618,7 @@ input, textarea { caret-color: var(--accent); }
   align-items: stretch;
   gap: 8px;
   margin-top: 10px;
-  padding: 10px 10px 9px;
+  padding: 10px 10px 10px;
   border: 1px solid var(--ctl-edge);
   border-radius: 8px;
   background: var(--ctl-fill);
