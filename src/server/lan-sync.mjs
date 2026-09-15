@@ -358,7 +358,19 @@ export function mintInvite({ addrs, name, now = Date.now(), code = inviteCode() 
   const list = (Array.isArray(addrs) ? addrs : []).filter(a => typeof a === "string" && a).slice(0, MAX_INVITE_ADDRS);
   if (!list.length) return null;
   const expiresAt = now + INVITE_MS;
-  const body = { v: PROTOCOL, a: list, n: cleanName(name), c: code, x: expiresAt };
+  // `pb` IS THE MINTER SAYING IT WILL PROVE THE CODE BACK, and it is here
+  // rather than in PROTOCOL because PROTOCOL is the whole wire. A deck of this
+  // version answers the handshake with `inviteProofBack`; every deck before it
+  // speaks the same PROTOCOL and does not. The joiner has no other way to tell
+  // the two apart, and a joiner that demanded the proof from both would break
+  // invites exactly across a version boundary — which is when people use them.
+  //
+  // It is not a security decision the far end gets to make. The token is text
+  // the minter handed to the joiner out of band, in the same breath as the
+  // code; whoever can rewrite it already holds the code and has no use for
+  // this. What the flag can do is say "the deck that minted me is old", and the
+  // worst that buys is the behaviour shipped today.
+  const body = { v: PROTOCOL, a: list, n: cleanName(name), c: code, x: expiresAt, pb: 1 };
   return { token: INVITE_PREFIX + b64url(Buffer.from(JSON.stringify(body), "utf8")), code, expiresAt };
 }
 
@@ -395,7 +407,13 @@ export function readInvite(raw, now = Date.now()) {
     .map(p => ({ addr: p.raw.slice(0, p.at), port: Number(p.raw.slice(p.at + 1)) }))
     .filter(p => p.addr && Number.isInteger(p.port) && p.port > 0 && p.port < 65_536);
   if (!addrs.length) return null;
-  return { addrs, name: cleanName(body.n), code: body.c, expiresAt: body.x, expired };
+  return {
+    addrs, name: cleanName(body.n), code: body.c, expiresAt: body.x, expired,
+    // Whether the deck that minted this will prove it holds the code — see
+    // mintInvite. Absent means a deck older than that, and the caller degrades
+    // to what it did before rather than refusing the token.
+    provesBack: body.pb === 1,
+  };
 }
 
 /**
@@ -408,6 +426,29 @@ export function readInvite(raw, now = Date.now()) {
  */
 export function inviteProof(code, transcript) {
   return createHmac("sha256", `ccdeck-invite-v${PROTOCOL}`).update(`${code}|${transcript}`).digest("hex");
+}
+
+/**
+ * The same proof, the other way round: the deck that MINTED the invite showing
+ * the caller it holds the code too.
+ *
+ * WHY THE CALLER'S PROOF WAS NOT ENOUGH, and it is the whole of #971. The code
+ * travelled in one message, caller to listener, and the reply carried a session
+ * proof — an HMAC over an ECDH against whatever public key the responder had
+ * just presented. That proves the responder holds the private half of the key
+ * it just chose. Anything with a socket holds the private half of a key it just
+ * chose. `join` passes no pin, by definition, so the impostor check in
+ * connectToPeer is inert on this path and whatever answered first was written
+ * into the trusted list.
+ *
+ * A SEPARATE KEY STRING RATHER THAN A DIRECTION FIELD, because the two
+ * transcripts are byte-identical — handshakeTranscript takes the caller and the
+ * listener in a fixed order, so both sides compute the same string. Reusing
+ * `inviteProof` here would let the listener's reply be the caller's own `auth`
+ * frame echoed back, which is precisely the party this is meant to exclude.
+ */
+export function inviteProofBack(code, transcript) {
+  return createHmac("sha256", `ccdeck-invite-back-v${PROTOCOL}`).update(`${code}|${transcript}`).digest("hex");
 }
 
 // ── the beacon ──────────────────────────────────────────────────────────────

@@ -23,10 +23,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, SYNC_MS } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
-import { accountKey, identityFrom } from "../../server/lan-sync.mjs";
+import { accountKey, hostId, identityFrom, PROTOCOL } from "../../server/lan-sync.mjs";
 
 
 const K = (email: string, org: string) => accountKey(email, org);
@@ -68,21 +68,27 @@ function deafSocket() {
     setBroadcast() { /* nothing to set */ },
     send(_m: unknown, _p: number, _a: string, cb?: (e: Error | null) => void) { cb?.(null); },
     close() { /* nothing to release */ },
+    /** Hand the engine a packet as though it had arrived, WITHOUT any leaving.
+     *  Deaf in the direction that matters and not in the other: an inbound
+     *  beacon is the entry point of the whole automatic path, and a case about
+     *  what one unsolicited packet may do has to be able to send exactly one. */
+    deliver(msg: Buffer, from: string) { handlers.get("message")?.(msg, { address: from }); },
   };
 }
 
 const running: Array<{ stop: () => void }> = [];
 afterEach(() => { for (const e of running.splice(0)) e.stop(); });
 
-async function deck(s: ReturnType<typeof store>, name: string, shared: string[], over = {}) {
+async function deck(s: ReturnType<typeof store>, name: string, shared: string[], over = {}, on = {}) {
   const errors: string[] = [];
   // The key is kept by the caller in the real deck, so it is kept here too:
   // every engine gets its own, made once, rather than a fresh one per apply.
   const id = identityFrom("");
   const trusted: Array<{ fp: string; pub: string; name: string }> = [];
+  const sock = deafSocket();
   const e = createEngine({
     ...s.deps(over),
-    createSocket: () => deafSocket(),
+    createSocket: () => sock,
     onError: (w: string) => errors.push(w),
     // Written straight back into what the next apply is given, which is what
     // index.mjs does through prefs.
@@ -96,8 +102,11 @@ async function deck(s: ReturnType<typeof store>, name: string, shared: string[],
   // wrong fixture for the twenty tests below, every one of which is about what
   // a PRESS does. The automatic path has its own describe, where it is the
   // subject rather than the weather.
-  await e.apply({ enabled: true, name, secret: id.secret, shared, trusted, autoAsk: false, autoAccept: false });
-  return { e, errors, id, trusted, port: e.status().port as number };
+  await e.apply({
+    enabled: true, name, secret: id.secret, shared, trusted,
+    autoAsk: false, autoAccept: false, ...on,
+  });
+  return { e, errors, id, trusted, sock, port: e.status().port as number };
 }
 
 /**
@@ -680,8 +689,14 @@ describe("the suite must not shout on somebody's network", () => {
     // exactly that way, in a screenshot.
     const src = readFileSync(fileURLToPath(new URL("./lan-engine.test.ts", import.meta.url)), "utf8");
     const builds = [...src.matchAll(/createEngine\(/g)].length;
-    const deaf = [...src.matchAll(/createSocket: \(\) => deafSocket\(\)/g)].length;
+    // Two spellings, and the second is still the first. The harness keeps ONE
+    // instance rather than making a fresh one per call, so a case can hand an
+    // engine a packet through it — the beacon is the entry point of the
+    // automatic pairing path, and a case about what one unsolicited packet may
+    // do has to be able to send exactly one. Nothing goes OUT either way.
+    const deaf = [...src.matchAll(/createSocket: \(\) => (?:deafSocket\(\)|sock\b)/g)].length;
     expect(deaf, "an engine was built without a deaf socket").toBe(builds);
+    expect(src, "`sock` must be a deaf one").toContain("const sock = deafSocket();");
   });
 });
 
@@ -960,3 +975,222 @@ describe("the sync round keeps the caps the rest of the protocol keeps", () => {
   });
 });
 
+// WHAT A SHOUT FROM AN UNKNOWN ADDRESS IS ALLOWED TO BUY.
+//
+// Driven end to end against a victim engine on the defaults the deck ships —
+// `lan.enabled` on, `autoAsk` on, `autoAccept` off, `shared: []`, `trusted: []`
+// — and what was observed before this rule existed was: one UDP datagram from
+// an address nobody had typed, nobody at the keyboard, and the far end sitting
+// in `cfg.trusted` with `onTrust` already fired. index.mjs writes that list
+// straight to prefs.json, and being on it is the whole inbound gate.
+//
+// The chain had four links and each was defensible alone. A beacon
+// authenticates nothing, by construction — it carries a fingerprint and a port
+// and nothing binds either to the address it came from. `autoAsk` ships on and
+// answered every new fingerprint by putting its address on the dial list. The
+// next round reached it. And roundWith read "I have no pin for this" as "the
+// person at this keyboard typed this address", which was true right up until
+// `autoAsk` shipped on and stopped being true. `plan`'s `add` needs no tick, so
+// the last link needed nothing shared either.
+//
+// The rule that replaces it is the one roundWith's own comment always claimed:
+// a row may be pinned sight unseen only when a PERSON named it. The automatic
+// path may still ask — that is what the switch is called — and an ask is a row
+// with an accept on it.
+describe("a deck this one heard rather than reached for", () => {
+  /** One beacon, as it arrives off the wire. Its fingerprint and port are a
+   *  real listener's, because the point of the case is that a real deck really
+   *  is there — the packet is honest and still nobody asked for it. */
+  const announce = (
+    to: { sock: { deliver: (m: Buffer, f: string) => void } },
+    from: { e: { status: () => { fp: string; port: number } } },
+    name: string,
+  ) => to.sock.deliver(Buffer.from(JSON.stringify({
+    m: "CCDK", v: PROTOCOL, n: name, f: from.e.status().fp, p: from.e.status().port,
+    i: "00".repeat(8), h: hostId({ hostname: "somewhere-else", home: "/home/somebody" }),
+  })), "127.0.0.1");
+
+  it("is asked about rather than pinned, however the deck came to dial it", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 2, email: "stranger@elsewhere.test", orgUuid: "org-9", alive: true }]);
+    // The shipped defaults on the deck under test, and nothing ticked.
+    const a = await deck(mine, "Deck-A", [], {}, { autoAsk: true });
+    // The far side answers the handshake, which is the one thing an unwanted
+    // deck controls completely: it is its own listener and its own trusted list.
+    const b = await deck(theirs, "Deck-B", [K("stranger@elsewhere.test", "org-9")], {}, { autoAccept: true });
+
+    announce(a, b, "Uninvited");
+    // Twice: the first dial is refused while B is still deciding, the second
+    // completes — and the second is the round that used to pin.
+    await a.e.round();
+    await a.e.round();
+
+    expect(a.e.status().trusted, "one datagram wrote a pin").toEqual([]);
+    expect(a.trusted, "and onTrust would have put it in prefs.json").toEqual([]);
+    // Nothing was asked for either, so `plan`'s tickless `add` had nothing to
+    // act on — the account B offers is still only B's.
+    expect(mine.imported).toEqual([]);
+    expect(theirs.exported).toEqual([]);
+
+    // What it IS instead: a row with an accept on it, holding the key the
+    // handshake proved — the same row a deck that dials IN leaves behind.
+    expect(a.e.status().pending).toMatchObject([{ fp: b.id.fp, name: "Deck-B" }]);
+    const row = (a.e.status().peers as Array<{ typed: boolean; last?: { error?: string } }>)[0];
+    expect(row.typed).toBe(false);
+    expect(row.last?.error).toBe("waiting for somebody here to accept that deck");
+  }, 20_000);
+
+  it("becomes a pairing the moment somebody presses the accept it raised", async () => {
+    // The other half, and the reason this is a gate rather than a refusal: the
+    // automatic path still walks somebody up to the one press, and that press
+    // is worth exactly what it always was.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: false }]);
+    const theirs = store([{ num: 7, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const shared = [K("claude1@sapec.md", "org-1")];
+    const a = await deck(mine, "Deck-A", shared, {}, { autoAsk: true });
+    const b = await deck(theirs, "Deck-B", shared, {}, { autoAccept: true });
+
+    announce(a, b, "Deck-B");
+    await a.e.round();
+    await a.e.round();
+    expect(a.e.accept(b.id.fp)).toBeTruthy();
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+
+    // And then it is an ordinary paired deck: the round it was blocking runs.
+    expect(await a.e.round()).toEqual([{
+      key: K("claude1@sapec.md", "org-1"), email: "claude1@sapec.md",
+      action: "heal", ok: true, why: null,
+    }]);
+  }, 20_000);
+
+  it("cannot make the dial list longer than a round can walk", async () => {
+    // Measured, and the shape of it is not the obvious one. The list is keyed
+    // `host:port`, so five hundred beacons from one address on one port are one
+    // row:
+    //
+    //     500 beacons, one source IP, distinct fp + distinct port -> 500 rows
+    //     500 beacons, one source IP, distinct fp + one port      ->   1 row
+    //
+    // So the ceiling from a single host was one row per announced port, up to
+    // 65,535 of them, each dialled in turn with a ROUND_MS bell on it — which
+    // leaves the decks somebody actually paired with at the back of a queue
+    // hours long. Capped for what the deck added itself; a person's own list of
+    // addresses is not the deck's business to trim.
+    const a = await deck(store([]), "Deck-A", []);
+    for (let p = 0; p < 200; p++) a.e.addPeer("127.0.0.1", 40_000 + p, { typed: false });
+    for (let p = 0; p < 6; p++) a.e.addPeer("10.0.0.9", 50_000 + p);
+    const peers = a.e.status().peers as Array<{ typed: boolean }>;
+    expect(peers.filter(r => !r.typed)).toHaveLength(MAX_AUTO_PEERS);
+    expect(peers.filter(r => r.typed)).toHaveLength(6);
+  });
+
+  it("keeps the vouching when a beacon arrives for an address somebody typed", async () => {
+    // Order must not decide this. An address in the field is a person naming a
+    // machine, and the next packet from that machine is not a reason to demote
+    // the row to one the deck added on its own.
+    const a = await deck(store([]), "Deck-A", []);
+    a.e.addPeer("127.0.0.1", 44_401);
+    a.e.addPeer("127.0.0.1", 44_401, { typed: false });
+    expect((a.e.status().peers as Array<{ typed: boolean }>)[0].typed).toBe(true);
+  });
+});
+
+// WHO IS ALLOWED TO ANSWER AT AN INVITE'S ADDRESS.
+//
+// The invite header says the code "closes the gap trust-on-first-use left open:
+// the first contact is verified rather than believed." It closed it in one
+// direction. `inviteProof` travelled in message three, caller to listener, and
+// the `ok` that came back carried a session proof — an HMAC over an ECDH
+// against whatever public key the responder had just presented. That proves the
+// responder holds the private half of a key it chose a moment ago, which is
+// something anything with a socket can do. `join` passes no pin, by definition,
+// so connectToPeer's impostor check is inert on this path too.
+//
+// Observed against a listener that had never been given the code: `join`
+// returned ok, and the deck that answered went into `cfg.trusted` and through
+// `onTrust` into prefs.json. A token carries up to ten addresses and `join`
+// stops at the first that ANSWERS — and `localAddresses` filters loopback and
+// 169.254 but not RFC1918, so a container bridge address or a lease that has
+// since moved to somebody else's machine is an ordinary thing to find in one.
+// One of those winning the race won the whole token, and being trusted is the
+// whole inbound gate.
+describe("the invite, and the half of it that was never checked", () => {
+  it("pairs with the deck that minted the token", async () => {
+    const a = await deck(store([]), "Minter", []);
+    const b = await deck(store([]), "Joiner", []);
+    const offered = a.e.invite();
+    const res = await b.e.join(offered.token);
+    expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    // Retired on use: a token that pairs twice is one worth stealing twice.
+    expect(a.e.offering()).toBeNull();
+  }, 20_000);
+
+  it("walks past a deck at one of its addresses that cannot show the code", async () => {
+    const a = await deck(store([]), "Minter", []);
+    // A deck that answers the handshake and holds no invite. Its `autoAccept`
+    // stands for the one thing a listener at that address always controls —
+    // whether to complete a handshake with whoever dialled it.
+    const wrong = await deck(store([]), "Wrong-Deck", [], {}, { autoAccept: true });
+    const j = await deck(store([]), "Joiner", []);
+
+    // One ordinary round first, so the wrong deck has the joiner on its own
+    // trusted list by the time the token is used. That is the state this is
+    // about — a listener that will complete a handshake with whoever dials it —
+    // and nothing about how it got there is the subject.
+    j.e.addPeer("127.0.0.1", wrong.port);
+    await j.e.round();
+    j.e.setPeers([]);
+    expect(j.e.status().trusted, "the round itself must not have paired them").toEqual([]);
+
+    const offered = a.e.invite();
+    // The same token with the wrong deck's address ahead of the minter's.
+    // Minted through the real function and re-addressed, so the code and the
+    // expiry are the real ones rather than a hand-built token readInvite would
+    // refuse before any of this ran.
+    const { mintInvite, readInvite } = await import("../../server/lan-sync.mjs");
+    const real = readInvite(offered.token);
+    const token = mintInvite({
+      addrs: [`127.0.0.1:${wrong.port}`, `127.0.0.1:${a.port}`],
+      name: "Minter", code: real.code,
+    }).token;
+
+    const res = await j.e.join(token);
+
+    expect(res.ok).toBe(true);
+    expect(res.peer.fp, "it stopped at whatever answered first").toBe(a.id.fp);
+    expect(res.tried).toMatchObject([
+      { addr: `127.0.0.1:${wrong.port}`, why: "that deck does not hold the invite" },
+    ]);
+    expect(j.e.status().trusted.map((t: { fp: string }) => t.fp)).toEqual([a.id.fp]);
+    expect(j.trusted.some((t: { fp: string }) => t.fp === wrong.id.fp),
+      "the wrong deck reached prefs.json").toBe(false);
+  }, 20_000);
+
+  it("still joins on a token minted by a deck too old to prove anything back", async () => {
+    // Compatibility is not a detail here: an invite is what people reach for
+    // precisely when one machine has been updated and the other has not, and a
+    // joiner that demanded the proof from every listener would break the
+    // feature exactly then. The token says which kind of deck minted it, so
+    // this degrades to the behaviour that shipped rather than refusing.
+    const a = await deck(store([]), "Minter", []);
+    const b = await deck(store([]), "Joiner", []);
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
+    const real = readInvite(a.e.invite().token);
+    const fresh = mintInvite({
+      addrs: real.addrs.map((x: { addr: string; port: number }) => `${x.addr}:${x.port}`),
+      name: "Minter", code: real.code,
+    });
+    // The same token as a previous release wrote it: no `pb`.
+    const body = JSON.parse(Buffer.from(
+      fresh.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
+    delete body.pb;
+    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    expect(readInvite(old).provesBack).toBe(false);
+
+    const res = await b.e.join(old);
+    expect(res.ok, JSON.stringify(res.tried ?? [])).toBe(true);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+  }, 20_000);
+});

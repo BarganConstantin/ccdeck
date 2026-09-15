@@ -983,6 +983,50 @@ describe("the invite, which is one piece of text and every address", () => {
     const made = mintInvite({ addrs: many, name: "x" });
     expect(readInvite(made.token).addrs).toHaveLength(MAX_INVITE_ADDRS);
   });
+
+  it("has the minter prove it too, in a form the caller's own proof cannot be", async () => {
+    // Both halves of the handshake compute the SAME transcript —
+    // handshakeTranscript takes the caller and the listener in a fixed order,
+    // so the string is identical on the two machines. That is what makes it
+    // usable as a shared binding, and it is also why the reply cannot reuse
+    // `inviteProof`: the listener's answer would then be byte-for-byte the
+    // `auth` frame the caller had just sent, and echoing a frame back is
+    // precisely what the party this excludes is in a position to do.
+    //
+    // So a second key string rather than a direction field inside one. Checked
+    // here rather than inferred from the source, because "these two HMACs
+    // differ" is the entire security content of the choice.
+    const { inviteProof, inviteProofBack } = await import("../../server/lan-sync.mjs");
+    const transcript = "fpA|fpB|c1|c2";
+    const back = inviteProofBack("482100", transcript);
+    expect(back).not.toBe(inviteProof("482100", transcript));
+    expect(back).not.toContain("482100");
+    // And bound to the transcript and the code the same way, so a recording of
+    // one exchange proves nothing about the next.
+    expect(inviteProofBack("482100", "fpA|fpB|c1|c3")).not.toBe(back);
+    expect(inviteProofBack("482101", transcript)).not.toBe(back);
+  });
+
+  it("says in the token whether the deck that minted it will prove anything back", async () => {
+    // The joiner has no other way to tell a deck that WILL NOT from a deck that
+    // CANNOT. Both speak this PROTOCOL — a token from an older wire version is
+    // refused outright by readInvite — so the version check has to be finer
+    // than PROTOCOL, and a joiner that demanded the proof from every listener
+    // would break invites across exactly the boundary people mint them at.
+    //
+    // It is not a decision the far end gets to make. The token is text the
+    // minter handed over out of band in the same breath as the code; anybody
+    // who can rewrite it already holds the code.
+    const { mintInvite, readInvite, INVITE_PREFIX } = await import("../../server/lan-sync.mjs");
+    const made = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
+    expect(readInvite(made.token).provesBack).toBe(true);
+
+    const body = JSON.parse(Buffer.from(made.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
+    delete body.pb;
+    const old = INVITE_PREFIX + Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+    expect(readInvite(old), "a token from before the flag is still an invite").not.toBeNull();
+    expect(readInvite(old).provesBack).toBe(false);
+  });
 });
 
 describe("the list of decks nearby, which was a wall of ghosts", () => {
