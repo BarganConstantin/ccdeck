@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createActivity, OPEN_CAP_MS } from "../../server/activity.mjs";
+import { createActivity, MAX_OPEN_TURNS, OPEN_CAP_MS } from "../../server/activity.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_QUIET_MS, AWAY_RETRY_MS, awayGate, awayUpdateStep } from "../../server/auto-update.mjs";
 import { createPresence, PRESENCE_TTL_MS } from "../../server/presence.mjs";
 import { DEFAULTS, normalise } from "../../server/deck-prefs.mjs";
@@ -147,6 +147,32 @@ describe("whether a turn is running", () => {
     a.note({ hook_event_name: "UserPromptSubmit" }, 1000);   // no session: quiet moves, nothing opens
     expect(a.busy(2000)).toBe(false);
     expect(a.quietMs(2000)).toBe(1000);
+  });
+
+  // #1089. A turn kept its place in the map from its FIRST event, and `busy`
+  // stops at the first live entry, which is also the only place an entry ever
+  // expires — so one long-running turn at the head shielded every turn that went
+  // quiet behind it, for as long as it kept running.
+  it("lets go of turns that went quiet behind one that is still running", () => {
+    const a = createActivity();
+    a.note({ hook_event_name: "UserPromptSubmit", session_id: "long" }, 0);
+    for (let i = 0; i < 100; i++) {
+      a.note({ hook_event_name: "PreToolUse", session_id: `crashed-${i}` }, 1000);
+    }
+    // Still working, well after the hundred behind it stopped for good.
+    a.note({ hook_event_name: "PreToolUse", session_id: "long" }, OPEN_CAP_MS + 2000);
+    expect(a.busy(OPEN_CAP_MS + 3000)).toBe(true);
+    expect(a.size(), "the hundred that never said Stop are past the cap").toBe(1);
+  });
+
+  it("holds a bounded number of turns however many ids arrive, and still answers", () => {
+    // The ids come in on `/api/event`, which takes them without a credential.
+    const a = createActivity();
+    for (let i = 0; i < MAX_OPEN_TURNS * 4; i++) {
+      a.note({ hook_event_name: "UserPromptSubmit", session_id: `s${i}` }, 1000 + i);
+    }
+    expect(a.size()).toBe(MAX_OPEN_TURNS);
+    expect(a.busy(2000)).toBe(true);
   });
 });
 
