@@ -910,3 +910,53 @@ describe("which account a paired deck is on", () => {
     expect(row?.offers?.current).toEqual({ key: ON });
   }, 20_000);
 });
+
+// THE ROUND'S OWN TWO CEILINGS, WHICH IT DID NOT HAVE.
+//
+// roundWith opens a second reader on a socket that already has a frameReader,
+// and plans over a manifest it has already capped one line above. Both were
+// written as if the caps elsewhere covered them, and neither did:
+//
+//   * the frameReader IS still attached and does hit MAX_FRAME_BYTES, but it
+//     only sets its own flag and calls `fail`, which short-circuits on
+//     `settled` — so nothing destroyed the socket and `ask`'s own buffer grew
+//     unbounded for the full ROUND_MS at line rate;
+//   * `offered()` slices to 50 and type-filters, and `plan()` was handed the
+//     raw array instead — so a peer answering with thousands of rows produced
+//     thousands of sequential want/have round trips plus a claude-swap
+//     subprocess each, while the panel drew 50.
+//
+// Source assertions, because both live inside a socket exchange several frames
+// into a handshake against a live peer. lan-socket.test.ts owns what
+// frameReader does with the cap; this owns that the round reaches for it.
+describe("the sync round keeps the caps the rest of the protocol keeps", () => {
+  const src = readFileSync(
+    fileURLToPath(new URL("../../server/lan-engine.mjs", import.meta.url)), "utf8");
+
+  it("bounds its own reader at MAX_FRAME_BYTES, like frameReader", () => {
+    expect(src).toContain("if (buf.length > MAX_FRAME_BYTES) {");
+    expect(src).toContain('give(reject, new Error("frame too large"))');
+    // Reached for rather than re-typed, so the two cannot drift apart.
+    expect(src).toContain("MAX_FRAME_BYTES } from \"./lan-socket.mjs\"");
+  });
+
+  it("detaches its listener on every way out, not only on the newline", () => {
+    // The reject path used to leave `onData` attached, so the buffer kept
+    // growing until roundWith's finally destroyed the socket.
+    expect(src).toContain('conn.sock.off("data", onData);');
+    expect(src).toContain("const give = (fn, arg) => {");
+  });
+
+  it("plans over the capped list rather than the raw manifest", () => {
+    expect(src).toContain("const wanted = plan(mine, list)");
+    expect(src, "the raw array must not come back").not.toContain("plan(mine, theirs.accounts)");
+  });
+
+  it("and the list it plans over is the one the panel was shown", () => {
+    // One value, so what is drawn and what is done cannot disagree.
+    expect(src).toContain("const list = offered(theirs.accounts);");
+    expect(src.indexOf("const list = offered(theirs.accounts);"))
+      .toBeLessThan(src.indexOf("const wanted = plan(mine, list)"));
+  });
+});
+

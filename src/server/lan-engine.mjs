@@ -28,7 +28,7 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
-import { connectToPeer, createBeacon, createSyncServer, sendFrame } from "./lan-socket.mjs";
+import { connectToPeer, createBeacon, createSyncServer, sendFrame, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { randomBytes } from "node:crypto";
@@ -372,17 +372,39 @@ export function createEngine({
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
       });
+      // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
+      //
+      // lan-socket.mjs's header states the rule: "a peer that sends a megabyte
+      // with no newline in it is not sending a large frame, it is sending
+      // nothing at all, expensively... the buffer is ABANDONED rather than
+      // grown past it." frameReader enforces it; this reader did not.
+      //
+      // The frameReader connectToPeer installed IS still attached and does hit
+      // MAX_FRAME_BYTES — but it only sets its own flag and calls `fail`, which
+      // short-circuits on `settled`, so nothing destroys the socket. This
+      // buffer then grew unbounded for the full ROUND_MS at line rate. The
+      // reject path also never removed the listener; only roundWith's
+      // `finally { conn?.sock?.destroy(); }` stopped it.
       const ask = frame => new Promise((resolve, reject) => {
         const bell = setTimeout(() => reject(new Error("peer went quiet")), ROUND_MS);
         bell.unref?.();
         let buf = "";
-        const onData = chunk => {
-          buf += chunk;
-          const i = buf.indexOf("\n");
-          if (i === -1) return;
+        const give = (fn, arg) => {
           clearTimeout(bell);
           conn.sock.off("data", onData);
-          try { resolve(JSON.parse(buf.slice(0, i))); } catch { reject(new Error("bad reply")); }
+          fn(arg);
+        };
+        const onData = chunk => {
+          buf += chunk;
+          if (buf.length > MAX_FRAME_BYTES) {
+            conn.sock.destroy();
+            return give(reject, new Error("frame too large"));
+          }
+          const i = buf.indexOf("\n");
+          if (i === -1) return;
+          let parsed;
+          try { parsed = JSON.parse(buf.slice(0, i)); } catch { return give(reject, new Error("bad reply")); }
+          give(resolve, parsed);
         };
         conn.sock.on("data", onData);
         sendFrame(conn.sock, frame);
@@ -438,7 +460,16 @@ export function createEngine({
       // them, which is the whole of "I do not want to paste blobs any more".
       // What can reach this is what a deck somebody here pressed accept on
       // chose to offer.
-      const wanted = plan(mine, theirs.accounts)
+      // OVER `list`, NOT THE RAW ARRAY. `offered` above slices to 50 and type-
+      // filters `key` and `email`; this line read `theirs.accounts` and got
+      // neither. syncAction answers "add" for anything this deck lacks and an
+      // add needs no tick, so a peer answering `manifest` with thousands of
+      // rows produced thousands of steps — each a sequential `want`/`have`
+      // round trip with its own 10s bell plus a claude-swap subprocess holding
+      // the store lock, while the panel drew 50 and every other paired deck
+      // waited behind it. `step.key` also reached transferChallenge and
+      // importAccount untyped, which `offered`'s filter would have caught.
+      const wanted = plan(mine, list)
         .filter(step => step.action === "add" || cfg.shared.includes(step.key));
       const done = [];
       for (const step of wanted) {
