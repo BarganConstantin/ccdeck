@@ -8297,6 +8297,22 @@ button.ap-err::after {
 }
 .aa-done .aa-note { max-width: 44ch; }
 
+/* The qualification on a success (#951): the account was added, and the machine
+   is still signed in as it. Amber rather than red because nothing failed — the
+   sign-in worked — and 85% of --warn on the boundary for the reason the topbar's
+   stale chip carries the same number: a third of --warn is 3.05:1 on this canvas
+   and 1.81:1 on white, so every --warn boundary in this sheet is 85% and every
+   --err boundary 65%. Text on --warn itself, not on a tint, since this is a
+   sentence to read rather than a control to aim at. */
+.aa-warn {
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
 @keyframes aa-done-in {
   from { opacity: 0; transform: scale(0.97) translateY(4px); }
   to   { opacity: 1; transform: none; }

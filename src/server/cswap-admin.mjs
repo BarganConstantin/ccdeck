@@ -328,8 +328,27 @@ let _starting = null;
 
 export function loginState() {
   if (!_login) return { state: "idle" };
-  const { state, url, error, account, expiresAt } = _login;
-  return { state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null };
+  const { state, url, error, account, expiresAt, restore } = _login;
+  return {
+    state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null,
+    // The sign-in's OTHER outcome, and the one it used to drop (#951). `true`
+    // until a restore has actually been attempted, because every state before
+    // that — awaiting_url, awaiting_code, registering — has moved nothing that
+    // needs putting back, and a dialog polling this must not flash a warning
+    // through the middle of an ordinary sign-in.
+    ...restoreFields(restore),
+  };
+}
+
+/** The restore verdict, in the two fields a caller reads. Written once here so
+ *  the login route, the cancel result and the dialog's type cannot drift. */
+function restoreFields(restore) {
+  return {
+    restored: restore ? restore.restored : true,
+    activeAccount: restore && !restore.restored
+      ? { num: restore.activeNum, email: restore.activeEmail }
+      : null,
+  };
 }
 
 /**
@@ -628,7 +647,11 @@ async function registerSignedIn(flow, identity) {
     if (!add.ok) {
       flow.state = "failed";
       flow.error = addFailureText(add);
-      await restoreActive(flow.previousActive);
+      // Kept even on the branch that already failed: `cswap add` can fail
+      // having written a slot and moved the machine onto it, so this is the
+      // branch where the live login is MOST likely to have ended up somewhere
+      // the user did not choose.
+      flow.restore = await restoreActive(flow.previousActive);
       return { ok: false, reason: "add_failed", ...loginState() };
     }
 
@@ -638,7 +661,11 @@ async function registerSignedIn(flow, identity) {
     // credentials in place. That is a success with a different sentence.
     const num = slot ?? Object.keys(after.emails).find(k => after.emails[k] === identity.email) ?? null;
 
-    await restoreActive(flow.previousActive);
+    // Assigned, not discarded. `done` is still the right state — the account
+    // WAS added — but it is `done` with a qualification whenever this says the
+    // machine did not go back, and the dialog renders that qualification
+    // instead of "The account you were using is still active".
+    flow.restore = await restoreActive(flow.previousActive);
     invalidateClaudeAccountsCache();
     // Collect straight away, so the new row shows numbers instead of "never
     // collected" until the next poll — the same nudge seedFirstAccount uses.
@@ -720,21 +747,66 @@ export async function cancelLogin() {
   return withStoreLock(async () => {
     // The login may have completed before the cancel arrived, in which case the
     // live credentials already moved and putting them back is the point.
-    await restoreActive(flow.previousActive);
+    const restore = await restoreActive(flow.previousActive);
     invalidateClaudeAccountsCache();
     // A newer sign-in can have started while this waited its turn; clearing the
     // slot then would drop a live flow's handle instead of this dead one's.
     if (flow === _login) _login = null;
-    return { ok: true, ...loginState() };
+    // The verdict goes on the RESULT, not through loginState(): the line above
+    // has just cleared `_login`, so loginState() is `{state:"idle"}` here and
+    // would carry nothing. Escape is a real way to end up with the credentials
+    // moved — the sign-in may have completed before the cancel arrived, which
+    // is why this calls restoreActive at all — so the answer has to survive.
+    // …and LAST, so that on the rare path where a newer sign-in has already
+    // taken `_login`, this cancel still answers about the account IT moved
+    // rather than about the fresh flow's untouched one.
+    return { ok: true, ...loginState(), ...restoreFields(restore) };
   });
 }
 
-/** Put the account that was active before the login back in front. */
+/** Nothing to put back, or it is already back: the shape every caller reads. */
+const RESTORED = Object.freeze({ restored: true, activeNum: null, activeEmail: null, detail: null });
+
+/**
+ * Put the account that was active before the login back in front — and ANSWER
+ * whether it went back (#951).
+ *
+ * This used to return `undefined` on every path, under a `.catch(() => {})`
+ * that could not fire. `run` is resolve-only (exec.mjs), so a non-zero exit, a
+ * timeout and a binary that is not there all arrive as `{ok:false, …}` rather
+ * than as a rejection; the catch was guarding against an exception that does
+ * not exist, and the result it was attached to was not assigned to anything.
+ * So a `cswap switch` that failed — a dead refresh token for the old slot is
+ * the ordinary way, and `authTrouble` exists to name that state — left every
+ * caller walking on to `flow.state = "done"` with no way to tell.
+ *
+ * What that costs is not a missing log line. `cswap add` moves
+ * activeAccountNumber AND ~/.claude/.credentials.json onto the account it just
+ * created, so a restore that silently fails leaves every Claude Code session on
+ * the machine running as the account that was just added — the precise outcome
+ * `previousActive` is captured to prevent, reported to the user as an
+ * unqualified success.
+ *
+ * THE VERDICT COMES OFF THE STORE, NOT OFF THE EXIT STATUS. `newSlot` settles
+ * the neighbouring question the same way and says why: the store is the fact.
+ * A `cswap switch` that moved the account and then exited non-zero is not
+ * something to warn about, and exit 0 with nothing moved is — and only a
+ * re-read can tell those apart.
+ */
 async function restoreActive(num) {
-  if (num == null) return;
+  if (num == null) return RESTORED;
   const after = await readStore();
-  if (String(after.activeNum) === String(num)) return;
-  await run(await cswapBin(), ["switch", String(num)], { timeout: 30_000 }).catch(() => {});
+  if (String(after.activeNum) === String(num)) return RESTORED;
+  const r = await run(await cswapBin(), ["switch", String(num)], { timeout: 30_000 });
+  const now = await readStore();
+  if (String(now.activeNum) === String(num)) return RESTORED;
+  const active = now.activeNum == null ? null : String(now.activeNum);
+  return {
+    restored: false,
+    activeNum: active,
+    activeEmail: active == null ? null : (now.emails[active] ?? ""),
+    detail: failureText(r, "cswap switch", "the account could not be switched back"),
+  };
 }
 
 // ── share / import ───────────────────────────────────────────────────────────
