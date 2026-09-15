@@ -11517,3 +11517,63 @@ input, textarea { caret-color: var(--accent); }
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
 .empty-hero .empty-tour { pointer-events: auto; margin-top: 18px; }
+
+/* ---------------- forced colours (#871) ----------------
+   A Windows Contrast theme repaints every background colour as Canvas and drops
+   background images and shadows, so state this sheet paints as a fill (a status
+   dot, a meter, a switch's knob) is painted over and gone. These opt out of
+   that one adjustment and redraw in the theme's own system colours:
+   CanvasText where a word beside the mark carries the state, Highlight for
+   something live or on, GrayText for something resting. Marks whose colour IS
+   the information (a model's or an agent's band, matched to a legend, or a
+   quota fill tinted by how close it is to the limit) keep their own colour
+   instead. Every meter's track gets a hairline, so the empty part of a bar is
+   still a length. No !important: each selector is spelled as the rule it
+   answers, and this block comes last. */
+@media (forced-colors: active) {
+  .topbar .status .pill.live::before,
+  .topbar .status .pill.paused::before,
+  .topbar .status .pill.dead::before,
+  .conn-banner .conn-dot,
+  .waiting-dot,
+  .ap-dot { forced-color-adjust: none; background: CanvasText; }
+
+  .sl-dot::before,
+  .bw-dot,
+  .bw-mode-dot,
+  .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
+  .sl-dot.state-active::before,
+  .state-pill.state-active::before,
+  .bw-mode-dot.on,
+  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+
+  .sysdetail .sd-fill,
+  .sysdetail .sd-core-fill,
+  .ctx-window-fill,
+  .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  .qb-fill,
+  .ap-lane-fill,
+  .uh-bar-seg,
+  .uh-agent-seg,
+  .uh-model-bar-fill,
+  .uh-legend-dot,
+  .cost-bar .cb-seg { forced-color-adjust: none; }
+  .qb-track,
+  .ap-lane-track,
+  .sd-track,
+  .sd-core,
+  .session-summary .ss-tt-bar,
+  .uh-model-bar,
+  .uh-agent-bar,
+  .cost-bar { outline: 1px solid CanvasText; outline-offset: -1px; }
+
+  /* The track keeps its forced border either way; the knob is what moves, so
+     it is what has to survive, and the track fills when the switch is on. */
+  .switch-knob,
+  .switch:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
+  .switch[aria-checked="true"],
+  .switch[aria-checked="true"]:hover:not(:disabled),
+  .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  .switch[aria-checked="true"] .switch-knob,
+  .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
+}
