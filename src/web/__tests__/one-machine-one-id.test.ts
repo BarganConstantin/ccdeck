@@ -22,10 +22,11 @@ const { hostId, machineName } = lan as {
 };
 // @ts-expect-error — .mjs server module, no types
 const svc = await import("../../server/login-service.mjs");
-const { scopeEnv, plistFor, unitFor, SCOPE_VARS } = svc as {
+const { scopeEnv, plistFor, unitFor, installService, SCOPE_VARS } = svc as {
   scopeEnv: (env: Record<string, string | undefined>) => Record<string, string>;
   plistFor: (o: Record<string, unknown>) => string;
   unitFor: (o: Record<string, unknown>) => string;
+  installService: (o: Record<string, unknown>) => Record<string, unknown>;
   SCOPE_VARS: readonly string[];
 };
 
@@ -67,10 +68,37 @@ describe("the deck started at login is the deck started from the shell", () => {
     expect(plist).toContain("<key>CLAUDE_CONFIG_DIR</key>");
     expect(plist).toContain("<string>/Users/p/.claude-work</string>");
     expect(plist).toContain("<key>AGENTS_DECK_DETACHED</key>");
-    expect(unitFor({ ...job, env })).toContain("Environment=CLAUDE_CONFIG_DIR=/Users/p/.claude-work");
+    expect(unitFor({ ...job, env })).toContain('Environment="CLAUDE_CONFIG_DIR=/Users/p/.claude-work"');
   });
 
-  it("is what the first start hands the installer", () => {
-    expect(DECK).toMatch(/svc\.installService\(\{[\s\S]{0,400}serviceEnv: svc\.scopeEnv\(process\.env\),/);
+  it("is what every install writes, without a call site having to remember it", () => {
+    // TWO OF THE THREE CALL SITES DID NOT REMEMBER. Only the offer made on a
+    // first start passed the scope directories; `--install` and
+    // `--install-service` — the two commands whose entire job is to write the
+    // login item — passed none, so a shell with CLAUDE_CONFIG_DIR exported
+    // installed an item keyed to the default registries and got the two decks
+    // above by typing the command for one.
+    //
+    // ASSERTED THROUGH THE INSTALLER, not against deck.js's text, because the
+    // rule now lives in one place: the default is what every caller gets and a
+    // caller has to say otherwise to lose it. A source-text match would go
+    // green again the moment a fourth call site appeared without it.
+    const wrote = (platform: string, home: string) => {
+      let body = "";
+      installService({
+        platform, home,
+        execPath: "/usr/bin/node", script: "/opt/ccdeck/bin/agent-dag.js", logPath: "/l/deck.log",
+        env: { HOME: home, PATH: "/bin", CLAUDE_CONFIG_DIR: "/home/p/.claude-work" },
+        fs: { mkdirSync: () => {}, writeFileSync: (_p: string, b: string) => { body = b; } },
+        run: () => ({ status: 0 }),
+      });
+      return body;
+    };
+    expect(wrote("darwin", "/Users/p")).toContain("<string>/home/p/.claude-work</string>");
+    expect(wrote("linux", "/home/p")).toContain('Environment="CLAUDE_CONFIG_DIR=/home/p/.claude-work"');
+    // And Windows gets none of them, for the reason in SCOPE_VARS' header: a
+    // Task Scheduler job has no environment block and inherits the user's
+    // persistent variables, which is where a Windows user sets these anyway.
+    expect(wrote("win32", "C:\\Users\\p")).not.toContain(".claude-work");
   });
 });
