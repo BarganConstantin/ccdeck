@@ -279,7 +279,6 @@ const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
 const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
 const VIEWPORT_STORAGE_KEY = "agent-dag.viewport";
-const SUMMARY_DISMISSED_KEY = "agent-dag.summariesDismissed";
 const SESSION_LIST_OPEN_KEY = "agent-dag.sessionListOpen";
 const DETAIL_OPEN_KEY = "agent-dag.detailOpen";
 const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
@@ -443,27 +442,6 @@ function loadMachinePanelOpen(): boolean {
 function saveMachinePanelOpen(open: boolean): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
-}
-
-function loadDismissedSummaries(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(SUMMARY_DISMISSED_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr.filter((x: unknown) => typeof x === "string") : []);
-  } catch { return new Set(); }
-}
-
-function saveDismissedSummaries(set: Set<string>): void {
-  if (typeof window === "undefined") return;
-  try {
-    // Cap at 200 entries so this localStorage value can't grow unbounded
-    // across thousands of sessions.
-    const arr = Array.from(set);
-    const trimmed = arr.length > 200 ? arr.slice(-200) : arr;
-    window.localStorage.setItem(SUMMARY_DISMISSED_KEY, JSON.stringify(trimmed));
-  } catch {}
 }
 
 function loadLayout(): StoredLayout {
@@ -1120,8 +1098,8 @@ function Inner() {
     setPrimarySelectedId(null);
   }, []);
   /** Session ID for which we're showing the end-of-session recap modal,
-   *  or null when no modal is open. Triggered by Stop / SessionEnd hooks
-   *  (gated against dismissedSummaries to avoid re-opening on refresh). */
+   *  or null when no modal is open. Opened from the detail panel's
+   *  `Show recap` on a finished session. */
   const [summaryFor, setSummaryFor] = useState<string | null>(null);
   /** Session id whose context-breakdown modal is open, or null. Driven by
    *  clicking the donut on the session's root node. */
@@ -1142,14 +1120,6 @@ function Inner() {
    *  changelog after, once. Null every other time, including a tour opened by
    *  hand from the empty canvas. */
   const notesAfterTour = useRef<{ entries: VersionNotes[]; since: string | null; firstRun: boolean } | null>(null);
-  /** Sessions whose recap has already been closed once. A `useState`
-   *  initialiser and not `useRef(loadDismissedSummaries())`, because `useRef`
-   *  evaluates its argument on EVERY render and keeps only the first result
-   *  (#612) — so the getItem, the JSON.parse and the Set ran four times a
-   *  second on an idle deck, and once per pointer move through a drag, for a
-   *  value that is wanted once. The Set is mutated in place from here on and
-   *  never replaced, which is why there is no setter and no ref around it. */
-  const dismissedSummaries = useState(loadDismissedSummaries)[0];
   /** Left sidebar (session list) visibility — persisted across refresh. */
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(loadSessionListOpen);
   useEffect(() => { saveSessionListOpen(sessionListOpen); }, [sessionListOpen]);
@@ -1867,7 +1837,7 @@ function Inner() {
   // pause state out of a ref — see pause.ts for why closing over the state
   // variable instead made every toggle replay the server's whole ring buffer.
   // `paused` mirrors the gate for rendering; the gate stays the source of truth.
-  // Lazily, for the reason spelled out at `dismissedSummaries`: a `useRef`
+  // Lazily, for the reason spelled out at `initialGraph`: a `useRef`
   // argument is re-evaluated on every render (#612). The gate is mutated in
   // place and never replaced, so the value itself is the handle.
   //
@@ -2232,12 +2202,14 @@ function Inner() {
   // same SSE channel before live events. Each replayed envelope is tagged
   // `replay: true`; a `replay-end` sentinel marks the boundary. We do two
   // things differently for replay traffic:
-  //   1) the reducer sees the flag and skips turn-cleanup side effects
-  //      (UserPromptSubmit stamping exitAt with a stale receivedAt, which
-  //      collided with the wall-clock visibility gate and made prior-turn
-  //      subagents flash visible then vanish);
-  //   2) the SSE handler coalesces renders during replay — one render at
-  //      replay-end.
+  //   1) the SSE handler coalesces renders during replay — one render at
+  //      replay-end;
+  //   2) `chimeFor` stays quiet for it, so a reconnect does not play every
+  //      Stop in the ring.
+  //
+  // The reducer never reads the flag: its turn cleanup keys on event time,
+  // which comes out right for replayed and live events alike. See
+  // HookEnvelope.replay in types.ts.
   //
   // Live traffic is coalesced too, but leading-edge (see coalesce.ts): the
   // first event of a quiet stream still renders in its own task, while a tool
@@ -5473,13 +5445,7 @@ function Inner() {
                 agent={selected}
                 now={now}
                 onOpenTool={setOpenedToolId}
-                onShowSummary={(sid) => {
-                  if (dismissedSummaries.has(sid)) {
-                    dismissedSummaries.delete(sid);
-                    saveDismissedSummaries(dismissedSummaries);
-                  }
-                  setSummaryFor(sid);
-                }}
+                onShowSummary={setSummaryFor}
                 onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
               />
         </aside>
@@ -5522,11 +5488,7 @@ function Inner() {
         <SessionSummary
           state={stateRef.current}
           sessionId={summaryFor}
-          onClose={() => {
-            dismissedSummaries.add(summaryFor);
-            saveDismissedSummaries(dismissedSummaries);
-            setSummaryFor(null);
-          }}
+          onClose={() => setSummaryFor(null)}
         />
       )}
       {/* Before the clear prompt and after everything else, which is where a

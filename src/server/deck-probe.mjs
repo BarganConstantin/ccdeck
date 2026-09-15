@@ -30,7 +30,7 @@ import { request as httpRequest } from "node:http";
 // The same deadline hook.js gives a challenge, and for the same reason: a
 // bodyless GET to a loopback port is sub-millisecond when a deck is there and an
 // instant ECONNREFUSED when nothing is.
-export const DECK_CHALLENGE_TIMEOUT_MS = 400;
+const DECK_CHALLENGE_TIMEOUT_MS = 400;
 
 // Signal 0 delivers nothing; it asks whether the pid could be signalled.
 //

@@ -238,7 +238,7 @@ function clientSources(dir: string): string[] {
  * Every assertion below is about what the client DOES, and this file's own
  * subject matter guarantees the sources talk about it: the fix for each site
  * carries a comment quoting the shape it replaced, so a scan that did not strip
- * comments would find `useRef(loadDismissedSummaries())` written down as the
+ * comments would find `useRef(loadLayoutFrame())` written down as the
  * thing that is no longer there and fail on the explanation of its own fix.
  * Line endings are normalised first so a checkout with CRLF reads the same.
  */
@@ -325,7 +325,6 @@ describe("no useRef in the client is seeded with work", () => {
     // that runs once. `restoredViewport` on the next lines has always been
     // written this way; this is the form it is now matched to.
     expect(app).toMatch(/const restoredLayout = useState\(\(\) => restoreLayout\(loadLayout\(\)\)\)\[0\];/);
-    expect(app).toMatch(/const dismissedSummaries = useState\(loadDismissedSummaries\)\[0\];/);
     // #676 handed the gate an options object — a `protect` predicate the
     // ceiling's eviction asks about each held envelope — so the argument list
     // is no longer empty. What this case is about is the `() =>` in front of

@@ -57,7 +57,7 @@ export const ASKING_MS = 8_000;
 /** How long one peer round may take before it is abandoned. A manifest is one
  *  round trip on a local network; anything past this is a peer that is not
  *  going to answer, and holding the attempt open would stall the next round. */
-export const ROUND_MS = 10_000;
+const ROUND_MS = 10_000;
 
 /**
  * The most addresses `autoAsk` may put on the dial list on its own.
