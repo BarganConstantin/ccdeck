@@ -122,6 +122,11 @@ export function isPortValue(raw) {
 export const ONE_SHOT = Object.freeze([
   "help", "version", "uninstall", "stop", "status", "logs",
   "install", "installService", "uninstallService",
+  // `--purge` is here on its own rather than only as a modifier of
+  // `--uninstall`, because bin/deck.js runs the uninstall path for either of
+  // them. A one-shot that detached would print where somebody's private key is
+  // into a log file and hand the terminal back empty.
+  "purge",
 ]);
 
 /** Is this a command line that answers and leaves? */
@@ -188,6 +193,7 @@ export function parseArgs(args) {
     else if (a === "--install-service") out.installService = true;
     else if (a === "--uninstall-service") out.uninstallService = true;
     else if (a === "--uninstall") out.uninstall = true;
+    else if (a === "--purge") out.purge = true;
     else if (a === "--workspace") set("workspace", "a path");
     else if (a === "--scope") out.scope = true;
     else if (a === "--all") out.all = true; // legacy no-op (now default)

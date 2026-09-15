@@ -37,26 +37,35 @@
 // gives, so they are real assertions on all three legs rather than a skip
 // wearing a condition.
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { withoutComments } from "./tsx-scan";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
   chromeTimeToMs,
   msToChromeTime,
   readVisitsSince,
   sqliteBackend,
+  stagingRoot,
 } from "../../server/browser-history.mjs";
+// The staging root's rule is a relationship to this directory, not a literal
+// path — see the #955 block at the bottom of this file.
+import { claudeConfigDir } from "../../server/claude-dir.mjs";
 
 type RawRow = { url: string; t: string; tr: string };
 
 /** Everything the module did to the outside world during one call. */
 type Trace = {
   mkdir: Array<{ dir: string; opts: unknown }>;
+  /** The `mkdtemp` prefixes — the staging directory is made by this call and by
+   *  nothing else, which is the whole of #955's fix. */
+  mkdtemp: string[];
+  /** Directories the module asked to have a mode pinned on, and to what. */
+  chmod: Array<{ path: string; mode: number }>;
   copies: Array<{ from: string; to: string }>;
   removed: string[];
   /** Paths handed to a SQLite reader — the assertion that the live file is never one. */
@@ -69,13 +78,22 @@ type Trace = {
 };
 
 const newTrace = (): Trace => ({
-  mkdir: [], copies: [], removed: [], opened: [], sql: [], params: [], closed: 0, ran: [],
+  mkdir: [], mkdtemp: [], chmod: [], copies: [], removed: [], opened: [], sql: [], params: [], closed: 0, ran: [],
 });
 
 /** The filesystem half of `deps`: records, touches nothing. */
 function fakeFs(trace: Trace, failCopy?: Error) {
   return {
     mkdir: async (dir: string, opts: unknown) => { trace.mkdir.push({ dir, opts }); },
+    // The real `mkdtemp` appends six random characters to the prefix it is
+    // given and returns the directory it made. A counter stands in for the
+    // randomness so the assertions can name the path, and the shape is the
+    // same: a directory NAMED BY THE CALL rather than by the caller.
+    mkdtemp: async (prefix: string) => {
+      trace.mkdtemp.push(prefix);
+      return `${prefix}${String(trace.mkdtemp.length).padStart(6, "X")}`;
+    },
+    chmod: async (path: string, mode: number) => { trace.chmod.push({ path, mode }); },
     copyFile: async (from: string, to: string) => {
       trace.copies.push({ from, to });
       if (failCopy) throw failCopy;
@@ -347,7 +365,11 @@ describe("reading visits", () => {
     expect(trace.opened).toHaveLength(1);
     expect(trace.opened[0].file).toBe(trace.copies[0].to);
     expect(trace.opened[0].file).not.toBe(live);
-    expect(dirname(trace.opened[0].file)).toBe(join("/copies"));
+    // UNDER `/copies`, not IN it: since #955 each call stages inside its own
+    // `mkdtemp` directory there. The rule this line is making is that the
+    // reader never leaves the staging root, and that survived the move.
+    expect(dirname(trace.opened[0].file)).toBe(trace.mkdtemp[0] + "XXXXX1");
+    expect(trace.opened[0].file.startsWith(join("/copies") + sep)).toBe(true);
     expect(trace.opened[0].options).toEqual({ readOnly: true });
   });
 
@@ -452,8 +474,10 @@ describe("reading visits", () => {
       deps: { ...fakeFs(ok), importSqlite: fakeSqlite(ok, [ROW_A]) },
     });
     // 21 MB per poll, and it is a full unencrypted list of everywhere the user
-    // has been, sitting in a temp directory under a predictable name.
-    expect(ok.removed).toEqual([ok.copies[0].to]);
+    // has been. The staging DIRECTORY is the second entry and is owed for the
+    // same reason since #955 made one per call — see the block at the bottom of
+    // this file.
+    expect(ok.removed).toEqual([ok.copies[0].to, dirname(ok.copies[0].to)]);
 
     const torn = newTrace();
     await readVisitsSince("/profile/History", "0", {
@@ -461,7 +485,7 @@ describe("reading visits", () => {
       backend: { kind: "node-sqlite" },
       deps: { ...fakeFs(torn), importSqlite: fakeSqlite(torn, [], new Error("file is not a database")) },
     });
-    expect(torn.removed).toEqual([torn.copies[0].to]);
+    expect(torn.removed).toEqual([torn.copies[0].to, dirname(torn.copies[0].to)]);
   });
 
   it("gives each copy its own name, so one poll never reads the last one's file", async () => {
@@ -712,6 +736,191 @@ describe.skipIf(!hasNodeSqlite)("a real database, with a real Chrome timestamp i
       db.close();
     } finally {
       rmTempDir(dir);
+    }
+  });
+});
+
+// WHERE A COPY OF SOMEBODY'S BROWSING HISTORY IS STAGED (#955).
+//
+// The module copies the locked `History` file and reads the copy — that part is
+// unavoidable and every case above rests on it. The question this block asks is
+// the one nobody had asked: WHERE, and who else can reach it.
+//
+// What was measured, on this machine, before the fix:
+//
+//     os.tmpdir()                             /tmp, mode 1777
+//     the default copyDir                     /tmp/ccdeck-browser-watch
+//     an existing dir before makeDir          777
+//     the same dir after
+//       mkdir(recursive, { mode: 0o700 })     777      <-- unchanged
+//     grep -c chmod browser-history.mjs       0
+//
+// Two facts in that table and they compound. POSIX `mkdir` applies a mode ONLY
+// when it creates the directory, so the `mode: 0o700` argument was a no-op on
+// every run after the first and on every run where somebody else had created
+// the name first — and the comment directly above that call said "the mode is
+// set on creation AND after, because the directory may already exist", which is
+// a mitigation the file did not contain. The location is what made it reachable:
+// on Linux `os.tmpdir()` is a directory every account on the box can write to,
+// so the first account to create `ccdeck-browser-watch` owns it and picks its
+// mode. A directory pre-created 0755 under another uid leaves every other user's
+// `copyFile` failing EACCES on every poll, for good, with the panel reporting
+// only that the history "could not be read" — and whoever owns that directory
+// chooses where the user's history is staged.
+//
+// The fix removes the shared namespace rather than defending inside it: the
+// staging root moves under `~/.claude`, and `mkdtemp` — which CREATES, and
+// therefore cannot be handed a directory somebody else made — picks the name.
+// That is the same move #551 made for `uv-bootstrap` and `macmon`; this was the
+// last stager left in the system temp directory, on the most sensitive file the
+// deck touches.
+//
+// Every case here drives the injected filesystem, for the reason the header of
+// this file gives: a platform gate would have to be registered in
+// skip-gates.mjs and would leave these running on one leg of the matrix. The
+// one real-filesystem case at the end guards only its MODE assertion on the
+// platform, inside the body, so the rest of it is a real assertion on Windows
+// too.
+describe("where a copy of the browsing history is staged", () => {
+  it("defaults under the user's own tree, never under the system temp directory", () => {
+    // Named as a path RELATIONSHIP rather than as a literal, because the answer
+    // differs on all three platforms and the property does not: it has to be
+    // inside the directory the user already owns.
+    expect(stagingRoot("/home/somebody/.claude")).toBe(
+      join("/home/somebody/.claude", "agent-dag", "browser-watch", "staging"));
+    expect(stagingRoot()).toContain(claudeConfigDir());
+    // `os.tmpdir()` is per-user on macOS and Windows and is the shared,
+    // world-writable `/tmp` on Linux. The rule is "not under it" on all three,
+    // so the case does not have to know which one it is running on.
+    expect(stagingRoot().startsWith(tmpdir() + sep)).toBe(false);
+  });
+
+  it("stages the copy inside a directory mkdtemp made, not directly in copyDir", async () => {
+    const trace = newTrace();
+    await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [ROW_A]) },
+    });
+
+    // The old code joined the file name straight onto copyDir, so the copy's
+    // full path was `<copyDir>/history-<pid>-<n>-<uuid>.sqlite` and its PARENT
+    // was a directory the module did not create on that run.
+    //
+    // Built with `join` rather than written as a literal, because the module
+    // builds it with `join` too and Windows spells it with backslashes — PR
+    // #1056 broke on exactly this kind of assumption about a path's text.
+    expect(trace.mkdtemp).toEqual([join("/copies", "history-")]);
+    expect(trace.copies).toHaveLength(1);
+    const to = trace.copies[0].to;
+    expect(dirname(to)).toBe(join("/copies", "history-") + "XXXXX1");
+    expect(dirname(to)).not.toBe(join("/copies"));
+  });
+
+  it("pins the mode on the directory above it too, which is what the comment always claimed", async () => {
+    const trace = newTrace();
+    await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [ROW_A]) },
+    });
+
+    // `mkdir` still carries the mode, for the run that creates the chain. The
+    // path is the caller's string verbatim — the module does not re-join it —
+    // which is why this one is a literal where the `mkdtemp` case above is not.
+    expect(trace.mkdir).toEqual([{ dir: "/copies", opts: { recursive: true, mode: 0o700 } }]);
+    // And the chmod that was described and never written. Without it the mode
+    // argument above is silently ignored on every run but the first.
+    //
+    // Asserted as a CALL rather than as a mode read back off a real directory,
+    // so it says the same thing on all three legs of the matrix: Windows has no
+    // POSIX mode, and a case that could only run on two of them would be a hole
+    // exactly where this repo's recurring bugs live.
+    expect(trace.chmod).toEqual([{ path: "/copies", mode: 0o700 }]);
+  });
+
+  it("gives two calls two different directories, so one poll cannot read another's copy", async () => {
+    const trace = newTrace();
+    const deps = { ...fakeFs(trace), importSqlite: fakeSqlite(trace, [ROW_A]) };
+    const opts = { copyDir: "/copies", backend: { kind: "node-sqlite" }, deps };
+    await readVisitsSince("/profile/History", "0", opts);
+    await readVisitsSince("/profile/History", "0", opts);
+
+    const dirs = trace.copies.map(c => dirname(c.to));
+    expect(dirs).toHaveLength(2);
+    expect(new Set(dirs).size).toBe(2);
+  });
+
+  it("takes the staging directory away with the copy, on the way out and on a failure", async () => {
+    // A directory per call is a directory per poll — one every ten seconds for
+    // as long as the deck is up. Removing only the file would trade 21 MB of
+    // litter for an unbounded number of empty directories, which is the kind of
+    // fix that is discovered a year later at eight thousand entries.
+    const ok = newTrace();
+    await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      backend: { kind: "node-sqlite" },
+      deps: { ...fakeFs(ok), importSqlite: fakeSqlite(ok, [ROW_A]) },
+    });
+    const staged = ok.copies[0].to;
+    expect(ok.removed).toContain(staged);
+    expect(ok.removed).toContain(dirname(staged));
+
+    // And the path where the copy itself never happened. `copyPath` is set
+    // before `copyFile` is called, so both names are known and both are owed.
+    const bad = newTrace();
+    const out = await readVisitsSince("/profile/History", "0", {
+      copyDir: "/copies",
+      backend: { kind: "node-sqlite" },
+      deps: {
+        ...fakeFs(bad, Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" })),
+        importSqlite: fakeSqlite(bad, []),
+      },
+    });
+    expect(out.reason).toMatch(/^copy-failed: /);
+    expect(bad.removed).toContain(dirname(bad.copies[0].to));
+  });
+
+  it("does not reach for os.tmpdir() anywhere in the module", () => {
+    // The spelling that reintroduces the bug, refused by name — the same guard
+    // shape the node:sqlite case above uses, and for the same reason: every
+    // other case here would pass with the default put back, because they all
+    // pass `copyDir` explicitly, and the default is what the deck actually runs.
+    // Through withoutComments, because the module now explains at length why
+    // tmpdir() is wrong here and a scan that could not tell the warning from the
+    // mistake would fail on the file that gets it right.
+    const src = withoutComments(readFileSync(
+      fileURLToPath(new URL("../../server/browser-history.mjs", import.meta.url)), "utf8"));
+    expect(src).not.toMatch(/\btmpdir\s*\(/);
+    expect(src).not.toMatch(/from\s+["']node:os["']/);
+  });
+
+  it("puts a real directory back to 0700 when it already existed wide open", async () => {
+    // The measured case, end to end on the real filesystem: a staging root that
+    // already exists at 0777 — which is what `mkdir(recursive, { mode })` leaves
+    // untouched — and a real `History` file of random bytes, so every leg of the
+    // matrix reaches this (Windows has no reader and answers `no-sqlite-reader`,
+    // which is still a real answer about the directory).
+    const root = mkdtempSync(join(tmpdir(), "ccdeck-955-"));
+    try {
+      const history = join(root, "History");
+      writeFileSync(history, randomBytes(4096));
+      const copies = join(root, "copies");
+      mkdirSync(copies, { recursive: true });
+      chmodSync(copies, 0o777);
+
+      await readVisitsSince(history, "0", { copyDir: copies });
+
+      // Windows has no POSIX mode to check — NTFS inherits per-user ACLs from
+      // the profile directory — so the mode half is guarded in the body rather
+      // than behind a gate that would take the rest of the case with it.
+      if (process.platform !== "win32") {
+        expect(statSync(copies).mode & 0o777).toBe(0o700);
+      }
+      // Nothing left behind either way: no copy, and no staging directory.
+      expect(readdirSync(copies)).toEqual([]);
+    } finally {
+      rmTempDir(root);
     }
   });
 });

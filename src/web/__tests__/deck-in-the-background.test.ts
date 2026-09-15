@@ -151,9 +151,13 @@ describe("a command line that is not a start", () => {
   it("never detaches, or its answer goes into a log file", () => {
     // `ccdeck --version` detaching itself is the shape of the bug: the number
     // lands in deck.log and the terminal comes back empty.
+    // `purge` is on the list for a sharper version of the same reason (#959):
+    // it is the flag that PRINTS WHERE SOMEBODY'S PRIVATE KEY IS, and a
+    // detached one would put that line in deck.log and hand the terminal back
+    // with nothing on it.
     expect([...ONE_SHOT].sort()).toEqual([
-      "help", "install", "installService", "logs", "status", "stop", "uninstall", "uninstallService",
-      "version",
+      "help", "install", "installService", "logs", "purge", "status", "stop", "uninstall",
+      "uninstallService", "version",
     ]);
     for (const flag of ONE_SHOT) expect(isOneShot({ [flag]: true }), flag).toBe(true);
     // And each of those really is what the parser produces for the flag.
@@ -163,6 +167,7 @@ describe("a command line that is not a start", () => {
       [["--logs"], "logs"], [["--install"], "install"],
       [["--install-service"], "installService"],
       [["--uninstall-service"], "uninstallService"],
+      [["--purge"], "purge"],
     ] as [string[], string][]) {
       expect(isOneShot(parseArgs(argv)), argv.join(" ")).toBe(true);
       expect(parseArgs(argv)[key]).toBe(true);

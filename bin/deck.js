@@ -71,7 +71,10 @@ if (flags.version) {
   process.exit(0);
 }
 
-if (flags.uninstall) {
+// `--purge` enters here too, and on its own. It is `--uninstall` plus the deck's
+// own key, and a `--purge` that started a server instead would be a flag whose
+// entire effect was silence.
+if (flags.uninstall || flags.purge) {
   const { uninstallHooks, hasCodexInstalled } = await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
   // Anything that could not be taken out. An uninstall that removed nothing
   // because it could not read the file has not uninstalled anything, and both
@@ -159,6 +162,55 @@ if (flags.uninstall) {
   if (hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
+  // ── THE PRIVATE KEY ────────────────────────────────────────────────────────
+  //
+  // The one thing left on the disk that is a CREDENTIAL rather than data. Every
+  // deck paired with this one has pinned the key in prefs.json, and until #959
+  // nothing in this command — or in the `--help` text, or in the README's
+  // uninstall paragraph — named the file, so somebody who followed the
+  // instructions to the letter believed the machine was clean and it was not.
+  //
+  // NAMED, NOT REMOVED, unless somebody asked. prefs.json also holds the
+  // pairings, the aliases and which accounts this deck offers, and deleting a
+  // user's settings out from under a command documented as "hook entries only"
+  // is a different complaint of the same size. So the default is to say exactly
+  // where the key is — resolved for THIS machine, both copies, because
+  // `migrateDeckFiles` copies rather than moves and the old one is in a
+  // directory nothing calls the deck's state — and `--purge` is the sentence
+  // somebody types when they mean it.
+  {
+    const { keyDirs, findKeyFiles, purgeKeyFiles } =
+      await import(pathToFileURL(join(PKG_ROOT, "src/server/purge-key.mjs")).href);
+    const found = await findKeyFiles(keyDirs());
+    if (flags.purge) {
+      const { removed, failed } = await purgeKeyFiles(found);
+      for (const path of removed) console.log(`${PRODUCT}: removed ${path}`);
+      for (const f of failed) {
+        refused = true;
+        // `gDash`, not an em dash: top-level block, possibly the legacy Windows
+        // console (#797).
+        console.error(`${PRODUCT}: could NOT remove ${f.path} ${gDash} ${f.why}`);
+        console.error(`${PRODUCT}: this deck's LAN private key is still in that file.`);
+      }
+      if (removed.length === 0 && failed.length === 0) {
+        console.log(`${PRODUCT}: no ${PRODUCT} state to purge`);
+      }
+    } else {
+      // "no-key" files are not mentioned. Telling somebody their private key is
+      // on the machine when the file has none is the same defect as the silence,
+      // pointing the other way. "unknown" IS mentioned: an unparseable file is
+      // the one nobody can rule a key out of.
+      const holding = found.filter(f => f.holds !== "no-key");
+      if (holding.length > 0) {
+        console.log(`${PRODUCT}: this deck's LAN private key is still on this machine:`);
+        for (const f of holding) {
+          console.log(`${PRODUCT}:   ${f.path}${f.holds === "unknown" ? `  (unreadable ${gDash} ${f.why})` : ""}`);
+        }
+        console.log(`${PRODUCT}: every deck you paired with has pinned that key. \`${INVOKED_AS ?? PRODUCT} --uninstall --purge\` removes the file(s) above.`);
+      }
+    }
+  }
+
   // The remedy last and once, after every symptom above it, rather than once
   // per refusal in the middle of the list.
   if (named.size > 0) {
@@ -1932,7 +1984,11 @@ Options:
                            Hook entries only: the forwarder script under
                            ~/.claude/agent-dag/, the deck's own state and log
                            directories (\`--status\` names them), ~/.agents-deck/
-                           and claude-swap all stay
+                           and claude-swap all stay. It NAMES the prefs.json
+                           files that still hold this deck's LAN private key
+      --purge              With --uninstall: delete those prefs.json files too, so the
+                           private key every deck you paired with has pinned does not
+                           outlive the uninstall. Your ${PRODUCT} settings go with them
   -h, --help               Show this help
   -v, --version            Print the version and exit
 
