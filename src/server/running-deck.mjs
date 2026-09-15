@@ -94,8 +94,9 @@ export function deckRegistryDir(env = process.env, home = undefined) {
  * is a different shape. Compared by sameCodexTree, the log election's own rule
  * for the same field — so the two cannot disagree about whether two spellings
  * are one tree — which also means a side that does not say is taken as the
- * same: a record written before #1110, and `--stop`'s selector, which names no
- * tree, both keep the answer they had.
+ * same: a record written before #1110 keeps the answer it had. Every caller
+ * that asks on behalf of a start names its tree: the start itself, and
+ * `--status` marking the deck a bare start would open (#1134).
  */
 export function sameShape(record, want = {}) {
   if (!record) return false;

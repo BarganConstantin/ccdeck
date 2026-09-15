@@ -2407,8 +2407,12 @@ async function provesDeck(d) {
  * which other decks are tailing the same file into the same log. Dead pids are
  * ignored rather than unlinked — sweepStaleDiscovery owns that, and a poll
  * running every 1.5s is no place to be deleting other decks' registrations. A
- * record that fails the challenge is likewise left alone: see the same argument
- * spelled out in proveTargets in hook/hook.js.
+ * record that fails the challenge is likewise left alone HERE. The hook is the one
+ * reader that does delete a record, and only one that stayed silent through both
+ * of its challenge deadlines and has not been restamped for a minute, which a
+ * live deck does every five seconds (proveTargets in hook/hook.js, #1119). One
+ * missed answer on this poll's timer is not that evidence, so nothing here acts
+ * on it.
  *
  * The pid probe stays, in front of the challenge, because it is free and it is
  * the one test that answers instantly when a deck is killed — which is what
