@@ -479,6 +479,11 @@ let _enabled  = false;
 let _starting = false;
 // The tick in flight, so the interval can skip rather than stack. See tick.
 let _ticking = null;
+// What every tick waits for before it runs anything: the launcher's word that
+// the claude-swap it drives is not being installed or upgraded underneath it.
+// Settled by default, so a caller with nothing to wait for — a respawn, a test,
+// the dev server — ticks exactly as before. See initCswapAuto (#1043).
+let _toolQuiet = Promise.resolve();
 
 async function loadState() {
   try { return JSON.parse(await readFile(STATE_PATH, "utf8")); } catch { return {}; }
@@ -521,6 +526,16 @@ function forgetAccountScopedCaches() {
 }
 
 async function runTick() {
+  // NOT WHILE THE TOOL IS BEING SET UP (#1043). A tick is `cswap auto --once`,
+  // which moves the user's live Claude credentials, and the boot arms this loop
+  // the moment the port binds — while bin/deck.js may still be installing
+  // claude-swap, or has just fired an upgrade of it that nothing awaits. It sits
+  // here rather than in startLoop so that it holds every tick that could land in
+  // that window: the boot's eager one, an interval that comes round during a
+  // three-minute install, and one the user starts from the panel meanwhile.
+  // Everything below is asked after it, so a switch turned off while this was
+  // waiting is seen as off.
+  await _toolQuiet;
   // Re-check each time: the user can start their own loop at any point, and
   // the deck should fall silent rather than compete with it.
   if (await externalAutoRunning()) {
@@ -652,8 +667,19 @@ export async function setAutoEnabled(enabled) {
   return { ok: true, enabled: _enabled };
 }
 
-/** Restore the persisted setting at server boot. */
-export async function initCswapAuto() {
+/**
+ * Restore the persisted setting at server boot.
+ *
+ * `after` is the launcher's promise that claude-swap is quiet: its startup job
+ * has settled, and so has any upgrade that job started without waiting for.
+ * index.mjs passes on what bin/deck.js hands startServer. With nothing to wait
+ * for it is null, and the loop ticks as it always did. A rejection counts as
+ * settled, because a job that failed has nothing left running either.
+ *
+ * The loop still starts here and reads its interval here. Only the ticks wait.
+ */
+export async function initCswapAuto({ after = null } = {}) {
+  _toolQuiet = Promise.resolve(after).then(() => {}, () => {});
   const state = await loadState();
   if (state.enabled) { _enabled = true; await startLoop(); }
 }

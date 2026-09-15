@@ -6804,7 +6804,7 @@ let _restarting = false;
 // is reachable in and cannot answer for on its own.
 let _deckReady = false;
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null } = {}) {
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
   _onRestart = typeof onRestart === "function" ? onRestart : null;
   _onStop = typeof onStop === "function" ? onStop : null;
   _stopping = false;
@@ -7118,8 +7118,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // asked the registry never binds a port it is about to walk away from.
       _prefsRead.then(() => applyLanPrefs()).catch(() => {});
       // Auto-switch resumes only if the user previously turned it on; the
-      // module reads its own persisted flag and does nothing otherwise.
-      cswapAutoModule().then(m => m.initCswapAuto()).catch(() => {});
+      // module reads its own persisted flag and does nothing otherwise. Its
+      // ticks wait for `cswapQuiet`, the launcher's word that claude-swap is not
+      // being installed or upgraded underneath them (#1043) — null from every
+      // caller with nothing to wait for.
+      cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
       return server;
     } catch (err) {
       lastErr = err;
