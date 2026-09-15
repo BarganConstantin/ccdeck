@@ -25,6 +25,20 @@ import dgram from "node:dgram";
 import { networkInterfaces } from "node:os";
 
 /** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
+/**
+ * What each refusal reason means, in a sentence the LAN panel can print.
+ *
+ * At module scope so it is one object rather than one per frame, and named so
+ * the `Object.hasOwn` guard below reads as the rule it is rather than as
+ * punctuation. The keys are the protocol's, not a user's.
+ */
+const REFUSALS = Object.freeze({
+  pending: "waiting for the other deck to accept this one",
+  declined: "that deck said no",
+  impostor: "that deck has this one pinned under a different key",
+  "bad proof": "the other deck refused this one's proof",
+});
+
 function quad(text) {
   const parts = String(text ?? "").split(".");
   if (parts.length !== 4) return null;
@@ -625,14 +639,21 @@ export function connectToPeer({
       if (settled) return;
       // A deck that heard us and said no. Each reason is a different problem
       // with a different fix, and until this frame existed they were all one
-      // silent close that read as a firewall.
+      // silent close that read as a firewall. See REFUSALS.
       if (msg.t === "no") {
-        return fail(new Error({
-          pending: "waiting for the other deck to accept this one",
-          declined: "that deck said no",
-          impostor: "that deck has this one pinned under a different key",
-          "bad proof": "the other deck refused this one's proof",
-        }[msg.why] ?? "the other deck refused this handshake"));
+        // `Object.hasOwn`, and here more than anywhere: `msg.why` is a field in
+        // a frame written by the OTHER MACHINE, which is the case admin-failure
+        // states the rule for (#474). Every member of Object.prototype answers
+        // a plain bracket read with an inherited value that is neither nullish
+        // nor falsy, so `?? "the other deck refused this handshake"` never
+        // fired for one — `{...}["constructor"]` is the Object function itself,
+        // and `new Error(Object).message` is the string "function Object() {
+        // [native code] }". lan-engine files that as `lastRound.error` and the
+        // LAN panel prints it verbatim, so a peer chose what appeared in the
+        // user's interface. Asking whether the map has a ROW is the question
+        // this read was always trying to ask; no real reason moves.
+        return fail(new Error(Object.hasOwn(REFUSALS, msg.why) ? REFUSALS[msg.why]
+          : "the other deck refused this handshake"));
       }
       if (msg.t === "challenge") {
         if (theirFp || typeof msg.challenge !== "string") return fail(new Error("bad challenge"));

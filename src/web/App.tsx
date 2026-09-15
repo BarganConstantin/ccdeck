@@ -307,6 +307,18 @@ type VersionInfo = {
   canRestart?: boolean;
   /** When npm was last asked, so the chip can say it. Null when the check is off. */
   checkedAt?: number | null;
+  /** When the last attempt FAILED, null once one succeeds.
+   *
+   *  Computed, serialised, delivered — and until #1046 declared nowhere on this
+   *  side, so it was dropped at the door. The server's own comment says what it
+   *  is for: "the single most common reason for a missing update button — a
+   *  proxy, a flaky line, an offline machine — is indistinguishable from being
+   *  up to date" without it. And `checkedAt` deliberately does NOT move on a
+   *  failure ("checked 2 minutes ago" over an hour-old answer is the one thing
+   *  that field must never say), so on a machine behind a proxy the chip said
+   *  `checked 3h ago` beside a cached `npm has vX` and offered nothing, with
+   *  the one fact that explained it sitting unread in the response. */
+  checkFailedAt?: number | null;
   checkDisabled?: boolean;
   /** Why an in-app `npm i -g` is refused here, or null when it is allowed. */
   upgradeBlocked?: string | null;
@@ -3670,6 +3682,12 @@ function Inner() {
                   latest: version?.latest,
                   latestPending: version?.latestPending,
                   checkedAgo: version?.checkedAt ? shortAgo(now - version.checkedAt) : null,
+                  // Only when it is the NEWER of the two. A failure older than
+                  // the last success is history, and saying so would describe a
+                  // problem that has already gone away.
+                  checkFailedAgo: version?.checkFailedAt
+                    && version.checkFailedAt > (version.checkedAt ?? 0)
+                    ? shortAgo(now - version.checkFailedAt) : null,
                   checkDisabled: version?.checkDisabled,
                   checking: versionChecking,
                 };
