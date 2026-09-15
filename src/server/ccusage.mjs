@@ -936,9 +936,25 @@ function extractJson(out) {
   }
 }
 
-// YYYYMMDD for the CLI's --since/--until.
-function toCliDate(d) {
-  return d.toISOString().slice(0, 10).replace(/-/g, "");
+/**
+ * The default window's first day, as the `YYYYMMDD` ccusage's `--since` takes:
+ * the LOCAL calendar date `days` before `now`.
+ *
+ * ccusage buckets its rows by local calendar date — usage-range.ts's
+ * presetSince states it, and does the page's half of this correctly. This read
+ * `new Date(now - 30 * 86400_000).toISOString()`, the UTC date, and the two
+ * disagree for part of every day: at 08:30 in Tokyo it asked for
+ * `--since 20260815` when the local date thirty days back is 20260816, and at
+ * 20:30 in Los Angeles it ran a day the other way (#994). The same shape as
+ * presetSince, deliberately: the local calendar fields of `now` fix the
+ * endpoint and the subtraction runs in UTC, where every day is exactly 24h, so
+ * no daylight-saving change inside the window can move the result by a day.
+ * Exported for its test, which hands it a `now` whose calendar fields belong
+ * to a named zone, since Node does not honour a `TZ` changed mid-process.
+ */
+export function defaultCcusageSince(now = new Date(), days = 30) {
+  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - days));
+  return start.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
 /**
@@ -949,7 +965,7 @@ function toCliDate(d) {
  */
 export async function fetchCcusageDaily({ since, until, force = false } = {}) {
   const now = Date.now();
-  const sinceArg = since || toCliDate(new Date(now - 30 * 86400_000));
+  const sinceArg = since || defaultCcusageSince(new Date(now));
   const key = `${sinceArg}|${until ?? ""}`;
 
   const cached = _cache.get(key);
