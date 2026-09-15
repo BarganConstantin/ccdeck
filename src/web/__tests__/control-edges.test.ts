@@ -548,6 +548,11 @@ const CONTROLS: Control[] = [
   // and on the version banner, the two kinds of surface a switch sits on.
   { at: ".switch", states: [".switch:hover:not(:disabled)", '.switch[aria-checked="true"]'],
     beds: ["--panel", ...BANNER] },
+  // The one switch whose on gives something away (#828): on, it fills with
+  // --warn; waiting for its second press, its edge is --warn, hovered or not.
+  // It lives in the LAN dialog, on the panel.
+  { at: '.switch[data-tone="warn"][aria-checked="true"]', beds: ["--panel"] },
+  { at: '.switch[data-armed="true"]', states: ['.switch[data-armed="true"]:hover:not(:disabled)'], beds: ["--panel"] },
   { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
   // The Local network intro card, while the section is off: a drawing and two
   // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
