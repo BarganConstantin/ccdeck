@@ -57,7 +57,9 @@ describe("the one switch owns its states (#886)", () => {
   });
 
   it("answers hover, press, focus and disabled in one place", () => {
-    expect(body(".switch:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--accent\)/);
+    // Hover is the pointer's feedback, drawn in the foreground like every
+    // other control's; the accent stays for the on state and the focus ring.
+    expect(body(".switch:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--text\)/);
     expect(body(".switch:active:not(:disabled)")).toMatch(/transform:\s*scale\(0\.97\)/);
     expect(body(".switch:focus-visible")).toMatch(/outline:\s*2px solid var\(--accent\)/);
     expect(body(".switch:disabled")).toMatch(/opacity:\s*var\(--dim-off\)/);

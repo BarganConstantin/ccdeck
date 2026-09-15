@@ -293,6 +293,15 @@
 :root {
   --panel-inset: 14px;
   --ctl-h: 30px;
+  /* THE RADIUS HIERARCHY: three steps, one meaning each. A tag or a chip inside
+     a control group, a control, a surface. The chrome used to be 10px panels,
+     a 12px dialog, an 18px bar and 999px pills on most small things, which is
+     most of what made it read as a generic dashboard. Pills stay where the
+     shape is the meaning: an atomic state (active, expired), a count, and the
+     switch's own track. */
+  --r-tag: 4px;
+  --r-ctl: 6px;
+  --r-panel: 8px;
 }
 
 /* The two dimmings, in their own block and in neither theme for the same reason
@@ -612,10 +621,12 @@ button:focus-visible { outline-offset: 1px; }
 /* Four distances in this bar and one meaning each, so a gap is readable as a
    claim about what is on either side of it:
 
-     8px   control to control      .action-run
+     4px   control to control      .action-run (the controls are borderless,
+                                   so their own padding does the separating)
      14px  readout to readout      .topbar .status — unchanged
-     18px  run to run              .topbar .actions
-     24px  role to role            .topbar, .topbar .readout
+     12px  run to run              .topbar .actions
+     24px  role to role            .topbar, .topbar .readout, and the settings
+                                   run's own offset from the panel runs
 
    Every one of them was already somewhere in this sheet; what was missing was
    the largest. The bar used to run 14px between the last readout and the first
@@ -728,7 +739,7 @@ button:focus-visible { outline-offset: 1px; }
   min-height: 24px;
   padding: 2px 8px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--r-ctl);
   background: none;
   font: inherit;
   font-size: 11px;
@@ -738,24 +749,19 @@ button:focus-visible { outline-offset: 1px; }
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .topbar .brand button.v:active { transform: scale(0.97); }
-/* The same chip when nothing is stale: still a button — clicking it asks npm
-   now — but it must not draw attention to itself for saying "up to date".
-   Quiet is not the same as invisible, though: with a fully transparent border
-   it read as a caption in the same colour as the product name beside it, so
-   nobody found the manual re-check by accident. A hairline outline is enough
-   to say "control" without competing with anything. */
+/* The same chip when nothing is stale: still a button (clicking it asks npm
+   now), but it must not draw attention to itself for saying "up to date". It
+   is metadata beside the wordmark, so it wears the toolbar's resting look at
+   the other end of the bar: no outline, --muted where the name is --text, so
+   it does not read as part of the name. The hairline it had made it a pill;
+   the pointer still finds the control, because the fill and the foreground
+   come up under it exactly as they do on the toolbar. */
 .topbar .brand button.v:not(.stale) {
   color: var(--muted);
   font-weight: 400;
-  border-color: var(--ctl-edge);
 }
-/* --muted-dim was 2.35:1 here, below the 4.10:1 the chip now rests at, so the
-   pointer LOWERED the only line that said "control". The edge goes to the whole
-   foreground the way the label does — half of --text at rest, all of it under
-   the pointer, one gesture in two channels. */
 .topbar .brand button.v:not(.stale):hover {
   color: var(--text);
-  border-color: var(--text);
   background: var(--ctl-fill);
 }
 /* A forced check is a request to npm, which on a slow line is seconds. Without
@@ -807,22 +813,23 @@ button:focus-visible { outline-offset: 1px; }
    and the controls do not give at all. */
 .topbar .actions {
   display: flex;
-  gap: 18px;
+  gap: 12px;
   align-items: center;
   flex: none;
 }
+/* 4px between two controls: enough for the focus ring's 3px (2px at the
+   sheet's 1px offset) to clear the next button, and no more, because a
+   borderless button's own padding is what separates it from its neighbour. */
 .topbar .action-run {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
-/* The ring stands off the button here. At the sheet's 1px offset a 2px accent
-   ring hugs the edge, and on this bar that read as the accent frame an open
-   panel used to wear: a focused Session list looked open, and a focused Usage
-   merged frame, ring and line into one block. 3px leaves a visible gap between
-   the edge and the ring, and the 52px bar has 11px above and below a 30px
-   button to hold it; the 8px between two buttons keeps 3px clear of the next. */
-.topbar button.btn:focus-visible { outline-offset: 3px; }
+/* The settings pair stands apart from the panels, by spacing and not by a
+   rule: 12px between runs plus these 12 is the 24px this bar already uses
+   between roles, so Sound and the theme read as utilities, not a fourth
+   group of panels. */
+.topbar .action-run-utility { margin-left: 12px; }
 /* The dollar sign is the one glyph whose ink is far narrower than its box:
    4.8 of 14 units, where the rest of the set runs 8.6 to 12.2. At the set's
    shared 13px box that left about 2.4px more air on each side than any
@@ -846,14 +853,15 @@ button:focus-visible { outline-offset: 1px; }
 .tb-word { display: none; }
 @media (min-width: 1440px) {
   .topbar .tb-word { display: inline; font-size: 12px; line-height: 1; }
-  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 10px; }
+  .topbar button.btn.icon-btn:has(.tb-word) { width: auto; gap: 6px; padding: 0 8px; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint. The
    controls still do not shrink; the bar spends less on padding and gaps so all
    of them fit down to a 320px screen. */
 @media (max-width: 640px) {
   .topbar { gap: 12px; padding: 0 10px; }
-  .topbar .actions { gap: 10px; }
+  .topbar .actions { gap: 8px; }
+  .topbar .action-run-utility { margin-left: 4px; }
   /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
      loses, and the blocked-session chip is its last child, so at 600px it was
      cut in half and at 400px it was gone while the wordmark still said "ccdec".
@@ -908,7 +916,7 @@ button:focus-visible { outline-offset: 1px; }
   gap: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   /* Two layers rather than one. The tight, nearly opaque first line is what a
      surface sitting ON something reads as; the wide soft second is the height
      it sits at. One 24px blur alone had to be dark enough to do both jobs and
@@ -997,7 +1005,7 @@ button:focus-visible { outline-offset: 1px; }
    switch has to say at a glance is which end its knob is at. */
 .switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
 .switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateY(-50%) translateX(12px); }
-.switch:hover:not(:disabled) { border-color: var(--accent); }
+.switch:hover:not(:disabled) { border-color: var(--text); }
 .switch:hover:not(:disabled) .switch-knob { background: var(--text); }
 .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--bg); }
 .switch:active:not(:disabled) { transform: scale(0.97); }
@@ -1285,7 +1293,7 @@ button.btn.sm-hear {
   font-size: 12px;
   accent-color: var(--accent);
 }
-.sm-select:hover { border-color: var(--accent); }
+.sm-select:hover { border-color: var(--text); }
 
 /* Which turns each tone covers. The asymmetry #394 is about — Codex has no
    Notification — said next to the control it applies to rather than only in a
@@ -1356,7 +1364,7 @@ button.btn.sm-hear {
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.selected-ribbon:hover { border-color: var(--accent); background: var(--bg); }
+.selected-ribbon:hover { border-color: var(--text); background: var(--bg); }
 /* The ribbon itself is a button — it fits the view to the agent it names — and
    it was the only part of this chip that did not answer a press while its own ×
    did, so the small target moved and the large one holding it did not.
@@ -1516,7 +1524,7 @@ button.btn.sm-hear {
   padding: 12px var(--pad-x) 14px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   box-shadow: var(--shadow-2);
   font-size: 11px;
   color: var(--text);
@@ -2193,7 +2201,7 @@ button.btn {
   border: 1px solid var(--ctl-edge);
   min-height: var(--ctl-h);
   padding: 0 12px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -2203,11 +2211,13 @@ button.btn {
   transition: border-color 120ms, color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-/* The accent itself, never --accent-dim. The dim value is 1.91:1 in dark and
-   1.37:1 on white — under the resting edge in both — so every rule that reached
-   for it on hover was handing the pointer a control whose outline got FAINTER
-   the moment it was aimed at. Eleven rules did that; none does now. */
-button.btn:hover { border-color: var(--accent); color: var(--accent); }
+/* Neutral, not the accent. Hover is the pointer's feedback, not a state, and
+   painting it in the colour the sheet keeps for data, live state and focus
+   made every button the pointer crossed look selected. The edge goes to the
+   whole foreground and the control fill comes up, which is the version chip's
+   own hover. That is stronger than the resting edge in both themes, so no
+   hover lowers a contrast, which is why --accent-dim was never allowed here. */
+button.btn:hover { border-color: var(--text); color: var(--text); background: var(--ctl-fill); }
 /* Scale, not a 1px drop. A press should read as the surface giving under the
    finger; a translate reads as the label jumping, and at 1px it mostly reads as
    nothing at all — which is what a button that does something irreversible can
@@ -2249,7 +2259,6 @@ button.btn.danger:hover {
    its width pinned to its height, which is the whole of what "icon button"
    means here. The 30px it used to write twice is where --ctl-h came from. */
 button.btn.icon-btn {
-  position: relative;
   width: var(--ctl-h);
   height: var(--ctl-h);
   padding: 0;
@@ -2292,39 +2301,41 @@ button.btn.icon-btn[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--bg);
 }
-/* AN OPEN PANEL IS UNDERLINED, AND ONLY UNDERLINED. The toggles that disclose
-   a region beside the canvas are usually open two or three at a time, so the
-   fill above made the bar at rest read as "three things switched on" (#836).
-   The first answer kept an accent frame and laid a 2px foot inside it, which
-   drew a 3px bottom edge against 1px sides: a raised key, the loudest shape in
-   the bar, spent on panels that are already on screen. The frame bought almost
-   nothing (1.67:1 / 1.52:1 off the resting edge in light), so it is gone and
-   the line stands on its own: a mark under the button's content, clear of the
-   border, in --accent at 5.24:1 or better off either end of the bar in both
-   themes, which is the state difference #370 asks for. The edge and the glyph
-   stay at rest, so hover and the focus ring each keep a channel of their own.
-   The popover opener is left out. Its menu hangs directly under it, which is
-   the whole answer to "is it open", and a panel's mark on it would claim a
-   region beside the canvas that does not exist. The fill above stays for a
-   setting that is on, which is what aria-pressed means. */
-button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 3px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
+/* THE TOOLBAR BUTTON: the topbar's controls are this same button with the
+   chrome taken off. At rest there is no edge and no fill, only the glyph and
+   its word in --muted (4.70:1 or better on the bar in dark, 6.95:1 in light;
+   --text-secondary is the prose tier, and a label is not prose), so eight
+   controls read as one toolbar rather than eight floating chips, and the step
+   up to --text on hover and when open is a real one. 1.4.11 asks a control to be identifiable, and the glyph and the word
+   identify it, which is the same reading `.glyph-btn` and the canvas control
+   stack already rest on.
+   Hover brings up the control fill and the whole foreground. Open is the
+   pressed look: that fill, the resting edge every other .btn wears, and the
+   full foreground. Neutral in every state. An open panel used to be marked
+   with a cyan line under its word, but cyan is the sheet's colour for data,
+   live state and focus, a panel that is showing is none of those, and the
+   panel on screen already says it is open. The edge carries the state
+   difference #370 asked for: it is the same --ctl-edge control-edges.test.ts
+   holds to 3:1 against both ends of the bar, where a closed button has none.
+   Sound takes the same look while its menu is out, since the menu is what it
+   opened. The fill below stays for a setting that is on, which is what
+   aria-pressed means, and no topbar control carries it now. */
+.topbar button.btn.icon-btn {
+  border-color: transparent;
+  color: var(--muted);
 }
-/* The popover opener while its menu is out. The menu is the answer to "is it
-   open", and the opener agrees with it quietly: the control fill and the whole
-   foreground as its edge, which is the version chip's hover held, so the
-   button reads as the one the menu came from without claiming a panel's line.
-   At rest it looked exactly as it does with the menu shut. */
-button.btn.icon-btn[aria-haspopup][aria-expanded="true"] {
+.topbar button.btn.icon-btn:hover {
+  border-color: transparent;
   background: var(--ctl-fill);
-  border-color: var(--text);
+  color: var(--text);
+}
+.topbar button.btn.icon-btn[aria-expanded="true"] {
+  border-color: var(--ctl-edge);
+  background: var(--ctl-fill);
+  color: var(--text);
+}
+.topbar button.btn.icon-btn[aria-expanded="true"]:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 /* `button.btn:hover` repaints the border and the glyph in --accent, and on this
    chip --accent is the fill — so a pressed toggle would have had no pointer
@@ -2553,7 +2564,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   transition: border-color 130ms, background 130ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ver-banner .ver-cmd:hover { border-color: var(--accent); background: var(--panel); }
+.ver-banner .ver-cmd:hover { border-color: var(--text); background: var(--panel); }
 .ver-banner .ver-cmd:active { transform: scale(0.97); }
 .ver-banner .ver-cmd code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2751,7 +2762,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   transition: border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .autofit-chip b { color: var(--accent); font-weight: 600; }
-.autofit-chip:hover { border-color: var(--accent); }
+.autofit-chip:hover { border-color: var(--text); }
 .autofit-chip:active { transform: scale(0.97); }
 
 /* Filter chips above the canvas — small toolbar lets you toggle entire
@@ -2767,8 +2778,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
      inside a canvas that clips: at 640px — a 1280 laptop at 200% zoom — "mcp"
      and "other" sat past the edge, cut off, and a keyboard reader's focus went
      to chips nobody could see. The limit keeps every chip inside the canvas.
-     The radius is the bar's own half-height rather than a pill's
-     999px, which reads the same on one row and still reads as one bar on two. */
+     The radius is a surface's, not a half-height capsule: a floating group of
+     controls is a small panel, and it still reads as one bar on two rows. */
   flex-wrap: wrap;
   max-width: calc(100% - 28px);
   gap: 4px;
@@ -2780,7 +2791,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
      costs a paint. */
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--r-panel);
   box-shadow: 0 6px 18px rgba(0,0,0,0.30);
 }
 :root[data-theme="light"] .cat-filter-bar {
@@ -2792,7 +2803,8 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   align-items: center;
   gap: 5px;
   padding: 4px 10px 4px 8px;
-  border-radius: 999px;
+  /* Concentric with the bar: its 8px less the 4px it is inset by. */
+  border-radius: var(--r-tag);
   border: 1px solid transparent;
   background: transparent;
   color: var(--text);
@@ -3055,7 +3067,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .react-flow__controls {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   box-shadow: none;
   overflow: hidden;
 }
@@ -4973,7 +4985,7 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   padding: 10px 12px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-panel);
 }
 .detail-hero .hero-actions {
   display: flex;
@@ -5325,7 +5337,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-panel);
   box-shadow: var(--shadow-2), 0 0 0 1px rgba(125,211,252,0.10);
   overflow: hidden;
   animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
@@ -5953,7 +5965,7 @@ button.tool.clickable:last-child { border-bottom: none; }
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   box-shadow: var(--shadow-2);
   z-index: 20;
   padding: 0 0 12px;
@@ -5985,14 +5997,13 @@ button.tool.clickable:last-child { border-bottom: none; }
    the canvas wears made a money figure read as a state, and it is a rate. The
    figure is the primary tier — it is the panel's headline number, not prose
    and not a caption — and the span beside it the metadata tier. */
+/* Inline beside the title, not a badge: a rate is a reading, and the pill it
+   sat in made it the one boxed thing in the header. */
 .up-rate {
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
 }
 .up-rate-span { color: var(--muted); }
 /* #380 deleted a 16px font-size here for the same reason it deleted `.sl-close`'s
@@ -6123,7 +6134,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   color: var(--text);
 }
 .up-period .uh-range-btn[aria-pressed="true"]::after {
-  background: var(--accent);
+  /* The foreground, not the accent: which range is showing is a selection,
+     not data, and the figures under it are where the colour belongs. */
+  background: var(--text);
 }
 
 /* THE MARK THAT SAYS WHICH PERIOD ALSO SAYS IT IS BEING FETCHED, and nothing
@@ -6975,7 +6988,7 @@ button.qb-pace::after {
 
 .uh-detail {
   background: var(--bg-soft); border: 1px solid var(--line-soft);
-  border-radius: 10px; padding: 12px 14px;
+  border-radius: var(--r-panel); padding: 12px 14px;
 }
 .uh-detail-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .uh-detail-date { font-size: 12px; font-weight: 600; }
@@ -7101,7 +7114,7 @@ button.qb-pace::after {
   text-underline-offset: 2px;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ap-lan-jump:hover { color: var(--accent); }
+.ap-lan-jump:hover { color: var(--text); }
 .ap-lan-jump:active { transform: scale(0.97); }
 /* THE PADDING WENT WITH THE GLYPH IT PLACED. `1px 6px` said where a text arrow
    sat inside the 24px floor, and it did change a pixel of the box after all:
@@ -8104,7 +8117,7 @@ button.ap-err:active { transform: scale(0.97); }
    the manage block, where it dropped the slot select from 3.98:1 to 1.58:1 on
    hover. The auto-switch select rests on the same edge now, so the override is
    the rule and the local copy is gone. */
-.ap-field select:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.ap-field select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
 /* The only native control in the convention. It is styled like everything else
    here — appearance:none, the sheet's own fill, edge and chevron — so a press
    that did nothing read as the one dead control in the panel. 0.97 rather than
@@ -8120,7 +8133,7 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-manage .ap-field select { text-align: left; }
 .ap-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
-.ap-field:has(select:hover:not(:disabled))::after { color: var(--accent); opacity: 1; }
+.ap-field:has(select:hover:not(:disabled))::after { color: var(--text); opacity: 1; }
 
 .ap-auto-foot {
   display: flex;
@@ -8152,7 +8165,7 @@ button.ap-err:active { transform: scale(0.97); }
   text-underline-offset: 2px;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ap-rotate:hover:not(:disabled) { color: var(--accent); }
+.ap-rotate:hover:not(:disabled) { color: var(--text); }
 .ap-rotate:active:not(:disabled) { transform: scale(0.97); }
 .ap-rotate:disabled { cursor: default; opacity: var(--dim-off); }
 
@@ -8176,7 +8189,7 @@ button.ap-err:active { transform: scale(0.97); }
   text-underline-offset: 2px;
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ap-lanes-more:hover { color: var(--accent); }
+.ap-lanes-more:hover { color: var(--text); }
 .ap-lanes-more:active { transform: scale(0.97); }
 /* The footer's two text-weight controls keep their look and get a 24px target
    drawn around the word (#857): the transparent pseudo-element .ap-failure-x
@@ -8498,7 +8511,7 @@ button.ap-err::after,
   font-size: 11px;
   transition: border-color 120ms, background 120ms;
 }
-.ap-manage-input:hover { border-color: var(--accent); }
+.ap-manage-input:hover { border-color: var(--text); }
 .ap-manage-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* --muted here was the labels' own colour — identical to --text-dim in dark, to
    a rounding error — so nothing in the block told a clickable pill from a
@@ -8512,7 +8525,7 @@ button.ap-err::after,
      on the `switch` verb every inactive account row carries. */
   min-height: 24px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
+  border-radius: var(--r-ctl);
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
@@ -8522,7 +8535,7 @@ button.ap-err::after,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ap-manage-btn:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--text);
   background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 .ap-manage-btn:active:not(:disabled) { transform: scale(0.97); }
@@ -8620,7 +8633,7 @@ button.ap-err::after,
   text-decoration: none;
   user-select: all;
 }
-.aa-link:hover { border-color: var(--accent); text-decoration: underline; }
+.aa-link:hover { border-color: var(--text); text-decoration: underline; }
 
 .aa-field { display: flex; align-items: center; gap: 8px; }
 .aa-field input {
@@ -8978,7 +8991,7 @@ button.ap-err::after,
   margin-left: 6px;
   padding: 1px 8px;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
-  border-radius: 999px;
+  border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
   color: var(--warn);
   font: inherit;
@@ -9598,7 +9611,7 @@ button.ap-err::after,
   cursor: pointer;
   transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
-.bw-settings select:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
 .bw-settings select:active:not(:disabled) { transform: scale(0.97); }
 .bw-settings-note {
   margin: 0;
@@ -9690,9 +9703,9 @@ button.ap-err::after,
    control in the deck, without the drawing changing size. */
 .bw-help { position: relative; }
 .bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
-.bw-help:hover { color: var(--text); border-color: var(--accent); }
+.bw-help:hover { color: var(--text); border-color: var(--text); }
 .bw-help:active { transform: scale(0.94); }
-.bw-help[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.bw-help[aria-expanded="true"] { color: var(--text); border-color: var(--text); background: var(--ctl-fill); }
 
 /* THE NUMBERS THE PANEL NEVER HAD. Between "is this alive" and "what exactly
    happened" there was no answer to "how much", which for a monitoring tool is
@@ -10022,7 +10035,7 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   cursor: pointer;
   transition: color 120ms, border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.aa-result-fix:hover { color: var(--text); border-color: var(--accent); }
+.aa-result-fix:hover { color: var(--text); border-color: var(--text); }
 .aa-result-fix:active { transform: scale(0.97); }
 .aa-result-err { flex-basis: 100%; color: var(--err); font-size: 11px; line-height: 1.5; }
 
@@ -11537,7 +11550,7 @@ input, textarea { caret-color: var(--accent); }
 .guide-stage {
   padding: 10px 8px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   background: var(--bg);
   animation: fadeIn 180ms ease-out;
 }
@@ -11768,8 +11781,11 @@ input, textarea { caret-color: var(--accent); }
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .topbar .brand button.v .v-dot,
-  button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after { forced-color-adjust: none; background: Highlight; }
+  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  /* An open toolbar button keeps a boundary in the theme's own highlight, so
+     open and closed still differ once every fill has been painted Canvas. A
+     system colour is honoured as written here, so nothing opts out. */
+  .topbar button.btn.icon-btn[aria-expanded="true"] { border-color: Highlight; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .bw-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }

@@ -309,8 +309,10 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
   it("keeps the topbar runs it did not belong to", () => {
     // The removal takes a run with it — Pause was alone in the first one — and
     // that is the change, not a side effect: what is left is the disclosures
-    // and the settings, which is the split the bar was regrouped into.
+    // and the settings. The disclosures have since split into two runs by
+    // subject, and the settings run carries its own offset class.
     expect((app.match(/<div className="action-run">/g) ?? [])).toHaveLength(2);
+    expect(app).toMatch(/<div className="action-run action-run-utility">/);
     expect(app).toMatch(/aria-label="Toggle usage panel"/);
     // #711 renamed this one. The button used to toggle the sound and now opens
     // a menu that holds the switch, two volumes, two sound choices and two

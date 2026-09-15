@@ -4244,16 +4244,17 @@ function Inner() {
           );
         })()}
         <div className="actions">
-          {/* Two runs, 8px inside and 18px between, against the 24px that
-              separates this whole group from the readout: control to control,
-              run to run, role to role. Every one of those numbers was already
-              in the sheet.
-              The first run opens things: the session list, Usage and its
-              History, Accounts, Machine and Browser watch. The second changes
-              how the deck behaves: Sound and the theme. Sound left the first
-              run as a setting written to disk rather than a panel that opens,
-              and it stays in the second now that its click opens a menu,
-              because the menu is still about that one setting.
+          {/* Three runs, 4px inside and 12px between, and the settings run a
+              further 12px out, so it stands at the 24px that separates this
+              whole group from the readout: control to control, run to run,
+              role to role. Spacing only, no rules drawn between them.
+              The first two runs open things: your sessions and what they
+              spend (Session list, Usage and its History), then who spends it,
+              on what, and what it watched (Accounts, Machine, Browser watch).
+              The third changes how the deck behaves: Sound and the theme.
+              Sound left the panels as a setting written to disk rather than a
+              panel that opens, and it stays with the theme now that its click
+              opens a menu, because the menu is still about that one setting.
               Re-layout, Clear and now Pause are gone from here entirely. All
               three are canvas verbs and they are on the canvas, in the React
               Flow control stack beside Recenter — the same place `F` already
@@ -4364,6 +4365,8 @@ function Inner() {
                   without one. Every button here opens something. */}
               <span className="tb-word">History</span>
             </button>
+          </div>
+          <div className="action-run">
             {/* Same disclosure as the usage panel — a sidebar that opens beside
                 the canvas and takes no focus with it.
                 Gone entirely without Claude Code, rather than present and inert.
@@ -4460,7 +4463,7 @@ function Inner() {
               {watchUnseen > 0 && <span className="bw-badge" aria-hidden>{watchUnseen}</span>}
             </button>
           </div>
-          <div className="action-run">
+          <div className="action-run action-run-utility">
             {/* The settings run. Sound was the one genuine aria-pressed in this
                 bar: it installs or removes a Stop hook on disk, a setting that
                 is on or off. Since #711 the click opens a menu instead, and the

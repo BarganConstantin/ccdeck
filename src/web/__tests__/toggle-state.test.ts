@@ -206,11 +206,23 @@ function barEnds(theme: Theme): Array<[string, Rgba]> {
   return stops.map((s, i) => [i === 0 ? "the topbar's light end" : "the topbar's dark end", resolve(s, theme)]);
 }
 
+/** A colour as a layer: `resolve`, except that a token spelled as the
+ *  foreground mixed toward transparent (--ctl-fill, --ctl-edge) comes back as
+ *  that colour at that alpha, which is what it paints. */
+function layer(value: string, theme: Theme): Rgba {
+  const name = /^var\((--[\w-]+)\)$/.exec(value.trim())?.[1];
+  const raw = (name ? TOK[theme][name] : value) ?? value;
+  const m = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)$/.exec(raw.trim());
+  if (!m) return resolve(value, theme);
+  const [r, g, b] = resolve(`var(${m[1]})`, theme);
+  return [r, g, b, Number(m[2]) / 100];
+}
+
 /** The on state, as the sheet writes it: one rule, two selectors. */
 const ON = 'button.btn.icon-btn[aria-pressed="true"]';
 const ON_EXPANDED = 'button.btn.icon-btn[aria-expanded="true"]';
-/** An open panel's mark: a line under the button's content, not a frame. */
-const OPEN_LINE = `${ON_EXPANDED}:not([aria-haspopup])::after`;
+/** A toolbar button that is open: the pressed look, neutral. */
+const OPEN = `.topbar ${ON_EXPANDED}`;
 
 describe("the contrast maths, against the two ends everybody knows", () => {
   it("puts white on black at 21:1 and a colour on itself at 1:1", () => {
@@ -281,26 +293,32 @@ describe("the on state, as the sheet draws it now", () => {
     // Two rules since #836: a setting that is on keeps the fill measured
     // below, and a panel that is showing is underlined instead, because two
     // or three open at once made the bar read as three things switched on.
-    // The underline is a line of its own under the content, not a foot inside
-    // an accent frame: frame and foot together drew a raised key.
+    // Since the chrome went quiet an open toolbar button is the pressed look,
+    // in neutrals only: the control fill, the resting edge and the foreground.
+    // No cyan line under it, and no accent anywhere in the state.
     const rule = RULES.find(r => selectors(r.selector).includes(ON));
     expect(rule, "no rule keyed on aria-pressed").toBeTruthy();
-    const open = RULES.find(r => selectors(r.selector).includes(OPEN_LINE));
+    const open = RULES.find(r => selectors(r.selector).includes(OPEN));
     expect(open, "no rule keyed on aria-expanded").toBeTruthy();
-    expect(declIn(open!.body, "background")).toBe("var(--accent)");
-    expect(declIn(open!.body, "height")).toBe("2px");
-    expect(RULES.some(r => selectors(r.selector).includes(ON_EXPANDED)), "an open panel is framed again").toBe(false);
+    expect(declIn(open!.body, "border-color")).toBe("var(--ctl-edge)");
+    expect(declIn(open!.body, "background")).toBe("var(--ctl-fill)");
+    expect(declIn(open!.body, "color")).toBe("var(--text)");
+    expect(open!.body, "an open toolbar button is painted in the accent again").not.toMatch(/--accent/);
+    expect(css, "an open panel is underlined again").not.toMatch(/aria-expanded="true"\][^{]*::after/);
+    // Closed, it draws no edge at all, which is what makes the edge the state.
+    expect(decl(".topbar button.btn.icon-btn", "border-color")).toBe("transparent");
   });
 
-  it("draws an open panel's line 3:1 or better off the bare bar, at both ends, in both themes", () => {
-    // The line is the whole of the state now, so it carries the delta #370
-    // measured the fill for: a mark that is there against a bar where it is not.
+  it("draws an open toolbar button's edge 3:1 or better off the bare bar, at both ends, in both themes", () => {
+    // The edge is what a closed button does not have, so it carries the delta
+    // #370 measured the fill for, composited over the fill it sits on.
     for (const theme of themes) {
-      const line = resolve(decl(OPEN_LINE, "background")!, theme);
       const ends = barEnds(theme);
       expect(ends.length, `${theme}: no topbar ends`).toBe(2);
       for (const [name, bed] of ends) {
-        expect(contrastRatio(over(line, bed), bed), `${theme} open line vs ${name}`)
+        const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+        const edge = over(layer(decl(OPEN, "border-color")!, theme), fill);
+        expect(contrastRatio(edge, bed), `${theme} open edge vs ${name}`)
           .toBeGreaterThanOrEqual(NON_TEXT);
       }
     }

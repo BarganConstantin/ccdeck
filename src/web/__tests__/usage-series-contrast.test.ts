@@ -545,8 +545,11 @@ describe("the selected range is a state you can see (#583)", () => {
       '.up-period .uh-range-btn[aria-pressed="true"]:hover',
       '.up-period .uh-range-btn[aria-pressed="true"]::after',
     ]);
-    // The accent arrives solid, in exactly one of them.
-    const carries = scoped.filter(r => /:\s*var\(--accent\)\s*;/.test(r.body));
+    // The indicator arrives solid, in exactly one of them. It is the
+    // foreground now rather than the accent: which range is showing is a
+    // selection, not data, and the sheet keeps cyan for data, live state and
+    // focus. The doctrine is unchanged, a small mark at full strength.
+    const carries = scoped.filter(r => /background:\s*var\(--text\)\s*;/.test(r.body));
     expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]::after']);
     for (const r of scoped) {
       // And nowhere is it diluted, in any spelling.
@@ -556,8 +559,8 @@ describe("the selected range is a state you can see (#583)", () => {
     // And the colour it arrives in is worth the state, on the surface it lands
     // on. 3:1 is 1.4.11's bar for a non-text indicator; #583's wash was 1.895.
     for (const theme of themes) {
-      const ratio = contrastRatio(parseColor(TOK[theme]["--accent"]), parseColor(TOK[theme]["--panel"]));
-      expect(ratio, `--accent on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
+      const ratio = contrastRatio(parseColor(TOK[theme]["--text"]), parseColor(TOK[theme]["--panel"]));
+      expect(ratio, `--text on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
     }
   });
 

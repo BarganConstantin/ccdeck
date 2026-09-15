@@ -89,32 +89,52 @@ describe("each topbar button can say its name (#836)", () => {
     expect(css).toMatch(/\n\.tb-word \{ display: none; \}/);
     const wide = media("min-width: 1440px");
     expect(wide).toMatch(/\.topbar \.tb-word \{ display: inline; font-size: 12px; line-height: 1; \}/);
-    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 10px; \}/);
+    expect(wide).toMatch(/\.topbar button\.btn\.icon-btn:has\(\.tb-word\) \{ width: auto; gap: 6px; padding: 0 8px; \}/);
     // The height is still the one control height (line-height is the word's).
     expect(wide).not.toMatch(/(?<!line-)height/);
   });
 });
 
-describe("an open panel is underlined, and only underlined", () => {
-  it("draws a disclosed region as a line under the button's content", () => {
-    const line = body('button.btn.icon-btn[aria-expanded="true"]:not([aria-haspopup])::after');
-    expect(line).toMatch(/background: var\(--accent\);/);
-    expect(line).toMatch(/height: 2px;/);
-    // Inside the padding, clear of the border: a line, not a thicker edge.
-    expect(line).toMatch(/left: 10px;/);
-    expect(line).toMatch(/right: 10px;/);
-    expect(line).toMatch(/bottom: 3px;/);
-    expect(body("button.btn.icon-btn")).toMatch(/position: relative;/);
-    // No accent frame and no foot inside it: together they drew a raised key.
-    expect(css).not.toMatch(/button\.btn\.icon-btn\[aria-expanded="true"\] \{/);
-    expect(css).not.toMatch(/inset 0 -2px 0 var\(--accent\)/);
+describe("the toolbar is quiet: no chrome at rest, a neutral pressed look when open", () => {
+  it("draws a closed control as its glyph and word, with no edge and no fill", () => {
+    const rest = body(".topbar button.btn.icon-btn");
+    expect(rest).toMatch(/border-color: transparent;/);
+    expect(rest).toMatch(/color: var\(--muted\);/);
+    expect(rest).not.toMatch(/background/);
   });
 
-  it("leaves the popover opener out of the line, and holds it while its menu is out", () => {
+  it("answers the pointer with the control fill and the foreground, never the accent", () => {
+    const hover = body(".topbar button.btn.icon-btn:hover");
+    expect(hover).toMatch(/border-color: transparent;/);
+    expect(hover).toMatch(/background: var\(--ctl-fill\);/);
+    expect(hover).toMatch(/color: var\(--text\);/);
+    expect(body("button.btn:hover")).not.toMatch(/--accent/);
+  });
+
+  it("draws an open panel, and Sound with its menu out, as pressed: fill, edge, foreground", () => {
+    const open = body('.topbar button.btn.icon-btn[aria-expanded="true"]');
+    expect(open).toMatch(/border-color: var\(--ctl-edge\);/);
+    expect(open).toMatch(/background: var\(--ctl-fill\);/);
+    expect(open).toMatch(/color: var\(--text\);/);
+    // No cyan line under it, and no second look for the popover opener.
+    expect(css).not.toMatch(/aria-expanded="true"\][^{]*::after/);
+    expect(css).not.toMatch(/\[aria-haspopup\]\[aria-expanded="true"\]/);
     expect(app).toMatch(/aria-haspopup="dialog"\s+aria-expanded=\{soundMenuOpen\}/);
-    const held = body('button.btn.icon-btn[aria-haspopup][aria-expanded="true"]');
-    expect(held).toMatch(/background: var\(--ctl-fill\);/);
-    expect(held).toMatch(/border-color: var\(--text\);/);
+  });
+
+  it("groups the panels in two runs and stands the settings apart, by spacing alone", () => {
+    expect(app.match(/<div className="action-run">/g)).toHaveLength(2);
+    expect(app.match(/<div className="action-run action-run-utility">/g)).toHaveLength(1);
+    expect(body(".topbar .action-run")).toMatch(/gap: 4px;/);
+    expect(body(".topbar .actions")).toMatch(/gap: 12px;/);
+    expect(css).toMatch(/\.topbar \.action-run-utility \{ margin-left: 12px; \}/);
+    // The runs are Session list, Usage, History | Accounts, Machine, Browser
+    // watch | Sound, theme.
+    const second = app.indexOf('<div className="action-run">', app.indexOf('<div className="action-run">') + 1);
+    const utility = app.indexOf('<div className="action-run action-run-utility">');
+    expect(app.indexOf('aria-label="Open usage history"')).toBeLessThan(second);
+    expect(app.indexOf('aria-label="Toggle accounts panel"')).toBeGreaterThan(second);
+    expect(app.indexOf("aria-label={`Browser watch, ")).toBeLessThan(utility);
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {
@@ -128,8 +148,12 @@ describe("an open panel is underlined, and only underlined", () => {
     expect(body('button.btn.icon-btn[aria-pressed="true"]')).toMatch(/background: var\(--accent\);/);
   });
 
-  it("stands the focus ring off the button, so focused does not read as open", () => {
-    expect(css).toMatch(/\.topbar button\.btn:focus-visible \{ outline-offset: 3px; \}/);
+  it("keeps the focus ring the sheet's own, in the accent, where focus has a use for it", () => {
+    // No topbar override: with no accent frame left to be mistaken for, the
+    // shared ring at its shared offset is the right one, and the 4px between
+    // two controls keeps it clear of the next.
+    expect(css).not.toMatch(/\.topbar button\.btn:focus-visible/);
+    expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
   });
 });
 

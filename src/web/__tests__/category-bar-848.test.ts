@@ -29,7 +29,9 @@ describe("the category bar wraps inside the canvas (#848)", () => {
   });
 
   it("reads as one bar on two rows, not a stretched pill", () => {
-    expect(rule(".cat-filter-bar")).toMatch(/border-radius:\s*18px/);
+    // A surface's radius from the sheet's hierarchy, not an 18px capsule: a
+    // floating group of controls is a small panel.
+    expect(rule(".cat-filter-bar")).toMatch(/border-radius:\s*var\(--r-panel\)/);
   });
 
   it("still keeps a chip for a hidden category (#783)", () => {

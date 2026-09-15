@@ -41,7 +41,9 @@ describe("the topbar keeps its controls on screen (#849)", () => {
 
   it("spends less on padding and gaps on a narrow screen", () => {
     expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*0 10px/);
-    expect(narrow).toMatch(/\.topbar \.actions\s*\{[^}]*gap:\s*10px/);
+    expect(narrow).toMatch(/\.topbar \.actions\s*\{[^}]*gap:\s*8px/);
+    // The settings run's offset shrinks with it, so the pair still stands apart.
+    expect(narrow).toMatch(/\.topbar \.action-run-utility\s*\{[^}]*margin-left:\s*4px/);
   });
 });
 

@@ -479,21 +479,21 @@ interface Control {
 
 const CONTROLS: Control[] = [
   // topbar
-  { at: ".topbar .brand button.v:not(.stale)", fillFrom: ".topbar .brand button.v",
-    states: [".topbar .brand button.v:not(.stale):hover"], beds: TOPBAR },
+  // The up-to-date version chip draws no boundary any more: it is metadata
+  // beside the wordmark, identified by its own text, and it wears the
+  // toolbar's resting look. The stale chip is a warning and keeps its edge.
   { at: ".topbar .brand button.v.stale", states: [".topbar .brand button.v.stale:hover"], beds: TOPBAR },
   { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
   // The on state of an icon toggle (#370). Its own state delta — this fill
   // against the bare bar, which is a different question from this edge against
-  // this fill — is toggle-state.test.ts'. An open panel draws no boundary of
-  // its own any more: it keeps the resting edge swept under `button.btn` and
-  // adds a line under its content, which toggle-state.test.ts measures too.
+  // this fill — is toggle-state.test.ts'.
   { at: 'button.btn.icon-btn[aria-pressed="true"]', beds: [...TOPBAR, "--panel"] },
-  // A popover opener while its menu is out: the control fill, and the whole
-  // foreground as its edge — the version chip's own hover, held.
-  { at: 'button.btn.icon-btn[aria-haspopup][aria-expanded="true"]', beds: [...TOPBAR, "--panel"] },
+  // A toolbar button that is open: the resting edge every other .btn wears,
+  // on the control fill. A closed one draws no edge at all, so this edge is
+  // the state, and it has to be seen against both ends of the bar.
+  { at: '.topbar button.btn.icon-btn[aria-expanded="true"]', beds: TOPBAR },
   // `button.btn.warn` was swept here until the topbar Pause button, its only
   // wearer, moved to the canvas control stack. The rule is gone from the sheet
   // rather than kept unworn, so there is nothing left to measure — and the
