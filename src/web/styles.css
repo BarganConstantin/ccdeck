@@ -934,6 +934,18 @@ button:focus-visible { outline-offset: 1px; }
 .switch:active:not(:disabled) { transform: scale(0.97); }
 .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .switch:disabled { cursor: default; opacity: var(--dim-off); }
+/* The track stays 30x18, the size its proportions and the LAN dialog's spacing
+   were argued from above; the target around it is 24px tall (#884), drawn the
+   way .ap-failure-x draws its own, so no row moves to make room for it. */
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
 /* A switch whose on gives something away (#828: saying yes to every deck that
    asks). On, it fills with --warn rather than the accent; waiting for its
    second press, its edge and knob take --warn, so "one more press does it" is
@@ -7914,6 +7926,8 @@ button.ap-err:active { transform: scale(0.97); }
   border: 1px solid var(--ctl-edge);
   border-radius: 5px;
   padding: 2px 19px 2px 7px;
+  /* The 24px target floor (#884): it measured 53x23. */
+  min-height: 24px;
   font: inherit;
   font-size: 11px;
   line-height: 1.5;
@@ -8002,10 +8016,13 @@ button.ap-err:active { transform: scale(0.97); }
 .ap-lanes-more:active { transform: scale(0.97); }
 /* The footer's two text-weight controls keep their look and get a 24px target
    drawn around the word (#857): the transparent pseudo-element .ap-failure-x
-   uses, so nothing in the wrapping footer moves to make room for it. */
+   uses, so nothing in the wrapping footer moves to make room for it. The fix
+   pill joins them (#884): it measured 84x20, and it sits inline in a row that
+   should not grow four pixels because of it. */
 .ap-rotate::after,
 .ap-lanes-more::after,
-button.ap-err::after {
+button.ap-err::after,
+.ap-fix::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -8336,6 +8353,9 @@ button.ap-err::after {
    another. */
 .ap-manage-btn {
   padding: 3px 9px;
+  /* The 24px target floor (#884): the pill measured 51x23, a pixel under it,
+     on the `switch` verb every inactive account row carries. */
+  min-height: 24px;
   border: 1px solid var(--ctl-edge);
   border-radius: 999px;
   background: var(--ctl-fill);
@@ -8798,6 +8818,7 @@ button.ap-err::after {
 /* The one failure in this panel that waiting cannot fix. Sized like the other
    row affordances, coloured like the error it belongs to. */
 .ap-fix {
+  position: relative;
   margin-left: 6px;
   padding: 1px 8px;
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
@@ -11538,6 +11559,25 @@ input, textarea { caret-color: var(--accent); }
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
 .empty-hero .empty-tour { pointer-events: auto; margin-top: 18px; }
+
+/* ---------------- touch (#884) ----------------
+   A deck opened from a phone or a touch laptop on the LAN (#849) is where the
+   24px floor stops being enough: a fingertip is not a pointer. Under a coarse
+   pointer every target the panel draws around a small control grows to 32px,
+   the two controls that carry their own height take 32px as their floor, and
+   the LAN dialog's two switches move apart so their grown targets meet rather
+   than overlap. Nothing here changes for a mouse. */
+@media (pointer: coarse) {
+  .ap-manage-btn,
+  .ap-field select { min-height: 32px; }
+  .switch::after,
+  .ap-fix::after,
+  .ap-rotate::after,
+  .ap-lanes-more::after,
+  button.ap-err::after { width: max(100%, 32px); height: 32px; }
+  .ap-failure-x::after { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
+  .lan-switches { gap: 14px; }
+}
 
 /* ---------------- forced colours (#871) ----------------
    A Windows Contrast theme repaints every background colour as Canvas and drops
