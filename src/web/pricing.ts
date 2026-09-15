@@ -181,7 +181,24 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   // row sat at the old $5/$30 for five releases. Sol is the DEFAULT Codex
   // model, so this row prices most of what the deck reports for Codex, and it
   // was reporting a session ~38% dearer than it was.
-  { match: /^gpt[-_]5[-_.]6(?:[-_]sol)?\b/i,
+  //
+  // The `(?![-_][A-Za-z])` is #688's guard for a NAMED sibling rather than a
+  // version one. `\b` is satisfied by the `-` of any suffix, so this row was
+  // pricing gpt-5.6-pro, -mini and -nano — ids nobody has read a number for —
+  // at sol's rate. The 5.4 generation is the measured precedent for how far
+  // that can be off: -nano is $0.20/$1.25 against -pro's $30/$180, 150x under
+  // one family prefix.
+  //
+  // This file states the rule at its o-series block: "a family prefix may only
+  // price the ids it has actually read a number for." There the answer was
+  // rows, because those siblings had published numbers and refusing to price
+  // them would invent a gap. Here there are none to read, so the honest answer
+  // is #688's — reach no row, and print `not priced`.
+  //
+  // Scoped to 5.5 and 5.6 deliberately: they are the two newest, the two whose
+  // sibling set is incomplete, and the two where an unread name is most likely
+  // to turn up. 5.4 and below carry their full sets above them.
+  { match: /^gpt[-_]5[-_.]6(?:[-_]sol)?\b(?![-_][A-Za-z])/i,
     rates: { input: 4, output: 20, cacheRead: 0.40, cacheWrite: 5 } },
 
   // gpt-5.5-pro — $30 / $180  (no cached rate published)
@@ -189,7 +206,9 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
     rates: { input: 30, output: 180, cacheRead: 30, cacheWrite: 0 } },
 
   // gpt-5.5 — $5 / $30  (cached $0.50)
-  { match: /^gpt[-_]5[-_.]5\b/i,
+  // Same guard, same reason. gpt-5.5-cyber is in OpenAI's pricing listing with
+  // no clearly published public rate, and it landed here.
+  { match: /^gpt[-_]5[-_.]5\b(?![-_][A-Za-z])/i,
     rates: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 } },
 
   // gpt-5.4-pro — $30 / $180  (cached $3)
