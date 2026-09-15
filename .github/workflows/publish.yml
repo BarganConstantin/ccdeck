@@ -108,6 +108,15 @@ jobs:
       - name: Build web bundle
         run: npm run build
 
+      # Vite transpiles TypeScript with esbuild, which STRIPS types without
+      # checking them — so a green `npm run build` says nothing about type
+      # correctness and `"strict": true` was enforced only by whoever
+      # remembered to type the command. The script existed and passed; no job
+      # ran it. Same class as the endpoint probe below: a check nothing invokes
+      # is a check that cannot fail.
+      - name: Typecheck
+        run: npm run typecheck
+
       # `npm test` verbatim, so CI runs what a contributor runs, plus a JSON
       # report on the side for the assertion below. The default reporter still
       # prints to the log as usual.
@@ -259,12 +268,31 @@ jobs:
             sleep 0.2
           done
 
+          # THE ENDPOINTS, AND THE ONE THAT MAKES THEM MEAN ANYTHING.
+          #
+          # This loop used to ask for /api/state, which has never been a route —
+          # the string appeared exactly once in the repo, on this line. It
+          # reported 200 because an unmatched GET fell through to the SPA shell,
+          # and so would the other three if the whole route table were deleted.
+          # The server answers an unmatched /api/ path with 404 now, so a status
+          # code here is evidence again; the content-type check keeps it that
+          # way if that ever regresses, and the negative probe below is the
+          # assertion that the route table is alive at all rather than that one
+          # static file is.
+          #
+          # All three are reads that stay open by design — the guarded ones
+          # answer 401 to a curl with no browser headers and no token, which is
+          # correct and would make a 200 here the wrong thing to assert.
           fail=0
-          for ep in /api/health /api/system /api/state /api/version; do
-            code="$(curl -s -o /dev/null -m 30 -w '%{http_code}' "http://127.0.0.1:4351$ep")"
-            printf '  %-20s %s\n' "$ep" "$code"
+          for ep in /api/health /api/system /api/version; do
+            read -r code ctype <<<"$(curl -s -o /dev/null -m 30 -w '%{http_code} %{content_type}' "http://127.0.0.1:4351$ep")"
+            printf '  %-20s %s %s\n' "$ep" "$code" "$ctype"
             [ "$code" = "200" ] || fail=1
+            case "$ctype" in application/json*) ;; *) echo "::error::$ep did not answer with JSON"; fail=1 ;; esac
           done
+          missing="$(curl -s -o /dev/null -m 30 -w '%{http_code}' "http://127.0.0.1:4351/api/definitely-not-a-route")"
+          printf '  %-20s %s (want 404)\n' "/api/<nonexistent>" "$missing"
+          [ "$missing" = "404" ] || { echo "::error::an unmatched /api path did not 404 — a status probe here proves nothing"; fail=1; }
 
           # A runtime too old for something the deck reaches for does not show up
           # as a non-200: every such path is written to degrade rather than
