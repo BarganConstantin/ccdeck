@@ -378,8 +378,10 @@ export function frameReader(onFrame, onRefuse, max = MAX_FRAME_BYTES) {
       // throw from a frame handler took the whole deck down — and every frame
       // read here has come off the network before anybody is trusted. The
       // handlers are meant never to throw; this is what holds when one does.
+      // The error goes on with the refusal, so the next one that hides here is
+      // logged with its stack rather than as two words.
       try { onFrame(msg); }
-      catch { dead = true; buf = ""; onRefuse("bad frame"); return; }
+      catch (err) { dead = true; buf = ""; onRefuse("bad frame", err); return; }
       if (dead) return;
     }
   };
@@ -543,9 +545,11 @@ export function createSyncServer({
      * that is the whole point. The timer is the backstop for a peer whose
      * receive window is full and whose callback therefore never comes.
      */
-    const refuse = why => {
+    const refuse = (why, cause) => {
       refused = true;
-      onError?.("frame", new Error(why));
+      // The thrown error itself when frameReader caught one, so the terminal
+      // shows what threw and where rather than only "bad frame".
+      onError?.("frame", cause ?? new Error(why));
       const bye = () => { try { sock.destroy(); } catch { /* already gone */ } };
       // SEALED, A REFUSAL IS A CLOSE. Once both ends seal nothing leaves this
       // socket in the clear, not even a word about why — and a peer whose frame
@@ -951,7 +955,14 @@ export function connectToPeer({
       }
       // The same deck that gave us the challenge, or nothing: a reply naming a
       // different fingerprint is a second party in the middle of this.
-      if (msg.t !== "ok" || msg.fp !== theirFp) return fail(new Error("expected ok"));
+      //
+      // AND A CHALLENGE FIRST. `theirFp` is null until one is accepted, so an
+      // `ok` sent as the very first frame with `fp: null` matched it — null is
+      // null — and walked into `proof` with no key, which throws. Before #1146
+      // that throw ended the deck, and this end dials whatever address a beacon
+      // announces; since #1146 the reader catches it as "bad frame". Neither is
+      // the answer: an `ok` before a challenge is out of order, and says so.
+      if (msg.t !== "ok" || !theirFp || !key || msg.fp !== theirFp) return fail(new Error("expected ok"));
       const want = proof(key, {
         challenge: theirChallenge, peerChallenge: myChallenge,
         fromFp: theirFp, toFp: fp, direction: "reply",
@@ -990,6 +1001,9 @@ export function connectToPeer({
          *  #810, a plain frame passes through as it arrived. */
         read: frame => (chan ? chan.unwrap(frame) : frame),
       });
-    }, fail));
+    // A refusal from the reader, with the thrown error as its cause when there
+    // was one: the message is the one it always was, and whatever logs the
+    // rejection can reach what actually threw.
+    }, (why, cause) => fail(cause ? new Error(why, { cause }) : new Error(why))));
   });
 }
