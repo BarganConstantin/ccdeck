@@ -4,7 +4,7 @@
 // which asks another deck's port to prove it is the deck its discovery record
 // describes. Nothing else in this file talks to anything but 127.0.0.1 clients.
 import { createServer, request as httpRequest } from "node:http";
-import { readFile, stat, mkdir, open, truncate, readdir, unlink } from "node:fs/promises";
+import { readFile, stat, mkdir, open, readdir, unlink } from "node:fs/promises";
 import { existsSync, readFileSync, realpath as realpathCb, realpathSync } from "node:fs";
 import { basename, extname, join, resolve, sep, dirname as pdirname } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
@@ -41,7 +41,7 @@ import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
-import { appendFailureStats, appendLogLine, codexCwdInWorkspace, electWriters, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
+import { appendFailureStats, appendLogLine, appendsLanded, codexCwdInWorkspace, electWriters, emptyLog, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 
@@ -4472,10 +4472,12 @@ function pushEvent(raw, source, opts = {}) {
  *
  * TWO CASES DECIDED EXPLICITLY:
  *
- *   * `__clear` — the control marker `/api/clear` writes after truncating, with
- *     `cwd: ""`. It is not a session event; it is the instruction that makes the
- *     reducer forget everything before it. Dropping it on a scoped deck would
- *     replay the state a user had explicitly cleared, so it is always admitted.
+ *   * `__clear` — the control marker `/api/clear` pushes, with `cwd: ""`. It is
+ *     not a session event; it is the instruction that makes the reducer forget
+ *     everything before it. It has not been written to the log since #698, but
+ *     logs the decks before that wrote still carry it, and dropping it on a
+ *     scoped deck would replay the state a user had explicitly cleared, so it
+ *     is always admitted.
  *   * a payload with no cwd and no session the map has seen — refused on a
  *     scoped deck, which is exactly what `capturesSession` decides live for a
  *     session that never said where it runs.
@@ -4680,6 +4682,12 @@ export async function replayLog(filePath, workspace = "", {
   // reached, so on a log that can fill the ring on its own this costs nothing
   // at all: the archive is never opened. It is read only when the live log
   // cannot fill the ring, which is exactly the window a rotation opens.
+  //
+  // A Clear opens the same window and means the opposite by it. It empties the
+  // live log, which can then fill nothing, so reading on into the archive put
+  // back precisely what the user had cleared (#1130) — which is why a Clear
+  // removes the archive as well as emptying the live log, rather than this
+  // learning to tell the two kinds of empty apart. See handleClear.
   const archivePath = filePath + ".1";
   const liveThere = existsSync(filePath);
   const archiveThere = existsSync(archivePath);
@@ -5225,19 +5233,50 @@ let _canRestart = false;
 // `if (!existsSync(filePath)) return 0` and takes the whole session history
 // with it — which is precisely the loss the flag exists to prevent.
 let _persistWritable = false;
+// How many lines had landed on `persistPath` when the probe answered. Read by
+// logWritableNow and nothing else; see appendsLanded.
+let _landedAtProbe = 0;
+
+/**
+ * Is the log this deck was told to keep being written, on the newest evidence?
+ *
+ * `_persistWritable` answered this alone, and it is the boot probe's answer:
+ * nothing after the boot could change it. The gate it fed had a closing edge —
+ * a failing append opens an episode, and an episode shut the gate — and no
+ * opening one. MEASURED on a sandboxed deck (#1130), a log whose parent was a
+ * file at boot and a directory a moment later, which is what a mount that
+ * comes up late or a permission that is fixed leaves behind: a line on disk,
+ * the failure count at 0, and `canRestart` false for the life of the process.
+ *
+ * The appender is the evidence, and it already produces it: every line either
+ * lands or fails, and log-writer counts both. So the answer is whichever of the
+ * two sources spoke LAST. An open failure episode means the newest append
+ * failed, whatever came before it. Otherwise a line landed since the probe
+ * means the newest evidence is a write that worked, whatever the probe said;
+ * and with neither, the probe is still the newest thing anyone knows.
+ *
+ * No syscall is added anywhere for it. The probe stays the one at boot, the
+ * episode is the one #1062 keeps, and what an event pays is one counter
+ * increment in log-writer's landing handler, beside the episode lookup that
+ * handler already makes.
+ */
+function logWritableNow() {
+  if (!persistPath) return false;
+  if (appendFailureStats(persistPath).failing > 0) return false;
+  return _persistWritable || appendsLanded(persistPath) > _landedAtProbe;
+}
 
 /**
  * Can this deck be restarted without losing the canvas?
  *
  * Asked at the moment of the press rather than read off a boot-time flag,
- * because the writable half of it changes while the deck runs: a drive
- * unmounted or a volume filled mid-session is discovered by the appender, not
- * by the probe. `failing` is log-writer's own count of paths inside a failure
- * episode, and this process appends to exactly one log — so 1 means the log
- * being drawn is not the log being kept.
+ * because the writable half of it changes while the deck runs, and in both
+ * directions: a drive unmounted or a volume filled mid-session is discovered by
+ * the appender, not by the probe, and so is one that comes back. See
+ * logWritableNow.
  */
 function canRestartNow() {
-  return _canRestart && _persistWritable && appendFailureStats(persistPath).failing === 0;
+  return _canRestart && logWritableNow();
 }
 
 /**
@@ -5255,7 +5294,7 @@ async function probeLogWritable(path) {
     handle = await open(path, "a");
     return true;
   } catch (err) {
-    console.error(`${PRODUCT}: the event log ${path} is not writable (${err && err.message ? err.message : err}) — Restart is disabled, because it would replay a log this deck is not filling`);
+    console.error(`${PRODUCT}: the event log ${path} is not writable (${err && err.message ? err.message : err}) — Restart is disabled until an event reaches it, because it would replay a log this deck is not filling`);
     return false;
   } finally {
     await handle?.close().catch(() => {});
@@ -6082,8 +6121,9 @@ export async function canonicalCwd(raw) {
 }
 
 /**
- * The deck's one irreversible action: empty the ring, and empty the log — but
- * only the log this deck is the one writing.
+ * The deck's one irreversible action: empty the ring, and empty the log — both
+ * of its generations, the live file and the archive rotation leaves beside it —
+ * but only the log this deck is the one writing.
  *
  * The gate is the whole of #698. `truncate(persistPath, 0)` ran from whichever
  * deck was asked, and `persistPath` is one file several decks share by default,
@@ -6110,28 +6150,70 @@ export async function canonicalCwd(raw) {
 async function handleClear(res) {
   const sharing = await logSharing();
   const mineToEmpty = Boolean(sharing.path && sharing.mine);
-  // WAIT FOR THE QUEUE BEFORE EMPTYING THE FILE. Appends are fire-and-forget
-  // behind a promise chain inside log-writer.mjs, and the truncate consulted it
-  // in neither direction: a session mid-burst had its lines queued, the user
-  // pressed Clear, the file went to zero, and the queue then drained its
-  // PRE-CLEAR lines into the now-empty file. Measured — 564 bytes and three
-  // events of a cleared session, 2.5s after a Clear that answered
-  // `{"log":"cleared"}` against a file that was genuinely 0 bytes at the time.
-  // The next restart replays them, so sessions the user explicitly and
-  // irreversibly cleared come back.
+  // THE PRESS IS ONE SYNCHRONOUS MOMENT, from the ring being emptied to the
+  // marker being pushed, and the log's turn on the append queue is taken
+  // inside it. Nothing from here awaits until the marker is out, so no event
+  // can be pushed in the middle: every event is on one side of the press, and
+  // it is the same side for the board, the ring and the file.
+  //
+  //   * Pushed before it: out of the ring by clearEventBuffer, numbered below
+  //     the marker so the reducer forgets it, and queued before the truncate —
+  //     written, then erased.
+  //   * Pushed after it: numbered above the marker so the board keeps it, and
+  //     queued AFTER the truncate, so its write cannot begin until the file has
+  //     been emptied. That is why a Clear cannot take an event posted after it
+  //     along with it: the chain in log-writer.mjs is the only way this process
+  //     writes the log, and it starts each step only when the one before it has
+  //     settled.
+  //
+  // Both halves were broken in turn. #1005: the truncate consulted the queue in
+  // neither direction, so the queue drained PRE-CLEAR lines into the freshly
+  // emptied file — 564 bytes and three events of a cleared session, 2.5s after
+  // a Clear that answered `{"log":"cleared"}`. Its fix waited for the queue and
+  // then truncated beside it, but the wait was for the queue as it stood when
+  // the wait began, and the session went on posting through it: MEASURED
+  // (#1130), five runs, 4, 5, 3, 3 and 2 events the Clear had taken off the
+  // board were in the file a restart replays. See emptyLog.
   //
   // This is #698's residue by a different route, and it survives the ownership
   // gate that fixed #698 precisely because it happens on the deck that DOES own
-  // the file. See flushAppends for why the wait is bounded.
-  if (mineToEmpty) await flushAppends(sharing.path);
+  // the file.
+  //
   // Not `events.length = 0`: the ring is measured by a running total now, and
   // emptying the array without the total leaves a debt that never clears. See
   // clearEventBuffer.
   clearEventBuffer();
-  // Awaited now, where it used to be fired and forgotten. The flush above is
-  // worth nothing if the answer can go out — and the next event be appended —
-  // before the file has actually reached zero.
-  if (mineToEmpty) await truncate(sharing.path, 0).catch(() => {});
+  // THE ARCHIVE GOES WITH IT. Since #1062 the replay reads events.jsonl.1
+  // whenever the live log cannot fill the ring, and a live log a Clear has just
+  // emptied never can — so a Clear on a log that had rotated once came back,
+  // whole, at the next boot. MEASURED (#1130): three events in the archive and
+  // one in the live log, `/api/clear` answering `log: "cleared"` over a live
+  // file of 0 bytes, and replayLog on the same path returning the three
+  // archived sessions.
+  //
+  // Removed, rather than fenced off by a `__clear` line the replay stops at,
+  // and the confirmation is why: it tells the user the history is gone and
+  // cannot be undone, and a marker would leave a whole rotated generation of it
+  // on disk behind a line asking readers not to look — readable by anything
+  // else that opens the file. It would also put back on disk the line #698
+  // took off it on purpose, and it would need a stopping rule the forwards
+  // replay does not have: that branch reads the archive FIRST, so it would push
+  // the cleared generation into the ring before it ever met the line saying to
+  // discard it. The ownership gate is the truncate's, and it covers the archive
+  // exactly: only the deck that writes a log may rotate it (#1062), so only
+  // that deck ever made its archive.
+  //
+  // Nothing else of the log's bookkeeping is reset, deliberately.
+  // `failedLines` / `failedChars` count what the DISK refused since this deck
+  // started, which a Clear does not change — `/api/health` documents them that
+  // way, and zeroing them would hide a volume that is still failing — and an
+  // open failure episode ends only on a line that lands, the one evidence that
+  // the condition is over, which a Clear is not. The rotation's byte count is
+  // a trigger for a `stat`, not a size: over-counting after a truncate costs at
+  // most one early look, which finds a small file and resets it. And a
+  // rotation running at the same moment needs nothing from here; emptyLog says
+  // why the order inside the turn is enough.
+  const emptied = mineToEmpty ? emptyLog(sharing.path, [sharing.path + ".1"]) : null;
   // Drop the caches that gate an emit on "has this changed", because the
   // client is about to forget what they are comparing against: __clear makes
   // the reducer return a fresh state, so every session's name and every
@@ -6160,6 +6242,11 @@ async function handleClear(res) {
   lastNameReadAt.clear();
   modelLastReadAt.clear();
   pushEvent({ hook_event_name: "__clear", cwd: "" }, "internal", { persist: false });
+  // The end of the press. Awaited, where the truncate used to be fired and
+  // forgotten, so the answer does not go out before the file has actually
+  // reached zero — and bounded by emptyLog, so a disk that does not come back
+  // in time still gets an answer, with the turn left on the chain in order.
+  if (emptied) await emptied;
   return send(res, 200, {
     ok: true,
     log: !sharing.path ? "none" : sharing.mine ? "cleared" : "kept",
@@ -6249,7 +6336,9 @@ function handleHealth(_req, res) {
     // WHETHER THE EVENTS BEING DRAWN ARE BEING KEPT. `seq` above counts what
     // the deck accepted, and it counted a deck whose every append was failing
     // exactly the same as one whose every append landed. `log` is the other
-    // half of that sentence: `writable` is the boot probe's answer, `failing`
+    // half of that sentence: `writable` is the newest evidence about the log —
+    // the boot probe's answer until a line lands after it and the appender's
+    // from then on, the same answer the Restart gate reads (#1130) — `failing`
     // says the appender is inside a failure episode right now, and
     // `failedLines` / `failedChars` are what has been attempted and lost since
     // this deck started.
@@ -6257,7 +6346,7 @@ function handleHealth(_req, res) {
     // No path. The health probe is a deliberately open route and this is the
     // smallest set of facts that answers the question; the path is already in
     // the banner for anyone standing at the terminal.
-    log: persistPath ? { writable: _persistWritable, ...appendFailureStats(persistPath) } : null,
+    log: persistPath ? { writable: logWritableNow(), ...appendFailureStats(persistPath) } : null,
   });
 }
 
@@ -6938,6 +7027,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // The mkdir above is inside a bare try/catch, so its failure is already
     // swallowed once by the time we get here — see _persistWritable.
     _persistWritable = await probeLogWritable(persistPath);
+    // Taken the moment the probe answers, so that a line landing from here on
+    // is evidence newer than it. See logWritableNow.
+    _landedAtProbe = appendsLanded(persistPath);
     // `_workspace`, not `workspace`: the field has just been normalised on the
     // line above, and the replay has to answer the same question the live paths
     // answer with the same string. Passed rather than read off the module scope

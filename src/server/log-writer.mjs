@@ -20,7 +20,7 @@
 // by the host CLI, with no path back to the module it came from — the same
 // reason it re-derives the Claude config dir inline. The two copies are pinned
 // equal by a test, as challengeProof's pair already is.
-import { open } from "node:fs/promises";
+import { open, truncate, unlink } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { basename, dirname, join, resolve, win32, posix } from "node:path";
 import { PRODUCT } from "./brand.mjs";
@@ -458,6 +458,26 @@ let failedChars = 0;
 const failingPaths = new Map();
 
 /**
+ * How many lines have LANDED on each path in this process: path -> count.
+ *
+ * The other half of the evidence `failingPaths` holds, and the half the restart
+ * gate was missing (#1130). An open episode says the newest append to a path
+ * failed. Nothing said the opposite — that one has succeeded SINCE some moment
+ * — because a path that never failed has no episode to close, and a log that
+ * could not be opened at boot and could be a minute later never failed an
+ * append at all: its first one simply landed. A count answers that by being
+ * compared with itself. index.mjs reads it once, when its boot probe answers,
+ * and again whenever it asks; any difference is a line that reached the disk
+ * after the probe spoke.
+ *
+ * One number per path this process has ever appended to, which on a deck is
+ * one. Never deleted, unlike the entries in appendTails, because a count that
+ * went back to zero would read as "nothing has landed" to whoever took a
+ * reading before it did.
+ */
+const landedLines = new Map();
+
+/**
  * What the appender has failed to write, and whether it is failing now.
  *
  * Exported for the reason `eventBufferStats` and `MAX_BUFFER_CHARS` are: a loss
@@ -486,10 +506,27 @@ export function appendFailureStats(filePath = null) {
 }
 
 /**
- * One append landed. If this path was failing, that is the end of the episode
- * and the size of the hole it left is worth one line.
+ * How many lines have landed on one log in this process. See landedLines.
+ *
+ * A separate export rather than a fourth field of appendFailureStats, because
+ * that object is spread whole into `/api/health`, an open route that keeps to
+ * the smallest set of facts answering its question, and a running count of
+ * successful writes is not one of them.
+ *
+ * @param {string} filePath the log to ask about
+ * @returns {number}
+ */
+export function appendsLanded(filePath) {
+  return landedLines.get(filePath) ?? 0;
+}
+
+/**
+ * One append landed. Counted whatever came before it — see landedLines — and
+ * if this path was failing, that is the end of the episode and the size of the
+ * hole it left is worth one line.
  */
 function noteAppendLanded(filePath) {
+  landedLines.set(filePath, (landedLines.get(filePath) ?? 0) + 1);
   const episode = failingPaths.get(filePath);
   if (!episode) return;
   failingPaths.delete(filePath);
@@ -715,6 +752,73 @@ export function flushAppends(filePath, ms = 3000) {
     Promise.resolve(tail).then(() => true, () => true),
     deadline,
   ]).finally(() => clearTimeout(bell));
+}
+
+/**
+ * Empty one log IN ITS TURN on the queue, and its older generations with it.
+ *
+ * `/api/clear` waited for the queue and then truncated beside it (#1005), and
+ * beside was the flaw. `flushAppends` waits for the tail as it stood when it
+ * was called, so a line queued while the Clear was waiting went on behind that
+ * tail, and nothing ordered it against the truncate — two separate operations
+ * on the threadpool. MEASURED on a sandboxed deck (#1130), a session still
+ * posting while Clear was pressed, five runs: 4, 5, 3, 3 and 2 events left in
+ * the file that the Clear had taken off the board, every one of which the next
+ * boot replays.
+ *
+ * So the truncate is chained on the tail exactly as a line would be, and the
+ * chain orders it the way it already orders lines. Every line queued before
+ * this call is written before the truncate and erased by it. Every line queued
+ * after it cannot so much as open the file until the truncate has settled,
+ * because each step on the chain starts only when the one before it has, and
+ * the chain is the only way this process writes to the log. That is the whole
+ * of what a Clear needs, and none of it depends on timing.
+ *
+ * WRITTEN AND ERASED, NOT SKIPPED. A generation stamped on each line and
+ * compared when its turn comes would spare the lines queued before the Clear
+ * their writes, and it is the other shape #1130 offers. It is not what makes
+ * this correct: without the truncate on the chain, a line queued after the
+ * Clear would still be free to land before the truncate and be erased by it;
+ * with the truncate on the chain, it is an optimisation — one that would reach
+ * into appendLogLine's four ordered steps, whose order is load-bearing and
+ * says so, to save the writes of a burst that is about to be erased anyway.
+ *
+ * `archives` go in the same turn and AFTER the truncate, and the order is what
+ * makes this safe beside a rotation, which moves the live log into the archive
+ * with an unlink and a rename of its own and queues behind nothing. However its
+ * two steps interleave with these two, what this removes is the previous
+ * archive, or the file the truncate has just emptied, or the live log the
+ * rename moved there before the truncate could reach it — never a pre-Clear
+ * generation left standing. Removing the archive first would leave exactly
+ * that, if the rename fell between the two.
+ *
+ * Never rejects, like every other call into this queue. A file that is not
+ * there is already empty. A truncate that fails for any other reason is what a
+ * Clear has always done on that volume — the ring is emptied either way — and
+ * the older generations are still removed.
+ *
+ * BOUNDED, by flushAppends and for its reason: the caller is answering an HTTP
+ * request. A deadline reached leaves the turn on the chain, where it is still
+ * in order; only the answer goes out first.
+ *
+ * @param {string}   filePath   the log to empty
+ * @param {string[]} [archives] older generations of it, removed in the same turn
+ * @param {number}   [ms]       how long to wait for the turn to be over
+ * @returns {Promise<boolean>} whether it was over before the deadline
+ */
+export function emptyLog(filePath, archives = [], ms = 3000) {
+  const turn = (appendTails.get(filePath) ?? Promise.resolve())
+    .then(() => truncate(filePath, 0))
+    .catch(() => {})
+    .then(async () => {
+      for (const older of archives) await unlink(older).catch(() => {});
+    })
+    .catch(() => {});
+  appendTails.set(filePath, turn);
+  // The same cleanup appendLogLine does, for the same reason: only the tail
+  // installed here, never one that has chained on since.
+  turn.then(() => { if (appendTails.get(filePath) === turn) appendTails.delete(filePath); });
+  return flushAppends(filePath, ms);
 }
 
 /**
