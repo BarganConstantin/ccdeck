@@ -269,7 +269,7 @@ describe("npm i -g ccdeck — the install that could not update itself", () => {
 });
 
 describe("the install shapes that were already right, and stay untouched", () => {
-  it("leaves a plain global install on the name it was published under", () => {
+  it("reads a plain global install's name off its own manifest, not off a default", () => {
     // Both rows used to expect `agents-deck`, and the `agent-dag` half of that
     // was #389: the same defect as the stub's, reached without a layout. There
     // is no host above either of these — `lib` holds no package.json — so this
@@ -283,8 +283,31 @@ describe("the install shapes that were already right, and stay untouched", () =>
       const pkgRoot = layout("global", { pkg });
       expect(hostPackage(pkgRoot), pkg).toBeNull();
       expect(upgradeName(pkgRoot), pkg).toBe(pkg);
-      expect(upgradeCommand(pkgRoot), pkg).toBe(`npm i -g ${pkg}@latest`);
-      expect(npmArgv(pkgRoot)[2], pkg).toBe(`${pkg}@latest`);
+    }
+  });
+
+  // What this test asserted until #975: that the same two rows were then handed
+  // to npm as `npm i -g <pkg>@latest`, the in-app button included.
+  //
+  // The name is still right and the command built from it is not, because the
+  // registry stopped agreeing. `agents-deck@latest` and `agent-dag@latest` are
+  // 5 KB pointer packages now — `npm view agents-deck@latest dist.unpackedSize`
+  // answers 5441 against ccdeck's 2.9 MB — so that install replaces the deck
+  // with a shim and npm's reify takes bin/, src/ and hook/ with it. The deck
+  // does it to itself: autoUpdate is on by default, and with no tab open and no
+  // agent mid-turn it needs nobody's permission.
+  //
+  // Which package this install IS remains the answer to a different question —
+  // `npm rm -g` needs it, and so does anything reporting what is on the machine
+  // — so upgradeName keeps it above and only the command moves.
+  it("will not reinstall a retired name over itself, and says why", () => {
+    for (const pkg of ["agents-deck", "agent-dag"]) {
+      const pkgRoot = layout("global", { pkg });
+      expect(upgradeCommand(pkgRoot), pkg).toBe(`npm rm -g ${pkg} && npm i -g ccdeck`);
+      expect(upgradeBlock(pkgRoot), pkg).toBe("retired_name");
+      expect(upgradeMode(upgradeBlock(pkgRoot)), pkg).toBeNull();
+      expect(startUpgrade({ pkgRoot }), pkg).toMatchObject({ ok: false, reason: "retired_name" });
+      expect(spawns, "a frozen name must never reach npm i -g").toHaveLength(0);
     }
   });
 
