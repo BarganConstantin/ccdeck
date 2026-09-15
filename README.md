@@ -7,7 +7,7 @@
 **ccdeck keeps them in one queue** — every session stopped on a human, longest wait first, and the count in the topbar is one click to the oldest. That queue is Claude Code's, because the deck reads Codex from its rollout log and a rollout carries no such signal; the canvas under it is both, with every Claude Code subagent on a node of its own.
 
 [![npm](https://img.shields.io/npm/v/ccdeck?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/ccdeck)
-[![agents-deck downloads](https://img.shields.io/npm/dm/agents-deck?color=blue&label=agents-deck%20downloads)](https://www.npmjs.com/package/agents-deck)
+[![npm downloads](https://img.shields.io/npm/dm/ccdeck?color=blue)](https://www.npmjs.com/package/ccdeck)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org)
 [![macOS · Linux · Windows](https://img.shields.io/badge/macOS%20·%20Linux%20·%20Windows-supported-6aa9f7)](#requirements)
