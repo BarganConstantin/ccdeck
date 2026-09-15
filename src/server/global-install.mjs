@@ -54,6 +54,16 @@ export function readGlobalRoot(out) {
  * is not obvious: a global prefix owned by root needs either sudo or a prefix
  * of the user's own, and "permission denied" alone sends people to sudo when
  * the second is the better answer.
+ *
+ * EEXIST is the other, and it is the one this deck's own history produced. The
+ * retired `agents-deck` and `agent-dag` packages shipped all three commands in
+ * their `bin` map, so a machine that installed either of them owns
+ * `<prefix>/bin/ccdeck` under that package's name. `npm i -g ccdeck` then has a
+ * command file to link and something already sitting on it, and npm refuses
+ * rather than taking a file another package still claims. The raw first stderr
+ * line says `EEXIST` and names a path, which tells a user nothing about the
+ * package that has to come off first — and it is exactly the users of #975,
+ * reaching for the one command that would have got them out of it.
  */
 export function installFailure(out, { pkg = "ccdeck" } = {}) {
   const said = `${out?.stderr ?? ""}\n${out?.stdout ?? ""}`;
@@ -61,6 +71,9 @@ export function installFailure(out, { pkg = "ccdeck" } = {}) {
   if (out?.timedOut) return "npm took too long — the registry may be unreachable";
   if (/EACCES|permission denied/i.test(said)) {
     return `npm cannot write to the global prefix. Either \`sudo npm i -g ${pkg}\`, or point npm at a prefix you own (\`npm config set prefix ~/.npm-global\`) and add its \`bin\` to PATH`;
+  }
+  if (/EEXIST/i.test(said)) {
+    return `npm will not overwrite a command another global package owns. This deck's retired names ship the same commands, so remove them first: \`npm rm -g agents-deck agent-dag\`, then \`npm i -g ${pkg}\``;
   }
   const first = said.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0];
   return first || `npm exited ${out?.status ?? "non-zero"}`;

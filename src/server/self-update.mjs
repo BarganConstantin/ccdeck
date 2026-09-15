@@ -460,15 +460,88 @@ export function hostPackage(pkgRoot, name = PUBLISHED_NAME) {
  * sit above us is not evidence.
  *
  * Guarded on our own manifest being unreadable, so nothing changes for an
- * install that is intact — including the ordinary nested layout before it is
- * upgraded, where pkgRoot answers for itself and this is never consulted.
+ * install that is intact — except for the one replacement that leaves a
+ * readable manifest behind, which is nestedDeckRoot below.
  */
 export function successorRoot(pkgRoot) {
-  if (readManifest(pkgRoot)) return null;
+  if (readManifest(pkgRoot)) return nestedDeckRoot(pkgRoot);
   const root = hostRoot(pkgRoot);
   if (!root) return null;
   const name = readManifest(root)?.name;
   return typeof name === "string" && ALIAS_PACKAGES.includes(name) ? root : null;
+}
+
+/**
+ * The other direction the same replacement can go: the deck moved DOWN, into a
+ * node_modules underneath the directory it used to be.
+ *
+ * `npm i -g agents-deck` before 3.22.3 installed the deck flat — that directory
+ * WAS the deck, bin/ and src/ and hook/ and all. What the registry serves for
+ * that name now is a 5 KB pointer package: a shim.js, a manifest, and a
+ * dependency on `ccdeck`. So reinstalling it replaces the deck with the pointer
+ * and puts the real deck one level down, in `<pkgRoot>/node_modules/ccdeck`.
+ *
+ * The guard above cannot see that, and that is the whole of #975. npm's reify
+ * deleted bin/ and src/ but WROTE a package.json in their place, so
+ * `readManifest(pkgRoot)` answers — with the shim's manifest — and every reader
+ * downstream reads "intact". successorRoot returned null, replacedNote was
+ * handed `moved: null` and stayed silent, and the supervisor went on spawning a
+ * bin/deck.js npm had just removed: five crash restarts in ten minutes and then
+ * a deck that stops for good, with nothing on screen about an upgrade.
+ *
+ * Three facts together, because none of them alone is evidence. Our name is one
+ * of the retired ones; our manifest declares a dependency on the published name,
+ * which a deck's own manifest never does; and the package that dependency names
+ * is really sitting under us. A deck that merely vendors something, or a
+ * retired-name package from before the pointer, matches none of them.
+ */
+function nestedDeckRoot(pkgRoot) {
+  const self = readManifest(pkgRoot);
+  if (!RETIRED_NAMES.includes(self?.name)) return null;
+  if (typeof self?.dependencies?.[PUBLISHED_NAME] !== "string") return null;
+  const root = join(pkgRoot, "node_modules", PUBLISHED_NAME);
+  return readManifest(root)?.name === PUBLISHED_NAME ? root : null;
+}
+
+/**
+ * The retired package this install IS, when reinstalling that package would
+ * replace a working deck with the pointer npm now serves for it — or null,
+ * which is every other install shape on the planet.
+ *
+ * `npm i -g agents-deck` and `npm i -g agent-dag` at 3.22.1 or earlier put the
+ * deck straight into `<prefix>/lib/node_modules/<name>`: no host above it, no
+ * nested copy under it, that directory is the deck. registryName's exception
+ * asks npm about `ccdeck` for such an install and is right to — a retired name's
+ * dist-tag stopped moving — so the deck correctly learns that a newer version
+ * exists. What it then offers is `npm i -g agents-deck@latest`, and since 3.22.8
+ * that command fetches 5 KB of shim and deletes the deck to make room for it.
+ *
+ * The nested layout is the case registryName's comment describes and it is
+ * unaffected: there the retired package is the host, the deck is its dependency,
+ * and reinstalling the host re-resolves `ccdeck@^3` to the newest deck. The
+ * difference is entirely whether the retired name is the wrapper or the thing
+ * inside it, and a wrapper is a package — so the directory test below answers
+ * that too, before it is asked whose name is on it.
+ *
+ * Confined to the global layout — `<prefix>/lib/node_modules/<us>` on POSIX,
+ * `<prefix>/node_modules/<us>` on Windows — because that is the only tree
+ * `npm i -g` rewrites. The test for it is that the directory holding our
+ * node_modules is not a package: a global prefix's `lib` has no manifest, while
+ * a workspace, a CI job or any tool that vendors the deck as a dependency does.
+ * Reinstalling a retired name from inside one of THOSE writes a global tree the
+ * project never reads and leaves its copy exactly where it is — a different
+ * complaint, and not one to answer by telling somebody to uninstall.
+ *
+ * A checkout and an npx run are refused before this in every caller, and are
+ * refused here too, so the predicate is true on its own terms rather than only
+ * in the order it happens to be asked.
+ */
+export function frozenNameInstall(pkgRoot, name = PUBLISHED_NAME) {
+  if (isGitCheckout(pkgRoot) || isNpxInstall(pkgRoot)) return null;
+  const above = hostRoot(pkgRoot);
+  if (!above || readManifest(above)) return null;
+  const self = installedName(pkgRoot, name);
+  return RETIRED_NAMES.includes(self) ? self : null;
 }
 
 /** The package an upgrade would actually install here — and, but for a retired
@@ -539,6 +612,14 @@ export function upgradeCommand(pkgRoot, name = PUBLISHED_NAME) {
   // so `npm run build` is part of the answer rather than an afterthought.
   if (isGitCheckout(pkgRoot)) return "git pull && npm run build";
   if (isNpxInstall(pkgRoot)) return `npx -y ${upgradeName(pkgRoot, name)}@latest`;
+  // A flat install of a retired name cannot be updated by reinstalling itself —
+  // that fetches the pointer package and deletes the deck (frozenNameInstall).
+  // The command has to move them onto the published name, and the removal is
+  // not optional: the old package owns `<prefix>/bin/ccdeck` as well as its own
+  // command, so installing ccdeck alongside it is npm linking a bin over a file
+  // another package still claims.
+  const frozen = frozenNameInstall(pkgRoot, name);
+  if (frozen) return `npm rm -g ${frozen} && npm i -g ${PUBLISHED_NAME}`;
   // Through upgradeName for the same reason the npx line above it is: the
   // printed command is the user's escape hatch when the button fails or is not
   // offered, and one that names a package this install cannot be replaced by is
@@ -897,7 +978,7 @@ export function upgradeSpec(target, platform = process.platform, deps) {
  * Pure so the policy can be read and tested on its own — it is the part that
  * decides whether we are allowed to write to the user's machine.
  */
-export function upgradeBlockedReason({ git, npx, writable, optedOut }) {
+export function upgradeBlockedReason({ git, npx, writable, optedOut, frozen }) {
   if (optedOut) return "opted_out";
   // The maintainer's own tree. Its version leads npm's, and installing over it
   // would replace a working copy with a published tarball.
@@ -906,6 +987,15 @@ export function upgradeBlockedReason({ git, npx, writable, optedOut }) {
   // place — `npx agents-deck@latest` fetches a DIFFERENT directory, which this
   // process could not switch to even after restarting.
   if (npx) return "npx";
+  // A flat install of a retired name: the one shape where `npm i -g <us>@latest`
+  // runs cleanly, reports success, and leaves no deck behind — the registry
+  // serves a 5 KB pointer for those names now, and npm's reify removes bin/,
+  // src/ and hook/ to make room for it. Every other refusal here is "this
+  // install cannot be written over"; this one is "what the write would fetch is
+  // not a deck", so it is asked before writability rather than after: on a
+  // prefix nobody can write, the remedy is still a different command, and
+  // naming the wrong one is what #975 is about.
+  if (frozen) return "retired_name";
   // Almost always a root-owned global prefix. Failing inside npm with EACCES
   // tells the user less than declining up front does.
   if (!writable) return "not_writable";
@@ -996,6 +1086,10 @@ export function upgradeBlock(pkgRoot) {
     // node_modules), so both have to be ours to write.
     writable: dirWritable(target) && dirWritable(resolve(target, "..")),
     optedOut: process.env.AGENTS_DECK_NO_INSTALL === "1",
+    // Whether the package that write would fetch is still a deck. Kept out of
+    // the pure rule above, like every other input here, so the policy stays one
+    // readable expression and this file owns the filesystem half of it.
+    frozen: frozenNameInstall(pkgRoot) !== null,
   });
 }
 

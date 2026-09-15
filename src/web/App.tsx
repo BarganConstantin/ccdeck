@@ -346,6 +346,11 @@ const UPGRADE_BLOCK_TEXT: Record<string, string> = {
   npx: "npx runs from a cache that cannot be upgraded in place — run:",
   not_writable: "the install directory is not writable by this user — run:",
   opted_out: "installs are off (AGENTS_DECK_NO_INSTALL=1) — run:",
+  // The deck was installed under a name npm no longer serves a deck for, so
+  // reinstalling it would fetch a pointer package and take this install with
+  // it. The command beneath this moves the machine onto the published name,
+  // which is the only update it can have.
+  retired_name: "this install came from a name that is no longer published — run:",
 };
 
 const AUTO_RESTART_KEY = "agent-dag.autoRestart";
