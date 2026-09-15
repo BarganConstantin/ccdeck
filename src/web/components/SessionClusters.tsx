@@ -58,6 +58,40 @@ const PAD = 18;
 const HEADER_H = 26;
 const LABEL_LIFT = 12; // px the label tab sits above the box's top edge
 
+/**
+ * How far past its own cluster box the header may reach, in LAYOUT units.
+ *
+ * One card width, which is the same 240 the NAME_COLUMNS note below argues the
+ * cap by: layout.ts puts the next column a full card plus a 420px burst lane
+ * away, so a cluster box's right edge and the next box's left edge are 624
+ * units apart however wide the sessions are. Spending 240 of those leaves 384
+ * of clear canvas between the end of this pill and anything belonging to
+ * somebody else.
+ *
+ * Not tied to the box's own width: at the narrowest cluster there is, 276, a
+ * proportional budget would have to be over 100% to draw the headers this file
+ * already measures.
+ */
+const LABEL_GUTTER = 240;
+
+/**
+ * The widest the header pill may draw, in SCREEN px, for a cluster box `w`
+ * layout units wide shown at `zoom`.
+ *
+ * Screen px because that is the unit the pill actually has: the layer carries
+ * `scale(zoom)` and the pill divides it back out, so a CSS width of N on this
+ * button is N px on the display at every zoom and N/zoom layout units on the
+ * canvas. The bound has to be expressed in the unit that shrinks with the
+ * board, or it is not a bound on where the button lands.
+ *
+ * `|| 1` for the same reason the transform beside it has one: React Flow clamps
+ * to minZoom and never hands out a zero, and a zero here would make the cap
+ * zero and hide the header entirely.
+ */
+export function labelMaxWidth(clusterWidth: number, zoom: number): number {
+  return (clusterWidth + LABEL_GUTTER) * (zoom || 1);
+}
+
 function selectClusters(s: ReactFlowState): Cluster[] {
   return clusterBounds(s.nodeInternals.values());
 }
@@ -415,12 +449,40 @@ export default function SessionClusters({ onFit }: { onFit?: () => void }) {
         // `|| 1` guards a zoom of zero, which would make this Infinity and put
         // the label nowhere. React Flow clamps to minZoom (0.2 on this canvas)
         // and never hands one out, so this is a fallback rather than a case.
+        //
+        // AND IT IS BOUND TO THE GUTTER IT WAS MEASURED AGAINST (#977). The cap
+        // on NAME_COLUMNS above is argued entirely in LAYOUT units — "a capped
+        // header stays inside the 240px gutter layout.ts leaves between two
+        // session columns" — and the line above is what stopped that from being
+        // true: at 1× a header spans the same number of layout units as screen
+        // px, but at zoom z it spans `screen / z` of them, and the cap does not
+        // shrink with the board.
+        //
+        // Measured in Firefox against this sheet, a workspace + capped ai-title
+        // pill draws 302.7px at every zoom. In layout units that is 302.7 at
+        // 1×, 796.7 at 0.38 and 946 at the 0.32 a real board settles into —
+        // against a cluster box of 276 and 624 units of clear canvas to the
+        // next column's box. So at 0.32 it reached 686 units past its own box,
+        // 62 units INTO the box next door, and `document.elementFromPoint` on
+        // the neighbour returned this button: the label is `pointer-events:
+        // auto` in a layer that clips nothing, so a click there called
+        // focusSession for the wrong session and a drag there was captured by
+        // the label instead of panning. The z-index: 0 that keeps the paint
+        // harmless does nothing for the hit box.
+        //
+        // The bound is the same 240 the cap was justified by, in screen px so
+        // it tracks the camera: its own box plus one card width of the gutter,
+        // which at every zoom leaves the remaining 384 units of canvas — and
+        // all of the next column — to whoever owns them. It costs text only
+        // below about 0.58, where the pill would otherwise be reaching across
+        // the gap anyway, and `title` still carries the whole header.
         const labelStyle: React.CSSProperties = {
           position: "absolute",
           left: c.x + 16,
           top: c.y - LABEL_LIFT / (zoom || 1),
           transform: `scale(${1 / (zoom || 1)})`,
           transformOrigin: "left top",
+          maxWidth: labelMaxWidth(c.w, zoom),
           "--session-hue": hue,
         } as React.CSSProperties;
         // Three fields, one pill, and only the middle one in a span of its own.

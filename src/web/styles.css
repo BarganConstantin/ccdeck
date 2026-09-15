@@ -3801,6 +3801,15 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   color: hsl(var(--session-hue, 200) 70% var(--session-label-l));
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
   white-space: nowrap;
+  /* The other half of `max-width` (#977). SessionClusters caps the pill at its
+     own box plus one card width of the gutter, in screen px, so that its HIT
+     BOX cannot leave the session it names — `pointer-events: auto` in a layer
+     that clips nothing put a click on the neighbouring cluster through to this
+     button at overview zoom. A cap with nothing here would simply cut the last
+     glyph in half; these two make the cut read as a cut. `title` carries the
+     whole header either way. */
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1;
   cursor: pointer;
   pointer-events: auto;
