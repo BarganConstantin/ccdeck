@@ -150,11 +150,30 @@ const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) => ModelR
   //
   // Cached input is a DISCOUNT, not an addition: OpenAI's input_tokens already
   // includes the cached portion, so costForUsage subtracts it before applying
-  // the full input rate. cacheWrite is 0 for every family except gpt-5.6,
-  // which is the first to publish a separate cache-write price.
+  // the full input rate. cacheWrite is 0 for every family except gpt-5.6 and
+  // gpt-6-astra, the two that publish a separate cache-write price.
   //
   // Order matters — the first match wins, so each family's variants precede
   // its bare alias.
+
+  // gpt-6-astra — $10 / $50  (cached $1, cache write $12.50).  1.05M.
+  //
+  // Read 2026-09-15 from developers.openai.com/api/docs/pricing, where it is
+  // the only gpt-6 id, and from .../models/gpt-6-astra for the window (#754).
+  // Until then the id reached no row, so a Codex session on it added nothing
+  // to the board's cost. These are the short-context standard rates, as every
+  // row here is. The >272K tier ($20 / $75) is left out for the reason given
+  // at the long-context note further down. So is the Fast tier: the model page
+  // prices it at "2x the applicable rates", this file's header excludes
+  // fast-mode premiums, and whether a rollout records the tier at all is the
+  // question #754 keeps open.
+  //
+  // #688's named-sibling guard from the first day rather than after a
+  // mispricing: an `-astra-mini` or `-astra-pro` nobody has read a rate for
+  // prints `not priced` rather than Astra's $10 / $50. A dated snapshot still
+  // matches, because the guard refuses only a letter after the separator.
+  { match: /^gpt[-_]6[-_]astra\b(?![-_][A-Za-z])/i,
+    rates: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.50 } },
 
   // gpt-5.6-cyber — $12.50 / $75  (cached $1.25, cache write $15.625).  400K.
   //
@@ -565,6 +584,7 @@ const BIG_CONTEXT_PATTERNS: RegExp[] = [
 // rather than letting one silently cross it. The live value wins wherever it
 // is available; these only cover first paint.
 const CODEX_CONTEXT_DEFAULTS: Array<{ match: RegExp; window: number }> = [
+  { match: /^gpt[-_]6[-_]astra/i,                 window: 1_050_000 },
   { match: /^gpt[-_]5[-_.]6[-_]cyber/i,           window:   400_000 },
   { match: /^gpt[-_]5[-_.]6/i,                    window: 1_050_000 },
   { match: /^gpt[-_]5[-_.]5/i,                    window: 1_050_000 },
