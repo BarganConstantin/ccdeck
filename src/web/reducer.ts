@@ -529,6 +529,40 @@ function shortPreview(input: any, max = 80): string {
  *  the totals on the cards stay honest. */
 export const MAX_TOOLS_PER_AGENT = 200;
 
+/**
+ * The `ToolCall` carrying `id`, searched across every agent on the board, or
+ * null. First match in agent insertion order.
+ *
+ * OUT HERE RATHER THAN INLINE IN App.tsx BECAUSE OF WHAT IT COSTS (#997). The
+ * tool modal's render body resolves the open tool on every render, and cannot
+ * skip it — `modalOpenRef` reads the result on the next line — while `setNow`
+ * re-renders the deck four times a second whether or not anything is happening.
+ * The form this replaces was
+ *
+ *     Array.from(agents.values()).flatMap(a => a.tools).find(t => t.id === id)
+ *
+ * which builds an array of every agent and then a flat array of every tool on
+ * the board before it looks at the first one. With `AGENT_CAP` at 200 and
+ * `MAX_TOOLS_PER_AGENT` at 200 that is a 40,000-entry copy, four times a
+ * second, to answer a question that stops at the first hit. Walking stops at the
+ * agent that owns the call and allocates nothing.
+ *
+ * NOT `toolIndex`, which is O(1) and answers this exact question. It would
+ * change the ANSWER: that map is keyed by tool_use_id with no session scope and
+ * keeps only the newest copy (#1009, open), where this returns the first match
+ * in insertion order. Picking a side in that belongs with #1009, not here.
+ *
+ * Here rather than in App.tsx also so it can be measured without a DOM — the
+ * same reason `usage-range.ts` gives for living outside its component.
+ */
+export function findToolOnBoard(agents: Map<string, AgentNodeData>, id: string): ToolCall | null {
+  for (const a of agents.values()) {
+    const hit = a.tools.find(t => t.id === id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /** How many of those retained calls keep their full `tool_input` /
  *  `tool_response` blobs. Those two fields are the only heavy ones — the
  *  server ingests payloads up to 5MB, so a few big Reads or a chatty Bash run

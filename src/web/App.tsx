@@ -72,7 +72,7 @@ import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestMod
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
 import { autoLayout, bubblePush, columnsWouldChange, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps, type Frame } from "./layout";
-import { applyEvent, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
+import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
 import { EXIT_ANIM_MS, isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
@@ -2898,14 +2898,50 @@ function Inner() {
   }, []);
   useEffect(() => () => { if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current); }, []);
 
-  // What the rail covers of the canvas — see railCover. Read after every
-  // render, because a panel opening changes it without resizing the canvas,
-  // and kept only when it moves by more than the canvas's own 40px quantum.
+  // The selected agent. Declared this high because the rail measurement below
+  // has to know whether the detail panel is MOUNTED, and `detailOpen && selected`
+  // is what mounts it — see the `<aside className="detail">` near the end of
+  // this file. Nothing between here and there reassigns `stateRef.current`
+  // during render (the two writes are inside a replay effect and the SSE
+  // handler), so reading it here is the same read it was 150 lines further on.
+  const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId) : null;
+  /** Whether `.detail` is in the DOM, which is what the sheet keys the rail's
+   *  horizontal position off: `--rail-r` is 368px with it and 8px without
+   *  (`.app:not(:has(.detail))`), and `.usage-panel` takes the same 360px step.
+   *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
+   *  deck with the panel enabled and nothing selected is 360px out. */
+  const detailShown = detailOpen && selected != null;
+
+  // What the rail covers of the canvas — see railCover. Kept only when it moves
+  // by more than the canvas's own 40px quantum.
+  //
+  // NAMED INPUTS RATHER THAN NO DEPENDENCY ARRAY (#997). This ran after EVERY
+  // render, and `setNow` re-renders the deck four times a second on a completely
+  // idle board, so an idle deck was spending a document-wide `querySelectorAll`
+  // plus up to three `getBoundingClientRect` reads 240 times a minute to
+  // re-derive a number that had not moved. The dep-less form was deliberate —
+  // a panel opening changes the cover without resizing the canvas, which is why
+  // `canvasSize` alone was not enough — so the fix is to name every input rather
+  // than to drop the reading.
+  //
+  // The list is the complete set of things that can move `.sysdetail` or
+  // `.usage-panel` relative to the canvas, and each one is in the sheet:
+  //   · machinePhase / usagePhase — mount, and the `.leaving` class railCover
+  //     filters on. The PHASES and not the open flags: `usePanelPresence` flips
+  //     the flag one render before the panel is in the DOM, so a dep on the flag
+  //     would measure the frame before the panel existed and never look again.
+  //   · usagePanelOpen — `.sysdetail.shifted`, which moves the machine panel
+  //     300px and is driven by the raw flag, a render ahead of usagePhase.
+  //   · detailShown — `--rail-r`, 368px against 8px, for both panels.
+  //   · canvasSize.w — the canvas box itself, which is what the cover is
+  //     measured against. Already quantised to 40px, the same quantum as the
+  //     deadband below, and it is the only way the accounts panel and a window
+  //     resize reach this: both change the canvas column's width.
   const [railInset, setRailInset] = useState(0);
   useEffect(() => {
     const cover = railCover(canvasRef.current);
     setRailInset(prev => (Math.abs(prev - cover) > 40 ? cover : prev));
-  });
+  }, [machinePhase, usagePhase, usagePanelOpen, detailShown, canvasSize.w]);
 
   // The frame fitLeft will show the board in, in flow units at full size: the
   // canvas less the rail's strip, less the fit's margins and fill. The layout
@@ -3133,12 +3169,16 @@ function Inner() {
     });
   }, []);
 
-  const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId) : null;
-  const openedTool = openedToolId
-    ? Array.from(stateRef.current.agents.values())
-        .flatMap(a => a.tools)
-        .find(t => t.id === openedToolId) ?? null
-    : null;
+  // `selected` is declared with the rail measurement further up this file,
+  // which needs to know whether the detail panel is mounted.
+
+  // The tool the modal is showing, found without building a list of the ones it
+  // is not (#997). In the render body and not skippable — `modalOpenRef` below
+  // reads `openedTool != null` — so while the modal is open this runs on every
+  // render, four times a second on an idle deck. What it must not do on that
+  // tick is why the walk lives in the reducer; see findToolOnBoard.
+  const openedTool: ToolCall | null =
+    openedToolId ? findToolOnBoard(stateRef.current.agents, openedToolId) : null;
 
   const handleClear = useCallback(async () => {
     try { await fetch("/api/clear", { method: "POST" }); } catch {}
