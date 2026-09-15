@@ -593,7 +593,9 @@ function forgetIfAbandoned(d, done) {
 /**
  * Hand this deck the payload. `done` runs exactly once, with whether the deck
  * TOOK it — which is a different question from whether this target is finished,
- * and answering only the second one is #1019.
+ * and answering only the second one is #1019 — and, for the one ending that
+ * answers neither yes nor no, with "deadline" as a second argument: see the
+ * last paragraph.
  *
  * `persists` is this deck's answer from electWriters: true for the one deck that
  * logs the event, false for every other one it is also drawn on.
@@ -613,16 +615,63 @@ function forgetIfAbandoned(d, done) {
  * through a different door: every deck draws the event, all the others were
  * told `?persist=0`, and the log silently stops growing.
  *
- * A 2xx settles this immediately rather than on the last byte of the response.
- * The route answers only once the event is in the ring and queued for the log,
- * so the status IS the receipt and nothing after it can withdraw one — while a
- * socket that dies while the answer is still arriving would otherwise read as a
- * refusal and make main() hand the log to a second deck that then writes the
- * line a second time.
+ * The status line settles this, whichever status it carries, rather than the
+ * last byte of the response. The route answers 2xx only once the event is in
+ * the ring and queued for the log, so that status IS the receipt and nothing
+ * after it can withdraw one — while a socket that dies while the answer is
+ * still arriving would otherwise read as a refusal and make main() hand the log
+ * to a second deck that then writes the line a second time. Any other status
+ * has refused already, and a body that stalls behind it must not run into the
+ * deadline below and come out as something softer than a refusal.
+ *
+ * A DEADLINE AFTER THE BODY WENT OUT IS NOT A REFUSAL (#1133), and reading it as
+ * one wrote the line twice. POST_TIMEOUT_MS is an idle timeout: when it fires,
+ * it is this process that gave up, while the writer still holds the connection
+ * with the whole event in its receive buffer. A busy deck — the load the retry
+ * in prove() exists for — reads it when it catches up, appends the line and
+ * answers into a socket nobody is listening on any more; by then main() had
+ * already asked the next deck in line to append the same line. Measured with a
+ * real deck behind a proxy that wins the election, forwards the handshake and
+ * the POST at once, and holds back only the writer's 200:
+ *
+ *   writer's 200 held 1300ms   hook exit=0   lines for the event: 2
+ *   writer's 200 held 0ms      hook exit=0   lines for the event: 1
+ *
+ * where the hook from before #1087 wrote one line in both. A duplicated line
+ * does not go away: the replay draws it twice after every restart for as long
+ * as the log is kept. So the endings are sorted by WHO ENDED THE EXCHANGE:
+ *
+ *   • a status line — 2xx took the event, anything else refused it;
+ *   • an error this process did not cause — the connection refused, reset or
+ *     closed with no answer on it — is the writer ending the exchange without
+ *     claiming the event, and is `false`. A deck restarting under its
+ *     supervisor refuses, and a deck that tears the socket down stopped short
+ *     of the ingest: handleEventIngest queues the line and answers in one
+ *     synchronous turn, so it cannot have done one without the other short of
+ *     dying between two statements;
+ *   • this process's own deadline is `false` only while the body is not all
+ *     out — 'finish' is the kernel taking the last byte, and a writer that
+ *     stopped reading before that cannot complete the request, let alone log
+ *     it — and "deadline" once it is, because that writer may still append.
+ *
+ * "deadline" is the one ending main() does not hand on. It makes a slow writer
+ * one line again, and it makes a writer that took the body and then never
+ * answers at all the lost line it was before #1087. That is the trade, taken
+ * on purpose: from here the two are the same observation until the process has
+ * to end, a deck that answered its challenge within CHALLENGE_TIMEOUT_MS and
+ * then stalls for good inside the next second is far rarer than one that is
+ * merely slow, and a missing line costs one event where a duplicated one is
+ * replayed forever. It is #1019's third measured case, and #1019's refusal and
+ * hang-up cases still hand on.
  */
 function post(d, body, persists, done) {
   let settled = false;
-  const finish = ok => { if (settled) return; settled = true; done(ok); };
+  const finish = (ok, why = null) => { if (settled) return; settled = true; done(ok, why); };
+  // Whether the kernel has taken the whole body, and whether it was this
+  // process's deadline rather than the writer that ended the exchange — the
+  // two facts the last paragraph above sorts an error by.
+  let sent = false;
+  let timedOut = false;
   const req = http.request({
     hostname: "127.0.0.1",
     port: d.port,
@@ -633,13 +682,15 @@ function post(d, body, persists, done) {
     headers: { "Content-Type": "application/json" },
     timeout: POST_TIMEOUT_MS,
   }, res => {
-    const took = res.statusCode >= 200 && res.statusCode < 300;
     res.resume();
-    res.on("end", () => finish(took));
-    if (took) finish(true);
+    finish(res.statusCode >= 200 && res.statusCode < 300);
   });
-  req.on("error", () => finish(false));
-  req.on("timeout", () => req.destroy());
+  req.on("finish", () => { sent = true; });
+  // `destroy()` on a timeout makes 'error' fire with ECONNRESET, as it does in
+  // prove(), so `timedOut` is what tells this process giving up apart from the
+  // writer hanging up.
+  req.on("error", () => finish(false, timedOut && sent ? "deadline" : null));
+  req.on("timeout", () => { timedOut = true; req.destroy(); });
   req.write(body);
   req.end();
 }
@@ -943,9 +994,12 @@ function main() {
         // closed on, reached through the answer rather than through the record.
         //
         // So each log keeps the queue the election would have picked from, in
-        // electWriters' own order, and a writer that does not answer 2xx hands
-        // the log to the next deck in it. Only the writers fail over: a deck that
-        // was only drawing the event has nothing to hand on.
+        // electWriters' own order, and a writer that did not take the event —
+        // it answered something other than 2xx, or ended the exchange without
+        // answering — hands the log to the next deck in it. A writer that only
+        // let its deadline pass with the whole body in hand is not that, and
+        // keeps the log (#1133): see post(). Only the writers fail over: a deck
+        // that was only drawing the event has nothing to hand on.
         //
         // The deck it is handed to has ALREADY been posted this event with
         // `?persist=0`, so it is asked twice. Both halves of that are settled
@@ -967,10 +1021,12 @@ function main() {
         // own POST_TIMEOUT_MS, and nothing in it can hold this process past the
         // timer main() armed before discovery began: `pending` decides how EARLY
         // the process may exit, never how late. The worst case that reaches a
-        // hand-on at all — a writer that takes the body and never answers — is
-        // one POST deadline followed by a loopback round trip to the next deck,
-        // which fits inside CAP_MS when discovery and the challenge answer
-        // normally. When they did not, and the timer ends the process with a
+        // hand-on at all — a writer that stops reading before the body is all
+        // out, or refuses a moment before its deadline — is one POST deadline
+        // followed by a loopback round trip to the next deck, which fits inside
+        // CAP_MS when discovery and the challenge answer normally. A writer that
+        // takes the body and never answers no longer reaches one: its deadline
+        // ends its slot instead. When they did not, and the timer ends the process with a
         // hand-on still in flight, the line is lost exactly as it was lost before
         // this change and the hook still exits 0. The cap is the backstop over
         // the hand-on too, not something the hand-on gets to argue with.
@@ -985,8 +1041,12 @@ function main() {
         // `queue[0]` is the deck electWriters picked, so dropping the head is
         // exactly "the next one down". An empty queue is a log with one deck on
         // it: there is nobody to hand it to, and nothing here can invent one.
-        const writeTo = d => post(d, taggedInput, true, took => {
-          if (took) return done();
+        //
+        // "deadline" ends the hand-on the way a 2xx does. That writer has the
+        // whole event and may still be about to append it, and asking the next
+        // deck to append it as well is how one event became two lines (#1133).
+        const writeTo = d => post(d, taggedInput, true, (took, why) => {
+          if (took || why === "deadline") return done();
           const queue = inLine.get(logGroup(d));
           queue.shift();
           if (!queue.length) return done();
