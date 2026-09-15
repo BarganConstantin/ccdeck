@@ -1535,7 +1535,10 @@ button.btn.sm-hear {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: var(--shadow-2);
+  /* An inspector docked beside the canvas, not a card lifted off it: the edge
+     says where it stops, and the 24px drop shadow it had added a second,
+     softer edge that made it read as a dashboard widget. */
+  box-shadow: none;
   font-size: 11px;
   color: var(--text);
   text-align: left;
@@ -1786,24 +1789,20 @@ button.btn.sm-hear {
    about numbers already on screen; this opens the process list, and the section
    that used to hold eight rows of it now holds nothing at all.
 
-   A plate rather than a border, because a boundary is a promise this sheet
-   measures: 1.4.11 wants a control's own edge at 3:1 against what it sits on,
-   and --line is a hairline token at 1.2:1. A fill has no such edge to fail —
-   the control is identified by its label, in --text where the other four
-   headings are grey, and the plate only groups the two lines under one press.
-
-   The 4% resting tint is half the 8% hover, so hovering is a step in the same
-   direction rather than a new colour arriving. Both are shares of --text, which
-   is what .sd-open's own hover already uses, so the plate reads the same in
-   both themes without a second value. */
-.sysdetail .sd-door .sd-door-plate {
-  display: block;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  transition: background 140ms ease;
+   A row, not a card. It sat on a tinted, rounded plate, a second card inside
+   the panel; it is the panel's last row now, set off by a hairline, named in
+   --text where the four headings above it are grey, with the chevron across
+   the width, and it takes the same full-bleed hover every other section here
+   takes (`.sd-open:hover`). No edge of its own to measure: the control is
+   identified by its label, which is what 1.4.11 accepts. */
+/* Keyed on the section's own class rather than on `:has(> .sd-door)`: the
+   hairline divides two sections, it is not the door's boundary, and a selector
+   that names the button would read to control-edges.test.ts as one. */
+.sysdetail .sd-door-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
 }
-.sysdetail .sd-door:hover .sd-door-plate { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.sysdetail .sd-door .sd-door-plate { display: block; }
 /* The name, in the reading colour rather than the heading's, with the chevron
    pushed to the far edge — the width IS the affordance here: a chevron beside
    the word reads as a footnote, a chevron across the panel reads as a row you
@@ -1822,15 +1821,6 @@ button.btn.sm-hear {
    in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
    the contrast tests check never saw that ground. */
 .sd-door-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
-/* The plate carries the hover, so `.sd-open`'s own fill would be a second one
-   under it — and it is a WIDER one: that fill bleeds to the panel's edges,
-   which is right for a heading over readings and wrong under a plate, because
-   the pointer then lights two rectangles that do not share an edge.
-
-   Both class names, not just `.sd-door`: `.sysdetail .sd-open:hover` is three
-   classes too, and a tie is settled by which rule the sheet reaches last. This
-   one has to win wherever it sits. */
-.sysdetail .sd-open.sd-door:hover { background: none; }
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .sysdetail .sd-open:active { transform: scale(0.97); }
 /* The chevron that says the section opens something. --text-dim, the only dim
@@ -2744,11 +2734,13 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 }
 
 /* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
-   filter bar above and the controls and minimap in the corners, with the way
-   back in the same pill. A solid slab like the filter bar, so it reads over
-   whatever is drawn under it; the control edge and the press every labelled
-   control takes. Centred by auto margins, not a translate, so the press owns
-   the transform on its own. */
+   filter bar above and the controls and minimap in the corners. A status and
+   an action in one small strip, on the surface and edge the canvas's other
+   instruments wear (the control stack, the minimap, the filter bar): the words
+   say the state in --muted and are not a control, and Resume is the only
+   thing that presses. It used to be one pill-shaped button with the action in
+   the accent, which read as a call to action floating over the sessions.
+   Centred by auto margins, not a translate. */
 .autofit-chip {
   position: absolute;
   left: 0;
@@ -2760,20 +2752,33 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: var(--panel);
-  box-shadow: var(--shadow-1);
+  padding: 2px 2px 2px 10px;
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  background: var(--chrome-bg);
+  color: var(--muted);
+  font-size: 11px;
+}
+/* The action: the foreground at the weight the status is not, and the control
+   fill under the pointer. No accent and no box of its own; it is a word in the
+   strip, the way the toolbar's controls are words in the bar. */
+.autofit-resume {
+  min-height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-tag);
+  background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.autofit-chip b { color: var(--accent); font-weight: 600; }
-.autofit-chip:hover { border-color: var(--text); }
-.autofit-chip:active { transform: scale(0.97); }
+.autofit-resume:hover { background: var(--ctl-fill); }
+/* The status stays one phrase, never broken across two lines of a strip this
+   small. */
+.autofit-state { white-space: nowrap; }
+.autofit-resume:active { transform: scale(0.97); }
 
 /* Filter chips above the canvas — small toolbar lets you toggle entire
    tool categories on/off when the canvas gets busy. Only appears when
@@ -2792,32 +2797,37 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
      controls is a small panel, and it still reads as one bar on two rows. */
   flex-wrap: wrap;
   max-width: calc(100% - 28px);
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 2px;
   /* A solid slab (#882). It was a 78% fill with an 8px backdrop blur, and
      under it the canvas runs marching dashes, spinners and bubbles without
      pause, so the blur re-rasterised on every one of their frames. Solid reads
      at least as well — the chips' own contrast is measured against it — and
-     costs a paint. */
+     costs a paint.
+     And canvas chrome, not a floating card: the edge and radius the control
+     stack and the minimap wear, and no drop shadow. It had a shadow in each
+     theme, which made the one strip of controls at the top of the canvas the
+     most raised thing on it. The surface stays --panel, unlike theirs, because
+     cards drift under this one and the chips' label contrast (#368, #622) is
+     measured on exactly this fill. */
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.30);
-}
-:root[data-theme="light"] .cat-filter-bar {
-  background: var(--panel);
-  box-shadow: 0 6px 18px rgba(15,23,42,0.10);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--r-ctl);
+  box-shadow: none;
 }
 .cat-filter {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px 4px 8px;
-  /* Concentric with the bar: its 8px less the 4px it is inset by. */
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  /* Concentric with the bar: its 6px less the 2px it is inset by. */
   border-radius: var(--r-tag);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text);
+  /* The secondary tier at rest, so a bar of categories that are all showing
+     is quiet; the pointer lifts a chip to the foreground. */
+  color: var(--text-secondary);
   font: inherit;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2826,14 +2836,16 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   transition: background 120ms, color 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.cat-filter .cat-emoji { font-size: 13px; line-height: 1; }
+/* A drawn glyph in the label's own colour (App.tsx's CatGlyph), so it follows
+   every state the word does: quieter at rest, lit on hover, muted when off. */
+.cat-filter .cat-glyph { flex: none; }
 .cat-filter .cat-name { text-transform: lowercase; }
 /* --bg-soft was this hover's whole feedback and it is --panel's own value on
    white, so on the light canvas hovering a category chip did nothing at all.
    --ctl-fill is 7% of the foreground, which exists in both themes. The resting
-   border stays transparent: the chip is named by its emoji and its word, which
+   border stays transparent: the chip is named by its glyph and its word, which
    is the identification 1.4.11 accepts in place of a boundary. */
-.cat-filter:hover { background: var(--ctl-fill); }
+.cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
 .cat-filter:active { transform: scale(0.97); }
 .cat-filter:focus-visible {
   outline: 2px solid var(--accent);
@@ -2855,7 +2867,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .cat-filter.off {
   color: var(--muted);
 }
-.cat-filter.off .cat-emoji { filter: grayscale(0.7); }
 .cat-filter.off:hover { color: var(--text); }
 /* The redundant channel #368 deferred to #370. What was left after it dropped
    the opacity fade was a colour tier and a desaturated emoji, and both of those
@@ -6005,7 +6016,8 @@ button.tool.clickable:last-child { border-bottom: none; }
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: var(--shadow-2);
+  /* No drop shadow, for the reason .sysdetail gives: the two are one rail. */
+  box-shadow: none;
   z-index: 20;
   padding: 0 0 12px;
 }
@@ -6340,7 +6352,9 @@ button.tool.clickable:last-child { border-bottom: none; }
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  /* The machine panel's `.sd-h` spacing, so the two inspectors' section
+     labels are set the same way. */
+  letter-spacing: 0.06em;
 }
 /* Each quota carries its own age, because they are fetched separately and one
    is usually much older than the other. Set back to normal case and weight —
@@ -6659,19 +6673,17 @@ button.qb-pace::after {
   margin-left: 4px;
   font-size: 11px;
 }
-/* Plan tier next to the section heading — the heading is uppercased, so the
-   badge undoes that to keep "Pro 20x" readable as a product name. */
+/* Plan tier next to the section heading, as inline metadata rather than a
+   bordered tag: a plan is a fact about the account, not a state, and the box
+   made it the one outlined thing in the heading. The heading is uppercased, so
+   this undoes that to keep "Pro 20x" readable as a product name, and
+   --text-dim at normal weight keeps it a step under the words it annotates. */
 .up-plan-badge {
-  margin-left: 6px;
-  padding: 1px 5px;
-  border: 1px solid var(--line-soft);
-  border-radius: 3px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-dim);
   text-transform: none;
   letter-spacing: 0;
-  vertical-align: 1px;
 }
 .up-quota-na {
   display: flex;
@@ -9099,7 +9111,7 @@ button.ap-err::after,
   button.ap-err:active, button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
-  .autofit-chip:active,
+  .autofit-resume:active,
   .bw-ep-head:active,
   /* The usage panel's one section that opens. Its chevron turns as well, and a
      rotation is the motion this block exists for — `transform: none` reaches

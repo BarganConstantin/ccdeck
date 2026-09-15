@@ -171,6 +171,11 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-row-detail",
       ".bw-settings-note",
       // The same recap, whole, in the detail panel.
+      // The canvas filter chips at rest, the one exception that is a label and
+      // not a sentence: a bar of categories that are all showing sits a tier
+      // under the foreground so the canvas stays the loudest thing, and the
+      // pointer lifts a chip to --text. Its floors are held in quiet-signals.
+      ".cat-filter",
       ".detail-recap",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.

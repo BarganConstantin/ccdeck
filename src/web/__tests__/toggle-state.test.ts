@@ -573,9 +573,9 @@ describe("the category filter chips, handed over from #368", () => {
 
   it("carries `off` in a channel that is not colour", () => {
     expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
-    // The emoji's desaturation is a second one, but it is still a colour
-    // channel and an emoji is not always a colourful glyph.
-    expect(decl(".cat-filter.off .cat-emoji", "filter")).toMatch(/grayscale/);
+    // The chip's glyph is drawn, monochrome, in currentColor, so it follows
+    // the label into the off tier rather than needing a desaturation of its own.
+    expect(app).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
   });
 
   it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {

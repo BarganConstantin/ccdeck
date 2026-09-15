@@ -29,9 +29,9 @@ describe("the category bar wraps inside the canvas (#848)", () => {
   });
 
   it("reads as one bar on two rows, not a stretched pill", () => {
-    // A surface's radius from the sheet's hierarchy, not an 18px capsule: a
-    // floating group of controls is a small panel.
-    expect(rule(".cat-filter-bar")).toMatch(/border-radius:\s*var\(--r-panel\)/);
+    // A radius from the sheet's hierarchy, not an 18px capsule: the canvas's
+    // own chrome (this bar, the control stack, the minimap) shares --r-ctl.
+    expect(rule(".cat-filter-bar")).toMatch(/border-radius:\s*var\(--r-ctl\)/);
   });
 
   it("still keeps a chip for a hidden category (#783)", () => {

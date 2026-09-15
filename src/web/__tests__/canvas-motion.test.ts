@@ -355,9 +355,9 @@ const PRESSES: Press[] = [
   // 0.97 like every other labelled control rather than the 0.94 the round
   // glyphs take.
   [".aa-result-fix:active", "0.97", "transform"],
-  // #820's chip. Its transform also centres it, so the press is written with
-  // the centring kept: `translateX(-50%) scale(0.97)`.
-  [".autofit-chip:active", "0.97", "transform"],
+  // #820's Resume, the one pressable part of the auto-fit strip. A labelled
+  // control, so 0.97 like every other one.
+  [".autofit-resume:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

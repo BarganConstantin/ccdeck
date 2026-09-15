@@ -190,9 +190,9 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
   /** The bar is translucent over the canvas, which is NOT --panel — the report
    *  quoted --panel's numbers. Its own fill is what the chip actually sits on. */
   function chipBar(theme: Theme): Rgba {
-    const raw = theme === "light"
-      ? declOf(':root[data-theme="light"] .cat-filter-bar', "background")!
-      : declOf(".cat-filter-bar", "background")!;
+    // One rule serves both themes now (the light override only ever carried a
+    // different shadow, and the bar has none); --panel resolves per theme.
+    const raw = declOf(".cat-filter-bar", "background")!;
     return over(resolve(raw, theme), tok("--bg", theme));
   }
 
@@ -242,8 +242,10 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
       expect(on, `${theme} on chip`).toBeGreaterThanOrEqual(BODY);
       expect(off, `${theme} off is quieter`).toBeLessThan(on);
     }
-    // The emoji keeps its own desaturation, the second half of "off".
-    expect(declOf(".cat-filter.off .cat-emoji", "filter")).toMatch(/grayscale/);
+    // The glyph is drawn in the label's own colour now, so it steps down with
+    // the word; the strike through the name stays the channel that is not a
+    // colour.
+    expect(declOf(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
   });
 });
 

@@ -364,11 +364,13 @@ describe("the process section is one way in, and draws nothing", () => {
     expect(block).toContain("Busiest processes");
     expect(block).toContain("every process, with its command line");
     expect(block).toContain('<i className="sd-row-more" aria-hidden>›</i>');
-    // The name is in the reading colour, not the heading grey, and the plate is
-    // a fill rather than a border: 1.4.11 measures a control's own edge at 3:1
-    // and `--line` is a hairline at a fifth of that.
+    // The name is in the reading colour, not the heading grey. The door is a
+    // row now, not a card inside the panel: no plate fill, no radius and no
+    // edge of its own (1.4.11 is satisfied by the label), set off by a
+    // hairline above the section instead.
     expect(rule(".sd-door-name")).toContain("color: var(--text)");
-    expect(rule(".sysdetail .sd-door .sd-door-plate")).toContain("border-radius");
+    expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("background");
+    expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border-radius");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border:");
   });
 

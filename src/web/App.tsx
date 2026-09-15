@@ -632,6 +632,29 @@ const DETAIL_CAT_EMOJI: Record<DetailCategory, string> = {
   file: "📁", shell: "⚡", web: "🌐", agent: "🤖",
   task: "📋", plan: "🧭", mcp: "🔌", other: "✨",
 };
+/** The canvas filter bar's glyph for a category: drawn, monochrome, on the
+ *  topbar's icon spec (13px on a 14 viewBox, a 1.4 stroke, round caps). The
+ *  emoji above stay for the detail rail's activity chips; on the bar they were
+ *  eight colours of decoration beside a word that already names the category,
+ *  on the one piece of chrome that sits over the canvas. The bubbles and the
+ *  nodes carry each category's colour; the bar only has to say which is which. */
+const CAT_GLYPH_PATHS: Record<DetailCategory, string> = {
+  file: "M3.4 1.8h4.5l2.7 2.7v7.7H3.4z M7.9 1.8v2.7h2.7",
+  shell: "M2.4 3.8 5.6 7l-3.2 3.2 M7.4 10.6h4.2",
+  web: "M7 1.8a5.2 5.2 0 1 0 0 10.4A5.2 5.2 0 1 0 7 1.8z M1.8 7h10.4 M7 1.8c-1.5 1.4-2.3 3.1-2.3 5.2s.8 3.8 2.3 5.2c1.5-1.4 2.3-3.1 2.3-5.2S8.5 3.2 7 1.8z",
+  agent: "M3.3 4.8h7.4a1.2 1.2 0 0 1 1.2 1.2v4.8a1.2 1.2 0 0 1-1.2 1.2H3.3a1.2 1.2 0 0 1-1.2-1.2V6a1.2 1.2 0 0 1 1.2-1.2z M7 4.8V2.4 M5.3 8.2h.01 M8.7 8.2h.01",
+  task: "M2.2 4l1.2 1.2 2-2.2 M7.4 4.2h4.4 M2.2 9.4l1.2 1.2 2-2.2 M7.4 9.6h4.4",
+  plan: "M7 1.8a5.2 5.2 0 1 0 0 10.4A5.2 5.2 0 1 0 7 1.8z M9 5 8 8 5 9l1-3z",
+  mcp: "M5 1.8v2.6 M9 1.8v2.6 M3.6 4.4h6.8v2.2a3.4 3.4 0 0 1-6.8 0z M7 10v2.2",
+  other: "M3.5 7h.01 M7 7h.01 M10.5 7h.01",
+};
+function CatGlyph({ cat }: { cat: DetailCategory }) {
+  return (
+    <svg className="cat-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={CAT_GLYPH_PATHS[cat]} />
+    </svg>
+  );
+}
 /* An identity map on purpose — kept, not overlooked (#383).
  *
  * Every value below spells its own key, which is exactly what the eight
@@ -4922,7 +4945,7 @@ function Inner() {
                   aria-pressed={!off}
                   title={`${off ? "Show" : "Hide"} ${DETAIL_CAT_LABEL[c]} tools`}
                 >
-                  <span className="cat-emoji">{DETAIL_CAT_EMOJI[c]}</span>
+                  <CatGlyph cat={c} />
                   <span className="cat-name">{DETAIL_CAT_LABEL[c]}</span>
                 </button>
               );
@@ -5136,15 +5159,24 @@ function Inner() {
               While the reader's own pan or zoom holds the view, new sessions
               can land off-screen; this says so on the canvas they would be
               looked for on, with the way back in the same place. */}
+          {/* A status and an action, not one big button. The words say what
+              the state is and are not a control; Resume is the one thing here
+              that can be pressed, and it does what the whole chip used to. */}
           {autoFitDisabled && (
-            <button
-              type="button"
-              className="autofit-chip"
-              onClick={enableAutoFitAndRefit}
-              title="New sessions are not brought into view while you are moving it yourself"
-            >
-              Auto-fit off <span aria-hidden>·</span> <b>Resume</b>
-            </button>
+            <div className="autofit-chip">
+              <span className="autofit-state" title="New sessions are not brought into view while you are moving it yourself">
+                Auto-fit off
+              </span>
+              <button
+                type="button"
+                className="autofit-resume"
+                onClick={enableAutoFitAndRefit}
+                title="Bring new sessions into view again"
+                aria-label="Resume auto-fit"
+              >
+                Resume
+              </button>
+            </div>
           )}
           {/* No React Flow fit-view button (#840). Recenter below does the same
               fit and also turns autofit back on, so two near-identical buttons

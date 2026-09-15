@@ -779,24 +779,30 @@ describe("the machine panel's process door, on the bed it is actually drawn on (
   // the panel. Every token pair in this file passes; the pair a reader sees is
   // the ink over THAT, and --muted there was 4.34:1 in dark.
   const sub = rule(".sd-door-sub")!;
-  const plates: Array<[string, string]> = [
-    ["at rest", decl(rule(".sysdetail .sd-door .sd-door-plate"), "background")!],
-    ["on hover", decl(rule(".sysdetail .sd-door:hover .sd-door-plate"), "background")!],
+  // The plate is gone: the door is a row of the panel now, not a card inside
+  // it. At rest its bed is the panel itself, and on hover it is the full-bleed
+  // fill every section takes. The 4% plate stays here as a literal, as the
+  // record of what the audit measured on it.
+  const OLD_PLATE = "color-mix(in srgb, var(--text) 4%, transparent)";
+  const beds: Array<[string, string | null]> = [
+    ["at rest", null],
+    ["on hover", decl(rule(".sysdetail .sd-open:hover"), "background")!],
   ];
-  const bedOf = (plate: string, theme: Theme) => {
+  const bedOf = (fill: string | null, theme: Theme) => {
     expect(decl(rule(".sysdetail"), "background")).toBe("var(--panel)");
-    return over(resolve(plate, theme), parseColor(TOK[theme]["--panel"]));
+    const panel = parseColor(TOK[theme]["--panel"]);
+    return fill ? over(resolve(fill, theme), panel) : panel;
   };
 
-  it("reproduces the 4.34:1 the audit measured for --muted on the resting plate", () => {
-    expect(contrastRatio(resolve("var(--muted)", "dark"), bedOf(plates[0][1], "dark"))).toBeCloseTo(4.34, 2);
+  it("reproduces the 4.34:1 the audit measured for --muted on the old resting plate", () => {
+    expect(contrastRatio(resolve("var(--muted)", "dark"), bedOf(OLD_PLATE, "dark"))).toBeCloseTo(4.34, 2);
   });
 
-  it("reads the door's one line of description at 4.5:1 on the plate, rest and hover, both themes", () => {
+  it("reads the door's one line of description at 4.5:1, rest and hover, both themes", () => {
     for (const theme of themes) {
       const ink = resolve(decl(sub, "color")!, theme);
-      for (const [state, plate] of plates) {
-        const ratio = contrastRatio(ink, bedOf(plate, theme));
+      for (const [state, fill] of beds) {
+        const ratio = contrastRatio(ink, bedOf(fill, theme));
         expect(ratio, `${theme} door subtitle ${state} — ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
       }
     }

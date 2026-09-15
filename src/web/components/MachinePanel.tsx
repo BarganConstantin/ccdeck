@@ -514,7 +514,7 @@ function Processes({ sys }: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="sd-section">
+    <div className="sd-section sd-door-section">
       <button
         type="button"
         className="sd-open sd-door"

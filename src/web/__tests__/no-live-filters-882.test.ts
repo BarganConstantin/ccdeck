@@ -46,8 +46,11 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
   });
 
   it("draws the filter bar as a solid slab in both themes", () => {
+    // One rule for both themes now: --panel is a token each theme declares,
+    // and the light override only existed to carry a different shadow, which
+    // the bar no longer has.
     expect(decl(bodyOf(".cat-filter-bar"), "background")).toBe("var(--panel)");
-    expect(decl(bodyOf(':root[data-theme="light"] .cat-filter-bar'), "background")).toBe("var(--panel)");
+    expect(decl(bodyOf(".cat-filter-bar"), "backdrop-filter")).toBeNull();
   });
 
   it("dims the page under a dialog with its fill alone", () => {

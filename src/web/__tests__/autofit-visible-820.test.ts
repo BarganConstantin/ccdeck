@@ -33,12 +33,16 @@ describe("auto-fit off is a moment, not a setting (#820)", () => {
 });
 
 describe("the canvas says when auto-fit is off (#820)", () => {
-  it("shows the chip while it is off, and resumes from it", () => {
-    expect(app).toMatch(/\{autoFitDisabled && \(\s*<button\s+type="button"\s+className="autofit-chip"\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(app).toMatch(/Auto-fit off <span aria-hidden>·<\/span> <b>Resume<\/b>/);
+  it("shows a status and an action while it is off, and resumes from the action", () => {
+    // Not one big button any more: the words say the state and are not a
+    // control, and Resume does what the whole chip used to.
+    expect(app).toMatch(/\{autoFitDisabled && \(\s*<div className="autofit-chip">/);
+    expect(app).toMatch(/<span className="autofit-state"[^>]*>\s*Auto-fit off\s*<\/span>/);
+    expect(app).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
+    expect(app).toMatch(/aria-label="Resume auto-fit"/);
   });
 
-  it("draws it on the canvas, clear of the corners, as a solid slab", () => {
+  it("draws it on the canvas, clear of the corners, on the canvas chrome's surface", () => {
     const chip = /(?:^|\n)\.autofit-chip\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(chip).toMatch(/position:\s*absolute/);
     expect(chip).toMatch(/left:\s*0;/);
@@ -46,12 +50,16 @@ describe("the canvas says when auto-fit is off (#820)", () => {
     expect(chip).toMatch(/width:\s*max-content/);
     expect(chip).toMatch(/margin:\s*0 auto/);
     expect(chip).toMatch(/bottom:\s*14px/);
-    expect(chip).toMatch(/background:\s*var\(--panel\)/);
+    // The surface, edge and radius the control stack and the minimap wear;
+    // no pill, no shadow, and no pointer on the container.
+    expect(chip).toMatch(/background:\s*var\(--chrome-bg\)/);
+    expect(chip).toMatch(/border-radius:\s*var\(--r-ctl\)/);
+    expect(chip).not.toMatch(/box-shadow|999px|cursor/);
   });
 
-  it("centres by margins, so the press is the only transform it takes", () => {
+  it("centres by margins, so the press on Resume is the only transform", () => {
     const chip = /(?:^|\n)\.autofit-chip\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(chip).not.toMatch(/transform:\s*translate/);
-    expect(css).toMatch(/\.autofit-chip:active\s*\{\s*transform:\s*scale\(0\.97\);\s*\}/);
+    expect(css).toMatch(/\.autofit-resume:active\s*\{\s*transform:\s*scale\(0\.97\);\s*\}/);
   });
 });
