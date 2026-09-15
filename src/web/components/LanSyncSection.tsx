@@ -594,7 +594,7 @@ function callsIn(lastSeen: number | undefined, now: number): { text: string; her
  * moment it is not true the same slot says when it last was — which is the
  * thing somebody wants when the machine they need is switched off.
  */
-export function presenceLabel(p: Peer, here: boolean, now: number): string {
+function presenceLabel(p: Peer, here: boolean, now: number): string {
   if (here) return "online";
   if (p.lastSeen != null) return `last online ${seenLabel(p.lastSeen, now)}`;
   // Never once. Two different nevers, and the difference is whose move it is:

@@ -171,7 +171,7 @@ export const IDLE_MS = 30_000;
 /** The shortest gap between two "I am here too" replies to a stranger. Long
  *  enough that a burst of decks starting together cannot make a storm, short
  *  enough that starting two decks by hand feels instant. */
-export const REPLY_COOLDOWN_MS = 2_000;
+const REPLY_COOLDOWN_MS = 2_000;
 
 /**
  * The shouting half.

@@ -216,7 +216,7 @@ export function cleanName(raw, fallback = "unnamed deck") {
  * public half is what a peer pins, and its fingerprint is what a person
  * compares.
  */
-export function newKeypair() {
+function newKeypair() {
   const { publicKey, privateKey } = generateKeyPairSync("x25519");
   return {
     secret: privateKey.export({ type: "pkcs8", format: "der" }).toString("base64"),
