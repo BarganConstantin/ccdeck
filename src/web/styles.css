@@ -7297,6 +7297,16 @@ button.ap-err:active { transform: scale(0.97); }
 }
 .ap-failure-x:hover { opacity: 1; }
 .ap-failure-x:active { transform: scale(0.94); }
+/* A switch's answer on its own row (#827). The refusal is the same box without
+   the side inset the panel-level one needs, since the row already carries it;
+   the confirmation is the quiet prose line a row's other notes are. */
+.ap-row-failure { margin: 6px 0 0; }
+.ap-switched {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
 /* ── auto-switch controls ── */
 .ap-auto {
   padding: 12px var(--panel-inset) 11px;
