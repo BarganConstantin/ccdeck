@@ -484,11 +484,44 @@ describe("the version comparator", () => {
     return false;
   }
 
-  it("orders every pair of version strings the way the copy ordered them", () => {
+  it("orders every pair of version strings the way the copy ordered them, apart from the three #976 corrected", () => {
+    // This read `expect(moved).toEqual([])`, and that was the right assertion
+    // while the surviving copy was supposed to be the deleted one exactly. It
+    // is not any more: #976 gave `isOlder` semver's prerelease rule, because
+    // without it a deck that ended up on `3.23.0-rc.1` saw `3.23.0` as OLDER,
+    // produced no upgrade notice when the release shipped, and had no way back
+    // off the candidate from inside the product.
+    //
+    // So the sweep still runs — a silent drift anywhere else is exactly what it
+    // exists to catch — and the deliberate difference is named instead of
+    // deleted. Three pairs out of 271,441, every one of them a pair the old
+    // body got backwards.
     const parts = ["0", "1", "2", "9", "10", "30", "99", "100"];
     const versions: string[] = [];
     for (const a of parts) for (const b of parts) for (const c of parts) versions.push(`${a}.${b}.${c}`);
     versions.push("1.30", "1.9", "2", "0.1.2-beta.1", "1.0.0+build.7", "1.0.0-rc1", "", "0.9.11", "0.10.0");
+    const moved: Array<[string, string]> = [];
+    for (const a of versions) for (const b of versions) {
+      if (isOlder(a, b) !== cswapCopy(a, b)) moved.push([a, b]);
+    }
+    expect(moved.map(p => p.join(" vs ")).sort()).toEqual([
+      "0.1.2 vs 0.1.2-beta.1",       // was true — the release looked older than its own candidate
+      "0.1.2-beta.1 vs 0.1.2",       // was false — and the candidate never looked older than the release
+      "1.0.0-rc1 vs 1.0.0",          // likewise, with the identifier spelled without a dot
+    ]);
+  });
+
+  it("moves no pair that does not carry a prerelease", () => {
+    // The other half of the claim above, and the one worth asserting
+    // separately: ordinary numeric ordering — which is the whole of what every
+    // caller but a prerelease check depends on — is untouched. `1.9.0` before
+    // `1.10.0`, `1.30` before `1.30.1`, `+build.7` still reading as trailing
+    // segments. If a refactor of the comparator ever moves one of those, this
+    // fails even though the three named pairs above still match.
+    const parts = ["0", "1", "2", "9", "10", "30", "99", "100"];
+    const versions: string[] = [];
+    for (const a of parts) for (const b of parts) for (const c of parts) versions.push(`${a}.${b}.${c}`);
+    versions.push("1.30", "1.9", "2", "1.0.0+build.7", "", "0.9.11", "0.10.0");
     const moved: Array<[string, string]> = [];
     for (const a of versions) for (const b of versions) {
       if (isOlder(a, b) !== cswapCopy(a, b)) moved.push([a, b]);
@@ -631,7 +664,12 @@ describe("the shapes these helpers replaced", () => {
     const RETIRED: Array<[string, RegExp]> = [
       ["the three-tier token formatter", /\(n \/ 1_000_000\)\.toFixed\(2\)\}M/],
       ["a private cost bar", /const seg = \(val: number, cls: string, label: string\)/],
-      ["a private semver compare", /const seg = \(v\) => v\.split\(\/\[\.\\-\+\]\//],
+      // The body this detector looks for changed with #976 — the comparator
+      // splits the prerelease off first now, so the segmenter it carries is
+      // `nums` over `[.+]` rather than `seg` over `[.\-+]`. The pattern follows
+      // the shape that exists today, since a private copy grown tomorrow would
+      // be a copy of today's body; the anchor below is what keeps it honest.
+      ["a private semver compare", /const nums = \(s\) => s\.split\(\/\[\.\+\]\//],
       ["a hand-rolled reset label", /replace\(\/\\s\+\(AM\|PM\)\//],
       ["the coarse tool duration", /\(dur \/ 1000\)\.toFixed\(1\)/],
     ];
@@ -651,7 +689,7 @@ describe("the shapes these helpers replaced", () => {
     // a regex cannot quietly turn one of these assertions into a no-op.
     expect(/\(n \/ 1_000_000\)\.toFixed\(2\)\}M/.test(src("../token-format.ts"))).toBe(true);
     expect(/const seg = \(val: number, cls: string, label: string\)/.test(costBarSrc)).toBe(true);
-    expect(/const seg = \(v\) => v\.split\(\/\[\.\\-\+\]\//.test(src("../../server/self-update.mjs"))).toBe(true);
+    expect(/const nums = \(s\) => s\.split\(\/\[\.\+\]\//.test(src("../../server/self-update.mjs"))).toBe(true);
     expect(/replace\(\/\\s\+\(AM\|PM\)\//.test(src("../../server/reset-label.mjs"))).toBe(true);
   });
 
