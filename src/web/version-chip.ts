@@ -39,6 +39,10 @@ export type VersionChipCopy = {
   /** Age of the last successful check, already worded — "12m ago", "just
    *  now" — or null when npm has never answered. */
   checkedAgo?: string | null;
+  /** Age of the last FAILED check, worded the same way, and only when it is
+   *  newer than the last success — otherwise it describes a problem that has
+   *  already gone away. Null when the last attempt worked. */
+  checkFailedAgo?: string | null;
   /** AGENTS_DECK_NO_UPDATE_CHECK=1 and friends — no lookup will ever run. */
   checkDisabled?: boolean;
   /** A forced check started by this chip has not come back yet. */
@@ -71,7 +75,16 @@ export function versionChipTitle(c: VersionChipCopy): string {
       // tarball is servable, and offering it there ends in ETARGET.
       ? `npm's latest tag names v${c.latestPending}, which it cannot serve yet`
       : "npm not reached yet";
-  const age = c.checkedAgo ? ` · checked ${c.checkedAgo}` : "";
+  // NPM NOT REACHED, SAID OUT LOUD. Without this the chip described a machine
+  // behind a proxy exactly as it described a machine that was up to date: a
+  // cached `npm has vX`, an hour-old `checked 3h ago` — the age deliberately
+  // does not move on a failure — and no button. The server had computed the
+  // reason and sent it; nothing on this side declared the field, so it was
+  // dropped on arrival (#1046). It goes where the age goes, because it is the
+  // same fact about the same attempt: when the deck last managed to ask.
+  const age = c.checkFailedAgo
+    ? ` · could not reach npm ${c.checkFailedAgo}`
+    : c.checkedAgo ? ` · checked ${c.checkedAgo}` : "";
   // The deck re-checks on its own now, so the chip must not claim to be the
   // only way — it is the way to not wait. The notes come first in the sentence
   // because they come first in time: they are already in the bundle.
@@ -88,6 +101,10 @@ export function versionChipLabel(c: VersionChipCopy): string {
   // pressing this does anything at all.
   if (c.checkDisabled) return `${v} — update checks are off`;
   if (c.checking) return `${v} — checking npm for a newer release`;
+  // A reader who cannot see the tooltip needs the failure most: the chip looks
+  // identical either way, and "check npm for a newer release" on a machine that
+  // has not reached npm for three hours is a promise the control cannot keep.
+  if (c.checkFailedAgo) return `${v} — npm could not be reached ${c.checkFailedAgo}, check again`;
   return `${v} and check npm for a newer release`;
 }
 

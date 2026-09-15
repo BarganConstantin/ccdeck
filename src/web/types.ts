@@ -450,7 +450,30 @@ export interface HookEnvelope {
   seq: number;
   receivedAt: number;
   source: string;
-  payload: HookPayload;
+  /**
+   * NULLABLE, because the server has a path whose entire purpose is to send
+   * null here.
+   *
+   * A payload it cannot serialize — a 5,000-deep body was the observed case
+   * (#1009) — is contained as `{"payload":null,"unserializable":true}` rather
+   * than dropped, so the seq is still spent and no resuming client is left with
+   * a hole it cannot ask about. `envelopeJson` repeats it on the
+   * `GET /api/events` and SSE-replay paths.
+   *
+   * This was declared required and non-nullable, and the client's entry is a
+   * declared-type assertion on `JSON.parse` — the same hole as an `as`. Nobody
+   * was caught by it because three separate authors had already written around
+   * it: `reducer.ts`'s `const p = env.payload ?? {}`, `settlesInFlightCall`'s
+   * `env?.payload`, and `chimeFor` in sound.ts, which gave up on this interface
+   * and declared its own nullable shape. Those guards now typecheck as the
+   * guards they are, and the next person to write `env.payload.session_id` is
+   * told at compile time instead of throwing into the `catch { }` that swallows
+   * it and loses the event silently.
+   */
+  payload: HookPayload | null;
+  /** Set beside a null payload: the event happened, and what it carried could
+   *  not be represented. See `payload`. */
+  unserializable?: boolean;
   /** Server stamps `true` on events re-sent during the SSE-connect ring-
    *  buffer drain. The reducer uses this to suppress turn-cleanup logic
    *  (e.g. retiring prior-turn subagents on UserPromptSubmit) so refreshing
@@ -517,5 +540,54 @@ export interface HookPayload {
    *  CLEARS whatever the root already held — both fields are cumulative, so a
    *  pass that saw no split must not leave an old one standing (#686). */
   usageByModel?: Record<string, Record<string, unknown>> | null;
+
+  // ─── The six the reducer reads every second and this file never named ────
+  //
+  // Each of these was load-bearing, emitted by the server, and read by the
+  // reducer at `any` — because the index signature below answers for every
+  // field nobody declared, so `tsc` had nothing to check them against. The
+  // point of declaring them is not that the reads were wrong; every one of
+  // them is guarded. It is that a file called the wire contract described
+  // about three-quarters of the wire, and the undeclared quarter was where
+  // any future drift would land silently.
+
+  /** On the synthetic `ModelObserved` (index.mjs:1298): the model the ROOT of
+   *  this session is running, resolved from the transcript. Also stamped by
+   *  pushEvent onto any payload that carries a session id and no model of its
+   *  own, so the client's recursive scanner finds it. */
+  model?: string;
+  /** Beside it on the same event: each live subagent's resolved model, keyed by
+   *  agent id. Sent whenever the resolved SET changes, which is what stops a
+   *  late subagent model from never landing. */
+  subagentModels?: Record<string, string>;
+  /** On the synthetic `UsageObserved` (index.mjs:1431): the session's cumulative
+   *  token totals as the transcript reports them, in the provider's own
+   *  snake_case. Read through `usageFromWire`, which is why this is not the
+   *  camelCase `Usage` the client uses internally. */
+  usage?: Record<string, unknown> | null;
+  /** On the synthetic `ContextObserved` (index.mjs:1737, :1817): the context
+   *  breakdown plus the memory files this session loaded, assembled from two
+   *  reads of the same moment. Partial by construction — the scan can produce
+   *  the file list with no breakdown behind it — so every reader gates per
+   *  field rather than on the object. */
+  context?: Partial<ContextBreakdown> | null;
+  /** On the synthetic `OutputObserved` (index.mjs:2811): what the transcript
+   *  watch saw land. One of "thinking", "text" or "tool_use"; the reducer
+   *  refuses anything else rather than widening on a string off the wire. */
+  kind?: string;
+  /** Beside it: when it landed, in wall-clock milliseconds. The reducer falls
+   *  back to its own `now` when this is not a finite number, because a bad
+   *  timestamp here would reorder the waiting indicator. */
+  at?: number;
+
+  /**
+   * And the escape hatch, kept on purpose.
+   *
+   * The wire really is open-ended: `/api/event` accepts any hook payload Claude
+   * Code or a future CLI sends, and the deck forwards fields it has no opinion
+   * about. What changed with the six above is that the DECLARED set is no
+   * longer arbitrary — a field this file does not name is now a field nothing
+   * in the client reads, rather than a field somebody forgot.
+   */
   [key: string]: any;
 }

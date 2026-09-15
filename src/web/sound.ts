@@ -449,11 +449,15 @@ export function readPrefs(read: (key: string) => string | null): TonePrefs {
   return { done: one("done"), "needs-input": one("needs-input") };
 }
 
-/** The events that earn a tone. Everything else is silent on purpose. */
-const CHIMES: Record<string, Chime> = {
+/** The events that earn a tone. Everything else is silent on purpose.
+ *
+ *  Typed as its own literal rather than `Record<string, Chime>`: that annotation
+ *  told `tsc` the read below returns a `Chime` and never `undefined`, which is
+ *  exactly what made the missing guard invisible — see chimeFor. */
+const CHIMES = {
   Stop: "done",
   Notification: "needs-input",
-};
+} as const satisfies Record<string, Chime>;
 
 /**
  * Which chime this envelope deserves, if any.
@@ -473,7 +477,13 @@ export function chimeFor(
   if (isReplay) return null;
   const name = env?.payload?.hook_event_name;
   if (typeof name !== "string") return null;
-  return CHIMES[name] ?? null;
+  // `Object.hasOwn`, the rule admin-failure.ts states for the same shape (#474).
+  // `hook_event_name` is a string off the wire and `/api/event` is
+  // credential-free and validates no field shapes, so `CHIMES["constructor"]`
+  // answered with the Object function — not nullish, so `??` never fired — and
+  // `play()` threw into the `catch { }` in App.tsx, costing a chime silently.
+  // The last unguarded member of a set this codebase already swept once.
+  return Object.hasOwn(CHIMES, name) ? CHIMES[name as keyof typeof CHIMES] : null;
 }
 
 /** What the player can be doing, for the switch to describe honestly. */

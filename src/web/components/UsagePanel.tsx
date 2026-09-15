@@ -48,6 +48,31 @@ interface QuotaData {
    *  help, because they have no subscription window to report. */
   reason?: string;
   fetchedAt?: number;
+
+  // ─── Pay-as-you-go top-up, which the server has always sent ───────────────
+  //
+  // quota.mjs has computed and spread these four since the block was written,
+  // and nothing on this side declared them, so `setQuota(await res.json())` —
+  // `any` into a typed slot — dropped every one (#1046). A user on a plan with
+  // extra usage credits enabled saw the 5h and 7d bars and no sign at all that
+  // they were spending against a monthly top-up limit: the one number on this
+  // panel with a hard financial edge.
+  //
+  // Shown as a proportion rather than an amount, deliberately. `used_credits`
+  // and `monthly_limit` arrive in whatever unit the upstream API uses and this
+  // deck has no way to confirm whether that is currency or cents; printing
+  // "$3.40" off an unverified scale would be exactly the kind of confidently
+  // wrong money figure the rest of this panel is careful not to produce. A
+  // percentage of the limit is true in any unit; the currency code goes in the
+  // label, so a reader who knows the scale knows which one they are reading.
+  /** The plan has pay-as-you-go credits switched on. */
+  extraEnabled?: boolean;
+  /** Spent against the top-up this month, in the upstream's own unit. */
+  extraUsedCredits?: number;
+  /** The ceiling for the month, same unit. Absent means no ceiling was given. */
+  extraMonthlyLimit?: number;
+  /** ISO currency code, for the title. */
+  extraCurrency?: string;
 }
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched. */
@@ -1143,6 +1168,23 @@ export default function UsagePanel({ state, now, providers, leaving, onClose, li
             {quota.weekOpusPct != null && (
               <QuotaBar label="Opus (7d)" pct={quota.weekOpusPct} nowSec={nowSec} />
             )}
+            {/* The top-up, when there is one. A bar because it is the same kind
+                of fact as the two above — a fraction of an allowance with a
+                hard edge — and because a percentage is the one reading that is
+                true whatever unit the upstream sends. */}
+            {quota.extraEnabled && quota.extraUsedCredits != null && quota.extraMonthlyLimit
+              ? (
+                <QuotaBar
+                  label={`Extra credits (month${quota.extraCurrency ? `, ${quota.extraCurrency}` : ""})`}
+                  pct={Math.min(100, Math.round((quota.extraUsedCredits / quota.extraMonthlyLimit) * 100))}
+                  nowSec={nowSec}
+                />
+              )
+              : quota.extraEnabled && (
+                /* Enabled with no ceiling to measure against: say that it is on
+                   rather than draw a bar with no denominator. */
+                <div className="up-quota-sub up-credits">extra usage credits: on</div>
+              )}
           </div>
         ) : quota?.ok === false ? (
           <div className="up-quota-na">
