@@ -4110,11 +4110,12 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
      sampled with 79 of these on screen at once, and 460ms was the longest
      duration in the app sitting on its single most repetitive element — the
      rule the accounts panel states in full at .aa-primer is that what you see
-     hundreds of times a day does not get to celebrate. The curve is unchanged
-     and it is still the overshoot; what changed is that the overshoot now
-     happens once, which is what the per-keyframe easing inside bubble-spawn is
-     for. */
-  animation: bubble-spawn 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+     hundreds of times a day does not get to celebrate. By the same rule it no
+     longer overshoots (#860): it used to reach 1.06 on a back-out curve and
+     spring back, a wobble on every tool call competing with the done flash and
+     the error shake, which are the motions that carry meaning. It arrives on
+     the sheet's ease-out and stops at its own size. */
+  animation: bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .tool-burst .tb-emoji {
   font-size: 13px;
@@ -4139,7 +4140,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   font-size: 12px;
   line-height: 1;
   margin-left: 2px;
-  animation: mark-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: mark-pop 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 /* The ✓ is flat for the reason .tool-burst.status-done below gives up its ring
    and its glow (#861): success is the ordinary case, so the × is the only mark
@@ -4194,7 +4195,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
      already makes for using `translate`. Overlap is now harmless, so the flash
      can fire on the frame the tool lands, beside the ✓. */
   animation:
-    bubble-spawn 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
     bubble-done-flash 520ms ease-out;
 }
 .tool-burst.status-err {
@@ -4205,7 +4206,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
      a failure announced 460ms after it happened — so it loses it for the same
      reason and by the same means: it shakes `translate`, not `transform`. */
   animation:
-    bubble-spawn 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
     bubble-err-shake 380ms ease-in-out;
 }
 .tool-burst.fading {
@@ -4294,17 +4295,17 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   font-size: 10px;
   padding: 4px 10px 4px 8px;
   opacity: 0.94;
-  animation: bubble-spawn 220ms 110ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .tool-burst.sub .tb-emoji { font-size: 12px; }
 .tool-burst.sub.status-done {
   animation:
-    bubble-spawn 220ms 110ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
     bubble-done-flash 520ms ease-out;
 }
 .tool-burst.sub.status-err {
   animation:
-    bubble-spawn 220ms 110ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
     bubble-err-shake 380ms ease-in-out;
 }
 /* Fade-out wins regardless — when the underlying tool fades, sub fades
@@ -4350,27 +4351,21 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
    layer is aria-hidden decoration and the tools it draws are reached from the
    detail panel's list, which is real buttons. See ToolBursts.tsx. */
 
-/* Why the easing is written INSIDE this keyframe set and not only on the
-   shorthand above. `animation-timing-function` on the shorthand is not the
-   curve of the animation, it is the default curve of every SEGMENT of it, and
-   nothing overrode it here — `getKeyframes()` on a live bubble returned the
-   overshoot curve attached to offsets 0, 0.55 AND 1. cubic-bezier(0.34, 1.56,
-   0.64, 1) peaks at progress 1.0978, so it was applied twice: once climbing
-   0.35 → 1.12, where it measured a peak of 1.1948 at 140ms, and again settling
-   1.12 → 1.00, where 9.78% of a downward segment carried it to a trough of
-   0.9883 at 370ms before it came back up. Two overshoots where one was
-   designed, and the second one is a bubble that has arrived shrinking below
-   its own size in front of the reader.
-   So the back-out curve is now spent entirely on the segment that arrives, and
-   the segment that settles gets the sheet's ordinary ease-out — the same
-   cubic-bezier(0.23, 1, 0.32, 1) that nineteen other declarations here use —
-   which is monotone and cannot overshoot at all.
+/* One curve for the whole entrance: the sheet's ordinary ease-out,
+   cubic-bezier(0.23, 1, 0.32, 1), which is monotone and cannot overshoot.
+   `animation-timing-function` on the shorthand is the default curve of every
+   SEGMENT, not of the animation, which is how this once bounced twice (a
+   back-out curve on both segments, measured peaking at 1.1948 and then
+   dipping to 0.9883). #354 kept the bounce on the arriving segment only;
+   #860 took it off that one too, so there is no overshoot left to double and
+   no keyframe needs an easing of its own.
 
    The start scale is 0.92 rather than 0.35 for the reason .aa-done already
    states beside its own entrance: nothing in the real world appears from
    nothing. A pill that begins at just over a third of its size is not arriving,
    it is inflating, and the travel from --spawn-dx is what carries the "this
-   came out of that agent" reading anyway. */
+   came out of that agent" reading anyway. The 55% stop names opacity and
+   filter only: the pill is solid and sharp a little before it stops moving. */
 @keyframes bubble-spawn {
   0%   {
     opacity: 0;
@@ -4379,9 +4374,7 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   }
   55%  {
     opacity: 1;
-    transform: translate(0, 0) scale(1.06);
     filter: blur(0) brightness(1.15);
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
   /* transform only, for the reason nodeSpawn carries in full: this animation
      fills for the bubble's whole life, so anything named here is pinned against
@@ -4434,9 +4427,11 @@ button.btn.icon-btn[aria-expanded="true"]:hover {
   0%, 100% { transform: rotate(-6deg) scale(1); }
   50%      { transform: rotate(6deg)  scale(1.08); }
 }
+/* From 0.6 and straight (#860). It came in from 0.3 at -30° on a back-out
+   curve, a spin and a spring on a mark drawn for every finished tool. */
 @keyframes mark-pop {
-  from { opacity: 0; transform: scale(0.3) rotate(-30deg); }
-  to   { opacity: 1; transform: scale(1)   rotate(0); }
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 :root[data-theme="light"] .tool-burst {

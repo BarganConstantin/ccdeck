@@ -368,7 +368,7 @@ describe("what runs beside a filling animation composes with it", () => {
   });
 });
 
-describe("an entrance overshoots once", () => {
+describe("an entrance lands without overshooting", () => {
   /** Every (rule, animation) pair in the sheet, with the segments its curve
    *  governs. A shorthand easing applies to EVERY segment unless a keyframe
    *  overrides it, which is the whole of defect 2. */
@@ -392,27 +392,28 @@ describe("an entrance overshoots once", () => {
   });
 
   it("sweeps the multi-segment entrance it was written for", () => {
-    // bubble-spawn is the only animation in the sheet that is both governed by
-    // an overshooting curve and built from more than two keyframes, so if this
-    // stops holding the sweep above has stopped seeing anything.
+    // bubble-spawn is the one animation in the sheet built from more than two
+    // keyframes, so if this stops holding the sweep above has stopped seeing
+    // anything. Since #860 it does not overshoot on either segment.
     const spawn = governed.filter(g => g.name === "bubble-spawn");
     expect(spawn.length).toBeGreaterThan(0);
     for (const g of spawn) {
       expect(g.total, "bubble-spawn segment count").toBe(2);
-      expect(g.bouncing, "bubble-spawn overshooting segments").toBe(1);
+      expect(g.bouncing, "bubble-spawn overshooting segments").toBe(0);
     }
-    expect(governed.some(g => g.bouncing === 1 && g.total === 1)).toBe(true);
   });
 
-  it("hands the landing segment a curve that cannot overshoot", () => {
-    // The 55% keyframe overrides in place rather than the shorthand changing,
-    // because the segment that ARRIVES is still meant to overshoot.
-    const segs = segments("bubble-spawn", "cubic-bezier(0.34, 1.56, 0.64, 1)");
+  it("runs both segments on the sheet's own ease-out", () => {
+    // #860 took the back-out curve off the arriving segment as well, so the
+    // keyframe no longer carries an easing of its own: the shorthand's is the
+    // one curve, and it cannot overshoot.
+    const primary = animationsOf(rules.find(r => !r.reduced && selectors(r).includes(".tool-burst"))!)
+      .find(p => p.name === "bubble-spawn")!;
+    const segs = segments("bubble-spawn", primary.easing);
     expect(segs).toHaveLength(2);
-    expect(overshoots(segs[0].easing), "the arriving segment").toBe(true);
-    expect(overshoots(segs[1].easing), "the landing segment").toBe(false);
+    for (const s of segs) expect(overshoots(s.easing), `segment from ${s.from}`).toBe(false);
     // And it is the sheet's own ease-out, not a curve invented for this rule.
-    const shared = [...css.matchAll(/cubic-bezier\([^)]*\)/g)].filter(m => m[0] === segs[1].easing);
+    const shared = [...css.matchAll(/cubic-bezier\([^)]*\)/g)].filter(m => m[0] === primary.easing);
     expect(shared.length).toBeGreaterThan(5);
   });
 
