@@ -74,7 +74,18 @@ describe("the one switch owns its states (#886)", () => {
 
   it("lets the version banner's armed switch keep its warning, and nothing else differ", () => {
     expect(body('.ver-banner .switch[aria-checked="true"]')).toMatch(/background:\s*var\(--warn\)/);
-    const overrides = [...css.matchAll(/(?:^|\n)([^{}\n]*\.switch\b[^{}\n]*)\{/g)].map(m => m[1].trim())
+    // The forced-colours block (#871) restates the banner's switch in system
+    // colours. That is the same switch answering a Contrast theme, not a second
+    // context drawing it differently, so its cascade is read separately.
+    const open = "@media (forced-colors: active) {";
+    const at = css.indexOf(open);
+    let close = at;
+    for (let depth = 0, i = at + open.length - 1; at > -1 && i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      else if (css[i] === "}" && --depth === 0) { close = i; break; }
+    }
+    const normal = at > -1 ? css.slice(0, at) + css.slice(close + 1) : css;
+    const overrides = [...normal.matchAll(/(?:^|\n)([^{}\n]*\.switch\b[^{}\n]*)\{/g)].map(m => m[1].trim())
       .filter(sel => !sel.startsWith(".switch"));
     expect(overrides).toEqual(['.ver-banner .switch[aria-checked="true"]']);
   });
