@@ -637,7 +637,7 @@ const persist = flags.noPersist
   // share a path still elect one writer for it.
   : canonicalLogPath(flags.history ?? join(deckLogDir(), "events.jsonl"));
 
-const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks } =
+const { installHooks, keepDiscovery, removeDiscovery, hasCodexInstalled, leftoverCodexHooks, codexHomeField } =
   await import(pathToFileURL(join(PKG_ROOT, "src/server/installer.mjs")).href);
 // CODEX_SESSIONS_DIR comes along because the banner below names the directory
 // the watcher tails, and the watcher lives in that module. Recomputing the path
@@ -681,6 +681,11 @@ const wantCodex = flags.noCodex
 const wantClaude = flags.noClaude
   ? false
   : (flags.claude === true || hasClaudeInstalled());
+// The Codex tree this deck would tail, spelled the way its discovery record will
+// spell it — the one field of a start's shape that is not a flag. Resolved here,
+// with the other three, because the second-start question below is asked of
+// nothing but inputs already settled. A --no-codex start reads no tree: null.
+const codexHome = codexHomeField(wantCodex);
 
 const WEB_DIST = join(PKG_ROOT, "dist", "web", "index.html");
 if (!existsSync(WEB_DIST)) {
@@ -1430,7 +1435,7 @@ bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
   const askedPort = flags.port != null && isPortValue(flags.port) ? Number(flags.port) : null;
   const plan = secondStart({
     live: await liveDecks().catch(() => []),
-    want: { workspace, persist, codex: wantCodex, claude: wantClaude },
+    want: { workspace, persist, codex: wantCodex, claude: wantClaude, codexHome },
     port: askedPort,
     ours: PKG_VERSION,
     fresh: flags.new === true,
