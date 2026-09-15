@@ -378,3 +378,85 @@ describe("the two npm badges, which name two different packages", () => {
 // ccdeck page renders THIS README, hero and disclosure and all, and every case
 // above applies to it. Nothing was dropped; one of the two pages stopped
 // existing and the other one already had the coverage.
+
+// THE README AND THE PARSER, HELD TOGETHER.
+//
+// Three flags — `--install`, `--install-service`, `--uninstall-service` — were
+// accepted by the parser, handled in bin/deck.js and documented in `--help`,
+// and absent from the README's Options block. `--install` is the one command
+// that turns an `npx` run into a deck that survives a reboot, and the README
+// told the reader the problem existed ("An `npx` run never installs one") and
+// never named the flag that solves it. CCDECK_HOME was the same shape in the
+// environment table: the one variable that relocates everything the deck
+// writes, undiscoverable outside the source.
+//
+// Nothing could catch that, because the two surfaces are prose. These two
+// derive the list from the code and ask the prose about it, so the next flag
+// added goes red rather than quiet. Deliberately one-directional: a README that
+// documents something the parser dropped is a different defect and would want a
+// different message.
+describe("every flag the parser accepts is in the README's Options block", () => {
+  const args = read("src", "server", "args.mjs");
+  const readme = read("README.md");
+  /** The Options block, so a flag merely mentioned in prose elsewhere does not
+   *  count as documented — the block is what a reader scans. */
+  const block = readme.slice(readme.indexOf("## Options"), readme.indexOf("Anything else on the command line"));
+
+  const flags = [...new Set([...args.matchAll(/a === "(--[a-z-]+)"/g)].map(m => m[1]))].sort();
+
+  it("finds the parser's flags at all, so an empty list cannot pass", () => {
+    // The assertion below is vacuous if the regex stops matching, which is
+    // exactly how a guard like this rots.
+    expect(flags.length).toBeGreaterThanOrEqual(20);
+    expect(flags).toContain("--install");
+    expect(flags).toContain("--no-persist");
+  });
+
+  for (const flag of flags) {
+    it(`documents ${flag}`, () => {
+      expect(block, `${flag} is parsed but missing from the README's Options block`)
+        .toContain(`${flag} `);
+    });
+  }
+});
+
+describe("every environment variable the deck reads is in the README's table", () => {
+  const readme = read("README.md");
+  const table = readme.slice(readme.indexOf("| Variable | Effect |"), readme.indexOf("Usage history is read with"));
+
+  // Read out of the server rather than typed here, for the reason above. THREE
+  // spellings, and the third is the one that matters: `env.NAME`,
+  // `process.env.NAME`, and a named constant — `export const HOME_ENV =
+  // "CCDECK_HOME"` read as `env[HOME_ENV]`. The first version of this guard
+  // caught only the literal forms, so it stayed green with CCDECK_HOME deleted
+  // from the table, which is the very variable that prompted it.
+  const names = new Set<string>();
+  for (const file of ["deck-home.mjs", "deck-prefs.mjs", "args.mjs", "ccusage.mjs", "claude-dir.mjs", "codex-dir.mjs"]) {
+    const src = read("src", "server", file);
+    for (const m of src.matchAll(/\b(?:process\.)?env(?:\.|\[")([A-Z][A-Z0-9_]{3,})"?\]?/g)) names.add(m[1]);
+    for (const m of src.matchAll(/const\s+[A-Za-z_]*ENV[A-Za-z_]*\s*=\s*"([A-Z][A-Z0-9_]{3,})"/g)) names.add(m[1]);
+  }
+  // Set by the OS or by us, not knobs a reader sets: documenting them would be
+  // noise, and each is named here so the exclusion is a decision rather than a
+  // gap that grew.
+  const notKnobs = new Set([
+    "HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    "XDG_STATE_HOME", "PATH", "PATHEXT", "COMSPEC", "SHELL", "TERM", "TERM_PROGRAM",
+    "NO_COLOR", "FORCE_COLOR", "CI", "AGENTS_DECK_RESPAWN", "AGENTS_DECK_SUPERVISED",
+    "NODE_ENV", "TMPDIR", "TEMP", "TMP", "PROGRAMFILES", "SYSTEMROOT", "WINDIR",
+  ]);
+
+  it("finds the variables at all, including the ones read through a constant", () => {
+    expect([...names].length).toBeGreaterThan(5);
+    // The literal-only regex missed this one, and it is the reason the guard
+    // exists — so it is named rather than left to the count.
+    expect(names, "CCDECK_HOME is read as env[HOME_ENV]").toContain("CCDECK_HOME");
+  });
+
+  for (const name of [...names].filter(n => !notKnobs.has(n)).sort()) {
+    it(`documents ${name}`, () => {
+      expect(table, `${name} is read by the deck but missing from the README's environment table`)
+        .toContain(`\`${name}`);
+    });
+  }
+});
