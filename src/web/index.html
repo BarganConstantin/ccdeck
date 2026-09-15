@@ -29,15 +29,19 @@
          Vite leaves untouched in the built HTML (it rewrites only scripts with
          a src or type="module"). Deliberately dependency-free, and kept honest
          against resolveTheme() in theme.ts by theme-first-paint.test.ts, which
-         runs this exact text. -->
+         runs this exact text. With nothing stored, the OS decides (#885). -->
     <script>
       (function () {
-        var stored = null;
+        var stored = null, light = false;
         // `window.localStorage` is a GETTER that throws where site data is
         // blocked, so the property read is inside the try, not just getItem.
         // A refused store must cost a preference and never the boot.
         try { stored = window.localStorage.getItem("agent-dag.theme"); } catch (e) {}
-        document.documentElement.setAttribute("data-theme", stored === "light" ? "light" : "dark");
+        // No choice stored: follow the OS. Guarded the same way, because an
+        // embed without matchMedia must not stop the parse either.
+        try { light = window.matchMedia("(prefers-color-scheme: light)").matches; } catch (e) {}
+        document.documentElement.setAttribute("data-theme",
+          stored === "light" || (stored !== "dark" && light) ? "light" : "dark");
       })();
     </script>
   </head>
