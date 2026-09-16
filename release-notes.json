@@ -40,6 +40,32 @@
     "note to the author and never a release."
   ],
   "//nothing-to-say": [],
+  "3.23.0": [
+    {
+      "title": "🧭 The accounts column leads with accounts",
+      "body": "The live account is the open row: its windows as bars, when each one resets, and how old the numbers are. Every other account rests on the two figures a switch is decided by, and opens with a click when you want the rest.\n\nA problem stays on the row — an expired login, one that was never stored, a keychain the deck cannot open — with the reason and the sign-in one press away. Auto-switch is one row now: its threshold and its switch. Local network moved out of the column into a view of its own, reached from a row at the foot that says how many machines are paired and how many are not responding."
+    },
+    {
+      "title": "💬 A resting session shows Claude Code's recap beside its card",
+      "body": "When a session stops, Claude Code's own recap of what it did is drawn beside the card — so a board you come back to says what happened without opening anything."
+    },
+    {
+      "title": "🪟 The chrome went quiet",
+      "body": "The topbar is borderless, one set of corners runs through the app, the canvas ground is flat, and the minimap, the zoom controls, the type filter and the Machine and Usage panels read as tooling rather than as cards.\n\nThe canvas also says when auto-fit is off, with one press to bring new sessions back into view."
+    },
+    {
+      "title": "🔍 A tool call's detail reads as the call",
+      "body": "A tool call's arguments are shown as the call rather than as escaped JSON, and can be copied."
+    },
+    {
+      "title": "🔐 Saying yes to every deck that asks takes two presses",
+      "body": "The switch that accepts every pairing request arms first and says what it hands over, so one stray click cannot put this machine's logins on another deck."
+    },
+    {
+      "title": "🖐️ Targets, themes and contrast",
+      "body": "The panel's smallest controls reach the 24px target floor, and grow further under a finger. A first run follows the system's light or dark setting instead of picking one. Status dots, meters and switch knobs survive a Windows Contrast theme."
+    }
+  ],
   "3.22.15": [
     {
       "title": "🖱️ Clicking a card opens its details",
