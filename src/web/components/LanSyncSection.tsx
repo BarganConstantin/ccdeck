@@ -1036,40 +1036,44 @@ async function post(url: string, body: Record<string, unknown>) {
  * THE WAY IN, IN ONE LINE — what the accounts view says about this section from
  * the foot of the column, where the machines are no longer drawn.
  *
- * It answers the two questions a reader has before deciding to go in: is this
- * on, and is anything wrong. So it counts the paired machines and, in the
- * warning ink, the ones not responding — the same rows the list and its fold
- * are drawn from — and it gives way to the one state waiting on this keyboard:
- * a deck asking to pair.
+ * It answers the question a reader has before deciding to go in — how many of
+ * the paired machines are on right now — and it gives way to the one state
+ * waiting on this keyboard: a deck asking to pair.
  *
- * PRESENCE IS THE COUNT THAT LEADS, because `8 paired` is a fact about a
- * decision taken once and the reader is asking how many of those machines are
- * switched on NOW — the same question the rows inside answer with `online`,
- * and the reason this line moves while nobody presses anything. The pairing
- * count stays as the denominator, so the row still says how big the fleet is.
- * Asked for from a screenshot of `8 paired · 1 not responding`, which left the
- * other seven unaccounted for.
+ * PRESENCE IS THE COUNT, because `8 paired` is a fact about a decision taken
+ * once and the reader is asking how many of those machines are switched on
+ * NOW — the same question the rows inside answer with `online`, and the reason
+ * this line moves while nobody presses anything. The pairing count stays as the
+ * denominator, so the row still says how big the fleet is. Asked for from a
+ * screenshot of `8 paired · 1 not responding`, which left the other seven
+ * unaccounted for.
+ *
+ * AND NO FAULT COUNT BESIDE IT. That same row carried `· 1 not responding` in
+ * warning ink, and once presence leads, a deck that has timed out is already
+ * missing from `1 of 8 online` — so the amber restated an absence the count had
+ * just stated, in the one colour that means act on this, from a view where
+ * there is nothing to act on. WHICH machine and WHY is a press away, and the
+ * list still counts it there under its own fold. Dropped at the user's asking.
  */
 export function entryLine(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null } | null,
   rows: DeckRow[],
-): { text: string; tone: "bad" | "idle" | "ok" | "wait"; trouble: number } {
-  if (!s) return { text: "checking…", tone: "idle", trouble: 0 };
-  if (!s.enabled) return { text: "Off", tone: "idle", trouble: 0 };
-  if (s.stalled) return { text: "could not start", tone: "bad", trouble: 0 };
-  if (!s.running) return { text: "starting…", tone: "wait", trouble: 0 };
+): { text: string; tone: "bad" | "idle" | "ok" | "wait" } {
+  if (!s) return { text: "checking…", tone: "idle" };
+  if (!s.enabled) return { text: "Off", tone: "idle" };
+  if (s.stalled) return { text: "could not start", tone: "bad" };
+  if (!s.running) return { text: "starting…", tone: "wait" };
   const asks = rows.filter(r => r.kind === "asks").length;
-  if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait", trouble: 0 };
+  if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait" };
   const paired = rows.filter(r => r.kind === "paired");
-  const trouble = rows.filter(r => r.kind !== "asks" && r.tone === "bad").length;
-  if (!paired.length) return { text: "On · none paired yet", tone: "idle", trouble };
+  if (!paired.length) return { text: "On · none paired yet", tone: "idle" };
   // `here` is the row's own presence — the dot the list draws — so the two
   // places cannot disagree about who is on.
   const online = paired.filter(r => r.here).length;
-  if (!online) return { text: `none of ${paired.length} online`, tone: "idle", trouble };
+  if (!online) return { text: `none of ${paired.length} online`, tone: "idle" };
   // A fleet that is all there does not need the arithmetic said out loud.
-  if (online === paired.length) return { text: `${online} online`, tone: "ok", trouble };
-  return { text: `${online} of ${paired.length} online`, tone: "ok", trouble };
+  if (online === paired.length) return { text: `${online} online`, tone: "ok" };
+  return { text: `${online} of ${paired.length} online`, tone: "ok" };
 }
 
 export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBack, closeButton }: {
@@ -1455,7 +1459,6 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
             <span className="ap-nav-name">Local network</span>
             <span className="ap-nav-state" data-tone={entry.tone}>
               {entry.text}
-              {entry.trouble > 0 && <span className="ap-nav-bad">{" · "}{entry.trouble} not responding</span>}
             </span>
           </span>
           <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"

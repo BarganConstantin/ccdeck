@@ -7785,7 +7785,7 @@ button.qb-pace::after {
 .ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
-.ap-nav-state[data-tone="bad"], .ap-nav-bad { color: var(--warn); }
+.ap-nav-state[data-tone="bad"] { color: var(--warn); }
 .ap-nav-state[data-tone="wait"] { color: var(--accent); }
 .ap-nav-chev {
   flex: none;

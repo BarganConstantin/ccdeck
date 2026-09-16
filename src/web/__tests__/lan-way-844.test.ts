@@ -29,7 +29,7 @@ const on = { enabled: true, running: true };
 
 describe("what the way in says (#844)", () => {
   it("says it is checking until the section has read its own state, and Off while it is off", () => {
-    expect(entryLine(null, [])).toEqual({ text: "checking…", tone: "idle", trouble: 0 });
+    expect(entryLine(null, [])).toEqual({ text: "checking…", tone: "idle" });
     expect(entryLine({ enabled: false }, [row("paired")]).text).toBe("Off");
   });
 
@@ -39,28 +39,39 @@ describe("what the way in says (#844)", () => {
   });
 
   it("gives way to a deck asking to pair, which is waiting on this keyboard", () => {
-    expect(entryLine(on, [row("asks", "wait"), row("paired", "bad")])).toEqual({ text: "1 deck wants to pair", tone: "wait", trouble: 0 });
+    expect(entryLine(on, [row("asks", "wait"), row("paired", "bad")])).toEqual({ text: "1 deck wants to pair", tone: "wait" });
     expect(entryLine(on, [row("asks", "wait"), row("asks", "wait")]).text).toBe("2 decks want to pair");
   });
 
   it("leads with how many paired machines are on, out of how many there are", () => {
-    // The same rows the list and its fold are drawn from: an address being
-    // dialled that never answers is not paired, and it is not responding.
+    // Only the paired machines are the fleet: an address still being dialled
+    // has no machine behind it yet, and a stranger is not shared with.
     const rows = [row("paired"), row("paired"), row("paired", "bad"), row("dialling", "bad"), row("nearby", "idle")];
-    expect(entryLine(on, rows)).toEqual({ text: "2 of 3 online", tone: "ok", trouble: 2 });
-    expect(entryLine(on, [row("nearby", "idle")])).toEqual({ text: "On · none paired yet", tone: "idle", trouble: 0 });
+    expect(entryLine(on, rows)).toEqual({ text: "2 of 3 online", tone: "ok" });
+    expect(entryLine(on, [row("nearby", "idle")])).toEqual({ text: "On · none paired yet", tone: "idle" });
   });
 
   it("drops the arithmetic when the whole fleet is there, and says so when none of it is", () => {
-    expect(entryLine(on, [row("paired"), row("paired")])).toEqual({ text: "2 online", tone: "ok", trouble: 0 });
-    // Paired, switched off, and nothing has failed: not a fault, so not the
-    // warning ink — but not `2 online` either, which was the old line's lie.
+    expect(entryLine(on, [row("paired"), row("paired")])).toEqual({ text: "2 online", tone: "ok" });
     const off = [row("paired", "idle", false), row("paired", "idle", false)];
-    expect(entryLine(on, off)).toEqual({ text: "none of 2 online", tone: "idle", trouble: 0 });
+    expect(entryLine(on, off)).toEqual({ text: "none of 2 online", tone: "idle" });
     // Presence is the row's own `here`, not its tone: a deck that is on and
     // whose last round failed is still one of the machines that are there.
     expect(entryLine(on, [row("paired", "bad", true), row("paired", "idle", false)]))
-      .toEqual({ text: "1 of 2 online", tone: "ok", trouble: 1 });
+      .toEqual({ text: "1 of 2 online", tone: "ok" });
+  });
+
+  it("counts no faults on the way in: a deck not responding is already not online", () => {
+    // The amber `· 1 not responding` sat beside the presence count and restated
+    // an absence that count had stated, in the colour that means act on this,
+    // from the one view where there is nothing to act on. Which machine, and
+    // why, is a press away — and the list still counts it under its own fold.
+    const failing = [row("paired", "bad", false), row("paired"), row("dialling", "bad", false)];
+    expect(entryLine(on, failing)).toEqual({ text: "1 of 2 online", tone: "ok" });
+    expect(lan).not.toMatch(/ap-nav-bad|not responding<\/span>\}/);
+    expect(css).not.toMatch(/\.ap-nav-bad/);
+    // The fold inside the view keeps its own count, which is where it belongs.
+    expect(lan).toMatch(/\{" · "\}\{troubled\} not responding/);
   });
 });
 
@@ -68,7 +79,7 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
     expect(lan).toMatch(/if \(!view\) \{\s*return \(\s*<div className="ap-foot">\s*<button type="button" id="ap-lan-entry" className="ap-nav" onClick=\{onOpen\}>/);
     expect(lan).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
-    expect(lan).toMatch(/\{entry\.trouble > 0 && <span className="ap-nav-bad">\{" · "\}\{entry\.trouble\} not responding<\/span>\}/);
+    expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>\s*\{entry\.text\}/);
   });
 
   it("comes after the roster and the policy row, and is the only place the network's state is said", () => {
