@@ -7785,15 +7785,19 @@ button.qb-pace::after {
 .ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
-/* LIVE, IN THE COLOUR THIS APP ALREADY SPENDS ON LIVE. Cyan and not green:
-   `--ok` is this sheet's word for DONE — the finished tool call, the done
-   session, the version banner that has landed — and a machine being switched on
-   is not a thing that has finished. The accounts above this row mark the live
-   account with `var(--accent)` in `.ap-live`, and the machines one press away
-   draw the same dot, so the column says present in one colour throughout.
+/* ON, IN THE COLOUR THE MACHINES THEMSELVES ARE ALREADY DRAWN IN. `--ok`, not
+   the accent: one press away, `.ap-lan-who .ap-pulse` paints every deck that is
+   on in exactly this green, and a summary that recoloured the same fact would
+   make a reader check whether the two were counting different things. Green is
+   this sheet's word for DONE elsewhere — a finished tool call, a landed
+   version — and that reading does not collide here, where the noun is a machine
+   and the only question asked of it is whether it is there.
+
+   The accent stays what it is in the column above: the LIVE ACCOUNT, which is a
+   choice this deck has made, not a machine reporting in.
 
    STILL, WHERE THE ROWS INSIDE PING. `.ap-pulse` earns its ring on a list where
-   the reader is looking for one machine among many; this is a summary of all of
+   the reader is hunting one machine among many; this is a summary of all of
    them, at the foot of a panel about something else, and a pulse there is
    motion in the corner of the eye with nothing to find. */
 .ap-nav-live {
@@ -7803,7 +7807,7 @@ button.qb-pace::after {
   margin-right: 6px;
   vertical-align: 1px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ok);
 }
 .ap-nav-state[data-tone="bad"] { color: var(--warn); }
 .ap-nav-state[data-tone="wait"] { color: var(--accent); }

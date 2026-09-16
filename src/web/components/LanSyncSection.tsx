@@ -1557,9 +1557,14 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
           // a tap would open a card the tap is already replacing with the view.
           onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
           onPointerLeave={shutPeek}
-          // Focus is deliberate, so it opens at once — and the keyboard is told
-          // what the pointer is told, which is the whole of hover's a11y debt.
-          onFocus={() => openPeek(0)}
+          // A KEYBOARD'S FOCUS, NOT EVERY FOCUS. The keyboard is owed what the
+          // pointer is shown, which is the whole of hover's a11y debt — but
+          // `Back` hands focus to this row programmatically, and that hand-back
+          // is not somebody asking to see the card. It opened one anyway, with
+          // the pointer up in the header where Back was, and it stayed open
+          // because nothing was ever going to blur or leave it. `:focus-visible`
+          // is the browser's own answer to which of the two happened.
+          onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
           // AND NO ESCAPE HANDLER. Escape is for a surface a reader is stuck
           // inside; this one holds no focus, takes no pointer and covers
           // nothing that can be pressed — there is nothing to escape from, and

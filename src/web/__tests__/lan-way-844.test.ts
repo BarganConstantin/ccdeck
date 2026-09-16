@@ -81,10 +81,13 @@ describe("one way in, at the foot of the accounts (#844)", () => {
     expect(lan).toMatch(/onClick=\{\(\) => \{ shutPeek\(\); onOpen\(\); \}\}/);
     expect(lan).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
     expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>/);
-    // The mark for present, drawn only while somebody is present, and in this
-    // app's colour for live. NOT --ok: green is this sheet's word for DONE.
+    // The mark for present, drawn only while somebody is present, in the green
+    // the machines themselves wear one press away — see `.ap-lan-who .ap-pulse`.
+    // Recolouring the same fact between the summary and the list would make a
+    // reader check whether the two were counting different things.
     expect(lan).toMatch(/\{entry\.live && <i className="ap-nav-live" aria-hidden \/>\}/);
-    expect(/\n\.ap-nav-live \{([^}]*)\}/.exec(css)?.[1] ?? "").toMatch(/background: var\(--accent\)/);
+    expect(/\n\.ap-nav-live \{([^}]*)\}/.exec(css)?.[1] ?? "").toMatch(/background: var\(--ok\)/);
+    expect(css).toMatch(/\.ap-lan-who \.ap-pulse \{ color: var\(--ok\)/);
     // A summary of every machine does not ping; the machines themselves do.
     expect(css).not.toMatch(/\.ap-nav-live[^{]*\{[^}]*animation/);
   });
@@ -126,7 +129,11 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
   it("opens after a delay for a mouse and at once for focus, and shuts on either leaving", () => {
     expect(lan).toMatch(/onPointerEnter=\{e => \{ if \(e\.pointerType === "mouse"\) openPeek\(PEEK_DELAY_MS\); \}\}/);
     expect(lan).toMatch(/onPointerLeave=\{shutPeek\}/);
-    expect(lan).toMatch(/onFocus=\{\(\) => openPeek\(0\)\}/);
+    // A keyboard's focus only: Back hands focus to this row on the way out of
+    // the view, and a card opened by that hand-back has no pointer to leave it
+    // and no blur coming — it just sits there. Reported from a screenshot of
+    // exactly that.
+    expect(lan).toMatch(/onFocus=\{e => \{ if \(e\.target\.matches\(":focus-visible"\)\) openPeek\(0\); \}\}/);
     expect(lan).toMatch(/onBlur=\{shutPeek\}/);
     // A pointer that leaves before the delay fires cancels it, rather than
     // opening a card the pointer has already walked away from.
