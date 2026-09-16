@@ -1,9 +1,22 @@
-// #828: "Say yes to every deck that asks" paired any deck on the network from
-// one unguarded press, on a switch drawn exactly like the harmless "Ask every
-// deck this one finds" beside it. One mis-toggle offered the logins this deck
-// shares to any machine that asked. Turning it on now costs two presses, the
-// way unpair does; it wears --warn, armed and on; and the line under the
-// switches says what it gives away in those words. Turning it off is one press.
+// #828 AND ITS REVERSAL, IN ONE PLACE.
+//
+// What #828 found: "Say yes to every deck that asks" paired any deck on the
+// network from one unguarded press, on a switch drawn exactly like the harmless
+// "Ask every deck this one finds" beside it. One mis-toggle offered the logins
+// this deck shares to any machine that asked. It answered that with three
+// things — a second press to turn it on, --warn on the switch, and a line under
+// it saying what it gives away.
+//
+// What changed on 2026-09-16, at the owner's asking: the switch ships ON, so
+// the second press no longer stood between a reader and a state their deck was
+// not already in. It stood between them and the state it WAS in — and the
+// direction people actually reach for it, turning it off, was never armed. A
+// first press that does nothing visible reads as broken, and that is how it was
+// reported.
+//
+// So the arming is gone and the other two stay. This file holds the line: one
+// press either way, the warning ink, and the sentence that names what is given
+// away. It also pins that nothing else grew a second press in its place.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -22,46 +35,53 @@ const button = (label: string): string => {
 const yes = button("Say yes to every deck that asks");
 const ask = button("Ask every deck this one finds");
 
-describe("saying yes for everybody takes two presses (#828)", () => {
-  it("arms on the first press instead of writing, and only when turning it on", () => {
-    expect(yes).toMatch(/if \(!says && !armedAccept\) \{ setArmedAccept\(true\); armedAt\.current = Date\.now\(\); return; \}/);
-    // The write that follows is the same one, so turning it off stays one press.
-    expect(yes).toMatch(/setArmedAccept\(false\);\s*void write\(\s*\{ autoAccept: !says \}/);
+describe("one press, in both directions (#828, reversed)", () => {
+  it("writes on the first press, the way the switch beside it does", () => {
+    expect(yes).toMatch(/onClick=\{\(\) => void write\(\s*\{ autoAccept: !says \}/);
+    // The shape that made it read as broken: a first press that armed instead
+    // of writing, and a second that wrote.
+    expect(MODAL).not.toMatch(/armedAccept|setArmedAccept|CONFIRM_GAP_MS/);
   });
 
-  it("does not take a double-click or a held key as the second press", () => {
-    expect(yes).toMatch(/armedAccept && Date\.now\(\) - armedAt\.current < CONFIRM_GAP_MS\) return;/);
-    expect(MODAL).toMatch(/import \{ CONFIRM_GAP_MS, [^}]*\} from "\.\/LanSyncSection";/);
+  it("keeps a held key from being two decisions", () => {
+    // The one guard that survives, because it is about the keyboard repeating
+    // rather than about the reader hesitating.
     expect(yes).toMatch(/onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);
   });
 
-  it("stands down on its own, the way an armed unpair does", () => {
-    expect(MODAL).toMatch(/window\.setTimeout\(\(\) => setArmedAccept\(false\), 4_000\)/);
-  });
-
-  it("marks only this switch as the one that gives something away", () => {
-    expect(yes).toMatch(/data-tone="warn"/);
-    expect(yes).toMatch(/data-armed=\{armedAccept \|\| undefined\}/);
-    expect(ask).not.toMatch(/data-tone|data-armed/);
+  it("leaves nothing behind that armed a switch", () => {
+    // The edge and knob the armed state wore. A rule no markup can reach is a
+    // rule that outlives its reason.
+    expect(css).not.toMatch(/\.switch\[data-armed/);
+    expect(MODAL).not.toMatch(/data-armed/);
   });
 });
 
-describe("it looks and reads like what it does (#828)", () => {
-  it("fills with --warn when on, and edges its track and knob with it while armed", () => {
+describe("it still looks and reads like what it does (#828)", () => {
+  it("marks only this switch as the one that gives something away", () => {
+    expect(yes).toMatch(/data-tone="warn"/);
+    expect(ask).not.toMatch(/data-tone|data-armed/);
+  });
+
+  it("fills with --warn when on", () => {
     expect(css).toMatch(/\.switch\[data-tone="warn"\]\[aria-checked="true"\] \{ border-color: var\(--warn\); background: var\(--warn\); \}/);
-    expect(css).toMatch(/\.switch\[data-armed="true"\],\s*\.switch\[data-armed="true"\]:hover:not\(:disabled\) \{ border-color: var\(--warn\); \}/);
-    expect(css).toMatch(/\.switch\[data-armed="true"\] \.switch-knob,\s*\.switch\[data-armed="true"\]:hover:not\(:disabled\) \.switch-knob \{ background: var\(--warn\); \}/);
     // After the shared hover rule, so a pointer resting on it keeps the warning.
     expect(css.indexOf('.switch[data-tone="warn"]')).toBeGreaterThan(css.indexOf(".switch:hover:not(:disabled) {"));
   });
 
-  it("says what it gives away, armed and on, in the line under the switches", () => {
-    const line = /<p className=\{armedAccept \|\| says \? "lan-warn" : "lan-note"\} aria-live="polite">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
-    const [armed, on] = [...line.matchAll(/<>([\s\S]*?)<\/>/g)].map(m => m[1].replace(/\s+/g, " ").trim());
-    expect(armed).toMatch(/^Press the switch again to turn it on\./);
-    for (const said of [armed, on]) {
-      expect(said).toMatch(/Any deck on this network that asks/);
-      expect(said).toMatch(/offered any login ticked above, without you being asked\./);
-    }
+  it("says what it gives away while it is on, in those words", () => {
+    const line = /<p className=\{says \? "lan-warn" : "lan-note"\} aria-live="polite">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
+    const said = (/<>([\s\S]*?)<\/>/.exec(line)?.[1] ?? "").replace(/\s+/g, " ").trim();
+    expect(said).toMatch(/Any deck on this network that asks/);
+    expect(said).toMatch(/offered any login ticked above, without you being asked\./);
+  });
+
+  it("names the gate that the default rests on, where the default is written", () => {
+    // The whole argument for shipping it on: pairing is a name in a list, and
+    // a paired deck is offered nothing until somebody ticks a login. If that
+    // ever stops being true, this reads as the place that said it was.
+    const prefs = read("../../server/deck-prefs.mjs");
+    expect(prefs).toMatch(/autoAccept: true,/);
+    expect(prefs).toMatch(/offered NOTHING until somebody ticks a\s+\/\/ login here/);
   });
 });

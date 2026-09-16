@@ -114,14 +114,13 @@ describe("the shape on disk", () => {
     // `port` is 0 until this deck has listened once. It is remembered so an
     // address typed on the other machine still reaches this one after a
     // restart — broadcast not arriving is the whole reason that field exists.
-    // Asking ships ON and saying yes ships OFF, which is what makes a feature
-    // that is on by default safe to leave on: a deck is found and asked without
-    // anybody pressing anything, and somebody at the other machine still
-    // presses accept. `shared` is empty either way, so a deck that pairs is
-    // offered nothing until a person ticks a login.
+    // Asking and saying yes both ship ON, so two decks on one network pair
+    // without anybody walking to either machine. What keeps that safe is the
+    // next field and not this one: `shared` is empty, so a deck that pairs is
+    // offered nothing until a person ticks a login here.
     expect(normalise({}).lan).toEqual({
       enabled: true, name: "", secret: "", shared: [], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: false, aliases: {}, shareActive: true,
+      autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
@@ -144,7 +143,7 @@ describe("the shape on disk", () => {
     const saved = JSON.parse(staged[0].body) as Record<string, unknown>;
     expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], manual: [], trusted: [], port: 0,
-      autoAsk: true, autoAccept: false, aliases: {}, shareActive: true,
+      autoAsk: true, autoAccept: true, aliases: {}, shareActive: true,
     });
   });
 

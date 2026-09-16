@@ -1034,16 +1034,13 @@ button:focus-visible { outline-offset: 1px; }
   transform: translate(-50%, -50%);
 }
 /* A switch whose on gives something away (#828: saying yes to every deck that
-   asks). On, it fills with --warn rather than the accent; waiting for its
-   second press, its edge and knob take --warn, so "one more press does it" is
-   drawn on the control and not only said under it. After the shared hover
-   rules, so the pointer resting on it after the first press does not wash the
-   warning back out. */
+   asks). It fills with --warn rather than the accent, so the one switch in the
+   dialog that hands something to another machine does not look like the one
+   beside it that does not. The armed edge that used to go with it is gone: the
+   setting ships on, and a second press only ever stood between a reader and the
+   state their deck was already in. After the shared hover rules, so a pointer
+   resting on it does not wash the warning back out. */
 .switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
-.switch[data-armed="true"],
-.switch[data-armed="true"]:hover:not(:disabled) { border-color: var(--warn); }
-.switch[data-armed="true"] .switch-knob,
-.switch[data-armed="true"]:hover:not(:disabled) .switch-knob { background: var(--warn); }
 
 /* A setting and the line that says what it covers. 4px, not the group's 10px:
    the note belongs TO the switch above it, and the gap is the only thing left
@@ -12126,9 +12123,7 @@ input, textarea { caret-color: var(--accent); }
   /* The track keeps its forced border either way; the knob is what moves, so
      it is what has to survive, and the track fills when the switch is on. */
   .switch-knob,
-  .switch:hover:not(:disabled) .switch-knob,
-  .switch[data-armed="true"] .switch-knob,
-  .switch[data-armed="true"]:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
+  .switch:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
   .switch[aria-checked="true"],
   .switch[aria-checked="true"]:hover:not(:disabled),
   .switch[data-tone="warn"][aria-checked="true"],

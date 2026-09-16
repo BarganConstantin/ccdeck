@@ -334,7 +334,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     // roster is built on. What earns a line is a deck behaving differently from
     // its default, and that difference is what a reader opened this to check.
     // One line, always present, so a screen reader hears it change.
-    expect(MODAL).toMatch(/<p className=\{armedAccept \|\| says \? "lan-warn" : "lan-note"\} aria-live="polite">/);
+    expect(MODAL).toMatch(/<p className=\{says \? "lan-warn" : "lan-note"\} aria-live="polite">/);
     // Yellow is spent on one thing (#828): saying yes to every deck that asks,
     // armed or on, which is off as shipped. The dialog used to carry two
     // paragraphs of it under controls whose labels said the same, and a surface

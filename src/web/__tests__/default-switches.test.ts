@@ -25,17 +25,19 @@ describe("the switches a deck starts with", () => {
     expect(DEFAULTS.notifications).toBe(false);
   });
 
-  it("pairs only when somebody at the other machine says yes", () => {
-    // The half that had to change with `enabled`. Auto-accept is the accept
-    // button pressed in advance, which was a fair trade while the only decks on
-    // the network were ones somebody had switched on themselves. On by default,
-    // every ccdeck in an office or a café would pair with every other one in
-    // silence — and a login ticked later goes to everything paired.
-    expect(DEFAULTS.lan.autoAccept).toBe(false);
+  it("pairs on its own, and still offers nothing until a login is ticked", () => {
+    // REVERSED 2026-09-16, at the owner's asking. 3.22.7 shipped auto-accept
+    // OFF so that an office full of decks would not pair in silence. What that
+    // cost the person the feature is for: three of their own machines find each
+    // other, each raises a request, and nothing happens until somebody walks to
+    // each machine and presses accept — the manual steps `autoAsk` exists to
+    // remove, moved one press along.
+    expect(DEFAULTS.lan.autoAccept).toBe(true);
     expect(DEFAULTS.lan.autoAsk).toBe(true);
-    expect(normalise({}).lan.autoAccept).toBe(false);
-    // Nothing is offered to a paired deck until a person ticks a login, which
-    // is the gate that did not change.
+    expect(normalise({}).lan.autoAccept).toBe(true);
+    // THE GATE THAT DID NOT CHANGE, and the reason the above is survivable:
+    // pairing is a name in a list, and nothing is offered to a paired deck
+    // until a person ticks a login here.
     expect(normalise({}).lan.shared).toEqual([]);
   });
 
@@ -43,8 +45,9 @@ describe("the switches a deck starts with", () => {
     expect(normalise({ lan: { enabled: false } }).lan.enabled).toBe(false);
     expect(normalise({ notifications: true }).notifications).toBe(true);
     expect(watchNormalise({ enabled: false }).enabled).toBe(false);
-    // And the other way: a deck that turned auto-accept on keeps it.
-    expect(normalise({ lan: { autoAccept: true } }).lan.autoAccept).toBe(true);
+    // And the other way: a deck on a network it does not own turned auto-accept
+    // off, and an upgrade does not turn it back on.
+    expect(normalise({ lan: { autoAccept: false } }).lan.autoAccept).toBe(false);
   });
 
   it("lets the machine keep the LAN off whatever the file says", () => {

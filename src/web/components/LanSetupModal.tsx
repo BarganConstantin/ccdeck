@@ -45,7 +45,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
-import { CONFIRM_GAP_MS, sameKeys, writeFailure } from "./LanSyncSection";
+import { sameKeys, writeFailure } from "./LanSyncSection";
 import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus } from "./LanSyncSection";
 
@@ -65,18 +65,18 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   const [failure, setFailure] = useState<string | null>(null);
   /** The fingerprint's copy word reads `copied` for a moment after it lands. */
   const [copied, setCopied] = useState(false);
-  /** Saying yes for everybody pairs any deck on the network that asks and
-   *  offers it the ticked logins, so turning it ON costs two presses (#828),
-   *  the way unpair does. Turning it off is one: that direction only ever takes
-   *  a permission back. */
-  const [armedAccept, setArmedAccept] = useState(false);
-  /** When it was armed, so a double-click cannot be its own confirmation. */
-  const armedAt = useRef(0);
-  useEffect(() => {
-    if (!armedAccept) return;
-    const t = window.setTimeout(() => setArmedAccept(false), 4_000);
-    return () => window.clearTimeout(t);
-  }, [armedAccept]);
+  // THE SECOND PRESS IS GONE, AND WITH IT #828's ARMING. That guard was built
+  // when saying yes shipped OFF: an unguarded press then took a deck from the
+  // shipped state to the giving-something-away one, and a mis-toggle was worth
+  // a confirmation. Now that it ships ON, the two presses only ever stood
+  // between somebody and the state their deck was already in — and the switch
+  // people actually reach for it with is the one that turns it OFF, which was
+  // never armed. A switch whose first press does nothing visible reads as
+  // broken, which is how it was reported.
+  //
+  // What survives is what the guard was really for: the label says what the
+  // switch does, --warn says it costs something, and the line under it says
+  // what is given away while it is on.
   /** WHICH control is working, not WHETHER one is. `pressState` is what tells
    *  "yours" from "somebody else's", and it needs a tag to do it: one boolean
    *  across the name field and every account tick would mark all of them as
@@ -321,52 +321,35 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   role="switch"
                   aria-checked={says}
                   aria-label="Say yes to every deck that asks"
-                  // The one switch here whose on gives something away: it
-                  // fills with --warn, and while it waits for its second press
-                  // its edge and knob say so (#828).
+                  // The one switch here whose on gives something away: it fills
+                  // with --warn, on either press, from the first one.
                   data-tone="warn"
-                  data-armed={armedAccept || undefined}
                   {...pressProps("accept")}
                   // A held key is one decision, as it is on unpair.
                   onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-                  onClick={() => {
-                    if (!says && !armedAccept) { setArmedAccept(true); armedAt.current = Date.now(); return; }
-                    // A double-click is one decision, not two.
-                    if (armedAccept && Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
-                    setArmedAccept(false);
-                    void write(
-                      { autoAccept: !says },
-                      says ? "stop accepting automatically" : "accept every deck that asks",
-                      "accept",
-                    );
-                  }}
+                  onClick={() => void write(
+                    { autoAccept: !says },
+                    says ? "stop accepting automatically" : "accept every deck that asks",
+                    "accept",
+                  )}
                   title={says
                     ? "Stop saying yes for you. A deck that asks waits in the panel again."
-                    : armedAccept
-                      ? "Press again to turn it on."
-                      : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
+                    : "Say yes for you. Every deck on this network that asks is paired without anybody being asked here."}
                 >
                   <span className="switch-knob" />
                 </button>
               </div>
             </div>
             {/* ONE LINE UNDER THE TWO SWITCHES, always there, so a screen reader
-                hears it change: it is the only place the second press of the
-                yes switch is asked for. What earns it is a deck behaving
-                differently from its default. Since 3.22.7 the shipped state is
-                asking on and saying yes off, which gets the quiet first note.
-                Saying yes for everybody, armed or on, is the one state that
+                hears it change. Saying yes for everybody is the one state that
                 gives something away, and the only yellow in this dialog (#828):
                 any deck that asks is paired and offered the logins ticked above,
-                and the line says so in those words. */}
-            <p className={armedAccept || says ? "lan-warn" : "lan-note"} aria-live="polite">
-              {armedAccept ? (
-                <>
-                  Press the switch again to turn it on. Any deck on this network that asks
-                  would then be paired, and offered any login ticked above, without you
-                  being asked.
-                </>
-              ) : says ? (
+                and the line says so in those words. It is the shipped state
+                now, so the yellow is what a reader sees first — which is the
+                point of it: the sentence names the one thing to check before
+                ticking a login, and the switch above it is one press away. */}
+            <p className={says ? "lan-warn" : "lan-note"} aria-live="polite">
+              {says ? (
                 <>
                   Any deck on this network that asks is paired, and offered any login
                   ticked above, without you being asked.

@@ -88,18 +88,22 @@ export const DEFAULTS = Object.freeze({
     // which is what a person with three of their own machines wants and had to
     // do by hand six times.
     //
-    // Saying yes is OFF, and that is the half that had to change when `enabled`
-    // did. Auto-accept is the accept button pressed in advance, and it was a
-    // fair trade while every deck on the network belonged to somebody who had
-    // switched this on deliberately. With the feature on for everybody, every
-    // ccdeck in an office would pair with every other one in silence — and a
-    // login ticked later goes to everything paired. So a pairing takes one
-    // press of accept on the machine that was asked.
+    // SAYING YES IS ON TOO, WHICH REVERSES WHAT 3.22.7 DECIDED. It shipped off
+    // then, on the argument that every ccdeck in an office would otherwise pair
+    // with every other one in silence. What that argument left out is what the
+    // off state costs the person this feature is for: three of their own
+    // machines find each other, each raises a request, and nothing happens
+    // until somebody walks to each machine and presses accept — the manual
+    // steps `autoAsk` exists to remove, moved one press along. The owner asked
+    // for it on, 2026-09-16.
     //
-    // `shared` is empty either way, so a deck that pairs is offered nothing
-    // until somebody ticks a login: the gate that did not change.
+    // WHAT MAKES IT SURVIVABLE IS THE GATE THAT NEVER CHANGED: `shared` is
+    // empty, so a deck that pairs is offered NOTHING until somebody ticks a
+    // login here. Pairing is a name in a list; a login is the thing worth
+    // having, and it still takes a deliberate tick on this machine. A deck on a
+    // network it does not own turns this off in the dialog, in one press.
     autoAsk: true,
-    autoAccept: false,
+    autoAccept: true,
     // WHICH ACCOUNT THIS DECK IS ON, told to the decks it is paired with — and
     // only ever one it shares, so an unticked account is never named. On, so two
     // of one person's machines show each other where they are working; off, and
