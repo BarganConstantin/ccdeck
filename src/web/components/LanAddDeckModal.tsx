@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressAccepted, pressState } from "../panel-press";
+import LanReachNote from "./LanReachNote";
 import { leftLabel, parseAddress, writeFailure } from "./LanSyncSection";
 import type { LanStatus } from "./LanSyncSection";
 
@@ -221,13 +222,6 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
   }, []);
 
   const live = status.invite && status.invite.expiresAt > now ? status.invite : null;
-  const steps = status.reach?.steps ?? [];
-  // WHERE THE LINES GO, from the verdict rather than from a guess about the
-  // platform. Windows wants an elevated PowerShell and Linux an ordinary
-  // terminal with sudo in the lines themselves; saying "PowerShell" to
-  // somebody on Arch is worse than saying nothing, because it reads as a
-  // dialog meant for a different machine and the rest goes with it.
-  const sh = status.reach?.shell === "sh";
   // Every address this machine can be dialled at, with the one port that
   // answers on all of them. More than one is ordinary and none of them is
   // preferable from here — a peer on Tailscale cannot use the wifi address and
@@ -264,44 +258,10 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
               is answered by waiting and the second never is. What comes first is
               the way out that needs no firewall rule at all, because a round is
               one OUTBOUND connection — this deck dialling is the whole of it.
-              The command comes second, is optional, and is text: nothing here
-              runs it, for the reason relay-guard.mjs gives. */}
-          {status.reach?.blocked && (
-            <div className="ap-lan-reach">
-              <p className="lan-warn">{status.reach.text}</p>
-              <p className="lan-note">
-                Nothing here is stuck: whoever pastes an invite is the one dialling out.
-                Ask them for one and paste it below, or type their address.
-              </p>
-              {steps.length > 0 && (
-                <details className="ap-lan-reach-fix">
-                  <summary>or let them find this deck on their own</summary>
-                  <p className="lan-note">
-                    {sh ? (
-                      <>Run this in a terminal on this machine, then restart the deck.</>
-                    ) : (
-                      <>Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.</>
-                    )}
-                    {status.reach.category === "Public" && (
-                      <> The first line marks this network as a home or office one — leave it
-                      out on a network you do not trust.</>
-                    )}
-                    {/* The Linux verdict knows what it could not check, and says
-                        so here rather than letting the command imply a certainty
-                        it does not have. See LanReach.unsure. */}
-                    {status.reach.unsure && <> {status.reach.unsure}</>}
-                  </p>
-                  <pre className="ap-lan-cmd"><code>{steps.join("\n")}</code></pre>
-                  <button type="button" className="ap-manage-btn" {...pressProps("copy:fix")}
-                    onClick={() => void copyText(steps.join("\n"), "fix")}
-                    title={sh ? "Copy these lines, then paste them into a terminal"
-                      : "Copy these lines, then paste them into an elevated PowerShell"}>
-                    {copied === "fix" ? "copied" : "copy command"}
-                  </button>
-                </details>
-              )}
-            </div>
-          )}
+              The panel draws the same finding under the switch, out of the same
+              file: this dialog is where somebody who has already gone looking
+              lands, and that is too late to be the only place it is said. */}
+          <LanReachNote reach={status.reach} where="dialog" />
 
           {/* Both methods are heading, field, one sentence, and the sentence is
               the same question answered two ways: does anybody have to say yes.

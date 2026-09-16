@@ -10850,6 +10850,13 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
      and a heavier mark than anything else in this dialog wears. */
   background: color-mix(in srgb, var(--warn) 10%, transparent);
 }
+/* IN THE PANEL IT HANGS OFF THE SWITCH, which is the one difference the two
+   surfaces have in the sheet. In the dialog it is the first thing in a body
+   that supplies its own top edge; here it follows a control row, and a finding
+   pressed against the thing it is about reads as part of that control rather
+   than as the answer underneath it. One step, the same one the status line
+   below it keeps. */
+.ap-lan > .ap-lan-reach { margin-top: 10px; }
 .ap-lan-reach .lan-warn { margin: 0; }
 /* SECONDARY TEXT ON A TINTED SURFACE IS TINTED, NOT GREY. Measured, because it
    was wrong first: `--text-dim` clears 4.5:1 against the panel and only against

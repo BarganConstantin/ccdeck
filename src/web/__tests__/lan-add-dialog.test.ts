@@ -177,16 +177,33 @@ describe("this deck's own address", () => {
   });
 });
 
+/** The block both surfaces draw. It was written out inside this dialog and is
+ *  now one component, because the panel draws it too — under the switch, where
+ *  somebody finds out before concluding the feature is broken. The rules below
+ *  are about the block's substance, so they followed it; that there is exactly
+ *  one of it is pinned in lan-blocked-inbound. */
+const NOTE = readFileSync(
+  fileURLToPath(new URL("../components/LanReachNote.tsx", import.meta.url)),
+  "utf8",
+).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
 describe("where the firewall lines are pasted", () => {
   // PowerShell is Windows' word. Saying it to somebody on Arch reads as a
   // dialog meant for a different machine, and the rest of it goes with it.
   it("asks the verdict which shell it wrote for instead of assuming one", () => {
-    expect(ADD).toContain('status.reach?.shell === "sh"');
-    expect(ADD).toMatch(/Run this in a terminal/);
-    expect(ADD).toMatch(/Run this in PowerShell/);
+    expect(NOTE).toContain('reach.shell === "sh"');
+    expect(NOTE).toMatch(/Run this in a terminal/);
+    expect(NOTE).toMatch(/Run this in PowerShell/);
   });
 
   it("carries what the Linux verdict could not check", () => {
-    expect(ADD).toContain("status.reach.unsure");
+    expect(NOTE).toContain("reach.unsure");
+  });
+
+  // And this dialog still draws it: it is where somebody who has already gone
+  // looking for a way round the firewall lands, and the way round — the field
+  // that makes this deck dial out — is directly under it.
+  it("is still drawn here, above the field that is the way round it", () => {
+    expect(ADD).toMatch(/<LanReachNote reach=\{status\.reach\} where="dialog" \/>/);
   });
 });

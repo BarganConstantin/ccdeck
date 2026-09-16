@@ -15,7 +15,10 @@
 // is. On the machine nothing can reach, lan-reach says so before anybody else
 // has to work it out, and hands over the two lines that open the path.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { silenceNote } from "../components/LanSyncSection";
+import { REACH_WAY_OUT } from "../components/LanReachNote";
 // @ts-expect-error — plain .mjs server module, no types
 import { isActive, linuxFixSteps, linuxReach, readUfw, reachability } from "../../server/lan-reach.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -210,5 +213,76 @@ describe("which connection counts as proof", () => {
     // A v4 peer on a dual-stack listener arrives in v6 clothing.
     expect(anotherMachine("::ffff:192.168.1.205", mine)).toBe(true);
     expect(anotherMachine("::ffff:192.168.1.82", mine)).toBe(false);
+  });
+});
+
+// ── AND THE THIRD HALF: SAYING IT WHERE SOMEBODY IS LOOKING ─────────────────
+//
+// Both halves above shipped, and the same afternoon kept being reported. The
+// reason was not the verdict, which was right: it was drawn in exactly one
+// place, inside `+ add a deck` — a dialog somebody opens only once they have
+// decided the feature is broken and gone hunting for a way round it. A finding
+// behind a door arrives after the conclusion it exists to prevent.
+//
+// So it moved to the switch, and these are the rules that keep it there: drawn
+// in the panel, drawn out of ONE file rather than copied into two, pointing
+// each surface at the control that surface actually has — and measured again
+// when somebody presses the switch, rather than answered out of a cache filled
+// while the sockets were down.
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+/** Source with its comments taken out, so no rule here can be satisfied by a
+ *  paragraph that describes it. */
+const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+const PANEL = strip(read("../components/LanSyncSection.tsx"));
+const ADD = strip(read("../components/LanAddDeckModal.tsx"));
+const SERVER = strip(read("../../server/index.mjs"));
+
+describe("the finding is drawn where the switch is", () => {
+  it("hangs under the switch, and only while the section is on", () => {
+    expect(PANEL).toMatch(/<LanReachNote reach=\{status\?\.reach\} where="panel" \/>/);
+    // A deck with its sockets down is not a deck anything is failing to reach,
+    // so the verdict is not an answer it owes anybody yet.
+    expect(PANEL).toMatch(/\{on && <LanReachNote/);
+  });
+
+  it("is one block in one file, drawn by both surfaces", () => {
+    expect(ADD).toMatch(/<LanReachNote reach=\{status\.reach\} where="dialog" \/>/);
+    // The failure this guards is the ordinary one: a block that is four
+    // elements, a fold, a shell frame and a copy verb, maintained in two
+    // voices until the two disagree about what a blocked machine should do.
+    for (const [surface, src] of [["the panel", PANEL], ["the dialog", ADD]] as const) {
+      expect(src, `${surface} builds the block itself`).not.toMatch(/className="ap-lan-reach"/);
+      expect(src, `${surface} holds its own copy of the command frame`).not.toMatch(/ap-lan-cmd/);
+    }
+  });
+
+  it("points each surface at the control that surface has", () => {
+    // `below` is the dialog's word and only its: the paste field is directly
+    // under the block there. In the panel the same two ways in live behind the
+    // `+` in the header, so a sentence saying `below` would be the panel
+    // sending a reader to look at a field that is not on the screen.
+    expect(REACH_WAY_OUT.dialog).toMatch(/paste it below/);
+    expect(REACH_WAY_OUT.panel).not.toMatch(/below/);
+    expect(REACH_WAY_OUT.panel).toMatch(/\+/);
+    // And both keep the half that stops somebody concluding the feature is
+    // broken: a round is one OUTBOUND connection, so a deck nothing can reach
+    // still does every part of this by dialling.
+    for (const say of Object.values(REACH_WAY_OUT)) expect(say).toMatch(/dialling out/);
+  });
+});
+
+describe("the press is answered by a measurement, not by a cache", () => {
+  it("forgets the held verdict when somebody switches the section on", () => {
+    expect(SERVER).toMatch(/function forgetReach\(\) \{ reachAt = 0; \}/);
+    expect(SERVER).toMatch(/if \(body\.lan\?\.enabled === true\) forgetReach\(\);/);
+  });
+
+  it("forgets it again when the sync port lands, because the fix lines name it", () => {
+    // linuxFixSteps offers the TCP line only when there is a port to name, so a
+    // verdict taken before the listener had one is half an answer — and without
+    // this it would be the pinned one for the next five minutes.
+    const onPort = /onPort: async port => \{([\s\S]*?)\n  \},/.exec(SERVER)?.[1] ?? "";
+    expect(onPort, "onPort was not found in the server source").not.toBe("");
+    expect(onPort).toMatch(/forgetReach\(\)/);
   });
 });

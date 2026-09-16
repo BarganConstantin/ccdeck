@@ -43,6 +43,7 @@ import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
 import LanPeerModal from "./LanPeerModal";
+import LanReachNote from "./LanReachNote";
 import LanSetupModal from "./LanSetupModal";
 
 /** What a paired deck says about itself, sealed to paired decks only — see
@@ -1828,6 +1829,20 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                 <span className="switch-knob" />
               </button>
           </div>
+
+          {/* WHY NOTHING WILL EVER TURN UP, UNDER THE SWITCH THAT TURNED IT ON.
+              The verdict has been read off this machine since 3.23.2 and was
+              drawn in one place: inside `+ add a deck`, which a reader opens
+              only after deciding the feature is broken. So the deck knew, and
+              the report that came back was still "I switched it on and nobody
+              appeared". It belongs at the moment of the act — above the list it
+              explains the emptiness of, and above the status line, because the
+              status line says WHAT is happening and this says why it cannot.
+
+              Only while the section is ON: a deck with the sockets down is not
+              a deck anything is failing to reach, and the switch below would be
+              answering a question nobody has asked yet. */}
+          {on && <LanReachNote reach={status?.reach} where="panel" />}
 
             {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
                 question — should I turn this on — and a deck that is already on has

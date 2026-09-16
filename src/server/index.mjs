@@ -3727,6 +3727,10 @@ async function handlePrefsWrite(req, res) {
   // so turning the switch off in the panel really does stop the sockets rather
   // than only changing what the panel says.
   await applyLanPrefs();
+  // Somebody has just switched this on and is watching the panel for the answer
+  // to one question: is anything going to turn up. Whatever the probe said
+  // before is about a deck whose sockets were down — see forgetReach.
+  if (body.lan?.enabled === true) forgetReach();
   return send(res, 200, prefsPayload());
 }
 
@@ -3914,6 +3918,9 @@ const lanEngine = createEngine({
   onPort: async port => {
     try { _prefs = await writePrefs({ lan: { port } }); }
     catch { /* the address field still works this session; next start re-pins */ }
+    // The Linux fix lines name this number, so a verdict taken before the
+    // listener had one is missing half of them — see forgetReach.
+    forgetReach();
   },
   // A deck was accepted or unpaired. Written straight through, because the
   // trusted list is the whole of who this deck will talk to and a list that
@@ -4099,6 +4106,27 @@ async function probeLinux() {
     syncPort: lanEngine.status().port,
   };
 }
+
+/**
+ * Forget what the last probe said, so the next poll measures rather than
+ * answering out of the five-minute cache.
+ *
+ * TWO MOMENTS EARN IT, and both are moments where the held answer is about a
+ * machine in a different state from the one being asked about.
+ *
+ * A SWITCH-ON is the one somebody is watching. The panel starts polling every
+ * five seconds the instant it goes on, and without this the first several
+ * minutes of that are a verdict taken while the sockets were down — which is
+ * the exact question they turned it on to have answered. Five minutes is the
+ * right staleness for a firewall nobody is touching and the wrong one for the
+ * press that starts the feature.
+ *
+ * THE SYNC PORT LANDING changes what the answer CONTAINS on Linux: the fix
+ * lines name a TCP port (see linuxFixSteps), and a verdict taken before the
+ * listener had one offers the discovery line alone — half an answer, pinned for
+ * five minutes, on the machine that most needs the other half.
+ */
+function forgetReach() { reachAt = 0; }
 
 function refreshReach() {
   if (reachBusy || (process.platform !== "win32" && process.platform !== "linux")) return;
