@@ -296,30 +296,152 @@ export function linuxReach({ ufw = null, firewalld = false, inbound = null, sync
   };
 }
 
+// ── macos ───────────────────────────────────────────────────────────────────
+//
+// THE REVERSAL. This module used to say macOS was deliberately silent: the
+// firewall ships off, and when it is on it asks the person at the keyboard the
+// first time a program listens — so the answer was either "nothing is in the
+// way" or "somebody was shown a dialog and pressed a button".
+//
+// The second half of that is what gave way. A deck started from a terminal, or
+// by npx, or by a launch agent, is not always a program somebody is sitting in
+// front of when the question is asked, and a dialog nobody answers is a denial
+// that looks exactly like an empty list. And the answer IS readable. Measured
+// on macOS 26.6, as an ordinary user, no password and exit 0 on all four:
+// `--getglobalstate`, `--getblockall`, `--getstealthmode`, and
+// `--getappblocked <path>`.
+//
+// WHICH MAKES THIS THE BEST-INFORMED OF THE THREE PLATFORMS, not the worst.
+// ufw will not show its rules to anybody but root, so the Linux verdict reasons
+// from a default policy and says out loud that it could not check. This one can
+// ask the exact question — is an incoming connection to THIS binary permitted —
+// about the binary the listener actually runs as. So there is no `unsure` here,
+// because there is nothing it could not look at.
+//
+// WHAT IS NOT EVIDENCE, and the trap this nearly walked into: with the firewall
+// OFF, `--getappblocked` answers "is permitted" for every path handed to it,
+// including one that does not exist. Measured, and it is the reason the order
+// in macReach is load-bearing rather than tidy — the per-app answer means
+// nothing at all until the global state says the firewall is on.
+//
+// STEALTH MODE IS READ AND NOT ACTED ON. It drops unsolicited probes to ports
+// nothing is listening on, which is not this: a deck that is listening and
+// allowed still answers. Blaming it would send somebody to change a setting
+// that was never in the way.
+
+/** The application firewall's own tool. Not on PATH, and the full path is what
+ *  goes in the lines somebody pastes, so it is written once. */
+export const MAC_FW = "/usr/libexec/ApplicationFirewall/socketfilterfw";
+
+/**
+ * What the three reads said, as a verdict-shaped thing.
+ *
+ * Every field can come back null, which is this file's word for "the machine
+ * did not answer that" — a locked-down build, a future macOS that renamed the
+ * flag, a tool that is not there at all. Null travels to macReach and comes out
+ * as silence rather than as a guess.
+ */
+export function readMacProbe({ global: globalState, blockAll, app } = {}) {
+  // "Firewall is disabled. (State = 0)" / "Firewall is enabled. (State = 1)".
+  // The number is read rather than the adjective: it is the stable half of the
+  // sentence, and 2 is a third state that says enabled in words.
+  const state = /State\s*=\s*(\d+)/i.exec(String(globalState ?? ""))?.[1];
+  return {
+    on: state == null ? null : Number(state) > 0,
+    // "Firewall has block all state set to enabled." — the setting that turns
+    // every allowance off at once, including one this deck already has.
+    blockAll: /block all state set to enabled/i.test(String(blockAll ?? "")),
+    // "Incoming connection to <path> is permitted." / "... is blocked."
+    appBlocked: /is blocked/i.test(String(app ?? "")) ? true
+      : /is permitted/i.test(String(app ?? "")) ? false
+      : null,
+  };
+}
+
+/**
+ * The lines that open the path, as text.
+ *
+ * SCOPED TO THE PROGRAM, like the Windows rule and unlike the Linux ones: the
+ * application firewall has no notion of a port, which is what makes it the
+ * right shape here — the sync listener's port is a different number after some
+ * restarts, and a rule about the binary survives that.
+ *
+ * `--add` before `--unblockapp` because a binary the firewall has never heard
+ * of cannot be unblocked; adding one that is already listed changes nothing,
+ * so the pair is safe to paste twice.
+ */
+export function macFixSteps({ exePath, blockAll = false } = {}) {
+  const steps = [];
+  // First, because while it is on nothing else in this list has any effect.
+  if (blockAll) steps.push(`sudo ${MAC_FW} --setblockall off`);
+  steps.push(`sudo ${MAC_FW} --add "${exePath}"`);
+  steps.push(`sudo ${MAC_FW} --unblockapp "${exePath}"`);
+  return steps;
+}
+
+/**
+ * Whether other decks can reach this Mac, from what the application firewall
+ * says about this deck's own binary.
+ *
+ * Null for anything it could not read, and for the ordinary machine whose
+ * firewall is simply off — see the block above for why `appBlocked` is not
+ * consulted until `on` is true.
+ */
+export function macReach({ probe = null, exePath = "", inbound = null } = {}) {
+  // MEASURED BEATS READ, here as on the other two: a connection from another
+  // machine has arrived, so the path is open whatever the settings say.
+  if (inbound) return { blocked: false, why: "inbound seen", category: "", alias: "" };
+  if (!probe || probe.on == null) return null;
+  if (!probe.on) return { blocked: false, why: "firewall off", category: "", alias: "" };
+  // Both halves of the sentence, because the asymmetry is the confusing part:
+  // the other deck may already show this machine's name, which reads as a
+  // working connection and is not one.
+  const heard = " They can still hear it — that is why one of them may already show this machine.";
+  if (probe.blockAll) {
+    return {
+      blocked: true,
+      why: "block all incoming",
+      category: "",
+      alias: "",
+      shell: "sh",
+      text: "macOS is set to block all incoming connections, so other decks cannot reach this one." + heard,
+      steps: macFixSteps({ exePath, blockAll: true }),
+    };
+  }
+  if (probe.appBlocked === true) {
+    return {
+      blocked: true,
+      why: "app blocked",
+      category: "",
+      alias: "",
+      shell: "sh",
+      text: "The macOS firewall is refusing incoming connections to this deck, so other decks cannot reach it." + heard,
+      steps: macFixSteps({ exePath }),
+    };
+  }
+  if (probe.appBlocked === false) return { blocked: false, why: "app permitted", category: "", alias: "" };
+  return null;
+}
+
 /**
  * Whether other decks can reach this one, and what to do when they cannot.
  *
  * `null` means "no opinion", and it is the answer for every machine this cannot
- * speak about: anything that is neither Windows nor Linux, and any probe that
- * did not come back. Silence rather than a hedge — a panel line that says
- * "possibly" about a thing it did not measure is worse than no line.
- *
- * macOS is deliberately among the silent ones. Its firewall is off by default
- * and, when on, asks the person at the keyboard the first time a program
- * listens — so the answer is either "nothing is in the way" or "somebody was
- * shown a dialog and pressed a button", and neither is a thing to instruct
- * anybody about.
+ * speak about: anything that is none of the three platforms below, and any
+ * probe that did not come back. Silence rather than a hedge — a panel line that
+ * says "possibly" about a thing it did not measure is worse than no line.
  *
  * `blocked: false` is a real finding and is worth returning: it lets the panel
  * stop blaming the firewall for an empty list and say the other thing instead,
  * which is that nobody else is running.
  */
-export function reachability({ platform, probe, aliases = [], exePath = "", inbound = null, linux = null } = {}) {
-  // Two platforms, two entirely different reads — see the linux block above for
-  // why that one cannot be written in this one's shape. `inbound` is the one
-  // input both of them share: it is a measurement rather than a read, so it
-  // outranks whatever either platform's configuration says.
+export function reachability({ platform, probe, aliases = [], exePath = "", inbound = null, linux = null, mac = null } = {}) {
+  // Three platforms, three entirely different reads — see each block above for
+  // why none of them can be written in another's shape. `inbound` is the one
+  // input all of them share: it is a measurement rather than a read, so it
+  // outranks whatever any platform's configuration says.
   if (platform === "linux") return linux ? linuxReach({ ...linux, inbound }) : null;
+  if (platform === "darwin") return mac ? macReach({ probe: mac, exePath, inbound }) : null;
   if (platform !== "win32") return null;
   if (!probe) return null;
   // The broadcast route first, then the interfaces the deck holds an address
@@ -378,6 +500,63 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
  * the first try if the invite is minted at the other end and pasted here. Same
  * two controls, opposite order, and only one of the orders works.
  */
+// ── the machine nothing can be asked about ──────────────────────────────────
+//
+// Every block above depends on the operating system answering a question.
+// FreeBSD has nobody to ask; a Linux box running plain nftables has no ufw.conf
+// to read; a Windows probe comes back empty for a dozen policy reasons; a
+// hardened Mac can refuse the tool. All of them arrive at `reachability` as
+// null — which is honest, and no use at all to somebody watching an empty list.
+//
+// WHAT IS MEASURABLE ON ANY OF THEM. A beacon ARRIVING proves this machine
+// hears the network. `inboundAt` still null proves nothing has ever connected
+// in. Those two facts together are the exact shape of a blocked inbound path,
+// and neither of them asks the OS anything.
+//
+// SO IT IS A LAST RESORT, NOT A SECOND OPINION. It speaks only where a platform
+// verdict said nothing: a read of the actual configuration beats an inference
+// from silence every time, including when the read says the firewall is off and
+// the silence has some other cause this cannot name.
+
+/** How long this deck has to have been listening — hearing other machines and
+ *  receiving nothing — before the silence is worth reporting.
+ *
+ *  Deliberately many times over the interval anything would have dialled on: a
+ *  paired deck runs a round every SYNC_MS (60s) and a stranger that hears this
+ *  one asks within ASKING_MS (8s), autoAsk being on by default. Five minutes is
+ *  therefore dozens of missed chances rather than one — and the cost of getting
+ *  this wrong is telling somebody their network is broken when it is quiet. */
+export const QUIET_MS = 5 * 60_000;
+
+/**
+ * The verdict for a machine this file cannot read: measured, never read.
+ *
+ * WHAT IT REFUSES TO SAY. It names no firewall and offers no command, because
+ * it looked at no configuration and would be guessing at both. Everything it
+ * has is in the one sentence it returns, and the ways out the panel draws under
+ * it need no rule on this machine at all.
+ */
+export function silentInbound({ heard = 0, listeningSince = null, inbound = null, now = Date.now() } = {}) {
+  // Something got in, so the path is open — the same measurement that outranks
+  // a configuration read everywhere else in this file.
+  if (inbound) return null;
+  // Nobody is out there. "Nothing has arrived" and "nothing can arrive" are the
+  // two facts this whole module exists to tell apart, and with no beacon in
+  // hand this one is the first.
+  if (!heard) return null;
+  if (!listeningSince) return null;
+  const listening = now - listeningSince;
+  if (listening < QUIET_MS) return null;
+  const mins = Math.round(listening / 60_000);
+  return {
+    blocked: true,
+    why: "heard them, nothing got in",
+    category: "",
+    alias: "",
+    text: `This deck hears ${heard === 1 ? "another deck" : `${heard} other decks`} on the network and, in the ${mins} minutes it has been listening, nothing has ever connected to it — which is what a blocked inbound path looks like from this side. This machine cannot be asked which firewall it runs, so there is no line to paste.`,
+  };
+}
+
 export function workaround(blocked) {
   if (!blocked) return null;
   return {

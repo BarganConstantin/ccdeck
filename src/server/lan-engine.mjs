@@ -337,6 +337,17 @@ export function createEngine({
    */
   let inboundAt = null;
 
+  /** When this deck's listener came up, or null while it is down.
+   *
+   *  THE OTHER HALF OF `inboundAt`. On its own, "nothing has ever connected in"
+   *  says nothing: a deck that started four seconds ago has the same null as one
+   *  that has been listening all afternoon while the network talked around it.
+   *  What makes the silence evidence is how long it has gone on for, and that is
+   *  a number only the engine holds. See silentInbound in lan-reach.mjs, which
+   *  is the one verdict in this feature that works on a platform nothing can be
+   *  asked about. */
+  let listeningSince = null;
+
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
   const localAccounts = async () => {
@@ -838,6 +849,9 @@ export function createEngine({
         throw err;
       }
       stalled = null;
+      // From here the socket is accepting, so this is the moment the silence
+      // starts being about the network rather than about a deck still starting.
+      listeningSince = now();
       if (port !== cfg.port) onPort?.(port);
       beacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
@@ -1211,6 +1225,8 @@ export function createEngine({
         // on a deck nobody has dialled yet, which is not the same as blocked
         // and is drawn as neither — see inboundAt and lan-reach.mjs.
         inboundAt,
+        // How long that null has been true for — see listeningSince.
+        listeningSince,
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The token this deck is offering, if any. Drawn as the one thing to do
@@ -1323,6 +1339,9 @@ export function createEngine({
       server?.stop();
       beacon = null;
       server = null;
+      // Nothing is listening, so nothing is being silent AT anybody. Leaving
+      // this set would have the next start measure its quiet from the last one.
+      listeningSince = null;
     },
   };
 }

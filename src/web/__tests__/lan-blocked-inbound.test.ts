@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { silenceNote } from "../components/LanSyncSection";
 import { REACH_WAY_OUT } from "../components/LanReachNote";
 // @ts-expect-error — plain .mjs server module, no types
-import { isActive, linuxFixSteps, linuxReach, readUfw, reachability } from "../../server/lan-reach.mjs";
+import { MAC_FW, QUIET_MS, isActive, linuxFixSteps, linuxReach, macFixSteps, macReach, readMacProbe, readUfw, reachability, silentInbound } from "../../server/lan-reach.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { anotherMachine } from "../../server/lan-engine.mjs";
 
@@ -188,10 +188,179 @@ describe("which platform is spoken about at all", () => {
     expect(reachability({ platform: "linux", linux: null })).toBeNull();
   });
 
-  // macOS ships its firewall off and, when it is on, asks the person at the
-  // keyboard the first time a program listens. There is nothing to instruct.
-  it("still has no opinion about macOS", () => {
+  // macOS used to be among the silent ones. It is not any more — see the macos
+  // block in lan-reach.mjs — but it is still silent without a probe.
+  it("says nothing about a Mac it could not ask", () => {
+    expect(reachability({ platform: "darwin" })).toBeNull();
     expect(reachability({ platform: "darwin", linux: { ufw: { enabled: true, input: "DROP" } } })).toBeNull();
+  });
+});
+
+// ── the Mac at the other end of the same afternoon ──────────────────────────
+//
+// The Arch box was the machine nothing could reach, and the Mac was the one
+// reading `handshake timed out` at it. Turn the pair around — a Mac with the
+// firewall on and this deck not allowed through it — and the same silence comes
+// back with nothing on screen to explain it.
+//
+// What makes this platform the best informed of the three rather than the worst
+// is that the question is answerable exactly: not "what is the default policy
+// and what would it do", but "is an incoming connection to THIS binary
+// permitted". Asked as an ordinary user, no password.
+const EXE = "/Users/someone/.nvm/versions/node/v22.14.0/bin/node";
+/** What the three reads print, in the spellings measured on macOS 26.6. */
+const said = {
+  off: "Firewall is disabled. (State = 0)",
+  on: "Firewall is enabled. (State = 1)",
+  blockAllOff: "Firewall has block all state set to disabled.",
+  blockAllOn: "Firewall has block all state set to enabled.",
+  permitted: `Incoming connection to ${EXE} is permitted.`,
+  blocked: `Incoming connection to ${EXE} is blocked.`,
+};
+const macProbe = (globalState: string, blockAll: string, app: string) =>
+  readMacProbe({ global: globalState, blockAll, app });
+
+describe("what the application firewall was asked", () => {
+  it("reads the state off the number, not the adjective", () => {
+    expect(macProbe(said.off, said.blockAllOff, said.permitted).on).toBe(false);
+    expect(macProbe(said.on, said.blockAllOff, said.permitted).on).toBe(true);
+    // State 2 says "enabled" in words too, and is still on.
+    expect(macProbe("Firewall is enabled. (State = 2)", said.blockAllOff, said.permitted).on).toBe(true);
+  });
+
+  it("comes back null for anything it could not read", () => {
+    // A locked-down build, a renamed flag, a tool that is not there: every one
+    // of them reaches this as an empty string, and none of them is a verdict.
+    const blank = macProbe("", "", "");
+    expect(blank.on).toBeNull();
+    expect(blank.appBlocked).toBeNull();
+    expect(macReach({ probe: blank, exePath: EXE })).toBeNull();
+    expect(macReach({ probe: null, exePath: EXE })).toBeNull();
+  });
+
+  it("hears both answers about the binary", () => {
+    expect(macProbe(said.on, said.blockAllOff, said.permitted).appBlocked).toBe(false);
+    expect(macProbe(said.on, said.blockAllOff, said.blocked).appBlocked).toBe(true);
+  });
+});
+
+describe("whether a Mac can be reached", () => {
+  it("clears a machine whose firewall is off rather than blaming it", () => {
+    const v = macReach({ probe: macProbe(said.off, said.blockAllOff, said.permitted), exePath: EXE });
+    expect(v.blocked).toBe(false);
+    expect(v.why).toBe("firewall off");
+  });
+
+  // THE TRAP, MEASURED: with the firewall off, `--getappblocked` answers "is
+  // permitted" for every path handed to it, including one that does not exist.
+  // So the per-app answer is not evidence of a rule until the global state says
+  // the firewall is on, and a verdict that read them in the other order would
+  // report "app permitted" about a machine it had learned nothing about.
+  it("does not treat a permitted binary as a finding while the firewall is off", () => {
+    const v = macReach({ probe: macProbe(said.off, said.blockAllOff, said.permitted), exePath: EXE });
+    expect(v.why).not.toBe("app permitted");
+  });
+
+  it("names block-all first, because nothing else takes effect under it", () => {
+    const v = macReach({ probe: macProbe(said.on, said.blockAllOn, said.permitted), exePath: EXE });
+    expect(v.blocked).toBe(true);
+    expect(v.why).toBe("block all incoming");
+    expect(v.steps[0]).toBe(`sudo ${MAC_FW} --setblockall off`);
+    // And it still says the thing that stops somebody concluding the far deck
+    // is off: their panel may already show this machine.
+    expect(v.text).toMatch(/can still hear it/);
+  });
+
+  it("says so when this deck's own binary is refused, and hands over the two lines", () => {
+    const v = macReach({ probe: macProbe(said.on, said.blockAllOff, said.blocked), exePath: EXE });
+    expect(v.blocked).toBe(true);
+    expect(v.why).toBe("app blocked");
+    expect(v.shell).toBe("sh");
+    // `--add` first: a binary the firewall has never heard of cannot be
+    // unblocked. Both are safe to paste twice.
+    expect(v.steps).toEqual([`sudo ${MAC_FW} --add "${EXE}"`, `sudo ${MAC_FW} --unblockapp "${EXE}"`]);
+  });
+
+  it("clears a binary the firewall is letting through", () => {
+    const v = macReach({ probe: macProbe(said.on, said.blockAllOff, said.permitted), exePath: EXE });
+    expect(v.blocked).toBe(false);
+    expect(v.why).toBe("app permitted");
+  });
+
+  it("lets a connection that got in outrank every setting", () => {
+    const v = macReach({ probe: macProbe(said.on, said.blockAllOn, said.blocked), exePath: EXE, inbound: NOW });
+    expect(v.blocked).toBe(false);
+    expect(v.why).toBe("inbound seen");
+  });
+
+  // The Linux verdict carries `unsure` because ufw shows its rules to nobody
+  // but root. This one looked at the answer itself, so claiming doubt would be
+  // false modesty in a sentence a reader has to act on.
+  it("admits no doubt it does not have", () => {
+    const v = macReach({ probe: macProbe(said.on, said.blockAllOff, said.blocked), exePath: EXE });
+    expect(v.unsure).toBeUndefined();
+  });
+
+  it("is what reachability routes a Mac to", () => {
+    const mac = macProbe(said.on, said.blockAllOff, said.blocked);
+    const v = reachability({ platform: "darwin", mac, exePath: EXE });
+    expect(v.blocked).toBe(true);
+    expect(v.steps).toEqual(macFixSteps({ exePath: EXE }));
+  });
+});
+
+// ── the machine nothing can be asked about ──────────────────────────────────
+//
+// Three platforms can be read, and every one of those reads can come back
+// empty: FreeBSD has nobody to ask, a Linux box on plain nftables has no
+// ufw.conf, a Windows probe fails for a dozen policy reasons, a hardened Mac
+// refuses the tool. Before this, all of them got silence forever.
+//
+// The two facts that need no operating system: beacons ARRIVE (so this machine
+// hears the network) and nothing has ever connected IN. Together they are the
+// shape of a blocked inbound path, and this is what says so.
+const LISTENING = NOW - QUIET_MS - 60_000;
+
+describe("the silence that is evidence on any platform", () => {
+  it("waits until the quiet has gone on longer than anything would have dialled in", () => {
+    // A paired deck rounds every 60s and a stranger asks within 8s, so the
+    // window is dozens of missed chances rather than one. Said as a number
+    // because the cost of shortening it is telling somebody their network is
+    // broken when it is merely quiet.
+    expect(QUIET_MS).toBe(5 * 60_000);
+    expect(silentInbound({ heard: 2, listeningSince: NOW - QUIET_MS + 1_000, now: NOW })).toBeNull();
+    expect(silentInbound({ heard: 2, listeningSince: LISTENING, now: NOW })).not.toBeNull();
+  });
+
+  it("says nothing about a network with nobody on it", () => {
+    // "Nothing has arrived" and "nothing can arrive" are the two facts this
+    // whole module exists to tell apart. With no beacon in hand it is the first.
+    expect(silentInbound({ heard: 0, listeningSince: LISTENING, now: NOW })).toBeNull();
+  });
+
+  it("says nothing once a connection has got in", () => {
+    expect(silentInbound({ heard: 3, listeningSince: LISTENING, inbound: NOW - 1_000, now: NOW })).toBeNull();
+  });
+
+  it("says nothing about a deck that is not listening", () => {
+    expect(silentInbound({ heard: 3, listeningSince: null, now: NOW })).toBeNull();
+  });
+
+  it("reports the two facts it has, and offers no command it did not read", () => {
+    const v = silentInbound({ heard: 3, listeningSince: LISTENING, now: NOW });
+    expect(v.blocked).toBe(true);
+    expect(v.why).toBe("heard them, nothing got in");
+    expect(v.text).toMatch(/hears 3 other decks/);
+    expect(v.text).toMatch(/nothing has ever connected to it/);
+    // It read no configuration, so it names no firewall and hands over no
+    // lines: the panel draws the ways out that need no rule at all.
+    expect(v.steps).toBeUndefined();
+    expect(v.text).toMatch(/cannot be asked which firewall/);
+  });
+
+  it("counts one machine as one machine", () => {
+    const v = silentInbound({ heard: 1, listeningSince: LISTENING, now: NOW });
+    expect(v.text).toMatch(/hears another deck on the network/);
   });
 });
 

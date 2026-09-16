@@ -37,7 +37,7 @@ import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
-import { PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readProbe, readUfw } from "./lan-reach.mjs";
+import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
@@ -4128,19 +4128,95 @@ async function probeLinux() {
  */
 function forgetReach() { reachAt = 0; }
 
+/**
+ * What the macOS application firewall says about this deck.
+ *
+ * Three reads, none of them privileged — measured on macOS 26.6, where all of
+ * them answer an ordinary user with exit 0 and no password. See the macos block
+ * in lan-reach.mjs for why this platform can be asked the exact question about
+ * its own binary while Linux has to reason from a default policy.
+ *
+ * A call that fails comes back as an empty string rather than as a throw, which
+ * readMacProbe turns into a null field and macReach turns into silence: a Mac
+ * that will not answer is a Mac this says nothing about.
+ */
+async function probeMac() {
+  const ask = args => run(MAC_FW, args, { timeout: 5_000 }).then(r => (r?.ok ? r.stdout : "")).catch(() => "");
+  const [globalState, blockAll, app] = await Promise.all([
+    ask(["--getglobalstate"]),
+    ask(["--getblockall"]),
+    // The binary the LISTENER runs as, which is this process's own executable —
+    // the application firewall's rules are about a program, never about a port.
+    ask(["--getappblocked", process.execPath]),
+  ]);
+  return readMacProbe({ global: globalState, blockAll, app });
+}
+
+/** How recently a beacon has to have arrived to count as a machine this deck
+ *  can hear. Three announce intervals, which is the same window the panel calls
+ *  `now` — one dropped broadcast must not retract the claim. */
+const HEARD_MS = 90_000;
+
+/**
+ * The verdict for a machine no probe could speak about — see silentInbound.
+ *
+ * BOTH LISTS ARE COUNTED. `strangers` is already one row per machine, and a
+ * deck LEAVES it for `peers` the moment somebody pairs with it — so counting
+ * strangers alone would make a deck that has paired with everything it can hear
+ * look like a deck that hears nobody, which is the one state this must not
+ * confuse with being blocked.
+ */
+function measuredReach() {
+  const st = lanEngine.status();
+  const at = Date.now();
+  const fresh = p => typeof p?.lastSeen === "number" && at - p.lastSeen < HEARD_MS;
+  const heard = (st.strangers?.length ?? 0) + (st.peers ?? []).filter(fresh).length;
+  return silentInbound({ heard, listeningSince: st.listeningSince, inbound: st.inboundAt, now: at });
+}
+
 function refreshReach() {
-  if (reachBusy || (process.platform !== "win32" && process.platform !== "linux")) return;
+  if (reachBusy) return;
   if (reachAt && Date.now() - reachAt < REACH_MS) return;
   reachBusy = true;
   if (process.platform === "linux") {
     probeLinux().then(linux => {
-      reachSaid = reachability({ platform: "linux", linux, inbound: lanEngine.status().inboundAt });
+      // A read of the real configuration beats an inference from silence, so
+      // the measurement only speaks where the probe had no opinion at all.
+      reachSaid = reachability({ platform: "linux", linux, inbound: lanEngine.status().inboundAt })
+        ?? measuredReach();
     }).catch(() => {
-      reachSaid = null;
+      reachSaid = measuredReach();
     }).finally(() => {
       reachAt = Date.now();
       reachBusy = false;
     });
+    return;
+  }
+  if (process.platform === "darwin") {
+    probeMac().then(mac => {
+      reachSaid = reachability({
+        platform: "darwin",
+        mac,
+        // The same path the probe asked about, so the lines somebody pastes name
+        // the binary the verdict was taken on.
+        exePath: process.execPath,
+        inbound: lanEngine.status().inboundAt,
+      }) ?? measuredReach();
+    }).catch(() => {
+      reachSaid = measuredReach();
+    }).finally(() => {
+      reachAt = Date.now();
+      reachBusy = false;
+    });
+    return;
+  }
+  // EVERY OTHER PLATFORM, which used to return before reaching any of this and
+  // therefore said nothing forever. FreeBSD, an unrecognised Linux, anything
+  // node runs on: no probe to run, and the measurement needs none.
+  if (process.platform !== "win32") {
+    reachSaid = measuredReach();
+    reachAt = Date.now();
+    reachBusy = false;
     return;
   }
   run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PROBE_PS], {
@@ -4155,12 +4231,12 @@ function refreshReach() {
       aliases: localAliases(networkInterfaces()),
       exePath: process.execPath,
       inbound: lanEngine.status().inboundAt,
-    });
+    }) ?? measuredReach();
   }).catch(() => {
-    // A probe that did not run says nothing, which is the same answer as a
-    // machine this cannot speak about. It is never an error the panel shows:
-    // nobody asked for it.
-    reachSaid = null;
+    // A probe that did not run is exactly the machine silentInbound was written
+    // for: nothing can be asked, so what is left is what was measured. It is
+    // never an error the panel shows — nobody asked for it.
+    reachSaid = measuredReach();
   }).finally(() => {
     reachAt = Date.now();
     reachBusy = false;
