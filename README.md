@@ -22,7 +22,7 @@ npx ccdeck
 
 who is blocked on you · tool calls · one canvas · cost · quota · local · no telemetry
 
-[What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
+[ccdeck.dev](https://ccdeck.dev) · [What you get](#what-you-get) · [Quick start](#quick-start) · [How it works](#how-it-works) · [What it touches](#what-it-touches) · [Accounts](#accounts) · [Local network](#local-network) · [Options](#options) · [FAQ](#questions-people-ask)
 
 
 </div>

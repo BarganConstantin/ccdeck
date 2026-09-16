@@ -1,7 +1,7 @@
 {
   "name": "ccdeck",
   "version": "3.23.4",
-  "description": "Live deck of Claude Code and Codex agents — watch tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
+  "description": "Live dashboard for Claude Code and Codex — which agent is waiting on you, tool calls, token spend and every Claude Code subagent on one calm canvas. Run it with npx ccdeck.",
   "type": "module",
   "bin": {
     "ccdeck": "bin/agent-dag.js"
@@ -32,18 +32,28 @@
   },
   "keywords": [
     "claude-code",
+    "claude-code-dashboard",
     "claude",
     "anthropic",
+    "codex",
+    "codex-cli",
+    "openai",
     "agents",
+    "ai-agents",
     "subagents",
-    "visualization",
     "dashboard",
-    "hooks",
+    "monitor",
+    "monitoring",
     "observability",
+    "usage",
+    "cost",
+    "tokens",
+    "quota",
+    "hooks",
     "dag",
-    "deck",
-    "graph",
-    "live"
+    "visualization",
+    "cli",
+    "deck"
   ],
   "author": "Bargan Constantin",
   "license": "AGPL-3.0-only",
@@ -54,7 +64,7 @@
   "bugs": {
     "url": "https://github.com/BarganConstantin/ccdeck/issues"
   },
-  "homepage": "https://github.com/BarganConstantin/ccdeck#readme",
+  "homepage": "https://ccdeck.dev",
   "devDependencies": {
     "@types/dagre": "^0.7.54",
     "@types/node": "^22.20.1",
