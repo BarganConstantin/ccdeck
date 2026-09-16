@@ -115,6 +115,24 @@ export function localAddresses(faces = networkInterfaces()) {
 }
 
 /**
+ * Did this connection come from a DIFFERENT computer?
+ *
+ * The question behind "can other decks reach this one": a socket accepted from
+ * loopback, or from one of this machine's own addresses, is the second deck on
+ * this computer talking to the first — which happens on every developer machine
+ * and proves nothing at all about the network. Both spellings of loopback are
+ * named because both arrive: `127.0.0.1` from a deck that dialled an address
+ * and `::1` from one that dialled a name.
+ *
+ * Pure and separate from the engine so the case that matters — a connection
+ * from somewhere else — can be tested without a second machine.
+ */
+export const anotherMachine = (from, mine = []) => {
+  const at = String(from ?? "").replace(/^::ffff:/, "").trim();
+  return !!at && at !== "127.0.0.1" && at !== "::1" && !mine.includes(at);
+};
+
+/**
  * The accounts a peer's manifest listed, as the panel may keep them.
  *
  * It arrived from another machine, so it is read rather than trusted: strings
@@ -302,6 +320,22 @@ export function createEngine({
    * is the evidence, and it is the same kind the beacon gives: a timestamp.
    */
   const spokeAt = new Map();
+  /**
+   * When a connection from ANOTHER MACHINE last arrived on the sync listener.
+   *
+   * The one fact that settles "can other decks reach this one", and the only
+   * one on the whole question that is measured rather than reasoned about: a
+   * firewall's configuration is read through three different tools on three
+   * platforms, one of which (`ufw`) refuses to show its rules to a process
+   * that is not root. An accepted socket needs none of that — the packets got
+   * in, whatever any rule file says.
+   *
+   * ANOTHER MACHINE, checked here and not in the socket: a connection from
+   * loopback or from one of this machine's own addresses is the second deck on
+   * this computer, which proves nothing about the network. The socket does not
+   * hold that list; this does.
+   */
+  let inboundAt = null;
 
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
@@ -755,6 +789,10 @@ export function createEngine({
       server = createSyncServer({
         fp: identity.fp, pub: identity.pub, secret: identity.secret,
         name: cfg.name, handlers: serve, onError, prefer: cfg.port, host, sealFrames, ephemeral,
+        // See inboundAt. Every connection passes here, including one that goes
+        // on to fail the handshake — a stranger who cannot prove anything has
+        // still proved the path.
+        onInbound: from => { if (anotherMachine(from, localAddresses())) inboundAt = now(); },
         trusted: () => cfg.trusted,
         invite: () => (invite && invite.expiresAt > now() ? invite : null),
         // Somebody used the token. They are pinned, and the token is retired —
@@ -1169,6 +1207,10 @@ export function createEngine({
         // deck's field. Null when this machine has no ordinary one, which the
         // panel says rather than printing a placeholder.
         port: server?.port() ?? null,
+        // When another machine last got a connection through to this one. Null
+        // on a deck nobody has dialled yet, which is not the same as blocked
+        // and is drawn as neither — see inboundAt and lan-reach.mjs.
+        inboundAt,
         addrs: beacon ? localAddresses() : [],
         shared: [...cfg.shared],
         // The token this deck is offering, if any. Drawn as the one thing to do

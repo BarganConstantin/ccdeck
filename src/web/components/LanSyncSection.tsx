@@ -117,6 +117,10 @@ export interface LanStatus {
   shareActive?: boolean;
   fp: string | null;
   port: number | null;
+  /** When a connection from another machine last arrived here. Null on a deck
+   *  nobody has dialled, which is not the same as one nothing can reach — see
+   *  the engine's inboundAt. */
+  inboundAt?: number | null;
   addrs: string[];
   shared: string[];
   peers: Peer[];
@@ -152,6 +156,17 @@ export interface LanReach {
   alias: string;
   text?: string;
   steps?: string[];
+  /** Where the steps are pasted. `powershell` wants an elevated window and
+   *  `sh` an ordinary terminal — the verdict says which, so nothing here has
+   *  to ask what platform it is drawing for. */
+  shell?: "powershell" | "sh";
+  /** Which Linux firewall the steps are written for, when it was one. */
+  tool?: string;
+  /** What the verdict could not check, in its own words. Linux only, and the
+   *  honest half of that verdict: `ufw` shows its rules to root alone, so a
+   *  machine that already allows the two ports looks exactly like one that
+   *  does not. Drawn beside the steps rather than swallowed. */
+  unsure?: string;
 }
 
 /** The accounts this deck holds, in the shape the panel already has them. */
@@ -284,6 +299,67 @@ export function roundLabel(last: Peer["last"], now: number): RoundLine | null {
     // Some moved and some did not, which is neither a clean round nor a failure
     // to reach the deck. It reads as the partial thing it is.
     : { text: `${ok.length} of ${done.length} logins arrived · ${seenLabel(last.at, now)}`, tone: "bad" };
+}
+
+/** How recently a beacon has to have arrived for this panel to speak about that
+ *  machine in the present tense. Three announce intervals — see silenceNote. */
+export const FRESH_BEACON_MS = 90_000;
+
+/**
+ * Why nothing answered at an address, when this deck knows more than the socket
+ * did.
+ *
+ * WHAT THE ROW SAID WAS TRUE AND USELESS. `no answer · handshake timed out` is
+ * the socket's whole account of the failure, and it is the same sentence for a
+ * machine that is switched off, an address with a digit wrong, and the case
+ * this exists for: a machine that is up, running the deck, shouting its beacon
+ * across the room every thirty seconds, and dropping every packet sent back to
+ * it. Reported as two people on one router unable to connect for an afternoon,
+ * with a beacon from the far machine arriving here the whole time — which is
+ * to say the answer was already on this screen and nothing read it.
+ *
+ * A BEACON IS THE EVIDENCE, and it is strong: it carries a fingerprint, it
+ * arrived on this network, and it says which port that deck listens on. So a
+ * timeout at a host we are hearing from cannot be a machine that is off and
+ * cannot be a network that does not reach — it is one of exactly two things,
+ * and the beacon's port tells them apart.
+ *
+ * SAYS, NEVER DOES. Both cases have an action on the other machine or in the
+ * address field, and neither is this dialog's to take: dialling the announced
+ * port behind somebody's back would leave the row they typed unexplained, and
+ * the beacon's row already dials that port every round anyway.
+ *
+ * Null when there is nothing to add — no failure, or no beacon from that host.
+ */
+export function silenceNote(
+  { error, host, port }: { error?: string | null; host: string; port: number | null },
+  heard: LanStranger[],
+  now: number,
+  discoveryPort = 45_317,
+): string | null {
+  // Only for a socket that got nothing back. Every other error already names
+  // its own cause — refused, hung up, answered as somebody else — and a second
+  // sentence under those would be this dialog talking over the evidence.
+  if (error !== "handshake timed out") return null;
+  const at = (host ?? "").trim();
+  if (!at) return null;
+  // HEARD LATELY, not heard once. "Its beacon arrives here every half minute"
+  // is a claim about the present tense, and a deck that beaconed this morning
+  // and has been off since would make it a lie — which is the one thing worse
+  // than the bare `handshake timed out` this replaces. The window is the same
+  // one seenLabel calls `now`: three announce intervals, so a single dropped
+  // broadcast does not retract the sentence.
+  const same = heard.filter(h => h.addr === at && h.port && h.at > 0 && now - h.at < FRESH_BEACON_MS);
+  if (!same.length) return null;
+  // The port it announces. More than one deck on that machine is ordinary —
+  // several runs on one computer — so every announced port is offered rather
+  // than the first.
+  const ports = [...new Set(same.map(h => h.port as number))];
+  if (port != null && !ports.includes(port)) {
+    const list = ports.length === 1 ? `port ${ports[0]}` : `ports ${ports.join(" and ")}`;
+    return `A deck at ${at} is announcing itself on ${list}, not on ${port}. This deck already hears it and dials it there, so this typed row has nothing to reach.`;
+  }
+  return `That machine is running the deck — its beacon arrives here every half minute — and what this deck sends back never gets there. That is a firewall on ${at}, not a network fault. Whoever uses it can allow two ports: UDP ${discoveryPort} and TCP ${port ?? ports[0]}.`;
 }
 
 /**

@@ -30,7 +30,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, versionOrder } from "./LanSyncSection";
+import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
 
 interface Props {
@@ -234,6 +234,26 @@ export default function LanPeerModal({
   const order = about?.version && mine ? versionOrder(about.version, mine) : null;
 
   const line = peer ? roundLabel(peer.last, now) : null;
+  // WHAT THE DECK ALREADY KNEW about an address that answers nothing: whether a
+  // beacon from that machine is arriving here, and on which port. See
+  // silenceNote, where the two conclusions and the evidence for them live.
+  //
+  // Every deck heard on this network is offered, whatever list it is filed
+  // under — a machine that beacons is a machine that is up, and which of this
+  // panel's three lists it landed in says nothing about that. The row's own
+  // beacon is among them on purpose: a PAIRED deck that is heard and cannot be
+  // dialled is the same firewall, said about a machine that already has a name.
+  const silence = peer && peer.last?.error
+    ? silenceNote(
+      { error: peer.last.error, host: peer.addr, port: peer.port },
+      [
+        ...(status.strangers ?? []),
+        ...(status.pending ?? []),
+        ...(status.peers ?? []).filter(p => !p.manual && p.addr).map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.lastSeen ?? 0 })),
+      ],
+      now,
+    )
+    : null;
   // The sentence the row translated, kept whole: `not listening` is what the
   // row can fit, `connect ECONNREFUSED 192.168.1.229:65059` is what somebody
   // fixing it needs.
@@ -471,6 +491,9 @@ export default function LanPeerModal({
                   ))}
                 </ul>
               )}
+              {/* Why the silence, when this deck holds evidence the socket did
+                  not — a beacon from the same machine. See silenceNote. */}
+              {silence && <p className="lan-note lan-link-note">{silence}</p>}
               {/* The one-way case in full — the sentence the row's tooltip used
                   to carry, which is the only place it is ever explained. */}
               {peer?.waiting && <p className="lan-note lan-link-note">{row.hint}</p>}

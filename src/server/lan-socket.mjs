@@ -429,6 +429,20 @@ export function createSyncServer({
   /** One was used. The caller stores the pairing and retires the invite: a
    *  token that pairs twice is a token worth stealing twice. */
   onInviteUsed,
+  /** A connection arrived, before anything about it is known — called with the
+   *  address it came from and nothing else.
+   *
+   *  THIS IS THE ONE MEASUREMENT OF INBOUND THERE IS. Everything else in this
+   *  feature that asks "can other decks reach this one" reads a firewall's
+   *  configuration and reasons about it, which is a guess wearing a verdict's
+   *  clothes: `ufw` does not let an ordinary process read its rules at all. A
+   *  socket that was accepted is proof the packets get in, and it costs one
+   *  call at the one place every inbound connection already passes through.
+   *
+   *  Deliberately BEFORE the handshake: a caller that fails to prove itself
+   *  still proved the path. Whether the address is this machine's own is the
+   *  caller's to judge — see lan-engine, which holds that list. */
+  onInbound,
   /** How long a socket may say nothing before it is dropped — see IDLE_MS,
    *  which is what the deck runs on. A parameter only so the suite can drive
    *  the reclaim in a few hundred milliseconds rather than half a minute; a
@@ -475,6 +489,10 @@ export function createSyncServer({
       if (mine >= MAX_SOCKETS_PER_HOST) { sock.destroy(); return; }
     }
     live.add(sock);
+    // Before the handshake and before the encoding: what this says is that a
+    // packet from somewhere else reached this listener, which is true of a
+    // connection that goes on to fail every check after it.
+    if (here) { try { onInbound?.(here); } catch { /* a reader, never a gate */ } }
     sock.setEncoding("utf8");
     sock.setNoDelay(true);
     // ARMED HERE RATHER THAN AT `authed`, and that is the point of it: the

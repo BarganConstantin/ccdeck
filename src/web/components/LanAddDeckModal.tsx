@@ -222,6 +222,18 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
 
   const live = status.invite && status.invite.expiresAt > now ? status.invite : null;
   const steps = status.reach?.steps ?? [];
+  // WHERE THE LINES GO, from the verdict rather than from a guess about the
+  // platform. Windows wants an elevated PowerShell and Linux an ordinary
+  // terminal with sudo in the lines themselves; saying "PowerShell" to
+  // somebody on Arch is worse than saying nothing, because it reads as a
+  // dialog meant for a different machine and the rest goes with it.
+  const sh = status.reach?.shell === "sh";
+  // Every address this machine can be dialled at, with the one port that
+  // answers on all of them. More than one is ordinary and none of them is
+  // preferable from here — a peer on Tailscale cannot use the wifi address and
+  // a peer on the wifi cannot use the tailnet one — so they are all offered and
+  // whoever is typing picks, which is the same rule the invite follows.
+  const mine = status.port != null ? (status.addrs ?? []).map(a => `${a}:${status.port}`) : [];
 
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
@@ -265,16 +277,25 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
                 <details className="ap-lan-reach-fix">
                   <summary>or let them find this deck on their own</summary>
                   <p className="lan-note">
-                    Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.
+                    {sh ? (
+                      <>Run this in a terminal on this machine, then restart the deck.</>
+                    ) : (
+                      <>Run this in PowerShell <strong>as Administrator</strong>, then restart the deck.</>
+                    )}
                     {status.reach.category === "Public" && (
                       <> The first line marks this network as a home or office one — leave it
                       out on a network you do not trust.</>
                     )}
+                    {/* The Linux verdict knows what it could not check, and says
+                        so here rather than letting the command imply a certainty
+                        it does not have. See LanReach.unsure. */}
+                    {status.reach.unsure && <> {status.reach.unsure}</>}
                   </p>
                   <pre className="ap-lan-cmd"><code>{steps.join("\n")}</code></pre>
                   <button type="button" className="ap-manage-btn" {...pressProps("copy:fix")}
                     onClick={() => void copyText(steps.join("\n"), "fix")}
-                    title="Copy these lines, then paste them into an elevated PowerShell">
+                    title={sh ? "Copy these lines, then paste them into a terminal"
+                      : "Copy these lines, then paste them into an elevated PowerShell"}>
                     {copied === "fix" ? "copied" : "copy command"}
                   </button>
                 </details>
@@ -314,6 +335,36 @@ export default function LanAddDeckModal({ status, manual, onClose, onChanged }: 
               )}
             </div>
             <p className="lan-note">This deck calls that address until somebody there accepts.</p>
+            {/* THE OTHER HALF OF "TYPE THEIR ADDRESS", and it was missing.
+                Nothing in this panel ever printed this deck's own address and
+                port, so the person on the far machine had nowhere to read the
+                number somebody here is asking them for — and the field's own
+                placeholder is the only number on the screen. It was typed as a
+                real port, dialled for a minute and reported `handshake timed
+                out`, which is the one failure that says nothing about its own
+                cause. The port is the deck's for as long as it keeps it: the
+                listener asks for the one it had last time, so this is worth
+                writing down on the other machine.
+
+                Only while there is a port to print: a deck that is switched
+                off, or whose listener has not come up, has no address to give
+                and says nothing rather than half of one. */}
+            {status.port != null && mine.length > 0 && (
+              <p className="lan-note">
+                They type this deck&rsquo;s own address into the same field on theirs:{" "}
+                {mine.map((a, i) => (
+                  <span key={a}>
+                    {i > 0 && " or "}
+                    <code className="ap-lan-code">{a}</code>
+                  </span>
+                ))}
+                <button type="button" className="ap-lan-word lan-copy" {...pressProps("copy:mine")}
+                  onClick={() => void copyText(mine.join(" "), "mine")}
+                  title="Copy this deck's address, to send to whoever is adding it">
+                  {copied === "mine" ? "copied" : "copy"}
+                </button>
+              </p>
+            )}
           </div>
 
           <div className="modal-section">

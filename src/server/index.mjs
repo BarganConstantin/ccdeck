@@ -37,7 +37,7 @@ import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
-import { PROBE_PS, localAliases, reachability, readProbe } from "./lan-reach.mjs";
+import { PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readProbe, readUfw } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
@@ -4072,10 +4072,49 @@ let reachAt = 0;
 let reachBusy = false;
 const REACH_MS = 5 * 60_000;
 
+/**
+ * What Linux can be asked without root: whether a firewall is running, and what
+ * it does with an inbound packet no rule matched.
+ *
+ * Three reads, none of them privileged. `systemctl is-active` answers anybody;
+ * both ufw files are 0644. The rules themselves are root-only on every one of
+ * these tools, which is why the verdict leans on the measurement instead — see
+ * the linux block in lan-reach.mjs.
+ */
+async function probeLinux() {
+  const [conf, defaults, ufwUnit, fwUnit] = await Promise.all([
+    readFile(UFW_CONF, "utf8").catch(() => null),
+    readFile(UFW_DEFAULTS, "utf8").catch(() => null),
+    run("systemctl", ["is-active", "ufw"], { timeout: 5_000 }).catch(() => null),
+    run("systemctl", ["is-active", "firewalld"], { timeout: 5_000 }).catch(() => null),
+  ]);
+  const ufw = readUfw(conf, defaults);
+  return {
+    // ON means both: the config says yes and the unit is running. A machine
+    // where somebody ran `ufw disable` keeps ENABLED=no in the file, and one
+    // where the unit was masked keeps ENABLED=yes in it — neither is blocking
+    // anything, and claiming otherwise sends a person to fix what is not broken.
+    ufw: { ...ufw, enabled: ufw.enabled && isActive(ufwUnit?.stdout) },
+    firewalld: isActive(fwUnit?.stdout),
+    syncPort: lanEngine.status().port,
+  };
+}
+
 function refreshReach() {
-  if (reachBusy || process.platform !== "win32") return;
+  if (reachBusy || (process.platform !== "win32" && process.platform !== "linux")) return;
   if (reachAt && Date.now() - reachAt < REACH_MS) return;
   reachBusy = true;
+  if (process.platform === "linux") {
+    probeLinux().then(linux => {
+      reachSaid = reachability({ platform: "linux", linux, inbound: lanEngine.status().inboundAt });
+    }).catch(() => {
+      reachSaid = null;
+    }).finally(() => {
+      reachAt = Date.now();
+      reachBusy = false;
+    });
+    return;
+  }
   run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PROBE_PS], {
     // The program path goes through the environment rather than into the
     // script, so a path with a quote in it cannot close the string it sits in.
@@ -4087,6 +4126,7 @@ function refreshReach() {
       probe: r?.ok ? readProbe(r.stdout) : null,
       aliases: localAliases(networkInterfaces()),
       exePath: process.execPath,
+      inbound: lanEngine.status().inboundAt,
     });
   }).catch(() => {
     // A probe that did not run says nothing, which is the same answer as a

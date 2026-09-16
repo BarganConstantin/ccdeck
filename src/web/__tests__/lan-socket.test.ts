@@ -89,6 +89,34 @@ const caller = () => ({ fp: CALLER.fp, pub: CALLER.pub, secret: CALLER.secret, n
 /** A deck nobody has accepted, for the half of the file about being refused. */
 const stranger = () => ({ fp: STRANGER.fp, pub: STRANGER.pub, secret: STRANGER.secret, name: "Stranger-Deck" });
 
+describe("the proof that inbound gets through at all", () => {
+  // WHY THE SOCKET COUNTS IT AND NOT THE HANDSHAKE. Every other answer to "can
+  // other decks reach this one" reads a firewall's configuration and reasons
+  // about it, and on Linux `ufw` will not show its rules to anything but root.
+  // An accepted socket is the measurement — and a caller that goes on to fail
+  // every check has still proved the packets arrive.
+  it("reports a connection before the caller has proved anything", async () => {
+    const seen: string[] = [];
+    const { s } = server({ onInbound: (from: string) => seen.push(from) });
+    const port = await s.start();
+    await new Promise<void>((done, fail) => {
+      const sock = net.createConnection({ host: "127.0.0.1", port }, () => { sock.destroy(); done(); });
+      sock.on("error", fail);
+    });
+    expect(seen).toEqual(["127.0.0.1"]);
+  });
+
+  // It is a reader, never a gate: a caller that throws in here would otherwise
+  // take down the connection it was only supposed to observe.
+  it("accepts the connection anyway when the reader throws", async () => {
+    const { s } = server({ onInbound: () => { throw new Error("no"); } });
+    const port = await s.start();
+    const peer = await connectToPeer({ host: "127.0.0.1", port, ...caller() });
+    expect(peer.peerName).toBe("Server-Deck");
+    peer.sock.destroy();
+  });
+});
+
 describe("two decks in one group, talking", () => {
   it("completes the handshake and knows who it reached", async () => {
     const { s, fp } = server();

@@ -183,19 +183,143 @@ export function fixSteps({ category, alias, exePath }) {
   return steps;
 }
 
+// ── linux ───────────────────────────────────────────────────────────────────
+//
+// THE SAME FAILURE, ONE DISTRIBUTION FURTHER. Reported from a pair of decks on
+// one router: a Mac heard an Arch machine's beacon every thirty seconds and
+// every dial to it timed out. The Arch box was running Omarchy, which installs
+// `ufw` and enables it, and `ufw` denies inbound by default — so the beacon
+// left (outbound is allowed) and nothing could ever get back in. Both sides
+// read `handshake timed out`, which names the symptom and nothing else.
+//
+// WHAT CANNOT BE READ HERE, and it is the difference from the Windows path
+// above. `ufw status` is root-only — it reads /etc/ufw/user.rules, mode 0640
+// root:root — so an ordinary process can learn that the firewall is ON and
+// what its default inbound policy is, and CANNOT learn whether somebody has
+// already allowed these two ports. firewalld is the same: `--state` answers
+// anybody, `--list-ports` answers root.
+//
+// SO THE MEASUREMENT CARRIES THE VERDICT AND THE CONFIGURATION ONLY RAISES
+// THE QUESTION. `inbound` is when a connection from another machine last
+// arrived on the sync listener (see lan-engine's inboundAt). If one ever has,
+// the path is open and nothing here has an opinion, whatever the rule files
+// say. Only when the firewall is on, its inbound default drops, and nothing
+// has ever got in does this speak — and it says what it measured, in those
+// terms, rather than claiming to have read a rule it cannot read.
+//
+// THE COMMANDS ARE SAFE TO PASTE TWICE. `ufw allow` on a rule that exists
+// prints "Skipping adding existing rule" and changes nothing; firewalld's
+// --add-port is idempotent the same way. That is what makes an unverifiable
+// question worth asking at all: the cost of a false alarm is one paste.
+
+/** Both world-readable (0644), on every distribution that ships ufw: the
+ *  switch, and the default this feature lives or dies on. */
+export const UFW_CONF = "/etc/ufw/ufw.conf";
+export const UFW_DEFAULTS = "/etc/default/ufw";
+
+/**
+ * What ufw's two readable files say: whether it is on, and what it does with
+ * an inbound packet no rule matched.
+ *
+ * Both are shell fragments sourced by ufw's own scripts, so the values may or
+ * may not be quoted and the file may hold comments and blank lines. Anything
+ * unreadable — a machine with no ufw at all — comes in as null and reads as
+ * off, which is the answer that says nothing rather than the one that blames.
+ */
+export function readUfw(conf, defaults) {
+  const on = /^[ \t]*ENABLED[ \t]*=[ \t]*["']?yes["']?[ \t]*$/im.test(String(conf ?? ""));
+  const raw = /^[ \t]*DEFAULT_INPUT_POLICY[ \t]*=[ \t]*["']?([A-Za-z]+)["']?/im.exec(String(defaults ?? ""));
+  return { enabled: on, input: (raw?.[1] ?? "").toUpperCase() };
+}
+
+/** A systemd unit's state, from `systemctl is-active <unit>`. The command exits
+ *  non-zero for anything that is not active, so its output is what is read and
+ *  its status is not: `inactive`, `failed` and `unknown` are all "not running"
+ *  and only one of them is an error. */
+export const isActive = out => String(out ?? "").trim().split("\n")[0]?.trim() === "active";
+
+/**
+ * The two lines that open the path, as text.
+ *
+ * SCOPED TO PORTS, because Linux firewalls have no equivalent of the
+ * program-scoped rule the Windows path uses. That makes the sync port's
+ * stability load-bearing rather than merely nice: the listener asks for the
+ * port it had last time (see createSyncServer), so a rule written today is
+ * still the right rule after a restart. A deck that has not started listening
+ * yet has no port to name, and then only the discovery line is offered — half
+ * an answer, and the half that never changes.
+ */
+export function linuxFixSteps({ tool, syncPort, discoveryPort }) {
+  const sync = Number.isInteger(syncPort) && syncPort > 0 ? syncPort : null;
+  if (tool === "firewalld") {
+    const steps = [`sudo firewall-cmd --permanent --add-port=${discoveryPort}/udp`];
+    if (sync) steps.push(`sudo firewall-cmd --permanent --add-port=${sync}/tcp`);
+    steps.push("sudo firewall-cmd --reload");
+    return steps;
+  }
+  const steps = [`sudo ufw allow ${discoveryPort}/udp comment 'ccdeck discovery'`];
+  if (sync) steps.push(`sudo ufw allow ${sync}/tcp comment 'ccdeck sync'`);
+  return steps;
+}
+
+/**
+ * Whether other decks can reach this Linux machine, from what can be read
+ * without root plus the one thing that was measured.
+ *
+ * Null for a machine with no firewall running, which is most of them: nothing
+ * to say, so nothing said.
+ */
+export function linuxReach({ ufw = null, firewalld = false, inbound = null, syncPort = null, discoveryPort = 45_317 } = {}) {
+  // MEASURED BEATS READ. A connection from another machine has arrived, so
+  // whatever the rules are, they let this through.
+  if (inbound) return { blocked: false, why: "inbound seen", category: "", alias: "" };
+  const drops = ufw?.enabled && (ufw.input === "DROP" || ufw.input === "REJECT");
+  const tool = drops ? "ufw" : firewalld ? "firewalld" : null;
+  if (!tool) return null;
+  return {
+    blocked: true,
+    why: `${tool} inbound default`,
+    category: "",
+    alias: "",
+    shell: "sh",
+    tool,
+    // The reason in the reader's terms. Both halves are said because the
+    // asymmetry is the confusing part: their deck may already show this
+    // machine's name, which reads as a working connection and is not one.
+    text: tool === "ufw"
+      ? "ufw is running here and drops what it was not told to allow, so other decks cannot reach this one. They can still hear it — that is why one of them may already show this machine."
+      : "firewalld is running here and drops what it was not told to allow, so other decks cannot reach this one. They can still hear it — that is why one of them may already show this machine.",
+    // Said out loud, because it is the difference between this verdict and the
+    // Windows one and a reader deserves to know which they are holding.
+    unsure: `${tool} does not show its rules to anything but root, so this cannot tell whether the two ports are already allowed. Running the lines again when they are changes nothing.`,
+    steps: linuxFixSteps({ tool, syncPort, discoveryPort }),
+  };
+}
+
 /**
  * Whether other decks can reach this one, and what to do when they cannot.
  *
  * `null` means "no opinion", and it is the answer for every machine this cannot
- * speak about: anything that is not Windows, and any probe that did not come
- * back. Silence rather than a hedge — a panel line that says "possibly" about a
- * thing it did not measure is worse than no line.
+ * speak about: anything that is neither Windows nor Linux, and any probe that
+ * did not come back. Silence rather than a hedge — a panel line that says
+ * "possibly" about a thing it did not measure is worse than no line.
+ *
+ * macOS is deliberately among the silent ones. Its firewall is off by default
+ * and, when on, asks the person at the keyboard the first time a program
+ * listens — so the answer is either "nothing is in the way" or "somebody was
+ * shown a dialog and pressed a button", and neither is a thing to instruct
+ * anybody about.
  *
  * `blocked: false` is a real finding and is worth returning: it lets the panel
  * stop blaming the firewall for an empty list and say the other thing instead,
  * which is that nobody else is running.
  */
-export function reachability({ platform, probe, aliases = [], exePath = "" } = {}) {
+export function reachability({ platform, probe, aliases = [], exePath = "", inbound = null, linux = null } = {}) {
+  // Two platforms, two entirely different reads — see the linux block above for
+  // why that one cannot be written in this one's shape. `inbound` is the one
+  // input both of them share: it is a measurement rather than a read, so it
+  // outranks whatever either platform's configuration says.
+  if (platform === "linux") return linux ? linuxReach({ ...linux, inbound }) : null;
   if (platform !== "win32") return null;
   if (!probe) return null;
   // The broadcast route first, then the interfaces the deck holds an address
@@ -206,6 +330,10 @@ export function reachability({ platform, probe, aliases = [], exePath = "" } = {
   const category = net?.category ?? "";
   const name = profileFor(category);
   if (!name) return null;
+  // MEASURED BEATS READ, here as on Linux: a connection from another machine
+  // has arrived on the sync listener, so the path is open whatever rule this
+  // was about to fail to find. See lan-engine's inboundAt.
+  if (inbound) return { blocked: false, why: "inbound seen", category, alias: net?.alias ?? "" };
   const prof = probe.profiles.find(p => p.name.toLowerCase() === name.toLowerCase());
   // A firewall that is off blocks nothing, and saying otherwise would send
   // somebody to add a rule that changes nothing.
@@ -218,6 +346,10 @@ export function reachability({ platform, probe, aliases = [], exePath = "" } = {
     why: "no inbound rule",
     category,
     alias: net?.alias ?? "",
+    // Which shell the steps are written in, so the panel says where to paste
+    // them without asking what platform it is drawing for. Every other field
+    // here is already the verdict's to choose; this is one more.
+    shell: "powershell",
     // The reason in the reader's terms, not the registry's. What they need to
     // know is which half is broken, because the other half is what makes the
     // workaround below obvious rather than magic.

@@ -152,3 +152,41 @@ describe("a refusal says what to do about it", () => {
     expect(ADD).toMatch(/setTried\(out\.tried\);\s*setFailure\(null\)/);
   });
 });
+
+// The number the other person has to type, which this dialog asks for and,
+// for one release, never printed. Their deck shows it in the same place.
+describe("this deck's own address", () => {
+  it("is printed under the address field, with the port on it", () => {
+    expect(ADD).toContain("status.addrs");
+    expect(ADD).toMatch(/They type this deck/);
+    // Built from the port the listener actually holds, never from a constant:
+    // a hard-coded number here would be the placeholder problem again.
+    expect(ADD).toMatch(/\$\{a\}:\$\{status\.port\}/);
+  });
+
+  it("is drawn only while there is a port to draw", () => {
+    // A deck that is switched off has no address to give, and half an address
+    // is worse than none: it would be typed and dialled and time out.
+    expect(ADD).toMatch(/status\.port != null/);
+  });
+
+  // A machine on a tailnet and a wifi has two, and neither side can tell which
+  // one the other can route to.
+  it("offers every address rather than choosing one", () => {
+    expect(ADD).toMatch(/mine\.map/);
+  });
+});
+
+describe("where the firewall lines are pasted", () => {
+  // PowerShell is Windows' word. Saying it to somebody on Arch reads as a
+  // dialog meant for a different machine, and the rest of it goes with it.
+  it("asks the verdict which shell it wrote for instead of assuming one", () => {
+    expect(ADD).toContain('status.reach?.shell === "sh"');
+    expect(ADD).toMatch(/Run this in a terminal/);
+    expect(ADD).toMatch(/Run this in PowerShell/);
+  });
+
+  it("carries what the Linux verdict could not check", () => {
+    expect(ADD).toContain("status.reach.unsure");
+  });
+});
