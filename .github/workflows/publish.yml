@@ -385,6 +385,19 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      # THE NPM THAT CAN DO OIDC. Node 22 ships npm 10, and trusted publishing
+      # — the thing that lets this job authenticate as this repository instead
+      # of as a token somebody has to keep alive — landed in npm 11.5.1. Without
+      # this line the publish below falls back to looking for a token it no
+      # longer has, and the release stops on a 404 that says nothing about why.
+      #
+      # `npm ci` below still runs under it, which is the point: one npm for the
+      # whole job rather than two to reason about.
+      - name: Use an npm that supports trusted publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+
       - name: Verify tag matches package.json
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
@@ -438,8 +451,23 @@ jobs:
           else
             npm publish --provenance --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # NO TOKEN HERE ANY MORE, DELIBERATELY. This job authenticates by OIDC:
+      # npm is configured to trust this repository and this workflow file, and
+      # the short-lived token is minted per run by `id-token: write` above.
+      #
+      # WHAT IT COST TO LEARN. 3.23.4 was tagged, its tests were green, and the
+      # release did not happen three times over: the stored NPM_TOKEN had
+      # expired (404 on PUT, which npm returns instead of 403 so it does not
+      # leak whether a package exists), then a granular replacement without the
+      # 2FA-bypass flag was refused (403), then the package's own publishing
+      # access had to be widened to accept automation tokens at all. Every one
+      # of those is a credential problem, and none of them exists once there is
+      # no credential to keep.
+      #
+      # THE ONE THING THAT MUST STAY IN STEP: npm trusts this file BY NAME. If
+      # this workflow is ever renamed or the publish job moves to another file,
+      # the trusted publisher entry on npmjs.com has to be updated in the same
+      # breath, or the next tag stops here.
 
       # The run summary is the first thing anybody looks at after a release, and
       # it used to be the one step in this job that could not tell the truth: it
