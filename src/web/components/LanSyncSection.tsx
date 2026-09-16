@@ -35,8 +35,10 @@
 // not happened yet; a refresh token that has left this machine is gone, and the
 // only real revocation is a re-login at Anthropic, which kills the session on
 // every machine at once.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { pressAccepted, pressState } from "../panel-press";
+import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
 import LanAddDeckModal from "./LanAddDeckModal";
@@ -394,6 +396,14 @@ export function isOnline(p: Peer, now: number): boolean {
  *  decide a deck is still present. Two lost packets do not put somebody
  *  offline. */
 export const ONLINE_MS = 95_000;
+
+/** How long the pointer has to stay on the way-in row before the peek opens.
+ *  A pointer crossing the foot of the panel on its way to something else is not
+ *  asking a question, and a card that flashes at every crossing is noise. */
+export const PEEK_DELAY_MS = 160;
+/** How many names the peek prints before it counts the rest. Six rows is the
+ *  most a card can show and still be read in the moment a hover lasts. */
+export const PEEK_NAMES = 6;
 
 /** Who is here now, and how many are not. The panel shows the first and counts
  *  the second — a list of machines that are switched off is a list nobody
@@ -1031,6 +1041,80 @@ async function post(url: string, body: Record<string, unknown>) {
   return res.json().catch(() => null);
 }
 
+/**
+ * WHO IS ON, BESIDE THE ROW, WITHOUT PRESSING ANYTHING.
+ *
+ * `1 of 8 online` answers how many and refuses to say which — and which is the
+ * question somebody has when they are about to send a login to a colleague's
+ * machine. Pressing the row answers it and costs a view change, a read and a
+ * way back, for a list that is usually two names long.
+ *
+ * SO IT TAKES NEITHER THE POINTER NOR THE FOCUS. `pointer-events: none` in the
+ * sheet, no control inside it, nothing to tab to: the card cannot swallow the
+ * press the reader was about to make, and cannot trap a pointer in a hover it
+ * has to find its way out of. Everything in it is a press away in the view.
+ *
+ * PORTALLED for the reason AnchoredPopover is — `.accounts-panel` clips its own
+ * overflow and this row is at the foot of it — and placed by placeBeside, which
+ * is where the rule about which side it opens on is written and checked.
+ */
+function LanPeek({ anchorId, id, rows }: { anchorId: string; id: string; rows: DeckRow[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const paired = rows.filter(r => r.kind === "paired");
+  const here = paired.filter(r => r.here);
+  const shown = here.slice(0, PEEK_NAMES);
+  const off = paired.length - here.length;
+  // One tail line, and the count that is missing from the names above it: the
+  // ones too many to print if there are any, the ones not on if there are not.
+  const rest = here.length > shown.length
+    ? `and ${here.length - shown.length} more`
+    : off > 0
+      ? `${off} not on right now`
+      : null;
+
+  const place = useCallback(() => {
+    const el = ref.current;
+    const anchor = document.getElementById(anchorId);
+    if (!el || !anchor) return;
+    const p = placeBeside(anchor.getBoundingClientRect(), { width: el.offsetWidth, height: el.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight });
+    el.style.top = `${p.top}px`;
+    el.style.left = `${p.left}px`;
+    el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
+    el.dataset.side = p.side;
+  }, [anchorId]);
+  // Before paint, every render: the roster re-polls every five seconds and a
+  // name arriving makes the card taller than the window's margin allows.
+  useLayoutEffect(() => { place(); });
+  useEffect(() => {
+    // Capture: the panel's own scroll does not bubble to window.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [place]);
+
+  return createPortal(
+    <div ref={ref} id={id} className="ap-peek" role="tooltip">
+      <p className="ap-peek-title">{here.length ? "On the network now" : "Nobody on the network"}</p>
+      {shown.length > 0 && (
+        <div className="ap-peek-list">
+          {shown.map(r => (
+            <span key={`${r.kind}:${r.fp}`} className="ap-peek-who">
+              <i className="ap-nav-live" aria-hidden />
+              <span>{r.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {rest && <p className="ap-peek-rest">{rest}</p>}
+    </div>,
+    document.body,
+  );
+}
+
 /** What the panel's way in to this section says about it (#844). */
 /**
  * THE WAY IN, IN ONE LINE — what the accounts view says about this section from
@@ -1058,22 +1142,22 @@ async function post(url: string, body: Record<string, unknown>) {
 export function entryLine(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null } | null,
   rows: DeckRow[],
-): { text: string; tone: "bad" | "idle" | "ok" | "wait" } {
-  if (!s) return { text: "checking…", tone: "idle" };
-  if (!s.enabled) return { text: "Off", tone: "idle" };
-  if (s.stalled) return { text: "could not start", tone: "bad" };
-  if (!s.running) return { text: "starting…", tone: "wait" };
+): { text: string; tone: "bad" | "idle" | "ok" | "wait"; live: boolean } {
+  if (!s) return { text: "checking…", tone: "idle", live: false };
+  if (!s.enabled) return { text: "Off", tone: "idle", live: false };
+  if (s.stalled) return { text: "could not start", tone: "bad", live: false };
+  if (!s.running) return { text: "starting…", tone: "wait", live: false };
   const asks = rows.filter(r => r.kind === "asks").length;
-  if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait" };
+  if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait", live: false };
   const paired = rows.filter(r => r.kind === "paired");
-  if (!paired.length) return { text: "On · none paired yet", tone: "idle" };
+  if (!paired.length) return { text: "On · none paired yet", tone: "idle", live: false };
   // `here` is the row's own presence — the dot the list draws — so the two
   // places cannot disagree about who is on.
   const online = paired.filter(r => r.here).length;
-  if (!online) return { text: `none of ${paired.length} online`, tone: "idle" };
+  if (!online) return { text: `none of ${paired.length} online`, tone: "idle", live: false };
   // A fleet that is all there does not need the arithmetic said out loud.
-  if (online === paired.length) return { text: `${online} online`, tone: "ok" };
-  return { text: `${online} of ${paired.length} online`, tone: "ok" };
+  if (online === paired.length) return { text: `${online} online`, tone: "ok", live: true };
+  return { text: `${online} of ${paired.length} online`, tone: "ok", live: true };
 }
 
 export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBack, closeButton }: {
@@ -1119,6 +1203,14 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
    *  each machine. Opened from a press only — the card while the section is
    *  off, and the word under an empty list — never from a flag. */
   const [guideOpen, setGuideOpen] = useState(false);
+  /** Whether the peek is showing — who is on, beside the way-in row. Only the
+   *  accounts view has that row; in this section's own view the list is the
+   *  answer and the card would be saying it twice. */
+  const [peek, setPeek] = useState(false);
+  /** The hover's delay, held so a pointer that leaves before it fires cancels
+   *  it rather than opening a card behind the pointer. */
+  const peekTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
   /** Whether the decks that are not on are showing. Shut by default and kept
    *  for the session only: which decks are off changes while you watch, and a
    *  remembered fold would be about a list that no longer exists. */
@@ -1447,9 +1539,32 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   // stays with it, so a request or a failure that arrives while the reader is on
   // the accounts is still announced.
   if (!view) {
+    // The peek's two verbs. Opening is delayed for a pointer and immediate for
+    // focus; shutting is always at once, and always cancels a pending open.
+    const openPeek = (delay: number) => {
+      window.clearTimeout(peekTimer.current);
+      peekTimer.current = window.setTimeout(() => setPeek(true), delay);
+    };
+    const shutPeek = () => { window.clearTimeout(peekTimer.current); setPeek(false); };
     return (
       <div className="ap-foot">
-        <button type="button" id="ap-lan-entry" className="ap-nav" onClick={onOpen}>
+        <button type="button" id="ap-lan-entry" className="ap-nav"
+          onClick={() => { shutPeek(); onOpen(); }}
+          // Described by the card while the card is there, so a screen reader
+          // on this row is read the same names a pointer is shown.
+          aria-describedby={peek ? "ap-lan-peek" : undefined}
+          // A mouse only. Touch has no hover, and a pointerenter synthesised by
+          // a tap would open a card the tap is already replacing with the view.
+          onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
+          onPointerLeave={shutPeek}
+          // Focus is deliberate, so it opens at once — and the keyboard is told
+          // what the pointer is told, which is the whole of hover's a11y debt.
+          onFocus={() => openPeek(0)}
+          // AND NO ESCAPE HANDLER. Escape is for a surface a reader is stuck
+          // inside; this one holds no focus, takes no pointer and covers
+          // nothing that can be pressed — there is nothing to escape from, and
+          // App.tsx stays the only place in this app that reads that key.
+          onBlur={shutPeek}>
           <svg className="ap-nav-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
             strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <rect x="1.8" y="2.3" width="10.4" height="7.2" rx="1.2" />
@@ -1458,6 +1573,11 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
           <span className="ap-nav-text">
             <span className="ap-nav-name">Local network</span>
             <span className="ap-nav-state" data-tone={entry.tone}>
+              {/* The mark, before the count, and only while somebody is there:
+                  `online` is a word in the muted tier, read by whoever is
+                  already reading the row, and a glance wants the same dot the
+                  machines inside wear. */}
+              {entry.live && <i className="ap-nav-live" aria-hidden />}
               {entry.text}
             </span>
           </span>
@@ -1466,6 +1586,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
             <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
           </svg>
         </button>
+        {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} />}
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>

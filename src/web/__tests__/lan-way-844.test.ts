@@ -29,7 +29,7 @@ const on = { enabled: true, running: true };
 
 describe("what the way in says (#844)", () => {
   it("says it is checking until the section has read its own state, and Off while it is off", () => {
-    expect(entryLine(null, [])).toEqual({ text: "checking…", tone: "idle" });
+    expect(entryLine(null, [])).toEqual({ text: "checking…", tone: "idle", live: false });
     expect(entryLine({ enabled: false }, [row("paired")]).text).toBe("Off");
   });
 
@@ -39,7 +39,7 @@ describe("what the way in says (#844)", () => {
   });
 
   it("gives way to a deck asking to pair, which is waiting on this keyboard", () => {
-    expect(entryLine(on, [row("asks", "wait"), row("paired", "bad")])).toEqual({ text: "1 deck wants to pair", tone: "wait" });
+    expect(entryLine(on, [row("asks", "wait"), row("paired", "bad")])).toEqual({ text: "1 deck wants to pair", tone: "wait", live: false });
     expect(entryLine(on, [row("asks", "wait"), row("asks", "wait")]).text).toBe("2 decks want to pair");
   });
 
@@ -47,18 +47,18 @@ describe("what the way in says (#844)", () => {
     // Only the paired machines are the fleet: an address still being dialled
     // has no machine behind it yet, and a stranger is not shared with.
     const rows = [row("paired"), row("paired"), row("paired", "bad"), row("dialling", "bad"), row("nearby", "idle")];
-    expect(entryLine(on, rows)).toEqual({ text: "2 of 3 online", tone: "ok" });
-    expect(entryLine(on, [row("nearby", "idle")])).toEqual({ text: "On · none paired yet", tone: "idle" });
+    expect(entryLine(on, rows)).toEqual({ text: "2 of 3 online", tone: "ok", live: true });
+    expect(entryLine(on, [row("nearby", "idle")])).toEqual({ text: "On · none paired yet", tone: "idle", live: false });
   });
 
   it("drops the arithmetic when the whole fleet is there, and says so when none of it is", () => {
-    expect(entryLine(on, [row("paired"), row("paired")])).toEqual({ text: "2 online", tone: "ok" });
+    expect(entryLine(on, [row("paired"), row("paired")])).toEqual({ text: "2 online", tone: "ok", live: true });
     const off = [row("paired", "idle", false), row("paired", "idle", false)];
-    expect(entryLine(on, off)).toEqual({ text: "none of 2 online", tone: "idle" });
+    expect(entryLine(on, off)).toEqual({ text: "none of 2 online", tone: "idle", live: false });
     // Presence is the row's own `here`, not its tone: a deck that is on and
     // whose last round failed is still one of the machines that are there.
     expect(entryLine(on, [row("paired", "bad", true), row("paired", "idle", false)]))
-      .toEqual({ text: "1 of 2 online", tone: "ok" });
+      .toEqual({ text: "1 of 2 online", tone: "ok", live: true });
   });
 
   it("counts no faults on the way in: a deck not responding is already not online", () => {
@@ -67,7 +67,7 @@ describe("what the way in says (#844)", () => {
     // from the one view where there is nothing to act on. Which machine, and
     // why, is a press away — and the list still counts it under its own fold.
     const failing = [row("paired", "bad", false), row("paired"), row("dialling", "bad", false)];
-    expect(entryLine(on, failing)).toEqual({ text: "1 of 2 online", tone: "ok" });
+    expect(entryLine(on, failing)).toEqual({ text: "1 of 2 online", tone: "ok", live: true });
     expect(lan).not.toMatch(/ap-nav-bad|not responding<\/span>\}/);
     expect(css).not.toMatch(/\.ap-nav-bad/);
     // The fold inside the view keeps its own count, which is where it belongs.
@@ -77,9 +77,16 @@ describe("what the way in says (#844)", () => {
 
 describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
-    expect(lan).toMatch(/if \(!view\) \{\s*return \(\s*<div className="ap-foot">\s*<button type="button" id="ap-lan-entry" className="ap-nav" onClick=\{onOpen\}>/);
+    expect(lan).toMatch(/<div className="ap-foot">\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
+    expect(lan).toMatch(/onClick=\{\(\) => \{ shutPeek\(\); onOpen\(\); \}\}/);
     expect(lan).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
-    expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>\s*\{entry\.text\}/);
+    expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>/);
+    // The mark for present, drawn only while somebody is present, and in this
+    // app's colour for live. NOT --ok: green is this sheet's word for DONE.
+    expect(lan).toMatch(/\{entry\.live && <i className="ap-nav-live" aria-hidden \/>\}/);
+    expect(/\n\.ap-nav-live \{([^}]*)\}/.exec(css)?.[1] ?? "").toMatch(/background: var\(--accent\)/);
+    // A summary of every machine does not ping; the machines themselves do.
+    expect(css).not.toMatch(/\.ap-nav-live[^{]*\{[^}]*animation/);
   });
 
   it("comes after the roster and the policy row, and is the only place the network's state is said", () => {
@@ -100,6 +107,57 @@ describe("one way in, at the foot of the accounts (#844)", () => {
     expect(nav).toMatch(/border: 0/);
     expect(nav).toMatch(/cursor: pointer/);
     expect(css).toMatch(/\.ap-nav:hover \{ background: color-mix\(in srgb, var\(--text\) 4%, transparent\); \}/);
+  });
+});
+
+// A count answers HOW MANY and refuses to say WHICH, and which is the question
+// somebody has before sending a login to a colleague's machine. The peek is
+// that answer without a press: a card beside the row, on hover and on focus.
+describe("the peek: who is on, beside the row, with nothing pressed", () => {
+  const peek = /function LanPeek\(([\s\S]*?)\n\}/.exec(lan)?.[0] ?? "";
+  const block = (sel: string) => new RegExp(`\\n\\${sel} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+
+  it("hangs off the way-in row and is drawn only while it is open", () => {
+    expect(lan).toMatch(/\{peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows=\{rows\} \/>\}/);
+    expect(peek).toMatch(/createPortal\(/);
+    expect(peek).toMatch(/className="ap-peek" role="tooltip"/);
+  });
+
+  it("opens after a delay for a mouse and at once for focus, and shuts on either leaving", () => {
+    expect(lan).toMatch(/onPointerEnter=\{e => \{ if \(e\.pointerType === "mouse"\) openPeek\(PEEK_DELAY_MS\); \}\}/);
+    expect(lan).toMatch(/onPointerLeave=\{shutPeek\}/);
+    expect(lan).toMatch(/onFocus=\{\(\) => openPeek\(0\)\}/);
+    expect(lan).toMatch(/onBlur=\{shutPeek\}/);
+    // A pointer that leaves before the delay fires cancels it, rather than
+    // opening a card the pointer has already walked away from.
+    expect(lan).toMatch(/const shutPeek = \(\) => \{ window\.clearTimeout\(peekTimer\.current\); setPeek\(false\); \};/);
+    expect(lan).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
+  });
+
+  it("is told to a screen reader too, and only while the card is there", () => {
+    expect(lan).toMatch(/aria-describedby=\{peek \? "ap-lan-peek" : undefined\}/);
+    // No Escape of its own: a card that holds no focus and takes no pointer is
+    // not something a reader can be stuck inside, and App.tsx stays the one
+    // place that reads that key. Held by modal-dismiss.test.ts for every
+    // component; said here because this is the surface that raised it.
+    expect(lan).not.toMatch(/"Escape"/);
+  });
+
+  it("takes neither the pointer nor a press: there is nothing in it to act on", () => {
+    // Everything in the card is a press away in the view. A control here would
+    // be a control under a pointer that is only passing through.
+    expect(peek).not.toMatch(/<button|onClick/);
+    expect(block(".ap-peek")).toMatch(/pointer-events: none/);
+    expect(block(".ap-peek")).toMatch(/position: fixed/);
+    // The layer the panel's other portalled surface already sits on.
+    expect(block(".ap-peek")).toMatch(/z-index: 40/);
+  });
+
+  it("names at most a handful, then counts the rest", () => {
+    expect(lan).toMatch(/const shown = here\.slice\(0, PEEK_NAMES\);/);
+    expect(lan).toMatch(/export const PEEK_NAMES = 6;/);
+    expect(lan).toMatch(/\{here\.length \? "On the network now" : "Nobody on the network"\}/);
+    expect(lan).toMatch(/\$\{off\} not on right now/);
   });
 });
 

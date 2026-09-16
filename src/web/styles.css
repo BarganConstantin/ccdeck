@@ -7785,6 +7785,26 @@ button.qb-pace::after {
 .ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
+/* LIVE, IN THE COLOUR THIS APP ALREADY SPENDS ON LIVE. Cyan and not green:
+   `--ok` is this sheet's word for DONE — the finished tool call, the done
+   session, the version banner that has landed — and a machine being switched on
+   is not a thing that has finished. The accounts above this row mark the live
+   account with `var(--accent)` in `.ap-live`, and the machines one press away
+   draw the same dot, so the column says present in one colour throughout.
+
+   STILL, WHERE THE ROWS INSIDE PING. `.ap-pulse` earns its ring on a list where
+   the reader is looking for one machine among many; this is a summary of all of
+   them, at the foot of a panel about something else, and a pulse there is
+   motion in the corner of the eye with nothing to find. */
+.ap-nav-live {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  vertical-align: 1px;
+  border-radius: 50%;
+  background: var(--accent);
+}
 .ap-nav-state[data-tone="bad"] { color: var(--warn); }
 .ap-nav-state[data-tone="wait"] { color: var(--accent); }
 .ap-nav-chev {
@@ -7793,6 +7813,75 @@ button.qb-pace::after {
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+
+/* THE PEEK — who is on, beside the row, for a pointer that has not pressed
+   anything.
+
+   `1 of 8 online` answers how many and refuses to say which, and WHICH is the
+   whole question for somebody about to send an account to a colleague's
+   machine. The press that answers it costs a view change and a way back, for a
+   list of at most a handful of names.
+
+   BESIDE, NEVER UNDER: this row sits at the foot of a column, and a card
+   dropped under it would cover the rows the pointer is moving through. See
+   placeBeside.
+
+   IT TAKES NO POINTER AND NO FOCUS. `pointer-events: none` means the pointer
+   passes through it to whatever is underneath, so a card that opens where the
+   pointer is heading cannot swallow the next press or trap the pointer in a
+   hover it cannot leave. Nothing in it is a control — every name in it is a
+   press away in the view itself.
+
+   AND IT IS NOT HOVER-ONLY. The same card opens when the row takes focus, so
+   the keyboard is told what the pointer is told; a screen reader is handed the
+   same names through `aria-describedby` on the row. */
+.ap-peek {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  width: 208px;
+  padding: 10px 12px;
+  overflow: hidden auto;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), var(--shadow-2);
+  /* Opacity only. The card is unasked-for and arrives where the eye is not
+     looking; travel would make it a thing that happened rather than a thing
+     that is there — which is also why there is no reduced-motion rule to write:
+     a fade is what that rule leaves behind everywhere else in this sheet. */
+  animation: fadeIn 110ms ease-out;
+}
+:root[data-theme="light"] .ap-peek {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), var(--shadow-2);
+}
+/* The label over the names sits UNDER them in weight, not over. A card this
+   small cannot have two loud lines, and the names are what was asked for — the
+   label only says what list this is. */
+.ap-peek-title { font-size: 11px; color: var(--muted); }
+.ap-peek-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 7px;
+}
+/* The foreground tier, inherited: a machine's name is the content of this card
+   and the only thing in it worth reading at a glance. */
+.ap-peek-who {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12px;
+}
+.ap-peek-who > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ap-peek-rest { margin-top: 7px; font-size: 11px; color: var(--muted); }
 
 .ap-lan-row {
   display: flex;

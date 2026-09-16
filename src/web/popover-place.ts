@@ -58,6 +58,41 @@ export const POPOVER_GAP = 4;
 /** Air between the popover and the edge of the window. */
 export const POPOVER_MARGIN = 8;
 
+/** Where a card that answers a HOVER goes: beside the control, not under it.
+ *
+ *  A menu belongs under the button that opened it, because the reader pressed
+ *  that button and is now looking at it. A peek is the other way round — nobody
+ *  asked for it, the pointer is resting on a row in a column, and a surface
+ *  that drops under that row covers the rows after it: the thing the pointer is
+ *  about to move to. Beside the column there is nothing to cover.
+ *
+ *  RIGHT, unless the anchor's own column is against the right of the window and
+ *  the left has more room — a sidebar on either side gets the same card, opening
+ *  away from its own edge. Top-aligned with the anchor rather than centred on
+ *  it, so the first line of the card and the row it belongs to read on one line. */
+export interface BesidePlacement {
+  top: number;
+  left: number;
+  /** Which way it opened, for the sheet's entrance and for a test to read. */
+  side: "right" | "left";
+  /** Set only when the window is too short to hold the card, and it scrolls. */
+  maxHeight: number | null;
+}
+
+export function placeBeside(anchor: Edges, size: Size, viewport: Size): BesidePlacement {
+  const right = viewport.width - POPOVER_MARGIN - (anchor.right + POPOVER_GAP);
+  const left = anchor.left - POPOVER_GAP - POPOVER_MARGIN;
+  const side = size.width <= right || right >= left ? "right" : "left";
+  const x = side === "right" ? anchor.right + POPOVER_GAP : anchor.left - POPOVER_GAP - size.width;
+  const room = viewport.height - POPOVER_MARGIN * 2;
+  const fits = size.height <= room;
+  const height = fits ? size.height : Math.max(0, room);
+  // Level with the row, then pulled back inside the window — a row near the
+  // foot of a tall column opens a card that ends at the window's margin.
+  const top = Math.max(POPOVER_MARGIN, Math.min(anchor.top, viewport.height - POPOVER_MARGIN - height));
+  return { top, left: Math.max(POPOVER_MARGIN, x), side, maxHeight: fits ? null : height };
+}
+
 export function placePopover(anchor: Edges, size: Size, viewport: Size): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;
