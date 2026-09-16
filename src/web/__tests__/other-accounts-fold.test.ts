@@ -254,8 +254,26 @@ describe("what the column folds, and when it does not", () => {
   });
 
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {
-    expect(css).toMatch(/\.ap-rest \{ padding: 0 var\(--panel-inset\) 2px; \}/);
-    expect(css).toMatch(/\.ap-others \{ padding-top: 2px; \}/);
+    expect(css).toMatch(/\.ap-rest \{ padding: 4px var\(--panel-inset\) 0; \}/);
+  });
+
+  it("wears no glyph, so its name starts on the column's own left edge", () => {
+    // An icon in this column means a DESTINATION — Local network wears one
+    // because pressing it takes the column away. This row opens a list where it
+    // stands. With the icon gone, `Claude accounts`, `Other accounts` and
+    // `Auto-switch` share one left edge, which is the spine of the block.
+    expect(fold).not.toMatch(/ap-nav-glyph/);
+    expect(css).toMatch(/\.ap-rest \.ap-nav \{ gap: 0; \}/);
+    // Local network keeps its own: it is the row that goes somewhere.
+    expect(read("../components/LanSyncSection.tsx")).toMatch(/className="ap-nav-glyph"/);
+  });
+
+  it("puts a wider gap over the fold than under it, so the two rows read as one group", () => {
+    // 4px over, 2px under — the account above is a different thing, the policy
+    // below is the same one. Proximity does the grouping; no container does.
+    const over = /\n\.ap-rest \{ padding: (\d+)px/.exec(css)?.[1];
+    const under = /\n\.ap-policy-block \{ padding: (\d+)px/.exec(css)?.[1];
+    expect(Number(over)).toBeGreaterThan(Number(under));
   });
 
   it("puts the policy under the accounts it moves you between, and drops the rule over it", () => {
@@ -263,12 +281,44 @@ describe("what the column folds, and when it does not", () => {
     // standing apart from a roster it could not fit beside. It sits with the
     // roster now: same inset, space instead of a rule, and after the list the
     // fold opens so the block reads "…and do this automatically".
-    expect(css).toMatch(/\.ap-policy-block \{ padding: 8px var\(--panel-inset\) 14px; \}/);
-    expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
+    expect(css).toMatch(/\.ap-policy-block \{ padding: 2px var\(--panel-inset\) 14px; \}/);
     expect(panel.indexOf('className="ap-policy-block"')).toBeGreaterThan(panel.indexOf("{rest.map(accountRow)}"));
     // And it is inside the scroll, which is the whole of the move.
     expect(panel.indexOf('className="ap-policy-block"')).toBeLessThan(panel.indexOf("<LanSyncSection"));
     expect(panel).not.toMatch(/<div className="ap-foot">/);
+  });
+
+  it("gives the list the only room that flexes, so the policy under it cannot be pushed off", () => {
+    // Auto-switch came back into this column, which put it under a list that
+    // can be twenty accounts long. The list is what shrinks: it takes what is
+    // left and scrolls inside it. Everything else is pinned to its own height,
+    // or a tall list would squash the live account's bars instead.
+    expect(/\n\.ap-scroll \{([^}]*)\}/.exec(css)?.[1] ?? "").toMatch(/display: flex;\s*flex-direction: column;/);
+    expect(css).toMatch(/\.ap-scroll > \* \{ flex: none; \}/);
+    const others = /\n\.ap-others \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(others).toMatch(/flex: 0 1 auto/);
+    expect(others).toMatch(/min-height: 0/);
+    expect(others).toMatch(/overflow-y: auto/);
+    // Reaching the end of this list does not go on to scroll the column.
+    expect(others).toMatch(/overscroll-behavior: contain/);
+  });
+
+  it("closes the open list with one hairline, and draws none when it is shut", () => {
+    // A region that scrolls inside itself ends on a row cut in half, and at
+    // 288px that reads as a glitch rather than a boundary. The rule exists for
+    // exactly as long as there is a list to close.
+    expect(css).toMatch(/\.ap-others \+ \.ap-policy-block \{[^}]*border-top: 1px solid var\(--line-soft\);/);
+    expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
+  });
+
+  it("closes a row's menu against the box that row actually scrolls in", () => {
+    // Once the fold is open its list has a scroll of its own, and a menu
+    // measured against the column would stay open over a row that had already
+    // scrolled out of sight.
+    expect(panel).toMatch(/const rowBoundary = \(num: number\) =>\s*\n\s*restOpen && rest\.some\(a => a\.num === num\) \? "ap-rest-list" : "ap-scroll";/);
+    expect(panel).toMatch(/boundaryId=\{rowBoundary\(a\.num\)\}/);
+    // The notice over the list never lives in the fold, so it keeps the column.
+    expect(panel).toMatch(/boundaryId=\{issueOpen\.anchor === "ap-notice" \? "ap-scroll" : rowBoundary\(a\.num\)\}/);
   });
 
   it("gives the card the width a name and a number need, and the number the muted tier", () => {

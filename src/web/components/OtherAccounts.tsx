@@ -165,15 +165,15 @@ export default function OtherAccounts({ peers, strained, armed, open, onToggle }
         // to which of the two happened.
         onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
         onBlur={shutPeek}>
-        {/* TWO ROWS, STACKED — what is literally behind the door, drawn on the
-            14px grid the panel's other glyphs are drawn on. Not a pair of
-            people: these are logins, and a crowd at 13px is four strokes of
-            mush. */}
-        <svg className="ap-nav-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-          strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <rect x="1.8" y="2.6" width="10.4" height="3.7" rx="1.2" />
-          <rect x="1.8" y="7.7" width="10.4" height="3.7" rx="1.2" />
-        </svg>
+        {/* AND NO GLYPH. It had one — two stacked rows, for what is behind the
+            door — and it was the wrong borrowing. An icon in this column means
+            a DESTINATION: Local network wears one because pressing it takes the
+            column away. This row opens a list where it stands, and the icon
+            made the two read as two doors to somewhere else.
+            Dropping it also puts the name on the panel's own inset, which is
+            where `Claude accounts` above and `Auto-switch` below already start.
+            Those three left edges are the column's spine, and a 23px indent on
+            the middle one was the loudest thing in the block. */}
         <span className="ap-nav-text">
           <span className="ap-nav-name">Other accounts</span>
           <span className="ap-nav-state" data-tone={line.tone}>{line.text}</span>

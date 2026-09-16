@@ -7123,12 +7123,23 @@ button.qb-pace::after {
    went under the fold with nothing saying they were there. The list takes the
    height that is left and the foot stays on the column's floor at every length.
    The panel itself no longer scrolls — its inner scroll is the boundary the ⋯
-   and the warnings' popovers close against. */
+   and the warnings' popovers close against.
+
+   AND ONE CHILD OF IT GIVES. Auto-switch came back into this column, which put
+   it under a list that can be twenty accounts long — so the list, and only the
+   list, is what shrinks: it takes the room left over and scrolls inside it,
+   and the policy under it cannot be pushed off the bottom. Everything else
+   here keeps its natural height, which is why they are pinned to `flex: none`
+   rather than left on the flex default, where a tall list would squash the
+   live account's bars instead. */
 .ap-scroll {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden auto;
 }
+.ap-scroll > * { flex: none; }
 .ap-foot {
   flex-shrink: 0;
   padding: 10px var(--panel-inset) 12px;
@@ -7824,13 +7835,35 @@ button.qb-pace::after {
 
 /* THE FOLD, between the live account and the rest of the roster. `.ap-nav` is
    written for the foot, where the inset comes from `.ap-foot`; this row stands
-   in the scroll, so the inset is its own. Its text lands where Local network's
-   does, one screen down, because they are the same row. */
-.ap-rest { padding: 0 var(--panel-inset) 2px; }
+   in the scroll, so the inset is its own.
+   IT CARRIES NO GLYPH, so its name starts on that inset — the same left edge as
+   the panel's title above it and Auto-switch's below. See OtherAccounts.tsx for
+   why the icon went, and .ap-nav-text for the gap that goes with it.
+   The 4px over it, against 2px under, is the whole of the rhythm in this block:
+   the account above is a different thing, the policy below is the same one. */
+.ap-rest { padding: 4px var(--panel-inset) 0; }
+/* No glyph, no gap to leave for one. The chevron keeps its own, from the
+   `auto` margin the text column already claims. */
+.ap-rest .ap-nav { gap: 0; }
 /* The list it opens hangs directly off it — the top padding belongs to the
    fold's own bottom, and two of them would read as a gap the reader has to
-   cross to believe the rows are what the row was about. */
-.ap-others { padding-top: 2px; }
+   cross to believe the rows are what the row was about.
+
+   AND IT IS THE ONE THING IN THIS COLUMN THAT SCROLLS INSIDE ITSELF. It takes
+   the room left between the fold row and the policy and stops there. A second
+   scrollbar is a cost, and it is only paid when a reader has opened a list too
+   long for the room — with three accounts in it there is nothing to scroll and
+   no bar to see, because `max-height` here is whatever the flex line gives it
+   rather than a number somebody picked.
+   `overscroll-behavior` so reaching the end of this list does not go on to
+   scroll the column behind it. */
+.ap-others {
+  padding-top: 2px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 /* AUTO-SWITCH, UNDER THE ACCOUNTS IT MOVES YOU BETWEEN. It was `.ap-foot` — a
    pinned strip with a rule over it — and both of those were about standing
@@ -7839,10 +7872,24 @@ button.qb-pace::after {
    does between the account rows themselves. The controls in it are the only
    ones in this column, which is all the separation a policy row needs.
 
-   The 8px over it is the fold row's own bottom plus this: far enough that the
-   policy is not read as a third line of the row above, close enough that the
-   two are one block. */
-.ap-policy-block { padding: 8px var(--panel-inset) 14px; }
+   AND IT SITS CLOSE. The gap over the fold row is wider than the gap under it,
+   so the two read as one group — available targets, then the policy that picks
+   between them — hanging off the live account rather than floating between it
+   and the foot. Proximity does that grouping; there is no container and no
+   rule, which is why the block can hold a list of any length without becoming
+   a card. */
+.ap-policy-block { padding: 2px var(--panel-inset) 14px; }
+/* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN. A region that scrolls inside
+   itself ends on a row cut in half, and at this width that reads as a glitch
+   rather than as a boundary — there is no container edge, no change of ground,
+   nothing to say the list stopped and a control began. The rule says it, and
+   it exists for exactly as long as there is a list to close: shut, the policy
+   sits 2px under the fold row with nothing between them. */
+.ap-others + .ap-policy-block {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
 
 /* THE PEEK — who is on, beside the row, for a pointer that has not pressed
    anything.

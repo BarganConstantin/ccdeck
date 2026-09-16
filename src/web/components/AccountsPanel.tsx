@@ -757,6 +757,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // toggle can read `off` while the terminal loop runs — that is what
   // `external` is for — so the two are an OR and never the toggle alone.
   const autoArmed = auto?.ok === true && (auto.enabled || auto.external);
+  /** The box a row scrolls inside, which is what a popover hanging off it
+   *  closes against. Once the fold is open its list has a scroll of its own —
+   *  it is the one thing in the column that gives, so Auto-switch under it
+   *  cannot be pushed off — and a menu measured against the column instead
+   *  would stay open over a row that had already scrolled out of view. */
+  const rowBoundary = (num: number) =>
+    restOpen && rest.some(a => a.num === num) ? "ap-rest-list" : "ap-scroll";
 
   const doSwitch = async (num: number, name: string) => {
     if (!claim(`switch-${num}`)) return;
@@ -1551,9 +1558,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 return (
                   <AnchoredPopover
                     anchorId={`ap-more-${a.num}`}
-                    // The column the ⋯ scrolls in. Scrolled out of it, the
-                    // popover closes rather than float over a row nobody can see.
-                    boundaryId="ap-scroll"
+                    // The box the ⋯ scrolls in. Scrolled out of it, the popover
+                    // closes rather than float over a row nobody can see.
+                    boundaryId={rowBoundary(a.num)}
                     id={`ap-menu-${a.num}`}
                     className="ap-pop"
                     role={menu.view === "menu" ? "menu" : "dialog"}
@@ -1790,7 +1797,9 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 return (
                   <AnchoredPopover
                     anchorId={issueOpen.anchor}
-                    boundaryId="ap-scroll"
+                    // The notice over the list does not live in the fold, so it
+                    // closes against the column however the roster is drawn.
+                    boundaryId={issueOpen.anchor === "ap-notice" ? "ap-scroll" : rowBoundary(a.num)}
                     id="ap-issue-pop"
                     className="ap-pop ap-issue-pop"
                     role="dialog"
