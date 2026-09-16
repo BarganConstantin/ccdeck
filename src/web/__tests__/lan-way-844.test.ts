@@ -78,7 +78,9 @@ describe("what the way in says (#844)", () => {
 describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
     expect(lan).toMatch(/<div className="ap-foot">\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
-    expect(lan).toMatch(/onClick=\{\(\) => \{ shutPeek\(\); onOpen\(\); \}\}/);
+    // No grace on the way into the view: a card that outlived the view it
+    // belongs to would be a card about a list the reader is already looking at.
+    expect(lan).toMatch(/onClick=\{\(\) => \{ dropPeek\(\); onOpen\(\); \}\}/);
     expect(lan).toMatch(/<span className="ap-nav-name">Local network<\/span>/);
     expect(lan).toMatch(/<span className="ap-nav-state" data-tone=\{entry\.tone\}>/);
     // The mark for present, drawn only while somebody is present, in the green
@@ -117,11 +119,14 @@ describe("one way in, at the foot of the accounts (#844)", () => {
 // somebody has before sending a login to a colleague's machine. The peek is
 // that answer without a press: a card beside the row, on hover and on focus.
 describe("the peek: who is on, beside the row, with nothing pressed", () => {
-  const peek = /function LanPeek\(([\s\S]*?)\n\}/.exec(lan)?.[0] ?? "";
+  // To the brace on its own line: the props are a destructure whose own `\n})`
+  // ends a shorter match, and a body that stops at the signature would let the
+  // assertions below pass on nothing.
+  const peek = /function LanPeek\(([\s\S]*?)\n\}\n/.exec(lan)?.[0] ?? "";
   const block = (sel: string) => new RegExp(`\\n\\${sel} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
   it("hangs off the way-in row and is drawn only while it is open", () => {
-    expect(lan).toMatch(/\{peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows=\{rows\} \/>\}/);
+    expect(lan).toMatch(/\{peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows=\{rows\}/);
     expect(peek).toMatch(/createPortal\(/);
     expect(peek).toMatch(/className="ap-peek" role="tooltip"/);
   });
@@ -136,8 +141,10 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     expect(lan).toMatch(/onFocus=\{e => \{ if \(e\.target\.matches\(":focus-visible"\)\) openPeek\(0\); \}\}/);
     expect(lan).toMatch(/onBlur=\{shutPeek\}/);
     // A pointer that leaves before the delay fires cancels it, rather than
-    // opening a card the pointer has already walked away from.
-    expect(lan).toMatch(/const shutPeek = \(\) => \{ window\.clearTimeout\(peekTimer\.current\); setPeek\(false\); \};/);
+    // opening a card the pointer has already walked away from. One timer does
+    // open, shut and hold, because only one of them can ever be pending.
+    expect(lan).toMatch(/peekTimer\.current = window\.setTimeout\(\(\) => setPeek\(false\), PEEK_GRACE_MS\);/);
+    expect(lan).toMatch(/const holdPeek = \(\) => window\.clearTimeout\(peekTimer\.current\);/);
     expect(lan).toMatch(/useEffect\(\(\) => \(\) => window\.clearTimeout\(peekTimer\.current\), \[\]\);/);
   });
 
@@ -150,11 +157,22 @@ describe("the peek: who is on, beside the row, with nothing pressed", () => {
     expect(lan).not.toMatch(/"Escape"/);
   });
 
-  it("takes neither the pointer nor a press: there is nothing in it to act on", () => {
+  it("lets the pointer rest on it, and stays while it is there", () => {
+    // The first spelling refused the pointer outright, and a reader's next move
+    // after a list appears is onto it — so the card went out from under them.
+    expect(lan).toMatch(/onPointerEnter=\{onHold\} onPointerLeave=\{onLet\}/);
+    expect(lan).toMatch(/onHold=\{holdPeek\} onLet=\{shutPeek\}/);
+    expect(block(".ap-peek")).not.toMatch(/pointer-events/);
+    // The grace is what makes the 4px between row and card crossable at all.
+    expect(lan).toMatch(/export const PEEK_GRACE_MS = 140;/);
+    expect(lan).toMatch(/const POPOVER_GAP|placeBeside/);
+  });
+
+  it("holds no control, whatever the pointer does on it", () => {
     // Everything in the card is a press away in the view. A control here would
-    // be a control under a pointer that is only passing through.
+    // be a control on a surface that closes itself 140ms after the pointer
+    // leaves, which is a way to lose a press rather than to offer one.
     expect(peek).not.toMatch(/<button|onClick/);
-    expect(block(".ap-peek")).toMatch(/pointer-events: none/);
     expect(block(".ap-peek")).toMatch(/position: fixed/);
     // The layer the panel's other portalled surface already sits on.
     expect(block(".ap-peek")).toMatch(/z-index: 40/);

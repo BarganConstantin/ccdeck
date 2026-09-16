@@ -7830,11 +7830,12 @@ button.qb-pace::after {
    dropped under it would cover the rows the pointer is moving through. See
    placeBeside.
 
-   IT TAKES NO POINTER AND NO FOCUS. `pointer-events: none` means the pointer
-   passes through it to whatever is underneath, so a card that opens where the
-   pointer is heading cannot swallow the next press or trap the pointer in a
-   hover it cannot leave. Nothing in it is a control — every name in it is a
-   press away in the view itself.
+   THE POINTER MAY REST ON IT. It refused the pointer at first, and that was
+   one rule too many: a list of names appears and the reader's next move is onto
+   it — to read the fourth name, to follow one with the eye — and the card went
+   out from under them. It holds itself open while the pointer is on it and
+   shuts on the grace that also lets the pointer cross the 4px gap. Nothing in
+   it is a control, so there is still nothing here to press.
 
    AND IT IS NOT HOVER-ONLY. The same card opens when the row takes focus, so
    the keyboard is told what the pointer is told; a screen reader is handed the
@@ -7848,7 +7849,6 @@ button.qb-pace::after {
   width: 208px;
   padding: 10px 12px;
   overflow: hidden auto;
-  pointer-events: none;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);

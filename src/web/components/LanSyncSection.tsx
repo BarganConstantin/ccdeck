@@ -404,6 +404,11 @@ export const PEEK_DELAY_MS = 160;
 /** How many names the peek prints before it counts the rest. Six rows is the
  *  most a card can show and still be read in the moment a hover lasts. */
 export const PEEK_NAMES = 6;
+/** How long the card outlives the pointer leaving it, or the row. Enough to
+ *  cross the 4px between the two and to leave by the shortest way without the
+ *  card blinking; short enough that a card nobody wants is gone before it is
+ *  noticed. */
+export const PEEK_GRACE_MS = 140;
 
 /** Who is here now, and how many are not. The panel shows the first and counts
  *  the second — a list of machines that are switched off is a list nobody
@@ -1049,16 +1054,30 @@ async function post(url: string, body: Record<string, unknown>) {
  * machine. Pressing the row answers it and costs a view change, a read and a
  * way back, for a list that is usually two names long.
  *
- * SO IT TAKES NEITHER THE POINTER NOR THE FOCUS. `pointer-events: none` in the
- * sheet, no control inside it, nothing to tab to: the card cannot swallow the
- * press the reader was about to make, and cannot trap a pointer in a hover it
- * has to find its way out of. Everything in it is a press away in the view.
+ * THE POINTER MAY REST ON IT, AND IT HOLDS NO FOCUS. It began refusing the
+ * pointer outright, and that was one rule too many: a list of names appears, and
+ * what a reader does next is move onto it — to read the fourth name, to follow
+ * one with the eye — and the card went out from under them. So the pointer is
+ * allowed on it, the card holds itself open while it is there, and leaving it
+ * shuts it after the same grace that lets the pointer cross the gap.
+ *
+ * What stays refused is everything else: no control inside it, nothing to tab
+ * to, no focus taken. Every name in it is a press away in the view itself, so
+ * the card can never be the only route to anything.
  *
  * PORTALLED for the reason AnchoredPopover is — `.accounts-panel` clips its own
  * overflow and this row is at the foot of it — and placed by placeBeside, which
  * is where the rule about which side it opens on is written and checked.
  */
-function LanPeek({ anchorId, id, rows }: { anchorId: string; id: string; rows: DeckRow[] }) {
+function LanPeek({ anchorId, id, rows, onHold, onLet }: {
+  anchorId: string;
+  id: string;
+  rows: DeckRow[];
+  /** The pointer is here: cancel whatever the row scheduled. */
+  onHold: () => void;
+  /** The pointer left the card: shut it, on the same grace as the row's. */
+  onLet: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const paired = rows.filter(r => r.kind === "paired");
   const here = paired.filter(r => r.here);
@@ -1097,7 +1116,7 @@ function LanPeek({ anchorId, id, rows }: { anchorId: string; id: string; rows: D
   }, [place]);
 
   return createPortal(
-    <div ref={ref} id={id} className="ap-peek" role="tooltip">
+    <div ref={ref} id={id} className="ap-peek" role="tooltip" onPointerEnter={onHold} onPointerLeave={onLet}>
       <p className="ap-peek-title">{here.length ? "On the network now" : "Nobody on the network"}</p>
       {shown.length > 0 && (
         <div className="ap-peek-list">
@@ -1539,17 +1558,32 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
   // stays with it, so a request or a failure that arrives while the reader is on
   // the accounts is still announced.
   if (!view) {
-    // The peek's two verbs. Opening is delayed for a pointer and immediate for
-    // focus; shutting is always at once, and always cancels a pending open.
+    // The peek's verbs. One timer does all three, because only one of them can
+    // be pending at a time: a pointer arriving cancels a shut, a pointer
+    // leaving cancels an open.
     const openPeek = (delay: number) => {
       window.clearTimeout(peekTimer.current);
       peekTimer.current = window.setTimeout(() => setPeek(true), delay);
     };
-    const shutPeek = () => { window.clearTimeout(peekTimer.current); setPeek(false); };
+    // NOT AT ONCE. The card opens 4px from the row, and a pointer moving onto
+    // it crosses those 4px of nothing — an immediate shut there closed the card
+    // under a pointer that was on its way into it, which is the one move a
+    // reader makes after seeing a list appear. The grace is what makes the gap
+    // crossable; it is also what lets the pointer leave by the shortest way
+    // without the card flickering behind it.
+    const shutPeek = () => {
+      window.clearTimeout(peekTimer.current);
+      peekTimer.current = window.setTimeout(() => setPeek(false), PEEK_GRACE_MS);
+    };
+    // The pointer is on the card: whatever was pending, it is not wanted.
+    const holdPeek = () => window.clearTimeout(peekTimer.current);
+    // The press is leaving this view for the section's own. No grace: the card
+    // would outlive the view it belongs to.
+    const dropPeek = () => { window.clearTimeout(peekTimer.current); setPeek(false); };
     return (
       <div className="ap-foot">
         <button type="button" id="ap-lan-entry" className="ap-nav"
-          onClick={() => { shutPeek(); onOpen(); }}
+          onClick={() => { dropPeek(); onOpen(); }}
           // Described by the card while the card is there, so a screen reader
           // on this row is read the same names a pointer is shown.
           aria-describedby={peek ? "ap-lan-peek" : undefined}
@@ -1591,7 +1625,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
             <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
           </svg>
         </button>
-        {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} />}
+        {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} onHold={holdPeek} onLet={shutPeek} />}
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>
