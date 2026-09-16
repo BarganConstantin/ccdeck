@@ -1236,7 +1236,11 @@ function LanPeek({ anchorId, id, rows, onHold, onLet }: {
  * list still counts it there under its own fold. Dropped at the user's asking.
  */
 export function entryLine(
-  s: { enabled?: boolean; running?: boolean; stalled?: string | null } | null,
+  // `reach` is taken as the one field this row reads rather than as a whole
+  // LanReach: the verdict's sentence, its steps and its shell are the block's
+  // business under the switch, and a row that named the type would have to be
+  // handed one to say anything at all.
+  s: { enabled?: boolean; running?: boolean; stalled?: string | null; reach?: { blocked?: boolean } | null } | null,
   rows: DeckRow[],
 ): { text: string; tone: "bad" | "idle" | "ok" | "wait"; live: boolean } {
   if (!s) return { text: "checking…", tone: "idle", live: false };
@@ -1245,6 +1249,22 @@ export function entryLine(
   if (!s.running) return { text: "starting…", tone: "wait", live: false };
   const asks = rows.filter(r => r.kind === "asks").length;
   if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait", live: false };
+  // NOTHING CAN GET IN, AND THE COUNT IS WHAT HID IT. A blocked deck still
+  // HEARS every beacon on the network, so all of its paired decks are present
+  // and this row would read `8 online` — the most reassuring sentence it can
+  // say, on the one machine where nothing works. The verdict is drawn in full
+  // under the switch, but only for a reader who went in; this row is what tells
+  // somebody to.
+  //
+  // NOT THE AMBER THIS ROW DROPPED. That one restated an absence the count had
+  // already stated, in the colour that means act on this, from a view with
+  // nothing to act on. This is the opposite case: a fault the count actively
+  // conceals, and the one thing on this row somebody can do something about.
+  //
+  // After `asks` deliberately. A request already waiting came in over an
+  // inbound connection, so it is both a press away and evidence that whatever
+  // is in the way now was not always there.
+  if (s.reach?.blocked) return { text: "nothing can get in", tone: "bad", live: false };
   const paired = rows.filter(r => r.kind === "paired");
   if (!paired.length) return { text: "On · none paired yet", tone: "idle", live: false };
   // `here` is the row's own presence — the dot the list draws — so the two

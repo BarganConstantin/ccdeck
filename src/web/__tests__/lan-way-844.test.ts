@@ -61,6 +61,33 @@ describe("what the way in says (#844)", () => {
       .toEqual({ text: "1 of 2 online", tone: "ok", live: true });
   });
 
+  it("says nothing can get in, which is the one thing the count conceals", () => {
+    // A blocked deck HEARS every beacon, so all of its paired decks are present
+    // and this row would say `2 online` — the most reassuring sentence it has,
+    // on the one machine where nothing works. The full verdict is under the
+    // switch; this row is what tells somebody to go in and read it.
+    expect(entryLine({ ...on, reach: { blocked: true } }, [row("paired"), row("paired")]))
+      .toEqual({ text: "nothing can get in", tone: "bad", live: false });
+  });
+
+  it("leaves the row alone for a verdict that cleared the machine", () => {
+    // `blocked: false` is a real finding — firewall off, rule present, a
+    // connection already in — and none of them is news on this row.
+    expect(entryLine({ ...on, reach: { blocked: false } }, [row("paired"), row("paired")]).text).toBe("2 online");
+    expect(entryLine({ ...on, reach: null }, [row("paired"), row("paired")]).text).toBe("2 online");
+    expect(entryLine(on, [row("paired"), row("paired")]).text).toBe("2 online");
+  });
+
+  it("lets a deck asking to pair outrank it, because that one is a press away", () => {
+    // And a request that is already waiting arrived over an inbound connection,
+    // so it is also evidence that whatever is in the way was not always there.
+    expect(entryLine({ ...on, reach: { blocked: true } }, [row("asks", "wait"), row("paired")]).text)
+      .toBe("1 deck wants to pair");
+    // A start that failed still comes first: there is no listener to block.
+    expect(entryLine({ enabled: true, running: false, stalled: "port in use", reach: { blocked: true } }, []).text)
+      .toBe("could not start");
+  });
+
   it("counts no faults on the way in: a deck not responding is already not online", () => {
     // The amber `· 1 not responding` sat beside the presence count and restated
     // an absence that count had stated, in the colour that means act on this,
