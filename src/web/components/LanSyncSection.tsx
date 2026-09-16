@@ -1041,6 +1041,14 @@ async function post(url: string, body: Record<string, unknown>) {
  * warning ink, the ones not responding — the same rows the list and its fold
  * are drawn from — and it gives way to the one state waiting on this keyboard:
  * a deck asking to pair.
+ *
+ * PRESENCE IS THE COUNT THAT LEADS, because `8 paired` is a fact about a
+ * decision taken once and the reader is asking how many of those machines are
+ * switched on NOW — the same question the rows inside answer with `online`,
+ * and the reason this line moves while nobody presses anything. The pairing
+ * count stays as the denominator, so the row still says how big the fleet is.
+ * Asked for from a screenshot of `8 paired · 1 not responding`, which left the
+ * other seven unaccounted for.
  */
 export function entryLine(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null } | null,
@@ -1052,10 +1060,16 @@ export function entryLine(
   if (!s.running) return { text: "starting…", tone: "wait", trouble: 0 };
   const asks = rows.filter(r => r.kind === "asks").length;
   if (asks) return { text: asks === 1 ? "1 deck wants to pair" : `${asks} decks want to pair`, tone: "wait", trouble: 0 };
-  const paired = rows.filter(r => r.kind === "paired").length;
+  const paired = rows.filter(r => r.kind === "paired");
   const trouble = rows.filter(r => r.kind !== "asks" && r.tone === "bad").length;
-  if (!paired) return { text: "On · none paired yet", tone: "idle", trouble };
-  return { text: `${paired} paired`, tone: "ok", trouble };
+  if (!paired.length) return { text: "On · none paired yet", tone: "idle", trouble };
+  // `here` is the row's own presence — the dot the list draws — so the two
+  // places cannot disagree about who is on.
+  const online = paired.filter(r => r.here).length;
+  if (!online) return { text: `none of ${paired.length} online`, tone: "idle", trouble };
+  // A fleet that is all there does not need the arithmetic said out loud.
+  if (online === paired.length) return { text: `${online} online`, tone: "ok", trouble };
+  return { text: `${online} of ${paired.length} online`, tone: "ok", trouble };
 }
 
 export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBack, closeButton }: {

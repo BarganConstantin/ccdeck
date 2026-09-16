@@ -22,8 +22,8 @@ const guide = read("../components/guide-art.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 let n = 0;
-const row = (kind: DeckRow["kind"], tone: DeckRow["tone"] = "ok"): DeckRow => ({
-  fp: `fp-${n++}`, name: "machine", addr: "", kind, state: "", tone, here: tone === "ok", hint: "",
+const row = (kind: DeckRow["kind"], tone: DeckRow["tone"] = "ok", here = tone === "ok"): DeckRow => ({
+  fp: `fp-${n++}`, name: "machine", addr: "", kind, state: "", tone, here, hint: "",
 });
 const on = { enabled: true, running: true };
 
@@ -43,12 +43,24 @@ describe("what the way in says (#844)", () => {
     expect(entryLine(on, [row("asks", "wait"), row("asks", "wait")]).text).toBe("2 decks want to pair");
   });
 
-  it("counts the paired machines and, apart from them, every row not responding", () => {
+  it("leads with how many paired machines are on, out of how many there are", () => {
     // The same rows the list and its fold are drawn from: an address being
     // dialled that never answers is not paired, and it is not responding.
     const rows = [row("paired"), row("paired"), row("paired", "bad"), row("dialling", "bad"), row("nearby", "idle")];
-    expect(entryLine(on, rows)).toEqual({ text: "3 paired", tone: "ok", trouble: 2 });
+    expect(entryLine(on, rows)).toEqual({ text: "2 of 3 online", tone: "ok", trouble: 2 });
     expect(entryLine(on, [row("nearby", "idle")])).toEqual({ text: "On · none paired yet", tone: "idle", trouble: 0 });
+  });
+
+  it("drops the arithmetic when the whole fleet is there, and says so when none of it is", () => {
+    expect(entryLine(on, [row("paired"), row("paired")])).toEqual({ text: "2 online", tone: "ok", trouble: 0 });
+    // Paired, switched off, and nothing has failed: not a fault, so not the
+    // warning ink — but not `2 online` either, which was the old line's lie.
+    const off = [row("paired", "idle", false), row("paired", "idle", false)];
+    expect(entryLine(on, off)).toEqual({ text: "none of 2 online", tone: "idle", trouble: 0 });
+    // Presence is the row's own `here`, not its tone: a deck that is on and
+    // whose last round failed is still one of the machines that are there.
+    expect(entryLine(on, [row("paired", "bad", true), row("paired", "idle", false)]))
+      .toEqual({ text: "1 of 2 online", tone: "ok", trouble: 1 });
   });
 });
 
