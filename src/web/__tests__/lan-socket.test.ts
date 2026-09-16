@@ -97,12 +97,36 @@ describe("the proof that inbound gets through at all", () => {
   // every check has still proved the packets arrive.
   it("reports a connection before the caller has proved anything", async () => {
     const seen: string[] = [];
-    const { s } = server({ onInbound: (from: string) => seen.push(from) });
+    // THE RACE THIS USED TO LOSE, and it was the test's and never the code's.
+    // `net.createConnection`'s callback fires when the CLIENT's side of the
+    // handshake is done; `onInbound` fires from the SERVER's own `connection`
+    // event, which is the other end of the loopback and a different turn of the
+    // event loop. Asserting straight after the client's callback assumed an
+    // ordering nothing promises — it holds on an idle machine and comes apart
+    // on a loaded one. Measured: three reds on `test (macos-latest)` alone,
+    // twice in a row on a release tag, while every other leg stayed green.
+    //
+    // So the test now waits for the event it is about, with a deadline so a
+    // reader gets a sentence rather than a two-minute hang.
+    let landed: () => void;
+    const first = new Promise<void>(res => { landed = res; });
+    const { s } = server({ onInbound: (from: string) => { seen.push(from); landed(); } });
     const port = await s.start();
     await new Promise<void>((done, fail) => {
       const sock = net.createConnection({ host: "127.0.0.1", port }, () => { sock.destroy(); done(); });
       sock.on("error", fail);
     });
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        first,
+        new Promise<never>((_, no) => {
+          deadline = setTimeout(() => no(new Error("onInbound never fired for an accepted connection")), 5_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(deadline);
+    }
     expect(seen).toEqual(["127.0.0.1"]);
   });
 
