@@ -124,8 +124,13 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   it("comes after the roster and the policy row, and is the only place the network's state is said", () => {
     expect(panel).not.toMatch(/ap-lan-way|jumpToLan|lanSummary|onSummary/);
     expect(lan).not.toMatch(/onSummary/);
-    expect(panel.indexOf('<div className="ap-foot">')).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
-    expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf('<div className="ap-foot">'));
+    // Auto-switch moved back into the column when the fold made it short again
+    // — it is about these accounts, so it stands under them. This row did not:
+    // it is about other machines, so it is still the last thing in the panel
+    // and still the only place the network's state is said.
+    expect(panel.indexOf('className="ap-policy-block"')).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
+    expect(panel.indexOf("<LanSyncSection")).toBeGreaterThan(panel.indexOf('className="ap-policy-block"'));
+    expect(panel).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("keeps the section mounted in both views once it has been shown", () => {

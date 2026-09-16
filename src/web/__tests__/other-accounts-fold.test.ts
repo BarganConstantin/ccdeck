@@ -24,18 +24,20 @@ const peer = (name: string, headroom: number | null, over: Partial<Peer> = {}): 
   ({ key: name, name, ready: true, why: null, warn: false, headroom, ...over });
 const dead = (name: string) =>
   peer(name, 96, { ready: false, why: "Login expired", warn: true });
+/** Nothing is switching by itself, and the live account has room. */
+const BY_HAND = { strained: false, armed: false };
 
 describe("what the row says", () => {
   it("counts the ones a switch would reach, out of how many there are", () => {
-    expect(restLine([peer("a", 10), peer("b", 20)], false)).toMatchObject({ text: "2 ready", tone: "ok" });
-    expect(restLine([peer("a", 10), dead("b")], false)).toMatchObject({ text: "1 of 2 ready", tone: "ok" });
-    expect(restLine([dead("a"), dead("b")], false)).toMatchObject({ text: "none of 2 ready", tone: "idle" });
+    expect(restLine([peer("a", 10), peer("b", 20)], BY_HAND)).toMatchObject({ text: "2 ready", tone: "ok" });
+    expect(restLine([peer("a", 10), dead("b")], BY_HAND)).toMatchObject({ text: "1 of 2 ready", tone: "ok" });
+    expect(restLine([dead("a"), dead("b")], BY_HAND)).toMatchObject({ text: "none of 2 ready", tone: "idle" });
   });
 
   it("says a set of one as a state, not as arithmetic", () => {
     // `none of 1 ready` is a sum over a set the reader can see the whole of.
-    expect(restLine([dead("a")], false).text).toBe("not ready");
-    expect(restLine([peer("a", 4)], false).text).toBe("1 ready");
+    expect(restLine([dead("a")], BY_HAND).text).toBe("not ready");
+    expect(restLine([peer("a", 4)], BY_HAND).text).toBe("1 ready");
   });
 
   it("counts no faults beside the count, because an account that cannot be reached is already missing from it", () => {
@@ -43,23 +45,71 @@ describe("what the row says", () => {
     // the amber would restate an absence the count had just stated, in the one
     // colour that means act on this, from a row whose only act is to unfold.
     // WHICH one, and why, is on the peek and on the row one press away.
-    expect(restLine([peer("a", 10), dead("b")], false).text).not.toMatch(/expired|1 ⚠|warn/i);
+    expect(restLine([peer("a", 10), dead("b")], BY_HAND).text).not.toMatch(/expired|1 ⚠|warn/i);
     expect(fold).not.toMatch(/WarnGlyph/);
   });
 
   it("prints the freest number only while the live account is past the threshold", () => {
     const peers = [peer("a", 40), peer("b", 96)];
-    expect(restLine(peers, false).text).toBe("2 ready");
-    expect(restLine(peers, true)).toMatchObject({ text: "2 ready · 96% free", free: 96 });
+    expect(restLine(peers, BY_HAND).text).toBe("2 ready");
+    expect(restLine(peers, { strained: true, armed: false }))
+      .toMatchObject({ text: "2 ready · 96% free", free: 96 });
   });
 
   it("looks for that number among the ones it could actually switch to", () => {
     // The emptiest account in the store is no answer at all when its login is
     // dead: the row would be sending the reader somewhere the switch refuses.
-    expect(restLine([peer("a", 40), dead("b")], true).text).toBe("1 of 2 ready · 40% free");
+    const strained = { strained: true, armed: false };
+    expect(restLine([peer("a", 40), dead("b")], strained).text).toBe("1 of 2 ready · 40% free");
     // And it says nothing rather than guessing when nothing has been read.
-    expect(restLine([peer("a", null)], true)).toMatchObject({ text: "1 ready", free: null });
-    expect(restLine([dead("a")], true).free).toBe(null);
+    expect(restLine([peer("a", null)], strained)).toMatchObject({ text: "1 ready", free: null });
+    expect(restLine([dead("a")], strained).free).toBe(null);
+  });
+});
+
+describe("what the row says once something else is doing the switching", () => {
+  it("drops the freest number, because the reader is not the one picking", () => {
+    // Armed, the question "where do I go" has already been delegated. Printing
+    // a candidate beside a policy that will choose its own is a second opinion
+    // nobody asked for, and the account it names may not be the one taken.
+    const peers = [peer("a", 40), peer("b", 96)];
+    expect(restLine(peers, { strained: true, armed: true }))
+      .toMatchObject({ text: "2 ready", free: null });
+  });
+
+  it("never names which one is next, because this side of the wire does not know", () => {
+    // A tick shells out to `cswap auto --once` and claude-swap picks the
+    // target; the deck only learns what happened afterwards. See cswap-auto.mjs.
+    const armed = { strained: true, armed: true };
+    expect(restLine([peer("a", 40), peer("b", 96)], armed).text).not.toMatch(/next|will|→/);
+  });
+
+  it("raises the one alarm neither the bars nor the toggle can show: armed, with nowhere to go", () => {
+    // Auto-switch reads as on, the live bar fills, and at the threshold nothing
+    // happens — every other account is held out or its login is dead. The
+    // control it names is the next row down.
+    expect(restLine([dead("a"), dead("b")], { strained: false, armed: true }))
+      .toEqual({ text: "Auto-switch has nowhere to go", tone: "bad", free: null });
+    // Not gated on strain: signing an account back in takes minutes, and a
+    // warning that waits for the wall arrives with the wall.
+    expect(restLine([dead("a")], { strained: false, armed: true }).tone).toBe("bad");
+    // Nothing armed, nothing to say beyond the count — the reader can see the
+    // same absence and there is no promise being broken.
+    expect(restLine([dead("a"), dead("b")], BY_HAND).tone).toBe("idle");
+    // And one account that can still be reached is not a policy with nowhere
+    // to go, however full it is.
+    expect(restLine([peer("a", 2), dead("b")], { strained: true, armed: true }).tone).toBe("ok");
+  });
+
+  it("is armed by a terminal loop too, not only by the deck's own toggle", () => {
+    // `cswap auto` in a terminal does the switching while the deck stands down,
+    // so the toggle can read off while something is very much switching.
+    expect(panel).toMatch(/const autoArmed = auto\?\.ok === true && \(auto\.enabled \|\| auto\.external\);/);
+    expect(panel).toMatch(/armed=\{autoArmed\}/);
+  });
+
+  it("paints that alarm in the ink the column's other warnings use", () => {
+    expect(css).toMatch(/\.ap-nav-state\[data-tone="bad"\] \{ color: var\(--warn\); \}/);
   });
 });
 
@@ -145,7 +195,7 @@ describe("the row, in Local network's idiom and with its timings", () => {
   });
 
   it("drops the freest number once the list is open, where every row says its own", () => {
-    expect(fold).toMatch(/const line = restLine\(peers, strained && !open\);/);
+    expect(fold).toMatch(/const line = restLine\(peers, \{ strained: strained && !open, armed \}\);/);
   });
 
   it("is not hover-only: every name on the card is in the list the row opens", () => {
@@ -206,6 +256,19 @@ describe("what the column folds, and when it does not", () => {
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {
     expect(css).toMatch(/\.ap-rest \{ padding: 0 var\(--panel-inset\) 2px; \}/);
     expect(css).toMatch(/\.ap-others \{ padding-top: 2px; \}/);
+  });
+
+  it("puts the policy under the accounts it moves you between, and drops the rule over it", () => {
+    // It was a pinned `.ap-foot` with a hairline, and both of those were about
+    // standing apart from a roster it could not fit beside. It sits with the
+    // roster now: same inset, space instead of a rule, and after the list the
+    // fold opens so the block reads "…and do this automatically".
+    expect(css).toMatch(/\.ap-policy-block \{ padding: 8px var\(--panel-inset\) 14px; \}/);
+    expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
+    expect(panel.indexOf('className="ap-policy-block"')).toBeGreaterThan(panel.indexOf("{rest.map(accountRow)}"));
+    // And it is inside the scroll, which is the whole of the move.
+    expect(panel.indexOf('className="ap-policy-block"')).toBeLessThan(panel.indexOf("<LanSyncSection"));
+    expect(panel).not.toMatch(/<div className="ap-foot">/);
   });
 
   it("gives the card the width a name and a number need, and the number the muted tier", () => {

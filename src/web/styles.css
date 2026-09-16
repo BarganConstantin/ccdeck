@@ -7832,6 +7832,18 @@ button.qb-pace::after {
    cross to believe the rows are what the row was about. */
 .ap-others { padding-top: 2px; }
 
+/* AUTO-SWITCH, UNDER THE ACCOUNTS IT MOVES YOU BETWEEN. It was `.ap-foot` — a
+   pinned strip with a rule over it — and both of those were about standing
+   apart from a roster it could not fit beside. It sits with the roster now, so
+   it keeps the foot's spacing and drops the rule: SPACE SEPARATES, the way it
+   does between the account rows themselves. The controls in it are the only
+   ones in this column, which is all the separation a policy row needs.
+
+   The 8px over it is the fold row's own bottom plus this: far enough that the
+   policy is not read as a third line of the row above, close enough that the
+   two are one block. */
+.ap-policy-block { padding: 8px var(--panel-inset) 14px; }
+
 /* THE PEEK — who is on, beside the row, for a pointer that has not pressed
    anything.
 

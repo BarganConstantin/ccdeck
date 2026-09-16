@@ -750,6 +750,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const trip = Number(threshold);
   const strained = activeAcct?.headroom != null && Number.isFinite(trip)
     && 100 - activeAcct.headroom >= trip;
+  // WHETHER ANYTHING IS GOING TO SWITCH WITHOUT A PRESS. The deck's own loop
+  // and a `cswap auto` in a terminal are one fact to the fold's row: in both,
+  // the reader is not the one picking, and in both a roster with nothing
+  // reachable is a policy that will reach the threshold and do nothing. The
+  // toggle can read `off` while the terminal loop runs — that is what
+  // `external` is for — so the two are an OR and never the toggle alone.
+  const autoArmed = auto?.ok === true && (auto.enabled || auto.external);
 
   const doSwitch = async (num: number, name: string) => {
     if (!claim(`switch-${num}`)) return;
@@ -1315,11 +1322,16 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
         </div>
       )}
 
-      {/* THE ACCOUNTS SCROLL, AND NOTHING ELSE DOES. The column used to be one
+      {/* THE ACCOUNTS SCROLL, AND ONE ROW BELOW IT. The column used to be one
           scroll of three sections, so with enough accounts Auto-switch and Local
-          network went under the fold with no sign they were there. The roster
-          takes whatever height is left; the policy row and the way into Local
-          network stand at the foot of the column at every length. */}
+          network went under the fold with no sign they were there, and both were
+          pulled out to stand at the foot at every length.
+          AUTO-SWITCH HAS SINCE GONE BACK IN, because the premise of that finding
+          was a roster that was long for everybody. This column draws the live
+          account and one row; it does not scroll until a reader opens the fold
+          themselves. Local network did not go back: it is about other machines,
+          so it has no accounts to stand under and stays the foot of the panel
+          at every length. */}
       {view === "accounts" && (
         <div className="ap-scroll" id="ap-scroll">
           {/* Nothing has arrived yet. "Checking…" is only true while a request is
@@ -1418,6 +1430,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 <OtherAccounts
                   peers={peers}
                   strained={strained}
+                  armed={autoArmed}
                   open={restOpen}
                   onToggle={() => setRestOpen(o => !o)}
                 />
@@ -1426,6 +1439,104 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 <ul className="ap-list ap-others" id="ap-rest-list">
                 {rest.map(accountRow)}
                 </ul>
+              )}
+
+              {/* ── auto-switch, WITH THE ACCOUNTS IT IS ABOUT ──
+                  It stood in the pinned foot, and the comment on the scroll
+                  above says why it was put there: the column used to be one
+                  scroll of three sections, and with enough accounts the policy
+                  went under the fold with no sign it was there.
+                  THE FOLD IS WHAT MAKES THIS SAFE AGAIN. That finding was made
+                  in a column that drew every account at full height, so the
+                  roster was long for everybody; this one draws the live account
+                  and one row, so it does not scroll at all until a reader opens
+                  the list themselves — and then the policy is at the end of the
+                  list they opened, which is where "…and do this automatically"
+                  belongs. Local network stays pinned: it is about other
+                  machines, not about these accounts.
+                  The refusal above it moves with it, for the reason it was
+                  written: it is said beside the control that made it. */}
+              {/* Announced, and dismissible, because nothing else here clears it: the
+                  next action does, and until then a stale refusal sits under a roster
+                  that has since moved on. Above the policy row it belongs to, so a refused
+                  auto-switch press is said beside the control that made it. Everything
+                  but a refused switch, which is said on the row that was pressed (#827). */}
+              {failure && failure.row == null && (
+                <div className="ap-failure" role="alert">
+                  <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
+                  <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
+                    aria-label="Dismiss this message" title="Dismiss">×</button>
+                </div>
+              )}
+
+              {/* ── auto-switch ──
+                  ONE POLICY, ONE ROW: its name, where it trips, and whether it is armed.
+                  The live percentage it used to print beside the threshold is the active
+                  row's own number, one glance up, and the clock of its last check under
+                  a rule was diagnostics — the switch being on is the state, and a
+                  terminal loop taking over is the one thing still said under it. */}
+              {data?.ok && auto?.ok && (
+                <div className="ap-policy-block">
+                  <div className="ap-policy">
+                    {/* A real h3, under the panel header's h2: a reader walking headings
+                        should find the policy. It says what the switch's name says
+                        (#546), so what is heard and what a voice-control user has to
+                        pronounce are the words on the screen. */}
+                    <h3 className="ap-auto-title">Auto-switch</h3>
+                    {/* The picker proposes and `save` stores (#516): a select fires
+                        `change` on a keystroke, and one letter used to write a setting.
+                        A value set from the terminal that is not one of the five is kept
+                        as an option of its own, so the picker never shows a number the
+                        store does not hold. */}
+                    <span className="ap-field" title="Switch once the active account passes this much of its limit">
+                      <select
+                        ref={thresholdRef}
+                        aria-label="Switch threshold"
+                        value={thresholdPick}
+                        {...pressProps("threshold")}
+                        onChange={e => setThresholdDraft(e.target.value)}
+                      >
+                        {thresholdChoices(threshold).map(t => <option key={t} value={t}>{t}%</option>)}
+                      </select>
+                    </span>
+                    {/* ONLY WHILE THERE IS SOMETHING TO SAVE, after the picker so that
+                        arriving moves nothing the reader just pressed. `saved` only
+                        while the pick is the stored one. */}
+                    {(thresholdCtl.sends || thresholdSaved) && (
+                      <button ref={thresholdSaveRef} type="button" className="ap-manage-btn" {...pressProps("threshold")}
+                        title={thresholdCtl.title}
+                        onClick={() => doThreshold(thresholdPick, thresholdCtl)}
+                      >{thresholdSaved && !thresholdCtl.sends ? thresholdCtl.done : thresholdCtl.label}</button>
+                    )}
+                    {/* Always a control, never a read-out: a terminal loop's state is
+                        said beside it, not instead of it. Named in aria-label because
+                        the contents cannot carry it (#546). */}
+                    <button
+                      type="button"
+                      className="switch ap-auto-state"
+                      role="switch"
+                      aria-checked={auto.enabled}
+                      aria-label="Auto-switch"
+                      {...pressProps("enable")}
+                      onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
+                      title={auto.enabled
+                        ? "Stop switching accounts automatically"
+                        : "Switch accounts automatically when the active one nears its limit"}
+                    >
+                      <span className="switch-knob" />
+                    </button>
+                  </div>
+
+                  {/* Which engine is actually switching right now. The deck stands down
+                      while a terminal loop runs, and says so. */}
+                  {auto.external && (
+                    <p className="ap-auto-note">
+                      <i className="ap-pulse" aria-hidden /> A <code>cswap auto</code> loop in your terminal is
+                      doing the switching. The deck stands down while it runs
+                      {auto.enabled ? " — this toggle takes over when you stop it." : "."}
+                    </p>
+                  )}
+                </div>
               )}
 
               {menu && (() => {
@@ -1711,89 +1822,6 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                 );
               })()}
             </>
-          )}
-        </div>
-      )}
-
-      {/* Announced, and dismissible, because nothing else here clears it: the
-          next action does, and until then a stale refusal sits under a roster
-          that has since moved on. Between the roster and its foot, so a refused
-          auto-switch press is said beside the control that made it. Everything
-          but a refused switch, which is said on the row that was pressed (#827). */}
-      {view === "accounts" && data != null && failure && failure.row == null && (
-        <div className="ap-failure" role="alert">
-          <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
-          <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-            aria-label="Dismiss this message" title="Dismiss">×</button>
-        </div>
-      )}
-
-      {/* ── auto-switch ──
-          ONE POLICY, ONE ROW: its name, where it trips, and whether it is armed.
-          The live percentage it used to print beside the threshold is the active
-          row's own number, one glance up, and the clock of its last check under
-          a rule was diagnostics — the switch being on is the state, and a
-          terminal loop taking over is the one thing still said under it. */}
-      {view === "accounts" && data?.ok && auto?.ok && (
-        <div className="ap-foot">
-          <div className="ap-policy">
-            {/* A real h3, under the panel header's h2: a reader walking headings
-                should find the policy. It says what the switch's name says
-                (#546), so what is heard and what a voice-control user has to
-                pronounce are the words on the screen. */}
-            <h3 className="ap-auto-title">Auto-switch</h3>
-            {/* The picker proposes and `save` stores (#516): a select fires
-                `change` on a keystroke, and one letter used to write a setting.
-                A value set from the terminal that is not one of the five is kept
-                as an option of its own, so the picker never shows a number the
-                store does not hold. */}
-            <span className="ap-field" title="Switch once the active account passes this much of its limit">
-              <select
-                ref={thresholdRef}
-                aria-label="Switch threshold"
-                value={thresholdPick}
-                {...pressProps("threshold")}
-                onChange={e => setThresholdDraft(e.target.value)}
-              >
-                {thresholdChoices(threshold).map(t => <option key={t} value={t}>{t}%</option>)}
-              </select>
-            </span>
-            {/* ONLY WHILE THERE IS SOMETHING TO SAVE, after the picker so that
-                arriving moves nothing the reader just pressed. `saved` only
-                while the pick is the stored one. */}
-            {(thresholdCtl.sends || thresholdSaved) && (
-              <button ref={thresholdSaveRef} type="button" className="ap-manage-btn" {...pressProps("threshold")}
-                title={thresholdCtl.title}
-                onClick={() => doThreshold(thresholdPick, thresholdCtl)}
-              >{thresholdSaved && !thresholdCtl.sends ? thresholdCtl.done : thresholdCtl.label}</button>
-            )}
-            {/* Always a control, never a read-out: a terminal loop's state is
-                said beside it, not instead of it. Named in aria-label because
-                the contents cannot carry it (#546). */}
-            <button
-              type="button"
-              className="switch ap-auto-state"
-              role="switch"
-              aria-checked={auto.enabled}
-              aria-label="Auto-switch"
-              {...pressProps("enable")}
-              onClick={() => post({ action: "enable", enabled: !auto.enabled }, "enable").then(() => load(true))}
-              title={auto.enabled
-                ? "Stop switching accounts automatically"
-                : "Switch accounts automatically when the active one nears its limit"}
-            >
-              <span className="switch-knob" />
-            </button>
-          </div>
-
-          {/* Which engine is actually switching right now. The deck stands down
-              while a terminal loop runs, and says so. */}
-          {auto.external && (
-            <p className="ap-auto-note">
-              <i className="ap-pulse" aria-hidden /> A <code>cswap auto</code> loop in your terminal is
-              doing the switching. The deck stands down while it runs
-              {auto.enabled ? " — this toggle takes over when you stop it." : "."}
-            </p>
           )}
         </div>
       )}

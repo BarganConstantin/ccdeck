@@ -22,9 +22,15 @@ describe("a switch answers on the row it was about (#827)", () => {
     expect(doSwitch).toMatch(/setFailure\(\{ text: "server unreachable", row: num \}\)/);
   });
 
-  it("draws the refusal on that row, and only other messages at the foot", () => {
+  it("draws the refusal on that row, and only other messages under the roster", () => {
     expect(panel).toMatch(/\{failure\?\.row === a\.num && \(\s*<div className="ap-failure ap-row-failure" role="alert">/);
-    expect(panel).toMatch(/\{view === "accounts" && data != null && failure && failure\.row == null && \(\s*<div className="ap-failure" role="alert">/);
+    // It stood below the scroll while Auto-switch did. Both moved into the
+    // column together, because the refusal is said beside the control that
+    // made it — and every branch around it already needs a roster, so the
+    // `view` and `data` guards it carried are its container's now.
+    expect(panel).toMatch(/\{failure && failure\.row == null && \(\s*<div className="ap-failure" role="alert">/);
+    expect(panel.indexOf('{failure && failure.row == null && (')).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
+    expect(panel.indexOf('{failure && failure.row == null && (')).toBeLessThan(panel.indexOf('className="ap-policy-block"'));
   });
 
   it("keeps a refused switch on its row through the reload that follows it", () => {

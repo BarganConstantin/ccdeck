@@ -104,11 +104,15 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * list the reader owns and switches between, so the switch stays in this
  * column rather than behind a view and a way back.
  */
-export default function OtherAccounts({ peers, strained, open, onToggle }: {
+export default function OtherAccounts({ peers, strained, armed, open, onToggle }: {
   peers: Peer[];
   /** The live account is past the threshold auto-switch would act on, so where
    *  to go next is the question being asked rather than a number to hide. */
   strained: boolean;
+  /** Something is switching automatically, so the reader is not the one
+   *  picking — and a policy with nowhere to go is the one alarm this row
+   *  carries. See restLine. */
+  armed: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -141,7 +145,7 @@ export default function OtherAccounts({ peers, strained, open, onToggle }: {
   // "where do I go" before the reader unfolds anything; once they have, the
   // rows underneath say it per account, and a summary repeating one of them
   // makes a reader check whether the two are counting the same thing.
-  const line = restLine(peers, strained && !open);
+  const line = restLine(peers, { strained: strained && !open, armed });
   return (
     <div className="ap-rest">
       <button type="button" id="ap-rest-entry" className="ap-nav"

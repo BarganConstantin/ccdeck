@@ -67,20 +67,46 @@ export const FOLD_NAMES = 6;
  * trouble is a different matter and never folds: it is hoisted above the whole
  * list, because every session this deck starts runs on it.
  *
- * THE FREEST NUMBER, ONLY WHILE IT IS THE ANSWER TO SOMETHING. A row that
+ * THE FREEST NUMBER, ONLY WHILE THE READER IS THE ONE CHOOSING. A row that
  * always printed `96% free` would be a second number competing with the bars
  * above it every time the reader glanced down, to answer a question they were
  * not asking. Once the live account is past the threshold auto-switch would act
- * on, that IS the question, and the row answers it before it is unfolded.
+ * on, that IS the question — but only while nothing else is going to answer it.
+ * With the policy armed the reader is not picking anything, so the row drops
+ * the number rather than offering a choice that has already been delegated.
+ *
+ * AND WHAT IT WILL NOT SAY IS WHICH ONE. The deck does not choose: a tick shells
+ * out to `cswap auto --once` and claude-swap picks the target. `claude1 is next`
+ * would be a prediction this side of the wire cannot make, and a summary that
+ * guesses once is a summary nobody reads twice.
+ *
+ * THE ONE THING WORTH AN ALARM is the state neither the bars nor the toggle can
+ * show: a policy that is armed with nowhere to go. Auto-switch reads as on, the
+ * live account's bar fills, and at the threshold nothing happens — because
+ * every other account is held out or its login is dead. That is the whole
+ * failure, and it is the only sentence here in the colour that means act on it.
  */
-export function restLine(peers: readonly Peer[], strained: boolean): {
+export function restLine(peers: readonly Peer[], mode: {
+  /** The live account is past the threshold auto-switch would act on. */
+  strained: boolean;
+  /** Something is switching automatically — this deck's own loop, or a
+   *  `cswap auto` in a terminal, which does the same job while the deck stands
+   *  down. Both mean the reader is not the one picking. */
+  armed: boolean;
+}): {
   text: string;
-  tone: "ok" | "idle";
+  tone: "ok" | "idle" | "bad";
   /** The best headroom among the ready, when the row is saying it. Returned so
    *  the panel does not recompute a number the row already found. */
   free: number | null;
 } {
   const ready = peers.filter(p => p.ready);
+  if (mode.armed && peers.length > 0 && ready.length === 0) {
+    // Named rather than counted. `none of 2 ready` is the same fact in the
+    // calm tier, and the reader it is for is about to hit a wall the policy
+    // promised to keep them off. The control it names is the next row down.
+    return { text: "Auto-switch has nowhere to go", tone: "bad", free: null };
+  }
   const base = ready.length === peers.length
     ? `${peers.length} ready`
     : ready.length === 0
@@ -89,7 +115,7 @@ export function restLine(peers: readonly Peer[], strained: boolean): {
       ? peers.length === 1 ? "not ready" : `none of ${peers.length} ready`
       : `${ready.length} of ${peers.length} ready`;
   const tone = ready.length ? "ok" as const : "idle" as const;
-  const free = strained ? bestFree(ready) : null;
+  const free = mode.strained && !mode.armed ? bestFree(ready) : null;
   return { text: free == null ? base : `${base} · ${free}% free`, tone, free };
 }
 
