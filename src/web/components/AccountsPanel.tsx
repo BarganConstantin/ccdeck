@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
+import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
+import { type Peer } from "../other-accounts";
 import { commandOutput, explainCommandFailure, explainFailure } from "../admin-failure";
 import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
@@ -547,6 +549,12 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // lane-open.ts, which also says why a fifth ManageState field would not have
   // been enough.
   const [openLanes, setOpenLanes] = useState<string[]>([]);
+  /** Whether the accounts behind the fold are drawn. Shut on open, every time:
+   *  the column's first screen is the live account, and a fold that remembered
+   *  being open would give a reader who unfolded it once a panel that never
+   *  folds again. It is kept across a switch on purpose — the account just left
+   *  is in that list, and it moved there under the reader's own press. */
+  const [restOpen, setRestOpen] = useState(false);
 
   // The same fact as `busy`, where a handler can read it without waiting for a
   // render. #518 leaves the working control enabled, so a second press reaches
@@ -708,6 +716,40 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   const thresholdCtl = thresholdCommit(thresholdPick, threshold);
   const activeAcct = data?.accounts?.find(a => a.active);
   const activeIssue = activeAcct ? accountIssue(activeAcct, nowSec) : null;
+
+  // ── the fold ──
+  // WHO THE COLUMN DRAWS AT ONCE, and who stands behind one row. The live
+  // account is the reading the panel is opened for and never folds; the others
+  // answer one question, which their row and its peek answer without being
+  // unfolded. other-accounts.ts has the whole argument.
+  //
+  // AND NOTHING FOLDS WHILE NOTHING IS LIVE. A store between two switches, or
+  // one whose active account was just removed, has no row to stand above the
+  // fold — so the roster is drawn as it always was, which is also what every
+  // reader of a one-account store sees.
+  const roster = data?.accounts ?? [];
+  const rest = activeAcct ? roster.filter(a => !a.active) : [];
+  const head = rest.length ? roster.filter(a => a.active) : roster;
+  const peers: Peer[] = rest.map(a => {
+    const issue = accountIssue(a, nowSec);
+    return {
+      key: laneKey(a),
+      name: a.alias ?? a.email ?? `account ${a.num}`,
+      // The same pair of refusals the row's own `Switch` is withheld for, so
+      // the count and the button can never disagree about who can be reached.
+      ready: !a.disabled && !issue?.blocksSwitch,
+      why: a.disabled ? "held out" : issue?.blocksSwitch ? issue.text : null,
+      warn: issue?.tone === "warn",
+      headroom: a.headroom,
+    };
+  });
+  // Where auto-switch would already be acting. Past it, "where do I go next" is
+  // the question the reader has, and the row answers it before it is unfolded.
+  // Derived from the same `headroom` the peers carry rather than from a second
+  // walk over the lanes, so the two numbers cannot disagree.
+  const trip = Number(threshold);
+  const strained = activeAcct?.headroom != null && Number.isFinite(trip)
+    && 100 - activeAcct.headroom >= trip;
 
   const doSwitch = async (num: number, name: string) => {
     if (!claim(`switch-${num}`)) return;
@@ -949,6 +991,232 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
     </button>
   );
 
+  /**
+   * ONE ACCOUNT'S ROW, drawn the same whether it is standing alone above the
+   * fold or in the list behind it.
+   *
+   * IT IS A FUNCTION AND NOT A MAP BODY because the column renders it from two
+   * places now — the live account, and the others once their row is unfolded —
+   * and a row that were written twice would be two rows drifting apart. Which
+   * accounts go where is decided just above, at `head` and `rest`.
+   */
+  const accountRow = (a: Account) => {
+      const { shown, fuller } = laneSplit(a.lanes);
+      const issue = accountIssue(a, nowSec);
+      // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
+      // The live account is the one whose windows are being spent, so
+      // its bars, resets and freshness are the reading this column is
+      // opened for. Any other account only has to answer one question —
+      // is it worth switching to — and two numbers answer it. The rest
+      // is one press on the row away, and held by account (#542).
+      const open = a.active || openLanes.includes(laneKey(a));
+      const name = a.alias ?? a.email ?? `account ${a.num}`;
+      // Numbers that cannot move: nothing collected for a quarter of an
+      // hour, or a login that no collection can get past. They stay on
+      // screen as the last reading and are drawn as one.
+      const frozen = a.stale || issue?.blocksSwitch === true;
+      // The row leads with the windows; a folded model lane joins them
+      // only when it is the fullest, so two calm numbers never sit over
+      // a hidden hot one. See lane-view.ts.
+      const quick = fuller ? [...shown, fuller] : shown;
+      const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
+      return (
+      <li key={a.num} className={`ap-account${a.active ? " active" : ""}`}
+        aria-current={a.active ? "true" : undefined}
+        data-open={open ? "" : undefined}
+        data-frozen={frozen ? "" : undefined}>
+        {/* THE ROW IS THE DOOR, the way a machine's row is in Local
+            network: a button laid over the whole row, under the row's
+            own controls, so a press anywhere on it opens or shuts the
+            detail and the keyboard's ring goes round the row. The live
+            row has nothing folded, so it has no door. */}
+        {!a.active && (
+          <button type="button" className="ap-row-open" id={`ap-row-${a.num}`}
+            aria-expanded={open}
+            aria-controls={open ? `ap-detail-${a.num}` : undefined}
+            aria-describedby={!open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : undefined}
+            onClick={() => setOpenLanes(o => toggleLane(o, a))}>
+            <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
+          </button>
+        )}
+        <div className="ap-account-head">
+          {/* The live account is marked by a dot where the other rows
+              carry their slot, in the accent, which in this deck means
+              live. The slot is still its name for the CLI, so it rides
+              in the title and in what a screen reader is told. */}
+          {a.active
+            ? <span className="ap-live" title={`Active account · slot ${a.num}`}>
+                <span className="vis-hidden">Active account, slot {a.num}:</span>
+              </span>
+            : <span className="ap-num">{a.num}</span>}
+          {/* Both of these are clipped with an ellipsis so a long one
+              cannot widen the panel, which means the row can be showing
+              less than the whole string — so each one carries its own
+              whole value in a title (#517). */}
+          {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
+          <span className="ap-email" title={a.email ?? undefined}>{a.email}</span>
+          {/* A state, said in a word and not in a pill. It stands where
+              `Switch` would, because a switch to a held-out account is
+              refused and a control that can never act is worse than
+              none (#519). Putting it back is in the ⋯. */}
+          {a.disabled && <span className="ap-held">held out</span>}
+          {/* The one verb a row carries, and quieter than the account it
+              is about: a word on the control fill, no edge. Not offered
+              where it cannot work — to a login that is dead or was never
+              stored, a switch only makes the dead one live. */}
+          {!a.active && !a.disabled && !issue?.blocksSwitch && (
+            <button
+              type="button"
+              className="ap-switch"
+              {...pressProps(`switch-${a.num}`)}
+              onClick={() => doSwitch(a.num, name)}
+              aria-label={`Switch to ${name}`}
+              title={`Switch to ${a.alias ?? a.email}`}
+            >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
+          )}
+          {/* THE WAY IN TO EVERYTHING ELSE. It opens a menu over the
+              column rather than opening the row, so pressing it moves
+              nothing on screen. aria-controls only while the menu
+              exists: an IDREF that resolves to nothing is a dangling
+              pointer. The name carries the account, because a column of
+              identical "More actions" is a column of buttons a screen
+              reader cannot tell apart. */}
+          <button type="button" id={`ap-more-${a.num}`} className="ap-more"
+            aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
+            aria-haspopup="menu" aria-expanded={menuFor === a.num}
+            aria-controls={menuFor === a.num ? `ap-menu-${a.num}` : undefined}
+            title="More actions"
+            onClick={() => (menuFor === a.num ? closeMenu() : openMenu(a.num))}
+            onKeyDown={e => {
+              // Down opens at the first item and Up at the last, the way
+              // a native menu button does. Enter and Space are the click.
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+              e.preventDefault();
+              openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
+            }}>
+            {/* AUTHORED, NOT TYPED, like the header's four: three dots on
+                the same 14px grid the header draws at. */}
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+              <circle cx="2.8" cy="7" r="1.15" />
+              <circle cx="7" cy="7" r="1.15" />
+              <circle cx="11.2" cy="7" r="1.15" />
+            </svg>
+          </button>
+        </div>
+
+        {/* THE ANSWER TO A SWITCH, on the row it was about (#827). A
+            switch that took says so on the row it took to, with the one
+            thing nothing else on screen says: what happens to the
+            sessions already running. */}
+        {failure?.row === a.num && (
+          <div className="ap-failure ap-row-failure" role="alert">
+            <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
+            <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
+              aria-label="Dismiss this message" title="Dismiss">×</button>
+          </div>
+        )}
+        {a.active && switched?.num === a.num && (
+          <p className="ap-switched">
+            Now active. New sessions start on it; ones already running pick it up on
+            their next message, up to about 30 seconds later on macOS.
+          </p>
+        )}
+        {/* A move into a taken slot relocated a second account, and this
+            is the only place that says so, for eight seconds. The
+            sentence naming who went where is its title. */}
+        {swapNote?.at === a.num && (() => {
+          const other = roster.find(x => x.num === swapNote.displaced);
+          const who = other?.alias ?? other?.email ?? "the account that was there";
+          return (
+            <p className="ap-note ap-swap-note"
+              title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
+                   + `${who} now holds slot ${swapNote.displaced}.`}>
+              swapped with slot {swapNote.displaced}
+            </p>
+          );
+        })()}
+
+        {/* WHAT IS WRONG, ON THE ROW, SHUT OR OPEN. A problem is never
+            folded away with the detail and never moved into the ⋯: it
+            is the one line on the row somebody has to be able to find.
+            It is a word and a mark rather than a banner, and the why
+            and the fix are one press away (#856) — a popover over the
+            column, so opening it moves no row. */}
+        {issue && (
+          <div className="ap-issue-line">
+            <button type="button" id={`ap-issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
+              aria-haspopup="dialog"
+              aria-expanded={issueOpen?.anchor === `ap-issue-${a.num}`}
+              aria-controls={issueOpen?.anchor === `ap-issue-${a.num}` ? "ap-issue-pop" : undefined}
+              onClick={() => openIssue(a.num, `ap-issue-${a.num}`)}>
+              {issue.tone === "warn" && <WarnGlyph />}
+              <span className="ap-issue-text">{issue.text}</span>
+            </button>
+            {/* How old the last reading is. On an open row the freshness
+                line under the bars says it, so it is said once. */}
+            {!open && (
+              <span className="ap-issue-age" title="When claude-swap last read this account's usage">
+                {age ?? "never collected"}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no
+            resets, no clock — unless the numbers are old, and then the
+            age is the one thing that must be said beside them. A login
+            that cannot be used shows no numbers at all here: the line
+            above is the answer, and last week's quota under it would
+            read as this week's. */}
+        {!open && !issue?.blocksSwitch && (
+          <p className="ap-quota" id={`ap-quota-${a.num}`}>
+            {quick.length
+              ? quick.map(l => (
+                  <span key={l.id} className="ap-q">
+                    <span className="ap-q-label">{l.label}</span>{" "}
+                    <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>
+                  </span>
+                ))
+              : <span className="ap-q-label">no usage recorded yet</span>}
+            {a.stale && !issue && (
+              <span className="ap-q-age" data-never={age ? undefined : ""} title="When claude-swap last read this account's usage">
+                {age ?? "never collected"}
+              </span>
+            )}
+          </p>
+        )}
+
+        {/* OPEN: every window as a bar, when each one resets, and when
+            claude-swap last read it and plans to read it again — the
+            freshness that says whether these numbers are a decision's
+            worth of evidence. */}
+        {open && (
+          <div className="ap-detail" id={`ap-detail-${a.num}`}>
+            <div className="ap-lanes">
+              {a.lanes.length
+                ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} />)
+                : <div className="ap-hint">No usage recorded yet.</div>}
+            </div>
+            <div className="ap-meta">
+              {a.fetchedAt
+                ? <span
+                    // ONE ATTENTION COLOUR PER ROW, ON THE CAUSE: an
+                    // account with a problem is old because of it, so
+                    // the age stays quiet and the problem takes the ink.
+                    className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
+                    title={"When claude-swap last read this account's usage, and when it plans to read it again. "
+                         + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
+                         + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
+                         + "the same plan."}
+                  >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
+                : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
+            </div>
+          </div>
+        )}
+      </li>
+      );
+  };
+
   return (
     // Named for the topbar toggle's aria-controls — see UsagePanel, which also
     // carries the reason this is an <aside> and not the <div> it was: the
@@ -1137,223 +1405,28 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                   them to Auto-switch. ShareAccountsDialog has used ul/li since the
                   day it was written; this is the same shape. */}
               <ul className="ap-list">
-              {data.accounts?.map(a => {
-                const { shown, fuller } = laneSplit(a.lanes);
-                const issue = accountIssue(a, nowSec);
-                // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
-                // The live account is the one whose windows are being spent, so
-                // its bars, resets and freshness are the reading this column is
-                // opened for. Any other account only has to answer one question —
-                // is it worth switching to — and two numbers answer it. The rest
-                // is one press on the row away, and held by account (#542).
-                const open = a.active || openLanes.includes(laneKey(a));
-                const name = a.alias ?? a.email ?? `account ${a.num}`;
-                // Numbers that cannot move: nothing collected for a quarter of an
-                // hour, or a login that no collection can get past. They stay on
-                // screen as the last reading and are drawn as one.
-                const frozen = a.stale || issue?.blocksSwitch === true;
-                // The row leads with the windows; a folded model lane joins them
-                // only when it is the fullest, so two calm numbers never sit over
-                // a hidden hot one. See lane-view.ts.
-                const quick = fuller ? [...shown, fuller] : shown;
-                const age = a.fetchedAt ? ago(a.fetchedAt, nowSec) : null;
-                return (
-                <li key={a.num} className={`ap-account${a.active ? " active" : ""}`}
-                  aria-current={a.active ? "true" : undefined}
-                  data-open={open ? "" : undefined}
-                  data-frozen={frozen ? "" : undefined}>
-                  {/* THE ROW IS THE DOOR, the way a machine's row is in Local
-                      network: a button laid over the whole row, under the row's
-                      own controls, so a press anywhere on it opens or shuts the
-                      detail and the keyboard's ring goes round the row. The live
-                      row has nothing folded, so it has no door. */}
-                  {!a.active && (
-                    <button type="button" className="ap-row-open" id={`ap-row-${a.num}`}
-                      aria-expanded={open}
-                      aria-controls={open ? `ap-detail-${a.num}` : undefined}
-                      aria-describedby={!open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : undefined}
-                      onClick={() => setOpenLanes(o => toggleLane(o, a))}>
-                      <span className="vis-hidden">{name}, {open ? "hide details" : "details"}</span>
-                    </button>
-                  )}
-                  <div className="ap-account-head">
-                    {/* The live account is marked by a dot where the other rows
-                        carry their slot, in the accent, which in this deck means
-                        live. The slot is still its name for the CLI, so it rides
-                        in the title and in what a screen reader is told. */}
-                    {a.active
-                      ? <span className="ap-live" title={`Active account · slot ${a.num}`}>
-                          <span className="vis-hidden">Active account, slot {a.num}:</span>
-                        </span>
-                      : <span className="ap-num">{a.num}</span>}
-                    {/* Both of these are clipped with an ellipsis so a long one
-                        cannot widen the panel, which means the row can be showing
-                        less than the whole string — so each one carries its own
-                        whole value in a title (#517). */}
-                    {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-                    <span className="ap-email" title={a.email ?? undefined}>{a.email}</span>
-                    {/* A state, said in a word and not in a pill. It stands where
-                        `Switch` would, because a switch to a held-out account is
-                        refused and a control that can never act is worse than
-                        none (#519). Putting it back is in the ⋯. */}
-                    {a.disabled && <span className="ap-held">held out</span>}
-                    {/* The one verb a row carries, and quieter than the account it
-                        is about: a word on the control fill, no edge. Not offered
-                        where it cannot work — to a login that is dead or was never
-                        stored, a switch only makes the dead one live. */}
-                    {!a.active && !a.disabled && !issue?.blocksSwitch && (
-                      <button
-                        type="button"
-                        className="ap-switch"
-                        {...pressProps(`switch-${a.num}`)}
-                        onClick={() => doSwitch(a.num, name)}
-                        aria-label={`Switch to ${name}`}
-                        title={`Switch to ${a.alias ?? a.email}`}
-                      >{busy === `switch-${a.num}` ? "…" : "Switch"}</button>
-                    )}
-                    {/* THE WAY IN TO EVERYTHING ELSE. It opens a menu over the
-                        column rather than opening the row, so pressing it moves
-                        nothing on screen. aria-controls only while the menu
-                        exists: an IDREF that resolves to nothing is a dangling
-                        pointer. The name carries the account, because a column of
-                        identical "More actions" is a column of buttons a screen
-                        reader cannot tell apart. */}
-                    <button type="button" id={`ap-more-${a.num}`} className="ap-more"
-                      aria-label={`More actions for ${a.email ?? a.alias ?? `account ${a.num}`}`}
-                      aria-haspopup="menu" aria-expanded={menuFor === a.num}
-                      aria-controls={menuFor === a.num ? `ap-menu-${a.num}` : undefined}
-                      title="More actions"
-                      onClick={() => (menuFor === a.num ? closeMenu() : openMenu(a.num))}
-                      onKeyDown={e => {
-                        // Down opens at the first item and Up at the last, the way
-                        // a native menu button does. Enter and Space are the click.
-                        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-                        e.preventDefault();
-                        openMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
-                      }}>
-                      {/* AUTHORED, NOT TYPED, like the header's four: three dots on
-                          the same 14px grid the header draws at. */}
-                      <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-                        <circle cx="2.8" cy="7" r="1.15" />
-                        <circle cx="7" cy="7" r="1.15" />
-                        <circle cx="11.2" cy="7" r="1.15" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* THE ANSWER TO A SWITCH, on the row it was about (#827). A
-                      switch that took says so on the row it took to, with the one
-                      thing nothing else on screen says: what happens to the
-                      sessions already running. */}
-                  {failure?.row === a.num && (
-                    <div className="ap-failure ap-row-failure" role="alert">
-                      <span className="ap-failure-text" title={failure.raw || undefined}>{failure.text}</span>
-                      <button type="button" className="ap-failure-x" onClick={() => setFailure(null)}
-                        aria-label="Dismiss this message" title="Dismiss">×</button>
-                    </div>
-                  )}
-                  {a.active && switched?.num === a.num && (
-                    <p className="ap-switched">
-                      Now active. New sessions start on it; ones already running pick it up on
-                      their next message, up to about 30 seconds later on macOS.
-                    </p>
-                  )}
-                  {/* A move into a taken slot relocated a second account, and this
-                      is the only place that says so, for eight seconds. The
-                      sentence naming who went where is its title. */}
-                  {swapNote?.at === a.num && (() => {
-                    const other = data.accounts?.find(x => x.num === swapNote.displaced);
-                    const who = other?.alias ?? other?.email ?? "the account that was there";
-                    return (
-                      <p className="ap-note ap-swap-note"
-                        title={`Slot ${swapNote.at} was taken, so the two accounts traded places: `
-                             + `${who} now holds slot ${swapNote.displaced}.`}>
-                        swapped with slot {swapNote.displaced}
-                      </p>
-                    );
-                  })()}
-
-                  {/* WHAT IS WRONG, ON THE ROW, SHUT OR OPEN. A problem is never
-                      folded away with the detail and never moved into the ⋯: it
-                      is the one line on the row somebody has to be able to find.
-                      It is a word and a mark rather than a banner, and the why
-                      and the fix are one press away (#856) — a popover over the
-                      column, so opening it moves no row. */}
-                  {issue && (
-                    <div className="ap-issue-line">
-                      <button type="button" id={`ap-issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
-                        aria-haspopup="dialog"
-                        aria-expanded={issueOpen?.anchor === `ap-issue-${a.num}`}
-                        aria-controls={issueOpen?.anchor === `ap-issue-${a.num}` ? "ap-issue-pop" : undefined}
-                        onClick={() => openIssue(a.num, `ap-issue-${a.num}`)}>
-                        {issue.tone === "warn" && <WarnGlyph />}
-                        <span className="ap-issue-text">{issue.text}</span>
-                      </button>
-                      {/* How old the last reading is. On an open row the freshness
-                          line under the bars says it, so it is said once. */}
-                      {!open && (
-                        <span className="ap-issue-age" title="When claude-swap last read this account's usage">
-                          {age ?? "never collected"}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no
-                      resets, no clock — unless the numbers are old, and then the
-                      age is the one thing that must be said beside them. A login
-                      that cannot be used shows no numbers at all here: the line
-                      above is the answer, and last week's quota under it would
-                      read as this week's. */}
-                  {!open && !issue?.blocksSwitch && (
-                    <p className="ap-quota" id={`ap-quota-${a.num}`}>
-                      {quick.length
-                        ? quick.map(l => (
-                            <span key={l.id} className="ap-q">
-                              <span className="ap-q-label">{l.label}</span>{" "}
-                              <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>
-                            </span>
-                          ))
-                        : <span className="ap-q-label">no usage recorded yet</span>}
-                      {a.stale && !issue && (
-                        <span className="ap-q-age" data-never={age ? undefined : ""} title="When claude-swap last read this account's usage">
-                          {age ?? "never collected"}
-                        </span>
-                      )}
-                    </p>
-                  )}
-
-                  {/* OPEN: every window as a bar, when each one resets, and when
-                      claude-swap last read it and plans to read it again — the
-                      freshness that says whether these numbers are a decision's
-                      worth of evidence. */}
-                  {open && (
-                    <div className="ap-detail" id={`ap-detail-${a.num}`}>
-                      <div className="ap-lanes">
-                        {a.lanes.length
-                          ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} frozen={frozen} />)
-                          : <div className="ap-hint">No usage recorded yet.</div>}
-                      </div>
-                      <div className="ap-meta">
-                        {a.fetchedAt
-                          ? <span
-                              // ONE ATTENTION COLOUR PER ROW, ON THE CAUSE: an
-                              // account with a problem is old because of it, so
-                              // the age stays quiet and the problem takes the ink.
-                              className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
-                              title={"When claude-swap last read this account's usage, and when it plans to read it again. "
-                                   + "It sets that interval itself — 3 minutes at the fastest, wider while an account is "
-                                   + "recovering from a rate limit — and every surface, including `cswap watch`, follows "
-                                   + "the same plan."}
-                            >collected {ago(a.fetchedAt, nowSec)}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec)}</span>
-                          : <span className="ap-age ap-stale" title="claude-swap has not read this account yet">never collected</span>}
-                      </div>
-                    </div>
-                  )}
-                </li>
-                );
-              })}
+              {head.map(accountRow)}
               </ul>
+
+              {/* THE FOLD. Every account that is not the live one, behind one
+                  row — see other-accounts.ts for why the column opens this way
+                  and why the row unfolds in place instead of leading anywhere.
+                  Drawn only when there IS a live account to stand above it: a
+                  store with nothing active has no reason to hide the rest, and
+                  the whole roster is already above it. */}
+              {rest.length > 0 && (
+                <OtherAccounts
+                  peers={peers}
+                  strained={strained}
+                  open={restOpen}
+                  onToggle={() => setRestOpen(o => !o)}
+                />
+              )}
+              {rest.length > 0 && restOpen && (
+                <ul className="ap-list ap-others" id="ap-rest-list">
+                {rest.map(accountRow)}
+                </ul>
+              )}
 
               {menu && (() => {
                 const a = data.accounts?.find(x => x.num === menu.num);

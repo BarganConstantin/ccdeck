@@ -7814,6 +7814,23 @@ button.qb-pace::after {
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+/* A ROW THAT UNFOLDS RATHER THAN LEADS turns its chevron down, which is the one
+   thing that tells the two `.ap-nav` rows in this column apart before either is
+   pressed: Local network goes somewhere, the fold opens here. The turn wins
+   over the hover nudge — a chevron pointing down does not lean right, and
+   `translateX` on a rotated box would send it there anyway. */
+.ap-nav[aria-expanded="true"] .ap-nav-chev,
+.ap-nav[aria-expanded="true"]:hover .ap-nav-chev { transform: rotate(90deg); }
+
+/* THE FOLD, between the live account and the rest of the roster. `.ap-nav` is
+   written for the foot, where the inset comes from `.ap-foot`; this row stands
+   in the scroll, so the inset is its own. Its text lands where Local network's
+   does, one screen down, because they are the same row. */
+.ap-rest { padding: 0 var(--panel-inset) 2px; }
+/* The list it opens hangs directly off it — the top padding belongs to the
+   fold's own bottom, and two of them would read as a gap the reader has to
+   cross to believe the rows are what the row was about. */
+.ap-others { padding-top: 2px; }
 
 /* THE PEEK — who is on, beside the row, for a pointer that has not pressed
    anything.
@@ -7883,6 +7900,32 @@ button.qb-pace::after {
   text-overflow: ellipsis;
 }
 .ap-peek-rest { margin-top: 7px; font-size: 11px; color: var(--muted); }
+
+/* THE FOLD'S PEEK is Local network's card carrying a number per name. Wider,
+   because `claude1@sapec.md` and `96% free` on one line is more than 208px of
+   text, and a name that ellipsised away would defeat the one thing the card is
+   for. The name takes the room; the state is measured off `not read yet`, the
+   longest thing it can say. */
+.ap-fold-peek { width: 244px; }
+.ap-fold-who { gap: 8px; justify-content: space-between; }
+.ap-fold-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* The number sits in the muted tier beside a foreground name: it is what the
+   name is being ranked by, not a second thing to read. Tabular, so a column of
+   them lines up on the decimal the way the bars above do. */
+.ap-fold-state {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* And an account that cannot be switched to says so in the ink its own row
+   uses, so the card cannot be the quiet version of a warning. */
+.ap-fold-state[data-tone="warn"] { color: var(--warn); }
 
 .ap-lan-row {
   display: flex;
