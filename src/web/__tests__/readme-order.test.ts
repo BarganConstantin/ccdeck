@@ -360,6 +360,38 @@ describe("the social preview card (#441)", () => {
   });
 });
 
+describe("the link to the site, which is how anything finds it at all", () => {
+  // ccdeck.dev existed for three days with nothing pointing at it. The repo's
+  // homepage field was empty, the README's 41 KB named the domain zero times,
+  // and package.json's homepage pointed back at this README — so every link ran
+  // outward, from the site to GitHub and npm, and none ran back. Searching for
+  // a sentence that appears only on that page returned this repo's issues and
+  // not the page, which is what a site with no inbound link looks like.
+  //
+  // The repo's homepage field is set in Settings and no test can see it. These
+  // two are the halves that live in the tree, and they are the two a tidy-up
+  // would revert without noticing: a link in a nav line reads as decoration,
+  // and `homepage` pointing at `#readme` is what npm init writes.
+  const pkg = JSON.parse(read("package.json"));
+
+  it("names the site in the README, exactly once", () => {
+    expect(times("https://ccdeck.dev"), "the README no longer links ccdeck.dev").toBe(1);
+  });
+
+  it("points package.json's homepage at the site, not back at this file", () => {
+    expect(pkg.homepage).toBe("https://ccdeck.dev");
+  });
+
+  it("keeps both CLIs in the npm keywords, which are the only ones npm searches", () => {
+    // GitHub topics carried `codex` and `monitoring` from the start; the npm
+    // keywords carried neither, and npm's search for "claude code monitor" did
+    // not return this package at all while half of what it reads is Codex.
+    for (const word of ["claude-code", "codex", "monitor"]) {
+      expect(pkg.keywords, `npm keyword "${word}" is gone`).toContain(word);
+    }
+  });
+});
+
 describe("the npm badges, which name the one package that ships", () => {
   it("counts the downloads of the package the version badge and the workflow name", () => {
     // WHAT THIS USED TO PIN, and the fact it rested on:
