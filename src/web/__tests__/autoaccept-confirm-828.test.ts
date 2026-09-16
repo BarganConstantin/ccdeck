@@ -69,11 +69,17 @@ describe("it still looks and reads like what it does (#828)", () => {
     expect(css.indexOf('.switch[data-tone="warn"]')).toBeGreaterThan(css.indexOf(".switch:hover:not(:disabled) {"));
   });
 
-  it("says what it gives away while it is on, in those words", () => {
-    const line = /<p className=\{says \? "lan-warn" : "lan-note"\} aria-live="polite">([\s\S]*?)<\/p>/.exec(MODAL)?.[1] ?? "";
-    const said = (/<>([\s\S]*?)<\/>/.exec(line)?.[1] ?? "").replace(/\s+/g, " ").trim();
-    expect(said).toMatch(/Any deck on this network that asks/);
-    expect(said).toMatch(/offered any login ticked above, without you being asked\./);
+  it("says what it gives away on the control, not in a paragraph under it", () => {
+    // The line under the switches is gone (owner's call, 2026-09-16). With the
+    // setting shipping ON, that paragraph was yellow at rest — a warning about
+    // the way the deck comes out of the box, repeating the label above it.
+    expect(MODAL).not.toMatch(/lan-warn/);
+    expect(MODAL).not.toMatch(/without you being asked/);
+    // So the switch has to carry it alone: the label names the act, the tone
+    // marks it as the one that costs something, and the title says the rest.
+    expect(yes).toMatch(/aria-label="Say yes to every deck that asks"/);
+    expect(yes).toMatch(/data-tone="warn"/);
+    expect(yes).toMatch(/paired without anybody being asked here\."\}/);
   });
 
   it("names the gate that the default rests on, where the default is written", () => {

@@ -340,33 +340,17 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </button>
               </div>
             </div>
-            {/* ONE LINE UNDER THE TWO SWITCHES, always there, so a screen reader
-                hears it change. Saying yes for everybody is the one state that
-                gives something away, and the only yellow in this dialog (#828):
-                any deck that asks is paired and offered the logins ticked above,
-                and the line says so in those words. It is the shipped state
-                now, so the yellow is what a reader sees first — which is the
-                point of it: the sentence names the one thing to check before
-                ticking a login, and the switch above it is one press away. */}
-            <p className={says ? "lan-warn" : "lan-note"} aria-live="polite">
-              {says ? (
-                <>
-                  Any deck on this network that asks is paired, and offered any login
-                  ticked above, without you being asked.
-                </>
-              ) : asks ? (
-                <>
-                  This deck asks; somebody on the other machine still has to say yes. A
-                  request coming the other way waits in the panel for you.
-                </>
-              ) : (
-                <>
-                  Nothing pairs on its own. You press <strong>ask</strong> on a deck you find,
-                  and <strong>accept</strong> on one that asks. A deck you said no to is never
-                  asked about again either way.
-                </>
-              )}
-            </p>
+            {/* AND NO PARAGRAPH UNDER THEM. There was one: it changed with the
+                switches and went yellow while saying yes was on. Once that
+                setting ships ON, the yellow is the resting state of the dialog —
+                a warning about the way the deck comes out of the box, over a
+                control whose own label already says what it does in the same
+                words. A surface that shouts about its resting state is one
+                people stop reading, and the sentence it shouted was the label
+                again.
+
+                What says it instead: the switch's label, its --warn fill, and
+                its title. The owner asked for the line gone, 2026-09-16. */}
           </div>
         </section>
 
