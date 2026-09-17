@@ -690,6 +690,18 @@ describe("the character", () => {
     expect(steps.every(s2 => s2.x === -90)).toBe(true);
   });
 
+  it("drops far enough when sitting that the pose is not just standing lower", () => {
+    // The legs are two rows — six pixels at 3px a cell — so a drop shorter than
+    // their own height leaves them straddling the ledge line and the whole thing
+    // reads as the character standing slightly lower. Seven did exactly that.
+    const drop = Number(/translateY\((\d+)px\)/.exec(
+      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
+    const legHeight = 2 * (54 / SPRITE_W);
+    expect(drop).toBeGreaterThan(legHeight);
+    // And it folds rather than being lowered.
+    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
+  });
+
   it("walks somewhere before it sits, and sits for a while", () => {
     // Sitting down on the spot it is already standing on reads as falling over.
     const steps = sitSteps(-10, -80, () => 0.5);
@@ -709,6 +721,16 @@ describe("the character", () => {
     // carrying a stick.
     expect(decl('.fm-held[data-prop="scope"]', "bottom")).toBe("21px");
     expect(decl(".fm-held", "bottom")).toBe("3px");
+    // AND IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head
+    // and read as floating beside the character: the arms are two rows from the
+    // bottom, so there is nothing at eye height for a hand to be, and the
+    // overlap has to do the work the arm cannot.
+    expect(decl('.fm-held[data-prop="scope"]', "right")).toBe("34px");
+    const SPRITE_PX = 54, SCOPE_PX = 15, CELL = SPRITE_PX / SPRITE_W;
+    const farEnd = SPRITE_PX - 34;             // the end nearest the face
+    const headStartsAt = 6 * CELL;             // body columns begin at 6
+    expect(farEnd).toBeGreaterThan(headStartsAt);
+    expect(farEnd).toBeLessThan(7 * CELL);     // and stops short of the eye
   });
 
   it("gives every prop art, and no prop a recognisable identity", () => {

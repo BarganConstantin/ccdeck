@@ -12340,9 +12340,16 @@ input, textarea { caret-color: var(--accent); }
 }
 /* The scope is held UP, at the height of the eyes, pointing away from the
    minimap and out over the sessions — which is the only thing that makes the
-   pose read as looking at something rather than as carrying a stick. */
+   pose read as looking at something rather than as carrying a stick.
+
+   IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head and
+   read as floating beside the character rather than being held up to it: the
+   arms are two rows from the bottom and there is nothing at eye height for a
+   hand to be. 34px puts its near end over the head's left edge, just short of
+   the eye, and the overlap does the work an arm would — which is how every
+   pixel character that has ever held something to its face does it. */
 .fm-held[data-prop="scope"] {
-  right: 46px;
+  right: 34px;
   bottom: 21px;
   width: 15px;
 }
@@ -12571,11 +12578,17 @@ input, textarea { caret-color: var(--accent); }
 .fm-walker[data-act="kick"] .fm-sprite { transform: rotate(9deg); }
 
 /* Sitting on the edge, legs over the side. The sprite drops below the line it
-   stands on, which is what puts the feet over the minimap — the same seven
-   pixels that would be a bug anywhere else in this block are the whole pose
-   here. A little squash, because sitting down is a body folding rather than a
-   body being lowered. */
-.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(7px) scale(1.03, 0.9); }
+   stands on, which is what puts the feet over the minimap — the same pixels
+   that would be a bug anywhere else in this block are the whole pose here.
+
+   TEN, NOT SEVEN. At seven the legs still straddled the ledge line and the
+   whole thing read as the character standing slightly lower rather than as
+   sitting; the legs are two rows, six pixels, so anything less than their own
+   height leaves the pose ambiguous at 54px. Ten puts them clear of the line and
+   the silhouette changes, which is the only thing a pose has to do. The squash
+   goes with it, because sitting down is a body folding rather than a body being
+   lowered. */
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(10px) scale(1.04, 0.87); }
 
 /* Looking at the board. A small lean back, the way anybody holding something up
    to their eye stands. */
