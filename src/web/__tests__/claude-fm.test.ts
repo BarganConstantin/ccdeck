@@ -664,7 +664,21 @@ describe("the character", () => {
     expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBe("0.72");
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
-    expect(decl(".fm-body", "fill")).toBe("var(--accent)");
+    expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
+
+    // EVERY GROUP THE SPRITE DRAWS HAS TO BE GIVEN A FILL. SVG's default is
+    // black, so a group with no rule is not a group with a subtle colour — it
+    // is a black hole in the character, which is exactly what splitting the
+    // legs out of the body produced until this line existed.
+    const groups = [...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion))"/g)]
+      .map(m => m[1]);
+    expect(groups.length).toBeGreaterThan(2);
+    for (const g of new Set(groups)) {
+      if (g === "fm-gear-motion") continue;   // inside fm-gear, inherits it
+      const painted = new RegExp(`(^|[\\s,])\\.${g}(,|\\s)[^{]*\\{[^}]*fill:`, "m").test(css)
+        || decl(`.${g}`, "fill") != null;
+      expect(painted, `.${g} is never given a fill`).toBe(true);
+    }
     expect(decl(".fm-gear", "fill")).toBe("var(--muted)");
     expect(decl(".fm-eye", "fill")).toBe("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
@@ -1043,7 +1057,10 @@ describe("the character", () => {
     // reads as the character standing slightly lower. Seven did exactly that.
     const drop = Number(/translateY\((\d+)px\)/.exec(
       decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
-    const legHeight = 2 * (54 / SPRITE_W);
+    // Counted off the sprite, not assumed: the legs got a row longer once
+    // already and this number had to move with them.
+    const legRows = SPRITE.length - LEG_TOP_ROW;
+    const legHeight = legRows * (54 / SPRITE_W);
     expect(drop).toBeGreaterThan(legHeight);
     // And it folds rather than being lowered.
     expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
@@ -1066,14 +1083,23 @@ describe("the character", () => {
     expect(steps[1].prop?.held).toBe(true);
     // Held at the eyes and pointed away from the minimap, or the pose reads as
     // carrying a stick.
-    expect(decl('.fm-held[data-prop="scope"]', "bottom")).toBe("21px");
+    // HELD AT THE EYES, and the eyes move when the sprite grows. Derived here
+    // rather than pinned, because this number is "where row four is" and the
+    // last time the legs got a row longer it silently stopped being that.
+    const CELL = 54 / SPRITE_W;
+    const eyeRow = SPRITE.findIndex(r => r.includes("e"));
+    const eyeFromFloor = (SPRITE_H - 1 - eyeRow) * CELL;
+    const scopeBottom = parseFloat(decl('.fm-held[data-prop="scope"]', "bottom") ?? "");
+    const scopeH = PROP_ART.scope.length * CELL;
+    expect(scopeBottom).toBeLessThanOrEqual(eyeFromFloor);
+    expect(scopeBottom + scopeH).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(decl(".fm-held", "bottom")).toBe("3px");
     // AND IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head
     // and read as floating beside the character: the arms are two rows from the
     // bottom, so there is nothing at eye height for a hand to be, and the
     // overlap has to do the work the arm cannot.
     expect(decl('.fm-held[data-prop="scope"]', "right")).toBe("34px");
-    const SPRITE_PX = 54, SCOPE_PX = 15, CELL = SPRITE_PX / SPRITE_W;
+    const SPRITE_PX = 54;   // CELL is already in hand from the eye maths above
     const farEnd = SPRITE_PX - 34;             // the end nearest the face
     const headStartsAt = 6 * CELL;             // body columns begin at 6
     expect(farEnd).toBeGreaterThan(headStartsAt);

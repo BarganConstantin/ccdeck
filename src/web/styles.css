@@ -12370,7 +12370,7 @@ input, textarea { caret-color: var(--accent); }
 .fm-rope[data-act="lasso"] {
   width: 16px;
   height: 7px;
-  bottom: 42px;   /* just above the head: the sprite is 39px tall */
+  bottom: 45px;   /* just above the head: the sprite is 42px tall */
   background: none;
   border: 1.5px solid var(--muted);
   border-radius: 50%;
@@ -12451,7 +12451,10 @@ input, textarea { caret-color: var(--accent); }
    pixel character that has ever held something to its face does it. */
 .fm-held[data-prop="scope"] {
   right: 34px;
-  bottom: 21px;
+  /* The eye row, measured from the feet: a 14-row sprite at 3px a row puts row
+     four 27px up, and a 9px scope starting at 24 covers it. Moved with the
+     legs — the eyes did not change row, but the floor got further away. */
+  bottom: 24px;
   width: 15px;
 }
 /* CARRIED ON THE SIDE IT IS FACING. Held on the left while walking right, an
@@ -12520,7 +12523,13 @@ input, textarea { caret-color: var(--accent); }
    rather than arriving with its own. Both recolour with the theme, which is the
    whole reason this is a grid of rects and not a picture. */
 .fm-gear { fill: var(--muted); }
-.fm-body { fill: var(--accent); }
+/* THE LEGS ARE THE SAME INK AS THE BODY, and they need saying so out loud.
+   They used to BE the body — one group, one fill — and splitting them out so
+   they could take a step took them out from under it. SVG's default fill is
+   black, so the character walked around with two black legs and a black shin,
+   which is what an unstated inherited property costs the moment the thing it
+   was inherited from goes away. */
+.fm-body, .fm-leg { fill: var(--accent); }
 /* THE EYES NARROW WHEN IT IS LOOKING AT SOMETHING, and that is all they do.
 
    An earlier build also shifted them a column to say which way it was
@@ -12822,6 +12831,11 @@ input, textarea { caret-color: var(--accent); }
    stands on, which is what puts the feet over the minimap — the same pixels
    that would be a bug anywhere else in this block are the whole pose here.
 
+   THIRTEEN, AND IT MOVES WITH THE LEGS. It was ten when they were two rows;
+   they are three now, so ten would leave them straddling the line again. This
+   number is not a taste, it is "longer than the legs" — and the test says so
+   in those terms rather than pinning the digit.
+
    TEN, NOT SEVEN. At seven the legs still straddled the ledge line and the
    whole thing read as the character standing slightly lower rather than as
    sitting; the legs are two rows, six pixels, so anything less than their own
@@ -12829,7 +12843,7 @@ input, textarea { caret-color: var(--accent); }
    the silhouette changes, which is the only thing a pose has to do. The squash
    goes with it, because sitting down is a body folding rather than a body being
    lowered. */
-.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(10px) scale(1.04, 0.87); }
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(13px) scale(1.04, 0.87); }
 
 /* Looking at the board. A small lean back, the way anybody holding something up
    to their eye stands. */

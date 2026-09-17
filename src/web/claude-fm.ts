@@ -168,6 +168,12 @@ export function duckMsFor(notes: readonly { at: number; ms: number }[]): number 
  * of two, and the whole thing is drawn on 18 columns rather than 16 so the legs
  * have somewhere to be.
  *
+ * The legs are the fifth pass and are three rows rather than two. At two they
+ * were as tall as they were wide — square stubs under a body nine rows deep,
+ * which reads as a thing balanced on blocks rather than a thing standing on
+ * legs. Three rows is the shortest that looks like a leg, and it is what gives
+ * the stride something to swing.
+ *
  * The arms are the fourth pass, and they cost two rows rather than two
  * columns: the ear cups run down both sides of the head, so there is nowhere
  * for an arm to come out until below them. The cups end a row earlier than they
@@ -196,6 +202,7 @@ export const SPRITE: readonly string[] = [
   "....bbbbbbbbbs....",
   "....bbbbbbbbbs....",
   "......bbbbbs......",
+  "......bb..bs......",
   "......bb..bs......",
   "......bb..bs......",
 ];
