@@ -377,12 +377,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Kept in step with the test job above; see the note there.
+      # AND NO `registry-url` HERE, WHICH IS THE WHOLE OF WHY 3.23.5 STOPPED.
+      #
+      # That input exists to write an .npmrc carrying
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`, and this job has
+      # had no NODE_AUTH_TOKEN since it moved to trusted publishing. npm read
+      # that line, decided it had credentials, expanded them to nothing and
+      # PUT the tarball with an empty token — so it never tried to mint an OIDC
+      # one at all. The registry answered 404, which is what npmjs.com returns
+      # for a rejected credential rather than 403, and the tag's tests, its
+      # tarball and its signed provenance were all already green.
+      #
+      # Without the input there is no .npmrc, npm finds no credential, and
+      # trusted publishing is the only path left — which is the path this job
+      # was rewritten to take. The registry default is registry.npmjs.org, so
+      # nothing else about `npm publish` or `npm ci` changes.
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: npm
 
       # THE NPM THAT CAN DO OIDC. Node 22 ships npm 10, and trusted publishing
