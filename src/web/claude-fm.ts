@@ -783,22 +783,32 @@ export function nextDanceMs(rand: () => number): number {
  * Its own small grid rather than more rows in the sprite: it sits ON the head
  * rather than beside it, so weaving it into the eighteen columns would mean a
  * letter for every square the brim overlaps and a body that has to know about
- * a hat. Three rows, eight wide — a crown, a band, and a brim one cell wider
- * either side, which is the least that reads as a hat at three pixels a cell.
+ * a hat.
+ *
+ * THE BRIM IS TWICE THE WIDTH OF THE HEAD, and that ratio is the whole of what
+ * says which kind of hat it is. The first build made it one cell wider either
+ * side — the least that reads as a hat at all — and what it read as was a cap.
+ * A wide brim over a narrow crown is the silhouette, so the crown stayed six
+ * pixels across and the brim went to thirty-six.
+ *
+ * The crown is taller than the sprite has room for, so the hat starts a row
+ * ABOVE the grid. Nothing needs to move for that: the sheet already lets this
+ * character draw outside its own box, because the dances lift it past the top.
  *
  *   `h` the hat   `k` its band
  */
 export const HAT: readonly string[] = [
-  "..hhhh..",
-  "..kkkk..",
-  "hhhhhhhh",
+  "....hhhh....",
+  "....hhhh....",
+  "...kkkkkk...",
+  "hhhhhhhhhhhh",
 ];
 
 /** Where it sits on the sprite: centred on the head's columns, with the brim on
  *  the head's own top row so it covers the forehead rather than floating over
  *  it. Checked against the head in the test rather than eyeballed. */
-export const HAT_X = 5;
-export const HAT_Y = 0;
+export const HAT_X = 3;
+export const HAT_Y = -1;
 
 export const LEG_TOP_ROW = 11;
 export const LEG_SPLIT_COL = 9;
