@@ -428,7 +428,13 @@ describe("the character", () => {
     // Its feet land exactly on the border, which is the difference between a
     // character and a sticker. No gap term: a character hovering a few pixels
     // over the ledge it is standing on is the thing that reads as wrong.
-    expect(decl(".fm", "bottom")).toBe("calc(var(--flow-gutter) + var(--minimap-h))");
+    // THE SCENE SITS ON THE CANVAS FLOOR AND THE LEDGE IS A HEIGHT WITHIN IT.
+    // It used to be pinned to the minimap's top border, which made that border
+    // the only place in the world — there was no way to express "further down"
+    // at all, so the character could not leave it. Nothing moved on screen for
+    // the change: --fm-y defaults to exactly the ledge's height above the floor.
+    expect(decl(".fm", "bottom")).toBe("var(--flow-gutter)");
+    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * var(--minimap-h))");
     expect(decl(".fm", "right")).toBe("var(--flow-gutter)");
     expect(decl(".fm", "--flow-gutter")).toBe("15px");
     // 54px is 18 columns at exactly 3px. A width that does not divide by the
@@ -622,7 +628,13 @@ describe("the character", () => {
     expect(css).toMatch(/@keyframes fm-settle/);
     // The settle has to carry the position too, or the animation would snap the
     // litter back to the right-hand end for its duration.
-    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-prop-x/);
+    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translate\(calc\(var\(--fm-prop-x/);
+    // Every keyframe that positions a prop has to carry the height too, or the
+    // animation would drag it back to the floor for its duration.
+    for (const frames of ["fm-settle", "fm-roll"]) {
+      const block = new RegExp(`@keyframes ${frames} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? "";
+      expect(block, frames).toContain("var(--fm-y)");
+    }
   });
 
   it("keeps its weight in both themes, which is not the same number twice", () => {
@@ -684,7 +696,7 @@ describe("the character", () => {
     // makes the middle race and the feet stop matching the ground. This is the
     // gentlest symmetric curve that keeps most of the trip near constant speed.
     expect(decl(".fm-walker", "transition")).toBe("transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1)");
-    expect(decl(".fm-walker", "transform")).toBe("translateX(var(--fm-x, 0px))");
+    expect(decl(".fm-walker", "transform")).toBe("translate(var(--fm-x, 0px), var(--fm-y))");
   });
 
   it("goes about its business whether or not the music is on", () => {
@@ -735,7 +747,7 @@ describe("the character", () => {
     expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
     // 21px is what centres a 12px object under a 54px one when both are
     // right-aligned: without it the stoop reaches for nothing.
-    expect(decl(".fm-prop", "transform")).toBe("translateX(calc(var(--fm-prop-x, 0px) - 21px))");
+    expect(decl(".fm-prop", "transform")).toBe("translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y))");
     expect((54 - 12) / 2).toBe(21);
   });
 

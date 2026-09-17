@@ -247,9 +247,19 @@ export function spriteRects(grid: readonly string[] = SPRITE): SpriteRect[] {
 // edge, never crosses the canvas, and never walks at all while the music is on
 // — a character that wanders off mid-track reads as a bug rather than as life.
 
-/** How far along the edge it can get: the minimap's width less its own, so it
- *  is standing on the edge at both ends rather than hanging off one. */
+/** How far along the minimap's edge it can get: the minimap's width less its
+ *  own, so it is standing on the edge at both ends rather than hanging off one.
+ *
+ *  A DEFAULT RATHER THAN A CONSTANT EVERYTHING READS. The ledge is one place
+ *  the character can be and its width is known at build time; the canvas floor
+ *  is another and its width is whatever the window is today. Every function
+ *  below that needed this takes it as an argument now, so the only thing that
+ *  has to know which place is being walked is the caller. */
 export const WALK_SPAN_PX = 148;
+
+/** Where it is. The ledge is the minimap's top border; the floor is the bottom
+ *  of the canvas, which it can only reach by leaving the ledge. */
+export type Place = "ledge" | "floor";
 
 /** How long it stands before it thinks about doing something again.
  *
@@ -281,8 +291,7 @@ export const WALK_MIN_STEP_PX = 34;
  * `rand` is passed in rather than reached for, so this is a pure function and a
  * test can say exactly where the character ends up.
  */
-export function nextWalk(from: number, rand: () => number): { to: number; ms: number } {
-  const span = WALK_SPAN_PX;
+export function nextWalk(from: number, rand: () => number, span = WALK_SPAN_PX): { to: number; ms: number } {
   // Somewhere on the edge that is not roughly where it already is. Picking a
   // point and then pushing it away from the start keeps the distribution over
   // the whole ledge instead of bunching it at the two ends, which is what
@@ -399,8 +408,7 @@ export const SIT_MAX_MS = 14_000;
 
 /** Where a prop turns up. Never so close that the errand is over before it
  *  starts, and always somewhere on the ledge. */
-export function propSpot(from: number, rand: () => number): number {
-  const span = WALK_SPAN_PX;
+export function propSpot(from: number, rand: () => number, span = WALK_SPAN_PX): number {
   let at = -Math.round(rand() * span);
   if (Math.abs(at - from) < WALK_MIN_STEP_PX) {
     const away = from - WALK_MIN_STEP_PX >= -span ? -WALK_MIN_STEP_PX : WALK_MIN_STEP_PX;
@@ -504,14 +512,14 @@ export function facingFor(step: Step, from: number, prev: Facing): Facing {
 }
 
 /** The whole decision, in one place: what it does next and where. */
-export function nextActivity(from: number, rand: () => number): Step[] {
+export function nextActivity(from: number, rand: () => number, span = WALK_SPAN_PX): Step[] {
   switch (pickActivity(rand)) {
-    case "tidy": return tidySteps(from, propSpot(from, rand));
-    case "kick": return kickSteps(from, propSpot(from, rand));
-    case "sit":   return sitSteps(from, propSpot(from, rand), rand);
-    case "watch": return watchSteps(from, propSpot(from, rand), rand);
+    case "tidy": return tidySteps(from, propSpot(from, rand, span));
+    case "kick": return kickSteps(from, propSpot(from, rand, span));
+    case "sit":   return sitSteps(from, propSpot(from, rand, span), rand);
+    case "watch": return watchSteps(from, propSpot(from, rand, span), rand);
     default: {
-      const trip = nextWalk(from, rand);
+      const trip = nextWalk(from, rand, span);
       return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
     }
   }
