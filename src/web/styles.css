@@ -12509,10 +12509,18 @@ input, textarea { caret-color: var(--accent); }
    different speeds — it reads as the head sliding out of the headphones, which
    is exactly what it did.
 
-   So they take the body's own keyframes, 50ms behind. The lag is all that is
-   left of the secondary motion, and it is enough: a delay of a sixteenth of a
-   bar reads as something worn following what it is worn on, where a different
-   motion entirely read as something broken.
+   So they take the body's own keyframes, exactly — same set, same tempo, no
+   offset at all.
+
+   THE LAG WENT TOO, AND IT HAD TO. Fifty milliseconds of delay was the last of
+   the secondary motion, and at this size it is not a nicety, it is an error:
+   groove lifts 0.85 units, which at the steepest part of the bounce is 0.02px
+   per millisecond, so a fifty-millisecond delay puts the body a whole pixel
+   above the headphones. The band is one row — three pixels — so a pixel of
+   separation is a third of it, and what that looks like is the head sinking
+   into the headphones. Secondary motion needs room to be subtle in, and a
+   thirteen-row sprite does not have any. Rigid is correct: they are ON the
+   head, and things on a head do not lag behind it.
 
    ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
    fighting a walk: with the music on it still goes about its business, and
@@ -12522,19 +12530,19 @@ input, textarea { caret-color: var(--accent); }
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
-  animation: fm-bob var(--fm-beat, 800ms) ease-in-out -50ms infinite;
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
-  animation: fm-sway var(--fm-beat, 800ms) ease-in-out -50ms infinite;
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body {
   animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
-  animation: fm-groove var(--fm-beat, 800ms) ease-in-out -50ms infinite;
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
 }
 
 @keyframes fm-bob {

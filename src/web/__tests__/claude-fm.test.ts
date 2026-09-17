@@ -17,7 +17,7 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  ACTIVITIES, BIN_X, kickSteps, nextActivity, pickActivity, propSpot, sitSteps, STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
@@ -575,8 +575,9 @@ describe("the character", () => {
       const idle = `.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`;
       expect(decl(`${idle} .fm-body`, "animation"))
         .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
+      // EXACTLY the body's, with no offset. See below for why the lag went.
       expect(decl(`${idle} .fm-gear-motion`, "animation"))
-        .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out -50ms infinite`);
+        .toBe(decl(`${idle} .fm-body`, "animation"));
     }
     // And the separate nod is gone rather than left lying around.
     expect(css).not.toContain("fm-nod");
@@ -787,11 +788,18 @@ describe("the character", () => {
     // body on every step.
     expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
     expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
-    // Still delayed while worn, where it is correct — but now it is the body's
-    // own dance that is being delayed, not a different motion.
-    const worn = decl('.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion', "animation");
-    expect(worn).toContain("-50ms");
-    expect(worn).toContain("fm-bob");
+    // AND NO DELAY EITHER, which a thirteen-row sprite leaves no room for.
+    // groove lifts 0.85 units; at the steepest part of the bounce that is
+    // 0.02px per millisecond, so even fifty milliseconds puts the body a whole
+    // pixel above the headphones — and the band is one row, three pixels, so a
+    // pixel of separation is a third of it. What that looks like is the head
+    // sinking into the headphones. Things on a head do not lag behind it.
+    const idleSel = '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"]';
+    expect(decl(`${idleSel} .fm-gear-motion`, "animation")).toBe(decl(`${idleSel} .fm-body`, "animation"));
+    expect(css).not.toMatch(/\.fm-gear-motion \{\s*animation:[^;]*-\d+ms/);
+    const LIFT_UNITS = 0.85, CELL_PX = 54 / SPRITE_W, BEAT = 800;
+    const pxPerMs = (LIFT_UNITS * CELL_PX * 2 * Math.PI) / BEAT;
+    expect(pxPerMs * 50).toBeGreaterThan(CELL_PX / 3);
   });
 
   it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
@@ -801,15 +809,26 @@ describe("the character", () => {
     expect(css).toMatch(/- 21px - 132px/);
   });
 
-  it("stands still far longer than it walks", () => {
-    // The restraint IS the design: this is a monitoring tool, and something
-    // moving continuously in the corner is what people turn off first.
-    const longestTrip = WALK_SPAN_PX * WALK_MS_PER_PX;
-    expect(WALK_IDLE_MIN_MS).toBeGreaterThan(longestTrip * 2);
-    expect(nextIdleMs(() => 0)).toBe(WALK_IDLE_MIN_MS);
-    expect(nextIdleMs(() => 1)).toBe(WALK_IDLE_MAX_MS);
+  it("rests between things without going quiet enough to look broken", () => {
+    // This once asserted that it stands still far longer than it walks, which
+    // was the right property when walking was the only thing it did: the worry
+    // was a monitoring deck with something twitching in the corner of it.
+    //
+    // With five activities and most of them worth seeing, that same restraint
+    // stopped protecting the deck and started hiding the feature — forty
+    // seconds of nothing meant somebody could watch for a minute and conclude
+    // it was a static image. What is worth pinning now is the band either side:
+    // there is always a visible rest, and the wait is never long enough to read
+    // as "this does not move".
+    expect(WALK_IDLE_MIN_MS).toBeGreaterThanOrEqual(5_000);
+    expect(WALK_IDLE_MAX_MS).toBeLessThanOrEqual(20_000);
+    // The rest has to be a rest: longer than the quickest thing it does, or the
+    // errands would run into each other with no beat between them.
+    expect(WALK_IDLE_MIN_MS).toBeGreaterThan(STOOP_MS + TOSS_MS);
     // A range rather than a number, so two decks side by side do not step in time.
     expect(WALK_IDLE_MAX_MS).toBeGreaterThan(WALK_IDLE_MIN_MS * 1.5);
+    expect(nextIdleMs(() => 0)).toBe(WALK_IDLE_MIN_MS);
+    expect(nextIdleMs(() => 1)).toBe(WALK_IDLE_MAX_MS);
   });
 
   it("holds still for somebody who asked for no motion", () => {

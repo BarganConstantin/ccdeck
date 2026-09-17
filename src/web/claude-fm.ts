@@ -251,10 +251,20 @@ export function spriteRects(grid: readonly string[] = SPRITE): SpriteRect[] {
  *  is standing on the edge at both ends rather than hanging off one. */
 export const WALK_SPAN_PX = 148;
 
-/** How long it stands before it thinks about moving again. A range rather than
+/** How long it stands before it thinks about doing something again.
+ *
+ *  This was 18-40s, chosen when walking was the only thing it did and the worry
+ *  was a monitoring deck with something twitching in the corner of it. Now that
+ *  there are five things and most of them are worth seeing, forty seconds of
+ *  nothing meant a person could watch for a minute and conclude it was a
+ *  static image — the restraint had stopped protecting the deck and started
+ *  hiding the feature.
+ *
+ *  6-16s instead: still long enough to be plainly resting between things, short
+ *  enough that whatever it does next is worth waiting for. A range rather than
  *  a number, so two decks open side by side do not step in time. */
-export const WALK_IDLE_MIN_MS = 18_000;
-export const WALK_IDLE_MAX_MS = 40_000;
+export const WALK_IDLE_MIN_MS = 6_000;
+export const WALK_IDLE_MAX_MS = 16_000;
 
 /** Its pace. Slow on purpose — this is a stroll along a ledge, and anything
  *  quicker pulls the eye away from the canvas, which is what the canvas is
