@@ -12541,6 +12541,14 @@ input, textarea { caret-color: var(--accent); }
    canvas. */
 .fm-sprite svg { display: block; width: 100%; height: auto; overflow: visible; }
 
+/* THE DARKEST INK THE PALETTE HAS, and it is not the same token in both themes
+   because both flip: --bg is near-black in dark and near-WHITE in light, and
+   --text is the other way round. Declared once on the sprite so the eyes and
+   the hat band cannot drift apart — they are the two marks on this character
+   that have to be darker than everything around them. */
+.fm-sprite { --fm-ink: var(--bg); }
+:root[data-theme="light"] .fm-sprite { --fm-ink: var(--text); }
+
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette
    rather than arriving with its own. Both recolour with the theme, which is the
@@ -12563,25 +12571,41 @@ input, textarea { caret-color: var(--accent); }
    told apart by shape, which is what a silhouette is for. The band is the
    character's own colour, which ties the hat to whoever is under it. */
 .fm-hat { fill: var(--muted); }
-.fm-hatband { fill: var(--accent); }
+/* NOT THE BODY'S COLOUR, which is what it was. A band in the same blue as the
+   head reads as the head showing through the hat rather than as a band on it —
+   the one thing a hat must never look like. Dark, the way a band on a hat is,
+   and mixed rather than flat black so it sits on the felt instead of cutting a
+   hole in it. */
+.fm-hatband { fill: color-mix(in srgb, var(--muted) 40%, var(--fm-ink)); }
 
-/* THE TWO SWAP, AND THE HAT GOES UP WHILE THE HEADPHONES COME DOWN. Straight
-   up and off, because that is the way a hat is removed and the opposite of the
-   way the headphones travel — the two motions crossing is what makes it one
-   exchange rather than two fades. */
+/* THE TWO SWAP, AND THE ORDER IS THE WHOLE THING. The hat goes straight up and
+   off while the headphones come down, which is the way each is really put on
+   and taken off — but the first build had both fades on the WRONG side of the
+   exchange. The incoming one arrived at once and the outgoing one waited 240ms,
+   so for a quarter of a second the character wore a hat and a pair of
+   headphones at the same time, and what that looks like is the headphones
+   appearing on top of the hat in a single frame.
+
+   Whichever one is leaving goes immediately; whichever is arriving waits for
+   the other to clear. A transition applies when moving TO a state, so the rule
+   that carries the delay is the one being moved to — `[data-playing]` for the
+   headphones arriving, the bare rule for the hat coming back.
+
+   The travel is unchanged and still overlaps: one rises as the other falls.
+   It is only the two fades that had to be put in order. */
 .fm-hat {
   transform: translateY(0);
   opacity: 1;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 140ms linear;
+    opacity 160ms linear 200ms;
 }
 .fm-sprite[data-playing] .fm-hat {
   transform: translateY(-4px);
   opacity: 0;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 200ms linear 240ms;
+    opacity 180ms linear;
 }
 /* THE EYES NARROW WHEN IT IS LOOKING AT SOMETHING, and that is all they do.
 
@@ -12621,8 +12645,7 @@ input, textarea { caret-color: var(--accent); }
    alive. The darkest ink in the palette is not the same token in both themes:
    it is --bg in dark and --text in light, because both flip. The eye takes
    whichever one is dark. */
-.fm-eye { --fm-eye-ink: var(--bg); fill: var(--fm-eye-ink); }
-:root[data-theme="light"] .fm-eye { --fm-eye-ink: var(--text); }
+.fm-eye { fill: var(--fm-ink); }
 
 /* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
    The obvious spelling — mix the accent toward --bg — lands the wrong way
@@ -12647,9 +12670,9 @@ input, textarea { caret-color: var(--accent); }
    alive is not. */
 .fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
 @keyframes fm-blink {
-  0%, 93.5%  { fill: var(--fm-eye-ink); }
+  0%, 93.5%  { fill: var(--fm-ink); }
   94%, 96.5% { fill: var(--accent); }
-  97%, 100%  { fill: var(--fm-eye-ink); }
+  97%, 100%  { fill: var(--fm-ink); }
 }
 
 /* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
@@ -12704,14 +12727,14 @@ input, textarea { caret-color: var(--accent); }
   opacity: 0;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 200ms linear 240ms;
+    opacity 180ms linear;
 }
 .fm-sprite[data-playing] .fm-gear {
   transform: translateY(0) rotate(0deg);
   opacity: 1;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 140ms linear;
+    opacity 160ms linear 200ms;
 }
 
 /* THE DANCE, which is three things a bob alone was not.

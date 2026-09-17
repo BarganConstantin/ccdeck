@@ -490,12 +490,25 @@ describe("the character", () => {
     expect(decl(".fm-hat", "opacity")).toBe("1");
     expect(decl(".fm-sprite[data-playing] .fm-hat", "opacity")).toBe("0");
     expect(decl(".fm-sprite[data-playing] .fm-hat", "transform")).toBe("translateY(-4px)");
+    // The travel still overlaps — one rises as the other falls. It was only the
+    // two FADES that had to be put in order.
+    for (const sel of [".fm-hat", ".fm-sprite[data-playing] .fm-hat", ".fm-gear"]) {
+      expect(decl(sel, "transition")).toContain("transform 460ms");
+    }
     expect(decl(".fm-gear", "transform")).toContain("translateY(9px)");
     expect(decl(".fm-sprite[data-playing] .fm-gear", "opacity")).toBe("1");
     // Same grey as the headphones, because they are never both on — they are
     // told apart by shape, which is what a silhouette is for.
     expect(decl(".fm-hat", "fill")).toBe("var(--muted)");
-    expect(decl(".fm-hatband", "fill")).toBe("var(--accent)");
+    // NOT THE BODY'S COLOUR. A band in the same blue as the head reads as the
+    // head showing THROUGH the hat rather than as a band on it, which is the
+    // one thing a hat must never look like.
+    expect(decl(".fm-hatband", "fill")).toBe("color-mix(in srgb, var(--muted) 40%, var(--fm-ink))");
+    expect(decl(".fm-hatband", "fill")).not.toContain("var(--accent)");
+    // And the crown sits flush on the band rather than leaving it poking out
+    // either side like a second little brim.
+    const solid = (row: string) => row.replace(/\./g, "").length;
+    expect(solid(HAT[0])).toBe(solid(HAT[2]));
   });
 
   it("takes the headphones off when there is nothing to listen to", () => {
@@ -525,10 +538,27 @@ describe("the character", () => {
     // so what is seen is a removal rather than a disappearance.
     const off = decl(".fm-gear", "transition") ?? "";
     expect(off).toContain("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
-    expect(off).toMatch(/opacity \d+ms linear 2\d\dms/);
-    // Putting them back reverses the order — reaching for something is not a
-    // fade-in — so that fade carries no delay at all.
-    expect(decl(".fm-sprite[data-playing] .fm-gear", "transition")).toMatch(/opacity 140ms linear$/);
+
+    // THE ORDER OF THE EXCHANGE, which the first build had backwards on both
+    // sides. Whatever is LEAVING goes at once; whatever is ARRIVING waits for
+    // the other to clear. With the delays the wrong way round the character
+    // wore a hat and a pair of headphones at the same time for a quarter of a
+    // second, and what that looks like is the headphones appearing on top of
+    // the hat in a single frame.
+    //
+    // A transition applies when moving TO a state, so the rule that carries the
+    // delay is the one being moved to.
+    const delayOf = (sel: string) =>
+      Number(/opacity \d+ms linear (\d+)ms/.exec(decl(sel, "transition") ?? "")?.[1] ?? 0);
+    const leaving = [".fm-gear", ".fm-sprite[data-playing] .fm-hat"];
+    const arriving = [".fm-sprite[data-playing] .fm-gear", ".fm-hat"];
+    for (const sel of leaving) expect(delayOf(sel), `${sel} is leaving`).toBe(0);
+    for (const sel of arriving) expect(delayOf(sel), `${sel} is arriving`).toBeGreaterThan(0);
+    // And the arriving one must not start before the leaving one has finished.
+    const goneBy = (sel: string) =>
+      Number(/opacity (\d+)ms linear/.exec(decl(sel, "transition") ?? "")?.[1] ?? 0);
+    expect(delayOf(".fm-sprite[data-playing] .fm-gear")).toBeGreaterThanOrEqual(goneBy(".fm-sprite[data-playing] .fm-hat"));
+    expect(delayOf(".fm-hat")).toBeGreaterThanOrEqual(goneBy(".fm-gear"));
     // On the sheet's own ease-out, not the back-out this wanted: #860 settled
     // that for the whole sheet after every tool bubble sprang past its size.
     expect(off).not.toMatch(/cubic-bezier\([^)]*,\s*1\.\d/);
@@ -736,12 +766,15 @@ describe("the character", () => {
     // canvas showing through — near-black in dark and near-WHITE in light, so
     // the light theme gave the character two blank sockets on a blue face. The
     // darkest ink is not the same token in both themes, because both flip.
-    expect(decl(".fm-eye", "fill")).toBe("var(--fm-eye-ink)");
-    expect(decl(".fm-eye", "--fm-eye-ink")).toBe("var(--bg)");
-    expect(decl(':root[data-theme="light"] .fm-eye', "--fm-eye-ink")).toBe("var(--text)");
+    expect(decl(".fm-eye", "fill")).toBe("var(--fm-ink)");
+    // ONE DARK INK, DECLARED ONCE ON THE SPRITE, because the eyes and the hat
+    // band are the two marks on this character that both have to be darker than
+    // everything around them, and two copies of that fact would drift.
+    expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
+    expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
     // And the blink closes onto the body colour from whichever ink is in use.
     const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(blink).toContain("var(--fm-eye-ink)");
+    expect(blink).toContain("var(--fm-ink)");
     expect(blink).not.toContain("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
   });

@@ -785,6 +785,12 @@ export function nextDanceMs(rand: () => number): number {
  * letter for every square the brim overlaps and a body that has to know about
  * a hat.
  *
+ * THE CROWN IS THE WIDTH OF THE HEAD, and the band is the same. It was four
+ * cells against a six-cell band, which left the band sticking out either side
+ * like a second little brim — and with the band drawn in the body's own colour,
+ * what that read as was the blue head showing THROUGH the hat. A crown that
+ * sits flush on its band is one solid shape.
+ *
  * THE BRIM IS TWICE THE WIDTH OF THE HEAD, and that ratio is the whole of what
  * says which kind of hat it is. The first build made it one cell wider either
  * side — the least that reads as a hat at all — and what it read as was a cap.
@@ -798,8 +804,8 @@ export function nextDanceMs(rand: () => number): number {
  *   `h` the hat   `k` its band
  */
 export const HAT: readonly string[] = [
-  "....hhhh....",
-  "....hhhh....",
+  "...hhhhhh...",
+  "...hhhhhh...",
   "...kkkkkk...",
   "hhhhhhhhhhhh",
 ];
