@@ -657,7 +657,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const out = await res.json().catch(() => null);
       // This route's `detail` is cswap's stderr verbatim, not a sentence
       // anybody wrote — same as the switch below, and unlike the admin route.
-      if (!out?.ok) say({ text: explainCommandFailure(out, "command failed"), raw: commandOutput(out) });
+      // The status matters, not only the body: the deck's own gate refuses a
+      // mutation before any command runs, and says so with no `reason` for the
+      // map to find. See GATE_REASONS.
+      if (!out?.ok) say({ text: explainCommandFailure(out, "command failed", res.status), raw: commandOutput(out) });
       return out;
     } catch {
       say({ text: "server unreachable" });
@@ -684,7 +687,7 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
       const out = await res.json().catch(() => null);
       // The admin route composes its `detail` with failureText(), so here the
       // server's own words are the message and explainFailure ranks them first.
-      if (!out?.ok) setMenuError({ text: explainFailure(out, "command failed") });
+      if (!out?.ok) setMenuError({ text: explainFailure(out, "command failed", res.status) });
       return out;
     } catch {
       setMenuError({ text: "server unreachable" });
