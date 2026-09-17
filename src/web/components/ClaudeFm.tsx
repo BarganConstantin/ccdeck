@@ -47,7 +47,7 @@ import {
   spriteRects, SPRITE_H, SPRITE_W,
   BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y,
   LEG_SPLIT_COL, LEG_TOP_ROW,
-  nextDance, nextDanceMs, WALK_SPAN_PX,
+  nextDance, nextDanceMs, walkMsFor, WALK_MIN_MS, WALK_SPAN_PX,
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
   type Prop, type Step,
 } from "../claude-fm";
@@ -207,22 +207,36 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       let here = 0;
       setX(now => (here = now));
 
+      /** The step being walked and when it started, which is what a resize
+       *  needs in order to re-aim it without moving when it arrives. */
+      let current: Step | null = null;
+      let startedAt = 0;
+      let stepMs = 0;
+
       /** Walks the list one step at a time. Each step says how the world should
        *  look and how long to hold it there; nothing here decides what the list
        *  is (claude-fm.ts does) and nothing there knows about a clock. */
       const run = (steps: Step[]) => {
         const [step, ...rest] = steps;
-        if (!step) { setAct(null); setProp(null); idle(); return; }
-        setWalkMs(step.ms);
+        if (!step) { current = null; setAct(null); setProp(null); idle(); return; }
+        const to = reachable(step);
+        // A walk lasts as long as the ground it actually has to cover. The
+        // planned duration was for the floor as it was when the trip was
+        // planned, and a step re-aimed at a wider one is a longer walk — held
+        // to the planned time it would cross the extra floor by moving faster,
+        // and the stride is a fixed cadence that would stop matching it.
+        stepMs = step.act === "walk" ? Math.max(walkMsFor(here, to), WALK_MIN_MS) : step.ms;
+        setWalkMs(stepMs);
         setAct(step.act);
         setProp(step.prop);
         setPlace(step.place ?? "ledge");
-        setFacing(was => facingFor(step, here, was));
+        setFacing(was => facingFor({ ...step, x: to }, here, was));
         setRiser(step.riser ?? 0);
-        const to = reachable(step);
         setX(to);
         here = to;
-        timer = setTimeout(() => run(rest), step.ms);
+        current = step;
+        startedAt = Date.now();
+        timer = setTimeout(() => run(rest), stepMs);
       };
 
       /**
@@ -294,24 +308,67 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
 
       /**
-       * The step's target, brought inside whatever room there is NOW.
+       * The step's target, against whatever floor there is NOW.
        *
        * A trip is planned in one go against the floor it measured at the time,
-       * and then takes the better part of ten seconds to walk. Narrow the
-       * window in the middle of one and those targets are suddenly off the left
-       * edge of a canvas that no longer reaches them — the character would walk
-       * out of the deck and come back from nowhere.
+       * and then takes the better part of ten seconds to walk. Change the
+       * window in the middle of one and those targets are aimed at a canvas
+       * that is no longer there: off the left edge of a narrowed one, where the
+       * character would walk out of the deck and come back from nowhere — and
+       * stopping short in the middle of a widened one, walking to where the
+       * corner used to be and turning round at nothing.
        *
-       * Clamping per step rather than re-planning keeps the trip's own shape:
-       * it still goes down and comes back up at the same corner, because that
-       * corner is inside any canvas wide enough to have shown the minimap in
-       * the first place.
+       * So a step that remembers WHICH FRACTION of the floor it was aimed at is
+       * aimed again at that fraction of the floor there is now, and the shape
+       * of the trip survives a window that changes underneath it.
+       *
+       * Every other step keeps the pixel it was planned with and is only
+       * brought inside the edges. The corner is the reason: the trip goes down
+       * and comes back up at the far end of the LEDGE, which is fixed and is
+       * the only thing a thrown rope has to catch. Re-aiming that as a
+       * proportion of the floor would hang the rope on nothing.
        */
       const reachable = (step: Step): number => {
-        const room = (step.place ?? "ledge") === "floor"
-          ? floorReach() ?? WALK_SPAN_PX
-          : WALK_SPAN_PX;
-        return Math.max(-room, Math.min(0, step.x));
+        const floor = (step.place ?? "ledge") === "floor";
+        const room = floor ? floorReach() ?? WALK_SPAN_PX : WALK_SPAN_PX;
+        const aim = floor && step.floorFrac != null
+          ? -Math.round(step.floorFrac * room)
+          : step.x;
+        return Math.max(-room, Math.min(0, aim));
+      };
+
+      /**
+       * THE WINDOW CHANGED WHILE IT WAS WALKING.
+       *
+       * Re-aiming per step is only as current as the step is long, and these
+       * are seconds long — somebody dragging a window edge is doing it in the
+       * middle of one, not politely between two. So the step in flight is
+       * worked out again and the character carries on to where it should have
+       * been going, instead of arriving somewhere the canvas no longer has and
+       * being tidied up a walk later.
+       *
+       * It keeps the step's own arrival: only the destination moves, and the
+       * time left on the clock is what it is walked in, so everything scheduled
+       * behind it stays where it was. A resize that does not change the
+       * destination — which is most of them, since the ledge has a fixed span —
+       * is not a re-aim at all.
+       *
+       * On the scene's parent rather than on `window`, because that box is what
+       * `floorReach` measures: a panel that changes without the window doing so
+       * is a change to the floor, and a window that changes without moving that
+       * box is not.
+       */
+      const reaim = () => {
+        if (!current) return;
+        const to = reachable(current);
+        if (to === here) return;
+        setWalkMs(Math.max(0, startedAt + stepMs - Date.now()));
+        // A destination that has moved to the other side of the character is a
+        // character now walking backwards, which is the one thing a resize
+        // must not be able to make it do.
+        setFacing(was => facingFor({ ...current!, x: to }, here, was));
+        setX(to);
+        here = to;
       };
 
       const idle = () => {
@@ -329,17 +386,29 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
           const walked = plan.flatMap(st => {
             const from = at;
             at = st.x;
-            return st.place === "floor" && st.act === "walk"
-              ? crossSteps(from, st.x, bar)
-              : [st];
+            if (!(st.place === "floor" && st.act === "walk")) return [st];
+            const crossing = crossSteps(from, st.x, bar);
+            // The crossing's last step is the one that arrives where the walk
+            // was aimed, so it is the one that inherits where that was. The
+            // steps that climb the obstacle are at the obstacle's own
+            // coordinates and belong to it, not to a fraction of the floor.
+            const last = crossing.length - 1;
+            return st.floorFrac == null
+              ? crossing
+              : crossing.map((c, i) => i === last ? { ...c, floorFrac: st.floorFrac } : c);
           });
           run(walked);
         }, nextIdleMs(Math.random));
       };
 
+      const host = scene.current?.parentElement;
+      const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reaim);
+      if (host && ro) ro.observe(host);
+
       idle();
       return () => {
         if (timer) clearTimeout(timer);
+        ro?.disconnect();
         // Whatever it was in the middle of, it is not any more — and if that
         // was a trip, it must not be left standing on the canvas floor with
         // nothing scheduled to bring it home.
