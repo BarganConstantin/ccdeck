@@ -829,6 +829,29 @@ describe("the character", () => {
     }
   });
 
+  it("stays inside the canvas when the window shrinks mid-trip", () => {
+    // A trip is planned in one go against the floor it measured at the time,
+    // and then takes the better part of ten seconds to walk. Narrow the window
+    // in the middle of one and those targets are off the left edge of a canvas
+    // that no longer reaches them — the character would walk out of the deck
+    // and come back from nowhere.
+    expect(component).toContain("const reachable = (step: Step): number =>");
+    expect(component).toContain("Math.max(-room, Math.min(0, step.x))");
+    // Applied to every step, not only the floor ones.
+    expect(component).toContain("const to = reachable(step);");
+    expect(component).not.toMatch(/setX\(step\.x\)/);
+    // The ledge keeps its own fixed span; only the floor is measured.
+    expect(component).toMatch(/\(step\.place \?\? "ledge"\) === "floor"/);
+
+    // Clamping per step rather than re-planning keeps the trip's shape: it
+    // still goes down and comes back up at the same corner, and that corner is
+    // inside any canvas wide enough to have shown the minimap at all.
+    const steps = leaveLedgeSteps(0, { ledgeH: 152, floorSpan: 900 }, () => 0.9);
+    const corner = steps.find(s2 => s2.act === "fall")!.x;
+    expect(corner).toBe(-WALK_SPAN_PX);
+    expect(Math.abs(corner)).toBeLessThanOrEqual(WALK_SPAN_PX);
+  });
+
   it("hangs the rope from the ledge, not from the character", () => {
     // A rope that travelled with whoever was climbing it would be a rope
     // climbing itself.

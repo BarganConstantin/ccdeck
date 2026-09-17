@@ -45,7 +45,7 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, nextDance, nextDanceMs,
+  BEAT_MS, DANCES, nextDance, nextDanceMs, WALK_SPAN_PX,
   type Act, type Dance, type Ground, type Place, type Prop, type Step,
 } from "../claude-fm";
 
@@ -208,43 +208,73 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setAct(step.act);
         setProp(step.prop);
         setPlace(step.place ?? "ledge");
-        setX(step.x);
-        here = step.x;
+        const to = reachable(step);
+        setX(to);
+        here = to;
         timer = setTimeout(() => run(rest), step.ms);
       };
 
       /**
-       * How far there is to fall and how much floor there is at the bottom,
-       * read from the page at the moment a trip is planned rather than held in
-       * a constant. The minimap is a fixed size; the canvas is whatever the
-       * window is today, and both change on a resize. Measured per decision, so
-       * a window resized between two trips is simply a different trip.
+       * How much floor there is, right now.
        *
-       * EVERY NUMBER COMES FROM A RECT, and none from `getComputedStyle`. The
-       * first version read `--minimap-h` and `--flow-gutter` off the scene,
-       * which is the cost #612/#613 removed from this canvas and the reason
-       * render-path-cost keeps a list of the two files still allowed to do it.
-       * Adding a third is what that test exists to make somebody think twice
-       * about — so the gutter is the gap between the scene and its parent, and
-       * the ledge height is how far the walker is standing above the scene's
-       * own floor, both of which are already laid out and neither of which
-       * needs a style resolved.
+       * EVERY NUMBER COMES FROM A RECT, and none from `getComputedStyle`. That
+       * is the cost #612/#613 removed from this canvas, and render-path-cost
+       * keeps a list of the two files still allowed it; adding a third is what
+       * that test exists to make somebody think twice about. The gutter is the
+       * gap between the scene and its parent, which is already laid out.
+       */
+      const floorReach = (): number | null => {
+        const el = scene.current;
+        const sprite = el?.querySelector<HTMLElement>(".fm-sprite");
+        const parent = el?.parentElement;
+        if (!el || !sprite || !parent) return null;
+        const box = el.getBoundingClientRect();
+        const outer = parent.getBoundingClientRect();
+        const gutter = outer.right - box.right;
+        const span = outer.width - gutter * 2 - sprite.offsetWidth;
+        return span > 0 ? span : null;
+      };
+
+      /**
+       * What a trip needs to know: how far there is to fall, and how much floor
+       * is at the bottom. The minimap is a fixed size; the canvas is whatever
+       * the window is today, and both change on a resize — so both are read
+       * when a trip is planned rather than held in a constant.
+       *
+       * The ledge height is how far the walker is standing above the scene's
+       * own floor, which is only meaningful while it is up there. That is the
+       * only moment a trip is ever planned, so it is the only moment this is
+       * asked.
        */
       const ground = (): Ground | undefined => {
         const el = scene.current;
         const walker = el?.querySelector<HTMLElement>(".fm-walker");
-        const sprite = el?.querySelector<HTMLElement>(".fm-sprite");
-        const parent = el?.parentElement;
-        if (!el || !walker || !sprite || !parent) return undefined;
-        const box = el.getBoundingClientRect();
-        const outer = parent.getBoundingClientRect();
-        // Only meaningful while it is standing on the ledge, which is the only
-        // time a trip is ever planned.
-        const ledgeH = box.bottom - walker.getBoundingClientRect().bottom;
-        const gutter = outer.right - box.right;
-        const floorSpan = outer.width - gutter * 2 - sprite.offsetWidth;
-        if (!(ledgeH > 0) || !(floorSpan > 0)) return undefined;
+        const floorSpan = floorReach();
+        if (!el || !walker || floorSpan == null) return undefined;
+        const ledgeH = el.getBoundingClientRect().bottom - walker.getBoundingClientRect().bottom;
+        if (!(ledgeH > 0)) return undefined;
         return { ledgeH, floorSpan };
+      };
+
+      /**
+       * The step's target, brought inside whatever room there is NOW.
+       *
+       * A trip is planned in one go against the floor it measured at the time,
+       * and then takes the better part of ten seconds to walk. Narrow the
+       * window in the middle of one and those targets are suddenly off the left
+       * edge of a canvas that no longer reaches them — the character would walk
+       * out of the deck and come back from nowhere.
+       *
+       * Clamping per step rather than re-planning keeps the trip's own shape:
+       * it still goes down and comes back up at the same corner, because that
+       * corner is inside any canvas wide enough to have shown the minimap in
+       * the first place.
+       */
+      const reachable = (step: Step): number => {
+        const room = (step.place ?? "ledge") === "floor"
+          ? floorReach() ?? WALK_SPAN_PX
+          : WALK_SPAN_PX;
+        return Math.max(-room, Math.min(0, step.x));
       };
 
       const idle = () => {
