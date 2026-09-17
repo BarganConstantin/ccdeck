@@ -489,6 +489,31 @@ export function watchSteps(from: number, at: number, rand: () => number): Step[]
 export type Facing = "left" | "right";
 
 /**
+ * The acts during which it is concentrating on something.
+ *
+ * Its eyes narrow for these and only these. The first build had the eyes
+ * changed permanently — they were the facing signal, so they were always shifted
+ * one way or the other and never simply open — and a face that is always doing
+ * something has no expression left to spend. Narrowing them is worth far more
+ * as a moment than as a resting state, so standing still returns them to
+ * neutral and these four are what buy the change.
+ *
+ * All four are the character attending to a particular thing: the scope, the
+ * litter it is bending for, and the two halves of a kick.
+ */
+export const FOCUS_ACTS: readonly Act[] = ["watch", "stoop", "windup", "kick"];
+
+export const isFocused = (act: Act | null): boolean =>
+  act != null && FOCUS_ACTS.includes(act);
+
+/** The acts during which it is travelling, and so the only ones that should
+ *  say which way it is looking. A character standing still faces front. */
+export const MOVING_ACTS: readonly Act[] = ["walk", "carry"];
+
+export const isMoving = (act: Act | null): boolean =>
+  act != null && MOVING_ACTS.includes(act);
+
+/**
  * Which way it is looking.
  *
  * A character that walks sideways while facing the viewer reads as sliding

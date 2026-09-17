@@ -12437,21 +12437,49 @@ input, textarea { caret-color: var(--accent); }
    whole reason this is a grid of rects and not a picture. */
 .fm-gear { fill: var(--muted); }
 .fm-body { fill: var(--accent); }
-/* WHICH WAY IT IS LOOKING, and it is one column of one row.
+/* THE EYES, which do two things and had to stop doing one of them always.
 
-   A character that walks sideways while facing the viewer reads as sliding
-   rather than walking, and this sprite is symmetric — there was nothing in it
-   that could face anywhere. Mirroring the whole thing is the usual answer and
-   is wrong here: the shade runs down the right-hand column, so a flip would
-   move the light source every time it turned round.
+   WHICH WAY IT IS LOOKING is one column of one row. A character that walks
+   sideways while facing the viewer reads as sliding rather than walking, and
+   this sprite is symmetric — there was nothing in it that could face anywhere.
+   Mirroring is the usual answer and is wrong here: the shade runs down the
+   right-hand column, so a flip would move the light source every time it turned
+   round.
 
-   So the eyes move instead, a column either way, staying inside the head at
-   both extremes. It is the only part of this character allowed to be
-   asymmetric, and the transition is what makes turning round read as a turn
-   rather than a cut. */
-.fm-eye { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
-.fm-walker[data-facing="left"] .fm-eye { transform: translateX(-1px); }
-.fm-walker[data-facing="right"] .fm-eye { transform: translateX(1px); }
+   ONLY WHILE IT IS TRAVELLING, though, which the first build got wrong. The
+   shift was applied permanently, so the eyes were always pushed one way or the
+   other and never simply open — and a face that is always doing something has
+   no expression left to spend. Standing still faces front now.
+
+   NARROWED WHEN IT IS CONCENTRATING, and that is what the eyes are saved for:
+   the scope, the litter it is bending for, and the two halves of a kick. Worth
+   far more as a moment than as a resting state.
+
+   Both arrive as custom properties on one transform rather than as competing
+   rules, so looking left while concentrating is a thing the character can do
+   instead of a specificity fight. `fill-box` here is the case the pivot rule
+   above warns is fine: one shape narrowing about its own middle, with nothing
+   that has to agree with it. */
+.fm-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: translateX(var(--fm-eye-x, 0px)) scaleY(var(--fm-eye-h, 1));
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])[data-facing="left"] .fm-eye {
+  --fm-eye-x: -1px;
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])[data-facing="right"] .fm-eye {
+  --fm-eye-x: 1px;
+}
+:is(.fm-walker[data-act="watch"], .fm-walker[data-act="stoop"],
+    .fm-walker[data-act="windup"], .fm-walker[data-act="kick"]) .fm-eye {
+  --fm-eye-h: 0.4;
+}
+/* Looking at the board is the one place the two meet: it is aimed left, at
+   everything the minimap is a picture of, and it is concentrating while it
+   does it. */
+.fm-walker[data-act="watch"] .fm-eye { --fm-eye-x: -1px; }
 
 /* The eyes are holes, not marks: --bg is the canvas's own background in both
    themes (`.react-flow__pane` paints it), so the canvas shows through and the

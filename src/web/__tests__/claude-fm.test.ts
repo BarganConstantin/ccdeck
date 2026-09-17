@@ -20,7 +20,8 @@ import {
   ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
-  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, facingFor, nextDance, nextDanceMs,
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, facingFor, FOCUS_ACTS,
+  isFocused, MOVING_ACTS, nextDance, nextDanceMs,
   type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
@@ -524,13 +525,17 @@ describe("the character", () => {
     // not; two passes went looking in the wrong place.
     expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-box")).toBe("view-box");
     expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-origin")).toBe("50% 100%");
-    // Scoped to this character's own rules: `fill-box` is right elsewhere in
-    // the sheet, where a lone shape turns about its own middle and there is no
-    // second group that has to agree with it.
+    // Scoped to the groups that have to AGREE with each other. `fill-box` is
+    // right for a lone shape turning about its own middle with nothing to stay
+    // aligned to — `.fm-eye` narrowing is exactly that, and is the one rule
+    // here allowed to use it.
     const fmRules = [...css.matchAll(/^([^{@}]*\.fm[\w-]*[^{}]*)\{([^}]*)\}/gm)]
-      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]));
+      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]))
+      .filter(m => !/\.fm-eye\s*\{/.test(m[0]));
     expect(fmRules.length).toBeGreaterThan(5);
     for (const rule of fmRules) expect(rule[2]).not.toContain("fill-box");
+    expect(decl(".fm-eye", "transform-box")).toBe("fill-box");
+    expect(decl(".fm-eye", "transform-origin")).toBe("center");
 
     // And the boxes really are different, which is why fill-box could never
     // have worked here — this is the fact the rule above is protecting.
@@ -562,8 +567,21 @@ describe("the character", () => {
     // Mirroring is the usual answer and is wrong here: the shade runs down the
     // right-hand column, so a flip would move the light source every time it
     // turned round.
-    expect(decl('.fm-walker[data-facing="left"] .fm-eye', "transform")).toBe("translateX(-1px)");
-    expect(decl('.fm-walker[data-facing="right"] .fm-eye', "transform")).toBe("translateX(1px)");
+    //
+    // ONLY WHILE TRAVELLING. The shift used to be permanent, so the eyes were
+    // always pushed one way or the other and never simply open — and a face
+    // that is always doing something has no expression left to spend.
+    const moving = ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])';
+    expect(decl(`${moving}[data-facing="left"] .fm-eye`, "--fm-eye-x")).toBe("-1px");
+    expect(decl(`${moving}[data-facing="right"] .fm-eye`, "--fm-eye-x")).toBe("1px");
+    // Standing still is not in that list, so it faces front.
+    for (const still of ["sit", "stoop", "toss"]) {
+      expect(moving).not.toContain(`"${still}"`);
+    }
+    // Both effects arrive as properties on ONE transform, so looking left while
+    // concentrating is something the character can do rather than a
+    // specificity fight.
+    expect(decl(".fm-eye", "transform")).toBe("translateX(var(--fm-eye-x, 0px)) scaleY(var(--fm-eye-h, 1))");
     expect(css).not.toMatch(/\.fm[\w-]*[^{}]*\{[^}]*scaleX\(-1\)/);
     // A column either way has to stay inside the head, or an eye ends up in the
     // headphones.
@@ -577,6 +595,31 @@ describe("the character", () => {
     }
     // And turning is a turn rather than a cut.
     expect(decl(".fm-eye", "transition")).toMatch(/^transform 180ms/);
+  });
+
+  it("narrows its eyes only while it is concentrating on something", () => {
+    // Worth far more as a moment than as a resting state. All four are the
+    // character attending to a particular thing: the scope, the litter it is
+    // bending for, and the two halves of a kick.
+    expect([...FOCUS_ACTS].sort()).toEqual(["kick", "stoop", "watch", "windup"]);
+    for (const act of FOCUS_ACTS) expect(isFocused(act)).toBe(true);
+    for (const act of ["walk", "carry", "sit", "toss"] as Act[]) expect(isFocused(act)).toBe(false);
+    expect(isFocused(null)).toBe(false);
+    // Standing about is not concentrating, so the sheet must not narrow them
+    // for it.
+    const squint = /\.fm-walker\[data-act="(\w+)"\][^{]*\.fm-eye/g;
+    const narrowing = [...css.matchAll(/:is\(([^)]*)\) \.fm-eye \{\s*--fm-eye-h/g)][0]?.[1] ?? "";
+    expect(narrowing).toContain('data-act="watch"');
+    expect(narrowing).not.toContain('data-act="sit"');
+    expect(narrowing).not.toContain('data-act="walk"');
+    expect(squint.test(css)).toBe(true);
+    // And it is a narrowing, not a shrink: the eye keeps its width.
+    const h = /--fm-eye-h:\s*([\d.]+)/.exec(css)?.[1];
+    expect(Number(h)).toBeGreaterThan(0);
+    expect(Number(h)).toBeLessThan(1);
+    expect(css).not.toMatch(/--fm-eye-w/);
+    // Travelling and concentrating never overlap, so the two never fight.
+    expect(MOVING_ACTS.some(a => FOCUS_ACTS.includes(a))).toBe(false);
   });
 
   it("does not dance the same way twice in a row", () => {
