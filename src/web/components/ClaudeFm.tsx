@@ -46,7 +46,7 @@ import {
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
   BEAT_MS, DANCES, facingFor, nextDance, nextDanceMs,
-  type Act, type Dance, type Facing, type Prop, type Step,
+  type Act, type Dance, type Facing, type Ground, type Place, type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -112,6 +112,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     /** Which way it is looking. Persists between activities: it does not turn
      *  back to face the viewer every time it stops. */
     const [facing, setFacing] = useState<Facing>("left");
+    /** Which surface it is standing on. The ledge for all but one activity. */
+    const [place, setPlace] = useState<Place>("ledge");
+    const scene = useRef<HTMLDivElement | null>(null);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
      *  rather than as a character. */
@@ -208,18 +211,57 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setAct(step.act);
         setProp(step.prop);
         setFacing(was => facingFor(step, here, was));
+        setPlace(step.place ?? "ledge");
         setX(step.x);
         here = step.x;
         timer = setTimeout(() => run(rest), step.ms);
       };
 
+      /**
+       * How far there is to fall and how much floor there is at the bottom,
+       * read from the page at the moment a trip is planned rather than held in
+       * a constant. The minimap is a fixed size; the canvas is whatever the
+       * window is today, and both change on a resize. Measured per decision, so
+       * a window resized between two trips is simply a different trip.
+       *
+       * EVERY NUMBER COMES FROM A RECT, and none from `getComputedStyle`. The
+       * first version read `--minimap-h` and `--flow-gutter` off the scene,
+       * which is the cost #612/#613 removed from this canvas and the reason
+       * render-path-cost keeps a list of the two files still allowed to do it.
+       * Adding a third is what that test exists to make somebody think twice
+       * about — so the gutter is the gap between the scene and its parent, and
+       * the ledge height is how far the walker is standing above the scene's
+       * own floor, both of which are already laid out and neither of which
+       * needs a style resolved.
+       */
+      const ground = (): Ground | undefined => {
+        const el = scene.current;
+        const walker = el?.querySelector<HTMLElement>(".fm-walker");
+        const sprite = el?.querySelector<HTMLElement>(".fm-sprite");
+        const parent = el?.parentElement;
+        if (!el || !walker || !sprite || !parent) return undefined;
+        const box = el.getBoundingClientRect();
+        const outer = parent.getBoundingClientRect();
+        // Only meaningful while it is standing on the ledge, which is the only
+        // time a trip is ever planned.
+        const ledgeH = box.bottom - walker.getBoundingClientRect().bottom;
+        const gutter = outer.right - box.right;
+        const floorSpan = outer.width - gutter * 2 - sprite.offsetWidth;
+        if (!(ledgeH > 0) || !(floorSpan > 0)) return undefined;
+        return { ledgeH, floorSpan };
+      };
+
       const idle = () => {
-        timer = setTimeout(() => run(nextActivity(here, Math.random)), nextIdleMs(Math.random));
+        timer = setTimeout(() => run(nextActivity(here, Math.random, ground())), nextIdleMs(Math.random));
       };
 
       idle();
       return () => {
         if (timer) clearTimeout(timer);
+        // Whatever it was in the middle of, it is not any more — and if that
+        // was a trip, it must not be left standing on the canvas floor with
+        // nothing scheduled to bring it home.
+        setPlace("ledge");
         // Whatever it was in the middle of, it is not any more. Leaving a prop
         // on the ledge that nothing will ever come back for is the one way this
         // can litter for real.
@@ -271,7 +313,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     return (
       <div
+        ref={scene}
         className="fm"
+        data-place={place}
         style={{ "--fm-beat": `${beatMs}ms` } as CSSProperties}
       >
         {/* On the ledge, and not inside the walker: a thing lying on the floor
@@ -286,10 +330,21 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             {pixels(PROP_ART[prop.kind], "p")}
           </div>
         )}
+        {/* THE ROPE IS NOT INSIDE THE WALKER, and it cannot be: it is fixed to
+            the ledge, and the character climbs past it. A rope that travelled
+            with whoever was climbing it would be a rope climbing itself. */}
+        {(act === "lasso" || act === "climb") && (
+          <div
+            className="fm-rope"
+            data-act={act}
+            style={{ "--fm-rope-x": `${x}px` } as CSSProperties}
+          />
+        )}
         <div
           className="fm-walker"
           data-act={act ?? undefined}
           data-facing={facing}
+          data-place={place}
           style={{
             // Where it is standing and how long the current trip takes. Inline
             // because both are values rather than states: a class per pixel of

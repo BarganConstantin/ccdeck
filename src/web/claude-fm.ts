@@ -327,7 +327,10 @@ export function nextIdleMs(rand: () => number): number {
 // its day, and the dance fills the gaps between errands rather than replacing
 // them.
 
-export type Act = "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch";
+export type Act =
+  | "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch"
+  // Leaving the ledge and getting back onto it.
+  | "peer" | "fall" | "land" | "lasso" | "climb";
 
 /** A thing on the ledge it can do something with. */
 export interface Prop {
@@ -343,6 +346,9 @@ export interface Prop {
 export interface Step {
   /** Where the character should be by the end of this step. */
   x: number;
+  /** Which surface it is standing on by the end of it. Absent means the ledge,
+   *  which is where it is for all but one activity. */
+  place?: Place;
   /** The prop, or null when there is not one. */
   prop: Prop | null;
   act: Act;
@@ -353,11 +359,14 @@ export interface Step {
  *  what make walking worth noticing, and they stop being that if they are the
  *  usual thing. */
 export const ACTIVITIES = [
-  { kind: "stroll", weight: 38 },
+  { kind: "stroll", weight: 36 },
   { kind: "tidy",   weight: 17 },
   { kind: "kick",   weight: 17 },
   { kind: "sit",    weight: 12 },
   { kind: "watch",  weight: 16 },
+  // The rarest thing it does, and the longest. Leaving the ledge is worth
+  // seeing precisely because it almost never happens.
+  { kind: "leave",  weight: 7 },
 ] as const;
 
 export type Activity = typeof ACTIVITIES[number]["kind"];
@@ -536,18 +545,115 @@ export function facingFor(step: Step, from: number, prev: Facing): Facing {
   return step.x > from ? "right" : "left";
 }
 
+// ── leaving the ledge ───────────────────────────────────────────────────────
+//
+// The one activity that is not on the minimap's edge at all. It walks to the
+// far end, looks over, drops onto the canvas floor, walks about down there, and
+// ropes its way back up.
+//
+// EVERYTHING HERE IS DERIVED RATHER THAN PICKED, because a fall that is merely
+// a duration reads as a slide. The drop is timed from an acceleration and the
+// height it is actually falling, so a minimap of a different size falls for a
+// different length of time on its own; the climb is timed from a speed, because
+// climbing a rope is work at a steady rate and not the fall run backwards.
+
+/** Gravity, in canvas pixels per second squared. Chosen by what it produces:
+ *  over this deck's 152px ledge it gives a 450ms drop, which is a fall with
+ *  weight in it rather than a float or a teleport. */
+export const FALL_G = 1500;
+
+/** How long a drop of `height` takes under it. The `t = sqrt(2h/g)` every
+ *  falling body obeys, which is what makes the motion read as a fall at any
+ *  height rather than only at the one it was tuned on. */
+export const fallMsFor = (height: number) => Math.round(1000 * Math.sqrt((2 * height) / FALL_G));
+
+/** Going up is not the fall backwards. A rope is climbed at a steady rate, so
+ *  this is a speed rather than an acceleration — and a slow one, because the
+ *  effort is the point. */
+export const CLIMB_PX_PER_S = 115;
+export const climbMsFor = (height: number) => Math.round((height / CLIMB_PX_PER_S) * 1000);
+
+/** Looking over the edge before stepping off it. Nothing sensible jumps from a
+ *  height it has not looked at. */
+export const PEER_MS = 620;
+
+/** The landing. Long enough for the squash to be seen and short enough that it
+ *  is a landing rather than a stumble. */
+export const LAND_MS = 200;
+
+/** Swinging the rope before it is thrown. */
+export const LASSO_MS = 760;
+
+/**
+ * The trip off the ledge and back.
+ *
+ * `ledgeH` is how far it has to fall, and `floorSpan` how far it can walk once
+ * it is down — both measured from the page rather than assumed, because the
+ * minimap is a fixed size and the canvas is whatever the window is today.
+ *
+ * It comes back up where it went down. That is not a shortcut: a rope thrown at
+ * the ledge has to catch something, and the only part of the ledge this
+ * character has any business hooking is the corner it just left.
+ */
+export function leaveLedgeSteps(
+  from: number,
+  opts: { ledgeH: number; floorSpan: number; ledgeSpan?: number },
+  rand: () => number,
+): Step[] {
+  const ledgeSpan = opts.ledgeSpan ?? WALK_SPAN_PX;
+  // The far end of the ledge, which is the only corner with canvas under it
+  // rather than more minimap.
+  const edge = -ledgeSpan;
+  const fall = fallMsFor(opts.ledgeH);
+  const climb = climbMsFor(opts.ledgeH);
+
+  // Two wanders down there, so the trip is worth having taken.
+  const first = -Math.round(rand() * opts.floorSpan);
+  const second = -Math.round(rand() * opts.floorSpan);
+
+  return [
+    { x: edge,   act: "walk",  prop: null, ms: walkMsFor(from, edge) },
+    { x: edge,   act: "peer",  prop: null, ms: PEER_MS },
+    { x: edge,   act: "fall",  prop: null, ms: fall,  place: "floor" },
+    { x: edge,   act: "land",  prop: null, ms: LAND_MS, place: "floor" },
+    { x: first,  act: "walk",  prop: null, ms: walkMsFor(edge, first),   place: "floor" },
+    { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor" },
+    { x: edge,   act: "walk",  prop: null, ms: walkMsFor(second, edge),  place: "floor" },
+    { x: edge,   act: "lasso", prop: null, ms: LASSO_MS, place: "floor" },
+    { x: edge,   act: "climb", prop: null, ms: climb },
+  ];
+}
+
 /** The whole decision, in one place: what it does next and where. */
-export function nextActivity(from: number, rand: () => number, span = WALK_SPAN_PX): Step[] {
-  switch (pickActivity(rand)) {
+/** What the page has to tell the model before it can plan a trip: how far there
+ *  is to fall, and how much floor there is once it lands. Neither is knowable
+ *  here — the minimap is a fixed size but the canvas is whatever the window is
+ *  today, and both change on a resize. */
+export interface Ground {
+  ledgeH: number;
+  floorSpan: number;
+  ledgeSpan?: number;
+}
+
+export function nextActivity(from: number, rand: () => number, ground?: Ground): Step[] {
+  const span = ground?.ledgeSpan ?? WALK_SPAN_PX;
+  const kind = pickActivity(rand);
+  switch (kind) {
     case "tidy": return tidySteps(from, propSpot(from, rand, span));
     case "kick": return kickSteps(from, propSpot(from, rand, span));
     case "sit":   return sitSteps(from, propSpot(from, rand, span), rand);
     case "watch": return watchSteps(from, propSpot(from, rand, span), rand);
-    default: {
-      const trip = nextWalk(from, rand, span);
-      return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
+    case "leave": {
+      // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
+      // height would drop the character through the floor or leave it hanging
+      // in the air, and there is no sensible default for "how tall is the thing
+      // I am standing on" — so it strolls instead and tries again later.
+      if (!ground || !(ground.ledgeH > 0) || !(ground.floorSpan > 0)) break;
+      return leaveLedgeSteps(from, ground, rand);
     }
   }
+  const trip = nextWalk(from, rand, span);
+  return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
 }
 
 /**

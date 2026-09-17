@@ -12310,6 +12310,84 @@ input, textarea { caret-color: var(--accent); }
   transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1);
 }
 
+/* OFF THE LEDGE AND ONTO THE CANVAS FLOOR.
+   The scene widens leftward when the character is down there — its right edge
+   never moves, so every ledge coordinate and the 21px prop offset below stay
+   exactly as valid as they were, and only the amount of floor changes. */
+.fm[data-place="floor"] {
+  left: var(--flow-gutter);
+  width: auto;
+}
+/* The floor is the bottom of the scene, which is what the scene was moved down
+   to be. Standing on it is the absence of the ledge's height, not a second
+   position system. */
+.fm-walker[data-place="floor"] { --fm-y: 0px; }
+
+/* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
+   this canvas eases out, because everything else is a thing settling into
+   place; a falling body does the opposite, and a fall that eases out reads as
+   being lowered on a wire. `easeInQuad` is position proportional to time
+   squared, which is what constant acceleration means — the duration is already
+   the one the model derived from the height and the gravity, so this only says
+   what shape the motion has. */
+.fm-walker[data-act="fall"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Going up is work at a steady rate, not the fall run backwards. Linear. */
+.fm-walker[data-act="climb"] {
+  transition: transform var(--fm-walk-ms, 0ms) linear;
+}
+
+/* Looking over before stepping off: it leans out over the edge. Nothing
+   sensible jumps from a height it has not looked at. */
+.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-2px) rotate(-9deg); }
+
+/* The landing absorbs. A body that arrives at speed and stops dead did not
+   land, it was placed — the squash is where the energy goes, and it is the
+   deepest one in this block because it is the only impact. */
+.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px) scale(1.12, 0.8); }
+
+/* Winding up the throw. */
+.fm-walker[data-act="lasso"] .fm-sprite { transform: rotate(-5deg); }
+
+/* THE ROPE. Anchored to the ledge and standing still while the character climbs
+   past it — it is drawn outside the walker for exactly that reason, since a
+   rope that travelled with whoever was climbing it would be a rope climbing
+   itself.
+
+   25.5px puts it on the sprite's middle: the sprite is 54px and right-aligned
+   at --fm-rope-x, so its centre is 27px in, and the rope is 3px wide. */
+.fm-rope {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
+  background: var(--muted);
+}
+/* Spinning overhead before it is thrown: an ellipse turning about its middle
+   is a loop of rope seen from the side, and the only reason it reads as one is
+   that it is wider than it is tall. */
+.fm-rope[data-act="lasso"] {
+  width: 16px;
+  height: 7px;
+  bottom: calc(var(--minimap-h) * 0 + 42px);
+  background: none;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+  animation: fm-spin 420ms linear infinite;
+}
+@keyframes fm-spin {
+  0%   { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(0deg)   scaleX(1); }
+  50%  { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(180deg) scaleX(0.35); }
+  100% { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(360deg) scaleX(1); }
+}
+/* Thrown and caught: a line from the ledge down to the floor, which is the
+   height the character is about to cover. */
+.fm-rope[data-act="climb"] {
+  width: 3px;
+  height: var(--minimap-h);
+}
+
 /* The 21px is what centres a 12px object under a 54px one when both are
    right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
    the character's shoulder and the stoop reaches for nothing. */
@@ -12745,6 +12823,8 @@ input, textarea { caret-color: var(--accent); }
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
   .fm-walker, .fm-gear, .fm-eye { transition: none; }
+  .fm-walker[data-act="fall"], .fm-walker[data-act="climb"] { transition: none; }
+  .fm-rope[data-act="lasso"] { animation: none; }
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,

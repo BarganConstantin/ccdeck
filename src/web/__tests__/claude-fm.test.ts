@@ -17,7 +17,8 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  ACTIVITIES, BIN_X, climbMsFor, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, facingFor, FOCUS_ACTS,
@@ -792,6 +793,89 @@ describe("the character", () => {
     // right-aligned: without it the stoop reaches for nothing.
     expect(decl(".fm-prop", "transform")).toBe("translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y))");
     expect((54 - 12) / 2).toBe(21);
+  });
+
+  it("falls under gravity rather than for a chosen number of milliseconds", () => {
+    // t = sqrt(2h/g), which is what makes it read as a fall at ANY height
+    // rather than only at the one it was tuned on. A taller ledge falls for
+    // longer on its own.
+    for (const h of [80, 152, 240]) {
+      expect(fallMsFor(h)).toBe(Math.round(1000 * Math.sqrt((2 * h) / FALL_G)));
+    }
+    expect(fallMsFor(240)).toBeGreaterThan(fallMsFor(152));
+    // Doubling the height does NOT double the time — that is the whole
+    // difference between falling and sliding.
+    expect(fallMsFor(304) / fallMsFor(152)).toBeCloseTo(Math.SQRT2, 1);
+    // And over this deck's ledge it lands somewhere with weight in it.
+    expect(fallMsFor(152)).toBeGreaterThan(300);
+    expect(fallMsFor(152)).toBeLessThan(700);
+  });
+
+  it("accelerates downward and climbs at a steady rate", () => {
+    // Everything else on this canvas eases OUT, because everything else is a
+    // thing settling into place. A falling body does the opposite, and a fall
+    // that eases out reads as being lowered on a wire.
+    const fall = decl('.fm-walker[data-act="fall"]', "transition") ?? "";
+    expect(fall).toContain("cubic-bezier(0.11, 0, 0.5, 0)");
+    const [, y1, , y2] = /cubic-bezier\(([^)]*)\)/.exec(fall)![1].split(",").map(Number);
+    expect(y1).toBe(0);           // starts at rest
+    expect(y2).toBeLessThan(0.5); // and is still gaining when it lands
+    // Going up is work at a steady rate, not the fall run backwards.
+    expect(decl('.fm-walker[data-act="climb"]', "transition")).toContain("linear");
+    expect(climbMsFor(152)).toBeGreaterThan(fallMsFor(152) * 2);
+  });
+
+  it("looks before it steps off, and absorbs when it arrives", () => {
+    // Nothing sensible jumps from a height it has not looked at.
+    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toContain("rotate(-9deg)");
+    // A body that arrives at speed and stops dead did not land, it was placed.
+    // This is the deepest squash in the block because it is the only impact.
+    const land = decl('.fm-walker[data-act="land"] .fm-sprite', "transform") ?? "";
+    const [, , sy] = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(land) ?? [];
+    const sit = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(
+      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "") ?? [];
+    expect(Number(sy)).toBeLessThan(Number(sit[2]));
+  });
+
+  it("always comes home, and never plans a trip it cannot measure", () => {
+    const ground = { ledgeH: 152, floorSpan: 900 };
+    const steps = leaveLedgeSteps(-20, ground, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(
+      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "climb"]);
+    // It ends ON THE LEDGE. Anything else strands the character on the canvas
+    // floor with nothing scheduled to bring it back.
+    expect(steps.at(-1)?.place).toBeUndefined();
+    expect(steps.filter(s2 => s2.place === "floor").length).toBeGreaterThan(0);
+    // It goes down and comes up at the same corner: a rope thrown at the ledge
+    // has to catch something, and that corner is the only part it just left.
+    expect(steps[2].x).toBe(steps.at(-1)!.x);
+    // The fall and the climb are the measured height, not a guess.
+    expect(steps[2].ms).toBe(fallMsFor(152));
+    expect(steps.at(-1)!.ms).toBe(climbMsFor(152));
+
+    // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
+    // height would drop the character through the floor or leave it hanging.
+    for (const bad of [undefined, { ledgeH: 0, floorSpan: 900 }, { ledgeH: 152, floorSpan: 0 }]) {
+      for (let i = 0; i <= 30; i++) {
+        const acts = nextActivity(0, () => i / 30, bad).map(s2 => s2.act);
+        expect(acts).not.toContain("fall");
+      }
+    }
+  });
+
+  it("hangs the rope from the ledge, not from the character", () => {
+    // A rope that travelled with whoever was climbing it would be a rope
+    // climbing itself.
+    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "climb"\) && \(/);
+    const ropeAt = component.indexOf('className="fm-rope"');
+    const walkerAt = component.indexOf('className="fm-walker"');
+    expect(ropeAt).toBeGreaterThan(-1);
+    expect(ropeAt).toBeLessThan(walkerAt);
+    // It reaches exactly the height being climbed.
+    expect(decl('.fm-rope[data-act="climb"]', "height")).toBe("var(--minimap-h)");
+    // 25.5px is the sprite's middle: 54px wide, right-aligned, rope 3px.
+    expect(decl(".fm-rope", "transform")).toBe("translateX(calc(var(--fm-rope-x, 0px) - 25.5px))");
+    expect(54 / 2 - 3 / 2).toBe(25.5);
   });
 
   it("does the errand in steps that can be read without a clock", () => {
