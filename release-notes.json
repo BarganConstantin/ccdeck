@@ -45,6 +45,16 @@
     "3.23.3",
     "3.23.4"
   ],
+  "3.24.0": [
+    {
+      "title": "🎧 Claude FM plays from the minimap",
+      "body": "A small character stands on the minimap's top edge. Press it and the Claude channel's live stream plays; press it again and it stops. It only turns up when the channel is actually broadcasting, so a deck with no network never shows it at all."
+    },
+    {
+      "title": "🤠 And it gets on with its day",
+      "body": "It walks that edge, tidies up what it finds, kicks a ball along it, sits with its legs over the side, and watches the board through a scope. Now and then it drops onto the canvas and ropes its way back up. Headphones on while the music plays, a hat when it does not."
+    }
+  ],
   "3.23.5": [
     {
       "title": "🧭 The accounts panel opens on the account you are on",
