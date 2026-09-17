@@ -17,6 +17,7 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
+  BIN_X, choreSteps, CHORE_CHANCE, litterSpot, TOSS_WINDUP_MS, walkMsFor,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
 
@@ -387,10 +388,17 @@ describe("the character", () => {
     expect(SPRITE_W).toBe(18);
     expect(SPRITE_H).toBe(SPRITE.length);
     for (const row of SPRITE) expect(row).toHaveLength(SPRITE_W);
-    for (const row of SPRITE) expect(row).toMatch(/^[.beca]+$/);
-    // It has what it is for: headphones, eyes and a body.
+    for (const row of SPRITE) expect(row).toMatch(/^[.bseca p]+$/);
+    // It has what it is for: headphones with pads, eyes, a body and a shaded
+    // side away from the light.
     const cells = new Set(SPRITE.join("").split(""));
-    for (const c of ["a", "c", "b", "e"]) expect(cells.has(c)).toBe(true);
+    for (const c of ["a", "c", "p", "b", "s", "e"]) expect(cells.has(c)).toBe(true);
+    // One light source, from the left: the shade is the rightmost ink on every
+    // row that has any, never the leftmost.
+    for (const row of SPRITE) {
+      if (!row.includes("s")) continue;
+      expect(row.lastIndexOf("s")).toBeGreaterThan(row.indexOf("b"));
+    }
   });
 
   it("merges each row into runs rather than a rect per square", () => {
@@ -401,9 +409,15 @@ describe("the character", () => {
       { x: 2, y: 0, w: 2, cell: "c" },
     ]);
     expect(spriteRects(["...."])).toEqual([]);
-    // ~96 filled squares become a third as many elements.
+    // Merging is the point, not a particular ratio: the shading deliberately
+    // breaks runs, so what this pins is that every run really is maximal.
     const filled = SPRITE.join("").replace(/\./g, "").length;
-    expect(spriteRects().length).toBeLessThan(filled / 2);
+    expect(spriteRects().length).toBeLessThan(filled);
+    for (const r of spriteRects()) {
+      const row = SPRITE[r.y];
+      expect(row[r.x - 1]).not.toBe(r.cell);
+      expect(row[r.x + r.w]).not.toBe(r.cell);
+    }
   });
 
   it("stands ON the minimap's edge, on numbers that are named", () => {
@@ -460,10 +474,16 @@ describe("the character", () => {
     // A pixel character that eases between poses looks like a picture being
     // tweened; one that snaps between two looks like it is taking steps. So the
     // keyframes hold each pose for half the cycle and the timing is linear.
-    expect(css).toMatch(/\.fm\[data-walking\] \.fm-body \{ animation: fm-step 440ms linear infinite/);
+    expect(css).toContain('.fm-walker[data-act="walk"]');
+    // Carrying something is still walking.
+    expect(css).toContain('.fm-walker[data-act="carry"]');
+    expect(css).toMatch(/animation: fm-step 440ms linear infinite/);
     expect(css).toMatch(/@keyframes fm-step \{\s*0%, 49\.99%/);
-    expect(decl(".fm", "transition")).toBe("transform var(--fm-walk-ms, 0ms) linear");
-    expect(decl(".fm", "transform")).toBe("translateX(var(--fm-x, 0px))");
+    // The curve is a compromise: pure linear starts and stops dead, a full ease
+    // makes the middle race and the feet stop matching the ground. This is the
+    // gentlest symmetric curve that keeps most of the trip near constant speed.
+    expect(decl(".fm-walker", "transition")).toBe("transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1)");
+    expect(decl(".fm-walker", "transform")).toBe("translateX(var(--fm-x, 0px))");
   });
 
   it("never wanders off the ledge, and never while the music is on", () => {
@@ -496,6 +516,66 @@ describe("the character", () => {
     expect(nextWalk(0, () => 0).to).toBeLessThan(0);
   });
 
+  it("puts the ledge and the things on it in one place that does not move", () => {
+    // A thing lying on the floor does not travel with whoever is about to pick
+    // it up. When the walk lived on the scene itself, everything standing on
+    // the ledge moved with the character — which is one way to find out that a
+    // floor is not a vehicle.
+    expect(decl(".fm", "width")).toBe("var(--minimap-w)");
+    expect(decl(".fm", "--minimap-w")).toBe("202px");
+    expect(decl(".fm", "transform")).toBeNull();
+    expect(decl(".fm-walker, .fm-litter", "position")).toBe("absolute");
+    // 21px is what centres a 12px object under a 54px one when both are
+    // right-aligned: without it the stoop reaches for nothing.
+    expect(decl(".fm-litter", "transform")).toBe("translateX(calc(var(--fm-litter-x, 0px) - 21px))");
+    expect((54 - 12) / 2).toBe(21);
+  });
+
+  it("does the errand in steps that can be read without a clock", () => {
+    const steps = choreSteps(-100, -20);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "stoop", "carry", "windup", "toss"]);
+    // It walks to the litter, not past it.
+    expect(steps[0].x).toBe(-20);
+    expect(steps[0].ms).toBe(walkMsFor(-100, -20));
+    // The litter leaves the ledge when it is picked up — the END of the stoop,
+    // not the start of it.
+    expect(steps[1].litter).toBe(-20);
+    expect(steps[2].litter).toBeNull();
+    // And it is carried to the one spot on the ledge nothing else stands on.
+    expect(steps[2].x).toBe(BIN_X);
+    expect(steps.at(-1)?.x).toBe(BIN_X);
+    // The throw is a beat after arriving: a character that arrives and tosses
+    // in one motion reads as dropping something.
+    expect(steps[3].act).toBe("windup");
+    expect(steps[3].ms).toBe(TOSS_WINDUP_MS);
+  });
+
+  it("picks litter up somewhere worth walking to, always on the ledge", () => {
+    let at = 0;
+    for (let i = 0; i < 400; i++) {
+      const spot = litterSpot(at, () => (i * 0.023) % 1);
+      expect(spot).toBeLessThanOrEqual(0);
+      expect(spot).toBeGreaterThanOrEqual(-WALK_SPAN_PX);
+      expect(Math.abs(spot - at)).toBeGreaterThanOrEqual(WALK_MIN_STEP_PX);
+      at = spot;
+    }
+  });
+
+  it("leaves nothing behind when it is interrupted", () => {
+    // Music starting mid-errand tears the effect down. A piece of litter left
+    // on the ledge that nothing will ever come back for is the one way this can
+    // litter for real.
+    expect(component).toContain("setLitter(null);");
+    expect(component).toMatch(/return \(\) => \{[\s\S]*?setHeld\(false\);[\s\S]*?setLitter\(null\);/);
+  });
+
+  it("keeps the errand rarer than the stroll", () => {
+    // The ordinary thing stays the ordinary thing, so finding it mid-chore is a
+    // small surprise rather than the expected state.
+    expect(CHORE_CHANCE).toBeLessThan(0.5);
+    expect(CHORE_CHANCE).toBeGreaterThan(0);
+  });
+
   it("stands still far longer than it walks", () => {
     // The restraint IS the design: this is a monitoring tool, and something
     // moving continuously in the corner is what people turn off first.
@@ -516,11 +596,14 @@ describe("the character", () => {
     for (const gone of [
       ".fm-sprite[data-playing] .fm-body",
       ".fm-sprite[data-playing] .fm-gear",
-      ".fm[data-walking] .fm-body",
-      ".fm[data-walking] .fm-gear",
+      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
+      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear',
+      '.fm-walker[data-act="stoop"] .fm-sprite',
+      ".fm-held[data-toss]",
+      ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });

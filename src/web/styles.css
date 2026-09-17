@@ -12266,20 +12266,57 @@ input, textarea { caret-color: var(--accent); }
 .fm {
   --flow-gutter: 15px;   /* .react-flow__panel's own margin */
   --minimap-h: 152px;    /* MiniMap's 150 drawing plus the 1px edge each side */
+  --minimap-w: 202px;    /* its 200 drawing, the same 1px edge each side */
   position: absolute;
   right: var(--flow-gutter);
   bottom: calc(var(--flow-gutter) + var(--minimap-h));
+  width: var(--minimap-w);
+  height: 0;
   /* Above the canvas, alongside the chrome it stands next to: the same z-index
      the control stack and the minimap are given. */
   z-index: 5;
   /* The canvas is under this. A press that misses the character should pan the
      deck as if nothing were there, so only the button takes the pointer. */
   pointer-events: none;
-  /* The walk itself. Linear, because a character crossing a ledge does not
-     ease — it sets off, it arrives, and the acceleration curves that flatter a
-     panel sliding open make a walk look like a skid. */
+}
+
+/* THE LEDGE IS A STAGE, AND THE STAGE DOES NOT MOVE. `.fm` above is the whole
+   length of the minimap's edge with nothing on it; the two things standing on
+   it position themselves within it. That split is what lets a piece of litter
+   lie still while the character walks toward it — when the walk lived on the
+   scene itself, everything on the ledge travelled with it, which is one way to
+   discover that a floor is not a vehicle. */
+.fm-walker, .fm-litter { position: absolute; right: 0; bottom: 0; }
+
+.fm-walker {
+  /* The walk itself, and the curve is a compromise worth naming. Pure linear —
+     what this had first — is honest about a constant stride but starts and
+     stops dead, which reads as a sprite being teleported along a line rather
+     than as something setting off and arriving. A full ease makes the middle
+     race and the steps stop matching the ground. This is the gentlest
+     symmetric curve that still spends most of the trip near constant speed: it
+     leans into the first stride and settles out of the last, and the cadence
+     in between is close enough to even that the feet keep up. */
   transform: translateX(var(--fm-x, 0px));
-  transition: transform var(--fm-walk-ms, 0ms) linear;
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1);
+}
+
+/* The 21px is what centres a 12px object under a 54px one when both are
+   right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
+   the character's shoulder and the stoop reaches for nothing. */
+.fm-litter {
+  transform: translateX(calc(var(--fm-litter-x, 0px) - 21px));
+  width: 12px;
+}
+.fm-litter svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
+
+/* In hand: at the character's side, at the height of its feet, so the throw
+   starts from where something would actually be held. */
+.fm-held {
+  position: absolute;
+  right: 42px;
+  bottom: 3px;
+  width: 12px;
 }
 
 /* No surface, no border, no shadow. Every other instrument on this canvas
@@ -12334,6 +12371,34 @@ input, textarea { caret-color: var(--accent); }
    eyes stay right on either. */
 .fm-eye { fill: var(--bg); }
 
+/* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
+   The obvious spelling — mix the accent toward --bg — lands the wrong way
+   round in light, where --bg is nearly white and "shadow" would come out
+   BRIGHTER than the body. Mixing toward --muted is dull in both directions
+   instead: a bright blue loses its light against dark, a dark blue loses its
+   colour against light, and either way the right-hand column reads as the side
+   away from the lamp. */
+.fm-shade { fill: color-mix(in srgb, var(--accent) 55%, var(--muted)); }
+
+/* Inside each cup. --muted-dim is darker than --muted in dark and lighter in
+   light, which is the same fact both times: a pad that separates from the shell
+   it sits in, without a third colour to keep in step with the palette. */
+.fm-pad { fill: var(--muted-dim); }
+
+/* IT BLINKS. Twice a minute, for about a tenth of a second, and the whole of
+   it is the eye taking the body's colour for that moment — an eye that vanishes
+   reads as a hole appearing, and an eye that closes reads as a character. The
+   window is bounded by stops half a percent either side so the change is a cut
+   rather than a fade: at 5.4s a period, half a percent is 27ms.
+   This runs whether or not anything is playing. The dance is a state; being
+   alive is not. */
+.fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
+@keyframes fm-blink {
+  0%, 93.5%  { fill: var(--bg); }
+  94%, 96.5% { fill: var(--accent); }
+  97%, 100%  { fill: var(--bg); }
+}
+
 /* Two groups, because the body and what it is wearing do not move together.
    `transform-box: fill-box` makes the origin each group's own box instead of
    the SVG viewport, which is what lets "bottom centre" mean the character's
@@ -12342,9 +12407,10 @@ input, textarea { caret-color: var(--accent); }
 .fm-gear, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
 
 /* THE DANCE, which is three things a bob alone was not.
-   Squash and stretch: the body compresses on the beat and extends between
-   them, which is what makes a shape read as a body rather than as a rectangle
-   being moved. A sway: two bounces per cycle against one left-right lean, so it
+   Squash and stretch, and it goes both ways at once: the body widens as it
+   compresses and narrows as it extends, because a shape that only loses height
+   reads as being crushed rather than as landing. Keeping the area roughly
+   constant is the whole of why the principle works. A sway: two bounces per cycle against one left-right lean, so it
    traces a figure rather than a pogo. And secondary motion: the headphones run
    the same cycle at a third of the amplitude and 90ms behind, so they follow
    the head instead of being bolted to it — the difference between a character
@@ -12355,11 +12421,11 @@ input, textarea { caret-color: var(--accent); }
 .fm-sprite[data-playing] .fm-gear { animation: fm-nod 800ms ease-in-out -90ms infinite; }
 
 @keyframes fm-bob {
-  0%   { transform: translate(-0.35px, 0)    scaleY(0.95) rotate(-3deg); }
-  25%  { transform: translate(0, -0.7px)     scaleY(1.05) rotate(0deg); }
-  50%  { transform: translate(0.35px, 0)     scaleY(0.95) rotate(3deg); }
-  75%  { transform: translate(0, -0.7px)     scaleY(1.05) rotate(0deg); }
-  100% { transform: translate(-0.35px, 0)    scaleY(0.95) rotate(-3deg); }
+  0%   { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
+  25%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
+  50%  { transform: translate(0.35px, 0)  scale(1.04, 0.95) rotate(3deg); }
+  75%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
+  100% { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
 }
 @keyframes fm-nod {
   0%, 100% { transform: translate(-0.2px, 0) rotate(-1.2deg); }
@@ -12372,8 +12438,40 @@ input, textarea { caret-color: var(--accent); }
    hold each pose for exactly half the cycle and the timing function is linear —
    there is nothing in between to interpolate. 440ms is a stride at the pace
    --fm-walk-ms carries it along the ledge at. */
-.fm[data-walking] .fm-body { animation: fm-step 440ms linear infinite; }
-.fm[data-walking] .fm-gear { animation: fm-step 440ms linear -60ms infinite; }
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body {
+  animation: fm-step 440ms linear infinite;
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear {
+  animation: fm-step 440ms linear -60ms infinite;
+}
+
+/* THE ERRAND. It bends, it stands up holding something, it leans back and it
+   throws. Four poses, and the only one that needed a keyframe rather than a
+   transition is the stoop, because it has to come back up on its own — the
+   others each end when the next one starts. The whole sequence is timed in
+   claude-fm.ts; these are what it looks like. */
+.fm-walker[data-act="stoop"] .fm-sprite { animation: fm-stoop 720ms ease-in-out; }
+@keyframes fm-stoop {
+  0%, 100% { transform: translateY(0)   scale(1, 1); }
+  30%, 70% { transform: translateY(2px) scale(1.06, 0.86); }
+}
+
+/* Leaning away from the throw, then into it. A character that arrives and
+   tosses in one motion reads as dropping something. */
+.fm-walker[data-act="windup"] .fm-sprite { transform: rotate(-7deg); }
+.fm-walker[data-act="toss"] .fm-sprite { transform: rotate(5deg); }
+
+/* And the thing itself, out of the hand on an arc. It leaves upward and to the
+   right, slows at the top the way a thrown object does, and is gone before it
+   would have landed — there is no bin drawn on this ledge, and a bin standing
+   there permanently would be a piece of furniture the canvas has to carry for
+   the one second a minute it is used. */
+.fm-held[data-toss] { animation: fm-toss 620ms cubic-bezier(0.3, 0, 0.7, 1) forwards; }
+@keyframes fm-toss {
+  0%   { transform: translate(0, 0)        scale(1);    opacity: 1; }
+  55%  { transform: translate(26px, -24px) scale(0.92); opacity: 1; }
+  100% { transform: translate(46px, 4px)   scale(0.72); opacity: 0; }
+}
 
 @keyframes fm-step {
   0%, 49.99%   { transform: translateY(0)      rotate(-1.5deg); }
@@ -12388,11 +12486,14 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm { transition: none; }
+  .fm-walker { transition: none; }
   .fm-sprite[data-playing] .fm-body,
   .fm-sprite[data-playing] .fm-gear,
-  .fm[data-walking] .fm-body,
-  .fm[data-walking] .fm-gear { animation: none; }
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear,
+  .fm-walker[data-act="stoop"] .fm-sprite,
+  .fm-held[data-toss],
+  .fm-eye { animation: none; }
   .fm-sprite:active { transform: none; }
 }
 

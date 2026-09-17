@@ -42,9 +42,9 @@ import {
   type CSSProperties,
 } from "react";
 import {
-  command, embedSrc, EYE_CELLS, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
-  listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, readSignal,
-  spriteRects, SPRITE_H, SPRITE_W,
+  choreSteps, CHORE_CHANCE, command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME,
+  GEAR_CELLS, listenCommand, LITTER, LITTER_H, LITTER_W, litterSpot, nextIdleMs, nextWalk,
+  PLAYER_ORIGIN, readSignal, spriteRects, SPRITE_H, SPRITE_W, type ChoreStep,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -56,6 +56,32 @@ export interface ClaudeFmHandle {
 }
 
 interface Probe { live: boolean; channel: string }
+
+/** What each grid cell is drawn as. A map here rather than a chain of
+ *  comparisons in the markup below, because unstyled-class.test.ts reads every
+ *  string a `className` expression holds and would count a bare `"e"` as a
+ *  class this deck hard-codes and never styles — which is exactly the typo that
+ *  test exists to catch. The names are quoted in a .tsx, which is also what
+ *  dead-css.test.ts looks for before calling a rule unused. A cell with no
+ *  entry takes its group's own fill. */
+/** A grid drawn as one SVG of merged runs. Shared by the character and the
+ *  thing it picks up, which are the same kind of object at different sizes. */
+function pixels(grid: readonly string[], key: string) {
+  const w = grid[0]?.length ?? 0;
+  return (
+    <svg viewBox={`0 0 ${w} ${grid.length}`} shapeRendering="crispEdges" aria-hidden>
+      {spriteRects(grid).map(r => (
+        <rect key={`${key}${r.y}-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} />
+      ))}
+    </svg>
+  );
+}
+
+const CELL_CLASS: Record<string, string | undefined> = {
+  e: "fm-eye",
+  s: "fm-shade",
+  p: "fm-pad",
+};
 
 
 export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
@@ -72,8 +98,17 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     /** Where along the minimap's top edge it is standing, in pixels left of
      *  the right-hand end. Zero is where it starts. */
     const [x, setX] = useState(0);
-    const [walking, setWalking] = useState(false);
     const [walkMs, setWalkMs] = useState(0);
+    /** What it is doing, which is what the sheet draws. Null when it is simply
+     *  standing there, which is most of the time. */
+    const [act, setAct] = useState<ChoreStep["act"] | null>(null);
+    /** Where the piece of litter is sitting, or null when there is none. Once
+     *  it is picked up it stops being here and starts being carried — two
+     *  render slots for one object, because on the ledge it stays put and in
+     *  hand it has to travel with the character, and a sibling element cannot
+     *  do both. */
+    const [litter, setLitter] = useState<number | null>(null);
+    const [held, setHeld] = useState(false);
 
     const frame = useRef<HTMLIFrameElement | null>(null);
     const duckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,21 +178,51 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     useEffect(() => {
       if (!probe || dead || playing) return;
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-      let stop: ReturnType<typeof setTimeout> | null = null;
-      let arrive: ReturnType<typeof setTimeout> | null = null;
-      const later = () => {
-        stop = setTimeout(() => {
-          setX(from => {
-            const trip = nextWalk(from, Math.random);
-            setWalkMs(trip.ms);
-            setWalking(true);
-            arrive = setTimeout(() => { setWalking(false); later(); }, trip.ms);
-            return trip.to;
-          });
+
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let here = 0;
+      setX(now => (here = now));
+
+      /** Walks the list one step at a time. Each step says how the world should
+       *  look and how long to hold it there; nothing here decides what the list
+       *  is (claude-fm.ts does) and nothing there knows about a clock. */
+      const run = (steps: ChoreStep[]) => {
+        const [step, ...rest] = steps;
+        if (!step) { setAct(null); setHeld(false); idle(); return; }
+        setWalkMs(step.ms);
+        setAct(step.act);
+        setX(step.x);
+        here = step.x;
+        // The litter leaves the ledge at the moment it is picked up, which is
+        // the end of the stoop rather than the start of it.
+        if (step.act === "carry") { setLitter(null); setHeld(true); }
+        if (step.act === "toss") setHeld(false);
+        timer = setTimeout(() => run(rest), step.ms);
+      };
+
+      const idle = () => {
+        timer = setTimeout(() => {
+          if (Math.random() < CHORE_CHANCE) {
+            const at = litterSpot(here, Math.random);
+            setLitter(at);
+            run(choreSteps(here, at));
+          } else {
+            const trip = nextWalk(here, Math.random);
+            run([{ x: trip.to, litter: null, act: "walk", ms: trip.ms }]);
+          }
         }, nextIdleMs(Math.random));
       };
-      later();
-      return () => { if (stop) clearTimeout(stop); if (arrive) clearTimeout(arrive); };
+
+      idle();
+      return () => {
+        if (timer) clearTimeout(timer);
+        // Whatever it was in the middle of, it is not any more. Leaving a piece
+        // of litter on the ledge that nothing will ever come back for is the
+        // one way this can litter for real.
+        setAct(null);
+        setHeld(false);
+        setLitter(null);
+      };
     }, [probe, dead, playing]);
 
     useImperativeHandle(ref, () => ({
@@ -185,17 +250,32 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     };
 
     return (
-      <div
-        className="fm"
-        data-walking={walking ? "" : undefined}
-        style={{
-          // The position it is standing at, and how long the current trip
-          // takes. Inline because both are values rather than states: a class
-          // per pixel of the ledge is not a thing a stylesheet can hold.
-          "--fm-x": `${x}px`,
-          "--fm-walk-ms": `${walkMs}ms`,
-        } as CSSProperties}
-      >
+      <div className="fm">
+        {/* On the ledge, and not inside the walker: a thing lying on the floor
+            does not travel with whoever is about to pick it up. */}
+        {litter != null && (
+          <div className="fm-litter" style={{ "--fm-litter-x": `${litter}px` } as CSSProperties}>
+            {pixels(LITTER, "l")}
+          </div>
+        )}
+        <div
+          className="fm-walker"
+          data-act={act ?? undefined}
+          style={{
+            // Where it is standing and how long the current trip takes. Inline
+            // because both are values rather than states: a class per pixel of
+            // the ledge is not a thing a stylesheet can hold.
+            "--fm-x": `${x}px`,
+            "--fm-walk-ms": `${walkMs}ms`,
+          } as CSSProperties}
+        >
+        {/* In hand, so it travels with the character — and on the way out,
+            so the throw has something to animate. */}
+        {(held || act === "toss") && (
+          <div className="fm-held" data-toss={act === "toss" ? "" : undefined}>
+            {pixels(LITTER, "h")}
+          </div>
+        )}
         <button
           type="button"
           className="fm-sprite"
@@ -211,7 +291,11 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 glitch rather than as dancing. */}
             <g className="fm-gear">
               {spriteRects().filter(r => GEAR_CELLS.has(r.cell)).map(r => (
-                <rect key={`g${r.y}-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} />
+                <rect
+                  key={`g${r.y}-${r.x}`}
+                  x={r.x} y={r.y} width={r.w} height={1}
+                  className={CELL_CLASS[r.cell]}
+                />
               ))}
             </g>
             <g className="fm-body">
@@ -219,12 +303,13 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
-                  className={EYE_CELLS.has(r.cell) ? "fm-eye" : undefined}
+                  className={CELL_CLASS[r.cell]}
                 />
               ))}
             </g>
           </svg>
         </button>
+        </div>
         {armed && probe.channel && (
           <iframe
             ref={frame}
