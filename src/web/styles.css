@@ -12428,6 +12428,22 @@ input, textarea { caret-color: var(--accent); }
    whole reason this is a grid of rects and not a picture. */
 .fm-gear { fill: var(--muted); }
 .fm-body { fill: var(--accent); }
+/* WHICH WAY IT IS LOOKING, and it is one column of one row.
+
+   A character that walks sideways while facing the viewer reads as sliding
+   rather than walking, and this sprite is symmetric — there was nothing in it
+   that could face anywhere. Mirroring the whole thing is the usual answer and
+   is wrong here: the shade runs down the right-hand column, so a flip would
+   move the light source every time it turned round.
+
+   So the eyes move instead, a column either way, staying inside the head at
+   both extremes. It is the only part of this character allowed to be
+   asymmetric, and the transition is what makes turning round read as a turn
+   rather than a cut. */
+.fm-eye { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fm-walker[data-facing="left"] .fm-eye { transform: translateX(-1px); }
+.fm-walker[data-facing="right"] .fm-eye { transform: translateX(1px); }
+
 /* The eyes are holes, not marks: --bg is the canvas's own background in both
    themes (`.react-flow__pane` paints it), so the canvas shows through and the
    eyes stay right on either. */
@@ -12691,7 +12707,7 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm-walker, .fm-gear { transition: none; }
+  .fm-walker, .fm-gear, .fm-eye { transition: none; }
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,

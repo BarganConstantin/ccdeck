@@ -45,7 +45,8 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, nextDance, nextDanceMs, type Act, type Dance, type Prop, type Step,
+  BEAT_MS, DANCES, facingFor, nextDance, nextDanceMs,
+  type Act, type Dance, type Facing, type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -108,6 +109,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  inside the walker once it is held — because on the floor it must stay
      *  put and in hand it must travel, and one element cannot do both. */
     const [prop, setProp] = useState<Prop | null>(null);
+    /** Which way it is looking. Persists between activities: it does not turn
+     *  back to face the viewer every time it stops. */
+    const [facing, setFacing] = useState<Facing>("left");
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
      *  rather than as a character. */
@@ -203,6 +207,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setWalkMs(step.ms);
         setAct(step.act);
         setProp(step.prop);
+        setFacing(was => facingFor(step, here, was));
         setX(step.x);
         here = step.x;
         timer = setTimeout(() => run(rest), step.ms);
@@ -284,6 +289,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         <div
           className="fm-walker"
           data-act={act ?? undefined}
+          data-facing={facing}
           style={{
             // Where it is standing and how long the current trip takes. Inline
             // because both are values rather than states: a class per pixel of

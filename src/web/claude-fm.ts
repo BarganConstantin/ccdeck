@@ -478,6 +478,31 @@ export function watchSteps(from: number, at: number, rand: () => number): Step[]
   ];
 }
 
+export type Facing = "left" | "right";
+
+/**
+ * Which way it is looking.
+ *
+ * A character that walks sideways while facing the viewer reads as sliding
+ * rather than walking, and this sprite is symmetric, so there was nothing in it
+ * that could face anywhere. Mirroring the whole thing is the usual answer and
+ * is wrong here: the shade runs down the right-hand column, so a flip would
+ * move the light source every time it turned round. Shifting the EYES one
+ * column does it instead — the oldest trick in pixel art, and the only part of
+ * this character that is allowed to be asymmetric.
+ *
+ * `x` runs from 0 at the right-hand end of the ledge to -WALK_SPAN_PX at the
+ * left, so a smaller number is further left.
+ */
+export function facingFor(step: Step, from: number, prev: Facing): Facing {
+  // Looking at the board, which is everything to the left of the minimap. The
+  // one activity that is about the canvas rather than the ledge should not be
+  // conducted with its back to it.
+  if (step.act === "watch") return "left";
+  if (step.x === from) return prev;
+  return step.x > from ? "right" : "left";
+}
+
 /** The whole decision, in one place: what it does next and where. */
 export function nextActivity(from: number, rand: () => number): Step[] {
   switch (pickActivity(rand)) {

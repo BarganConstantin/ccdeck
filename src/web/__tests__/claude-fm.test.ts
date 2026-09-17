@@ -20,7 +20,8 @@ import {
   ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
-  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, facingFor, nextDance, nextDanceMs,
+  type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
 
@@ -534,6 +535,44 @@ describe("the character", () => {
     expect(Math.max(...gearRows)).not.toBe(Math.max(...bodyRows));
   });
 
+  it("looks the way it is going", () => {
+    // A character that walks sideways while facing the viewer reads as sliding
+    // rather than walking. `x` is 0 at the right-hand end of the ledge and
+    // negative toward the left, so a smaller number is further left.
+    const step = (x: number, act: Act = "walk"): Step => ({ x, prop: null, act, ms: 100 });
+    expect(facingFor(step(-80), 0, "right")).toBe("left");
+    expect(facingFor(step(0), -80, "left")).toBe("right");
+    // Standing still keeps whatever it was: it does not turn back to face the
+    // viewer every time it stops.
+    expect(facingFor(step(-40, "sit"), -40, "left")).toBe("left");
+    expect(facingFor(step(-40, "sit"), -40, "right")).toBe("right");
+    // Except at the scope, which is aimed at the canvas — everything to the
+    // left of the minimap. The one activity that is about the board should not
+    // be conducted with its back to it.
+    expect(facingFor(step(-40, "watch"), -40, "right")).toBe("left");
+  });
+
+  it("turns by moving its eyes, not by mirroring itself", () => {
+    // Mirroring is the usual answer and is wrong here: the shade runs down the
+    // right-hand column, so a flip would move the light source every time it
+    // turned round.
+    expect(decl('.fm-walker[data-facing="left"] .fm-eye', "transform")).toBe("translateX(-1px)");
+    expect(decl('.fm-walker[data-facing="right"] .fm-eye', "transform")).toBe("translateX(1px)");
+    expect(css).not.toMatch(/\.fm[\w-]*[^{}]*\{[^}]*scaleX\(-1\)/);
+    // A column either way has to stay inside the head, or an eye ends up in the
+    // headphones.
+    const row = SPRITE.find(r => r.includes("e")) ?? "";
+    const eyes = [...row].flatMap((c, i) => (c === "e" ? [i] : []));
+    const head = new Set([...row].flatMap((c, i) => ("bes".includes(c) ? [i] : [])));
+    expect(eyes.length).toBe(2);
+    for (const e of eyes) {
+      expect(head.has(e - 1)).toBe(true);
+      expect(head.has(e + 1)).toBe(true);
+    }
+    // And turning is a turn rather than a cut.
+    expect(decl(".fm-eye", "transition")).toMatch(/^transform 180ms/);
+  });
+
   it("does not dance the same way twice in a row", () => {
     // One cycle repeated forever reads as a GIF. Picking uniformly would repeat
     // about a third of the time, and a repeat is indistinguishable from the loop
@@ -928,7 +967,7 @@ describe("the character", () => {
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker, \.fm-gear \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });
