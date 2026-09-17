@@ -5725,6 +5725,48 @@ async function handleCodexUsage(req, res) {
   send(res, 200, usage);
 }
 
+/**
+ * Whether Claude FM is broadcasting — the one question the canvas's music
+ * control needs answered before it draws itself.
+ *
+ * NO REQUEST LEAVES THIS MACHINE UNTIL A PAGE ASKS FOR IT. There is no boot
+ * probe and no timer behind this route: a deck nobody has opened calls
+ * youtube.com zero times, and the first canvas to mount answers every other one
+ * for the next ten minutes out of claude-fm.mjs's cache.
+ *
+ * Two environment variables, in the shape the notification and LAN switches
+ * already use (deck-prefs.mjs names both):
+ *
+ *   AGENTS_DECK_NO_MUSIC=1        this deck never contacts YouTube at all. The
+ *                                 answer is a plain no and the canvas draws
+ *                                 nothing, which is the same thing it does when
+ *                                 the channel is off air — so the off switch
+ *                                 needs no second code path to test.
+ *   AGENTS_DECK_FM_CHANNEL=UC...  play a different channel's live stream. The
+ *                                 built-in one is a channel id rather than a
+ *                                 video id precisely so it does not go stale,
+ *                                 but a channel can be renamed, retired or
+ *                                 handed over, and a deck that can be pointed
+ *                                 elsewhere in one line does not need a release
+ *                                 to keep working. Anything that is not a
+ *                                 well-formed channel id is ignored rather than
+ *                                 fetched.
+ */
+async function handleClaudeFm(req, res) {
+  if (process.env.AGENTS_DECK_NO_MUSIC === "1") {
+    return send(res, 200, { ok: true, live: false, off: true });
+  }
+  const { fetchClaudeFm } = await import(
+    pathToFileURL(join(PKG_ROOT, "src/server/claude-fm.mjs")).href
+  );
+  const url = new URL(req.url, "http://localhost");
+  const answer = await fetchClaudeFm({
+    force: url.searchParams.get("refresh") === "1",
+    channel: process.env.AGENTS_DECK_FM_CHANNEL,
+  });
+  send(res, 200, answer);
+}
+
 async function handleCodexQuota(req, res) {
   const { fetchCodexQuota } = await import(
     pathToFileURL(join(PKG_ROOT, "src/server/codex-quota.mjs")).href
@@ -6072,6 +6114,7 @@ const PINNED_MODULES = [
   "ccusage.mjs",
   "browser-watch.mjs",
   "browser-watch-store.mjs",
+  "claude-fm.mjs",
   // system-metrics.mjs's two, on the platforms that have them, and the one
   // installer.mjs reaches for while it rewrites the hooks.
   "macmon.mjs",
@@ -7366,6 +7409,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/admin")  return guard(handleClaudeAccountAdmin(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cswap-auto")  return guard(handleCswapAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/cswap-auto")  return guard(handleCswapAutoAction(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and

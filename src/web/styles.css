@@ -12247,3 +12247,168 @@ input, textarea { caret-color: var(--accent); }
   .switch[aria-checked="true"] .switch-knob,
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
 }
+
+/* ---------------- Claude FM ------------------------------------------------
+   A character standing on the minimap's top edge, and the hidden player behind
+   it. Nothing in this block renders unless the server said the channel is on
+   air — see components/ClaudeFm.tsx.
+
+   IT STANDS ON THE EDGE rather than floating over it, which is the difference
+   between a character and a sticker. Its feet land exactly on the minimap's top
+   border, and the two numbers that put them there are named so the next person
+   can see what it is standing on: React Flow gives every canvas panel a 15px
+   margin, and the minimap's 150px drawing inside `.react-flow__minimap`'s 1px
+   edge is a 152px box — measured at 152 on a real deck, which is how the first
+   pass's 150 was caught sitting it two pixels low. Change the minimap's size
+   and --minimap-h is the one number to move.
+
+   --fm-x is where along that ledge it is standing, written by the component. */
+.fm {
+  --flow-gutter: 15px;   /* .react-flow__panel's own margin */
+  --minimap-h: 152px;    /* MiniMap's 150 drawing plus the 1px edge each side */
+  position: absolute;
+  right: var(--flow-gutter);
+  bottom: calc(var(--flow-gutter) + var(--minimap-h));
+  /* Above the canvas, alongside the chrome it stands next to: the same z-index
+     the control stack and the minimap are given. */
+  z-index: 5;
+  /* The canvas is under this. A press that misses the character should pan the
+     deck as if nothing were there, so only the button takes the pointer. */
+  pointer-events: none;
+  /* The walk itself. Linear, because a character crossing a ledge does not
+     ease — it sets off, it arrives, and the acceleration curves that flatter a
+     panel sliding open make a walk look like a skid. */
+  transform: translateX(var(--fm-x, 0px));
+  transition: transform var(--fm-walk-ms, 0ms) linear;
+}
+
+/* No surface, no border, no shadow. Every other instrument on this canvas
+   wears --chrome-bg and an edge because it is a panel of controls; this is one
+   character standing on the canvas, and a box around it would make it look
+   like a fourth panel. It is the only thing here allowed to be charming, and a
+   frame is what would stop it being that.
+
+   54px is 18 columns at exactly 3px each. A width that does not divide by the
+   grid puts every cell boundary on a fraction of a pixel, and a pixel
+   character with soft edges is the one thing it cannot be. */
+.fm-sprite {
+  pointer-events: auto;
+  display: block;
+  width: 54px;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  /* Quiet until it is wanted: the canvas is for the sessions, and a bright
+     character parked on the minimap would pull the eye all day. The pointer
+     and the music both bring it up. */
+  opacity: 0.55;
+  transition: opacity 140ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fm-sprite:hover { opacity: 1; }
+/* THE SAME QUIET COSTS DIFFERENT AMOUNTS IN THE TWO THEMES, and 0.55 is a dark
+   number. There the accent is #7dd3fc on near-black, which is still a colour at
+   just over half strength; here it is #0369a1 on #eef1f6, and dimming a dark
+   ink toward a light ground does not make it quieter — it makes it grey. Side
+   by side the light sprite had lost its blue and read as a smudge on the
+   minimap while the dark one read as a character. A higher floor is what buys
+   the same restraint, not the same number. */
+:root[data-theme="light"] .fm-sprite { opacity: 0.72; }
+.fm-sprite[data-playing] { opacity: 1; }
+/* The deck's one press convention, at the tier a control with no label wears.
+   0.94 rather than the 0.97 a labelled button takes: the ink here IS the
+   control, so the press has to move the character enough to be seen against a
+   sprite that may also be dancing. */
+.fm-sprite:active { transform: scale(0.94); }
+.fm-sprite svg { display: block; width: 100%; height: auto; }
+
+/* The headphones, in the same --muted every glyph on this canvas is drawn in,
+   and the body in the deck's accent so the character belongs to this palette
+   rather than arriving with its own. Both recolour with the theme, which is the
+   whole reason this is a grid of rects and not a picture. */
+.fm-gear { fill: var(--muted); }
+.fm-body { fill: var(--accent); }
+/* The eyes are holes, not marks: --bg is the canvas's own background in both
+   themes (`.react-flow__pane` paints it), so the canvas shows through and the
+   eyes stay right on either. */
+.fm-eye { fill: var(--bg); }
+
+/* Two groups, because the body and what it is wearing do not move together.
+   `transform-box: fill-box` makes the origin each group's own box instead of
+   the SVG viewport, which is what lets "bottom centre" mean the character's
+   feet — without it a rotation swings the sprite around a corner of the canvas
+   coordinate system and it leaves the frame entirely. */
+.fm-gear, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
+
+/* THE DANCE, which is three things a bob alone was not.
+   Squash and stretch: the body compresses on the beat and extends between
+   them, which is what makes a shape read as a body rather than as a rectangle
+   being moved. A sway: two bounces per cycle against one left-right lean, so it
+   traces a figure rather than a pogo. And secondary motion: the headphones run
+   the same cycle at a third of the amplitude and 90ms behind, so they follow
+   the head instead of being bolted to it — the difference between a character
+   wearing headphones and a sprite with headphones painted on.
+   800ms is 75bpm, which is the tempo the thing it is dancing to is usually at.
+   The distances are in the sprite's own units, where 1 unit is 3 screen px. */
+.fm-sprite[data-playing] .fm-body { animation: fm-bob 800ms ease-in-out infinite; }
+.fm-sprite[data-playing] .fm-gear { animation: fm-nod 800ms ease-in-out -90ms infinite; }
+
+@keyframes fm-bob {
+  0%   { transform: translate(-0.35px, 0)    scaleY(0.95) rotate(-3deg); }
+  25%  { transform: translate(0, -0.7px)     scaleY(1.05) rotate(0deg); }
+  50%  { transform: translate(0.35px, 0)     scaleY(0.95) rotate(3deg); }
+  75%  { transform: translate(0, -0.7px)     scaleY(1.05) rotate(0deg); }
+  100% { transform: translate(-0.35px, 0)    scaleY(0.95) rotate(-3deg); }
+}
+@keyframes fm-nod {
+  0%, 100% { transform: translate(-0.2px, 0) rotate(-1.2deg); }
+  50%      { transform: translate(0.2px, 0)  rotate(1.2deg); }
+}
+
+/* THE WALK, and it is two frames rather than a curve on purpose. A pixel
+   character that eases between poses looks like a picture being tweened; one
+   that snaps between two poses looks like it is taking steps. So the keyframes
+   hold each pose for exactly half the cycle and the timing function is linear —
+   there is nothing in between to interpolate. 440ms is a stride at the pace
+   --fm-walk-ms carries it along the ledge at. */
+.fm[data-walking] .fm-body { animation: fm-step 440ms linear infinite; }
+.fm[data-walking] .fm-gear { animation: fm-step 440ms linear -60ms infinite; }
+
+@keyframes fm-step {
+  0%, 49.99%   { transform: translateY(0)      rotate(-1.5deg); }
+  50%, 100%    { transform: translateY(-0.5px) rotate(1.5deg); }
+}
+
+/* A character dancing and wandering in the corner of a monitoring tool is
+   exactly the motion somebody turns this setting on to stop. All of it goes —
+   the dance, the walk and the press — and nothing replaces it: the brightened
+   sprite already says the music is on, so the state survives the animation
+   being removed. The component refuses to schedule a walk at all under this
+   setting rather than leaving timers running for a journey nobody sees; these
+   rules are the second answer, for the case where it is turned on mid-session. */
+@media (prefers-reduced-motion: reduce) {
+  .fm { transition: none; }
+  .fm-sprite[data-playing] .fm-body,
+  .fm-sprite[data-playing] .fm-gear,
+  .fm[data-walking] .fm-body,
+  .fm[data-walking] .fm-gear { animation: none; }
+  .fm-sprite:active { transform: none; }
+}
+
+/* THE PLAYER. Off-screen at a real size rather than shrunk to a pixel or hidden
+   with `display: none`. Both of those are how a hidden YouTube player is
+   usually written and both are how it stops working: a display:none iframe may
+   be torn down or throttled, and a 1px one is a player the page is telling the
+   browser nobody can see, which is grounds to refuse the autoplay it was just
+   given a gesture for. A 320x180 player parked off the left edge keeps playing
+   in a background tab, which is most of the time this is wanted. */
+.fm-frame {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  border: 0;
+  pointer-events: none;
+}

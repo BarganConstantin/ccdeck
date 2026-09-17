@@ -271,6 +271,10 @@ const PRESSES: Press[] = [
   // The process table's column headers, in the panel and in the modal that
   // lists every candidate — one selector, because it is one control.
   [":is(.sysdetail, .pl-body) .sd-sort:active", "0.97", "transform"],
+  // Claude FM's character. 0.94, the tier a control with no label wears: the
+  // sprite IS the ink, and 0.97 of it would be invisible against a character
+  // that is very likely bobbing at the moment it is pressed.
+  [".fm-sprite:active", "0.94", "transform"],
   // The whole THERMAL section, which opens its own history (#738). A block that
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
