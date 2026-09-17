@@ -12583,10 +12583,16 @@ input, textarea { caret-color: var(--accent); }
 }
 
 
-/* The eyes are holes, not marks: --bg is the canvas's own background in both
-   themes (`.react-flow__pane` paints it), so the canvas shows through and the
-   eyes stay right on either. */
-.fm-eye { fill: var(--bg); }
+
+/* AN EYE IS A DARK MARK, in both themes, and this had it as a HOLE.
+   `--bg` is the canvas showing through, which is near-black in dark and
+   near-white in light — so in light the character got two blank white sockets
+   on a blue face, and what that reads as is something that has stopped being
+   alive. The darkest ink in the palette is not the same token in both themes:
+   it is --bg in dark and --text in light, because both flip. The eye takes
+   whichever one is dark. */
+.fm-eye { --fm-eye-ink: var(--bg); fill: var(--fm-eye-ink); }
+:root[data-theme="light"] .fm-eye { --fm-eye-ink: var(--text); }
 
 /* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
    The obvious spelling — mix the accent toward --bg — lands the wrong way
@@ -12611,13 +12617,21 @@ input, textarea { caret-color: var(--accent); }
    alive is not. */
 .fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
 @keyframes fm-blink {
-  0%, 93.5%  { fill: var(--bg); }
+  0%, 93.5%  { fill: var(--fm-eye-ink); }
   94%, 96.5% { fill: var(--accent); }
-  97%, 100%  { fill: var(--bg); }
+  97%, 100%  { fill: var(--fm-eye-ink); }
 }
 
-/* ONE PIVOT FOR BOTH GROUPS, and getting this wrong is invisible in the
+/* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
    stylesheet and glaring on screen.
+
+   THE LEGS WERE LEFT OUT OF THIS AND IT COST THE SAME BUG TWICE. They were
+   added to the rule when they still rotated, and taken back out with the
+   rotation — but they still SCALE, because they dance with the torso now. On
+   the default origin a leg scales about the middle of the sprite while the
+   torso scales about its feet, so the same keyframe pulls them apart and the
+   hip opens. In the light theme the canvas showing through that gap reads as a
+   pair of white legs.
 
    These were on `transform-box: fill-box`, which makes the origin each group's
    OWN bounding box. The gear's box is rows 0-8 and the body's is rows 2-13, so
@@ -12631,7 +12645,10 @@ input, textarea { caret-color: var(--accent); }
    so both groups pivot about (9, 13) — the middle of its feet — which is what
    "bottom centre" was always meant to mean. Identical transforms about an
    identical origin cannot drift. */
-.fm-gear, .fm-gear-motion, .fm-body { transform-box: view-box; transform-origin: 50% 100%; }
+:is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg) {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+}
 
 /* WHERE THE HEADPHONES ARE, which is the one thing about this character that
    says whether anything is playing, without a word or a colour. On its head
@@ -12714,23 +12731,31 @@ input, textarea { caret-color: var(--accent); }
    thirteen-row sprite does not have any. Rigid is correct: they are ON the
    head, and things on a head do not lag behind it.
 
+   THE LEGS DANCE WITH THE TORSO, exactly in phase, which is the opposite of
+   what they do when it walks. Walking, they step INDEPENDENTLY — that is what a
+   stride is. Dancing happens on the spot, so there is no step to take and any
+   difference between the two is just the hip coming apart. Measured while the
+   torso grooved on its own: the gap opened and closed across two and a half
+   pixels, and in the light theme the canvas showing through it read as a pair
+   of white legs.
+
    ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
    fighting a walk: with the music on it still goes about its business, and
    while it is walking or sitting or looking at the board, the walk owns the
    body and the dance waits. */
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg) {
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg) {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg) {
   animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
@@ -12935,11 +12960,11 @@ input, textarea { caret-color: var(--accent); }
   .fm-walker[data-act="climb"] .fm-leg[data-side="left"],
   .fm-walker[data-act="climb"] .fm-leg[data-side="right"],
   .fm-walker[data-act="climb"] .fm-sprite { animation: none; }
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion,
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
   .fm-prop,
   .fm-prop[data-prop="ball"][data-leaving],

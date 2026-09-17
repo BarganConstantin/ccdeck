@@ -524,8 +524,16 @@ describe("the character", () => {
     // about two points five rows apart, and the headband opened a seam along
     // the head as the character moved. It looked like a timing fault and was
     // not; two passes went looking in the wrong place.
-    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-box")).toBe("view-box");
-    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-origin")).toBe("50% 100%");
+    const pivot = ":is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg)";
+    expect(decl(pivot, "transform-box")).toBe("view-box");
+    expect(decl(pivot, "transform-origin")).toBe("50% 100%");
+    // EVERY GROUP THAT MOVES HAS TO BE IN THAT LIST. The legs were left out
+    // once and it cost the same bug twice: they scale with the torso when it
+    // dances, and on the default origin a leg scales about the middle of the
+    // sprite while the torso scales about its feet — so the hip opens.
+    const moving = [...new Set([...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion))"/g)]
+      .map(m => m[1]))];
+    for (const g of moving) expect(pivot).toContain(`.${g}`);
     // Scoped to the groups that have to AGREE with each other. `fill-box` is
     // right for a lone shape turning about its own middle with nothing to stay
     // aligned to — `.fm-eye` narrowing is exactly that, and is the one rule
@@ -683,7 +691,17 @@ describe("the character", () => {
       expect(painted, `.${g} is never given a fill`).toBe(true);
     }
     expect(decl(".fm-gear", "fill")).toBe("var(--muted)");
-    expect(decl(".fm-eye", "fill")).toBe("var(--bg)");
+    // AN EYE IS A DARK MARK, NOT A HOLE. It used to be filled with --bg, the
+    // canvas showing through — near-black in dark and near-WHITE in light, so
+    // the light theme gave the character two blank sockets on a blue face. The
+    // darkest ink is not the same token in both themes, because both flip.
+    expect(decl(".fm-eye", "fill")).toBe("var(--fm-eye-ink)");
+    expect(decl(".fm-eye", "--fm-eye-ink")).toBe("var(--bg)");
+    expect(decl(':root[data-theme="light"] .fm-eye', "--fm-eye-ink")).toBe("var(--text)");
+    // And the blink closes onto the body colour from whichever ink is in use.
+    const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(blink).toContain("var(--fm-eye-ink)");
+    expect(blink).not.toContain("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
   });
 
@@ -702,11 +720,14 @@ describe("the character", () => {
     for (const d of DANCES) {
       expect(css).toContain(`@keyframes fm-${d}`);
       const idle = `.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`;
-      expect(decl(`${idle} .fm-body`, "animation"))
+      // THE LEGS DANCE WITH THE TORSO, in phase. Walking they step
+      // independently — that is what a stride is — but dancing happens on the
+      // spot, so any difference between them is just the hip coming apart.
+      expect(decl(`${idle} :is(.fm-body, .fm-leg)`, "animation"))
         .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
       // EXACTLY the body's, with no offset. See below for why the lag went.
       expect(decl(`${idle} .fm-gear-motion`, "animation"))
-        .toBe(decl(`${idle} .fm-body`, "animation"));
+        .toBe(decl(`${idle} :is(.fm-body, .fm-leg)`, "animation"));
     }
     // And the separate nod is gone rather than left lying around.
     expect(css).not.toContain("fm-nod");
@@ -1184,7 +1205,8 @@ describe("the character", () => {
     // pixel of separation is a third of it. What that looks like is the head
     // sinking into the headphones. Things on a head do not lag behind it.
     const idleSel = '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"]';
-    expect(decl(`${idleSel} .fm-gear-motion`, "animation")).toBe(decl(`${idleSel} .fm-body`, "animation"));
+    expect(decl(`${idleSel} .fm-gear-motion`, "animation"))
+      .toBe(decl(`${idleSel} :is(.fm-body, .fm-leg)`, "animation"));
     expect(css).not.toMatch(/\.fm-gear-motion \{\s*animation:[^;]*-\d+ms/);
     const LIFT_UNITS = 0.85, CELL_PX = 54 / SPRITE_W, BEAT = 800;
     const pxPerMs = (LIFT_UNITS * CELL_PX * 2 * Math.PI) / BEAT;
@@ -1234,7 +1256,7 @@ describe("the character", () => {
     const blocks = [...css.matchAll(reduce)].map(m => m[1]).join("\n");
     // All of it: the dance, the walk and the press.
     for (const gone of [
-      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg)',
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion',
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
