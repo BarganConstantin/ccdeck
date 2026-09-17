@@ -24,7 +24,7 @@ import {
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
   facingFor, isFocused, LEG_TOP_ROW, MOVING_ACTS, nextDance, nextDanceMs,
   type Act, type Step,
-  WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
+  WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -965,20 +965,94 @@ describe("the character", () => {
     // that no longer reaches them — the character would walk out of the deck
     // and come back from nowhere.
     expect(component).toContain("const reachable = (step: Step): number =>");
-    expect(component).toContain("Math.max(-room, Math.min(0, step.x))");
+    expect(component).toContain("Math.max(-room, Math.min(0, aim))");
     // Applied to every step, not only the floor ones.
     expect(component).toContain("const to = reachable(step);");
     expect(component).not.toMatch(/setX\(step\.x\)/);
     // The ledge keeps its own fixed span; only the floor is measured.
     expect(component).toMatch(/\(step\.place \?\? "ledge"\) === "floor"/);
 
-    // Clamping per step rather than re-planning keeps the trip's shape: it
-    // still goes down and comes back up at the same corner, and that corner is
+    // Whatever else a resize moves, the corner is not it: the trip goes down
+    // and comes back up at the far end of the LEDGE, which is fixed, and is
     // inside any canvas wide enough to have shown the minimap at all.
     const steps = leaveLedgeSteps(0, { ledgeH: 152, floorSpan: 900 }, () => 0.9);
     const corner = steps.find(s2 => s2.act === "fall")!.x;
     expect(corner).toBe(-WALK_SPAN_PX);
     expect(Math.abs(corner)).toBeLessThanOrEqual(WALK_SPAN_PX);
+    for (const st of steps.filter(s2 => s2.x === corner)) {
+      expect(st.floorFrac).toBeUndefined();
+    }
+  });
+
+  it("walks the floor it has now, not the one it set off across", () => {
+    // The two wanders are the only targets DRAWN from the floor's width, and
+    // they are the ones a resize invalidates: a window widened mid-trip leaves
+    // the character turning round in the middle of a canvas, at a corner that
+    // has moved on without it.
+    const steps = leaveLedgeSteps(0, { ledgeH: 152, floorSpan: 900 }, () => 0.5);
+    const wanders = steps.filter(s2 => s2.floorFrac != null);
+    expect(wanders).toHaveLength(2);
+    for (const st of wanders) {
+      expect(st.place).toBe("floor");
+      expect(st.act).toBe("walk");
+      // The fraction and the pixel agree at the width it was planned against.
+      expect(st.x).toBe(-Math.round(st.floorFrac! * 900));
+    }
+
+    // And the fraction is the one that was drawn, not a rounded pixel read
+    // back out — the whole point is that it survives the width changing.
+    const rolls = [0.3, 0.8];
+    let roll = 0;
+    const drawn = leaveLedgeSteps(0, { ledgeH: 152, floorSpan: 337 },
+      () => rolls[roll++ % rolls.length]);
+    expect(drawn.filter(s2 => s2.floorFrac != null).map(s2 => s2.floorFrac))
+      .toEqual(rolls);
+
+    // The component re-aims a marked step at that fraction of the floor there
+    // is now, and leaves every other step on the pixel it was planned with.
+    expect(component).toContain("-Math.round(step.floorFrac * room)");
+    expect(component).toContain("floor && step.floorFrac != null");
+  });
+
+  it("re-aims the step it is already walking when the window changes", () => {
+    // Re-aiming per step is only as current as the step is long, and these are
+    // seconds long: somebody dragging a window edge is doing it in the middle
+    // of a walk, not politely between two.
+    expect(component).toContain("const reaim = () => {");
+    expect(component).toContain("new ResizeObserver(reaim)");
+    // On the box `floorReach` measures, not on `window` — a panel that changes
+    // without the window doing so is still a change to the floor.
+    expect(component).toContain("const host = scene.current?.parentElement;");
+    expect(component).toContain("if (host && ro) ro.observe(host);");
+    expect(component).toContain("ro?.disconnect();");
+    // A browser without one still gets a character that walks.
+    expect(component).toContain('typeof ResizeObserver === "undefined" ? null');
+
+    // It keeps the step's own arrival, so everything scheduled behind it stays
+    // where it was: only the destination moves.
+    expect(component).toContain("setWalkMs(Math.max(0, startedAt + stepMs - Date.now()));");
+    // And a destination that has moved to the other side of the character is a
+    // character that would otherwise walk backwards to it.
+    expect(component).toMatch(/setFacing\(was => facingFor\(\{ \.\.\.current!, x: to \}, here, was\)\)/);
+    // A resize that does not move the destination is not a re-aim at all.
+    expect(component).toContain("if (to === here) return;");
+  });
+
+  it("walks a re-aimed step in the time that walk actually takes", () => {
+    // The planned duration was for the floor as it was. A step re-aimed at a
+    // wider one is a longer walk, and held to the planned time it would cross
+    // the extra floor by moving faster — the stride is a fixed cadence, and it
+    // would stop matching the ground.
+    expect(component).toContain(
+      'stepMs = step.act === "walk" ? Math.max(walkMsFor(here, to), WALK_MIN_MS) : step.ms;');
+    expect(component).toContain("timer = setTimeout(() => run(rest), stepMs);");
+    // A floor narrowed to nothing leaves a walk with no ground to cover, and a
+    // step of no duration would chain the whole plan through in one frame.
+    expect(WALK_MIN_MS).toBeGreaterThan(0);
+    expect(walkMsFor(0, 0)).toBe(0);
+    expect(Math.max(walkMsFor(0, 0), WALK_MIN_MS)).toBe(WALK_MIN_MS);
+    // It is a floor, not a speed limit: a real walk is longer than it.
+    expect(walkMsFor(0, -WALK_MIN_STEP_PX)).toBeGreaterThan(WALK_MIN_MS);
   });
 
   it("hangs the rope from the ledge, not from the character", () => {
