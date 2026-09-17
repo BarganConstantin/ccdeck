@@ -375,7 +375,14 @@ export const TOSS_MS = 620;
 /** The kick, and its own wind-up. Shorter than the throw's: a kick is the
  *  quicker motion of the two and a long one reads as hesitation. */
 export const KICK_WINDUP_MS = 220;
-export const KICK_MS = 480;
+
+/** THE STEP HAS TO OUTLAST THE ANIMATION IT STARTS. The ball rolls for 520ms
+ *  and this step used to end at 480, so the prop was unmounted forty
+ *  milliseconds before it landed and the ball vanished in mid-flight. `stoop`
+ *  and `toss` already matched their own animations exactly; this one had
+ *  drifted, and nothing pointed at it because each number looked reasonable
+ *  alone. The test now reads both sides. */
+export const KICK_MS = 520;
 
 /** How long it stands there looking at the board through the scope. Long, like
  *  sitting — this is the one activity that is ABOUT the deck rather than about

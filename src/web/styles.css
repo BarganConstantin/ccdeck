@@ -12338,6 +12338,20 @@ input, textarea { caret-color: var(--accent); }
   bottom: 3px;
   width: 12px;
 }
+/* BROUGHT INTO HAND, NOT SWITCHED ON. A held thing used to appear at full size
+   the instant the step began — the scope worst of all, because nothing precedes
+   it: one frame the character is standing there, the next it is holding a
+   telescope. It grows out of the body and up into place instead, which is the
+   same objection as the headphones blinking off a head and the same answer.
+   The throw below is a higher-specificity rule, so a prop on its way out
+   overrides this rather than fighting it. */
+.fm-held { animation: fm-draw 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes fm-draw {
+  0%   { transform: translate(13px, 7px) scale(0.35); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+}
+
 /* The scope is held UP, at the height of the eyes, pointing away from the
    minimap and out over the sessions — which is the only thing that makes the
    pose read as looking at something rather than as carrying a stick.
@@ -12686,6 +12700,7 @@ input, textarea { caret-color: var(--accent); }
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
   .fm-prop,
   .fm-prop[data-prop="ball"][data-leaving],
+  .fm-held,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
   .fm-walker[data-act="stoop"] .fm-sprite,

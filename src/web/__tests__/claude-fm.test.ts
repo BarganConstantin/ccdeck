@@ -17,7 +17,8 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, kickSteps, nextActivity, pickActivity, propSpot, sitSteps, STOOP_MS, TOSS_MS,
+  ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
@@ -755,6 +756,41 @@ describe("the character", () => {
     const seen = new Set<string>();
     for (let i = 0; i <= 200; i++) seen.add(pickActivity(() => i / 200));
     expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
+  });
+
+  it("never ends a step before the animation that step started", () => {
+    // THE CLASS OF BUG, not just the one instance. A step's `ms` is how long the
+    // component holds that state; when it ends, the element carrying the
+    // animation unmounts. `kick` ran for 480ms and started a 520ms roll, so the
+    // ball was taken off the canvas forty milliseconds before it landed and
+    // vanished in mid-flight. `stoop` and `toss` happened to match exactly, and
+    // nothing pointed at the one that had drifted because each number looked
+    // reasonable on its own.
+    const animMs = (selector: string) => {
+      const value = decl(selector, "animation") ?? "";
+      return Number(/(\d+)ms/.exec(value)?.[1] ?? NaN);
+    };
+    const pairs: [string, number, string][] = [
+      ['.fm-walker[data-act="stoop"] .fm-sprite', STOOP_MS, "stoop"],
+      [".fm-held[data-toss]", TOSS_MS, "toss"],
+      ['.fm-prop[data-prop="ball"][data-leaving]', KICK_MS, "kick"],
+    ];
+    for (const [selector, stepMs, name] of pairs) {
+      const anim = animMs(selector);
+      expect(Number.isFinite(anim), `${name} has an animation to measure`).toBe(true);
+      expect(stepMs, `${name}: the step must outlast its own animation`).toBeGreaterThanOrEqual(anim);
+    }
+  });
+
+  it("brings a held thing into hand rather than switching it on", () => {
+    // Nothing in this scene should appear at full size in one frame — the scope
+    // worst of all, because nothing precedes it: one frame the character is
+    // standing there, the next it is holding a telescope.
+    expect(decl(".fm-held", "animation")).toMatch(/^fm-draw 300ms/);
+    expect(css).toMatch(/@keyframes fm-draw/);
+    // And a prop on its way out overrides that rather than fighting it, which
+    // is what the extra attribute in the selector buys.
+    expect(decl(".fm-held[data-toss]", "animation")).toMatch(/^fm-toss/);
   });
 
   it("sends the ball down the ledge instead of tidying it", () => {
