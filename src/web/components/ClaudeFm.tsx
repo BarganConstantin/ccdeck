@@ -171,16 +171,23 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     useEffect(() => () => { if (duckTimer.current) clearTimeout(duckTimer.current); }, []);
 
-    // THE STROLL. Long stillness, a short slow walk along the edge, long
-    // stillness — see claude-fm.ts for why the restraint is the design.
+    // WHAT IT DOES WITH ITSELF. Long stillness, then one of five things, then
+    // long stillness again — see claude-fm.ts for why the restraint is the
+    // design.
     //
-    // Not while the music is on: it has somewhere to be, and a character that
-    // wanders off mid-track reads as a bug rather than as life. Not at all for
-    // somebody who asked for no motion — and asked in the one place that
-    // answer lives, rather than by hiding the movement behind a media query
-    // that would leave the timers running for nobody.
+    // THIS RUNS WHETHER OR NOT THE MUSIC IS ON, which is the opposite of what
+    // it did first. Stopping the errands while something played made the
+    // character less alive exactly when it was most looked at: it stood in one
+    // spot and danced for as long as the track ran. It goes about its business
+    // either way now — wearing the headphones while the music is on, which is
+    // what anybody does — and the dance fills the gaps between errands rather
+    // than replacing them.
+    //
+    // Not at all for somebody who asked for no motion, and asked in the one
+    // place that answer lives, rather than by hiding the movement behind a
+    // media query that would leave the timers running for nobody.
     useEffect(() => {
-      if (!probe || dead || playing) return;
+      if (!probe || dead) return;
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -214,7 +221,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setAct(null);
         setProp(null);
       };
-    }, [probe, dead, playing]);
+    }, [probe, dead]);
 
     // IT CHANGES ITS MIND. Only while something is playing — there is nothing to
     // dance to otherwise, and a timer running for a character standing still is

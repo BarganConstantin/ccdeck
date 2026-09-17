@@ -12441,31 +12441,39 @@ input, textarea { caret-color: var(--accent); }
    coordinate system and it leaves the frame entirely. */
 .fm-gear, .fm-gear-motion, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
 
-/* WHERE THE HEADPHONES ARE WORN, which is the one thing about this character
-   that says whether anything is playing without a word or a colour. On the head
-   while the music is on; slid down around its neck when it is not.
+/* WHERE THE HEADPHONES ARE, which is the one thing about this character that
+   says whether anything is playing, without a word or a colour. On its head
+   while the music is on, and gone when it is not.
 
-   The neck position costs nothing to draw: the group is painted before the
-   body, so as it travels down the band goes behind the head and is simply gone,
-   and the cups end up tucked behind the arms. What is left is a bare head,
-   which reads instantly at 54px — far better than the headphones blinking out
-   of existence, which is what this did first and looked exactly as cheap as it
-   sounds.
+   GONE, NOT PARKED. They used to slide down and stay slung round its neck,
+   which was the idea — and the cups sit at columns 3-5 and 12-14, outside the
+   body's own 6-11, so no amount of dropping ever hides them. They stuck out at
+   both sides and made the whole lower half read as clutter. A drop alone
+   cannot do this; the fade is what finishes it.
 
-   The tilt is what stops it being a lift shaft: they arc off to one side, the
-   way a band pivots when it is pushed back off the ears.
+   BUT IT STILL TAKES THEM OFF. The fade is delayed past the start of the slide,
+   so what you see is the band coming down off the ears and going behind the
+   head, and only then the last of it leaving — a removal, not a disappearance.
+   Putting them back reverses the order: they appear at once and rise into
+   place, because reaching for something is not a fade-in.
 
-   This wanted a back-out curve — headphones really do come off with a little
-   more travel than they need and settle back — and it does not get one. #860
-   settled that for the whole sheet after every tool bubble sprang past its own
-   size: what you see hundreds of times a day does not celebrate. The music
-   stopping is one of those things. So it arrives on the sheet's own ease-out,
-   fast at first and slow into place, and stops where it is going. */
+   The curve is the sheet's ease-out, not the back-out this wanted: #860 settled
+   that for the whole sheet after every tool bubble sprang past its own size,
+   and the music stopping is one of the things you see hundreds of times a day. */
 .fm-gear {
-  transform: translateY(4px) rotate(-7deg);
-  transition: transform 460ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform: translateY(9px) rotate(-10deg);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms linear 240ms;
 }
-.fm-sprite[data-playing] .fm-gear { transform: translateY(0) rotate(0deg); }
+.fm-sprite[data-playing] .fm-gear {
+  transform: translateY(0) rotate(0deg);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 140ms linear;
+}
 
 /* THE DANCE, which is three things a bob alone was not.
    Squash and stretch, and it goes both ways at once: the body widens as it
@@ -12493,17 +12501,40 @@ input, textarea { caret-color: var(--accent); }
    cross-origin iframe, the page cannot reach its audio element, and a tainted
    source hands an analyser silence. It is not dancing TO the track. It is only
    not dancing the same way twice in a row. */
-.fm-sprite[data-playing][data-dance="bob"] .fm-body {
+/* THE HEADPHONES RUN THE SAME DANCE AS THE BODY, and the first build's mistake
+   is worth stating because it looked like a rendering fault rather than a
+   choice. The body had three dances swinging up to 5.5 degrees and most of a
+   pixel vertically; the headphones had one small generic nod, 1.2 degrees and
+   no lift. Worn ON a head, that mismatch does not read as two things moving at
+   different speeds — it reads as the head sliding out of the headphones, which
+   is exactly what it did.
+
+   So they take the body's own keyframes, 50ms behind. The lag is all that is
+   left of the secondary motion, and it is enough: a delay of a sixteenth of a
+   bar reads as something worn following what it is worn on, where a different
+   motion entirely read as something broken.
+
+   ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
+   fighting a walk: with the music on it still goes about its business, and
+   while it is walking or sitting or looking at the board, the walk owns the
+   body and the dance waits. */
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body {
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-sprite[data-playing][data-dance="sway"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out -50ms infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-sprite[data-playing][data-dance="groove"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out -50ms infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body {
   animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-sprite[data-playing] .fm-gear-motion {
-  animation: fm-nod var(--fm-beat, 800ms) ease-in-out -90ms infinite;
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out -50ms infinite;
 }
 
 @keyframes fm-bob {
@@ -12512,10 +12543,6 @@ input, textarea { caret-color: var(--accent); }
   50%  { transform: translate(0.35px, 0)  scale(1.04, 0.95) rotate(3deg); }
   75%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
   100% { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
-}
-@keyframes fm-nod {
-  0%, 100% { transform: translate(-0.2px, 0) rotate(-1.2deg); }
-  50%      { transform: translate(0.2px, 0)  rotate(1.2deg); }
 }
 
 /* A slow lean with almost no lift — what somebody does to something calm. */
@@ -12620,10 +12647,12 @@ input, textarea { caret-color: var(--accent); }
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
   .fm-walker, .fm-gear { transition: none; }
-  .fm-sprite[data-playing][data-dance="bob"] .fm-body,
-  .fm-sprite[data-playing][data-dance="sway"] .fm-body,
-  .fm-sprite[data-playing][data-dance="groove"] .fm-body,
-  .fm-sprite[data-playing] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
   .fm-prop,
   .fm-prop[data-prop="ball"][data-leaving],
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,

@@ -449,23 +449,44 @@ describe("the character", () => {
 
   it("takes the headphones off when there is nothing to listen to", () => {
     // The one thing about this character that says whether anything is playing,
-    // without a word or a colour. Worn on the head with the music on, slid down
-    // around its neck without.
-    expect(decl(".fm-gear", "transform")).toBe("translateY(4px) rotate(-7deg)");
+    // without a word or a colour. On its head with the music on, gone without.
+    expect(decl(".fm-gear", "transform")).toBe("translateY(9px) rotate(-10deg)");
+    expect(decl(".fm-gear", "opacity")).toBe("0");
     expect(decl(".fm-sprite[data-playing] .fm-gear", "transform")).toBe("translateY(0) rotate(0deg)");
-    // It TRAVELS there. Blinking out of existence is what this did first and it
-    // looked exactly as cheap as it sounds.
-    // On the sheet's own ease-out and not a back-out curve, however much this
-    // one wanted a bounce: #860 settled that for the whole sheet after every
-    // tool bubble sprang past its size.
-    expect(decl(".fm-gear", "transition")).toBe("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "opacity")).toBe("1");
+
+    // GONE, NOT PARKED — and a drop alone could never do it. The body is drawn
+    // over the headphones, so sliding them down hides whatever the body covers;
+    // the arms reach out to columns 4-5 and 12-13 and cover most of each cup.
+    // They do not reach column 3 or column 14, which is the OUTER edge of each
+    // cup, so however far the headphones drop, a column of each one stays
+    // visible at the side. That is what they used to do, and why the fade is
+    // the part that finishes the job rather than a nicety on top of it.
+    const bodyCols = new Set(
+      SPRITE.flatMap(row => row.split("").flatMap((c, i) => (c === "b" || c === "e" || c === "s" ? [i] : []))));
+    expect(bodyCols.has(3)).toBe(false);
+    expect(bodyCols.has(14)).toBe(false);
+    // The inner columns are covered, which is why a drop looked ALMOST right.
+    expect(bodyCols.has(4)).toBe(true);
+    expect(bodyCols.has(13)).toBe(true);
+
+    // BUT IT STILL TAKES THEM OFF: the fade waits until the slide is underway,
+    // so what is seen is a removal rather than a disappearance.
+    const off = decl(".fm-gear", "transition") ?? "";
+    expect(off).toContain("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
+    expect(off).toMatch(/opacity \d+ms linear 2\d\dms/);
+    // Putting them back reverses the order — reaching for something is not a
+    // fade-in — so that fade carries no delay at all.
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "transition")).toMatch(/opacity 140ms linear$/);
+    // On the sheet's own ease-out, not the back-out this wanted: #860 settled
+    // that for the whole sheet after every tool bubble sprang past its size.
+    expect(off).not.toMatch(/cubic-bezier\([^)]*,\s*1\.\d/);
     expect(css).not.toMatch(/\.fm-gear[^{]*\{[^}]*(display: none|visibility: hidden)/);
+
     // Which needs two groups: a transition and an animation on one transform do
     // not compose — the animation wins and the headphones would snap.
     expect(component).toContain('<g className="fm-gear">');
     expect(component).toContain('<g className="fm-gear-motion">');
-    // And the gear is drawn BEFORE the body, which is what makes the neck
-    // position free: SVG paints in document order, so the body covers the band.
     expect(component.indexOf('className="fm-gear"')).toBeLessThan(component.indexOf('className="fm-body"'));
   });
 
@@ -545,14 +566,20 @@ describe("the character", () => {
     // through a custom property was one rule instead of three and hid all three
     // from bubble-motion.test.ts — which exists to catch a @keyframes set
     // nothing runs, and an animation naming a set that is not there.
+    // THE HEADPHONES RUN THE BODY'S OWN DANCE, 50ms behind. They used to run a
+    // separate small nod — 1.2 degrees against a body swinging up to 5.5 — and
+    // worn ON a head that does not read as two speeds, it reads as the head
+    // sliding out of the headphones, which is what it did.
     for (const d of DANCES) {
       expect(css).toContain(`@keyframes fm-${d}`);
-      expect(decl(`.fm-sprite[data-playing][data-dance="${d}"] .fm-body`, "animation"))
+      const idle = `.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`;
+      expect(decl(`${idle} .fm-body`, "animation"))
         .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
+      expect(decl(`${idle} .fm-gear-motion`, "animation"))
+        .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out -50ms infinite`);
     }
-    expect(decl(".fm-sprite[data-playing] .fm-gear-motion", "animation"))
-      .toBe("fm-nod var(--fm-beat, 800ms) ease-in-out -90ms infinite");
-    expect(css).toMatch(/@keyframes fm-nod/);
+    // And the separate nod is gone rather than left lying around.
+    expect(css).not.toContain("fm-nod");
     // No animation on the resting sprite at all.
     expect(decl(".fm-sprite", "animation")).toBeNull();
   });
@@ -576,10 +603,17 @@ describe("the character", () => {
     expect(decl(".fm-walker", "transform")).toBe("translateX(var(--fm-x, 0px))");
   });
 
-  it("never wanders off the ledge, and never while the music is on", () => {
-    // It has somewhere to be. A character that walks away mid-track reads as a
-    // bug rather than as life.
-    expect(component).toContain("if (!probe || dead || playing) return;");
+  it("goes about its business whether or not the music is on", () => {
+    // Holding the errands back while something played made the character least
+    // alive exactly when it was most looked at: it stood on one spot and danced
+    // for as long as the track ran. It wears the headphones and gets on with it.
+    expect(component).toContain("if (!probe || dead) return;");
+    expect(component).not.toContain("dead || playing");
+    // And the dance fills the gaps rather than replacing the errands, which is
+    // what `:not([data-act])` on every dance rule is for.
+    for (const d of DANCES) {
+      expect(css).toContain(`.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`);
+    }
     // And it asks about reduced motion where the answer lives, rather than
     // hiding the movement behind a media query that leaves timers running for
     // a journey nobody sees.
@@ -753,8 +787,11 @@ describe("the character", () => {
     // body on every step.
     expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
     expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
-    // Still delayed while worn, where it is correct.
-    expect(decl(".fm-sprite[data-playing] .fm-gear-motion", "animation")).toContain("-90ms");
+    // Still delayed while worn, where it is correct — but now it is the body's
+    // own dance that is being delayed, not a different motion.
+    const worn = decl('.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion', "animation");
+    expect(worn).toContain("-50ms");
+    expect(worn).toContain("fm-bob");
   });
 
   it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
@@ -782,10 +819,9 @@ describe("the character", () => {
     const blocks = [...css.matchAll(reduce)].map(m => m[1]).join("\n");
     // All of it: the dance, the walk and the press.
     for (const gone of [
-      '.fm-sprite[data-playing][data-dance="bob"] .fm-body',
-      '.fm-sprite[data-playing][data-dance="sway"] .fm-body',
-      '.fm-sprite[data-playing][data-dance="groove"] .fm-body',
-      ".fm-sprite[data-playing] .fm-gear-motion",
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
       '.fm-walker[data-act="stoop"] .fm-sprite',

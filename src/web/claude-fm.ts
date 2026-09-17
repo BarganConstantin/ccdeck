@@ -299,8 +299,14 @@ export function nextIdleMs(rand: () => number): number {
 // This is the part of the feature with no purpose at all, and it is on purpose.
 // A deck is watched for hours by somebody waiting on an agent, and what makes a
 // corner of a screen worth glancing at is that it is occasionally doing
-// something rather than always doing the same thing. Rarely, slowly, and never
-// while the music is on — it has somewhere to be then.
+// something rather than always doing the same thing. Rarely, and slowly.
+//
+// It does them with the music on as well, which is the opposite of what this
+// did first. Holding the errands back while something played made the character
+// least alive exactly when it was most looked at — it stood on one spot and
+// danced for as long as the track ran. It wears the headphones and gets on with
+// its day, and the dance fills the gaps between errands rather than replacing
+// them.
 
 export type Act = "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch";
 
