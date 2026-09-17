@@ -16,6 +16,7 @@ import {
 } from "../src/server/term.mjs";
 import { PRODUCT } from "../src/server/brand.mjs";
 import { invokedName, renameNotice } from "../src/server/invoked-as.mjs";
+import { wayBackNote } from "../src/server/way-back.mjs";
 import { budget, bootDeadlineMs } from "../src/server/boot-deadline.mjs";
 // A leaf — fs, path and claude-dir.mjs, nothing else — so it is imported here
 // with the rest rather than fetched later. Deliberately NOT the other way
@@ -1619,6 +1620,13 @@ if (RESPAWN) {
   // Last of the rows, on purpose — see reportUnknownFlags.
   reportUnknownFlags(flags.unknown);
   reportIncompleteFlags(flags.incomplete);
+  // AFTER the warnings and outside the rows, because it is neither. It is the
+  // one thing on this screen that is about next week rather than about this
+  // boot — see way-back.mjs — and putting it above a typo warning would be
+  // spending the reader's last line of attention on the calmer of the two.
+  write(`\n  ${P.muted}${G.dash}  ${wayBackNote({
+    command: INVOKED_AS ?? PRODUCT, dash: G.dash, columns: cols(),
+  })}${P.reset}\n`);
   // Only when one is actually being opened. Under --no-open — which is how an
   // npx update relaunches, with a tab already waiting — this was announcing
   // something that never happened.

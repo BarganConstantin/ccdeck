@@ -17,6 +17,24 @@
          where the codepoint is missing, which stopped being acceptable the
          moment the icon started carrying state. -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%237e828c%22%20stroke-width%3D%225%22%2F%3E%3C%2Fsvg%3E" />
+    <!-- Installed, this deck is an application: a Dock tile on macOS, a taskbar
+         and Start entry on Windows, a .desktop file in the launcher on Linux —
+         which is the one that matters most, because a launcher entry works on
+         Hyprland and Sway, where the system tray people ask for instead does
+         not exist. Chrome and Edge draw their own install control in the
+         address bar once this parses; Safari's File ▸ Add to Dock needs no
+         manifest but takes the name and icons from one. So the deck adds no UI
+         of its own for this, and has nothing to nag about.
+         The server withdraws this file when the port was invented rather than
+         chosen — an installed app is pinned to an origin, and an origin
+         includes the port. See src/server/app-manifest.mjs. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- The standalone window's title bar. The value here is the dark theme's
+         --panel, which is what a deck with nothing stored paints; App.tsx's
+         theme effect rewrites it from the sheet on every flip, because the
+         theme is a stored choice and a media-queried pair would follow the OS
+         past it. -->
+    <meta name="theme-color" content="#14161b" />
     <!-- The theme, before the first frame rather than after it.
          styles.css keys every colour off :root[data-theme=…] and reads a
          missing attribute as dark, so a light-theme user whose preference is
