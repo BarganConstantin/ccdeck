@@ -2116,6 +2116,34 @@ function Inner() {
   }, [theme]);
 
   /**
+   * The window's own title bar, which only an INSTALLED deck has.
+   *
+   * A standalone window tints its chrome from `<meta name="theme-color">`, so a
+   * deck left on the manifest's single value shows a near-black bar above a
+   * white page for every light-theme user who installed it.
+   *
+   * WRITTEN HERE RATHER THAN AS A MEDIA-QUERIED PAIR IN THE HEAD, which is the
+   * whole reason it is worth an effect: `prefers-color-scheme` is the OS, and
+   * this deck's theme is a STORED CHOICE allowed to disagree with it — see the
+   * bootstrap in index.html. A pair in the head would be right for everyone who
+   * never pressed T and wrong for exactly the people who did.
+   *
+   * FROM THE PALETTE, NOT FROM cssVar. The palette is already this deck's one
+   * snapshot of the theme's colours and it already holds `--panel`; calling
+   * cssVar again would be a second `getComputedStyle` for a value that has just
+   * been read, and render-path-cost-612-613.test.ts pins the mention count for
+   * that reason. Keyed on the palette rather than on the theme so it runs after
+   * the effect above has replaced it, never on the frame still holding the old
+   * one. `--panel` because the top of this page is the topbar, and the topbar's
+   * gradient starts there.
+   */
+  useEffect(() => {
+    const bar = document.querySelector('meta[name="theme-color"]');
+    const panel = palette["--panel"];
+    if (bar && panel) bar.setAttribute("content", panel);
+  }, [palette]);
+
+  /**
    * Put the pane where the deck wants it — and make sure it gets there.
    *
    * One door for every viewport the deck asks for, because there are two ways
