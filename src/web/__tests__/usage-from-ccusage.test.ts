@@ -14,7 +14,10 @@
 // Fixtures are the real shapes, taken from a live run against this machine's
 // own transcripts — including the two field names that are easy to guess wrong.
 import { describe, it, expect } from "vitest";
-import { PERIODS, sinceFor, modelRows, sessionRows, rangeTotals } from "../usage-from-ccusage";
+import {
+  PERIODS, sinceFor, modelRows, sessionRows, rangeTotals,
+  sessionListScale, sessionListNote,
+} from "../usage-from-ccusage";
 
 /** What `/api/ccusage` really returns for one day. */
 const RANGE = {
@@ -231,6 +234,77 @@ describe("the headline", () => {
     // Zero is information; blank is a fault.
     for (const empty of [null, undefined, {}, { days: [] }]) {
       expect(rangeTotals(empty as never)).toMatchObject({ cost: 0, tokens: 0 });
+    }
+  });
+});
+
+describe("the session list against the figure above it", () => {
+  // ONE READING, NOT ONE VERSION. Through ccusage 20.0.20 a session row carried
+  // the session's lifetime whatever `--since` said; 20.0.21 scopes it to the
+  // window (measured 2026-09-17 on one machine: a session that spanned two days
+  // reported $26.13 under 20.0.20 for today and $24.81 under 20.0.21, against
+  // $25.01 for all time). The deck installs `ccusage@latest` and refreshes it
+  // daily, so it cannot know which of the two answered, and the panel therefore
+  // measures the reading in hand instead of naming a version.
+  const money = (n: number) => `$${n.toFixed(2)}`;
+
+  it("sees a list that out-sums its period", () => {
+    // RANGE's own rows: $376.88 + $88.00 + $0.72 under a day ccusage put at
+    // $803.58 — the lifetime-totals shape, and the arithmetic a reader can
+    // catch without being told.
+    const scale = sessionListScale({ ...RANGE, totals: { ...RANGE.totals, totalCost: 400 } });
+    expect(scale.sum).toBeCloseTo(465.6, 6);
+    expect(scale.total).toBe(400);
+    expect(scale.over).toBe(true);
+  });
+
+  it("says nothing extra when the rows sit under the period", () => {
+    const scale = sessionListScale(RANGE);
+    expect(scale.over).toBe(false);
+    expect(sessionListNote("today", scale, money))
+      .toBe("Sessions with activity today, and what ccusage puts against each one.");
+  });
+
+  it("names both figures when it does speak", () => {
+    const scale = sessionListScale({ ...RANGE, totals: { ...RANGE.totals, totalCost: 400 } });
+    const note = sessionListNote("today", scale, money);
+    expect(note).toContain("$465.60");
+    expect(note).toContain("$400.00");
+    // The reason is about the two measurements, never about a version or about
+    // a session's lifetime — the fact that stopped being one.
+    expect(note).not.toMatch(/lifetime|since it started|20\.0\.2/);
+  });
+
+  it("counts every row, not the twelve the panel draws", () => {
+    // The panel cuts its list at twelve; a scale measured off the cut list
+    // would understate the sum by everything the cut removed and could only
+    // ever fail in the safe-looking direction.
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      period: `0000000${i}-0000-4000-8000-00000000000${i % 10}`, agent: "claude", totalCost: 10,
+    }));
+    const scale = sessionListScale({ sessions: many, totals: { totalCost: 150 } });
+    expect(scale.sum).toBe(200);
+    expect(scale.over).toBe(true);
+  });
+
+  it("keeps rounding out of it", () => {
+    // A cent over a $500 day is not an arithmetic the reader can see fail, and
+    // saying so would put a permanent caveat under every honest list.
+    expect(sessionListScale({ sessions: [{ totalCost: 500.004 }], totals: { totalCost: 500 } }).over)
+      .toBe(false);
+    // …and the same on the small end, where one per cent is a fraction of a
+    // cent: the floor is what catches it.
+    expect(sessionListScale({ sessions: [{ totalCost: 0.052 }], totals: { totalCost: 0.05 } }).over)
+      .toBe(false);
+    expect(sessionListScale({ sessions: [{ totalCost: 0.09 }], totals: { totalCost: 0.05 } }).over)
+      .toBe(true);
+  });
+
+  it("is quiet about a range with no sessions in it", () => {
+    for (const empty of [null, undefined, {}, { sessions: [] }]) {
+      const scale = sessionListScale(empty as never);
+      expect(scale).toMatchObject({ sum: 0, over: false });
+      expect(sessionListNote("today", scale, money)).not.toContain("more than");
     }
   });
 });
