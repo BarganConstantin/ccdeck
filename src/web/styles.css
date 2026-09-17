@@ -12310,6 +12310,15 @@ input, textarea { caret-color: var(--accent); }
 }
 .fm-litter svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
 
+/* It settles onto the ledge instead of being there suddenly. Nothing in this
+   scene should pop: a thing that exists between one frame and the next is the
+   same cheapness as headphones blinking off a head. */
+.fm-litter { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes fm-settle {
+  0%   { transform: translateX(calc(var(--fm-litter-x, 0px) - 21px)) translateY(-5px); opacity: 0; }
+  100% { transform: translateX(calc(var(--fm-litter-x, 0px) - 21px)) translateY(0);    opacity: 1; }
+}
+
 /* In hand: at the character's side, at the height of its feet, so the throw
    starts from where something would actually be held. */
 .fm-held {
@@ -12404,7 +12413,33 @@ input, textarea { caret-color: var(--accent); }
    the SVG viewport, which is what lets "bottom centre" mean the character's
    feet — without it a rotation swings the sprite around a corner of the canvas
    coordinate system and it leaves the frame entirely. */
-.fm-gear, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
+.fm-gear, .fm-gear-motion, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
+
+/* WHERE THE HEADPHONES ARE WORN, which is the one thing about this character
+   that says whether anything is playing without a word or a colour. On the head
+   while the music is on; slid down around its neck when it is not.
+
+   The neck position costs nothing to draw: the group is painted before the
+   body, so as it travels down the band goes behind the head and is simply gone,
+   and the cups end up tucked behind the arms. What is left is a bare head,
+   which reads instantly at 54px — far better than the headphones blinking out
+   of existence, which is what this did first and looked exactly as cheap as it
+   sounds.
+
+   The tilt is what stops it being a lift shaft: they arc off to one side, the
+   way a band pivots when it is pushed back off the ears.
+
+   This wanted a back-out curve — headphones really do come off with a little
+   more travel than they need and settle back — and it does not get one. #860
+   settled that for the whole sheet after every tool bubble sprang past its own
+   size: what you see hundreds of times a day does not celebrate. The music
+   stopping is one of those things. So it arrives on the sheet's own ease-out,
+   fast at first and slow into place, and stops where it is going. */
+.fm-gear {
+  transform: translateY(4px) rotate(-7deg);
+  transition: transform 460ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fm-sprite[data-playing] .fm-gear { transform: translateY(0) rotate(0deg); }
 
 /* THE DANCE, which is three things a bob alone was not.
    Squash and stretch, and it goes both ways at once: the body widens as it
@@ -12416,9 +12451,34 @@ input, textarea { caret-color: var(--accent); }
    the head instead of being bolted to it — the difference between a character
    wearing headphones and a sprite with headphones painted on.
    800ms is 75bpm, which is the tempo the thing it is dancing to is usually at.
-   The distances are in the sprite's own units, where 1 unit is 3 screen px. */
-.fm-sprite[data-playing] .fm-body { animation: fm-bob 800ms ease-in-out infinite; }
-.fm-sprite[data-playing] .fm-gear { animation: fm-nod 800ms ease-in-out -90ms infinite; }
+   The distances are in the sprite's own units, where 1 unit is 3 screen px.
+
+   THERE ARE THREE OF THESE AND THE TEMPO DRIFTS. One cycle repeated forever
+   reads as a GIF: the eye learns an 800ms loop in about four seconds and then
+   stops looking. Which dance is playing and how fast arrive as custom
+   property and WHICH one as a `data-dance` attribute — three rules rather than
+   one. Driving `animation-name` through a variable too was briefly one rule and
+   hid all three sets from bubble-motion.test.ts, which exists to catch a
+   @keyframes set nothing runs and an animation naming a set that is not there.
+   A sheet its own guards cannot read is not a saving, so the names are here in
+   full and the reduced-motion block below names them again.
+
+   None of this listens to the music, and none of it can: the player is a
+   cross-origin iframe, the page cannot reach its audio element, and a tainted
+   source hands an analyser silence. It is not dancing TO the track. It is only
+   not dancing the same way twice in a row. */
+.fm-sprite[data-playing][data-dance="bob"] .fm-body {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-sprite[data-playing][data-dance="sway"] .fm-body {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-sprite[data-playing][data-dance="groove"] .fm-body {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-sprite[data-playing] .fm-gear-motion {
+  animation: fm-nod var(--fm-beat, 800ms) ease-in-out -90ms infinite;
+}
 
 @keyframes fm-bob {
   0%   { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
@@ -12432,16 +12492,34 @@ input, textarea { caret-color: var(--accent); }
   50%      { transform: translate(0.2px, 0)  rotate(1.2deg); }
 }
 
+/* A slow lean with almost no lift — what somebody does to something calm. */
+@keyframes fm-sway {
+  0%, 100% { transform: translate(-0.5px, 0)     scale(1.02, 0.98) rotate(-5.5deg); }
+  50%      { transform: translate(0.5px, -0.15px) scale(1.02, 0.98) rotate(5.5deg); }
+}
+
+/* Straight up and down, twice a bar, leaning the other way each time. The
+   busiest of the three and the one that reads from furthest away. */
+@keyframes fm-groove {
+  0%   { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  20%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(-4.5deg); }
+  50%  { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  70%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(4.5deg); }
+  100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+}
+
 /* THE WALK, and it is two frames rather than a curve on purpose. A pixel
    character that eases between poses looks like a picture being tweened; one
    that snaps between two poses looks like it is taking steps. So the keyframes
-   hold each pose for exactly half the cycle and the timing function is linear —
-   there is nothing in between to interpolate. 440ms is a stride at the pace
+   hold each pose for most of the half-cycle rather than all of it: a 12% linear
+   handover, about 50ms, which is too fast to read as a tween and just long
+   enough that the change is a movement rather than a jump. A hard cut at 49.99%
+   was the first build and it juddered. 440ms is a stride at the pace
    --fm-walk-ms carries it along the ledge at. */
 :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body {
   animation: fm-step 440ms linear infinite;
 }
-:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear {
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion {
   animation: fm-step 440ms linear -60ms infinite;
 }
 
@@ -12474,8 +12552,8 @@ input, textarea { caret-color: var(--accent); }
 }
 
 @keyframes fm-step {
-  0%, 49.99%   { transform: translateY(0)      rotate(-1.5deg); }
-  50%, 100%    { transform: translateY(-0.5px) rotate(1.5deg); }
+  0%, 44%   { transform: translateY(0)      rotate(-1.4deg); }
+  56%, 100% { transform: translateY(-0.5px) rotate(1.4deg); }
 }
 
 /* A character dancing and wandering in the corner of a monitoring tool is
@@ -12486,11 +12564,14 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm-walker { transition: none; }
-  .fm-sprite[data-playing] .fm-body,
-  .fm-sprite[data-playing] .fm-gear,
+  .fm-walker, .fm-gear { transition: none; }
+  .fm-sprite[data-playing][data-dance="bob"] .fm-body,
+  .fm-sprite[data-playing][data-dance="sway"] .fm-body,
+  .fm-sprite[data-playing][data-dance="groove"] .fm-body,
+  .fm-sprite[data-playing] .fm-gear-motion,
+  .fm-litter,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
-  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
   .fm-walker[data-act="stoop"] .fm-sprite,
   .fm-held[data-toss],
   .fm-eye { animation: none; }

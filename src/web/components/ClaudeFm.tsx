@@ -44,7 +44,8 @@ import {
 import {
   choreSteps, CHORE_CHANCE, command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME,
   GEAR_CELLS, listenCommand, LITTER, LITTER_H, LITTER_W, litterSpot, nextIdleMs, nextWalk,
-  PLAYER_ORIGIN, readSignal, spriteRects, SPRITE_H, SPRITE_W, type ChoreStep,
+  PLAYER_ORIGIN, readSignal, spriteRects, SPRITE_H, SPRITE_W,
+  BEAT_MS, DANCES, nextDance, nextDanceMs, type ChoreStep, type Dance,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -109,6 +110,11 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  do both. */
     const [litter, setLitter] = useState<number | null>(null);
     const [held, setHeld] = useState(false);
+    /** Which of the three dances, and at what tempo. Changed every ten seconds
+     *  or so while the music is on — one loop repeated forever reads as a GIF
+     *  rather than as a character. */
+    const [dance, setDance] = useState<Dance | null>(null);
+    const [beatMs, setBeatMs] = useState(BEAT_MS);
 
     const frame = useRef<HTMLIFrameElement | null>(null);
     const duckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,6 +231,23 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
     }, [probe, dead, playing]);
 
+    // IT CHANGES ITS MIND. Only while something is playing — there is nothing to
+    // dance to otherwise, and a timer running for a character standing still is
+    // a timer running for nothing.
+    useEffect(() => {
+      if (!playing) { setDance(null); return; }
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const pick = (from: Dance | null) => {
+        const next = nextDance(from, Math.random);
+        setDance(next.dance);
+        setBeatMs(next.beatMs);
+        timer = setTimeout(() => pick(next.dance), nextDanceMs(Math.random));
+      };
+      pick(null);
+      return () => { if (timer) clearTimeout(timer); };
+    }, [playing]);
+
     useImperativeHandle(ref, () => ({
       duck(ms: number) {
         if (!playing) return;
@@ -250,7 +273,10 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     };
 
     return (
-      <div className="fm">
+      <div
+        className="fm"
+        style={{ "--fm-beat": `${beatMs}ms` } as CSSProperties}
+      >
         {/* On the ledge, and not inside the walker: a thing lying on the floor
             does not travel with whoever is about to pick it up. */}
         {litter != null && (
@@ -280,6 +306,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
           type="button"
           className="fm-sprite"
           data-playing={playing ? "" : undefined}
+          data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
           title={playing ? "Stop Claude FM" : "Play Claude FM — streams from YouTube"}
@@ -289,14 +316,29 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             {/* Two groups so the body can bob while the cups hold still — a
                 character whose headphones swim around its head reads as a
                 glitch rather than as dancing. */}
+            {/* TWO NESTED GROUPS, AND THE NESTING IS THE WHOLE TRICK. The outer
+                one owns where the headphones are WORN — on the head while
+                something is playing, down around the neck when nothing is — and
+                the inner one owns how they move while worn. One element cannot
+                hold both: a transition and an animation on the same transform
+                do not compose, the animation simply wins, and the headphones
+                would snap between the two positions instead of travelling.
+
+                DRAWN BEFORE THE BODY ON PURPOSE. SVG paints in document order,
+                so the body covers this — and that is what makes the neck
+                position free: the band slides down behind the head and is
+                simply gone, with the cups tucked behind the arms. Nothing has
+                to be hidden, because nothing was ever in front. */}
             <g className="fm-gear">
-              {spriteRects().filter(r => GEAR_CELLS.has(r.cell)).map(r => (
-                <rect
-                  key={`g${r.y}-${r.x}`}
-                  x={r.x} y={r.y} width={r.w} height={1}
-                  className={CELL_CLASS[r.cell]}
-                />
-              ))}
+              <g className="fm-gear-motion">
+                {spriteRects().filter(r => GEAR_CELLS.has(r.cell)).map(r => (
+                  <rect
+                    key={`g${r.y}-${r.x}`}
+                    x={r.x} y={r.y} width={r.w} height={1}
+                    className={CELL_CLASS[r.cell]}
+                  />
+                ))}
+              </g>
             </g>
             <g className="fm-body">
               {spriteRects().filter(r => !GEAR_CELLS.has(r.cell)).map(r => (

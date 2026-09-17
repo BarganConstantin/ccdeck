@@ -168,6 +168,12 @@ export function duckMsFor(notes: readonly { at: number; ms: number }[]): number 
  * of two, and the whole thing is drawn on 18 columns rather than 16 so the legs
  * have somewhere to be.
  *
+ * The arms are the fourth pass, and they cost two rows rather than two
+ * columns: the ear cups run down both sides of the head, so there is nowhere
+ * for an arm to come out until below them. The cups end a row earlier than they
+ * did and the two rows under them are wide — which also gives the silhouette a
+ * waist it did not have, since the body narrows again below the arms.
+ *
  * The detail is the third pass, and all of it is one column wide. A flat fill
  * reads as a shape rather than as a body, so the right-hand column of every
  * body row is a shade — one light source, from the left, consistently — and
@@ -183,12 +189,12 @@ export const SPRITE: readonly string[] = [
   "....aa......aa....",
   "...a..bbbbbs..a...",
   "...cpcbbbbbscpc...",
-  "...cpcbbbbbscpc...",
   "...cpcbebbescpc...",
   "...cpcbbbbbscpc...",
   "...cpcbbbbbscpc...",
   "....ccbbbbbscc....",
-  "......bbbbbs......",
+  "....bbbbbbbbbs....",
+  "....bbbbbbbbbs....",
   "......bbbbbs......",
   "......bb..bs......",
   "......bb..bs......",
@@ -369,3 +375,59 @@ export const LITTER: readonly string[] = [
 ];
 export const LITTER_W = 4;
 export const LITTER_H = LITTER.length;
+
+// ── the dance is not one loop ───────────────────────────────────────────────
+//
+// One cycle repeated forever reads as a GIF rather than as a character: the eye
+// learns an 800ms loop in about four seconds and then stops looking. So there
+// are three of them and it changes its mind every ten seconds or so, and the
+// tempo drifts a few percent each time it does.
+//
+// Nothing here listens to the music, and nothing can: the player is a
+// cross-origin iframe, so the page cannot reach the audio element, and a
+// tainted source would hand an analyser silence anyway. The only route to real
+// beat detection is tab capture, which costs a permission prompt and a sharing
+// banner — far too much for a character in a corner. This is the honest
+// alternative: it is not dancing TO the track, it is just not dancing the same
+// way twice in a row.
+
+export const DANCES = ["bob", "sway", "groove"] as const;
+export type Dance = typeof DANCES[number];
+
+/** How long it keeps one dance before picking another. Long enough that the
+ *  change is noticed rather than watched for. */
+export const DANCE_MIN_MS = 9_000;
+export const DANCE_MAX_MS = 16_000;
+
+/** The tempo, and how far either side of it a dance may land. 800ms is 75bpm,
+ *  which is about where the thing it is dancing to usually sits; the drift is
+ *  small enough to stay in that band and large enough that two dances in a row
+ *  are not the same speed. */
+export const BEAT_MS = 800;
+export const BEAT_DRIFT = 0.08;
+
+/**
+ * The next dance, which is never the one it is already doing.
+ *
+ * The names are the sheet's `data-dance` values rather than keyframe names on
+ * purpose. Driving `animation-name` through a custom property was one rule
+ * instead of three and hid every dance from bubble-motion.test.ts, which exists
+ * to catch exactly that: a @keyframes set the sheet no longer runs, and an
+ * animation naming a set that is not there. A stylesheet its own guards cannot
+ * read is not a saving.
+ *
+ * Picking uniformly at random would repeat about a third of the time, and a
+ * repeat is indistinguishable from the loop this exists to break — the change
+ * has to be visible or it has not happened.
+ */
+export function nextDance(current: Dance | null, rand: () => number): { dance: Dance; beatMs: number } {
+  const others = DANCES.filter(d => d !== current);
+  const dance = others[Math.min(others.length - 1, Math.floor(rand() * others.length))];
+  const drift = (rand() * 2 - 1) * BEAT_DRIFT;
+  return { dance, beatMs: Math.round(BEAT_MS * (1 + drift)) };
+}
+
+/** How long to hold it. */
+export function nextDanceMs(rand: () => number): number {
+  return Math.round(DANCE_MIN_MS + rand() * (DANCE_MAX_MS - DANCE_MIN_MS));
+}

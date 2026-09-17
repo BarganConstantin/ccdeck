@@ -18,6 +18,7 @@ import {
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
   BIN_X, choreSteps, CHORE_CHANCE, litterSpot, TOSS_WINDUP_MS, walkMsFor,
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
 
@@ -445,6 +446,80 @@ describe("the character", () => {
     expect(component).not.toContain("nopan");
   });
 
+  it("takes the headphones off when there is nothing to listen to", () => {
+    // The one thing about this character that says whether anything is playing,
+    // without a word or a colour. Worn on the head with the music on, slid down
+    // around its neck without.
+    expect(decl(".fm-gear", "transform")).toBe("translateY(4px) rotate(-7deg)");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "transform")).toBe("translateY(0) rotate(0deg)");
+    // It TRAVELS there. Blinking out of existence is what this did first and it
+    // looked exactly as cheap as it sounds.
+    // On the sheet's own ease-out and not a back-out curve, however much this
+    // one wanted a bounce: #860 settled that for the whole sheet after every
+    // tool bubble sprang past its size.
+    expect(decl(".fm-gear", "transition")).toBe("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
+    expect(css).not.toMatch(/\.fm-gear[^{]*\{[^}]*(display: none|visibility: hidden)/);
+    // Which needs two groups: a transition and an animation on one transform do
+    // not compose — the animation wins and the headphones would snap.
+    expect(component).toContain('<g className="fm-gear">');
+    expect(component).toContain('<g className="fm-gear-motion">');
+    // And the gear is drawn BEFORE the body, which is what makes the neck
+    // position free: SVG paints in document order, so the body covers the band.
+    expect(component.indexOf('className="fm-gear"')).toBeLessThan(component.indexOf('className="fm-body"'));
+  });
+
+  it("does not dance the same way twice in a row", () => {
+    // One cycle repeated forever reads as a GIF. Picking uniformly would repeat
+    // about a third of the time, and a repeat is indistinguishable from the loop
+    // this exists to break.
+    expect(DANCES.length).toBeGreaterThan(2);
+    for (const current of DANCES) {
+      for (let i = 0; i <= 20; i++) {
+        const next = nextDance(current, () => i / 20);
+        expect(next.dance).not.toBe(current);
+        expect(DANCES).toContain(next.dance);
+      }
+    }
+    // Null is where it starts, and anything is allowed then.
+    expect(DANCES).toContain(nextDance(null, () => 0).dance);
+  });
+
+  it("drifts the tempo without leaving the band it belongs in", () => {
+    for (let i = 0; i <= 20; i++) {
+      const { beatMs } = nextDance("bob", () => i / 20);
+      expect(beatMs).toBeGreaterThanOrEqual(Math.round(BEAT_MS * (1 - BEAT_DRIFT)));
+      expect(beatMs).toBeLessThanOrEqual(Math.round(BEAT_MS * (1 + BEAT_DRIFT)));
+    }
+    // 800ms is 75bpm, about where the thing it is dancing to usually sits.
+    expect(BEAT_MS).toBe(800);
+    expect(BEAT_DRIFT).toBeLessThan(0.15);
+    expect(nextDanceMs(() => 0)).toBe(DANCE_MIN_MS);
+    expect(nextDanceMs(() => 1)).toBe(DANCE_MAX_MS);
+  });
+
+  it("changes its mind only while something is playing", () => {
+    // A timer running for a character standing still is a timer running for
+    // nothing.
+    expect(component).toContain("if (!playing) { setDance(null); return; }");
+  });
+
+  it("listens to no audio, because it cannot", () => {
+    // The player is a cross-origin iframe: the page cannot reach its audio
+    // element, and a tainted source hands an analyser silence. Anything here
+    // claiming to react to sound would be a lie told with a timer.
+    for (const src2 of [component, code("../claude-fm.ts")]) {
+      expect(src2).not.toMatch(/AnalyserNode|createMediaElementSource|getByteFrequency|getDisplayMedia/);
+    }
+  });
+
+  it("settles the litter onto the ledge instead of blinking it into being", () => {
+    expect(decl(".fm-litter", "animation")).toMatch(/^fm-settle 320ms/);
+    expect(css).toMatch(/@keyframes fm-settle/);
+    // The settle has to carry the position too, or the animation would snap the
+    // litter back to the right-hand end for its duration.
+    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-litter-x/);
+  });
+
   it("keeps its weight in both themes, which is not the same number twice", () => {
     // 0.55 is a dark-theme number: there the accent is a bright ink on
     // near-black and survives being halved. In light it is a dark ink on a
@@ -462,9 +537,20 @@ describe("the character", () => {
   });
 
   it("dances only while the music is on", () => {
-    expect(css).toMatch(/\.fm-sprite\[data-playing\] \.fm-body \{ animation: fm-bob/);
-    expect(css).toMatch(/\.fm-sprite\[data-playing\] \.fm-gear \{ animation: fm-nod/);
-    expect(css).toMatch(/@keyframes fm-bob/);
+    // One rule per part, with WHICH dance carried as a custom property — so
+    // adding a fourth costs a @keyframes block and nothing else, and the
+    // reduced-motion block below keeps naming the same two selectors.
+    // The sheet names every set it runs, in full. Driving `animation-name`
+    // through a custom property was one rule instead of three and hid all three
+    // from bubble-motion.test.ts — which exists to catch a @keyframes set
+    // nothing runs, and an animation naming a set that is not there.
+    for (const d of DANCES) {
+      expect(css).toContain(`@keyframes fm-${d}`);
+      expect(decl(`.fm-sprite[data-playing][data-dance="${d}"] .fm-body`, "animation"))
+        .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
+    }
+    expect(decl(".fm-sprite[data-playing] .fm-gear-motion", "animation"))
+      .toBe("fm-nod var(--fm-beat, 800ms) ease-in-out -90ms infinite");
     expect(css).toMatch(/@keyframes fm-nod/);
     // No animation on the resting sprite at all.
     expect(decl(".fm-sprite", "animation")).toBeNull();
@@ -478,7 +564,10 @@ describe("the character", () => {
     // Carrying something is still walking.
     expect(css).toContain('.fm-walker[data-act="carry"]');
     expect(css).toMatch(/animation: fm-step 440ms linear infinite/);
-    expect(css).toMatch(/@keyframes fm-step \{\s*0%, 49\.99%/);
+    // Two poses, but handed over rather than cut: a 12% linear handover is too
+    // fast to read as a tween and long enough that the change is a movement
+    // rather than a jump. The hard cut at 49.99% juddered.
+    expect(css).toMatch(/@keyframes fm-step \{\s*0%, 44%/);
     // The curve is a compromise: pure linear starts and stops dead, a full ease
     // makes the middle race and the feet stop matching the ground. This is the
     // gentlest symmetric curve that keeps most of the trip near constant speed.
@@ -594,16 +683,19 @@ describe("the character", () => {
     const blocks = [...css.matchAll(reduce)].map(m => m[1]).join("\n");
     // All of it: the dance, the walk and the press.
     for (const gone of [
-      ".fm-sprite[data-playing] .fm-body",
-      ".fm-sprite[data-playing] .fm-gear",
+      '.fm-sprite[data-playing][data-dance="bob"] .fm-body',
+      '.fm-sprite[data-playing][data-dance="sway"] .fm-body',
+      '.fm-sprite[data-playing][data-dance="groove"] .fm-body',
+      ".fm-sprite[data-playing] .fm-gear-motion",
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
-      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear',
+      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
       '.fm-walker[data-act="stoop"] .fm-sprite',
+      ".fm-litter",
       ".fm-held[data-toss]",
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });
@@ -639,12 +731,20 @@ describe("the hidden player", () => {
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
+/** A declaration, read out of the sheet.
+ *
+ *  Every block with this EXACT selector is searched, not just the first one:
+ *  a name can legitimately own more than one rule — `.fm-gear` is given its
+ *  colour where the inks are set and its position where the motion is — and a
+ *  helper that stopped at the first match reported the second as absent. */
 function decl(selector: string, prop: string): string | null {
-  const re = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`, "m");
-  const body = re.exec(css)?.[1];
-  if (body == null) return null;
-  const m = new RegExp(`(?:^|[;{\\s])${prop.replace(/[-]/g, "\\-")}\\s*:\\s*([^;]+)`, "m").exec(body);
-  return m ? m[1].trim() : null;
+  const re = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`, "mg");
+  const want = new RegExp(`(?:^|[;{\\s])${prop.replace(/[-]/g, "\\-")}\\s*:\\s*([^;]+)`, "m");
+  for (const block of css.matchAll(re)) {
+    const m = want.exec(block[1]);
+    if (m) return m[1].trim();
+  }
+  return null;
 }
 
 /** A Response whose body is one chunk. */
