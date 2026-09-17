@@ -104,8 +104,11 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
  * list the reader owns and switches between, so the switch stays in this
  * column rather than behind a view and a way back.
  */
-export default function OtherAccounts({ peers, strained, armed, open, onToggle }: {
+export default function OtherAccounts({ peers, strained, armed, threshold, open, onToggle }: {
   peers: Peer[];
+  /** Where auto-switch trips. This row says it because the control that sets
+   *  it is behind this row now. */
+  threshold: string | null;
   /** The live account is past the threshold auto-switch would act on, so where
    *  to go next is the question being asked rather than a number to hide. */
   strained: boolean;
@@ -145,12 +148,15 @@ export default function OtherAccounts({ peers, strained, armed, open, onToggle }
   // "where do I go" before the reader unfolds anything; once they have, the
   // rows underneath say it per account, and a summary repeating one of them
   // makes a reader check whether the two are counting the same thing.
-  const line = restLine(peers, { strained: strained && !open, armed });
+  const line = restLine(peers, { strained: strained && !open, armed, threshold });
   return (
     <div className="ap-rest">
       <button type="button" id="ap-rest-entry" className="ap-nav"
         aria-expanded={open}
-        aria-controls={open ? "ap-rest-list" : undefined}
+        // THE WHOLE BOX, not the list inside it. The press reveals the accounts
+        // AND the policy over them; naming only the list would tell a screen
+        // reader that half of what appeared is not what this row controls.
+        aria-controls={open ? "ap-rest-panel" : undefined}
         // Described by the card while the card is there, so a screen reader on
         // this row is read the same names a pointer is shown.
         aria-describedby={peek ? "ap-rest-peek" : undefined}

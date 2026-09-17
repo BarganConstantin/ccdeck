@@ -93,6 +93,10 @@ export function restLine(peers: readonly Peer[], mode: {
    *  `cswap auto` in a terminal, which does the same job while the deck stands
    *  down. Both mean the reader is not the one picking. */
   armed: boolean;
+  /** Where the policy trips, as the store spells it, or null while the panel
+   *  has not read it yet. Printed because the control that sets it now lives
+   *  behind this row — see the tail clause below. */
+  threshold?: string | null;
 }): {
   text: string;
   tone: "ok" | "idle" | "bad";
@@ -116,7 +120,16 @@ export function restLine(peers: readonly Peer[], mode: {
       : `${ready.length} of ${peers.length} ready`;
   const tone = ready.length ? "ok" as const : "idle" as const;
   const free = mode.strained && !mode.armed ? bestFree(ready) : null;
-  return { text: free == null ? base : `${base} · ${free}% free`, tone, free };
+  const clauses = [base];
+  if (free != null) clauses.push(`${free}% free`);
+  // THE TAIL IS ALWAYS THE POLICY, and it is here because the control moved
+  // behind this row. A toggle nobody can see is a toggle nobody can tell the
+  // state of, and `off` has to be as sayable as `on`: a row that only spoke
+  // when the policy was armed would leave a reader unable to tell a deck that
+  // will not switch from a row that does not mention switching. The threshold
+  // rides with `on` because it is the whole of what on MEANS here.
+  clauses.push(mode.armed ? `auto ${mode.threshold ?? "on"}${mode.threshold ? "%" : ""}` : "auto off");
+  return { text: clauses.join(" · "), tone, free };
 }
 
 /** The most room any of these has left, or null when none of them has ever been

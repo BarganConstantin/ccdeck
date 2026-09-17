@@ -30,7 +30,11 @@ describe("a switch answers on the row it was about (#827)", () => {
     // `view` and `data` guards it carried are its container's now.
     expect(panel).toMatch(/\{failure && failure\.row == null && \(\s*<div className="ap-failure" role="alert">/);
     expect(panel.indexOf('{failure && failure.row == null && (')).toBeGreaterThan(panel.indexOf('<ul className="ap-list">'));
-    expect(panel.indexOf('{failure && failure.row == null && (')).toBeLessThan(panel.indexOf('className="ap-policy-block"'));
+    // It did NOT follow the policy behind the fold: a refusal a collapse could
+    // put out of sight is a refusal the reader can lose, so it stays in the
+    // column while the control it is about may not be.
+    expect(panel.indexOf('{failure && failure.row == null && (')).toBeGreaterThan(panel.indexOf('{rest.length === 0 && policyBlock}'));
+    expect(panel.indexOf('{failure && failure.row == null && (')).toBeLessThan(panel.indexOf('<LanSyncSection'));
   });
 
   it("keeps a refused switch on its row through the reload that follows it", () => {

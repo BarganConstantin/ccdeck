@@ -7879,6 +7879,16 @@ button.qb-pace::after {
    rule, which is why the block can hold a list of any length without becoming
    a card. */
 .ap-policy-block { padding: 2px var(--panel-inset) 14px; }
+/* WHAT THE FOLD OPENS: the accounts, and the policy over them. It is the flex
+   line that gives, so the list inside it can take the room that is left and
+   scroll; the policy under the list never does. */
+.ap-rest-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.ap-rest-panel > .ap-policy-block { flex: none; }
 /* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN. A region that scrolls inside
    itself ends on a row cut in half, and at this width that reads as a glitch
    rather than as a boundary — there is no container edge, no change of ground,
