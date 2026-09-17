@@ -45,8 +45,10 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW, nextDance, nextDanceMs, WALK_SPAN_PX,
-  type Act, type Dance, type Facing, type Ground, type Place, type Prop, type Step,
+  BEAT_MS, crossSteps, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW,
+  nextDance, nextDanceMs, WALK_SPAN_PX,
+  type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
+  type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -114,6 +116,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     /** Which way it is looking. Without it a symmetric sprite walking left is
      *  the same picture as one walking right, which reads as reversing. */
     const [facing, setFacing] = useState<Facing>("left");
+    /** How far above its surface it is standing. Non-zero only when it is on
+     *  top of something sitting on the canvas floor. */
+    const [riser, setRiser] = useState(0);
     const scene = useRef<HTMLDivElement | null>(null);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
@@ -212,6 +217,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setProp(step.prop);
         setPlace(step.place ?? "ledge");
         setFacing(was => facingFor(step, here, was));
+        setRiser(step.riser ?? 0);
         const to = reachable(step);
         setX(to);
         here = to;
@@ -261,6 +267,32 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
 
       /**
+       * Whatever is standing on the canvas floor in the character's way.
+       *
+       * The deck's controls sit on that floor and the character walks along it,
+       * so without this it strolls straight through the Auto-fit chip as though
+       * the chip were a picture of one. Read from the page each time a walk is
+       * planned: the chip only exists while auto-fit is off, and a walk planned
+       * when it was there must not assume it still is.
+       *
+       * Converted into the character's own coordinates, which count leftward
+       * from the scene's right edge.
+       */
+      const obstacle = (): Obstacle | null => {
+        const el = scene.current;
+        const chip = document.querySelector<HTMLElement>(".autofit-chip");
+        if (!el || !chip) return null;
+        const box = el.getBoundingClientRect();
+        const bar = chip.getBoundingClientRect();
+        if (bar.width <= 0 || bar.height <= 0) return null;
+        return {
+          left: bar.left - box.right,
+          right: bar.right - box.right,
+          height: bar.height,
+        };
+      };
+
+      /**
        * The step's target, brought inside whatever room there is NOW.
        *
        * A trip is planned in one go against the floor it measured at the time,
@@ -282,7 +314,26 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
 
       const idle = () => {
-        timer = setTimeout(() => run(nextActivity(here, Math.random, ground())), nextIdleMs(Math.random));
+        timer = setTimeout(() => {
+          const plan = nextActivity(here, Math.random, ground());
+          // A walk along the floor goes OVER whatever is standing on it. Every
+          // other step is left exactly as planned — only floor walks can meet
+          // anything, and only they are rewritten.
+          const bar = plan.some(st => st.place === "floor") ? obstacle() : null;
+          // Each walk is rewritten from where the one before it left off, so
+          // the crossing knows which side of the obstacle it is approaching
+          // from. Only floor walks can meet anything; every other step is
+          // passed through exactly as planned.
+          let at = here;
+          const walked = plan.flatMap(st => {
+            const from = at;
+            at = st.x;
+            return st.place === "floor" && st.act === "walk"
+              ? crossSteps(from, st.x, bar)
+              : [st];
+          });
+          run(walked);
+        }, nextIdleMs(Math.random));
       };
 
       idle();
@@ -297,6 +348,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         // can litter for real.
         setAct(null);
         setProp(null);
+        setRiser(0);
       };
     }, [probe, dead]);
 
@@ -384,6 +436,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             // the ledge is not a thing a stylesheet can hold.
             "--fm-x": `${x}px`,
             "--fm-walk-ms": `${walkMs}ms`,
+            // How high whatever it is standing on is. Zero for the floor
+            // itself, and the height of the Auto-fit chip while it is up there.
+            "--fm-riser": `${riser}px`,
           } as CSSProperties}
         >
         {/* In hand, so it travels with the character — and on the way out,

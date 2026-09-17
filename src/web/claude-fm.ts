@@ -337,7 +337,9 @@ export function nextIdleMs(rand: () => number): number {
 export type Act =
   | "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch"
   // Leaving the ledge and getting back onto it.
-  | "peer" | "fall" | "land" | "lasso" | "climb";
+  | "peer" | "fall" | "land" | "lasso" | "climb"
+  // Getting onto and off something standing on the floor.
+  | "mount" | "dismount";
 
 /** A thing on the ledge it can do something with. */
 export interface Prop {
@@ -356,6 +358,9 @@ export interface Step {
   /** Which surface it is standing on by the end of it. Absent means the ledge,
    *  which is where it is for all but one activity. */
   place?: Place;
+  /** How far above that surface it is standing, for the one case where it is
+   *  standing on something: a control sitting on the canvas floor. */
+  riser?: number;
   /** The prop, or null when there is not one. */
   prop: Prop | null;
   act: Act;
@@ -534,7 +539,17 @@ export type Facing = "left" | "right";
  * `x` runs from 0 at the right-hand end of the ledge to -span at the left, so a
  * smaller number is further left. Standing still keeps whatever it had: it does
  * not spin round to face the viewer every time it stops.
+ *
+ * WHICH IS NOT THE SAME AS SHOWING IT. The facing is remembered whatever it is
+ * doing, and the eyes only move while it is actually travelling — a character
+ * parked on the ledge staring off to one side looks like it is avoiding your
+ * eye. Standing still, they sit where they are drawn.
  */
+export const MOVING_ACTS: readonly Act[] = ["walk", "carry"];
+
+export const isMoving = (act: Act | null): boolean =>
+  act != null && MOVING_ACTS.includes(act);
+
 export function facingFor(step: Step, from: number, prev: Facing): Facing {
   // Looking at the board, which is everything to the left of the minimap.
   if (step.act === "watch") return "left";
@@ -759,7 +774,53 @@ export function nextDanceMs(rand: () => number): number {
 export const LEG_TOP_ROW = 11;
 export const LEG_SPLIT_COL = 9;
 
-/** Where each leg meets the body, in the sprite's own units. A leg swings from
- *  its hip; swung from anywhere else it detaches. */
-export const HIP_LEFT: readonly [number, number] = [7, LEG_TOP_ROW];
-export const HIP_RIGHT: readonly [number, number] = [11, LEG_TOP_ROW];
+
+// ── things standing on the floor ────────────────────────────────────────────
+
+/** Something in the way, in the character's own coordinates. `left` and `right`
+ *  are both negative distances from the scene's right edge, with `left` the
+ *  smaller of the two. */
+export interface Obstacle { left: number; right: number; height: number }
+
+/** How long it takes to get up onto something, and down off it again. Short:
+ *  these are a step, not a climb — the thing being stepped onto is ankle high
+ *  next to the ledge it throws a rope at. */
+export const MOUNT_MS = 260;
+export const DISMOUNT_MS = 200;
+
+/**
+ * A walk from `from` to `to`, going OVER anything in the way rather than
+ * through it.
+ *
+ * The deck's controls sit on the canvas floor and the character walks along it,
+ * so without this it strolls straight through the Auto-fit chip as though the
+ * chip were a picture of a chip. Going over it is the only reading that makes
+ * the two objects share a world.
+ *
+ * Nothing is assumed about the obstacle being there: it is measured from the
+ * page at the moment a walk is planned, and a walk that does not reach it — or
+ * a page where it does not exist — is a plain walk with no extra steps at all.
+ */
+export function crossSteps(from: number, to: number, over: Obstacle | null): Step[] {
+  const plain = (x: number, ms = walkMsFor(from, x)): Step =>
+    ({ x, prop: null, act: "walk", ms, place: "floor" });
+
+  if (!over || over.height <= 0) return [plain(to)];
+  const lo = Math.min(from, to);
+  const hi = Math.max(from, to);
+  // Entirely one side of it, or entirely past it: nothing to climb.
+  if (hi <= over.left || lo >= over.right) return [plain(to)];
+
+  const goingRight = to > from;
+  const near = goingRight ? over.left : over.right;
+  const far = goingRight ? over.right : over.left;
+  const on = { place: "floor" as const, riser: over.height, prop: null };
+
+  return [
+    plain(near, walkMsFor(from, near)),
+    { ...on, x: near, act: "mount", ms: MOUNT_MS },
+    { ...on, x: far, act: "walk", ms: walkMsFor(near, far) },
+    { x: far, prop: null, act: "dismount", ms: DISMOUNT_MS, place: "floor" },
+    { x: to, prop: null, act: "walk", ms: walkMsFor(far, to), place: "floor" },
+  ];
+}

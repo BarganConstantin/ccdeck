@@ -17,12 +17,12 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, climbMsFor, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  ACTIVITIES, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
-  facingFor, HIP_LEFT, HIP_RIGHT, isFocused, LEG_TOP_ROW, nextDance, nextDanceMs,
+  facingFor, isFocused, LEG_TOP_ROW, MOVING_ACTS, nextDance, nextDanceMs,
   type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
@@ -556,10 +556,13 @@ describe("the character", () => {
     // which way it is travelling. Removing the second left a symmetric sprite
     // where walking left and walking right are the same picture, and what that
     // reads as is the character reversing.
-    expect(decl(".fm-eye", "transform"))
-      .toBe("translateX(var(--fm-eye-x, 0px)) scaleY(var(--fm-eye-h, 1))");
-    expect(decl('.fm-walker[data-facing="left"] .fm-eye', "--fm-eye-x")).toBe("-1px");
-    expect(decl('.fm-walker[data-facing="right"] .fm-eye', "--fm-eye-x")).toBe("1px");
+    // NOTHING ELSE HAPPENS TO THEM. Two earlier passes also shifted them a
+    // column to say which way it was travelling, and both were wrong for the
+    // same reason: the eyes were doing something at every moment, so they were
+    // never simply open. Direction is carried by which side it holds things on.
+    expect(decl(".fm-eye", "transform")).toBe("scaleY(var(--fm-eye-h, 1))");
+    expect(css).not.toContain("--fm-eye-x");
+    expect(MOVING_ACTS).toEqual(["walk", "carry"]);
     // Each is the character attending to an OBJECT: the litter it is bending
     // for, the ball it is about to send down the ledge, and whatever it is
     // aiming the scope at.
@@ -946,6 +949,53 @@ describe("the character", () => {
     expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
   });
 
+  it("goes over what is standing on the floor, not through it", () => {
+    // The deck's controls sit on the canvas floor and the character walks along
+    // it. Without this it strolls straight through the Auto-fit chip as though
+    // the chip were a picture of one.
+    const bar = { left: -600, right: -400, height: 36 };
+
+    // Walking right, into it from the left-hand side.
+    const over = crossSteps(-800, -200, bar);
+    expect(over.map(st => st.act)).toEqual(["walk", "mount", "walk", "dismount", "walk"]);
+    expect(over[0].x).toBe(bar.left);        // up to the near edge
+    expect(over[1].riser).toBe(bar.height);  // on top of it
+    expect(over[2].x).toBe(bar.right);       // across
+    expect(over[3].riser).toBeUndefined();   // and back down
+    expect(over.at(-1)!.x).toBe(-200);
+    expect(over.every(st => st.place === "floor")).toBe(true);
+
+    // And from the other side, it meets the other edge first.
+    const back = crossSteps(-200, -800, bar);
+    expect(back[0].x).toBe(bar.right);
+    expect(back[2].x).toBe(bar.left);
+    expect(back.at(-1)!.x).toBe(-800);
+  });
+
+  it("walks straight when there is nothing in the way", () => {
+    const bar = { left: -600, right: -400, height: 36 };
+    // No chip on the page at all — the usual case, since it only exists while
+    // auto-fit is off.
+    expect(crossSteps(-800, -200, null)).toHaveLength(1);
+    // A walk that never reaches it, on either side.
+    expect(crossSteps(-300, -100, bar)).toHaveLength(1);
+    expect(crossSteps(-900, -700, bar)).toHaveLength(1);
+    // And something with no height is not an obstacle.
+    expect(crossSteps(-800, -200, { ...bar, height: 0 })).toHaveLength(1);
+  });
+
+  it("steps up and drops down, which are not the same motion", () => {
+    // Getting onto something is a step and it settles; stepping off is a drop
+    // and it accelerates — on the very same curve as the fall from the ledge,
+    // because it is the same thing over a shorter distance.
+    expect(decl('.fm-walker[data-act="mount"]', "transition")).toContain("cubic-bezier(0.23, 1, 0.32, 1)");
+    const down = decl('.fm-walker[data-act="dismount"]', "transition") ?? "";
+    const fall = decl('.fm-walker[data-act="fall"]', "transition") ?? "";
+    expect(/cubic-bezier\([^)]*\)/.exec(down)?.[0]).toBe(/cubic-bezier\([^)]*\)/.exec(fall)?.[0]);
+    // The riser is what the height is carried on.
+    expect(decl('.fm-walker[data-place="floor"]', "--fm-y")).toBe("calc(-1 * var(--fm-riser, 0px))");
+  });
+
   it("takes strides rather than hopping", () => {
     // A body that rises and falls with its legs welded on is a hop. The two
     // legs run the same cycle half a beat apart, so one is always forward while
@@ -966,12 +1016,16 @@ describe("the character", () => {
     expect(a).toEqual([...b].reverse());
     expect(a[0]).not.toBe(a[1]);
 
-    // A LEG SWINGS FROM ITS HIP, or it detaches. view-box puts the origin in
-    // the sprite's own coordinates so each is given where it meets the body,
-    // not the middle of its own box.
-    expect(decl(".fm-leg", "transform-box")).toBe("view-box");
-    expect(decl('.fm-leg[data-side="left"]', "transform-origin")).toBe(`${HIP_LEFT[0]}px ${HIP_LEFT[1]}px`);
-    expect(decl('.fm-leg[data-side="right"]', "transform-origin")).toBe(`${HIP_RIGHT[0]}px ${HIP_RIGHT[1]}px`);
+    // THEY STEP, THEY DO NOT SWING. Rotating each leg about its hip is how a
+    // leg works and is wrong at this size: a cell is three pixels, and fifteen
+    // degrees moves the foot of a three-row leg 2.33px — between pixels, so the
+    // edge is drawn half-lit and the leg reads as torn rather than angled.
+    for (const pose of [...a, ...b]) {
+      expect(pose).not.toContain("rotate");
+      // And the step is a whole cell, so every edge lands on the grid.
+      const dy = /translateY\((-?[\d.]+)px\)/.exec(pose)?.[1] ?? "0";
+      expect(Number.isInteger(Number(dy))).toBe(true);
+    }
     // And the legs really are the bottom rows, split down the middle.
     const below = SPRITE.slice(LEG_TOP_ROW).join("");
     expect(below).toContain("b");

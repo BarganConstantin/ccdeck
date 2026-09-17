@@ -12321,7 +12321,27 @@ input, textarea { caret-color: var(--accent); }
 /* The floor is the bottom of the scene, which is what the scene was moved down
    to be. Standing on it is the absence of the ledge's height, not a second
    position system. */
-.fm-walker[data-place="floor"] { --fm-y: 0px; }
+/* The floor is the bottom of the scene, plus whatever it happens to be standing
+   ON. The deck's controls sit on that floor and the character walks along it,
+   so --fm-riser is how high the thing under its feet is — zero for the floor
+   itself, and the height of the Auto-fit chip while it is up on that. */
+.fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
+
+/* GETTING UP ONTO SOMETHING IS A STEP, NOT A CLIMB. It is ankle-high next to
+   the ledge this character throws a rope at, so it goes up quickly and arrives
+   — ease-out, like everything else on this canvas that settles into place. */
+.fm-walker[data-act="mount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Stepping off it is a drop, and a drop accelerates. The same curve as the fall
+   from the ledge, because it is the same thing over a much shorter distance —
+   using anything else here would make one of the two a lie. */
+.fm-walker[data-act="dismount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Up on the toes to make the step, and absorbing it on the way down. */
+.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-1px) scale(0.98, 1.04); }
+.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(2px) scale(1.06, 0.9); }
 
 /* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
    this canvas eases out, because everything else is a thing settling into
@@ -12539,26 +12559,26 @@ input, textarea { caret-color: var(--accent); }
    bending for, the ball it is about to kick, and whatever it is aiming the
    scope at.
 
-   AND SHIFTING, WHICH IS A DIFFERENT THING. Narrowing says it is looking at an
-   object; shifting says which way it is travelling. Without the second, a
-   symmetric sprite walking left is the same picture as one walking right, and
-   what that reads as is the character reversing. The two arrive as separate
-   properties on one transform so it can do both at once.
+   AND NOTHING ELSE HAPPENS TO THEM. Two earlier passes also shifted them a
+   column to say which way it was travelling, and both times it was wrong for
+   the same reason: the eyes were doing something at every moment, so they were
+   never simply open. Direction is carried by which side it holds things on,
+   which is a thing it is actually doing rather than a face pulled permanently
+   to one side.
 
    `fill-box` here is the case the pivot rule above warns is fine: one shape
    narrowing about its own middle, with nothing that has to agree with it. */
 .fm-eye {
   transform-box: fill-box;
   transform-origin: center;
-  transform: translateX(var(--fm-eye-x, 0px)) scaleY(var(--fm-eye-h, 1));
+  transform: scaleY(var(--fm-eye-h, 1));
   transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 :is(.fm-walker[data-act="stoop"], .fm-walker[data-act="windup"],
     .fm-walker[data-act="kick"], .fm-walker[data-act="watch"]) .fm-eye {
   --fm-eye-h: 0.4;
 }
-.fm-walker[data-facing="left"] .fm-eye { --fm-eye-x: -1px; }
-.fm-walker[data-facing="right"] .fm-eye { --fm-eye-x: 1px; }
+
 
 /* The eyes are holes, not marks: --bg is the canvas's own background in both
    themes (`.react-flow__pane` paints it), so the canvas shows through and the
@@ -12738,13 +12758,18 @@ input, textarea { caret-color: var(--accent); }
   100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
 }
 
-/* THE LEGS SWING FROM THEIR HIPS, which is the only place a leg can swing from
-   without detaching. `view-box` puts the origin in the sprite's own
-   coordinates, so each one is given the point where it actually meets the body
-   rather than the middle of its own box. */
-.fm-leg { transform-box: view-box; }
-.fm-leg[data-side="left"]  { transform-origin: 7px 11px; }
-.fm-leg[data-side="right"] { transform-origin: 11px 11px; }
+/* THE LEGS STEP, THEY DO NOT SWING, and the difference is the grid.
+
+   The first build rotated each leg about its hip, fifteen degrees either way —
+   which is how a leg works, and is wrong at this size. A cell here is three
+   pixels; fifteen degrees moves the foot of a three-row leg 2.33px, so it lands
+   BETWEEN pixels and the edge is drawn half-lit. With the two legs at opposite
+   extremes the character stood in a thirty-degree splay made of torn edges, and
+   what that reads as is a broken leg rather than a stride.
+
+   A whole cell, straight up, is the only move that stays on the grid. It is
+   also what every pixel character has ever done: two frames, one foot up, and
+   the walk is in the alternation rather than in the angle. */
 
 /* A STRIDE, WHICH THIS DID NOT HAVE. The body used to rise and fall between two
    poses with its legs welded on, and a body that bobs without its legs
@@ -12758,12 +12783,12 @@ input, textarea { caret-color: var(--accent); }
   animation: fm-stride-b 440ms linear infinite;
 }
 @keyframes fm-stride-a {
-  0%, 44%   { transform: translateY(0)     rotate(-15deg); }
-  56%, 100% { transform: translateY(-0.6px) rotate(15deg); }
+  0%, 44%   { transform: translateY(0); }
+  56%, 100% { transform: translateY(-1px); }
 }
 @keyframes fm-stride-b {
-  0%, 44%   { transform: translateY(-0.6px) rotate(15deg); }
-  56%, 100% { transform: translateY(0)     rotate(-15deg); }
+  0%, 44%   { transform: translateY(-1px); }
+  56%, 100% { transform: translateY(0); }
 }
 
 /* CLIMBING IS NOT A GLIDE. The rise itself is linear, because a rope is climbed
@@ -12875,7 +12900,8 @@ input, textarea { caret-color: var(--accent); }
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
   .fm-walker, .fm-gear, .fm-eye { transition: none; }
-  .fm-walker[data-act="fall"], .fm-walker[data-act="climb"] { transition: none; }
+  .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
+  .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
   .fm-rope[data-act="lasso"] { animation: none; }
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"],
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"],
