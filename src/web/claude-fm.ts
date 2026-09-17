@@ -73,6 +73,10 @@ export type FmSignal =
  *  dances to. -1, 0, 2 and 5 are not. */
 export const PLAYING_STATES: readonly number[] = [1, 3];
 
+/** Ended, and paused. The only two states that mean playback has stopped —
+ *  everything else the player reports is either playing or not yet anything. */
+export const STOPPED_STATES: readonly number[] = [0, 2];
+
 /**
  * Every error the player can raise means the same thing here.
  *
@@ -119,7 +123,16 @@ export function readSignal(raw: unknown): FmSignal | null {
     // a volume change, a quality change — and those are not a report that the
     // music stopped.
     if (typeof state !== "number" || !Number.isFinite(state)) return null;
-    return { kind: "playing", playing: PLAYING_STATES.includes(state) };
+    if (PLAYING_STATES.includes(state)) return { kind: "playing", playing: true };
+    // UNSTARTED IS NOT STOPPED, and reading it as stopped is what made the hat
+    // flash back on between the press and the first note. A freshly built
+    // player announces -1 before it has done anything at all, and 5 means a
+    // video is cued and waiting — neither is a report that playback ended, they
+    // are the absence of any report. Treated as "stopped" they overrode the
+    // press that had just been made, so the observed sequence -1, 3, 1 put the
+    // headphones on, the hat back, and the headphones on again.
+    if (!STOPPED_STATES.includes(state)) return null;
+    return { kind: "playing", playing: false };
   }
   return null;
 }
@@ -168,6 +181,12 @@ export function duckMsFor(notes: readonly { at: number; ms: number }[]): number 
  * of two, and the whole thing is drawn on 18 columns rather than 16 so the legs
  * have somewhere to be.
  *
+ * The legs are the fifth pass and are three rows rather than two. At two they
+ * were as tall as they were wide — square stubs under a body nine rows deep,
+ * which reads as a thing balanced on blocks rather than a thing standing on
+ * legs. Three rows is the shortest that looks like a leg, and it is what gives
+ * the stride something to swing.
+ *
  * The arms are the fourth pass, and they cost two rows rather than two
  * columns: the ear cups run down both sides of the head, so there is nowhere
  * for an arm to come out until below them. The cups end a row earlier than they
@@ -196,6 +215,7 @@ export const SPRITE: readonly string[] = [
   "....bbbbbbbbbs....",
   "....bbbbbbbbbs....",
   "......bbbbbs......",
+  "......bb..bs......",
   "......bb..bs......",
   "......bb..bs......",
 ];
@@ -247,9 +267,19 @@ export function spriteRects(grid: readonly string[] = SPRITE): SpriteRect[] {
 // edge, never crosses the canvas, and never walks at all while the music is on
 // — a character that wanders off mid-track reads as a bug rather than as life.
 
-/** How far along the edge it can get: the minimap's width less its own, so it
- *  is standing on the edge at both ends rather than hanging off one. */
+/** How far along the minimap's edge it can get: the minimap's width less its
+ *  own, so it is standing on the edge at both ends rather than hanging off one.
+ *
+ *  A DEFAULT RATHER THAN A CONSTANT EVERYTHING READS. The ledge is one place
+ *  the character can be and its width is known at build time; the canvas floor
+ *  is another and its width is whatever the window is today. Every function
+ *  below that needed this takes it as an argument now, so the only thing that
+ *  has to know which place is being walked is the caller. */
 export const WALK_SPAN_PX = 148;
+
+/** Where it is. The ledge is the minimap's top border; the floor is the bottom
+ *  of the canvas, which it can only reach by leaving the ledge. */
+export type Place = "ledge" | "floor";
 
 /** How long it stands before it thinks about doing something again.
  *
@@ -281,8 +311,7 @@ export const WALK_MIN_STEP_PX = 34;
  * `rand` is passed in rather than reached for, so this is a pure function and a
  * test can say exactly where the character ends up.
  */
-export function nextWalk(from: number, rand: () => number): { to: number; ms: number } {
-  const span = WALK_SPAN_PX;
+export function nextWalk(from: number, rand: () => number, span = WALK_SPAN_PX): { to: number; ms: number } {
   // Somewhere on the edge that is not roughly where it already is. Picking a
   // point and then pushing it away from the start keeps the distribution over
   // the whole ledge instead of bunching it at the two ends, which is what
@@ -318,7 +347,12 @@ export function nextIdleMs(rand: () => number): number {
 // its day, and the dance fills the gaps between errands rather than replacing
 // them.
 
-export type Act = "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch";
+export type Act =
+  | "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch"
+  // Leaving the ledge and getting back onto it.
+  | "peer" | "fall" | "land" | "lasso" | "climb"
+  // Getting onto and off something standing on the floor.
+  | "mount" | "dismount";
 
 /** A thing on the ledge it can do something with. */
 export interface Prop {
@@ -334,6 +368,12 @@ export interface Prop {
 export interface Step {
   /** Where the character should be by the end of this step. */
   x: number;
+  /** Which surface it is standing on by the end of it. Absent means the ledge,
+   *  which is where it is for all but one activity. */
+  place?: Place;
+  /** How far above that surface it is standing, for the one case where it is
+   *  standing on something: a control sitting on the canvas floor. */
+  riser?: number;
   /** The prop, or null when there is not one. */
   prop: Prop | null;
   act: Act;
@@ -344,11 +384,14 @@ export interface Step {
  *  what make walking worth noticing, and they stop being that if they are the
  *  usual thing. */
 export const ACTIVITIES = [
-  { kind: "stroll", weight: 38 },
+  { kind: "stroll", weight: 36 },
   { kind: "tidy",   weight: 17 },
   { kind: "kick",   weight: 17 },
   { kind: "sit",    weight: 12 },
   { kind: "watch",  weight: 16 },
+  // The rarest thing it does, and the longest. Leaving the ledge is worth
+  // seeing precisely because it almost never happens.
+  { kind: "leave",  weight: 7 },
 ] as const;
 
 export type Activity = typeof ACTIVITIES[number]["kind"];
@@ -399,8 +442,7 @@ export const SIT_MAX_MS = 14_000;
 
 /** Where a prop turns up. Never so close that the errand is over before it
  *  starts, and always somewhere on the ledge. */
-export function propSpot(from: number, rand: () => number): number {
-  const span = WALK_SPAN_PX;
+export function propSpot(from: number, rand: () => number, span = WALK_SPAN_PX): number {
   let at = -Math.round(rand() * span);
   if (Math.abs(at - from) < WALK_MIN_STEP_PX) {
     const away = from - WALK_MIN_STEP_PX >= -span ? -WALK_MIN_STEP_PX : WALK_MIN_STEP_PX;
@@ -478,18 +520,171 @@ export function watchSteps(from: number, at: number, rand: () => number): Step[]
   ];
 }
 
+/**
+ * The acts during which it is looking AT SOMETHING, and its eyes narrow for
+ * these and only these.
+ *
+ * Each one is the character attending to an object: the litter it is bending
+ * for, the ball it is about to send down the ledge, and whatever it is aiming
+ * the scope at. Walking is not among them — it walks with its eyes open.
+ *
+ * An earlier build also shifted the eyes a column to say which way it was
+ * travelling, on the argument that a symmetric sprite moving sideways reads as
+ * sliding. That is gone, and the reason it had to go is the same reason the
+ * narrowing was worth having: the shift was on at every single moment, so the
+ * eyes were never simply open, and a face that is always doing something has no
+ * expression left to spend. There is nothing left to say direction with, and
+ * nothing that needs saying — the walk cycle already says it is walking.
+ */
+export type Facing = "left" | "right";
+
+/**
+ * Which way it is looking.
+ *
+ * TWO DIFFERENT THINGS HAPPEN TO THESE EYES and they were briefly confused for
+ * each other. NARROWING says it is looking at an object, and belongs to the
+ * four acts below. SHIFTING says which way it is travelling, and belongs to
+ * everything — without it a symmetric sprite walking left looks exactly like
+ * the same sprite walking right, which reads as the character going backwards.
+ * The first build did both at once and the second removed both; they are
+ * separate, and this is the one that has to be on whenever it is moving.
+ *
+ * `x` runs from 0 at the right-hand end of the ledge to -span at the left, so a
+ * smaller number is further left. Standing still keeps whatever it had: it does
+ * not spin round to face the viewer every time it stops.
+ *
+ * WHICH IS NOT THE SAME AS SHOWING IT. The facing is remembered whatever it is
+ * doing, and the eyes only move while it is actually travelling — a character
+ * parked on the ledge staring off to one side looks like it is avoiding your
+ * eye. Standing still, they sit where they are drawn.
+ */
+export const MOVING_ACTS: readonly Act[] = ["walk", "carry"];
+
+export const isMoving = (act: Act | null): boolean =>
+  act != null && MOVING_ACTS.includes(act);
+
+export function facingFor(step: Step, from: number, prev: Facing): Facing {
+  // Looking at the board, which is everything to the left of the minimap.
+  if (step.act === "watch") return "left";
+  if (step.x === from) return prev;
+  return step.x > from ? "right" : "left";
+}
+
+export const FOCUS_ACTS: readonly Act[] = ["stoop", "windup", "kick", "watch"];
+
+export const isFocused = (act: Act | null): boolean =>
+  act != null && FOCUS_ACTS.includes(act);
+
+
+// ── leaving the ledge ───────────────────────────────────────────────────────
+//
+// The one activity that is not on the minimap's edge at all. It walks to the
+// far end, looks over, drops onto the canvas floor, walks about down there, and
+// ropes its way back up.
+//
+// EVERYTHING HERE IS DERIVED RATHER THAN PICKED, because a fall that is merely
+// a duration reads as a slide. The drop is timed from an acceleration and the
+// height it is actually falling, so a minimap of a different size falls for a
+// different length of time on its own; the climb is timed from a speed, because
+// climbing a rope is work at a steady rate and not the fall run backwards.
+
+/** Gravity, in canvas pixels per second squared. Chosen by what it produces:
+ *  over this deck's 152px ledge it gives a 450ms drop, which is a fall with
+ *  weight in it rather than a float or a teleport. */
+export const FALL_G = 1500;
+
+/** How long a drop of `height` takes under it. The `t = sqrt(2h/g)` every
+ *  falling body obeys, which is what makes the motion read as a fall at any
+ *  height rather than only at the one it was tuned on. */
+export const fallMsFor = (height: number) => Math.round(1000 * Math.sqrt((2 * height) / FALL_G));
+
+/** Going up is not the fall backwards. A rope is climbed at a steady rate, so
+ *  this is a speed rather than an acceleration — and a slow one, because the
+ *  effort is the point. */
+export const CLIMB_PX_PER_S = 115;
+export const climbMsFor = (height: number) => Math.round((height / CLIMB_PX_PER_S) * 1000);
+
+/** Looking over the edge before stepping off it. Nothing sensible jumps from a
+ *  height it has not looked at. */
+export const PEER_MS = 620;
+
+/** The landing. Long enough for the squash to be seen and short enough that it
+ *  is a landing rather than a stumble. */
+export const LAND_MS = 200;
+
+/** Swinging the rope before it is thrown. */
+export const LASSO_MS = 760;
+
+/**
+ * The trip off the ledge and back.
+ *
+ * `ledgeH` is how far it has to fall, and `floorSpan` how far it can walk once
+ * it is down — both measured from the page rather than assumed, because the
+ * minimap is a fixed size and the canvas is whatever the window is today.
+ *
+ * It comes back up where it went down. That is not a shortcut: a rope thrown at
+ * the ledge has to catch something, and the only part of the ledge this
+ * character has any business hooking is the corner it just left.
+ */
+export function leaveLedgeSteps(
+  from: number,
+  opts: { ledgeH: number; floorSpan: number; ledgeSpan?: number },
+  rand: () => number,
+): Step[] {
+  const ledgeSpan = opts.ledgeSpan ?? WALK_SPAN_PX;
+  // The far end of the ledge, which is the only corner with canvas under it
+  // rather than more minimap.
+  const edge = -ledgeSpan;
+  const fall = fallMsFor(opts.ledgeH);
+  const climb = climbMsFor(opts.ledgeH);
+
+  // Two wanders down there, so the trip is worth having taken.
+  const first = -Math.round(rand() * opts.floorSpan);
+  const second = -Math.round(rand() * opts.floorSpan);
+
+  return [
+    { x: edge,   act: "walk",  prop: null, ms: walkMsFor(from, edge) },
+    { x: edge,   act: "peer",  prop: null, ms: PEER_MS },
+    { x: edge,   act: "fall",  prop: null, ms: fall,  place: "floor" },
+    { x: edge,   act: "land",  prop: null, ms: LAND_MS, place: "floor" },
+    { x: first,  act: "walk",  prop: null, ms: walkMsFor(edge, first),   place: "floor" },
+    { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor" },
+    { x: edge,   act: "walk",  prop: null, ms: walkMsFor(second, edge),  place: "floor" },
+    { x: edge,   act: "lasso", prop: null, ms: LASSO_MS, place: "floor" },
+    { x: edge,   act: "climb", prop: null, ms: climb },
+  ];
+}
+
 /** The whole decision, in one place: what it does next and where. */
-export function nextActivity(from: number, rand: () => number): Step[] {
-  switch (pickActivity(rand)) {
-    case "tidy": return tidySteps(from, propSpot(from, rand));
-    case "kick": return kickSteps(from, propSpot(from, rand));
-    case "sit":   return sitSteps(from, propSpot(from, rand), rand);
-    case "watch": return watchSteps(from, propSpot(from, rand), rand);
-    default: {
-      const trip = nextWalk(from, rand);
-      return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
+/** What the page has to tell the model before it can plan a trip: how far there
+ *  is to fall, and how much floor there is once it lands. Neither is knowable
+ *  here — the minimap is a fixed size but the canvas is whatever the window is
+ *  today, and both change on a resize. */
+export interface Ground {
+  ledgeH: number;
+  floorSpan: number;
+  ledgeSpan?: number;
+}
+
+export function nextActivity(from: number, rand: () => number, ground?: Ground): Step[] {
+  const span = ground?.ledgeSpan ?? WALK_SPAN_PX;
+  const kind = pickActivity(rand);
+  switch (kind) {
+    case "tidy": return tidySteps(from, propSpot(from, rand, span));
+    case "kick": return kickSteps(from, propSpot(from, rand, span));
+    case "sit":   return sitSteps(from, propSpot(from, rand, span), rand);
+    case "watch": return watchSteps(from, propSpot(from, rand, span), rand);
+    case "leave": {
+      // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
+      // height would drop the character through the floor or leave it hanging
+      // in the air, and there is no sensible default for "how tall is the thing
+      // I am standing on" — so it strolls instead and tries again later.
+      if (!ground || !(ground.ledgeH > 0) || !(ground.floorSpan > 0)) break;
+      return leaveLedgeSteps(from, ground, rand);
     }
   }
+  const trip = nextWalk(from, rand, span);
+  return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
 }
 
 /**
@@ -546,8 +741,14 @@ export const DANCE_MAX_MS = 16_000;
 /** The tempo, and how far either side of it a dance may land. 800ms is 75bpm,
  *  which is about where the thing it is dancing to usually sits; the drift is
  *  small enough to stay in that band and large enough that two dances in a row
- *  are not the same speed. */
-export const BEAT_MS = 800;
+ *  are not the same speed.
+ *
+ *  1000ms is 60bpm, down from 75. The thing it is dancing to is calm, and at
+ *  75 it was bobbing along ahead of the music — the character looked busier
+ *  than anything it could have been listening to. A slower beat is also the
+ *  cheaper one on a monitoring deck, where the corner of the screen should not
+ *  be the most energetic thing on it. */
+export const BEAT_MS = 1000;
 export const BEAT_DRIFT = 0.08;
 
 /**
@@ -574,4 +775,114 @@ export function nextDance(current: Dance | null, rand: () => number): { dance: D
 /** How long to hold it. */
 export function nextDanceMs(rand: () => number): number {
   return Math.round(DANCE_MIN_MS + rand() * (DANCE_MAX_MS - DANCE_MIN_MS));
+}
+
+/** Where the legs begin, and the column that divides them.
+ *
+ *  They are their own parts rather than more body, so they can take a step —
+ *  and they can be separated by position alone, without a letter of their own
+ *  in the grid, because they are the only thing below this row and there is
+ *  nothing between them. The sprite stays eighteen lines of text.
+ */
+/**
+ * What it wears when there is nothing to listen to.
+ *
+ * A hat rather than nothing at all, because the headphones leaving used to
+ * leave a bare head — and a bare head is not a state, it is the absence of one.
+ * Swapping one for the other makes the change legible from across a room
+ * without a word or a colour, and it reads as the character putting something
+ * on rather than something being taken away.
+ *
+ * Its own small grid rather than more rows in the sprite: it sits ON the head
+ * rather than beside it, so weaving it into the eighteen columns would mean a
+ * letter for every square the brim overlaps and a body that has to know about
+ * a hat.
+ *
+ * THE CROWN IS THE WIDTH OF THE HEAD, and the band is the same. It was four
+ * cells against a six-cell band, which left the band sticking out either side
+ * like a second little brim — and with the band drawn in the body's own colour,
+ * what that read as was the blue head showing THROUGH the hat. A crown that
+ * sits flush on its band is one solid shape.
+ *
+ * THE BRIM IS TWICE THE WIDTH OF THE HEAD, and that ratio is the whole of what
+ * says which kind of hat it is. The first build made it one cell wider either
+ * side — the least that reads as a hat at all — and what it read as was a cap.
+ * A wide brim over a narrow crown is the silhouette, so the crown stayed six
+ * pixels across and the brim went to thirty-six.
+ *
+ * The crown is taller than the sprite has room for, so the hat starts a row
+ * ABOVE the grid. Nothing needs to move for that: the sheet already lets this
+ * character draw outside its own box, because the dances lift it past the top.
+ *
+ *   `h` the hat   `k` its band
+ */
+export const HAT: readonly string[] = [
+  "...hhhhhh...",
+  "...hhhhhh...",
+  "...kkkkkk...",
+  "hhhhhhhhhhhh",
+];
+
+/** Where it sits on the sprite: centred on the head's columns, with the brim on
+ *  the head's own top row so it covers the forehead rather than floating over
+ *  it. Checked against the head in the test rather than eyeballed. */
+export const HAT_X = 3;
+export const HAT_Y = -1;
+
+export const LEG_TOP_ROW = 11;
+export const LEG_SPLIT_COL = 9;
+
+
+// ── things standing on the floor ────────────────────────────────────────────
+
+/** Something in the way, in the character's own coordinates. `left` and `right`
+ *  are both negative distances from the scene's right edge, with `left` the
+ *  smaller of the two. */
+export interface Obstacle { left: number; right: number; height: number }
+
+/** How long it takes to get up onto something, and down off it again. Short:
+ *  these are a step, not a climb — the thing being stepped onto is ankle high
+ *  next to the ledge it throws a rope at. */
+/** How far a kicked ball travels before it is gone. The sign is the facing's;
+ *  this is only the distance. */
+export const BALL_ROLL_PX = 132;
+
+export const MOUNT_MS = 260;
+export const DISMOUNT_MS = 200;
+
+/**
+ * A walk from `from` to `to`, going OVER anything in the way rather than
+ * through it.
+ *
+ * The deck's controls sit on the canvas floor and the character walks along it,
+ * so without this it strolls straight through the Auto-fit chip as though the
+ * chip were a picture of a chip. Going over it is the only reading that makes
+ * the two objects share a world.
+ *
+ * Nothing is assumed about the obstacle being there: it is measured from the
+ * page at the moment a walk is planned, and a walk that does not reach it — or
+ * a page where it does not exist — is a plain walk with no extra steps at all.
+ */
+export function crossSteps(from: number, to: number, over: Obstacle | null): Step[] {
+  const plain = (x: number, ms = walkMsFor(from, x)): Step =>
+    ({ x, prop: null, act: "walk", ms, place: "floor" });
+
+  if (!over || over.height <= 0) return [plain(to)];
+  const lo = Math.min(from, to);
+  const hi = Math.max(from, to);
+  // Entirely one side of it, or entirely past it: nothing to climb.
+  if (hi <= over.left || lo >= over.right) return [plain(to)];
+
+  const goingRight = to > from;
+  const near = goingRight ? over.left : over.right;
+  const far = goingRight ? over.right : over.left;
+  const on = { place: "floor" as const, riser: over.height, prop: null };
+
+  return [
+    plain(near, walkMsFor(from, near)),
+    { ...on, x: near, act: "mount", ms: MOUNT_MS },
+    { ...on, x: far, act: "walk", ms: walkMsFor(near, far) },
+    { x: far, prop: null, act: "dismount", ms: DISMOUNT_MS, place: "floor" },
+    { x: to, prop: null, act: "walk", ms: walkMsFor(far, to), place: "floor" },
+  ];
 }

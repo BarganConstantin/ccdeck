@@ -14,13 +14,16 @@ import {
   mayAskYouTube, readLiveMarks, readUntilMarks,
 } from "../../server/claude-fm.mjs";
 import {
-  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
+  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME, STOPPED_STATES,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
-  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
+  facingFor, isFocused, LEG_TOP_ROW, MOVING_ACTS, nextDance, nextDanceMs,
+  type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
 
@@ -247,9 +250,22 @@ describe("talking to the player", () => {
     expect(PLAYING_STATES).toEqual([1, 3]);           // playing, buffering
     expect(readSignal('{"event":"onStateChange","info":1}')).toEqual({ kind: "playing", playing: true });
     expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "playing", playing: true });
-    for (const idle of [-1, 0, 2, 5]) {
-      expect(readSignal({ event: "onStateChange", info: idle })).toEqual({ kind: "playing", playing: false });
+    // ENDED AND PAUSED ARE STOPPED. Those two, and only those two.
+    for (const stopped of STOPPED_STATES) {
+      expect(readSignal({ event: "onStateChange", info: stopped })).toEqual({ kind: "playing", playing: false });
     }
+    // UNSTARTED IS NOT STOPPED, and reading it as stopped is what made the hat
+    // flash back on between the press and the first note. A freshly built
+    // player announces -1 before it has done anything at all, and 5 means a
+    // video is cued and waiting — neither is a report that playback ended. Read
+    // as "stopped" they overrode the press just made, so the player's own
+    // sequence of -1, 3, 1 put the headphones on, the hat back, and the
+    // headphones on again.
+    for (const notYet of [-1, 5]) {
+      expect(readSignal({ event: "onStateChange", info: notYet })).toBeNull();
+    }
+    expect(STOPPED_STATES).not.toContain(-1);
+    expect(PLAYING_STATES).not.toContain(-1);
   });
 
   it("reads the spelling the player actually uses, not the documented one", () => {
@@ -259,7 +275,7 @@ describe("talking to the player", () => {
     // documented event learned nothing the player ever said about playback.
     expect(readSignal({ event: "infoDelivery", info: { playerState: 1, currentTime: 12 } }))
       .toEqual({ kind: "playing", playing: true });
-    expect(readSignal({ event: "infoDelivery", info: { playerState: -1 } }))
+    expect(readSignal({ event: "infoDelivery", info: { playerState: 2 } }))
       .toEqual({ kind: "playing", playing: false });
     // And most of them carry no state at all. A volume change is not a report
     // that the music stopped.
@@ -427,7 +443,13 @@ describe("the character", () => {
     // Its feet land exactly on the border, which is the difference between a
     // character and a sticker. No gap term: a character hovering a few pixels
     // over the ledge it is standing on is the thing that reads as wrong.
-    expect(decl(".fm", "bottom")).toBe("calc(var(--flow-gutter) + var(--minimap-h))");
+    // THE SCENE SITS ON THE CANVAS FLOOR AND THE LEDGE IS A HEIGHT WITHIN IT.
+    // It used to be pinned to the minimap's top border, which made that border
+    // the only place in the world — there was no way to express "further down"
+    // at all, so the character could not leave it. Nothing moved on screen for
+    // the change: --fm-y defaults to exactly the ledge's height above the floor.
+    expect(decl(".fm", "bottom")).toBe("var(--flow-gutter)");
+    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * var(--minimap-h))");
     expect(decl(".fm", "right")).toBe("var(--flow-gutter)");
     expect(decl(".fm", "--flow-gutter")).toBe("15px");
     // 54px is 18 columns at exactly 3px. A width that does not divide by the
@@ -446,6 +468,60 @@ describe("the character", () => {
     // on this character never reaches the pan handler to be opted out of.
     expect(component).toContain('className="fm"');
     expect(component).not.toContain("nopan");
+  });
+
+  it("wears a hat when there is nothing to listen to", () => {
+    // The headphones leaving used to leave a bare head, and a bare head is not
+    // a state — it is the absence of one. Swapping one thing for another makes
+    // the change legible, and reads as putting something on rather than having
+    // something taken away.
+    for (const row of HAT) expect(row).toMatch(/^[.hk]+$/);
+    for (const row of HAT) expect(row).toHaveLength(HAT[0].length);
+    // A brim wider than the crown is the least that reads as a hat.
+    const width = (row: string) => row.replace(/\./g, "").length;
+    expect(width(HAT.at(-1)!)).toBeGreaterThan(width(HAT[0]));
+
+    // CENTRED ON THE HEAD, checked against the sprite rather than eyeballed.
+    const headCols = [...SPRITE[4]].flatMap((c, i) => ("bes".includes(c) ? [i] : []));
+    const headMid = (Math.min(...headCols) + Math.max(...headCols) + 1) / 2;
+    expect(HAT_X + HAT[0].length / 2).toBe(headMid);
+    // And the brim lands on the head's own top row, so it covers the forehead
+    // rather than floating above it.
+    const headTop = SPRITE.findIndex(r => r.includes("b"));
+    expect(HAT_Y + HAT.length - 1).toBe(headTop);
+
+    // DRAWN AFTER THE BODY, which is the opposite of the headphones and the
+    // whole reason it is a separate group: they hide BEHIND the head, a brim
+    // sits over the forehead.
+    expect(component.indexOf('className="fm-hat"'))
+      .toBeGreaterThan(component.indexOf('className="fm-body"'));
+    expect(component.indexOf('className="fm-gear"'))
+      .toBeLessThan(component.indexOf('className="fm-body"'));
+
+    // THE TWO SWAP: the hat goes up as the headphones come down, which is what
+    // makes it one exchange rather than two fades.
+    expect(decl(".fm-hat", "opacity")).toBe("1");
+    expect(decl(".fm-sprite[data-playing] .fm-hat", "opacity")).toBe("0");
+    expect(decl(".fm-sprite[data-playing] .fm-hat", "transform")).toBe("translateY(-4px)");
+    // The travel still overlaps — one rises as the other falls. It was only the
+    // two FADES that had to be put in order.
+    for (const sel of [".fm-hat", ".fm-sprite[data-playing] .fm-hat", ".fm-gear"]) {
+      expect(decl(sel, "transition")).toContain("transform 460ms");
+    }
+    expect(decl(".fm-gear", "transform")).toContain("translateY(9px)");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "opacity")).toBe("1");
+    // Same grey as the headphones, because they are never both on — they are
+    // told apart by shape, which is what a silhouette is for.
+    expect(decl(".fm-hat", "fill")).toBe("var(--muted)");
+    // NOT THE BODY'S COLOUR. A band in the same blue as the head reads as the
+    // head showing THROUGH the hat rather than as a band on it, which is the
+    // one thing a hat must never look like.
+    expect(decl(".fm-hatband", "fill")).toBe("color-mix(in srgb, var(--muted) 40%, var(--fm-ink))");
+    expect(decl(".fm-hatband", "fill")).not.toContain("var(--accent)");
+    // And the crown sits flush on the band rather than leaving it poking out
+    // either side like a second little brim.
+    const solid = (row: string) => row.replace(/\./g, "").length;
+    expect(solid(HAT[0])).toBe(solid(HAT[2]));
   });
 
   it("takes the headphones off when there is nothing to listen to", () => {
@@ -475,10 +551,27 @@ describe("the character", () => {
     // so what is seen is a removal rather than a disappearance.
     const off = decl(".fm-gear", "transition") ?? "";
     expect(off).toContain("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
-    expect(off).toMatch(/opacity \d+ms linear 2\d\dms/);
-    // Putting them back reverses the order — reaching for something is not a
-    // fade-in — so that fade carries no delay at all.
-    expect(decl(".fm-sprite[data-playing] .fm-gear", "transition")).toMatch(/opacity 140ms linear$/);
+
+    // THE ORDER OF THE EXCHANGE, which the first build had backwards on both
+    // sides. Whatever is LEAVING goes at once; whatever is ARRIVING waits for
+    // the other to clear. With the delays the wrong way round the character
+    // wore a hat and a pair of headphones at the same time for a quarter of a
+    // second, and what that looks like is the headphones appearing on top of
+    // the hat in a single frame.
+    //
+    // A transition applies when moving TO a state, so the rule that carries the
+    // delay is the one being moved to.
+    const delayOf = (sel: string) =>
+      Number(/opacity \d+ms linear (\d+)ms/.exec(decl(sel, "transition") ?? "")?.[1] ?? 0);
+    const leaving = [".fm-gear", ".fm-sprite[data-playing] .fm-hat"];
+    const arriving = [".fm-sprite[data-playing] .fm-gear", ".fm-hat"];
+    for (const sel of leaving) expect(delayOf(sel), `${sel} is leaving`).toBe(0);
+    for (const sel of arriving) expect(delayOf(sel), `${sel} is arriving`).toBeGreaterThan(0);
+    // And the arriving one must not start before the leaving one has finished.
+    const goneBy = (sel: string) =>
+      Number(/opacity (\d+)ms linear/.exec(decl(sel, "transition") ?? "")?.[1] ?? 0);
+    expect(delayOf(".fm-sprite[data-playing] .fm-gear")).toBeGreaterThanOrEqual(goneBy(".fm-sprite[data-playing] .fm-hat"));
+    expect(delayOf(".fm-hat")).toBeGreaterThanOrEqual(goneBy(".fm-gear"));
     // On the sheet's own ease-out, not the back-out this wanted: #860 settled
     // that for the whole sheet after every tool bubble sprang past its size.
     expect(off).not.toMatch(/cubic-bezier\([^)]*,\s*1\.\d/);
@@ -515,15 +608,27 @@ describe("the character", () => {
     // about two points five rows apart, and the headband opened a seam along
     // the head as the character moved. It looked like a timing fault and was
     // not; two passes went looking in the wrong place.
-    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-box")).toBe("view-box");
-    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-origin")).toBe("50% 100%");
-    // Scoped to this character's own rules: `fill-box` is right elsewhere in
-    // the sheet, where a lone shape turns about its own middle and there is no
-    // second group that has to agree with it.
+    const pivot = ":is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg, .fm-hat)";
+    expect(decl(pivot, "transform-box")).toBe("view-box");
+    expect(decl(pivot, "transform-origin")).toBe("50% 100%");
+    // EVERY GROUP THAT MOVES HAS TO BE IN THAT LIST. The legs were left out
+    // once and it cost the same bug twice: they scale with the torso when it
+    // dances, and on the default origin a leg scales about the middle of the
+    // sprite while the torso scales about its feet — so the hip opens.
+    const moving = [...new Set([...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion|hat))"/g)]
+      .map(m => m[1]))];
+    for (const g of moving) expect(pivot).toContain(`.${g}`);
+    // Scoped to the groups that have to AGREE with each other. `fill-box` is
+    // right for a lone shape turning about its own middle with nothing to stay
+    // aligned to — `.fm-eye` narrowing is exactly that, and is the one rule
+    // here allowed to use it.
     const fmRules = [...css.matchAll(/^([^{@}]*\.fm[\w-]*[^{}]*)\{([^}]*)\}/gm)]
-      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]));
+      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]))
+      .filter(m => !/\.fm-eye\s*\{/.test(m[0]));
     expect(fmRules.length).toBeGreaterThan(5);
     for (const rule of fmRules) expect(rule[2]).not.toContain("fill-box");
+    expect(decl(".fm-eye", "transform-box")).toBe("fill-box");
+    expect(decl(".fm-eye", "transform-origin")).toBe("center");
 
     // And the boxes really are different, which is why fill-box could never
     // have worked here — this is the fact the rule above is protecting.
@@ -532,6 +637,56 @@ describe("the character", () => {
     const gearRows = rowsWith("acp");
     const bodyRows = rowsWith("bes");
     expect(Math.max(...gearRows)).not.toBe(Math.max(...bodyRows));
+  });
+
+  it("narrows its eyes only while it is looking at something", () => {
+    // Worth far more as a moment than as a resting state — and an earlier build
+    // also shifted them a column to say which way it was travelling, which was
+    // on at every single moment, so the eyes were never simply open.
+    // TWO DIFFERENT THINGS HAPPEN TO THESE EYES and they were briefly confused
+    // for each other. Narrowing says it is looking at an object; shifting says
+    // which way it is travelling. Removing the second left a symmetric sprite
+    // where walking left and walking right are the same picture, and what that
+    // reads as is the character reversing.
+    // NOTHING ELSE HAPPENS TO THEM. Two earlier passes also shifted them a
+    // column to say which way it was travelling, and both were wrong for the
+    // same reason: the eyes were doing something at every moment, so they were
+    // never simply open. Direction is carried by which side it holds things on.
+    expect(decl(".fm-eye", "transform")).toBe("scaleY(var(--fm-eye-h, 1))");
+    expect(css).not.toContain("--fm-eye-x");
+    expect(MOVING_ACTS).toEqual(["walk", "carry"]);
+    // Each is the character attending to an OBJECT: the litter it is bending
+    // for, the ball it is about to send down the ledge, and whatever it is
+    // aiming the scope at.
+    expect([...FOCUS_ACTS].sort()).toEqual(["kick", "stoop", "watch", "windup"]);
+    for (const act of FOCUS_ACTS) expect(isFocused(act)).toBe(true);
+    // Walking is not among them: it walks with its eyes open.
+    for (const act of ["walk", "carry", "sit", "toss", "fall", "peer"] as Act[]) {
+      expect(isFocused(act)).toBe(false);
+    }
+    expect(isFocused(null)).toBe(false);
+
+    // THE SHEET AND THE MODEL MUST NAME THE SAME ACTS. They are two lists of
+    // the same fact in two languages, and the first thing adding `peer` to one
+    // of them did was leave the other behind — so this reads the selector and
+    // compares it to the model rather than restating either.
+    const rule = /:is\(([^)]*)\) \.fm-eye \{\s*--fm-eye-h/.exec(css)?.[1] ?? "";
+    const inSheet = [...rule.matchAll(/data-act="(\w+)"/g)].map(m => m[1]).sort();
+    expect(inSheet).toEqual([...FOCUS_ACTS].sort());
+    // Standing about is not concentrating, so the sheet must not narrow them
+    // for it.
+    const narrowing = [...css.matchAll(/:is\(([^)]*)\) \.fm-eye \{\s*--fm-eye-h/g)][0]?.[1] ?? "";
+    expect(narrowing).toContain('data-act="watch"');
+    expect(narrowing).not.toContain('data-act="sit"');
+    expect(narrowing).not.toContain('data-act="walk"');
+    // And it is a narrowing, not a shrink: the eye keeps its width.
+    const h = /--fm-eye-h:\s*([\d.]+)/.exec(css)?.[1];
+    expect(Number(h)).toBeGreaterThan(0);
+    expect(Number(h)).toBeLessThan(1);
+    expect(css).not.toMatch(/--fm-eye-w/);
+    // Walking is never one of them, which is the whole of the rule now.
+    expect(FOCUS_ACTS).not.toContain("walk");
+    expect(FOCUS_ACTS).not.toContain("carry");
   });
 
   it("does not dance the same way twice in a row", () => {
@@ -556,8 +711,10 @@ describe("the character", () => {
       expect(beatMs).toBeGreaterThanOrEqual(Math.round(BEAT_MS * (1 - BEAT_DRIFT)));
       expect(beatMs).toBeLessThanOrEqual(Math.round(BEAT_MS * (1 + BEAT_DRIFT)));
     }
-    // 800ms is 75bpm, about where the thing it is dancing to usually sits.
-    expect(BEAT_MS).toBe(800);
+    // 1000ms is 60bpm, and the thing it is dancing to is calm.
+    // 60bpm. At 75 it bobbed along ahead of the music: the character was
+    // busier than anything it could have been listening to.
+    expect(BEAT_MS).toBe(1000);
     expect(BEAT_DRIFT).toBeLessThan(0.15);
     expect(nextDanceMs(() => 0)).toBe(DANCE_MIN_MS);
     expect(nextDanceMs(() => 1)).toBe(DANCE_MAX_MS);
@@ -583,7 +740,13 @@ describe("the character", () => {
     expect(css).toMatch(/@keyframes fm-settle/);
     // The settle has to carry the position too, or the animation would snap the
     // litter back to the right-hand end for its duration.
-    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-prop-x/);
+    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translate\(calc\(var\(--fm-prop-x/);
+    // Every keyframe that positions a prop has to carry the height too, or the
+    // animation would drag it back to the floor for its duration.
+    for (const frames of ["fm-settle", "fm-roll"]) {
+      const block = new RegExp(`@keyframes ${frames} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? "";
+      expect(block, frames).toContain("var(--fm-y)");
+    }
   });
 
   it("keeps its weight in both themes, which is not the same number twice", () => {
@@ -596,9 +759,36 @@ describe("the character", () => {
     expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBe("0.72");
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
-    expect(decl(".fm-body", "fill")).toBe("var(--accent)");
+    expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
+
+    // EVERY GROUP THE SPRITE DRAWS HAS TO BE GIVEN A FILL. SVG's default is
+    // black, so a group with no rule is not a group with a subtle colour — it
+    // is a black hole in the character, which is exactly what splitting the
+    // legs out of the body produced until this line existed.
+    const groups = [...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion|hat))"/g)]
+      .map(m => m[1]);
+    expect(groups.length).toBeGreaterThan(2);
+    for (const g of new Set(groups)) {
+      if (g === "fm-gear-motion") continue;   // inside fm-gear, inherits it
+      const painted = new RegExp(`(^|[\\s,])\\.${g}(,|\\s)[^{]*\\{[^}]*fill:`, "m").test(css)
+        || decl(`.${g}`, "fill") != null;
+      expect(painted, `.${g} is never given a fill`).toBe(true);
+    }
     expect(decl(".fm-gear", "fill")).toBe("var(--muted)");
-    expect(decl(".fm-eye", "fill")).toBe("var(--bg)");
+    // AN EYE IS A DARK MARK, NOT A HOLE. It used to be filled with --bg, the
+    // canvas showing through — near-black in dark and near-WHITE in light, so
+    // the light theme gave the character two blank sockets on a blue face. The
+    // darkest ink is not the same token in both themes, because both flip.
+    expect(decl(".fm-eye", "fill")).toBe("var(--fm-ink)");
+    // ONE DARK INK, DECLARED ONCE ON THE SPRITE, because the eyes and the hat
+    // band are the two marks on this character that both have to be darker than
+    // everything around them, and two copies of that fact would drift.
+    expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
+    expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
+    // And the blink closes onto the body colour from whichever ink is in use.
+    const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(blink).toContain("var(--fm-ink)");
+    expect(blink).not.toContain("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
   });
 
@@ -617,11 +807,14 @@ describe("the character", () => {
     for (const d of DANCES) {
       expect(css).toContain(`@keyframes fm-${d}`);
       const idle = `.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`;
-      expect(decl(`${idle} .fm-body`, "animation"))
+      // THE LEGS DANCE WITH THE TORSO, in phase. Walking they step
+      // independently — that is what a stride is — but dancing happens on the
+      // spot, so any difference between them is just the hip coming apart.
+      expect(decl(`${idle} :is(.fm-body, .fm-leg)`, "animation"))
         .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
       // EXACTLY the body's, with no offset. See below for why the lag went.
       expect(decl(`${idle} .fm-gear-motion`, "animation"))
-        .toBe(decl(`${idle} .fm-body`, "animation"));
+        .toBe(decl(`${idle} :is(.fm-body, .fm-leg)`, "animation"));
     }
     // And the separate nod is gone rather than left lying around.
     expect(css).not.toContain("fm-nod");
@@ -636,16 +829,13 @@ describe("the character", () => {
     expect(css).toContain('.fm-walker[data-act="walk"]');
     // Carrying something is still walking.
     expect(css).toContain('.fm-walker[data-act="carry"]');
-    expect(css).toMatch(/animation: fm-step 440ms linear infinite/);
-    // Two poses, but handed over rather than cut: a 12% linear handover is too
-    // fast to read as a tween and long enough that the change is a movement
-    // rather than a jump. The hard cut at 49.99% juddered.
-    expect(css).toMatch(/@keyframes fm-step \{\s*0%, 44%/);
+    expect(css).toMatch(/animation: fm-stride-a 440ms linear infinite/);
+
     // The curve is a compromise: pure linear starts and stops dead, a full ease
     // makes the middle race and the feet stop matching the ground. This is the
     // gentlest symmetric curve that keeps most of the trip near constant speed.
     expect(decl(".fm-walker", "transition")).toBe("transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1)");
-    expect(decl(".fm-walker", "transform")).toBe("translateX(var(--fm-x, 0px))");
+    expect(decl(".fm-walker", "transform")).toBe("translate(var(--fm-x, 0px), var(--fm-y))");
   });
 
   it("goes about its business whether or not the music is on", () => {
@@ -696,8 +886,114 @@ describe("the character", () => {
     expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
     // 21px is what centres a 12px object under a 54px one when both are
     // right-aligned: without it the stoop reaches for nothing.
-    expect(decl(".fm-prop", "transform")).toBe("translateX(calc(var(--fm-prop-x, 0px) - 21px))");
+    expect(decl(".fm-prop", "transform")).toBe("translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y))");
     expect((54 - 12) / 2).toBe(21);
+  });
+
+  it("falls under gravity rather than for a chosen number of milliseconds", () => {
+    // t = sqrt(2h/g), which is what makes it read as a fall at ANY height
+    // rather than only at the one it was tuned on. A taller ledge falls for
+    // longer on its own.
+    for (const h of [80, 152, 240]) {
+      expect(fallMsFor(h)).toBe(Math.round(1000 * Math.sqrt((2 * h) / FALL_G)));
+    }
+    expect(fallMsFor(240)).toBeGreaterThan(fallMsFor(152));
+    // Doubling the height does NOT double the time — that is the whole
+    // difference between falling and sliding.
+    expect(fallMsFor(304) / fallMsFor(152)).toBeCloseTo(Math.SQRT2, 1);
+    // And over this deck's ledge it lands somewhere with weight in it.
+    expect(fallMsFor(152)).toBeGreaterThan(300);
+    expect(fallMsFor(152)).toBeLessThan(700);
+  });
+
+  it("accelerates downward and climbs at a steady rate", () => {
+    // Everything else on this canvas eases OUT, because everything else is a
+    // thing settling into place. A falling body does the opposite, and a fall
+    // that eases out reads as being lowered on a wire.
+    const fall = decl('.fm-walker[data-act="fall"]', "transition") ?? "";
+    expect(fall).toContain("cubic-bezier(0.11, 0, 0.5, 0)");
+    const [, y1, , y2] = /cubic-bezier\(([^)]*)\)/.exec(fall)![1].split(",").map(Number);
+    expect(y1).toBe(0);           // starts at rest
+    expect(y2).toBeLessThan(0.5); // and is still gaining when it lands
+    // Going up is work at a steady rate, not the fall run backwards.
+    expect(decl('.fm-walker[data-act="climb"]', "transition")).toContain("linear");
+    expect(climbMsFor(152)).toBeGreaterThan(fallMsFor(152) * 2);
+  });
+
+  it("looks before it steps off, and absorbs when it arrives", () => {
+    // Nothing sensible jumps from a height it has not looked at.
+    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toContain("rotate(-9deg)");
+    // A body that arrives at speed and stops dead did not land, it was placed.
+    // This is the deepest squash in the block because it is the only impact.
+    const land = decl('.fm-walker[data-act="land"] .fm-sprite', "transform") ?? "";
+    const [, , sy] = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(land) ?? [];
+    const sit = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(
+      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "") ?? [];
+    expect(Number(sy)).toBeLessThan(Number(sit[2]));
+  });
+
+  it("always comes home, and never plans a trip it cannot measure", () => {
+    const ground = { ledgeH: 152, floorSpan: 900 };
+    const steps = leaveLedgeSteps(-20, ground, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(
+      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "climb"]);
+    // It ends ON THE LEDGE. Anything else strands the character on the canvas
+    // floor with nothing scheduled to bring it back.
+    expect(steps.at(-1)?.place).toBeUndefined();
+    expect(steps.filter(s2 => s2.place === "floor").length).toBeGreaterThan(0);
+    // It goes down and comes up at the same corner: a rope thrown at the ledge
+    // has to catch something, and that corner is the only part it just left.
+    expect(steps[2].x).toBe(steps.at(-1)!.x);
+    // The fall and the climb are the measured height, not a guess.
+    expect(steps[2].ms).toBe(fallMsFor(152));
+    expect(steps.at(-1)!.ms).toBe(climbMsFor(152));
+
+    // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
+    // height would drop the character through the floor or leave it hanging.
+    for (const bad of [undefined, { ledgeH: 0, floorSpan: 900 }, { ledgeH: 152, floorSpan: 0 }]) {
+      for (let i = 0; i <= 30; i++) {
+        const acts = nextActivity(0, () => i / 30, bad).map(s2 => s2.act);
+        expect(acts).not.toContain("fall");
+      }
+    }
+  });
+
+  it("stays inside the canvas when the window shrinks mid-trip", () => {
+    // A trip is planned in one go against the floor it measured at the time,
+    // and then takes the better part of ten seconds to walk. Narrow the window
+    // in the middle of one and those targets are off the left edge of a canvas
+    // that no longer reaches them — the character would walk out of the deck
+    // and come back from nowhere.
+    expect(component).toContain("const reachable = (step: Step): number =>");
+    expect(component).toContain("Math.max(-room, Math.min(0, step.x))");
+    // Applied to every step, not only the floor ones.
+    expect(component).toContain("const to = reachable(step);");
+    expect(component).not.toMatch(/setX\(step\.x\)/);
+    // The ledge keeps its own fixed span; only the floor is measured.
+    expect(component).toMatch(/\(step\.place \?\? "ledge"\) === "floor"/);
+
+    // Clamping per step rather than re-planning keeps the trip's shape: it
+    // still goes down and comes back up at the same corner, and that corner is
+    // inside any canvas wide enough to have shown the minimap at all.
+    const steps = leaveLedgeSteps(0, { ledgeH: 152, floorSpan: 900 }, () => 0.9);
+    const corner = steps.find(s2 => s2.act === "fall")!.x;
+    expect(corner).toBe(-WALK_SPAN_PX);
+    expect(Math.abs(corner)).toBeLessThanOrEqual(WALK_SPAN_PX);
+  });
+
+  it("hangs the rope from the ledge, not from the character", () => {
+    // A rope that travelled with whoever was climbing it would be a rope
+    // climbing itself.
+    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "climb"\) && \(/);
+    const ropeAt = component.indexOf('className="fm-rope"');
+    const walkerAt = component.indexOf('className="fm-walker"');
+    expect(ropeAt).toBeGreaterThan(-1);
+    expect(ropeAt).toBeLessThan(walkerAt);
+    // It reaches exactly the height being climbed.
+    expect(decl('.fm-rope[data-act="climb"]', "height")).toBe("var(--minimap-h)");
+    // 25.5px is the sprite's middle: 54px wide, right-aligned, rope 3px.
+    expect(decl(".fm-rope", "transform")).toBe("translateX(calc(var(--fm-rope-x, 0px) - 25.5px))");
+    expect(54 / 2 - 3 / 2).toBe(25.5);
   });
 
   it("does the errand in steps that can be read without a clock", () => {
@@ -758,6 +1054,116 @@ describe("the character", () => {
     expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
   });
 
+  it("goes over what is standing on the floor, not through it", () => {
+    // The deck's controls sit on the canvas floor and the character walks along
+    // it. Without this it strolls straight through the Auto-fit chip as though
+    // the chip were a picture of one.
+    const bar = { left: -600, right: -400, height: 36 };
+
+    // Walking right, into it from the left-hand side.
+    const over = crossSteps(-800, -200, bar);
+    expect(over.map(st => st.act)).toEqual(["walk", "mount", "walk", "dismount", "walk"]);
+    expect(over[0].x).toBe(bar.left);        // up to the near edge
+    expect(over[1].riser).toBe(bar.height);  // on top of it
+    expect(over[2].x).toBe(bar.right);       // across
+    expect(over[3].riser).toBeUndefined();   // and back down
+    expect(over.at(-1)!.x).toBe(-200);
+    expect(over.every(st => st.place === "floor")).toBe(true);
+
+    // And from the other side, it meets the other edge first.
+    const back = crossSteps(-200, -800, bar);
+    expect(back[0].x).toBe(bar.right);
+    expect(back[2].x).toBe(bar.left);
+    expect(back.at(-1)!.x).toBe(-800);
+  });
+
+  it("walks straight when there is nothing in the way", () => {
+    const bar = { left: -600, right: -400, height: 36 };
+    // No chip on the page at all — the usual case, since it only exists while
+    // auto-fit is off.
+    expect(crossSteps(-800, -200, null)).toHaveLength(1);
+    // A walk that never reaches it, on either side.
+    expect(crossSteps(-300, -100, bar)).toHaveLength(1);
+    expect(crossSteps(-900, -700, bar)).toHaveLength(1);
+    // And something with no height is not an obstacle.
+    expect(crossSteps(-800, -200, { ...bar, height: 0 })).toHaveLength(1);
+  });
+
+  it("steps up and drops down, which are not the same motion", () => {
+    // Getting onto something is a step and it settles; stepping off is a drop
+    // and it accelerates — on the very same curve as the fall from the ledge,
+    // because it is the same thing over a shorter distance.
+    expect(decl('.fm-walker[data-act="mount"]', "transition")).toContain("cubic-bezier(0.23, 1, 0.32, 1)");
+    const down = decl('.fm-walker[data-act="dismount"]', "transition") ?? "";
+    const fall = decl('.fm-walker[data-act="fall"]', "transition") ?? "";
+    expect(/cubic-bezier\([^)]*\)/.exec(down)?.[0]).toBe(/cubic-bezier\([^)]*\)/.exec(fall)?.[0]);
+    // The riser is what the height is carried on.
+    expect(decl('.fm-walker[data-place="floor"]', "--fm-y")).toBe("calc(-1 * var(--fm-riser, 0px))");
+  });
+
+  it("takes strides rather than hopping", () => {
+    // A body that rises and falls with its legs welded on is a hop. The two
+    // legs run the same cycle half a beat apart, so one is always forward while
+    // the other is back — which is the whole of what makes a walk a walk.
+    const walk = ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])';
+    expect(decl(`${walk} .fm-leg[data-side="left"]`, "animation")).toBe("fm-stride-a 440ms linear infinite");
+    expect(decl(`${walk} .fm-leg[data-side="right"]`, "animation")).toBe("fm-stride-b 440ms linear infinite");
+    // OPPOSITE PHASE, which is the whole point: the poses are the same two, in
+    // the other order. Compared as poses rather than as lines, since the same
+    // pose is written under a different percentage in each set.
+    const poses = (name: string) => {
+      const block = new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? "";
+      return [...block.matchAll(/\{\s*transform:\s*([^;]+);/g)]
+        .map(m => m[1].replace(/\s+/g, " ").trim());
+    };
+    const a = poses("fm-stride-a"), b = poses("fm-stride-b");
+    expect(a).toHaveLength(2);
+    expect(a).toEqual([...b].reverse());
+    expect(a[0]).not.toBe(a[1]);
+
+    // THEY STEP, THEY DO NOT SWING. Rotating each leg about its hip is how a
+    // leg works and is wrong at this size: a cell is three pixels, and fifteen
+    // degrees moves the foot of a three-row leg 2.33px — between pixels, so the
+    // edge is drawn half-lit and the leg reads as torn rather than angled.
+    for (const pose of [...a, ...b]) {
+      expect(pose).not.toContain("rotate");
+      // And the step is a whole cell, so every edge lands on the grid.
+      const dy = /translateY\((-?[\d.]+)px\)/.exec(pose)?.[1] ?? "0";
+      expect(Number.isInteger(Number(dy))).toBe(true);
+    }
+    // And the legs really are the bottom rows, split down the middle.
+    const below = SPRITE.slice(LEG_TOP_ROW).join("");
+    expect(below).toContain("b");
+    expect(SPRITE[LEG_TOP_ROW - 1]).not.toBe(SPRITE[LEG_TOP_ROW]);
+  });
+
+  it("climbs in pulls, not as a glide", () => {
+    // The rise is linear because a rope is climbed at a steady rate. Nothing
+    // about the body doing it is smooth: it gathers, pulls, and reaches again.
+    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms ease-in-out infinite");
+    expect(css).toMatch(/@keyframes fm-haul/);
+    // Slower than the walk — hauling your own weight is not a stroll, and the
+    // cadence is most of what says so.
+    const stride = /fm-stride-a (\d+)ms linear/.exec(css)?.[1];
+    const haul = /fm-haul (\d+)ms/.exec(css)?.[1];
+    expect(Number(haul)).toBeGreaterThan(Number(stride));
+    // The rise underneath it stays linear.
+    expect(decl('.fm-walker[data-act="climb"]', "transition")).toContain("linear");
+  });
+
+  it("carries a held thing on the side it is facing", () => {
+    // Held on the left while walking right, an object trails behind the
+    // character — the other half of what made it look like it was going
+    // backwards.
+    expect(decl(".fm-held", "right")).toBe("42px");
+    expect(decl('.fm-walker[data-facing="right"] .fm-held', "right")).toBe("0");
+    // 54px sprite less a 12px object puts the far side at 0; the scope is 15px
+    // wide, so its mirror is 5.
+    expect(54 - 42 - 12).toBe(0);
+    expect(decl('.fm-walker[data-facing="right"] .fm-held[data-prop="scope"]', "right")).toBe("5px");
+    expect(54 - 34 - 15).toBe(5);
+  });
+
   it("never ends a step before the animation that step started", () => {
     // THE CLASS OF BUG, not just the one instance. A step's `ms` is how long the
     // component holds that state; when it ends, the element carrying the
@@ -810,7 +1216,10 @@ describe("the character", () => {
     // reads as the character standing slightly lower. Seven did exactly that.
     const drop = Number(/translateY\((\d+)px\)/.exec(
       decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
-    const legHeight = 2 * (54 / SPRITE_W);
+    // Counted off the sprite, not assumed: the legs got a row longer once
+    // already and this number had to move with them.
+    const legRows = SPRITE.length - LEG_TOP_ROW;
+    const legHeight = legRows * (54 / SPRITE_W);
     expect(drop).toBeGreaterThan(legHeight);
     // And it folds rather than being lowered.
     expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
@@ -833,14 +1242,23 @@ describe("the character", () => {
     expect(steps[1].prop?.held).toBe(true);
     // Held at the eyes and pointed away from the minimap, or the pose reads as
     // carrying a stick.
-    expect(decl('.fm-held[data-prop="scope"]', "bottom")).toBe("21px");
+    // HELD AT THE EYES, and the eyes move when the sprite grows. Derived here
+    // rather than pinned, because this number is "where row four is" and the
+    // last time the legs got a row longer it silently stopped being that.
+    const CELL = 54 / SPRITE_W;
+    const eyeRow = SPRITE.findIndex(r => r.includes("e"));
+    const eyeFromFloor = (SPRITE_H - 1 - eyeRow) * CELL;
+    const scopeBottom = parseFloat(decl('.fm-held[data-prop="scope"]', "bottom") ?? "");
+    const scopeH = PROP_ART.scope.length * CELL;
+    expect(scopeBottom).toBeLessThanOrEqual(eyeFromFloor);
+    expect(scopeBottom + scopeH).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(decl(".fm-held", "bottom")).toBe("3px");
     // AND IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head
     // and read as floating beside the character: the arms are two rows from the
     // bottom, so there is nothing at eye height for a hand to be, and the
     // overlap has to do the work the arm cannot.
     expect(decl('.fm-held[data-prop="scope"]', "right")).toBe("34px");
-    const SPRITE_PX = 54, SCOPE_PX = 15, CELL = SPRITE_PX / SPRITE_W;
+    const SPRITE_PX = 54;   // CELL is already in hand from the eye maths above
     const farEnd = SPRITE_PX - 34;             // the end nearest the face
     const headStartsAt = 6 * CELL;             // body columns begin at 6
     expect(farEnd).toBeGreaterThan(headStartsAt);
@@ -865,8 +1283,8 @@ describe("the character", () => {
     // it is worn on, which is what the dance's 90ms is. Round the neck they are
     // resting against the chest, and the same delay made them visibly trail the
     // body on every step.
-    expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
-    expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
+    // Nothing runs on the torso or the headphones while it walks at all now.
+    expect(css).not.toContain("fm-step");
     // AND NO DELAY EITHER, which a thirteen-row sprite leaves no room for.
     // groove lifts 0.85 units; at the steepest part of the bounce that is
     // 0.02px per millisecond, so even fifty milliseconds puts the body a whole
@@ -874,7 +1292,8 @@ describe("the character", () => {
     // pixel of separation is a third of it. What that looks like is the head
     // sinking into the headphones. Things on a head do not lag behind it.
     const idleSel = '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"]';
-    expect(decl(`${idleSel} .fm-gear-motion`, "animation")).toBe(decl(`${idleSel} .fm-body`, "animation"));
+    expect(decl(`${idleSel} .fm-gear-motion`, "animation"))
+      .toBe(decl(`${idleSel} :is(.fm-body, .fm-leg)`, "animation"));
     expect(css).not.toMatch(/\.fm-gear-motion \{\s*animation:[^;]*-\d+ms/);
     const LIFT_UNITS = 0.85, CELL_PX = 54 / SPRITE_W, BEAT = 800;
     const pxPerMs = (LIFT_UNITS * CELL_PX * 2 * Math.PI) / BEAT;
@@ -885,7 +1304,14 @@ describe("the character", () => {
     expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
     expect(css).toMatch(/@keyframes fm-roll/);
     // Negative: down the ledge, away from the bin corner.
-    expect(css).toMatch(/- 21px - 132px/);
+    // THE SIGN IS THE FACING'S, and only the distance is fixed. This rolled a
+    // hardcoded -132px, which is right exactly half the time: approach the ball
+    // from the left and the kick sent it backwards, straight through the
+    // character that had just kicked it.
+    expect(css).toContain("var(--fm-roll-to, -132px)");
+    expect(css).not.toMatch(/- 21px - 132px/);
+    expect(component).toContain('facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`');
+    expect(BALL_ROLL_PX).toBe(132);
   });
 
   it("rests between things without going quiet enough to look broken", () => {
@@ -917,7 +1343,7 @@ describe("the character", () => {
     const blocks = [...css.matchAll(reduce)].map(m => m[1]).join("\n");
     // All of it: the dance, the walk and the press.
     for (const gone of [
-      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg)',
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion',
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
@@ -928,7 +1354,7 @@ describe("the character", () => {
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker, \.fm-gear \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });

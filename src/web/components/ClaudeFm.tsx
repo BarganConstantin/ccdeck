@@ -45,7 +45,11 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, nextDance, nextDanceMs, type Act, type Dance, type Prop, type Step,
+  BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y,
+  LEG_SPLIT_COL, LEG_TOP_ROW,
+  nextDance, nextDanceMs, WALK_SPAN_PX,
+  type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
+  type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -108,6 +112,15 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  inside the walker once it is held — because on the floor it must stay
      *  put and in hand it must travel, and one element cannot do both. */
     const [prop, setProp] = useState<Prop | null>(null);
+    /** Which surface it is standing on. The ledge for all but one activity. */
+    const [place, setPlace] = useState<Place>("ledge");
+    /** Which way it is looking. Without it a symmetric sprite walking left is
+     *  the same picture as one walking right, which reads as reversing. */
+    const [facing, setFacing] = useState<Facing>("left");
+    /** How far above its surface it is standing. Non-zero only when it is on
+     *  top of something sitting on the canvas floor. */
+    const [riser, setRiser] = useState(0);
+    const scene = useRef<HTMLDivElement | null>(null);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
      *  rather than as a character. */
@@ -203,23 +216,140 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setWalkMs(step.ms);
         setAct(step.act);
         setProp(step.prop);
-        setX(step.x);
-        here = step.x;
+        setPlace(step.place ?? "ledge");
+        setFacing(was => facingFor(step, here, was));
+        setRiser(step.riser ?? 0);
+        const to = reachable(step);
+        setX(to);
+        here = to;
         timer = setTimeout(() => run(rest), step.ms);
       };
 
+      /**
+       * How much floor there is, right now.
+       *
+       * EVERY NUMBER COMES FROM A RECT, and none from `getComputedStyle`. That
+       * is the cost #612/#613 removed from this canvas, and render-path-cost
+       * keeps a list of the two files still allowed it; adding a third is what
+       * that test exists to make somebody think twice about. The gutter is the
+       * gap between the scene and its parent, which is already laid out.
+       */
+      const floorReach = (): number | null => {
+        const el = scene.current;
+        const sprite = el?.querySelector<HTMLElement>(".fm-sprite");
+        const parent = el?.parentElement;
+        if (!el || !sprite || !parent) return null;
+        const box = el.getBoundingClientRect();
+        const outer = parent.getBoundingClientRect();
+        const gutter = outer.right - box.right;
+        const span = outer.width - gutter * 2 - sprite.offsetWidth;
+        return span > 0 ? span : null;
+      };
+
+      /**
+       * What a trip needs to know: how far there is to fall, and how much floor
+       * is at the bottom. The minimap is a fixed size; the canvas is whatever
+       * the window is today, and both change on a resize — so both are read
+       * when a trip is planned rather than held in a constant.
+       *
+       * The ledge height is how far the walker is standing above the scene's
+       * own floor, which is only meaningful while it is up there. That is the
+       * only moment a trip is ever planned, so it is the only moment this is
+       * asked.
+       */
+      const ground = (): Ground | undefined => {
+        const el = scene.current;
+        const walker = el?.querySelector<HTMLElement>(".fm-walker");
+        const floorSpan = floorReach();
+        if (!el || !walker || floorSpan == null) return undefined;
+        const ledgeH = el.getBoundingClientRect().bottom - walker.getBoundingClientRect().bottom;
+        if (!(ledgeH > 0)) return undefined;
+        return { ledgeH, floorSpan };
+      };
+
+      /**
+       * Whatever is standing on the canvas floor in the character's way.
+       *
+       * The deck's controls sit on that floor and the character walks along it,
+       * so without this it strolls straight through the Auto-fit chip as though
+       * the chip were a picture of one. Read from the page each time a walk is
+       * planned: the chip only exists while auto-fit is off, and a walk planned
+       * when it was there must not assume it still is.
+       *
+       * Converted into the character's own coordinates, which count leftward
+       * from the scene's right edge.
+       */
+      const obstacle = (): Obstacle | null => {
+        const el = scene.current;
+        const chip = document.querySelector<HTMLElement>(".autofit-chip");
+        if (!el || !chip) return null;
+        const box = el.getBoundingClientRect();
+        const bar = chip.getBoundingClientRect();
+        if (bar.width <= 0 || bar.height <= 0) return null;
+        return {
+          left: bar.left - box.right,
+          right: bar.right - box.right,
+          height: bar.height,
+        };
+      };
+
+      /**
+       * The step's target, brought inside whatever room there is NOW.
+       *
+       * A trip is planned in one go against the floor it measured at the time,
+       * and then takes the better part of ten seconds to walk. Narrow the
+       * window in the middle of one and those targets are suddenly off the left
+       * edge of a canvas that no longer reaches them — the character would walk
+       * out of the deck and come back from nowhere.
+       *
+       * Clamping per step rather than re-planning keeps the trip's own shape:
+       * it still goes down and comes back up at the same corner, because that
+       * corner is inside any canvas wide enough to have shown the minimap in
+       * the first place.
+       */
+      const reachable = (step: Step): number => {
+        const room = (step.place ?? "ledge") === "floor"
+          ? floorReach() ?? WALK_SPAN_PX
+          : WALK_SPAN_PX;
+        return Math.max(-room, Math.min(0, step.x));
+      };
+
       const idle = () => {
-        timer = setTimeout(() => run(nextActivity(here, Math.random)), nextIdleMs(Math.random));
+        timer = setTimeout(() => {
+          const plan = nextActivity(here, Math.random, ground());
+          // A walk along the floor goes OVER whatever is standing on it. Every
+          // other step is left exactly as planned — only floor walks can meet
+          // anything, and only they are rewritten.
+          const bar = plan.some(st => st.place === "floor") ? obstacle() : null;
+          // Each walk is rewritten from where the one before it left off, so
+          // the crossing knows which side of the obstacle it is approaching
+          // from. Only floor walks can meet anything; every other step is
+          // passed through exactly as planned.
+          let at = here;
+          const walked = plan.flatMap(st => {
+            const from = at;
+            at = st.x;
+            return st.place === "floor" && st.act === "walk"
+              ? crossSteps(from, st.x, bar)
+              : [st];
+          });
+          run(walked);
+        }, nextIdleMs(Math.random));
       };
 
       idle();
       return () => {
         if (timer) clearTimeout(timer);
+        // Whatever it was in the middle of, it is not any more — and if that
+        // was a trip, it must not be left standing on the canvas floor with
+        // nothing scheduled to bring it home.
+        setPlace("ledge");
         // Whatever it was in the middle of, it is not any more. Leaving a prop
         // on the ledge that nothing will ever come back for is the one way this
         // can litter for real.
         setAct(null);
         setProp(null);
+        setRiser(0);
       };
     }, [probe, dead]);
 
@@ -254,6 +384,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     if (!probe || dead) return null;
 
+    /** Everything that is not headphones, split below into torso and legs. */
+    const body = spriteRects().filter(r => !GEAR_CELLS.has(r.cell));
+
     const press = () => {
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
@@ -266,7 +399,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     return (
       <div
+        ref={scene}
         className="fm"
+        data-place={place}
         style={{ "--fm-beat": `${beatMs}ms` } as CSSProperties}
       >
         {/* On the ledge, and not inside the walker: a thing lying on the floor
@@ -276,20 +411,41 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             className="fm-prop"
             data-prop={prop.kind}
             data-leaving={prop.leaving ? "" : undefined}
-            style={{ "--fm-prop-x": `${prop.at}px` } as CSSProperties}
+            style={{
+              "--fm-prop-x": `${prop.at}px`,
+              // A kicked ball leaves the way the foot was pointing. Without
+              // this it always rolled left, which is backwards through the
+              // character whenever it had walked rightward to reach it.
+              "--fm-roll-to": facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`,
+            } as CSSProperties}
           >
             {pixels(PROP_ART[prop.kind], "p")}
           </div>
         )}
+        {/* THE ROPE IS NOT INSIDE THE WALKER, and it cannot be: it is fixed to
+            the ledge, and the character climbs past it. A rope that travelled
+            with whoever was climbing it would be a rope climbing itself. */}
+        {(act === "lasso" || act === "climb") && (
+          <div
+            className="fm-rope"
+            data-act={act}
+            style={{ "--fm-rope-x": `${x}px` } as CSSProperties}
+          />
+        )}
         <div
           className="fm-walker"
           data-act={act ?? undefined}
+          data-place={place}
+          data-facing={facing}
           style={{
             // Where it is standing and how long the current trip takes. Inline
             // because both are values rather than states: a class per pixel of
             // the ledge is not a thing a stylesheet can hold.
             "--fm-x": `${x}px`,
             "--fm-walk-ms": `${walkMs}ms`,
+            // How high whatever it is standing on is. Zero for the floor
+            // itself, and the height of the Auto-fit chip while it is up there.
+            "--fm-riser": `${riser}px`,
           } as CSSProperties}
         >
         {/* In hand, so it travels with the character — and on the way out,
@@ -337,8 +493,16 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 ))}
               </g>
             </g>
+            {/* THE LEGS ARE THEIR OWN PARTS, so they can take a step. A body
+                that rises and falls without its legs alternating is a hop, not
+                a walk — which is why the walk never looked like walking.
+
+                They are separated by position rather than by a letter of their
+                own in the grid: they are the only thing below LEG_TOP_ROW and
+                there is nothing between them, so a row and a column is all it
+                takes. The sprite stays eighteen lines of text. */}
             <g className="fm-body">
-              {spriteRects().filter(r => !GEAR_CELLS.has(r.cell)).map(r => (
+              {body.filter(r => r.y < LEG_TOP_ROW).map(r => (
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
@@ -346,6 +510,33 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 />
               ))}
             </g>
+            {/* DRAWN AFTER THE BODY, which is the whole reason it is its own group.
+                The headphones are drawn BEFORE it so they can slide down and
+                hide behind the head; a hat has to do the opposite — the brim
+                sits over the forehead, so it has to be painted on top of it. */}
+            <g className="fm-hat">
+              {spriteRects(HAT).map(r => (
+                <rect
+                  key={`h${r.y}-${r.x}`}
+                  x={HAT_X + r.x} y={HAT_Y + r.y} width={r.w} height={1}
+                  className={r.cell === "k" ? "fm-hatband" : undefined}
+                />
+              ))}
+            </g>
+            {(["left", "right"] as const).map(side => (
+              <g key={side} className="fm-leg" data-side={side}>
+                {body
+                  .filter(r => r.y >= LEG_TOP_ROW)
+                  .filter(r => (side === "left" ? r.x < LEG_SPLIT_COL : r.x >= LEG_SPLIT_COL))
+                  .map(r => (
+                    <rect
+                      key={`${side}${r.y}-${r.x}`}
+                      x={r.x} y={r.y} width={r.w} height={1}
+                      className={CELL_CLASS[r.cell]}
+                    />
+                  ))}
+              </g>
+            ))}
           </svg>
         </button>
         </div>

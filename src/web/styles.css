@@ -12269,7 +12269,16 @@ input, textarea { caret-color: var(--accent); }
   --minimap-w: 202px;    /* its 200 drawing, the same 1px edge each side */
   position: absolute;
   right: var(--flow-gutter);
-  bottom: calc(var(--flow-gutter) + var(--minimap-h));
+  /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a
+     height within it. It used to be pinned to the minimap's top border, which
+     made that border the only place in the world — there was no way to express
+     "further down" at all, and the character could not leave.
+
+     Nothing moves on screen for this: the walker carries --fm-y, which defaults
+     to exactly the ledge's height above the floor, so every position that was
+     right before is right now. What it buys is somewhere else to go. */
+  bottom: var(--flow-gutter);
+  --fm-y: calc(-1 * var(--minimap-h));
   width: var(--minimap-w);
   height: 0;
   /* Above the canvas, alongside the chrome it stands next to: the same z-index
@@ -12297,15 +12306,113 @@ input, textarea { caret-color: var(--accent); }
      symmetric curve that still spends most of the trip near constant speed: it
      leans into the first stride and settles out of the last, and the cadence
      in between is close enough to even that the feet keep up. */
-  transform: translateX(var(--fm-x, 0px));
+  transform: translate(var(--fm-x, 0px), var(--fm-y));
   transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1);
+}
+
+/* OFF THE LEDGE AND ONTO THE CANVAS FLOOR.
+   The scene widens leftward when the character is down there — its right edge
+   never moves, so every ledge coordinate and the 21px prop offset below stay
+   exactly as valid as they were, and only the amount of floor changes. */
+.fm[data-place="floor"] {
+  left: var(--flow-gutter);
+  width: auto;
+}
+/* The floor is the bottom of the scene, which is what the scene was moved down
+   to be. Standing on it is the absence of the ledge's height, not a second
+   position system. */
+/* The floor is the bottom of the scene, plus whatever it happens to be standing
+   ON. The deck's controls sit on that floor and the character walks along it,
+   so --fm-riser is how high the thing under its feet is — zero for the floor
+   itself, and the height of the Auto-fit chip while it is up on that. */
+.fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
+
+/* GETTING UP ONTO SOMETHING IS A STEP, NOT A CLIMB. It is ankle-high next to
+   the ledge this character throws a rope at, so it goes up quickly and arrives
+   — ease-out, like everything else on this canvas that settles into place. */
+.fm-walker[data-act="mount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* Stepping off it is a drop, and a drop accelerates. The same curve as the fall
+   from the ledge, because it is the same thing over a much shorter distance —
+   using anything else here would make one of the two a lie. */
+.fm-walker[data-act="dismount"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Up on the toes to make the step, and absorbing it on the way down. */
+.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-1px) scale(0.98, 1.04); }
+.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(2px) scale(1.06, 0.9); }
+
+/* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
+   this canvas eases out, because everything else is a thing settling into
+   place; a falling body does the opposite, and a fall that eases out reads as
+   being lowered on a wire. `easeInQuad` is position proportional to time
+   squared, which is what constant acceleration means — the duration is already
+   the one the model derived from the height and the gravity, so this only says
+   what shape the motion has. */
+.fm-walker[data-act="fall"] {
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
+}
+/* Going up is work at a steady rate, not the fall run backwards. Linear. */
+.fm-walker[data-act="climb"] {
+  transition: transform var(--fm-walk-ms, 0ms) linear;
+}
+
+/* Looking over before stepping off: it leans out over the edge. Nothing
+   sensible jumps from a height it has not looked at. */
+.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-2px) rotate(-9deg); }
+
+/* The landing absorbs. A body that arrives at speed and stops dead did not
+   land, it was placed — the squash is where the energy goes, and it is the
+   deepest one in this block because it is the only impact. */
+.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px) scale(1.12, 0.8); }
+
+/* Winding up the throw. */
+.fm-walker[data-act="lasso"] .fm-sprite { transform: rotate(-5deg); }
+
+/* THE ROPE. Anchored to the ledge and standing still while the character climbs
+   past it — it is drawn outside the walker for exactly that reason, since a
+   rope that travelled with whoever was climbing it would be a rope climbing
+   itself.
+
+   25.5px puts it on the sprite's middle: the sprite is 54px and right-aligned
+   at --fm-rope-x, so its centre is 27px in, and the rope is 3px wide. */
+.fm-rope {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
+  background: var(--muted);
+}
+/* Spinning overhead before it is thrown: an ellipse turning about its middle
+   is a loop of rope seen from the side, and the only reason it reads as one is
+   that it is wider than it is tall. */
+.fm-rope[data-act="lasso"] {
+  width: 16px;
+  height: 7px;
+  bottom: 45px;   /* just above the head: the sprite is 42px tall */
+  background: none;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+  animation: fm-spin 420ms linear infinite;
+}
+@keyframes fm-spin {
+  0%   { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(0deg)   scaleX(1); }
+  50%  { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(180deg) scaleX(0.35); }
+  100% { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(360deg) scaleX(1); }
+}
+/* Thrown and caught: a line from the ledge down to the floor, which is the
+   height the character is about to cover. */
+.fm-rope[data-act="climb"] {
+  width: 3px;
+  height: var(--minimap-h);
 }
 
 /* The 21px is what centres a 12px object under a 54px one when both are
    right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
    the character's shoulder and the stoop reaches for nothing. */
 .fm-prop {
-  transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));
+  transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y));
   width: 12px;
 }
 .fm-prop svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
@@ -12315,19 +12422,22 @@ input, textarea { caret-color: var(--accent); }
    same cheapness as headphones blinking off a head. */
 .fm-prop { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
 
-/* Kicked, it goes down the ledge and out. Away from the bin end, which is the
-   only direction with any ledge left in it. */
+/* KICKED, IT GOES THE WAY THE FOOT WAS POINTING. This rolled a fixed -132px,
+   which is fine exactly half the time: approach the ball from the left and the
+   kick sends it backwards, straight through the character that just kicked it.
+   The distance is the same either way; only the sign follows the facing, and
+   the component writes it. */
 .fm-prop[data-prop="ball"][data-leaving] {
   animation: fm-roll 520ms cubic-bezier(0.12, 0.6, 0.4, 1) forwards;
 }
 @keyframes fm-roll {
-  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));         opacity: 1; }
+  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px),         var(--fm-y)); opacity: 1; }
   70%  { opacity: 1; }
-  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px - 132px)); opacity: 0; }
+  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to, -132px)), var(--fm-y)); opacity: 0; }
 }
 @keyframes fm-settle {
-  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(-5px); opacity: 0; }
-  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(0);    opacity: 1; }
+  0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), calc(var(--fm-y) - 5px)); opacity: 0; }
+  100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px), var(--fm-y));             opacity: 1; }
 }
 
 /* In hand: at the character's side, at the height of its feet, so the throw
@@ -12364,9 +12474,18 @@ input, textarea { caret-color: var(--accent); }
    pixel character that has ever held something to its face does it. */
 .fm-held[data-prop="scope"] {
   right: 34px;
-  bottom: 21px;
+  /* The eye row, measured from the feet: a 14-row sprite at 3px a row puts row
+     four 27px up, and a 9px scope starting at 24 covers it. Moved with the
+     legs — the eyes did not change row, but the floor got further away. */
+  bottom: 24px;
   width: 15px;
 }
+/* CARRIED ON THE SIDE IT IS FACING. Held on the left while walking right, an
+   object trails along behind the character, which is the other half of what
+   made it look like it was going backwards. 54px sprite less the 12px object
+   puts the far side at 0; the scope is 15px wide, so its mirror is 5. */
+.fm-walker[data-facing="right"] .fm-held { right: 0; }
+.fm-walker[data-facing="right"] .fm-held[data-prop="scope"] { right: 5px; }
 
 /* No surface, no border, no shadow. Every other instrument on this canvas
    wears --chrome-bg and an edge because it is a panel of controls; this is one
@@ -12422,16 +12541,111 @@ input, textarea { caret-color: var(--accent); }
    canvas. */
 .fm-sprite svg { display: block; width: 100%; height: auto; overflow: visible; }
 
+/* THE DARKEST INK THE PALETTE HAS, and it is not the same token in both themes
+   because both flip: --bg is near-black in dark and near-WHITE in light, and
+   --text is the other way round. Declared once on the sprite so the eyes and
+   the hat band cannot drift apart — they are the two marks on this character
+   that have to be darker than everything around them. */
+.fm-sprite { --fm-ink: var(--bg); }
+:root[data-theme="light"] .fm-sprite { --fm-ink: var(--text); }
+
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette
    rather than arriving with its own. Both recolour with the theme, which is the
    whole reason this is a grid of rects and not a picture. */
 .fm-gear { fill: var(--muted); }
-.fm-body { fill: var(--accent); }
-/* The eyes are holes, not marks: --bg is the canvas's own background in both
-   themes (`.react-flow__pane` paints it), so the canvas shows through and the
-   eyes stay right on either. */
-.fm-eye { fill: var(--bg); }
+/* THE LEGS ARE THE SAME INK AS THE BODY, and they need saying so out loud.
+   They used to BE the body — one group, one fill — and splitting them out so
+   they could take a step took them out from under it. SVG's default fill is
+   black, so the character walked around with two black legs and a black shin,
+   which is what an unstated inherited property costs the moment the thing it
+   was inherited from goes away. */
+.fm-body, .fm-leg { fill: var(--accent); }
+
+/* WHAT IT WEARS WHEN THERE IS NOTHING TO LISTEN TO.
+   The headphones leaving used to leave a bare head, and a bare head is not a
+   state — it is the absence of one. Swapping one thing for another makes the
+   change legible from across a room, and it reads as the character putting
+   something on rather than something being taken off it.
+   The same grey the headphones wear, because they are never both on: they are
+   told apart by shape, which is what a silhouette is for. The band is the
+   character's own colour, which ties the hat to whoever is under it. */
+.fm-hat { fill: var(--muted); }
+/* NOT THE BODY'S COLOUR, which is what it was. A band in the same blue as the
+   head reads as the head showing through the hat rather than as a band on it —
+   the one thing a hat must never look like. Dark, the way a band on a hat is,
+   and mixed rather than flat black so it sits on the felt instead of cutting a
+   hole in it. */
+.fm-hatband { fill: color-mix(in srgb, var(--muted) 40%, var(--fm-ink)); }
+
+/* THE TWO SWAP, AND THE ORDER IS THE WHOLE THING. The hat goes straight up and
+   off while the headphones come down, which is the way each is really put on
+   and taken off — but the first build had both fades on the WRONG side of the
+   exchange. The incoming one arrived at once and the outgoing one waited 240ms,
+   so for a quarter of a second the character wore a hat and a pair of
+   headphones at the same time, and what that looks like is the headphones
+   appearing on top of the hat in a single frame.
+
+   Whichever one is leaving goes immediately; whichever is arriving waits for
+   the other to clear. A transition applies when moving TO a state, so the rule
+   that carries the delay is the one being moved to — `[data-playing]` for the
+   headphones arriving, the bare rule for the hat coming back.
+
+   The travel is unchanged and still overlaps: one rises as the other falls.
+   It is only the two fades that had to be put in order. */
+.fm-hat {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 160ms linear 200ms;
+}
+.fm-sprite[data-playing] .fm-hat {
+  transform: translateY(-4px);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 180ms linear;
+}
+/* THE EYES NARROW WHEN IT IS LOOKING AT SOMETHING, and that is all they do.
+
+   An earlier build also shifted them a column to say which way it was
+   travelling. It was on at every moment — the eyes were never simply open — and
+   a face that is always doing something has no expression left to spend. It
+   walks with its eyes open now, and the narrowing is saved for the litter it is
+   bending for, the ball it is about to kick, and whatever it is aiming the
+   scope at.
+
+   AND NOTHING ELSE HAPPENS TO THEM. Two earlier passes also shifted them a
+   column to say which way it was travelling, and both times it was wrong for
+   the same reason: the eyes were doing something at every moment, so they were
+   never simply open. Direction is carried by which side it holds things on,
+   which is a thing it is actually doing rather than a face pulled permanently
+   to one side.
+
+   `fill-box` here is the case the pivot rule above warns is fine: one shape
+   narrowing about its own middle, with nothing that has to agree with it. */
+.fm-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(var(--fm-eye-h, 1));
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+:is(.fm-walker[data-act="stoop"], .fm-walker[data-act="windup"],
+    .fm-walker[data-act="kick"], .fm-walker[data-act="watch"]) .fm-eye {
+  --fm-eye-h: 0.4;
+}
+
+
+
+/* AN EYE IS A DARK MARK, in both themes, and this had it as a HOLE.
+   `--bg` is the canvas showing through, which is near-black in dark and
+   near-white in light — so in light the character got two blank white sockets
+   on a blue face, and what that reads as is something that has stopped being
+   alive. The darkest ink in the palette is not the same token in both themes:
+   it is --bg in dark and --text in light, because both flip. The eye takes
+   whichever one is dark. */
+.fm-eye { fill: var(--fm-ink); }
 
 /* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
    The obvious spelling — mix the accent toward --bg — lands the wrong way
@@ -12456,13 +12670,21 @@ input, textarea { caret-color: var(--accent); }
    alive is not. */
 .fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
 @keyframes fm-blink {
-  0%, 93.5%  { fill: var(--bg); }
+  0%, 93.5%  { fill: var(--fm-ink); }
   94%, 96.5% { fill: var(--accent); }
-  97%, 100%  { fill: var(--bg); }
+  97%, 100%  { fill: var(--fm-ink); }
 }
 
-/* ONE PIVOT FOR BOTH GROUPS, and getting this wrong is invisible in the
+/* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
    stylesheet and glaring on screen.
+
+   THE LEGS WERE LEFT OUT OF THIS AND IT COST THE SAME BUG TWICE. They were
+   added to the rule when they still rotated, and taken back out with the
+   rotation — but they still SCALE, because they dance with the torso now. On
+   the default origin a leg scales about the middle of the sprite while the
+   torso scales about its feet, so the same keyframe pulls them apart and the
+   hip opens. In the light theme the canvas showing through that gap reads as a
+   pair of white legs.
 
    These were on `transform-box: fill-box`, which makes the origin each group's
    OWN bounding box. The gear's box is rows 0-8 and the body's is rows 2-13, so
@@ -12476,7 +12698,10 @@ input, textarea { caret-color: var(--accent); }
    so both groups pivot about (9, 13) — the middle of its feet — which is what
    "bottom centre" was always meant to mean. Identical transforms about an
    identical origin cannot drift. */
-.fm-gear, .fm-gear-motion, .fm-body { transform-box: view-box; transform-origin: 50% 100%; }
+:is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg, .fm-hat) {
+  transform-box: view-box;
+  transform-origin: 50% 100%;
+}
 
 /* WHERE THE HEADPHONES ARE, which is the one thing about this character that
    says whether anything is playing, without a word or a colour. On its head
@@ -12502,14 +12727,14 @@ input, textarea { caret-color: var(--accent); }
   opacity: 0;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 200ms linear 240ms;
+    opacity 180ms linear;
 }
 .fm-sprite[data-playing] .fm-gear {
   transform: translateY(0) rotate(0deg);
   opacity: 1;
   transition:
     transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 140ms linear;
+    opacity 160ms linear 200ms;
 }
 
 /* THE DANCE, which is three things a bob alone was not.
@@ -12559,23 +12784,31 @@ input, textarea { caret-color: var(--accent); }
    thirteen-row sprite does not have any. Rigid is correct: they are ON the
    head, and things on a head do not lag behind it.
 
+   THE LEGS DANCE WITH THE TORSO, exactly in phase, which is the opposite of
+   what they do when it walks. Walking, they step INDEPENDENTLY — that is what a
+   stride is. Dancing happens on the spot, so there is no step to take and any
+   difference between the two is just the hip coming apart. Measured while the
+   torso grooved on its own: the gap opened and closed across two and a half
+   pixels, and in the light theme the canvas showing through it read as a pair
+   of white legs.
+
    ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
    fighting a walk: with the music on it still goes about its business, and
    while it is walking or sitting or looking at the board, the walk owns the
    body and the dance waits. */
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg) {
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
   animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg) {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
   animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
 }
-.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body {
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg) {
   animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
 }
 .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
@@ -12606,7 +12839,75 @@ input, textarea { caret-color: var(--accent); }
   100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
 }
 
-/* THE WALK, and it is two frames rather than a curve on purpose. A pixel
+/* THE LEGS STEP, THEY DO NOT SWING, and the difference is the grid.
+
+   The first build rotated each leg about its hip, fifteen degrees either way —
+   which is how a leg works, and is wrong at this size. A cell here is three
+   pixels; fifteen degrees moves the foot of a three-row leg 2.33px, so it lands
+   BETWEEN pixels and the edge is drawn half-lit. With the two legs at opposite
+   extremes the character stood in a thirty-degree splay made of torn edges, and
+   what that reads as is a broken leg rather than a stride.
+
+   A whole cell, straight up, is the only move that stays on the grid. It is
+   also what every pixel character has ever done: two frames, one foot up, and
+   the walk is in the alternation rather than in the angle. */
+
+/* A STRIDE, WHICH THIS DID NOT HAVE. The body used to rise and fall between two
+   poses with its legs welded on, and a body that bobs without its legs
+   alternating is a hop — which is why the walk never looked like walking. The
+   two legs run the same cycle half a beat apart, so one is always forward while
+   the other is back. */
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"] {
+  animation: fm-stride-a 440ms linear infinite;
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"] {
+  animation: fm-stride-b 440ms linear infinite;
+}
+@keyframes fm-stride-a {
+  0%, 49.99% { transform: translateY(0); }
+  50%, 100%  { transform: translateY(-1px); }
+}
+@keyframes fm-stride-b {
+  0%, 49.99% { transform: translateY(-1px); }
+  50%, 100%  { transform: translateY(0); }
+}
+
+/* CLIMBING IS NOT A GLIDE. The rise itself is linear, because a rope is climbed
+   at a steady rate — but nothing about the body doing it is smooth. It gathers,
+   pulls, and reaches again, and the legs push in the same rhythm half a beat
+   apart. Slower than the walk: hauling your own weight up a rope is not a
+   stroll, and the difference in cadence is most of what says so. */
+.fm-walker[data-act="climb"] .fm-leg[data-side="left"] {
+  animation: fm-stride-a 620ms ease-in-out infinite;
+}
+.fm-walker[data-act="climb"] .fm-leg[data-side="right"] {
+  animation: fm-stride-b 620ms ease-in-out infinite;
+}
+.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms ease-in-out infinite; }
+@keyframes fm-haul {
+  0%, 100% { transform: translateY(0)      scale(1, 1); }
+  35%      { transform: translateY(1px)    scale(1.05, 0.93); }
+  70%      { transform: translateY(-1.2px) scale(0.96, 1.06); }
+}
+
+/* THE BODY RISES ONCE PER FOOTFALL, WHICH IS TWICE PER STRIDE — and getting
+   that wrong is what made it limp.
+
+   The body and the legs both ran at 440ms, in phase. A leg that moves exactly
+   as its body moves does not move AT ALL relative to it, so one leg sat frozen
+   under the character while the other appeared to do the entire walk. That
+   reads as favouring a leg, which is precisely what a limp is.
+
+   Half the period fixes it and is also what a body does: you are highest at
+   mid-stance, with one foot planted and the other swinging, and lowest at the
+   moment both feet are down. Two rises per stride, one under each leg.
+
+   The rotation went with it. A 1.4-degree tilt on a 42px sprite moves its top
+   edge a single pixel, which at three pixels a cell is the same sub-pixel mush
+   that made the legs look torn. What is left is whole-cell vertical, on the
+   grid, like everything else here.
+
+   THE WALK, and it is two frames rather than a curve on purpose. A pixel
    character that eases between poses looks like a picture being tweened; one
    that snaps between two poses looks like it is taking steps. So the keyframes
    hold each pose for most of the half-cycle rather than all of it: a 12% linear
@@ -12614,12 +12915,24 @@ input, textarea { caret-color: var(--accent); }
    enough that the change is a movement rather than a jump. A hard cut at 49.99%
    was the first build and it juddered. 440ms is a stride at the pace
    --fm-walk-ms carries it along the ledge at. */
-:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body {
-  animation: fm-step 440ms linear infinite;
-}
-:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion {
-  animation: fm-step 440ms linear infinite;
-}
+/* THE TORSO HOLDS STILL WHILE IT WALKS, and that is not laziness — it is the
+   only arrangement in which this character stays in one piece.
+
+   The legs are their own groups, siblings of the torso rather than children of
+   it, because they have to step independently. So nothing the torso does
+   vertically is followed by the legs. Measured on the page while it bobbed: the
+   gap at the hip opened to a full cell — three pixels — and then closed past
+   zero into a pixel and a half of overlap. The torso was coming off its legs
+   and sinking back into them twice a second, which from any distance reads as a
+   limp.
+
+   Nesting the legs inside the torso would close that gap and buy a worse fault:
+   the bob would lift the planted foot too, so both feet leave the ground and
+   the walk becomes a float. The planted foot has to stay planted.
+
+   So the walk lives entirely in the legs, which is what a small pixel character
+   has always done — one foot up, one foot down, alternating. Nothing else
+   moves, nothing can come apart, and every edge stays on the grid. */
 
 /* NO LAG WHILE WALKING, and the asymmetry is the point. The headphones run the
    dance 90ms behind the body when they are ON the head, because that is what
@@ -12653,6 +12966,11 @@ input, textarea { caret-color: var(--accent); }
    stands on, which is what puts the feet over the minimap — the same pixels
    that would be a bug anywhere else in this block are the whole pose here.
 
+   THIRTEEN, AND IT MOVES WITH THE LEGS. It was ten when they were two rows;
+   they are three now, so ten would leave them straddling the line again. This
+   number is not a taste, it is "longer than the legs" — and the test says so
+   in those terms rather than pinning the digit.
+
    TEN, NOT SEVEN. At seven the legs still straddled the ledge line and the
    whole thing read as the character standing slightly lower rather than as
    sitting; the legs are two rows, six pixels, so anything less than their own
@@ -12660,7 +12978,7 @@ input, textarea { caret-color: var(--accent); }
    the silhouette changes, which is the only thing a pose has to do. The squash
    goes with it, because sitting down is a body folding rather than a body being
    lowered. */
-.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(10px) scale(1.04, 0.87); }
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(13px) scale(1.04, 0.87); }
 
 /* Looking at the board. A small lean back, the way anybody holding something up
    to their eye stands. */
@@ -12678,11 +12996,6 @@ input, textarea { caret-color: var(--accent); }
   100% { transform: translate(46px, 4px)   scale(0.72); opacity: 0; }
 }
 
-@keyframes fm-step {
-  0%, 44%   { transform: translateY(0)      rotate(-1.4deg); }
-  56%, 100% { transform: translateY(-0.5px) rotate(1.4deg); }
-}
-
 /* A character dancing and wandering in the corner of a monitoring tool is
    exactly the motion somebody turns this setting on to stop. All of it goes —
    the dance, the walk and the press — and nothing replaces it: the brightened
@@ -12691,12 +13004,20 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm-walker, .fm-gear { transition: none; }
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
+  .fm-walker, .fm-gear, .fm-eye, .fm-hat { transition: none; }
+  .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
+  .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
+  .fm-rope[data-act="lasso"] { animation: none; }
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"],
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"],
+  .fm-walker[data-act="climb"] .fm-leg[data-side="left"],
+  .fm-walker[data-act="climb"] .fm-leg[data-side="right"],
+  .fm-walker[data-act="climb"] .fm-sprite { animation: none; }
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion,
-  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] :is(.fm-body, .fm-leg),
   .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
   .fm-prop,
   .fm-prop[data-prop="ball"][data-leaving],
