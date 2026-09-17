@@ -73,6 +73,10 @@ export type FmSignal =
  *  dances to. -1, 0, 2 and 5 are not. */
 export const PLAYING_STATES: readonly number[] = [1, 3];
 
+/** Ended, and paused. The only two states that mean playback has stopped —
+ *  everything else the player reports is either playing or not yet anything. */
+export const STOPPED_STATES: readonly number[] = [0, 2];
+
 /**
  * Every error the player can raise means the same thing here.
  *
@@ -119,7 +123,16 @@ export function readSignal(raw: unknown): FmSignal | null {
     // a volume change, a quality change — and those are not a report that the
     // music stopped.
     if (typeof state !== "number" || !Number.isFinite(state)) return null;
-    return { kind: "playing", playing: PLAYING_STATES.includes(state) };
+    if (PLAYING_STATES.includes(state)) return { kind: "playing", playing: true };
+    // UNSTARTED IS NOT STOPPED, and reading it as stopped is what made the hat
+    // flash back on between the press and the first note. A freshly built
+    // player announces -1 before it has done anything at all, and 5 means a
+    // video is cued and waiting — neither is a report that playback ended, they
+    // are the absence of any report. Treated as "stopped" they overrode the
+    // press that had just been made, so the observed sequence -1, 3, 1 put the
+    // headphones on, the hat back, and the headphones on again.
+    if (!STOPPED_STATES.includes(state)) return null;
+    return { kind: "playing", playing: false };
   }
   return null;
 }

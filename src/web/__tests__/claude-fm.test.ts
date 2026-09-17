@@ -14,7 +14,7 @@ import {
   mayAskYouTube, readLiveMarks, readUntilMarks,
 } from "../../server/claude-fm.mjs";
 import {
-  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
+  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME, STOPPED_STATES,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
   ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
@@ -250,9 +250,22 @@ describe("talking to the player", () => {
     expect(PLAYING_STATES).toEqual([1, 3]);           // playing, buffering
     expect(readSignal('{"event":"onStateChange","info":1}')).toEqual({ kind: "playing", playing: true });
     expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "playing", playing: true });
-    for (const idle of [-1, 0, 2, 5]) {
-      expect(readSignal({ event: "onStateChange", info: idle })).toEqual({ kind: "playing", playing: false });
+    // ENDED AND PAUSED ARE STOPPED. Those two, and only those two.
+    for (const stopped of STOPPED_STATES) {
+      expect(readSignal({ event: "onStateChange", info: stopped })).toEqual({ kind: "playing", playing: false });
     }
+    // UNSTARTED IS NOT STOPPED, and reading it as stopped is what made the hat
+    // flash back on between the press and the first note. A freshly built
+    // player announces -1 before it has done anything at all, and 5 means a
+    // video is cued and waiting — neither is a report that playback ended. Read
+    // as "stopped" they overrode the press just made, so the player's own
+    // sequence of -1, 3, 1 put the headphones on, the hat back, and the
+    // headphones on again.
+    for (const notYet of [-1, 5]) {
+      expect(readSignal({ event: "onStateChange", info: notYet })).toBeNull();
+    }
+    expect(STOPPED_STATES).not.toContain(-1);
+    expect(PLAYING_STATES).not.toContain(-1);
   });
 
   it("reads the spelling the player actually uses, not the documented one", () => {
@@ -262,7 +275,7 @@ describe("talking to the player", () => {
     // documented event learned nothing the player ever said about playback.
     expect(readSignal({ event: "infoDelivery", info: { playerState: 1, currentTime: 12 } }))
       .toEqual({ kind: "playing", playing: true });
-    expect(readSignal({ event: "infoDelivery", info: { playerState: -1 } }))
+    expect(readSignal({ event: "infoDelivery", info: { playerState: 2 } }))
       .toEqual({ kind: "playing", playing: false });
     // And most of them carry no state at all. A volume change is not a report
     // that the music stopped.
