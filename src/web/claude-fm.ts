@@ -495,58 +495,27 @@ export function watchSteps(from: number, at: number, rand: () => number): Step[]
   ];
 }
 
-export type Facing = "left" | "right";
-
 /**
- * The acts during which it is concentrating on something.
+ * The acts during which it is looking AT SOMETHING, and its eyes narrow for
+ * these and only these.
  *
- * Its eyes narrow for these and only these. The first build had the eyes
- * changed permanently — they were the facing signal, so they were always shifted
- * one way or the other and never simply open — and a face that is always doing
- * something has no expression left to spend. Narrowing them is worth far more
- * as a moment than as a resting state, so standing still returns them to
- * neutral and these four are what buy the change.
+ * Each one is the character attending to an object: the litter it is bending
+ * for, the ball it is about to send down the ledge, and whatever it is aiming
+ * the scope at. Walking is not among them — it walks with its eyes open.
  *
- * Each is the character attending to one particular thing: the scope, the
- * litter it is bending for, the two halves of a kick — and the two moments of
- * the trip that deserve it most. Looking over a ledge before stepping off it is
- * the most concentrated thing this character ever does, and lining up a throw
- * is the second.
+ * An earlier build also shifted the eyes a column to say which way it was
+ * travelling, on the argument that a symmetric sprite moving sideways reads as
+ * sliding. That is gone, and the reason it had to go is the same reason the
+ * narrowing was worth having: the shift was on at every single moment, so the
+ * eyes were never simply open, and a face that is always doing something has no
+ * expression left to spend. There is nothing left to say direction with, and
+ * nothing that needs saying — the walk cycle already says it is walking.
  */
-export const FOCUS_ACTS: readonly Act[] = ["watch", "stoop", "windup", "kick", "peer", "lasso"];
+export const FOCUS_ACTS: readonly Act[] = ["stoop", "windup", "kick", "watch"];
 
 export const isFocused = (act: Act | null): boolean =>
   act != null && FOCUS_ACTS.includes(act);
 
-/** The acts during which it is travelling, and so the only ones that should
- *  say which way it is looking. A character standing still faces front. */
-export const MOVING_ACTS: readonly Act[] = ["walk", "carry"];
-
-export const isMoving = (act: Act | null): boolean =>
-  act != null && MOVING_ACTS.includes(act);
-
-/**
- * Which way it is looking.
- *
- * A character that walks sideways while facing the viewer reads as sliding
- * rather than walking, and this sprite is symmetric, so there was nothing in it
- * that could face anywhere. Mirroring the whole thing is the usual answer and
- * is wrong here: the shade runs down the right-hand column, so a flip would
- * move the light source every time it turned round. Shifting the EYES one
- * column does it instead — the oldest trick in pixel art, and the only part of
- * this character that is allowed to be asymmetric.
- *
- * `x` runs from 0 at the right-hand end of the ledge to -WALK_SPAN_PX at the
- * left, so a smaller number is further left.
- */
-export function facingFor(step: Step, from: number, prev: Facing): Facing {
-  // Looking at the board, which is everything to the left of the minimap. The
-  // one activity that is about the canvas rather than the ledge should not be
-  // conducted with its back to it.
-  if (step.act === "watch") return "left";
-  if (step.x === from) return prev;
-  return step.x > from ? "right" : "left";
-}
 
 // ── leaving the ledge ───────────────────────────────────────────────────────
 //
