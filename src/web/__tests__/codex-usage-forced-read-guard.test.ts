@@ -477,6 +477,15 @@ const CENSUS: Record<string, {
     note: "#580/#597. Plus a cooldown set from a 429 or a rejected refresh, "
         + "because what a forced read spends here is the user's ChatGPT session.",
   },
+  "/api/claude-fm": {
+    module: "claude-fm.mjs", fn: "fetchClaudeFm", guards: ["floor", "inflight"],
+    predicate: "mayAskYouTube",
+    note: "The canvas's music control asks once whether the Claude channel is "
+        + "broadcasting. Its own cache is ten minutes, but ?refresh=1 skips a "
+        + "cache and this route's cost lands on youtube.com — the same shape as "
+        + "/api/version's, pointed at a different third party, so it got the "
+        + "same floor rather than a new argument.",
+  },
   "/api/browser-watch": {
     module: "browser-watch.mjs", fn: "fetchBrowserWatch", guards: ["floor", "inflight"],
     predicate: "mayForceRead",
@@ -514,7 +523,7 @@ const CENSUS: Record<string, {
 describe("every route that lets a caller force a read", () => {
   const discovered = forcedReadRoutes(serverSource("index.mjs"));
 
-  it("is one of exactly seven, and an eighth has to be named here before it ships", () => {
+  it("is one of exactly eight, and a ninth has to be named here before it ships", () => {
     // The assertion #600 is really about. Nobody was counting: `?refresh=1` was
     // added an endpoint at a time and each one decided for itself what a forced
     // read costs, so the answer to "which of them has a guard" lived nowhere.
@@ -564,7 +573,7 @@ describe("every route that lets a caller force a read", () => {
     // anywhere said a forcible route owes an answer to this question. Now
     // something does.
     //
-    // A seventh route has to be named in this table before it ships — the first
+    // A ninth route has to be named in this table before it ships — the first
     // case above is what says so — and this line is what it then has to satisfy:
     // apply the rule, or write down what bounds the cost instead. That is the
     // whole of what a helper would have enforced, minus the four escape hatches a
@@ -586,7 +595,7 @@ describe("every route that lets a caller force a read", () => {
     // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
     expect(withFloor.map(r => r.module).sort()).toEqual([
-      "browser-watch.mjs", "claude-accounts.mjs", "codex-quota.mjs",
+      "browser-watch.mjs", "claude-accounts.mjs", "claude-fm.mjs", "codex-quota.mjs",
       "codex-usage.mjs", "quota.mjs", "self-update.mjs",
     ]);
     for (const row of withFloor) {

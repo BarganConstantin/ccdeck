@@ -12247,3 +12247,481 @@ input, textarea { caret-color: var(--accent); }
   .switch[aria-checked="true"] .switch-knob,
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
 }
+
+/* ---------------- Claude FM ------------------------------------------------
+   A character standing on the minimap's top edge, and the hidden player behind
+   it. Nothing in this block renders unless the server said the channel is on
+   air — see components/ClaudeFm.tsx.
+
+   IT STANDS ON THE EDGE rather than floating over it, which is the difference
+   between a character and a sticker. Its feet land exactly on the minimap's top
+   border, and the two numbers that put them there are named so the next person
+   can see what it is standing on: React Flow gives every canvas panel a 15px
+   margin, and the minimap's 150px drawing inside `.react-flow__minimap`'s 1px
+   edge is a 152px box — measured at 152 on a real deck, which is how the first
+   pass's 150 was caught sitting it two pixels low. Change the minimap's size
+   and --minimap-h is the one number to move.
+
+   --fm-x is where along that ledge it is standing, written by the component. */
+.fm {
+  --flow-gutter: 15px;   /* .react-flow__panel's own margin */
+  --minimap-h: 152px;    /* MiniMap's 150 drawing plus the 1px edge each side */
+  --minimap-w: 202px;    /* its 200 drawing, the same 1px edge each side */
+  position: absolute;
+  right: var(--flow-gutter);
+  bottom: calc(var(--flow-gutter) + var(--minimap-h));
+  width: var(--minimap-w);
+  height: 0;
+  /* Above the canvas, alongside the chrome it stands next to: the same z-index
+     the control stack and the minimap are given. */
+  z-index: 5;
+  /* The canvas is under this. A press that misses the character should pan the
+     deck as if nothing were there, so only the button takes the pointer. */
+  pointer-events: none;
+}
+
+/* THE LEDGE IS A STAGE, AND THE STAGE DOES NOT MOVE. `.fm` above is the whole
+   length of the minimap's edge with nothing on it; the two things standing on
+   it position themselves within it. That split is what lets a piece of litter
+   lie still while the character walks toward it — when the walk lived on the
+   scene itself, everything on the ledge travelled with it, which is one way to
+   discover that a floor is not a vehicle. */
+.fm-walker, .fm-prop { position: absolute; right: 0; bottom: 0; }
+
+.fm-walker {
+  /* The walk itself, and the curve is a compromise worth naming. Pure linear —
+     what this had first — is honest about a constant stride but starts and
+     stops dead, which reads as a sprite being teleported along a line rather
+     than as something setting off and arriving. A full ease makes the middle
+     race and the steps stop matching the ground. This is the gentlest
+     symmetric curve that still spends most of the trip near constant speed: it
+     leans into the first stride and settles out of the last, and the cadence
+     in between is close enough to even that the feet keep up. */
+  transform: translateX(var(--fm-x, 0px));
+  transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1);
+}
+
+/* The 21px is what centres a 12px object under a 54px one when both are
+   right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
+   the character's shoulder and the stoop reaches for nothing. */
+.fm-prop {
+  transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));
+  width: 12px;
+}
+.fm-prop svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
+
+/* It settles onto the ledge instead of being there suddenly. Nothing in this
+   scene should pop: a thing that exists between one frame and the next is the
+   same cheapness as headphones blinking off a head. */
+.fm-prop { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Kicked, it goes down the ledge and out. Away from the bin end, which is the
+   only direction with any ledge left in it. */
+.fm-prop[data-prop="ball"][data-leaving] {
+  animation: fm-roll 520ms cubic-bezier(0.12, 0.6, 0.4, 1) forwards;
+}
+@keyframes fm-roll {
+  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));         opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px - 132px)); opacity: 0; }
+}
+@keyframes fm-settle {
+  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(-5px); opacity: 0; }
+  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(0);    opacity: 1; }
+}
+
+/* In hand: at the character's side, at the height of its feet, so the throw
+   starts from where something would actually be held. */
+.fm-held {
+  position: absolute;
+  right: 42px;
+  bottom: 3px;
+  width: 12px;
+}
+/* BROUGHT INTO HAND, NOT SWITCHED ON. A held thing used to appear at full size
+   the instant the step began — the scope worst of all, because nothing precedes
+   it: one frame the character is standing there, the next it is holding a
+   telescope. It grows out of the body and up into place instead, which is the
+   same objection as the headphones blinking off a head and the same answer.
+   The throw below is a higher-specificity rule, so a prop on its way out
+   overrides this rather than fighting it. */
+.fm-held { animation: fm-draw 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes fm-draw {
+  0%   { transform: translate(13px, 7px) scale(0.35); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+}
+
+/* The scope is held UP, at the height of the eyes, pointing away from the
+   minimap and out over the sessions — which is the only thing that makes the
+   pose read as looking at something rather than as carrying a stick.
+
+   IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head and
+   read as floating beside the character rather than being held up to it: the
+   arms are two rows from the bottom and there is nothing at eye height for a
+   hand to be. 34px puts its near end over the head's left edge, just short of
+   the eye, and the overlap does the work an arm would — which is how every
+   pixel character that has ever held something to its face does it. */
+.fm-held[data-prop="scope"] {
+  right: 34px;
+  bottom: 21px;
+  width: 15px;
+}
+
+/* No surface, no border, no shadow. Every other instrument on this canvas
+   wears --chrome-bg and an edge because it is a panel of controls; this is one
+   character standing on the canvas, and a box around it would make it look
+   like a fourth panel. It is the only thing here allowed to be charming, and a
+   frame is what would stop it being that.
+
+   54px is 18 columns at exactly 3px each. A width that does not divide by the
+   grid puts every cell boundary on a fraction of a pixel, and a pixel
+   character with soft edges is the one thing it cannot be. */
+.fm-sprite {
+  pointer-events: auto;
+  display: block;
+  width: 54px;
+  padding: 0;
+  border: none;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  /* Quiet until it is wanted: the canvas is for the sessions, and a bright
+     character parked on the minimap would pull the eye all day. The pointer
+     and the music both bring it up. */
+  opacity: 0.55;
+  transition: opacity 140ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fm-sprite:hover { opacity: 1; }
+/* THE SAME QUIET COSTS DIFFERENT AMOUNTS IN THE TWO THEMES, and 0.55 is a dark
+   number. There the accent is #7dd3fc on near-black, which is still a colour at
+   just over half strength; here it is #0369a1 on #eef1f6, and dimming a dark
+   ink toward a light ground does not make it quieter — it makes it grey. Side
+   by side the light sprite had lost its blue and read as a smudge on the
+   minimap while the dark one read as a character. A higher floor is what buys
+   the same restraint, not the same number. */
+:root[data-theme="light"] .fm-sprite { opacity: 0.72; }
+.fm-sprite[data-playing] { opacity: 1; }
+/* The deck's one press convention, at the tier a control with no label wears.
+   0.94 rather than the 0.97 a labelled button takes: the ink here IS the
+   control, so the press has to move the character enough to be seen against a
+   sprite that may also be dancing. */
+.fm-sprite:active { transform: scale(0.94); }
+/* THE VIEWBOX IS THE CHARACTER'S OWN BOUNDS, WITH NOTHING SPARE, and an SVG
+   clips to its viewport by default — so the moment a dance lifted the sprite,
+   the top row went outside the box and was simply cut. What that looked like
+   was the headband vanishing at the top of every bounce.
+
+   The dances lift 0.85 units and the rotation swings the top of a thirteen-row
+   sprite 1.25 units sideways, so there is no padding that is obviously enough
+   and every one costs a recalculation of the width, the ledge offset and the
+   21px that centres a prop underneath. `overflow: visible` costs none of that:
+   the geometry stays exactly what every other number in this block was computed
+   against, and the parts that travel outside it are drawn instead of dropped.
+   Nothing sits next to this to be overlapped — it is one character alone on a
+   canvas. */
+.fm-sprite svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* The headphones, in the same --muted every glyph on this canvas is drawn in,
+   and the body in the deck's accent so the character belongs to this palette
+   rather than arriving with its own. Both recolour with the theme, which is the
+   whole reason this is a grid of rects and not a picture. */
+.fm-gear { fill: var(--muted); }
+.fm-body { fill: var(--accent); }
+/* The eyes are holes, not marks: --bg is the canvas's own background in both
+   themes (`.react-flow__pane` paints it), so the canvas shows through and the
+   eyes stay right on either. */
+.fm-eye { fill: var(--bg); }
+
+/* THE SHADED SIDE, and the mix is chosen so it stays a shadow in both themes.
+   The obvious spelling — mix the accent toward --bg — lands the wrong way
+   round in light, where --bg is nearly white and "shadow" would come out
+   BRIGHTER than the body. Mixing toward --muted is dull in both directions
+   instead: a bright blue loses its light against dark, a dark blue loses its
+   colour against light, and either way the right-hand column reads as the side
+   away from the lamp. */
+.fm-shade { fill: color-mix(in srgb, var(--accent) 55%, var(--muted)); }
+
+/* Inside each cup. --muted-dim is darker than --muted in dark and lighter in
+   light, which is the same fact both times: a pad that separates from the shell
+   it sits in, without a third colour to keep in step with the palette. */
+.fm-pad { fill: var(--muted-dim); }
+
+/* IT BLINKS. Twice a minute, for about a tenth of a second, and the whole of
+   it is the eye taking the body's colour for that moment — an eye that vanishes
+   reads as a hole appearing, and an eye that closes reads as a character. The
+   window is bounded by stops half a percent either side so the change is a cut
+   rather than a fade: at 5.4s a period, half a percent is 27ms.
+   This runs whether or not anything is playing. The dance is a state; being
+   alive is not. */
+.fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
+@keyframes fm-blink {
+  0%, 93.5%  { fill: var(--bg); }
+  94%, 96.5% { fill: var(--accent); }
+  97%, 100%  { fill: var(--bg); }
+}
+
+/* ONE PIVOT FOR BOTH GROUPS, and getting this wrong is invisible in the
+   stylesheet and glaring on screen.
+
+   These were on `transform-box: fill-box`, which makes the origin each group's
+   OWN bounding box. The gear's box is rows 0-8 and the body's is rows 2-13, so
+   "50% 100%" resolved to two points five rows apart — and the same rotate and
+   the same scale about two different centres cannot keep two shapes aligned. It
+   showed as a seam that opened and closed along the headband as the character
+   moved: not a timing problem, which is where two passes went looking, but a
+   geometry one.
+
+   `view-box` resolves the percentages against the sprite's own viewBox instead,
+   so both groups pivot about (9, 13) — the middle of its feet — which is what
+   "bottom centre" was always meant to mean. Identical transforms about an
+   identical origin cannot drift. */
+.fm-gear, .fm-gear-motion, .fm-body { transform-box: view-box; transform-origin: 50% 100%; }
+
+/* WHERE THE HEADPHONES ARE, which is the one thing about this character that
+   says whether anything is playing, without a word or a colour. On its head
+   while the music is on, and gone when it is not.
+
+   GONE, NOT PARKED. They used to slide down and stay slung round its neck,
+   which was the idea — and the cups sit at columns 3-5 and 12-14, outside the
+   body's own 6-11, so no amount of dropping ever hides them. They stuck out at
+   both sides and made the whole lower half read as clutter. A drop alone
+   cannot do this; the fade is what finishes it.
+
+   BUT IT STILL TAKES THEM OFF. The fade is delayed past the start of the slide,
+   so what you see is the band coming down off the ears and going behind the
+   head, and only then the last of it leaving — a removal, not a disappearance.
+   Putting them back reverses the order: they appear at once and rise into
+   place, because reaching for something is not a fade-in.
+
+   The curve is the sheet's ease-out, not the back-out this wanted: #860 settled
+   that for the whole sheet after every tool bubble sprang past its own size,
+   and the music stopping is one of the things you see hundreds of times a day. */
+.fm-gear {
+  transform: translateY(9px) rotate(-10deg);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms linear 240ms;
+}
+.fm-sprite[data-playing] .fm-gear {
+  transform: translateY(0) rotate(0deg);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 140ms linear;
+}
+
+/* THE DANCE, which is three things a bob alone was not.
+   Squash and stretch, and it goes both ways at once: the body widens as it
+   compresses and narrows as it extends, because a shape that only loses height
+   reads as being crushed rather than as landing. Keeping the area roughly
+   constant is the whole of why the principle works. A sway: two bounces per cycle against one left-right lean, so it
+   traces a figure rather than a pogo. And secondary motion: the headphones run
+   the same cycle at a third of the amplitude and 90ms behind, so they follow
+   the head instead of being bolted to it — the difference between a character
+   wearing headphones and a sprite with headphones painted on.
+   800ms is 75bpm, which is the tempo the thing it is dancing to is usually at.
+   The distances are in the sprite's own units, where 1 unit is 3 screen px.
+
+   THERE ARE THREE OF THESE AND THE TEMPO DRIFTS. One cycle repeated forever
+   reads as a GIF: the eye learns an 800ms loop in about four seconds and then
+   stops looking. Which dance is playing and how fast arrive as custom
+   property and WHICH one as a `data-dance` attribute — three rules rather than
+   one. Driving `animation-name` through a variable too was briefly one rule and
+   hid all three sets from bubble-motion.test.ts, which exists to catch a
+   @keyframes set nothing runs and an animation naming a set that is not there.
+   A sheet its own guards cannot read is not a saving, so the names are here in
+   full and the reduced-motion block below names them again.
+
+   None of this listens to the music, and none of it can: the player is a
+   cross-origin iframe, the page cannot reach its audio element, and a tainted
+   source hands an analyser silence. It is not dancing TO the track. It is only
+   not dancing the same way twice in a row. */
+/* THE HEADPHONES RUN THE SAME DANCE AS THE BODY, and the first build's mistake
+   is worth stating because it looked like a rendering fault rather than a
+   choice. The body had three dances swinging up to 5.5 degrees and most of a
+   pixel vertically; the headphones had one small generic nod, 1.2 degrees and
+   no lift. Worn ON a head, that mismatch does not read as two things moving at
+   different speeds — it reads as the head sliding out of the headphones, which
+   is exactly what it did.
+
+   So they take the body's own keyframes, exactly — same set, same tempo, no
+   offset at all.
+
+   THE LAG WENT TOO, AND IT HAD TO. Fifty milliseconds of delay was the last of
+   the secondary motion, and at this size it is not a nicety, it is an error:
+   groove lifts 0.85 units, which at the steepest part of the bounce is 0.02px
+   per millisecond, so a fifty-millisecond delay puts the body a whole pixel
+   above the headphones. The band is one row — three pixels — so a pixel of
+   separation is a third of it, and what that looks like is the head sinking
+   into the headphones. Secondary motion needs room to be subtle in, and a
+   thirteen-row sprite does not have any. Rigid is correct: they are ON the
+   head, and things on a head do not lag behind it.
+
+   ONLY WHILE IT IS STANDING STILL. `:not([data-act])` is what stops the dance
+   fighting a walk: with the music on it still goes about its business, and
+   while it is walking or sitting or looking at the board, the walk owns the
+   body and the dance waits. */
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion {
+  animation: fm-bob var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion {
+  animation: fm-sway var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
+}
+.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion {
+  animation: fm-groove var(--fm-beat, 800ms) ease-in-out infinite;
+}
+
+@keyframes fm-bob {
+  0%   { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
+  25%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
+  50%  { transform: translate(0.35px, 0)  scale(1.04, 0.95) rotate(3deg); }
+  75%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
+  100% { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
+}
+
+/* A slow lean with almost no lift — what somebody does to something calm. */
+@keyframes fm-sway {
+  0%, 100% { transform: translate(-0.5px, 0)     scale(1.02, 0.98) rotate(-5.5deg); }
+  50%      { transform: translate(0.5px, -0.15px) scale(1.02, 0.98) rotate(5.5deg); }
+}
+
+/* Straight up and down, twice a bar, leaning the other way each time. The
+   busiest of the three and the one that reads from furthest away. */
+@keyframes fm-groove {
+  0%   { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  20%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(-4.5deg); }
+  50%  { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  70%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(4.5deg); }
+  100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+}
+
+/* THE WALK, and it is two frames rather than a curve on purpose. A pixel
+   character that eases between poses looks like a picture being tweened; one
+   that snaps between two poses looks like it is taking steps. So the keyframes
+   hold each pose for most of the half-cycle rather than all of it: a 12% linear
+   handover, about 50ms, which is too fast to read as a tween and just long
+   enough that the change is a movement rather than a jump. A hard cut at 49.99%
+   was the first build and it juddered. 440ms is a stride at the pace
+   --fm-walk-ms carries it along the ledge at. */
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body {
+  animation: fm-step 440ms linear infinite;
+}
+:is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion {
+  animation: fm-step 440ms linear infinite;
+}
+
+/* NO LAG WHILE WALKING, and the asymmetry is the point. The headphones run the
+   dance 90ms behind the body when they are ON the head, because that is what
+   secondary motion is: a thing worn loosely follows what it is worn on. Round
+   the neck they are not worn loosely, they are resting against the chest — so
+   the same 90ms there made them visibly trail the body on every step, which is
+   exactly what it looked like. Walking, they move with it, frame for frame.
+
+   THE ERRAND. It bends, it stands up holding something, it leans back and it
+   throws. Four poses, and the only one that needed a keyframe rather than a
+   transition is the stoop, because it has to come back up on its own — the
+   others each end when the next one starts. The whole sequence is timed in
+   claude-fm.ts; these are what it looks like. */
+.fm-walker[data-act="stoop"] .fm-sprite { animation: fm-stoop 720ms ease-in-out; }
+@keyframes fm-stoop {
+  0%, 100% { transform: translateY(0)   scale(1, 1); }
+  30%, 70% { transform: translateY(2px) scale(1.06, 0.86); }
+}
+
+/* Leaning away from the throw, then into it. A character that arrives and
+   tosses in one motion reads as dropping something. */
+.fm-walker[data-act="windup"] .fm-sprite { transform: rotate(-7deg); }
+.fm-walker[data-act="toss"] .fm-sprite { transform: rotate(5deg); }
+
+/* The kick: back, then through. The wind-up above is shared with the throw;
+   the follow-through is its own, further and quicker, because a kick is the
+   faster of the two motions and a slow one reads as a nudge. */
+.fm-walker[data-act="kick"] .fm-sprite { transform: rotate(9deg); }
+
+/* Sitting on the edge, legs over the side. The sprite drops below the line it
+   stands on, which is what puts the feet over the minimap — the same pixels
+   that would be a bug anywhere else in this block are the whole pose here.
+
+   TEN, NOT SEVEN. At seven the legs still straddled the ledge line and the
+   whole thing read as the character standing slightly lower rather than as
+   sitting; the legs are two rows, six pixels, so anything less than their own
+   height leaves the pose ambiguous at 54px. Ten puts them clear of the line and
+   the silhouette changes, which is the only thing a pose has to do. The squash
+   goes with it, because sitting down is a body folding rather than a body being
+   lowered. */
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(10px) scale(1.04, 0.87); }
+
+/* Looking at the board. A small lean back, the way anybody holding something up
+   to their eye stands. */
+.fm-walker[data-act="watch"] .fm-sprite { transform: rotate(-3deg); }
+
+/* And the thing itself, out of the hand on an arc. It leaves upward and to the
+   right, slows at the top the way a thrown object does, and is gone before it
+   would have landed — there is no bin drawn on this ledge, and a bin standing
+   there permanently would be a piece of furniture the canvas has to carry for
+   the one second a minute it is used. */
+.fm-held[data-toss] { animation: fm-toss 620ms cubic-bezier(0.3, 0, 0.7, 1) forwards; }
+@keyframes fm-toss {
+  0%   { transform: translate(0, 0)        scale(1);    opacity: 1; }
+  55%  { transform: translate(26px, -24px) scale(0.92); opacity: 1; }
+  100% { transform: translate(46px, 4px)   scale(0.72); opacity: 0; }
+}
+
+@keyframes fm-step {
+  0%, 44%   { transform: translateY(0)      rotate(-1.4deg); }
+  56%, 100% { transform: translateY(-0.5px) rotate(1.4deg); }
+}
+
+/* A character dancing and wandering in the corner of a monitoring tool is
+   exactly the motion somebody turns this setting on to stop. All of it goes —
+   the dance, the walk and the press — and nothing replaces it: the brightened
+   sprite already says the music is on, so the state survives the animation
+   being removed. The component refuses to schedule a walk at all under this
+   setting rather than leaving timers running for a journey nobody sees; these
+   rules are the second answer, for the case where it is turned on mid-session. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-walker, .fm-gear { transition: none; }
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="sway"] .fm-gear-motion,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-body,
+  .fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion,
+  .fm-prop,
+  .fm-prop[data-prop="ball"][data-leaving],
+  .fm-held,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
+  :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
+  .fm-walker[data-act="stoop"] .fm-sprite,
+  .fm-held[data-toss],
+  .fm-eye { animation: none; }
+  .fm-sprite:active { transform: none; }
+}
+
+/* THE PLAYER. Off-screen at a real size rather than shrunk to a pixel or hidden
+   with `display: none`. Both of those are how a hidden YouTube player is
+   usually written and both are how it stops working: a display:none iframe may
+   be torn down or throttled, and a 1px one is a player the page is telling the
+   browser nobody can see, which is grounds to refuse the autoplay it was just
+   given a gesture for. A 320x180 player parked off the left edge keeps playing
+   in a background tab, which is most of the time this is wanted. */
+.fm-frame {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  border: 0;
+  pointer-events: none;
+}

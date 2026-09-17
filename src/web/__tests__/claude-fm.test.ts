@@ -1,0 +1,1010 @@
+// Claude FM: the arithmetic, the player conversation, and the three ways the
+// control is allowed to be absent.
+//
+// The feature is a toy and the tests are not, because the failures a toy can
+// have are the ones nobody investigates: a control that presses and does
+// nothing, a page that makes noise on load, a probe that quietly reports a live
+// channel as silent. Each of those has a case here.
+import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import {
+  CLAUDE_FM_CHANNEL, CACHE_MS, MISS_CACHE_MS, READ_LIMIT,
+  fetchClaudeFm, forgetClaudeFm, FORCE_POLL_MS, isChannelId, liveUrl,
+  mayAskYouTube, readLiveMarks, readUntilMarks,
+} from "../../server/claude-fm.mjs";
+import {
+  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
+  listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
+  SPRITE, SPRITE_H, SPRITE_W, spriteRects,
+  ACTIVITIES, BIN_X, KICK_MS, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  STOOP_MS, TOSS_MS,
+  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
+  BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
+  WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
+} from "../claude-fm";
+
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+
+/** Source read as CODE, with its prose taken out.
+ *
+ *  Every assertion below is about what this deck DOES, and a file that explains
+ *  at length why it does not load `iframe_api` contains the string `iframe_api`.
+ *  The comment that names a thing to rule it out would otherwise fail the test
+ *  that rules it out — the trap card-focus-ring-869 already strips the sheet
+ *  for, here for TypeScript as well. */
+const code = (rel: string) => read(rel)
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
+
+const css = code("../styles.css");
+const component = code("../components/ClaudeFm.tsx");
+const probeSrc = code("../../server/claude-fm.mjs");
+const server = code("../../server/index.mjs");
+const app = code("../App.tsx");
+
+/** A page shaped like the one YouTube serves for `/channel/<id>/live`. */
+const livePage = (video = "tRsQsTMvPNg", pad = 0) =>
+  `<html><head>${"x".repeat(pad)}` +
+  `<link rel="canonical" href="https://www.youtube.com/watch?v=${video}">` +
+  `</head><body>{"isLive":true}</body></html>`;
+
+describe("what plays is a channel, never a video", () => {
+  it("holds a channel id and no video id anywhere", () => {
+    expect(isChannelId(CLAUDE_FM_CHANNEL)).toBe(true);
+    // The one thing that must never appear in either module: an 11-character
+    // video id. A stream ends and restarts under a new one, and a deck that
+    // named it would need a release to keep working.
+    expect(embedSrc(CLAUDE_FM_CHANNEL, "http://x")).toContain("live_stream");
+    expect(probeSrc).not.toMatch(/["'][\w-]{11}["']\s*[,;)]/);
+  });
+
+  it("asks the channel's own /live, not a watch URL", () => {
+    expect(liveUrl()).toBe(`https://www.youtube.com/channel/${CLAUDE_FM_CHANNEL}/live`);
+    expect(liveUrl()).not.toContain("watch?v=");
+  });
+
+  it("refuses a channel id that is not one, rather than fetching it", () => {
+    for (const bad of ["", "UC", "../../etc", "UC" + "x".repeat(21), null, 7, "UC!!!!!!!!!!!!!!!!!!!!!!"]) {
+      expect(isChannelId(bad as string)).toBe(false);
+    }
+    expect(isChannelId("UC" + "A".repeat(22))).toBe(true);
+  });
+});
+
+describe("reading whether the channel is on air", () => {
+  it("needs both marks, because either alone is a guess", () => {
+    expect(readLiveMarks(livePage())).toEqual({ live: true, video: "tRsQsTMvPNg" });
+    // A canonical that is the channel page: not live.
+    expect(readLiveMarks(`<link rel="canonical" href="https://www.youtube.com/channel/${CLAUDE_FM_CHANNEL}">`))
+      .toEqual({ live: false, video: null });
+    // `"isLive":true` on its own is a recommendation rail talking about
+    // somebody else's stream.
+    expect(readLiveMarks('<body>{"isLive":true}</body>')).toEqual({ live: false, video: null });
+    // A watch canonical with nothing live on it is an ordinary video.
+    expect(readLiveMarks('<link rel="canonical" href="https://www.youtube.com/watch?v=tRsQsTMvPNg">'))
+      .toEqual({ live: false, video: null });
+  });
+
+  it("survives a page with nothing in it", () => {
+    for (const junk of ["", "<html></html>", null as unknown as string]) {
+      expect(readLiveMarks(junk)).toEqual({ live: false, video: null });
+    }
+  });
+});
+
+describe("the read stops on content, not on a byte count", () => {
+  // THE REGRESSION. The first build capped the read at 600,000 bytes on the
+  // reasoning that a canonical link lives in <head> and <head> is at the top of
+  // a document. On youtube.com it is not: the player payload is inlined ahead
+  // of it, and on the day this was written the canonical sat at byte 711,238 of
+  // a 1.15MB page. The cap cut both marks off and the probe reported a live
+  // channel as silent.
+  it("finds marks that sit well past where a <head> is supposed to end", async () => {
+    const html = livePage("tRsQsTMvPNg", 800_000);
+    expect(html.length).toBeGreaterThan(800_000);
+    expect(readLiveMarks(await readUntilMarks(bodyOf(html)))).toEqual({ live: true, video: "tRsQsTMvPNg" });
+  });
+
+  it("leaves as soon as both marks are in hand", async () => {
+    const chunks = [
+      `<link rel="canonical" href="https://www.youtube.com/watch?v=tRsQsTMvPNg">`,
+      `{"isLive":true}`,
+      "MUST NOT BE READ".repeat(1000),
+    ];
+    const { res, delivered } = countingBody(chunks);
+    const out = await readUntilMarks(res);
+    expect(out).not.toContain("MUST NOT BE READ");
+    expect(delivered()).toBe(2);
+  });
+
+  it("finds a mark that straddles two chunks", async () => {
+    const whole = livePage();
+    const { res } = countingBody([whole.slice(0, 40), whole.slice(40)]);
+    expect(readLiveMarks(await readUntilMarks(res))).toEqual({ live: true, video: "tRsQsTMvPNg" });
+  });
+
+  it("still ends a page that will never carry them", async () => {
+    // Nothing to stop on, so the backstop is what ends it — and it is a
+    // backstop rather than a budget: far above any page YouTube serves.
+    expect(READ_LIMIT).toBeGreaterThan(1_500_000);
+    const { res } = countingBody(["not youtube".repeat(10)]);
+    expect(await readUntilMarks(res, 50)).toHaveLength(50);
+  });
+});
+
+describe("the probe asks once and answers everyone", () => {
+  beforeEach(() => forgetClaudeFm());
+
+  it("makes one request for concurrent callers", async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return okWith(livePage()); };
+    const [a, b, c] = await Promise.all([
+      fetchClaudeFm({ fetchImpl }), fetchClaudeFm({ fetchImpl }), fetchClaudeFm({ fetchImpl }),
+    ]);
+    expect(calls).toBe(1);
+    expect(a.live && b.live && c.live).toBe(true);
+    expect(a.channel).toBe(CLAUDE_FM_CHANNEL);
+  });
+
+  it("caches a live answer far longer than a miss", async () => {
+    // A live stream does not start and stop often; a laptop that has just
+    // joined a network should not wait out the full window to notice.
+    expect(CACHE_MS).toBeGreaterThan(MISS_CACHE_MS * 5);
+  });
+
+  it("serves the next caller from the cache", async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return okWith(livePage()); };
+    await fetchClaudeFm({ fetchImpl });
+    await fetchClaudeFm({ fetchImpl });
+    expect(calls).toBe(1);
+  });
+
+  it("will not let ?refresh=1 spend youtube.com a request at a time", async () => {
+    // `?refresh=1` is a GET, so any page the user has open can send one in a
+    // loop. The cache above bounds what this deck costs on its own and bounds
+    // nothing against a caller asking to skip it — which is the whole reason
+    // codex-usage-forced-read-guard.test.ts counts the forcible routes.
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return okWith(livePage()); };
+    await fetchClaudeFm({ fetchImpl });
+    for (let i = 0; i < 20; i++) await fetchClaudeFm({ fetchImpl, force: true });
+    expect(calls).toBe(1);
+  });
+
+  it("applies that floor in a rule that can be read without making a request", () => {
+    const at = Date.now();
+    expect(mayAskYouTube(false, 0, at)).toBe(false);          // not forced at all
+    expect(mayAskYouTube(true, 0, at)).toBe(true);            // nothing read yet
+    expect(mayAskYouTube(true, at - 1_000, at)).toBe(false);  // inside the floor
+    expect(mayAskYouTube(true, at - FORCE_POLL_MS, at)).toBe(true);
+    // The number five other modules already agreed on, reused rather than
+    // re-argued.
+    expect(FORCE_POLL_MS).toBe(60_000);
+  });
+
+  it("answers a thrown request the same way it answers an off-air channel", async () => {
+    const answer = await fetchClaudeFm({ fetchImpl: async () => { throw new Error("getaddrinfo ENOTFOUND"); } });
+    // ok:false and live:false. The canvas reads `live` alone, so offline, DNS,
+    // a timeout and a blocked host all come out as "draw nothing" with no
+    // second code path to keep working.
+    expect(answer.live).toBe(false);
+    expect(answer.ok).toBe(false);
+    expect(answer.why).toContain("ENOTFOUND");
+  });
+
+  it("answers a non-200 without reading it", async () => {
+    const answer = await fetchClaudeFm({
+      fetchImpl: async () => ({ ok: false, status: 429, body: null, text: async () => "" }) as unknown as Response,
+    });
+    expect(answer.live).toBe(false);
+    expect(answer.why).toContain("429");
+  });
+
+  it("ignores a malformed channel rather than putting it in a URL", async () => {
+    let asked = "";
+    const fetchImpl = async (u: string) => { asked = String(u); return okWith(livePage()); };
+    await fetchClaudeFm({ channel: "../../evil", fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(asked).toBe(liveUrl(CLAUDE_FM_CHANNEL));
+  });
+});
+
+describe("the embed", () => {
+  const src = embedSrc(CLAUDE_FM_CHANNEL, "http://127.0.0.1:4317");
+
+  it("goes to the no-cookie player", () => {
+    expect(PLAYER_ORIGIN).toBe("https://www.youtube-nocookie.com");
+    expect(src.startsWith(`${PLAYER_ORIGIN}/embed/live_stream?`)).toBe(true);
+  });
+
+  it("carries the channel, the JS API and the page's origin", () => {
+    const q = new URL(src).searchParams;
+    expect(q.get("channel")).toBe(CLAUDE_FM_CHANNEL);
+    expect(q.get("enablejsapi")).toBe("1");
+    expect(q.get("origin")).toBe("http://127.0.0.1:4317");
+    // autoplay is honest rather than sneaky: the frame is only ever built
+    // inside the click that asked for music.
+    expect(q.get("autoplay")).toBe("1");
+  });
+
+  it("loads no third-party script to do it", () => {
+    for (const src2 of [component, code("../claude-fm.ts")]) {
+      expect(src2).not.toContain("iframe_api");
+      expect(src2).not.toContain("<script");
+    }
+  });
+});
+
+describe("talking to the player", () => {
+  it("builds commands the widget API understands", () => {
+    expect(JSON.parse(command("pauseVideo"))).toEqual({ event: "command", func: "pauseVideo", args: [] });
+    expect(JSON.parse(command("setVolume", [18]))).toEqual({ event: "command", func: "setVolume", args: [18] });
+    expect(JSON.parse(listenCommand())).toEqual({ event: "listening", id: "claude-fm", channel: "widget" });
+  });
+
+  it("reads the states that mean sound is coming", () => {
+    expect(PLAYING_STATES).toEqual([1, 3]);           // playing, buffering
+    expect(readSignal('{"event":"onStateChange","info":1}')).toEqual({ kind: "playing", playing: true });
+    expect(readSignal('{"event":"onStateChange","info":3}')).toEqual({ kind: "playing", playing: true });
+    for (const idle of [-1, 0, 2, 5]) {
+      expect(readSignal({ event: "onStateChange", info: idle })).toEqual({ kind: "playing", playing: false });
+    }
+  });
+
+  it("reads the spelling the player actually uses, not the documented one", () => {
+    // Measured on a real deck: seven messages from the player and not one
+    // `onStateChange`. The live player reports state inside `infoDelivery`,
+    // mixed in with volume, quality and timing — so a build that read only the
+    // documented event learned nothing the player ever said about playback.
+    expect(readSignal({ event: "infoDelivery", info: { playerState: 1, currentTime: 12 } }))
+      .toEqual({ kind: "playing", playing: true });
+    expect(readSignal({ event: "infoDelivery", info: { playerState: -1 } }))
+      .toEqual({ kind: "playing", playing: false });
+    // And most of them carry no state at all. A volume change is not a report
+    // that the music stopped.
+    expect(readSignal({ event: "infoDelivery", info: { muted: false, volume: 100 } })).toBeNull();
+    expect(readSignal({ event: "infoDelivery", info: { playbackQuality: "medium" } })).toBeNull();
+  });
+
+  it("reads ready and error", () => {
+    expect(readSignal('{"event":"onReady"}')).toEqual({ kind: "ready" });
+    // `initialDelivery` is the player listing its own API and is not a ready.
+    expect(readSignal({ event: "initialDelivery", info: { apiInterface: ["playVideo"] } })).toBeNull();
+    expect(readSignal({ event: "onError", info: 150 })).toEqual({ kind: "error", code: 150 });
+    expect(readSignal({ event: "onError", info: { errorCode: 101 } })).toEqual({ kind: "error", code: 101 });
+  });
+
+  it("ignores everything else on the page", () => {
+    for (const junk of ["", "not json", "{}", null, 7, { event: "resize" }, { hello: "world" }]) {
+      expect(readSignal(junk)).toBeNull();
+    }
+  });
+
+  it("treats every player error as final", () => {
+    // 100 is gone, 101 and 150 are "the owner does not allow embedding", 2 is a
+    // bad parameter and 5 an HTML5 failure. A music toy has nothing useful to
+    // say about any of them and no second thing to try.
+    expect(FATAL_ERRORS).toEqual([2, 5, 100, 101, 150]);
+    expect(component).toContain("setDead(true)");
+    expect(component).toMatch(/if \(!probe \|\| dead\) return null;/);
+  });
+
+  it("opens the conversation on the frame's load, not on a reply to it", () => {
+    // The first build waited for `onReady` and answered it with `listening`.
+    // `onReady` is the REPLY to `listening`, not something the player
+    // volunteers, so nothing was sent and nothing came back — and an embed that
+    // could not play at all looked exactly like one that was playing fine,
+    // because the button's own state is optimistic. Measured on a real deck:
+    // zero messages from the player.
+    expect(component).toContain("onLoad={() => say(listenCommand())}");
+    // And asks for play once the player answers: `autoplay=1` inside the click
+    // that built the frame is everything the autoplay policy asks for, and the
+    // player still came up unstarted on a real deck.
+    expect(component).toContain('if (signal.kind === "ready") { say(command("playVideo")); return; }');
+    expect(component).not.toMatch(/kind === "ready"\) \{ say\(listenCommand\(\)\)/);
+  });
+
+  it("posts to the player's origin and never to a wildcard", () => {
+    expect(component).toContain("postMessage(json, PLAYER_ORIGIN)");
+    expect(component).not.toContain('postMessage(json, "*")');
+    // And reads nothing from a message that did not come from it.
+    expect(component).toContain("if (e.origin !== PLAYER_ORIGIN) return;");
+  });
+});
+
+describe("getting out of the way of the deck's own sound", () => {
+  it("ducks rather than mutes", () => {
+    // The music going silent and coming back is more noticeable than the music
+    // getting quieter, and the point is to make the chime audible, not to
+    // interrupt the track.
+    expect(DUCK_VOLUME).toBeGreaterThan(0);
+    expect(DUCK_VOLUME).toBeLessThan(FULL_VOLUME / 3);
+  });
+
+  it("holds the music down for the figure's own length", () => {
+    // A fixed number would clip the long figures and leave the music quiet
+    // after the short ones — and the sound menu lets a user pick either.
+    const short = duckMsFor([{ at: 0, ms: 90 }]);
+    const long = duckMsFor([{ at: 0, ms: 90 }, { at: 0.42, ms: 220 }]);
+    expect(short).toBe(90 + DUCK_TAIL_MS);
+    expect(long).toBe(640 + DUCK_TAIL_MS);
+    expect(long).toBeGreaterThan(short);
+    expect(duckMsFor([])).toBe(DUCK_TAIL_MS);
+  });
+
+  it("is wired to every chime the deck plays, and only when one sounded", () => {
+    // `play` returns false when the switch is off or the page has not been
+    // touched yet; ducking then would drop the music for nothing.
+    expect(app).toContain("if (chime && chimesRef.current?.play(chime)) duckForChime(chime);");
+    expect(app).toContain("if (chimesRef.current?.play(chime, true)) duckForChime(chime);");
+    expect(app).toContain("figureFor(chime, tonePrefsRef.current[chime]?.figure)");
+  });
+});
+
+describe("absent, not broken", () => {
+  it("renders nothing until the server says the channel is on air", () => {
+    expect(component).toMatch(/const \[probe, setProbe\] = useState<Probe \| null>\(null\)/);
+    expect(component).toContain("a?.live && a?.channel");
+    // No error state, no "music unavailable" chip, no retry.
+    expect(component).not.toMatch(/unavailable|try again|retry/i);
+  });
+
+  it("builds no iframe until somebody presses play", () => {
+    // A page that starts making noise on load is a bug, and an iframe that
+    // exists has already called Google whether or not anybody asked.
+    expect(component).toContain("{armed && probe.channel && (");
+    expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
+    expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
+  });
+
+  it("never restores a playing state from storage", () => {
+    expect(component).not.toContain("localStorage");
+    expect(component).not.toContain("sessionStorage");
+  });
+
+  it("lets a deck refuse to contact YouTube at all", () => {
+    expect(server).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
+    // The off switch answers the same shape an off-air channel does, so it
+    // needs no second code path on the canvas.
+    expect(server).toContain("{ ok: true, live: false, off: true }");
+  });
+
+  it("can be pointed at another channel without a release", () => {
+    expect(server).toContain("process.env.AGENTS_DECK_FM_CHANNEL");
+  });
+
+  it("makes no request of its own accord", () => {
+    // No boot probe and no timer: a deck nobody has opened calls youtube.com
+    // zero times. The route is the only caller.
+    expect(server.match(/fetchClaudeFm\(/g) ?? []).toHaveLength(1);
+    expect(probeSrc).not.toMatch(/setInterval|setTimeout\(/);
+  });
+
+  it("is behind the same guard as every other read", () => {
+    expect(server).toContain('url.pathname === "/api/claude-fm")   return guard(handleClaudeFm(req, res), res);');
+  });
+});
+
+describe("the character", () => {
+  it("is a grid, not a binary asset", () => {
+    expect(SPRITE_W).toBe(18);
+    expect(SPRITE_H).toBe(SPRITE.length);
+    for (const row of SPRITE) expect(row).toHaveLength(SPRITE_W);
+    for (const row of SPRITE) expect(row).toMatch(/^[.bseca p]+$/);
+    // It has what it is for: headphones with pads, eyes, a body and a shaded
+    // side away from the light.
+    const cells = new Set(SPRITE.join("").split(""));
+    for (const c of ["a", "c", "p", "b", "s", "e"]) expect(cells.has(c)).toBe(true);
+    // One light source, from the left: the shade is the rightmost ink on every
+    // row that has any, never the leftmost.
+    for (const row of SPRITE) {
+      if (!row.includes("s")) continue;
+      expect(row.lastIndexOf("s")).toBeGreaterThan(row.indexOf("b"));
+    }
+  });
+
+  it("merges each row into runs rather than a rect per square", () => {
+    expect(spriteRects(["..bbb..."])).toEqual([{ x: 2, y: 0, w: 3, cell: "b" }]);
+    // A run never spans two colours.
+    expect(spriteRects(["bbcc"])).toEqual([
+      { x: 0, y: 0, w: 2, cell: "b" },
+      { x: 2, y: 0, w: 2, cell: "c" },
+    ]);
+    expect(spriteRects(["...."])).toEqual([]);
+    // Merging is the point, not a particular ratio: the shading deliberately
+    // breaks runs, so what this pins is that every run really is maximal.
+    const filled = SPRITE.join("").replace(/\./g, "").length;
+    expect(spriteRects().length).toBeLessThan(filled);
+    for (const r of spriteRects()) {
+      const row = SPRITE[r.y];
+      expect(row[r.x - 1]).not.toBe(r.cell);
+      expect(row[r.x + r.w]).not.toBe(r.cell);
+    }
+  });
+
+  it("stands ON the minimap's edge, on numbers that are named", () => {
+    // Its feet land exactly on the border, which is the difference between a
+    // character and a sticker. No gap term: a character hovering a few pixels
+    // over the ledge it is standing on is the thing that reads as wrong.
+    expect(decl(".fm", "bottom")).toBe("calc(var(--flow-gutter) + var(--minimap-h))");
+    expect(decl(".fm", "right")).toBe("var(--flow-gutter)");
+    expect(decl(".fm", "--flow-gutter")).toBe("15px");
+    // 54px is 18 columns at exactly 3px. A width that does not divide by the
+    // grid puts every cell boundary on a fraction of a pixel, and a pixel
+    // character with soft edges is the one thing it cannot be.
+    expect(decl(".fm-sprite", "width")).toBe("54px");
+    expect(54 % SPRITE_W).toBe(0);
+    expect(decl(".fm", "--minimap-h")).toBe("152px");
+  });
+
+  it("does not eat a press meant for the canvas", () => {
+    expect(decl(".fm", "pointer-events")).toBe("none");
+    expect(decl(".fm-sprite", "pointer-events")).toBe("auto");
+    // And no `nopan`, which the first build carried as cargo: React Flow
+    // renders a panel's children as siblings of `.react-flow__pane`, so a press
+    // on this character never reaches the pan handler to be opted out of.
+    expect(component).toContain('className="fm"');
+    expect(component).not.toContain("nopan");
+  });
+
+  it("takes the headphones off when there is nothing to listen to", () => {
+    // The one thing about this character that says whether anything is playing,
+    // without a word or a colour. On its head with the music on, gone without.
+    expect(decl(".fm-gear", "transform")).toBe("translateY(9px) rotate(-10deg)");
+    expect(decl(".fm-gear", "opacity")).toBe("0");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "transform")).toBe("translateY(0) rotate(0deg)");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "opacity")).toBe("1");
+
+    // GONE, NOT PARKED — and a drop alone could never do it. The body is drawn
+    // over the headphones, so sliding them down hides whatever the body covers;
+    // the arms reach out to columns 4-5 and 12-13 and cover most of each cup.
+    // They do not reach column 3 or column 14, which is the OUTER edge of each
+    // cup, so however far the headphones drop, a column of each one stays
+    // visible at the side. That is what they used to do, and why the fade is
+    // the part that finishes the job rather than a nicety on top of it.
+    const bodyCols = new Set(
+      SPRITE.flatMap(row => row.split("").flatMap((c, i) => (c === "b" || c === "e" || c === "s" ? [i] : []))));
+    expect(bodyCols.has(3)).toBe(false);
+    expect(bodyCols.has(14)).toBe(false);
+    // The inner columns are covered, which is why a drop looked ALMOST right.
+    expect(bodyCols.has(4)).toBe(true);
+    expect(bodyCols.has(13)).toBe(true);
+
+    // BUT IT STILL TAKES THEM OFF: the fade waits until the slide is underway,
+    // so what is seen is a removal rather than a disappearance.
+    const off = decl(".fm-gear", "transition") ?? "";
+    expect(off).toContain("transform 460ms cubic-bezier(0.23, 1, 0.32, 1)");
+    expect(off).toMatch(/opacity \d+ms linear 2\d\dms/);
+    // Putting them back reverses the order — reaching for something is not a
+    // fade-in — so that fade carries no delay at all.
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "transition")).toMatch(/opacity 140ms linear$/);
+    // On the sheet's own ease-out, not the back-out this wanted: #860 settled
+    // that for the whole sheet after every tool bubble sprang past its size.
+    expect(off).not.toMatch(/cubic-bezier\([^)]*,\s*1\.\d/);
+    expect(css).not.toMatch(/\.fm-gear[^{]*\{[^}]*(display: none|visibility: hidden)/);
+
+    // Which needs two groups: a transition and an animation on one transform do
+    // not compose — the animation wins and the headphones would snap.
+    expect(component).toContain('<g className="fm-gear">');
+    expect(component).toContain('<g className="fm-gear-motion">');
+    expect(component.indexOf('className="fm-gear"')).toBeLessThan(component.indexOf('className="fm-body"'));
+  });
+
+  it("draws the parts of itself that move outside its own box", () => {
+    // The viewBox is the character's exact bounds with nothing spare, and an
+    // SVG clips to its viewport by default — so the moment a dance lifted the
+    // sprite, the top row went outside the box and was cut. What that looked
+    // like was the headband vanishing at the top of every bounce.
+    expect(decl(".fm-sprite svg", "overflow")).toBe("visible");
+    // It is needed because the motion really does leave the box: the lift alone
+    // is most of a row, and rotation swings the top of the sprite sideways too.
+    const LIFT_UNITS = 0.85, ROT_DEG = 5.5;
+    expect(LIFT_UNITS).toBeGreaterThan(0);
+    const swing = SPRITE_H * Math.sin((ROT_DEG * Math.PI) / 180);
+    expect(swing).toBeGreaterThan(1);
+    // And the viewBox really is flush — no padding was added to absorb it.
+    expect(component).toContain("`0 0 ${SPRITE_W} ${SPRITE_H}`");
+  });
+
+  it("pivots both groups about the same point, or they cannot stay together", () => {
+    // THE SEAM. The gear and the body carry identical transforms, which is only
+    // enough if they turn about the same centre. On `fill-box` each resolved
+    // "50% 100%" against its OWN bounding box — the gear's ends at row 8, the
+    // body's at row 13 — so the same rotate and the same scale were applied
+    // about two points five rows apart, and the headband opened a seam along
+    // the head as the character moved. It looked like a timing fault and was
+    // not; two passes went looking in the wrong place.
+    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-box")).toBe("view-box");
+    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-origin")).toBe("50% 100%");
+    // Scoped to this character's own rules: `fill-box` is right elsewhere in
+    // the sheet, where a lone shape turns about its own middle and there is no
+    // second group that has to agree with it.
+    const fmRules = [...css.matchAll(/^([^{@}]*\.fm[\w-]*[^{}]*)\{([^}]*)\}/gm)]
+      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]));
+    expect(fmRules.length).toBeGreaterThan(5);
+    for (const rule of fmRules) expect(rule[2]).not.toContain("fill-box");
+
+    // And the boxes really are different, which is why fill-box could never
+    // have worked here — this is the fact the rule above is protecting.
+    const rowsWith = (cells: string) =>
+      SPRITE.flatMap((row, y) => (row.split("").some(c => cells.includes(c)) ? [y] : []));
+    const gearRows = rowsWith("acp");
+    const bodyRows = rowsWith("bes");
+    expect(Math.max(...gearRows)).not.toBe(Math.max(...bodyRows));
+  });
+
+  it("does not dance the same way twice in a row", () => {
+    // One cycle repeated forever reads as a GIF. Picking uniformly would repeat
+    // about a third of the time, and a repeat is indistinguishable from the loop
+    // this exists to break.
+    expect(DANCES.length).toBeGreaterThan(2);
+    for (const current of DANCES) {
+      for (let i = 0; i <= 20; i++) {
+        const next = nextDance(current, () => i / 20);
+        expect(next.dance).not.toBe(current);
+        expect(DANCES).toContain(next.dance);
+      }
+    }
+    // Null is where it starts, and anything is allowed then.
+    expect(DANCES).toContain(nextDance(null, () => 0).dance);
+  });
+
+  it("drifts the tempo without leaving the band it belongs in", () => {
+    for (let i = 0; i <= 20; i++) {
+      const { beatMs } = nextDance("bob", () => i / 20);
+      expect(beatMs).toBeGreaterThanOrEqual(Math.round(BEAT_MS * (1 - BEAT_DRIFT)));
+      expect(beatMs).toBeLessThanOrEqual(Math.round(BEAT_MS * (1 + BEAT_DRIFT)));
+    }
+    // 800ms is 75bpm, about where the thing it is dancing to usually sits.
+    expect(BEAT_MS).toBe(800);
+    expect(BEAT_DRIFT).toBeLessThan(0.15);
+    expect(nextDanceMs(() => 0)).toBe(DANCE_MIN_MS);
+    expect(nextDanceMs(() => 1)).toBe(DANCE_MAX_MS);
+  });
+
+  it("changes its mind only while something is playing", () => {
+    // A timer running for a character standing still is a timer running for
+    // nothing.
+    expect(component).toContain("if (!playing) { setDance(null); return; }");
+  });
+
+  it("listens to no audio, because it cannot", () => {
+    // The player is a cross-origin iframe: the page cannot reach its audio
+    // element, and a tainted source hands an analyser silence. Anything here
+    // claiming to react to sound would be a lie told with a timer.
+    for (const src2 of [component, code("../claude-fm.ts")]) {
+      expect(src2).not.toMatch(/AnalyserNode|createMediaElementSource|getByteFrequency|getDisplayMedia/);
+    }
+  });
+
+  it("settles a prop onto the ledge instead of blinking it into being", () => {
+    expect(decl(".fm-prop", "animation")).toMatch(/^fm-settle 320ms/);
+    expect(css).toMatch(/@keyframes fm-settle/);
+    // The settle has to carry the position too, or the animation would snap the
+    // litter back to the right-hand end for its duration.
+    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-prop-x/);
+  });
+
+  it("keeps its weight in both themes, which is not the same number twice", () => {
+    // 0.55 is a dark-theme number: there the accent is a bright ink on
+    // near-black and survives being halved. In light it is a dark ink on a
+    // light ground, where dimming does not make it quieter, it makes it grey —
+    // the light sprite read as a smudge on the minimap next to a dark one that
+    // read as a character.
+    expect(decl(".fm-sprite", "opacity")).toBe("0.55");
+    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBe("0.72");
+    // Both themes drive the same three tokens, so nothing is hard-coded to one
+    // of them: the canvas shows through the eyes on either.
+    expect(decl(".fm-body", "fill")).toBe("var(--accent)");
+    expect(decl(".fm-gear", "fill")).toBe("var(--muted)");
+    expect(decl(".fm-eye", "fill")).toBe("var(--bg)");
+    expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
+  });
+
+  it("dances only while the music is on", () => {
+    // One rule per part, with WHICH dance carried as a custom property — so
+    // adding a fourth costs a @keyframes block and nothing else, and the
+    // reduced-motion block below keeps naming the same two selectors.
+    // The sheet names every set it runs, in full. Driving `animation-name`
+    // through a custom property was one rule instead of three and hid all three
+    // from bubble-motion.test.ts — which exists to catch a @keyframes set
+    // nothing runs, and an animation naming a set that is not there.
+    // THE HEADPHONES RUN THE BODY'S OWN DANCE, 50ms behind. They used to run a
+    // separate small nod — 1.2 degrees against a body swinging up to 5.5 — and
+    // worn ON a head that does not read as two speeds, it reads as the head
+    // sliding out of the headphones, which is what it did.
+    for (const d of DANCES) {
+      expect(css).toContain(`@keyframes fm-${d}`);
+      const idle = `.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`;
+      expect(decl(`${idle} .fm-body`, "animation"))
+        .toBe(`fm-${d} var(--fm-beat, 800ms) ease-in-out infinite`);
+      // EXACTLY the body's, with no offset. See below for why the lag went.
+      expect(decl(`${idle} .fm-gear-motion`, "animation"))
+        .toBe(decl(`${idle} .fm-body`, "animation"));
+    }
+    // And the separate nod is gone rather than left lying around.
+    expect(css).not.toContain("fm-nod");
+    // No animation on the resting sprite at all.
+    expect(decl(".fm-sprite", "animation")).toBeNull();
+  });
+
+  it("walks the edge in two frames, not on a curve", () => {
+    // A pixel character that eases between poses looks like a picture being
+    // tweened; one that snaps between two looks like it is taking steps. So the
+    // keyframes hold each pose for half the cycle and the timing is linear.
+    expect(css).toContain('.fm-walker[data-act="walk"]');
+    // Carrying something is still walking.
+    expect(css).toContain('.fm-walker[data-act="carry"]');
+    expect(css).toMatch(/animation: fm-step 440ms linear infinite/);
+    // Two poses, but handed over rather than cut: a 12% linear handover is too
+    // fast to read as a tween and long enough that the change is a movement
+    // rather than a jump. The hard cut at 49.99% juddered.
+    expect(css).toMatch(/@keyframes fm-step \{\s*0%, 44%/);
+    // The curve is a compromise: pure linear starts and stops dead, a full ease
+    // makes the middle race and the feet stop matching the ground. This is the
+    // gentlest symmetric curve that keeps most of the trip near constant speed.
+    expect(decl(".fm-walker", "transition")).toBe("transform var(--fm-walk-ms, 0ms) cubic-bezier(0.32, 0, 0.68, 1)");
+    expect(decl(".fm-walker", "transform")).toBe("translateX(var(--fm-x, 0px))");
+  });
+
+  it("goes about its business whether or not the music is on", () => {
+    // Holding the errands back while something played made the character least
+    // alive exactly when it was most looked at: it stood on one spot and danced
+    // for as long as the track ran. It wears the headphones and gets on with it.
+    expect(component).toContain("if (!probe || dead) return;");
+    expect(component).not.toContain("dead || playing");
+    // And the dance fills the gaps rather than replacing the errands, which is
+    // what `:not([data-act])` on every dance rule is for.
+    for (const d of DANCES) {
+      expect(css).toContain(`.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="${d}"]`);
+    }
+    // And it asks about reduced motion where the answer lives, rather than
+    // hiding the movement behind a media query that leaves timers running for
+    // a journey nobody sees.
+    expect(component).toContain('window.matchMedia?.("(prefers-reduced-motion: reduce)").matches');
+    // Every trip lands on the ledge: the span is the minimap's width less the
+    // character's own, so it is standing on the edge at both ends.
+    let at = 0;
+    for (let i = 0; i < 400; i++) {
+      const trip = nextWalk(at, () => (i * 0.017) % 1);
+      expect(trip.to).toBeLessThanOrEqual(0);
+      expect(trip.to).toBeGreaterThanOrEqual(-WALK_SPAN_PX);
+      expect(trip.ms).toBe(Math.round(Math.abs(trip.to - at) * WALK_MS_PER_PX));
+      at = trip.to;
+    }
+  });
+
+  it("takes a trip worth taking, or none", () => {
+    // Without a floor the random walk spends most of its time shuffling a few
+    // pixels, which reads as a twitch rather than as a stroll.
+    expect(nextWalk(-40, () => 0.27).to).not.toBe(-40);
+    expect(Math.abs(nextWalk(-40, () => 0.27).to + 40)).toBeGreaterThanOrEqual(WALK_MIN_STEP_PX);
+    // At the far end it has to turn round rather than push past the edge.
+    expect(nextWalk(-WALK_SPAN_PX, () => 1).to).toBeGreaterThan(-WALK_SPAN_PX);
+    expect(nextWalk(0, () => 0).to).toBeLessThan(0);
+  });
+
+  it("puts the ledge and the things on it in one place that does not move", () => {
+    // A thing lying on the floor does not travel with whoever is about to pick
+    // it up. When the walk lived on the scene itself, everything standing on
+    // the ledge moved with the character — which is one way to find out that a
+    // floor is not a vehicle.
+    expect(decl(".fm", "width")).toBe("var(--minimap-w)");
+    expect(decl(".fm", "--minimap-w")).toBe("202px");
+    expect(decl(".fm", "transform")).toBeNull();
+    expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
+    // 21px is what centres a 12px object under a 54px one when both are
+    // right-aligned: without it the stoop reaches for nothing.
+    expect(decl(".fm-prop", "transform")).toBe("translateX(calc(var(--fm-prop-x, 0px) - 21px))");
+    expect((54 - 12) / 2).toBe(21);
+  });
+
+  it("does the errand in steps that can be read without a clock", () => {
+    const steps = tidySteps(-100, -20);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "stoop", "carry", "windup", "toss"]);
+    // It walks to the litter, not past it.
+    expect(steps[0].x).toBe(-20);
+    expect(steps[0].ms).toBe(walkMsFor(-100, -20));
+    // The litter leaves the ledge when it is picked up — the END of the stoop,
+    // not the start of it.
+    expect(steps[1].prop?.held).toBeFalsy();
+    expect(steps[2].prop?.held).toBe(true);
+    // And it is carried to the one spot on the ledge nothing else stands on.
+    expect(steps[2].x).toBe(BIN_X);
+    expect(steps.at(-1)?.x).toBe(BIN_X);
+    // The throw is a beat after arriving: a character that arrives and tosses
+    // in one motion reads as dropping something.
+    expect(steps[3].act).toBe("windup");
+    expect(steps[3].ms).toBe(TOSS_WINDUP_MS);
+  });
+
+  it("puts a prop somewhere worth walking to, always on the ledge", () => {
+    let at = 0;
+    for (let i = 0; i < 400; i++) {
+      const spot = propSpot(at, () => (i * 0.023) % 1);
+      expect(spot).toBeLessThanOrEqual(0);
+      expect(spot).toBeGreaterThanOrEqual(-WALK_SPAN_PX);
+      expect(Math.abs(spot - at)).toBeGreaterThanOrEqual(WALK_MIN_STEP_PX);
+      at = spot;
+    }
+  });
+
+  it("leaves nothing behind when it is interrupted", () => {
+    // Music starting mid-errand tears the effect down. A piece of litter left
+    // on the ledge that nothing will ever come back for is the one way this can
+    // litter for real.
+    expect(component).toMatch(/return \(\) => \{[\s\S]*?setAct\(null\);[\s\S]*?setProp\(null\);/);
+  });
+
+  it("keeps walking the usual thing and the rest the surprise", () => {
+    // A character that only ever walks is a screensaver; one that is always
+    // doing a bit is a distraction. Walking stays the largest single share, and
+    // every other activity stays small enough that finding it mid-errand is a
+    // surprise rather than the expected state.
+    const total = ACTIVITIES.reduce((n, a) => n + a.weight, 0);
+    const stroll = ACTIVITIES.find(a => a.kind === "stroll")!;
+    expect(stroll.weight / total).toBeGreaterThan(0.3);
+    for (const a of ACTIVITIES) {
+      if (a.kind === "stroll") continue;
+      expect(a.weight / total).toBeLessThan(0.25);
+      expect(a.weight).toBeGreaterThan(0);
+    }
+  });
+
+  it("can reach every activity, and only the ones it has", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i <= 200; i++) seen.add(pickActivity(() => i / 200));
+    expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
+  });
+
+  it("never ends a step before the animation that step started", () => {
+    // THE CLASS OF BUG, not just the one instance. A step's `ms` is how long the
+    // component holds that state; when it ends, the element carrying the
+    // animation unmounts. `kick` ran for 480ms and started a 520ms roll, so the
+    // ball was taken off the canvas forty milliseconds before it landed and
+    // vanished in mid-flight. `stoop` and `toss` happened to match exactly, and
+    // nothing pointed at the one that had drifted because each number looked
+    // reasonable on its own.
+    const animMs = (selector: string) => {
+      const value = decl(selector, "animation") ?? "";
+      return Number(/(\d+)ms/.exec(value)?.[1] ?? NaN);
+    };
+    const pairs: [string, number, string][] = [
+      ['.fm-walker[data-act="stoop"] .fm-sprite', STOOP_MS, "stoop"],
+      [".fm-held[data-toss]", TOSS_MS, "toss"],
+      ['.fm-prop[data-prop="ball"][data-leaving]', KICK_MS, "kick"],
+    ];
+    for (const [selector, stepMs, name] of pairs) {
+      const anim = animMs(selector);
+      expect(Number.isFinite(anim), `${name} has an animation to measure`).toBe(true);
+      expect(stepMs, `${name}: the step must outlast its own animation`).toBeGreaterThanOrEqual(anim);
+    }
+  });
+
+  it("brings a held thing into hand rather than switching it on", () => {
+    // Nothing in this scene should appear at full size in one frame — the scope
+    // worst of all, because nothing precedes it: one frame the character is
+    // standing there, the next it is holding a telescope.
+    expect(decl(".fm-held", "animation")).toMatch(/^fm-draw 300ms/);
+    expect(css).toMatch(/@keyframes fm-draw/);
+    // And a prop on its way out overrides that rather than fighting it, which
+    // is what the extra attribute in the selector buys.
+    expect(decl(".fm-held[data-toss]", "animation")).toMatch(/^fm-toss/);
+  });
+
+  it("sends the ball down the ledge instead of tidying it", () => {
+    // The same errand with the opposite ending — and the ball never leaves the
+    // floor, which is the one structural difference and why both fit one shape.
+    const steps = kickSteps(-30, -90);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick"]);
+    expect(steps.every(s2 => !s2.prop?.held)).toBe(true);
+    expect(steps.at(-1)?.prop?.leaving).toBe(true);
+    // It stays where it was kicked from; the ball is what travels.
+    expect(steps.every(s2 => s2.x === -90)).toBe(true);
+  });
+
+  it("drops far enough when sitting that the pose is not just standing lower", () => {
+    // The legs are two rows — six pixels at 3px a cell — so a drop shorter than
+    // their own height leaves them straddling the ledge line and the whole thing
+    // reads as the character standing slightly lower. Seven did exactly that.
+    const drop = Number(/translateY\((\d+)px\)/.exec(
+      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
+    const legHeight = 2 * (54 / SPRITE_W);
+    expect(drop).toBeGreaterThan(legHeight);
+    // And it folds rather than being lowered.
+    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
+  });
+
+  it("walks somewhere before it sits, and sits for a while", () => {
+    // Sitting down on the spot it is already standing on reads as falling over.
+    const steps = sitSteps(-10, -80, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit"]);
+    expect(steps[0].ms).toBe(walkMsFor(-10, -80));
+    expect(steps[1].ms).toBeGreaterThan(steps[0].ms);
+    expect(steps[1].prop).toBeNull();
+  });
+
+  it("takes out a scope and looks at the board", () => {
+    // The one activity that is ABOUT the canvas rather than about the ledge.
+    const steps = watchSteps(0, -60, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch"]);
+    expect(steps[1].prop?.kind).toBe("scope");
+    expect(steps[1].prop?.held).toBe(true);
+    // Held at the eyes and pointed away from the minimap, or the pose reads as
+    // carrying a stick.
+    expect(decl('.fm-held[data-prop="scope"]', "bottom")).toBe("21px");
+    expect(decl(".fm-held", "bottom")).toBe("3px");
+    // AND IT HAS TO TOUCH THE FACE. At 46px it sat ten pixels clear of the head
+    // and read as floating beside the character: the arms are two rows from the
+    // bottom, so there is nothing at eye height for a hand to be, and the
+    // overlap has to do the work the arm cannot.
+    expect(decl('.fm-held[data-prop="scope"]', "right")).toBe("34px");
+    const SPRITE_PX = 54, SCOPE_PX = 15, CELL = SPRITE_PX / SPRITE_W;
+    const farEnd = SPRITE_PX - 34;             // the end nearest the face
+    const headStartsAt = 6 * CELL;             // body columns begin at 6
+    expect(farEnd).toBeGreaterThan(headStartsAt);
+    expect(farEnd).toBeLessThan(7 * CELL);     // and stops short of the eye
+  });
+
+  it("gives every prop art, and no prop a recognisable identity", () => {
+    for (const kind of ["litter", "ball", "scope"] as const) {
+      const art = PROP_ART[kind];
+      expect(art.length).toBeGreaterThan(1);
+      const w = art[0].length;
+      for (const row of art) expect(row).toHaveLength(w);
+      for (const row of art) expect(row).toMatch(/^[.x]+$/);
+    }
+    // A character tidying away an identifiable thing invites the question of
+    // what it was, and the answer is nothing.
+    expect(PROP_ART.litter).not.toEqual(PROP_ART.ball);
+  });
+
+  it("moves the headphones with the body when they are not on the head", () => {
+    // Secondary motion is right ON the head — a thing worn loosely follows what
+    // it is worn on, which is what the dance's 90ms is. Round the neck they are
+    // resting against the chest, and the same delay made them visibly trail the
+    // body on every step.
+    expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
+    expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
+    // AND NO DELAY EITHER, which a thirteen-row sprite leaves no room for.
+    // groove lifts 0.85 units; at the steepest part of the bounce that is
+    // 0.02px per millisecond, so even fifty milliseconds puts the body a whole
+    // pixel above the headphones — and the band is one row, three pixels, so a
+    // pixel of separation is a third of it. What that looks like is the head
+    // sinking into the headphones. Things on a head do not lag behind it.
+    const idleSel = '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"]';
+    expect(decl(`${idleSel} .fm-gear-motion`, "animation")).toBe(decl(`${idleSel} .fm-body`, "animation"));
+    expect(css).not.toMatch(/\.fm-gear-motion \{\s*animation:[^;]*-\d+ms/);
+    const LIFT_UNITS = 0.85, CELL_PX = 54 / SPRITE_W, BEAT = 800;
+    const pxPerMs = (LIFT_UNITS * CELL_PX * 2 * Math.PI) / BEAT;
+    expect(pxPerMs * 50).toBeGreaterThan(CELL_PX / 3);
+  });
+
+  it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
+    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
+    expect(css).toMatch(/@keyframes fm-roll/);
+    // Negative: down the ledge, away from the bin corner.
+    expect(css).toMatch(/- 21px - 132px/);
+  });
+
+  it("rests between things without going quiet enough to look broken", () => {
+    // This once asserted that it stands still far longer than it walks, which
+    // was the right property when walking was the only thing it did: the worry
+    // was a monitoring deck with something twitching in the corner of it.
+    //
+    // With five activities and most of them worth seeing, that same restraint
+    // stopped protecting the deck and started hiding the feature — forty
+    // seconds of nothing meant somebody could watch for a minute and conclude
+    // it was a static image. What is worth pinning now is the band either side:
+    // there is always a visible rest, and the wait is never long enough to read
+    // as "this does not move".
+    expect(WALK_IDLE_MIN_MS).toBeGreaterThanOrEqual(5_000);
+    expect(WALK_IDLE_MAX_MS).toBeLessThanOrEqual(20_000);
+    // The rest has to be a rest: longer than the quickest thing it does, or the
+    // errands would run into each other with no beat between them.
+    expect(WALK_IDLE_MIN_MS).toBeGreaterThan(STOOP_MS + TOSS_MS);
+    // A range rather than a number, so two decks side by side do not step in time.
+    expect(WALK_IDLE_MAX_MS).toBeGreaterThan(WALK_IDLE_MIN_MS * 1.5);
+    expect(nextIdleMs(() => 0)).toBe(WALK_IDLE_MIN_MS);
+    expect(nextIdleMs(() => 1)).toBe(WALK_IDLE_MAX_MS);
+  });
+
+  it("holds still for somebody who asked for no motion", () => {
+    // A character dancing in the corner of a monitoring tool is exactly the
+    // motion this setting is turned on to stop.
+    const reduce = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/g;
+    const blocks = [...css.matchAll(reduce)].map(m => m[1]).join("\n");
+    // All of it: the dance, the walk and the press.
+    for (const gone of [
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-body',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="bob"] .fm-gear-motion',
+      '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
+      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
+      ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
+      '.fm-walker[data-act="stoop"] .fm-sprite',
+      ".fm-prop",
+      ".fm-held[data-toss]",
+      ".fm-eye",
+    ]) expect(blocks).toContain(gone);
+    expect(blocks).toMatch(/animation: none/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear \{ transition: none; \}/);
+    // And the state still reads, because the brightened sprite says it.
+    expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
+  });
+
+  it("says its state to a reader who cannot see it dance", () => {
+    expect(component).toContain("aria-pressed={playing}");
+    expect(component).toMatch(/aria-label=\{playing \? "Stop Claude FM" : "Play Claude FM"\}/);
+    // And says where the sound comes from before anybody presses it.
+    expect(component).toContain("streams from YouTube");
+  });
+});
+
+describe("the hidden player", () => {
+  it("is off-screen at a real size, not shrunk or display:none", () => {
+    // Both of the usual spellings are how a hidden YouTube player stops
+    // working: a display:none iframe may be torn down or throttled, and a 1px
+    // one is a player the page has told the browser nobody can see, which is
+    // grounds to refuse the autoplay it was just given a gesture for.
+    expect(decl(".fm-frame", "display")).toBeNull();
+    expect(decl(".fm-frame", "width")).toBe("320px");
+    expect(decl(".fm-frame", "height")).toBe("180px");
+    expect(decl(".fm-frame", "left")).toBe("-10000px");
+  });
+
+  it("is allowed the two permissions it needs and no others", () => {
+    expect(component).toContain('allow="autoplay; encrypted-media"');
+    for (const no of ["camera", "microphone", "geolocation", "fullscreen", "payment"]) {
+      expect(component).not.toContain(no);
+    }
+    expect(component).toContain('sandbox="allow-scripts allow-same-origin allow-presentation"');
+  });
+});
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+/** A declaration, read out of the sheet.
+ *
+ *  Every block with this EXACT selector is searched, not just the first one:
+ *  a name can legitimately own more than one rule — `.fm-gear` is given its
+ *  colour where the inks are set and its position where the motion is — and a
+ *  helper that stopped at the first match reported the second as absent. */
+function decl(selector: string, prop: string): string | null {
+  const re = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`, "mg");
+  const want = new RegExp(`(?:^|[;{\\s])${prop.replace(/[-]/g, "\\-")}\\s*:\\s*([^;]+)`, "m");
+  for (const block of css.matchAll(re)) {
+    const m = want.exec(block[1]);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+/** A Response whose body is one chunk. */
+function bodyOf(text: string): Response {
+  return countingBody([text]).res;
+}
+
+/** A Response that reports how many chunks were actually pulled, so a test can
+ *  prove the read stopped early rather than merely sliced afterwards. */
+function countingBody(chunks: string[]) {
+  let i = 0;
+  const encoder = new TextEncoder();
+  const res = {
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => ({
+        read: async () => (i < chunks.length
+          ? { done: false, value: encoder.encode(chunks[i++]) }
+          : { done: true, value: undefined }),
+        cancel: async () => {},
+      }),
+    },
+  } as unknown as Response;
+  return { res, delivered: () => i };
+}
+
+function okWith(html: string): Response {
+  return countingBody([html]).res;
+}
