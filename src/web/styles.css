@@ -12434,12 +12434,22 @@ input, textarea { caret-color: var(--accent); }
   97%, 100%  { fill: var(--bg); }
 }
 
-/* Two groups, because the body and what it is wearing do not move together.
-   `transform-box: fill-box` makes the origin each group's own box instead of
-   the SVG viewport, which is what lets "bottom centre" mean the character's
-   feet — without it a rotation swings the sprite around a corner of the canvas
-   coordinate system and it leaves the frame entirely. */
-.fm-gear, .fm-gear-motion, .fm-body { transform-box: fill-box; transform-origin: 50% 100%; }
+/* ONE PIVOT FOR BOTH GROUPS, and getting this wrong is invisible in the
+   stylesheet and glaring on screen.
+
+   These were on `transform-box: fill-box`, which makes the origin each group's
+   OWN bounding box. The gear's box is rows 0-8 and the body's is rows 2-13, so
+   "50% 100%" resolved to two points five rows apart — and the same rotate and
+   the same scale about two different centres cannot keep two shapes aligned. It
+   showed as a seam that opened and closed along the headband as the character
+   moved: not a timing problem, which is where two passes went looking, but a
+   geometry one.
+
+   `view-box` resolves the percentages against the sprite's own viewBox instead,
+   so both groups pivot about (9, 13) — the middle of its feet — which is what
+   "bottom centre" was always meant to mean. Identical transforms about an
+   identical origin cannot drift. */
+.fm-gear, .fm-gear-motion, .fm-body { transform-box: view-box; transform-origin: 50% 100%; }
 
 /* WHERE THE HEADPHONES ARE, which is the one thing about this character that
    says whether anything is playing, without a word or a colour. On its head

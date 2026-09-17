@@ -490,6 +490,33 @@ describe("the character", () => {
     expect(component.indexOf('className="fm-gear"')).toBeLessThan(component.indexOf('className="fm-body"'));
   });
 
+  it("pivots both groups about the same point, or they cannot stay together", () => {
+    // THE SEAM. The gear and the body carry identical transforms, which is only
+    // enough if they turn about the same centre. On `fill-box` each resolved
+    // "50% 100%" against its OWN bounding box — the gear's ends at row 8, the
+    // body's at row 13 — so the same rotate and the same scale were applied
+    // about two points five rows apart, and the headband opened a seam along
+    // the head as the character moved. It looked like a timing fault and was
+    // not; two passes went looking in the wrong place.
+    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-box")).toBe("view-box");
+    expect(decl(".fm-gear, .fm-gear-motion, .fm-body", "transform-origin")).toBe("50% 100%");
+    // Scoped to this character's own rules: `fill-box` is right elsewhere in
+    // the sheet, where a lone shape turns about its own middle and there is no
+    // second group that has to agree with it.
+    const fmRules = [...css.matchAll(/^([^{@}]*\.fm[\w-]*[^{}]*)\{([^}]*)\}/gm)]
+      .filter(m => /(^|[\s,])\.fm[\w-]*/.test(m[1]));
+    expect(fmRules.length).toBeGreaterThan(5);
+    for (const rule of fmRules) expect(rule[2]).not.toContain("fill-box");
+
+    // And the boxes really are different, which is why fill-box could never
+    // have worked here — this is the fact the rule above is protecting.
+    const rowsWith = (cells: string) =>
+      SPRITE.flatMap((row, y) => (row.split("").some(c => cells.includes(c)) ? [y] : []));
+    const gearRows = rowsWith("acp");
+    const bodyRows = rowsWith("bes");
+    expect(Math.max(...gearRows)).not.toBe(Math.max(...bodyRows));
+  });
+
   it("does not dance the same way twice in a row", () => {
     // One cycle repeated forever reads as a GIF. Picking uniformly would repeat
     // about a third of the time, and a repeat is indistinguishable from the loop
