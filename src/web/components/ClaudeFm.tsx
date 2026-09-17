@@ -42,10 +42,10 @@ import {
   type CSSProperties,
 } from "react";
 import {
-  choreSteps, CHORE_CHANCE, command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME,
-  GEAR_CELLS, listenCommand, LITTER, LITTER_H, LITTER_W, litterSpot, nextIdleMs, nextWalk,
-  PLAYER_ORIGIN, readSignal, spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, nextDance, nextDanceMs, type ChoreStep, type Dance,
+  command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
+  listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
+  spriteRects, SPRITE_H, SPRITE_W,
+  BEAT_MS, DANCES, nextDance, nextDanceMs, type Act, type Dance, type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -102,14 +102,12 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     const [walkMs, setWalkMs] = useState(0);
     /** What it is doing, which is what the sheet draws. Null when it is simply
      *  standing there, which is most of the time. */
-    const [act, setAct] = useState<ChoreStep["act"] | null>(null);
-    /** Where the piece of litter is sitting, or null when there is none. Once
-     *  it is picked up it stops being here and starts being carried — two
-     *  render slots for one object, because on the ledge it stays put and in
-     *  hand it has to travel with the character, and a sibling element cannot
-     *  do both. */
-    const [litter, setLitter] = useState<number | null>(null);
-    const [held, setHeld] = useState(false);
+    const [act, setAct] = useState<Act | null>(null);
+    /** The thing on the ledge it is doing something with, or null. It is
+     *  drawn in one of two places: on the ledge while it lies there, and
+     *  inside the walker once it is held — because on the floor it must stay
+     *  put and in hand it must travel, and one element cannot do both. */
+    const [prop, setProp] = useState<Prop | null>(null);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
      *  rather than as a character. */
@@ -192,42 +190,29 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       /** Walks the list one step at a time. Each step says how the world should
        *  look and how long to hold it there; nothing here decides what the list
        *  is (claude-fm.ts does) and nothing there knows about a clock. */
-      const run = (steps: ChoreStep[]) => {
+      const run = (steps: Step[]) => {
         const [step, ...rest] = steps;
-        if (!step) { setAct(null); setHeld(false); idle(); return; }
+        if (!step) { setAct(null); setProp(null); idle(); return; }
         setWalkMs(step.ms);
         setAct(step.act);
+        setProp(step.prop);
         setX(step.x);
         here = step.x;
-        // The litter leaves the ledge at the moment it is picked up, which is
-        // the end of the stoop rather than the start of it.
-        if (step.act === "carry") { setLitter(null); setHeld(true); }
-        if (step.act === "toss") setHeld(false);
         timer = setTimeout(() => run(rest), step.ms);
       };
 
       const idle = () => {
-        timer = setTimeout(() => {
-          if (Math.random() < CHORE_CHANCE) {
-            const at = litterSpot(here, Math.random);
-            setLitter(at);
-            run(choreSteps(here, at));
-          } else {
-            const trip = nextWalk(here, Math.random);
-            run([{ x: trip.to, litter: null, act: "walk", ms: trip.ms }]);
-          }
-        }, nextIdleMs(Math.random));
+        timer = setTimeout(() => run(nextActivity(here, Math.random)), nextIdleMs(Math.random));
       };
 
       idle();
       return () => {
         if (timer) clearTimeout(timer);
-        // Whatever it was in the middle of, it is not any more. Leaving a piece
-        // of litter on the ledge that nothing will ever come back for is the
-        // one way this can litter for real.
+        // Whatever it was in the middle of, it is not any more. Leaving a prop
+        // on the ledge that nothing will ever come back for is the one way this
+        // can litter for real.
         setAct(null);
-        setHeld(false);
-        setLitter(null);
+        setProp(null);
       };
     }, [probe, dead, playing]);
 
@@ -279,9 +264,14 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       >
         {/* On the ledge, and not inside the walker: a thing lying on the floor
             does not travel with whoever is about to pick it up. */}
-        {litter != null && (
-          <div className="fm-litter" style={{ "--fm-litter-x": `${litter}px` } as CSSProperties}>
-            {pixels(LITTER, "l")}
+        {prop && !prop.held && (
+          <div
+            className="fm-prop"
+            data-prop={prop.kind}
+            data-leaving={prop.leaving ? "" : undefined}
+            style={{ "--fm-prop-x": `${prop.at}px` } as CSSProperties}
+          >
+            {pixels(PROP_ART[prop.kind], "p")}
           </div>
         )}
         <div
@@ -297,9 +287,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         >
         {/* In hand, so it travels with the character — and on the way out,
             so the throw has something to animate. */}
-        {(held || act === "toss") && (
-          <div className="fm-held" data-toss={act === "toss" ? "" : undefined}>
-            {pixels(LITTER, "h")}
+        {prop?.held && (
+          <div className="fm-held" data-toss={prop.leaving ? "" : undefined}>
+            {pixels(PROP_ART[prop.kind], "h")}
           </div>
         )}
         <button

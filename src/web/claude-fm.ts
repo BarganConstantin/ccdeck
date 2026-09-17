@@ -290,21 +290,62 @@ export function nextIdleMs(rand: () => number): number {
   return Math.round(WALK_IDLE_MIN_MS + rand() * (WALK_IDLE_MAX_MS - WALK_IDLE_MIN_MS));
 }
 
-// ── the chore ───────────────────────────────────────────────────────────────
+// ── what it does with itself ────────────────────────────────────────────────
 //
-// Sometimes, instead of just strolling, it finds something on the ledge: walks
-// over, stoops, picks it up, carries it to the end and throws it away.
+// Walking the ledge was the whole of it once, and a character that only ever
+// walks is a screensaver. So there are four things it might do when it has
+// nothing to listen to, and it picks one each time it gets bored.
 //
 // This is the part of the feature with no purpose at all, and it is on purpose.
-// A deck is watched for hours by somebody waiting on an agent, and the thing
-// that makes a corner of a screen worth glancing at is that it is occasionally
-// doing something rather than always doing the same thing. One errand, rarely,
-// slowly, and never while the music is on — it has somewhere to be then.
+// A deck is watched for hours by somebody waiting on an agent, and what makes a
+// corner of a screen worth glancing at is that it is occasionally doing
+// something rather than always doing the same thing. Rarely, slowly, and never
+// while the music is on — it has somewhere to be then.
 
-/** How often an idle turn becomes an errand rather than a plain stroll. Under a
- *  half, so the ordinary thing stays the ordinary thing and finding it mid-chore
- *  is a small surprise rather than the expected state. */
-export const CHORE_CHANCE = 0.4;
+export type Act = "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch";
+
+/** A thing on the ledge it can do something with. */
+export interface Prop {
+  kind: "litter" | "ball" | "scope";
+  /** Where it is, in the same coordinates the character walks in. */
+  at: number;
+  /** In hand rather than on the floor — it travels with the character then. */
+  held?: boolean;
+  /** On its way out: thrown, or rolling off. */
+  leaving?: boolean;
+}
+
+export interface Step {
+  /** Where the character should be by the end of this step. */
+  x: number;
+  /** The prop, or null when there is not one. */
+  prop: Prop | null;
+  act: Act;
+  ms: number;
+}
+
+/** What it might do, and how often. Walking is still most of it: the others are
+ *  what make walking worth noticing, and they stop being that if they are the
+ *  usual thing. */
+export const ACTIVITIES = [
+  { kind: "stroll", weight: 38 },
+  { kind: "tidy",   weight: 17 },
+  { kind: "kick",   weight: 17 },
+  { kind: "sit",    weight: 12 },
+  { kind: "watch",  weight: 16 },
+] as const;
+
+export type Activity = typeof ACTIVITIES[number]["kind"];
+
+export function pickActivity(rand: () => number): Activity {
+  const total = ACTIVITIES.reduce((n, a) => n + a.weight, 0);
+  let roll = rand() * total;
+  for (const a of ACTIVITIES) {
+    roll -= a.weight;
+    if (roll < 0) return a.kind;
+  }
+  return "stroll";
+}
 
 /** Bending down and standing back up. Long enough to read as deliberate at a
  *  glance from across a room, which is the only way anyone will ever see it. */
@@ -315,9 +356,27 @@ export const STOOP_MS = 720;
 export const TOSS_WINDUP_MS = 260;
 export const TOSS_MS = 620;
 
-/** Where a piece of litter turns up. Never so close to the character that the
- *  errand is over before it starts, and always somewhere on the ledge. */
-export function litterSpot(from: number, rand: () => number): number {
+/** The kick, and its own wind-up. Shorter than the throw's: a kick is the
+ *  quicker motion of the two and a long one reads as hesitation. */
+export const KICK_WINDUP_MS = 220;
+export const KICK_MS = 480;
+
+/** How long it stands there looking at the board through the scope. Long, like
+ *  sitting — this is the one activity that is ABOUT the deck rather than about
+ *  the ledge, and it only reads as looking at something if it lasts longer than
+ *  a glance. */
+export const WATCH_MIN_MS = 7_000;
+export const WATCH_MAX_MS = 15_000;
+
+/** How long it sits there. The longest thing it does by some way, because that
+ *  is what sitting is — and because a rest beat is what stops the other three
+ *  from running into each other. */
+export const SIT_MIN_MS = 6_000;
+export const SIT_MAX_MS = 14_000;
+
+/** Where a prop turns up. Never so close that the errand is over before it
+ *  starts, and always somewhere on the ledge. */
+export function propSpot(from: number, rand: () => number): number {
   const span = WALK_SPAN_PX;
   let at = -Math.round(rand() * span);
   if (Math.abs(at - from) < WALK_MIN_STEP_PX) {
@@ -343,38 +402,100 @@ export const BIN_X = 0;
  * how the world should look and how long to hold it there. The component walks
  * the list; this decides what the list is.
  */
-export interface ChoreStep {
-  /** Where the character should be by the end of this step. */
-  x: number;
-  /** Where the litter is, or null once it is gone. */
-  litter: number | null;
-  /** What the character is doing, which is what the sheet draws. */
-  act: "walk" | "stoop" | "carry" | "windup" | "toss";
-  ms: number;
-}
-
-export function choreSteps(from: number, at: number): ChoreStep[] {
+export function tidySteps(from: number, at: number): Step[] {
+  const it = (p: Partial<Prop>): Prop => ({ kind: "litter", at, ...p });
   return [
-    { x: at,    litter: at,   act: "walk",   ms: walkMsFor(from, at) },
-    { x: at,    litter: at,   act: "stoop",  ms: STOOP_MS },
-    { x: BIN_X, litter: null, act: "carry",  ms: walkMsFor(at, BIN_X) },
-    { x: BIN_X, litter: null, act: "windup", ms: TOSS_WINDUP_MS },
-    { x: BIN_X, litter: null, act: "toss",   ms: TOSS_MS },
+    { x: at,    prop: it({}),                          act: "walk",   ms: walkMsFor(from, at) },
+    { x: at,    prop: it({}),                          act: "stoop",  ms: STOOP_MS },
+    { x: BIN_X, prop: it({ held: true }),              act: "carry",  ms: walkMsFor(at, BIN_X) },
+    { x: BIN_X, prop: it({ held: true }),              act: "windup", ms: TOSS_WINDUP_MS },
+    { x: BIN_X, prop: it({ held: true, leaving: true }), act: "toss", ms: TOSS_MS },
   ];
 }
 
 /**
- * The litter itself. Four columns of something crumpled — deliberately not a
- * recognisable object, because a character tidying away an identifiable thing
- * invites the question of what it was, and the answer is nothing.
+ * The ball, which is the same errand with the opposite ending: it walks up to
+ * the thing, and instead of tidying it away it sends it down the ledge.
+ *
+ * The ball stays on the floor the whole time — it is never held — which is the
+ * one structural difference and the reason both fit one prop shape.
+ */
+export function kickSteps(from: number, at: number): Step[] {
+  const ball = (p: Partial<Prop> = {}): Prop => ({ kind: "ball", at, ...p });
+  return [
+    { x: at, prop: ball(),                 act: "walk",   ms: walkMsFor(from, at) },
+    { x: at, prop: ball(),                 act: "windup", ms: KICK_WINDUP_MS },
+    { x: at, prop: ball({ leaving: true }), act: "kick",  ms: KICK_MS },
+  ];
+}
+
+/** Sitting down on the edge for a while. It walks somewhere first, because
+ *  sitting down on the spot it is already standing on reads as falling over. */
+export function sitSteps(from: number, at: number, rand: () => number): Step[] {
+  return [
+    { x: at, prop: null, act: "walk", ms: walkMsFor(from, at) },
+    { x: at, prop: null, act: "sit",  ms: Math.round(SIT_MIN_MS + rand() * (SIT_MAX_MS - SIT_MIN_MS)) },
+  ];
+}
+
+/**
+ * It takes out a scope and looks at the board.
+ *
+ * The only thing it does that is about the canvas rather than about the ledge
+ * it is standing on: it turns away from the minimap, points the thing at the
+ * sessions, and watches them for a while. Nothing is read and nothing is
+ * reported — it is not a feature wearing a character, it is a character that
+ * has noticed there is something to look at.
+ */
+export function watchSteps(from: number, at: number, rand: () => number): Step[] {
+  const scope = (): Prop => ({ kind: "scope", at, held: true });
+  return [
+    { x: at, prop: null,    act: "walk",  ms: walkMsFor(from, at) },
+    { x: at, prop: scope(), act: "watch", ms: Math.round(WATCH_MIN_MS + rand() * (WATCH_MAX_MS - WATCH_MIN_MS)) },
+  ];
+}
+
+/** The whole decision, in one place: what it does next and where. */
+export function nextActivity(from: number, rand: () => number): Step[] {
+  switch (pickActivity(rand)) {
+    case "tidy": return tidySteps(from, propSpot(from, rand));
+    case "kick": return kickSteps(from, propSpot(from, rand));
+    case "sit":   return sitSteps(from, propSpot(from, rand), rand);
+    case "watch": return watchSteps(from, propSpot(from, rand), rand);
+    default: {
+      const trip = nextWalk(from, rand);
+      return [{ x: trip.to, prop: null, act: "walk", ms: trip.ms }];
+    }
+  }
+}
+
+/**
+ * The props. Deliberately not recognisable objects — a character tidying away
+ * an identifiable thing invites the question of what it was, and the answer is
+ * nothing. One is crumpled, one is round.
  */
 export const LITTER: readonly string[] = [
   ".xx.",
   "xxxx",
   ".xx.",
 ];
-export const LITTER_W = 4;
-export const LITTER_H = LITTER.length;
+export const BALL: readonly string[] = [
+  ".xx.",
+  "xxxx",
+  "xxxx",
+  ".xx.",
+];
+
+/** The scope: narrow at the eye, wide at the far end, which is the whole of
+ *  what makes five pixels read as a telescope rather than as a stick. */
+export const SCOPE: readonly string[] = [
+  "..xxx",
+  "xxxxx",
+  "..xxx",
+];
+
+export const PROP_ART: Record<Prop["kind"], readonly string[]> =
+  { litter: LITTER, ball: BALL, scope: SCOPE };
 
 // ── the dance is not one loop ───────────────────────────────────────────────
 //

@@ -12286,7 +12286,7 @@ input, textarea { caret-color: var(--accent); }
    lie still while the character walks toward it — when the walk lived on the
    scene itself, everything on the ledge travelled with it, which is one way to
    discover that a floor is not a vehicle. */
-.fm-walker, .fm-litter { position: absolute; right: 0; bottom: 0; }
+.fm-walker, .fm-prop { position: absolute; right: 0; bottom: 0; }
 
 .fm-walker {
   /* The walk itself, and the curve is a compromise worth naming. Pure linear —
@@ -12304,19 +12304,30 @@ input, textarea { caret-color: var(--accent); }
 /* The 21px is what centres a 12px object under a 54px one when both are
    right-aligned to the same edge: (54 - 12) / 2. Without it the litter sits off
    the character's shoulder and the stoop reaches for nothing. */
-.fm-litter {
-  transform: translateX(calc(var(--fm-litter-x, 0px) - 21px));
+.fm-prop {
+  transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));
   width: 12px;
 }
-.fm-litter svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
+.fm-prop svg, .fm-held svg { display: block; width: 100%; height: auto; fill: var(--muted); }
 
 /* It settles onto the ledge instead of being there suddenly. Nothing in this
    scene should pop: a thing that exists between one frame and the next is the
    same cheapness as headphones blinking off a head. */
-.fm-litter { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.fm-prop { animation: fm-settle 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Kicked, it goes down the ledge and out. Away from the bin end, which is the
+   only direction with any ledge left in it. */
+.fm-prop[data-prop="ball"][data-leaving] {
+  animation: fm-roll 520ms cubic-bezier(0.12, 0.6, 0.4, 1) forwards;
+}
+@keyframes fm-roll {
+  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px));         opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px - 132px)); opacity: 0; }
+}
 @keyframes fm-settle {
-  0%   { transform: translateX(calc(var(--fm-litter-x, 0px) - 21px)) translateY(-5px); opacity: 0; }
-  100% { transform: translateX(calc(var(--fm-litter-x, 0px) - 21px)) translateY(0);    opacity: 1; }
+  0%   { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(-5px); opacity: 0; }
+  100% { transform: translateX(calc(var(--fm-prop-x, 0px) - 21px)) translateY(0);    opacity: 1; }
 }
 
 /* In hand: at the character's side, at the height of its feet, so the throw
@@ -12326,6 +12337,14 @@ input, textarea { caret-color: var(--accent); }
   right: 42px;
   bottom: 3px;
   width: 12px;
+}
+/* The scope is held UP, at the height of the eyes, pointing away from the
+   minimap and out over the sessions — which is the only thing that makes the
+   pose read as looking at something rather than as carrying a stick. */
+.fm-held[data-prop="scope"] {
+  right: 46px;
+  bottom: 21px;
+  width: 15px;
 }
 
 /* No surface, no border, no shadow. Every other instrument on this canvas
@@ -12520,10 +12539,17 @@ input, textarea { caret-color: var(--accent); }
   animation: fm-step 440ms linear infinite;
 }
 :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion {
-  animation: fm-step 440ms linear -60ms infinite;
+  animation: fm-step 440ms linear infinite;
 }
 
-/* THE ERRAND. It bends, it stands up holding something, it leans back and it
+/* NO LAG WHILE WALKING, and the asymmetry is the point. The headphones run the
+   dance 90ms behind the body when they are ON the head, because that is what
+   secondary motion is: a thing worn loosely follows what it is worn on. Round
+   the neck they are not worn loosely, they are resting against the chest — so
+   the same 90ms there made them visibly trail the body on every step, which is
+   exactly what it looked like. Walking, they move with it, frame for frame.
+
+   THE ERRAND. It bends, it stands up holding something, it leans back and it
    throws. Four poses, and the only one that needed a keyframe rather than a
    transition is the stoop, because it has to come back up on its own — the
    others each end when the next one starts. The whole sequence is timed in
@@ -12538,6 +12564,22 @@ input, textarea { caret-color: var(--accent); }
    tosses in one motion reads as dropping something. */
 .fm-walker[data-act="windup"] .fm-sprite { transform: rotate(-7deg); }
 .fm-walker[data-act="toss"] .fm-sprite { transform: rotate(5deg); }
+
+/* The kick: back, then through. The wind-up above is shared with the throw;
+   the follow-through is its own, further and quicker, because a kick is the
+   faster of the two motions and a slow one reads as a nudge. */
+.fm-walker[data-act="kick"] .fm-sprite { transform: rotate(9deg); }
+
+/* Sitting on the edge, legs over the side. The sprite drops below the line it
+   stands on, which is what puts the feet over the minimap — the same seven
+   pixels that would be a bug anywhere else in this block are the whole pose
+   here. A little squash, because sitting down is a body folding rather than a
+   body being lowered. */
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(7px) scale(1.03, 0.9); }
+
+/* Looking at the board. A small lean back, the way anybody holding something up
+   to their eye stands. */
+.fm-walker[data-act="watch"] .fm-sprite { transform: rotate(-3deg); }
 
 /* And the thing itself, out of the hand on an arc. It leaves upward and to the
    right, slows at the top the way a thrown object does, and is gone before it
@@ -12569,7 +12611,8 @@ input, textarea { caret-color: var(--accent); }
   .fm-sprite[data-playing][data-dance="sway"] .fm-body,
   .fm-sprite[data-playing][data-dance="groove"] .fm-body,
   .fm-sprite[data-playing] .fm-gear-motion,
-  .fm-litter,
+  .fm-prop,
+  .fm-prop[data-prop="ball"][data-leaving],
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
   .fm-walker[data-act="stoop"] .fm-sprite,

@@ -17,7 +17,8 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  BIN_X, choreSteps, CHORE_CHANCE, litterSpot, TOSS_WINDUP_MS, walkMsFor,
+  ACTIVITIES, BIN_X, kickSteps, nextActivity, pickActivity, propSpot, sitSteps,
+  tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, nextDance, nextDanceMs,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
@@ -512,12 +513,12 @@ describe("the character", () => {
     }
   });
 
-  it("settles the litter onto the ledge instead of blinking it into being", () => {
-    expect(decl(".fm-litter", "animation")).toMatch(/^fm-settle 320ms/);
+  it("settles a prop onto the ledge instead of blinking it into being", () => {
+    expect(decl(".fm-prop", "animation")).toMatch(/^fm-settle 320ms/);
     expect(css).toMatch(/@keyframes fm-settle/);
     // The settle has to carry the position too, or the animation would snap the
     // litter back to the right-hand end for its duration.
-    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-litter-x/);
+    expect(css).toMatch(/@keyframes fm-settle \{[\s\S]*?translateX\(calc\(var\(--fm-prop-x/);
   });
 
   it("keeps its weight in both themes, which is not the same number twice", () => {
@@ -613,23 +614,23 @@ describe("the character", () => {
     expect(decl(".fm", "width")).toBe("var(--minimap-w)");
     expect(decl(".fm", "--minimap-w")).toBe("202px");
     expect(decl(".fm", "transform")).toBeNull();
-    expect(decl(".fm-walker, .fm-litter", "position")).toBe("absolute");
+    expect(decl(".fm-walker, .fm-prop", "position")).toBe("absolute");
     // 21px is what centres a 12px object under a 54px one when both are
     // right-aligned: without it the stoop reaches for nothing.
-    expect(decl(".fm-litter", "transform")).toBe("translateX(calc(var(--fm-litter-x, 0px) - 21px))");
+    expect(decl(".fm-prop", "transform")).toBe("translateX(calc(var(--fm-prop-x, 0px) - 21px))");
     expect((54 - 12) / 2).toBe(21);
   });
 
   it("does the errand in steps that can be read without a clock", () => {
-    const steps = choreSteps(-100, -20);
+    const steps = tidySteps(-100, -20);
     expect(steps.map(s2 => s2.act)).toEqual(["walk", "stoop", "carry", "windup", "toss"]);
     // It walks to the litter, not past it.
     expect(steps[0].x).toBe(-20);
     expect(steps[0].ms).toBe(walkMsFor(-100, -20));
     // The litter leaves the ledge when it is picked up — the END of the stoop,
     // not the start of it.
-    expect(steps[1].litter).toBe(-20);
-    expect(steps[2].litter).toBeNull();
+    expect(steps[1].prop?.held).toBeFalsy();
+    expect(steps[2].prop?.held).toBe(true);
     // And it is carried to the one spot on the ledge nothing else stands on.
     expect(steps[2].x).toBe(BIN_X);
     expect(steps.at(-1)?.x).toBe(BIN_X);
@@ -639,10 +640,10 @@ describe("the character", () => {
     expect(steps[3].ms).toBe(TOSS_WINDUP_MS);
   });
 
-  it("picks litter up somewhere worth walking to, always on the ledge", () => {
+  it("puts a prop somewhere worth walking to, always on the ledge", () => {
     let at = 0;
     for (let i = 0; i < 400; i++) {
-      const spot = litterSpot(at, () => (i * 0.023) % 1);
+      const spot = propSpot(at, () => (i * 0.023) % 1);
       expect(spot).toBeLessThanOrEqual(0);
       expect(spot).toBeGreaterThanOrEqual(-WALK_SPAN_PX);
       expect(Math.abs(spot - at)).toBeGreaterThanOrEqual(WALK_MIN_STEP_PX);
@@ -654,15 +655,91 @@ describe("the character", () => {
     // Music starting mid-errand tears the effect down. A piece of litter left
     // on the ledge that nothing will ever come back for is the one way this can
     // litter for real.
-    expect(component).toContain("setLitter(null);");
-    expect(component).toMatch(/return \(\) => \{[\s\S]*?setHeld\(false\);[\s\S]*?setLitter\(null\);/);
+    expect(component).toMatch(/return \(\) => \{[\s\S]*?setAct\(null\);[\s\S]*?setProp\(null\);/);
   });
 
-  it("keeps the errand rarer than the stroll", () => {
-    // The ordinary thing stays the ordinary thing, so finding it mid-chore is a
-    // small surprise rather than the expected state.
-    expect(CHORE_CHANCE).toBeLessThan(0.5);
-    expect(CHORE_CHANCE).toBeGreaterThan(0);
+  it("keeps walking the usual thing and the rest the surprise", () => {
+    // A character that only ever walks is a screensaver; one that is always
+    // doing a bit is a distraction. Walking stays the largest single share, and
+    // every other activity stays small enough that finding it mid-errand is a
+    // surprise rather than the expected state.
+    const total = ACTIVITIES.reduce((n, a) => n + a.weight, 0);
+    const stroll = ACTIVITIES.find(a => a.kind === "stroll")!;
+    expect(stroll.weight / total).toBeGreaterThan(0.3);
+    for (const a of ACTIVITIES) {
+      if (a.kind === "stroll") continue;
+      expect(a.weight / total).toBeLessThan(0.25);
+      expect(a.weight).toBeGreaterThan(0);
+    }
+  });
+
+  it("can reach every activity, and only the ones it has", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i <= 200; i++) seen.add(pickActivity(() => i / 200));
+    expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
+  });
+
+  it("sends the ball down the ledge instead of tidying it", () => {
+    // The same errand with the opposite ending — and the ball never leaves the
+    // floor, which is the one structural difference and why both fit one shape.
+    const steps = kickSteps(-30, -90);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick"]);
+    expect(steps.every(s2 => !s2.prop?.held)).toBe(true);
+    expect(steps.at(-1)?.prop?.leaving).toBe(true);
+    // It stays where it was kicked from; the ball is what travels.
+    expect(steps.every(s2 => s2.x === -90)).toBe(true);
+  });
+
+  it("walks somewhere before it sits, and sits for a while", () => {
+    // Sitting down on the spot it is already standing on reads as falling over.
+    const steps = sitSteps(-10, -80, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit"]);
+    expect(steps[0].ms).toBe(walkMsFor(-10, -80));
+    expect(steps[1].ms).toBeGreaterThan(steps[0].ms);
+    expect(steps[1].prop).toBeNull();
+  });
+
+  it("takes out a scope and looks at the board", () => {
+    // The one activity that is ABOUT the canvas rather than about the ledge.
+    const steps = watchSteps(0, -60, () => 0.5);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch"]);
+    expect(steps[1].prop?.kind).toBe("scope");
+    expect(steps[1].prop?.held).toBe(true);
+    // Held at the eyes and pointed away from the minimap, or the pose reads as
+    // carrying a stick.
+    expect(decl('.fm-held[data-prop="scope"]', "bottom")).toBe("21px");
+    expect(decl(".fm-held", "bottom")).toBe("3px");
+  });
+
+  it("gives every prop art, and no prop a recognisable identity", () => {
+    for (const kind of ["litter", "ball", "scope"] as const) {
+      const art = PROP_ART[kind];
+      expect(art.length).toBeGreaterThan(1);
+      const w = art[0].length;
+      for (const row of art) expect(row).toHaveLength(w);
+      for (const row of art) expect(row).toMatch(/^[.x]+$/);
+    }
+    // A character tidying away an identifiable thing invites the question of
+    // what it was, and the answer is nothing.
+    expect(PROP_ART.litter).not.toEqual(PROP_ART.ball);
+  });
+
+  it("moves the headphones with the body when they are not on the head", () => {
+    // Secondary motion is right ON the head — a thing worn loosely follows what
+    // it is worn on, which is what the dance's 90ms is. Round the neck they are
+    // resting against the chest, and the same delay made them visibly trail the
+    // body on every step.
+    expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
+    expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
+    // Still delayed while worn, where it is correct.
+    expect(decl(".fm-sprite[data-playing] .fm-gear-motion", "animation")).toContain("-90ms");
+  });
+
+  it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
+    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
+    expect(css).toMatch(/@keyframes fm-roll/);
+    // Negative: down the ledge, away from the bin corner.
+    expect(css).toMatch(/- 21px - 132px/);
   });
 
   it("stands still far longer than it walks", () => {
@@ -690,7 +767,7 @@ describe("the character", () => {
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
       '.fm-walker[data-act="stoop"] .fm-sprite',
-      ".fm-litter",
+      ".fm-prop",
       ".fm-held[data-toss]",
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
