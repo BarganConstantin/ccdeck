@@ -490,6 +490,22 @@ describe("the character", () => {
     expect(component.indexOf('className="fm-gear"')).toBeLessThan(component.indexOf('className="fm-body"'));
   });
 
+  it("draws the parts of itself that move outside its own box", () => {
+    // The viewBox is the character's exact bounds with nothing spare, and an
+    // SVG clips to its viewport by default — so the moment a dance lifted the
+    // sprite, the top row went outside the box and was cut. What that looked
+    // like was the headband vanishing at the top of every bounce.
+    expect(decl(".fm-sprite svg", "overflow")).toBe("visible");
+    // It is needed because the motion really does leave the box: the lift alone
+    // is most of a row, and rotation swings the top of the sprite sideways too.
+    const LIFT_UNITS = 0.85, ROT_DEG = 5.5;
+    expect(LIFT_UNITS).toBeGreaterThan(0);
+    const swing = SPRITE_H * Math.sin((ROT_DEG * Math.PI) / 180);
+    expect(swing).toBeGreaterThan(1);
+    // And the viewBox really is flush — no padding was added to absorb it.
+    expect(component).toContain("`0 0 ${SPRITE_W} ${SPRITE_H}`");
+  });
+
   it("pivots both groups about the same point, or they cannot stay together", () => {
     // THE SEAM. The gear and the body carry identical transforms, which is only
     // enough if they turn about the same centre. On `fill-box` each resolved

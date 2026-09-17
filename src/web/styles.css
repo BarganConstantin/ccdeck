@@ -12393,7 +12393,20 @@ input, textarea { caret-color: var(--accent); }
    control, so the press has to move the character enough to be seen against a
    sprite that may also be dancing. */
 .fm-sprite:active { transform: scale(0.94); }
-.fm-sprite svg { display: block; width: 100%; height: auto; }
+/* THE VIEWBOX IS THE CHARACTER'S OWN BOUNDS, WITH NOTHING SPARE, and an SVG
+   clips to its viewport by default — so the moment a dance lifted the sprite,
+   the top row went outside the box and was simply cut. What that looked like
+   was the headband vanishing at the top of every bounce.
+
+   The dances lift 0.85 units and the rotation swings the top of a thirteen-row
+   sprite 1.25 units sideways, so there is no padding that is obviously enough
+   and every one costs a recalculation of the width, the ledge offset and the
+   21px that centres a prop underneath. `overflow: visible` costs none of that:
+   the geometry stays exactly what every other number in this block was computed
+   against, and the parts that travel outside it are drawn instead of dropped.
+   Nothing sits next to this to be overlapped — it is one character alone on a
+   canvas. */
+.fm-sprite svg { display: block; width: 100%; height: auto; overflow: visible; }
 
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette
