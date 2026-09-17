@@ -602,18 +602,29 @@ describe("the character", () => {
     // Worth far more as a moment than as a resting state. All four are the
     // character attending to a particular thing: the scope, the litter it is
     // bending for, and the two halves of a kick.
-    expect([...FOCUS_ACTS].sort()).toEqual(["kick", "stoop", "watch", "windup"]);
+    // Looking over a ledge before stepping off it is the most concentrated
+    // thing this character ever does, and lining up a throw is the second.
+    expect([...FOCUS_ACTS].sort())
+      .toEqual(["kick", "lasso", "peer", "stoop", "watch", "windup"]);
     for (const act of FOCUS_ACTS) expect(isFocused(act)).toBe(true);
-    for (const act of ["walk", "carry", "sit", "toss"] as Act[]) expect(isFocused(act)).toBe(false);
+    for (const act of ["walk", "carry", "sit", "toss", "fall"] as Act[]) {
+      expect(isFocused(act)).toBe(false);
+    }
     expect(isFocused(null)).toBe(false);
+
+    // THE SHEET AND THE MODEL MUST NAME THE SAME ACTS. They are two lists of
+    // the same fact in two languages, and the first thing adding `peer` to one
+    // of them did was leave the other behind — so this reads the selector and
+    // compares it to the model rather than restating either.
+    const rule = /:is\(([^)]*)\) \.fm-eye \{\s*--fm-eye-h/.exec(css)?.[1] ?? "";
+    const inSheet = [...rule.matchAll(/data-act="(\w+)"/g)].map(m => m[1]).sort();
+    expect(inSheet).toEqual([...FOCUS_ACTS].sort());
     // Standing about is not concentrating, so the sheet must not narrow them
     // for it.
-    const squint = /\.fm-walker\[data-act="(\w+)"\][^{]*\.fm-eye/g;
     const narrowing = [...css.matchAll(/:is\(([^)]*)\) \.fm-eye \{\s*--fm-eye-h/g)][0]?.[1] ?? "";
     expect(narrowing).toContain('data-act="watch"');
     expect(narrowing).not.toContain('data-act="sit"');
     expect(narrowing).not.toContain('data-act="walk"');
-    expect(squint.test(css)).toBe(true);
     // And it is a narrowing, not a shrink: the eye keeps its width.
     const h = /--fm-eye-h:\s*([\d.]+)/.exec(css)?.[1];
     expect(Number(h)).toBeGreaterThan(0);

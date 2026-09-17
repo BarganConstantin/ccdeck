@@ -12370,7 +12370,7 @@ input, textarea { caret-color: var(--accent); }
 .fm-rope[data-act="lasso"] {
   width: 16px;
   height: 7px;
-  bottom: calc(var(--minimap-h) * 0 + 42px);
+  bottom: 42px;   /* just above the head: the sprite is 39px tall */
   background: none;
   border: 1.5px solid var(--muted);
   border-radius: 50%;
@@ -12551,7 +12551,8 @@ input, textarea { caret-color: var(--accent); }
   --fm-eye-x: 1px;
 }
 :is(.fm-walker[data-act="watch"], .fm-walker[data-act="stoop"],
-    .fm-walker[data-act="windup"], .fm-walker[data-act="kick"]) .fm-eye {
+    .fm-walker[data-act="windup"], .fm-walker[data-act="kick"],
+    .fm-walker[data-act="peer"], .fm-walker[data-act="lasso"]) .fm-eye {
   --fm-eye-h: 0.4;
 }
 /* Looking at the board is the one place the two meet: it is aimed left, at

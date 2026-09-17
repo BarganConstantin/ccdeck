@@ -507,10 +507,13 @@ export type Facing = "left" | "right";
  * as a moment than as a resting state, so standing still returns them to
  * neutral and these four are what buy the change.
  *
- * All four are the character attending to a particular thing: the scope, the
- * litter it is bending for, and the two halves of a kick.
+ * Each is the character attending to one particular thing: the scope, the
+ * litter it is bending for, the two halves of a kick — and the two moments of
+ * the trip that deserve it most. Looking over a ledge before stepping off it is
+ * the most concentrated thing this character ever does, and lining up a throw
+ * is the second.
  */
-export const FOCUS_ACTS: readonly Act[] = ["watch", "stoop", "windup", "kick"];
+export const FOCUS_ACTS: readonly Act[] = ["watch", "stoop", "windup", "kick", "peer", "lasso"];
 
 export const isFocused = (act: Act | null): boolean =>
   act != null && FOCUS_ACTS.includes(act);
