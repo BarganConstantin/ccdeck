@@ -45,8 +45,8 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, DANCES, nextDance, nextDanceMs, WALK_SPAN_PX,
-  type Act, type Dance, type Ground, type Place, type Prop, type Step,
+  BEAT_MS, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW, nextDance, nextDanceMs, WALK_SPAN_PX,
+  type Act, type Dance, type Facing, type Ground, type Place, type Prop, type Step,
 } from "../claude-fm";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
@@ -111,6 +111,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     const [prop, setProp] = useState<Prop | null>(null);
     /** Which surface it is standing on. The ledge for all but one activity. */
     const [place, setPlace] = useState<Place>("ledge");
+    /** Which way it is looking. Without it a symmetric sprite walking left is
+     *  the same picture as one walking right, which reads as reversing. */
+    const [facing, setFacing] = useState<Facing>("left");
     const scene = useRef<HTMLDivElement | null>(null);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
@@ -208,6 +211,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setAct(step.act);
         setProp(step.prop);
         setPlace(step.place ?? "ledge");
+        setFacing(was => facingFor(step, here, was));
         const to = reachable(step);
         setX(to);
         here = to;
@@ -327,6 +331,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     if (!probe || dead) return null;
 
+    /** Everything that is not headphones, split below into torso and legs. */
+    const body = spriteRects().filter(r => !GEAR_CELLS.has(r.cell));
+
     const press = () => {
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
@@ -370,6 +377,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
           className="fm-walker"
           data-act={act ?? undefined}
           data-place={place}
+          data-facing={facing}
           style={{
             // Where it is standing and how long the current trip takes. Inline
             // because both are values rather than states: a class per pixel of
@@ -423,8 +431,16 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 ))}
               </g>
             </g>
+            {/* THE LEGS ARE THEIR OWN PARTS, so they can take a step. A body
+                that rises and falls without its legs alternating is a hop, not
+                a walk — which is why the walk never looked like walking.
+
+                They are separated by position rather than by a letter of their
+                own in the grid: they are the only thing below LEG_TOP_ROW and
+                there is nothing between them, so a row and a column is all it
+                takes. The sprite stays eighteen lines of text. */}
             <g className="fm-body">
-              {spriteRects().filter(r => !GEAR_CELLS.has(r.cell)).map(r => (
+              {body.filter(r => r.y < LEG_TOP_ROW).map(r => (
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
@@ -432,6 +448,20 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 />
               ))}
             </g>
+            {(["left", "right"] as const).map(side => (
+              <g key={side} className="fm-leg" data-side={side}>
+                {body
+                  .filter(r => r.y >= LEG_TOP_ROW)
+                  .filter(r => (side === "left" ? r.x < LEG_SPLIT_COL : r.x >= LEG_SPLIT_COL))
+                  .map(r => (
+                    <rect
+                      key={`${side}${r.y}-${r.x}`}
+                      x={r.x} y={r.y} width={r.w} height={1}
+                      className={CELL_CLASS[r.cell]}
+                    />
+                  ))}
+              </g>
+            ))}
           </svg>
         </button>
         </div>

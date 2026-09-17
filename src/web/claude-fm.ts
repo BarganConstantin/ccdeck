@@ -511,6 +511,30 @@ export function watchSteps(from: number, at: number, rand: () => number): Step[]
  * expression left to spend. There is nothing left to say direction with, and
  * nothing that needs saying — the walk cycle already says it is walking.
  */
+export type Facing = "left" | "right";
+
+/**
+ * Which way it is looking.
+ *
+ * TWO DIFFERENT THINGS HAPPEN TO THESE EYES and they were briefly confused for
+ * each other. NARROWING says it is looking at an object, and belongs to the
+ * four acts below. SHIFTING says which way it is travelling, and belongs to
+ * everything — without it a symmetric sprite walking left looks exactly like
+ * the same sprite walking right, which reads as the character going backwards.
+ * The first build did both at once and the second removed both; they are
+ * separate, and this is the one that has to be on whenever it is moving.
+ *
+ * `x` runs from 0 at the right-hand end of the ledge to -span at the left, so a
+ * smaller number is further left. Standing still keeps whatever it had: it does
+ * not spin round to face the viewer every time it stops.
+ */
+export function facingFor(step: Step, from: number, prev: Facing): Facing {
+  // Looking at the board, which is everything to the left of the minimap.
+  if (step.act === "watch") return "left";
+  if (step.x === from) return prev;
+  return step.x > from ? "right" : "left";
+}
+
 export const FOCUS_ACTS: readonly Act[] = ["stoop", "windup", "kick", "watch"];
 
 export const isFocused = (act: Act | null): boolean =>
@@ -682,8 +706,14 @@ export const DANCE_MAX_MS = 16_000;
 /** The tempo, and how far either side of it a dance may land. 800ms is 75bpm,
  *  which is about where the thing it is dancing to usually sits; the drift is
  *  small enough to stay in that band and large enough that two dances in a row
- *  are not the same speed. */
-export const BEAT_MS = 800;
+ *  are not the same speed.
+ *
+ *  1000ms is 60bpm, down from 75. The thing it is dancing to is calm, and at
+ *  75 it was bobbing along ahead of the music — the character looked busier
+ *  than anything it could have been listening to. A slower beat is also the
+ *  cheaper one on a monitoring deck, where the corner of the screen should not
+ *  be the most energetic thing on it. */
+export const BEAT_MS = 1000;
 export const BEAT_DRIFT = 0.08;
 
 /**
@@ -711,3 +741,18 @@ export function nextDance(current: Dance | null, rand: () => number): { dance: D
 export function nextDanceMs(rand: () => number): number {
   return Math.round(DANCE_MIN_MS + rand() * (DANCE_MAX_MS - DANCE_MIN_MS));
 }
+
+/** Where the legs begin, and the column that divides them.
+ *
+ *  They are their own parts rather than more body, so they can take a step —
+ *  and they can be separated by position alone, without a letter of their own
+ *  in the grid, because they are the only thing below this row and there is
+ *  nothing between them. The sprite stays eighteen lines of text.
+ */
+export const LEG_TOP_ROW = 11;
+export const LEG_SPLIT_COL = 9;
+
+/** Where each leg meets the body, in the sprite's own units. A leg swings from
+ *  its hip; swung from anywhere else it detaches. */
+export const HIP_LEFT: readonly [number, number] = [7, LEG_TOP_ROW];
+export const HIP_RIGHT: readonly [number, number] = [11, LEG_TOP_ROW];

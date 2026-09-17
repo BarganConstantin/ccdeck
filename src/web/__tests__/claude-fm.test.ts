@@ -22,7 +22,7 @@ import {
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
-  isFocused, nextDance, nextDanceMs,
+  facingFor, HIP_LEFT, HIP_RIGHT, isFocused, LEG_TOP_ROW, nextDance, nextDanceMs,
   type Act, type Step,
   WALK_IDLE_MAX_MS, WALK_IDLE_MIN_MS, WALK_MIN_STEP_PX, WALK_MS_PER_PX, WALK_SPAN_PX,
 } from "../claude-fm";
@@ -551,10 +551,15 @@ describe("the character", () => {
     // Worth far more as a moment than as a resting state — and an earlier build
     // also shifted them a column to say which way it was travelling, which was
     // on at every single moment, so the eyes were never simply open.
-    expect(css).not.toContain("--fm-eye-x");
-    expect(css).not.toContain("data-facing");
-    expect(component).not.toContain("facing");
-    expect(decl(".fm-eye", "transform")).toBe("scaleY(var(--fm-eye-h, 1))");
+    // TWO DIFFERENT THINGS HAPPEN TO THESE EYES and they were briefly confused
+    // for each other. Narrowing says it is looking at an object; shifting says
+    // which way it is travelling. Removing the second left a symmetric sprite
+    // where walking left and walking right are the same picture, and what that
+    // reads as is the character reversing.
+    expect(decl(".fm-eye", "transform"))
+      .toBe("translateX(var(--fm-eye-x, 0px)) scaleY(var(--fm-eye-h, 1))");
+    expect(decl('.fm-walker[data-facing="left"] .fm-eye', "--fm-eye-x")).toBe("-1px");
+    expect(decl('.fm-walker[data-facing="right"] .fm-eye', "--fm-eye-x")).toBe("1px");
     // Each is the character attending to an OBJECT: the litter it is bending
     // for, the ball it is about to send down the ledge, and whatever it is
     // aiming the scope at.
@@ -611,8 +616,10 @@ describe("the character", () => {
       expect(beatMs).toBeGreaterThanOrEqual(Math.round(BEAT_MS * (1 - BEAT_DRIFT)));
       expect(beatMs).toBeLessThanOrEqual(Math.round(BEAT_MS * (1 + BEAT_DRIFT)));
     }
-    // 800ms is 75bpm, about where the thing it is dancing to usually sits.
-    expect(BEAT_MS).toBe(800);
+    // 1000ms is 60bpm, and the thing it is dancing to is calm.
+    // 60bpm. At 75 it bobbed along ahead of the music: the character was
+    // busier than anything it could have been listening to.
+    expect(BEAT_MS).toBe(1000);
     expect(BEAT_DRIFT).toBeLessThan(0.15);
     expect(nextDanceMs(() => 0)).toBe(DANCE_MIN_MS);
     expect(nextDanceMs(() => 1)).toBe(DANCE_MAX_MS);
@@ -923,6 +930,65 @@ describe("the character", () => {
     const seen = new Set<string>();
     for (let i = 0; i <= 200; i++) seen.add(pickActivity(() => i / 200));
     expect([...seen].sort()).toEqual(ACTIVITIES.map(a => a.kind).slice().sort());
+  });
+
+  it("takes strides rather than hopping", () => {
+    // A body that rises and falls with its legs welded on is a hop. The two
+    // legs run the same cycle half a beat apart, so one is always forward while
+    // the other is back — which is the whole of what makes a walk a walk.
+    const walk = ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])';
+    expect(decl(`${walk} .fm-leg[data-side="left"]`, "animation")).toBe("fm-stride-a 440ms linear infinite");
+    expect(decl(`${walk} .fm-leg[data-side="right"]`, "animation")).toBe("fm-stride-b 440ms linear infinite");
+    // OPPOSITE PHASE, which is the whole point: the poses are the same two, in
+    // the other order. Compared as poses rather than as lines, since the same
+    // pose is written under a different percentage in each set.
+    const poses = (name: string) => {
+      const block = new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`).exec(css)?.[1] ?? "";
+      return [...block.matchAll(/\{\s*transform:\s*([^;]+);/g)]
+        .map(m => m[1].replace(/\s+/g, " ").trim());
+    };
+    const a = poses("fm-stride-a"), b = poses("fm-stride-b");
+    expect(a).toHaveLength(2);
+    expect(a).toEqual([...b].reverse());
+    expect(a[0]).not.toBe(a[1]);
+
+    // A LEG SWINGS FROM ITS HIP, or it detaches. view-box puts the origin in
+    // the sprite's own coordinates so each is given where it meets the body,
+    // not the middle of its own box.
+    expect(decl(".fm-leg", "transform-box")).toBe("view-box");
+    expect(decl('.fm-leg[data-side="left"]', "transform-origin")).toBe(`${HIP_LEFT[0]}px ${HIP_LEFT[1]}px`);
+    expect(decl('.fm-leg[data-side="right"]', "transform-origin")).toBe(`${HIP_RIGHT[0]}px ${HIP_RIGHT[1]}px`);
+    // And the legs really are the bottom rows, split down the middle.
+    const below = SPRITE.slice(LEG_TOP_ROW).join("");
+    expect(below).toContain("b");
+    expect(SPRITE[LEG_TOP_ROW - 1]).not.toBe(SPRITE[LEG_TOP_ROW]);
+  });
+
+  it("climbs in pulls, not as a glide", () => {
+    // The rise is linear because a rope is climbed at a steady rate. Nothing
+    // about the body doing it is smooth: it gathers, pulls, and reaches again.
+    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms ease-in-out infinite");
+    expect(css).toMatch(/@keyframes fm-haul/);
+    // Slower than the walk — hauling your own weight is not a stroll, and the
+    // cadence is most of what says so.
+    const stride = /fm-stride-a (\d+)ms linear/.exec(css)?.[1];
+    const haul = /fm-haul (\d+)ms/.exec(css)?.[1];
+    expect(Number(haul)).toBeGreaterThan(Number(stride));
+    // The rise underneath it stays linear.
+    expect(decl('.fm-walker[data-act="climb"]', "transition")).toContain("linear");
+  });
+
+  it("carries a held thing on the side it is facing", () => {
+    // Held on the left while walking right, an object trails behind the
+    // character — the other half of what made it look like it was going
+    // backwards.
+    expect(decl(".fm-held", "right")).toBe("42px");
+    expect(decl('.fm-walker[data-facing="right"] .fm-held', "right")).toBe("0");
+    // 54px sprite less a 12px object puts the far side at 0; the scope is 15px
+    // wide, so its mirror is 5.
+    expect(54 - 42 - 12).toBe(0);
+    expect(decl('.fm-walker[data-facing="right"] .fm-held[data-prop="scope"]', "right")).toBe("5px");
+    expect(54 - 34 - 15).toBe(5);
   });
 
   it("never ends a step before the animation that step started", () => {
