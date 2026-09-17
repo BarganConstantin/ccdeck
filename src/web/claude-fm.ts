@@ -785,6 +785,10 @@ export interface Obstacle { left: number; right: number; height: number }
 /** How long it takes to get up onto something, and down off it again. Short:
  *  these are a step, not a climb — the thing being stepped onto is ankle high
  *  next to the ledge it throws a rope at. */
+/** How far a kicked ball travels before it is gone. The sign is the facing's;
+ *  this is only the distance. */
+export const BALL_ROLL_PX = 132;
+
 export const MOUNT_MS = 260;
 export const DISMOUNT_MS = 200;
 

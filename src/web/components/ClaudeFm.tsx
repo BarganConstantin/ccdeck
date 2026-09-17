@@ -45,7 +45,7 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BEAT_MS, crossSteps, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW,
+  BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW,
   nextDance, nextDanceMs, WALK_SPAN_PX,
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
   type Prop, type Step,
@@ -410,7 +410,13 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             className="fm-prop"
             data-prop={prop.kind}
             data-leaving={prop.leaving ? "" : undefined}
-            style={{ "--fm-prop-x": `${prop.at}px` } as CSSProperties}
+            style={{
+              "--fm-prop-x": `${prop.at}px`,
+              // A kicked ball leaves the way the foot was pointing. Without
+              // this it always rolled left, which is backwards through the
+              // character whenever it had walked rightward to reach it.
+              "--fm-roll-to": facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`,
+            } as CSSProperties}
           >
             {pixels(PROP_ART[prop.kind], "p")}
           </div>

@@ -17,7 +17,7 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
@@ -721,11 +721,8 @@ describe("the character", () => {
     expect(css).toContain('.fm-walker[data-act="walk"]');
     // Carrying something is still walking.
     expect(css).toContain('.fm-walker[data-act="carry"]');
-    expect(css).toMatch(/animation: fm-step 440ms linear infinite/);
-    // Two poses, but handed over rather than cut: a 12% linear handover is too
-    // fast to read as a tween and long enough that the change is a movement
-    // rather than a jump. The hard cut at 49.99% juddered.
-    expect(css).toMatch(/@keyframes fm-step \{\s*0%, 44%/);
+    expect(css).toMatch(/animation: fm-stride-a 440ms linear infinite/);
+
     // The curve is a compromise: pure linear starts and stops dead, a full ease
     // makes the middle race and the feet stop matching the ground. This is the
     // gentlest symmetric curve that keeps most of the trip near constant speed.
@@ -1178,8 +1175,8 @@ describe("the character", () => {
     // it is worn on, which is what the dance's 90ms is. Round the neck they are
     // resting against the chest, and the same delay made them visibly trail the
     // body on every step.
-    expect(css).toMatch(/\.fm-gear-motion \{\s*animation: fm-step 440ms linear infinite;/);
-    expect(css).not.toMatch(/animation: fm-step 440ms linear -\d+ms/);
+    // Nothing runs on the torso or the headphones while it walks at all now.
+    expect(css).not.toContain("fm-step");
     // AND NO DELAY EITHER, which a thirteen-row sprite leaves no room for.
     // groove lifts 0.85 units; at the steepest part of the bounce that is
     // 0.02px per millisecond, so even fifty milliseconds puts the body a whole
@@ -1198,7 +1195,14 @@ describe("the character", () => {
     expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
     expect(css).toMatch(/@keyframes fm-roll/);
     // Negative: down the ledge, away from the bin corner.
-    expect(css).toMatch(/- 21px - 132px/);
+    // THE SIGN IS THE FACING'S, and only the distance is fixed. This rolled a
+    // hardcoded -132px, which is right exactly half the time: approach the ball
+    // from the left and the kick sent it backwards, straight through the
+    // character that had just kicked it.
+    expect(css).toContain("var(--fm-roll-to, -132px)");
+    expect(css).not.toMatch(/- 21px - 132px/);
+    expect(component).toContain('facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`');
+    expect(BALL_ROLL_PX).toBe(132);
   });
 
   it("rests between things without going quiet enough to look broken", () => {
