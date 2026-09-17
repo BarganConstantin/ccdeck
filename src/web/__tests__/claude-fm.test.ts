@@ -17,7 +17,7 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
@@ -457,6 +457,47 @@ describe("the character", () => {
     expect(component).not.toContain("nopan");
   });
 
+  it("wears a hat when there is nothing to listen to", () => {
+    // The headphones leaving used to leave a bare head, and a bare head is not
+    // a state — it is the absence of one. Swapping one thing for another makes
+    // the change legible, and reads as putting something on rather than having
+    // something taken away.
+    for (const row of HAT) expect(row).toMatch(/^[.hk]+$/);
+    for (const row of HAT) expect(row).toHaveLength(HAT[0].length);
+    // A brim wider than the crown is the least that reads as a hat.
+    const width = (row: string) => row.replace(/\./g, "").length;
+    expect(width(HAT.at(-1)!)).toBeGreaterThan(width(HAT[0]));
+
+    // CENTRED ON THE HEAD, checked against the sprite rather than eyeballed.
+    const headCols = [...SPRITE[4]].flatMap((c, i) => ("bes".includes(c) ? [i] : []));
+    const headMid = (Math.min(...headCols) + Math.max(...headCols) + 1) / 2;
+    expect(HAT_X + HAT[0].length / 2).toBe(headMid);
+    // And the brim lands on the head's own top row, so it covers the forehead
+    // rather than floating above it.
+    const headTop = SPRITE.findIndex(r => r.includes("b"));
+    expect(HAT_Y + HAT.length - 1).toBe(headTop);
+
+    // DRAWN AFTER THE BODY, which is the opposite of the headphones and the
+    // whole reason it is a separate group: they hide BEHIND the head, a brim
+    // sits over the forehead.
+    expect(component.indexOf('className="fm-hat"'))
+      .toBeGreaterThan(component.indexOf('className="fm-body"'));
+    expect(component.indexOf('className="fm-gear"'))
+      .toBeLessThan(component.indexOf('className="fm-body"'));
+
+    // THE TWO SWAP: the hat goes up as the headphones come down, which is what
+    // makes it one exchange rather than two fades.
+    expect(decl(".fm-hat", "opacity")).toBe("1");
+    expect(decl(".fm-sprite[data-playing] .fm-hat", "opacity")).toBe("0");
+    expect(decl(".fm-sprite[data-playing] .fm-hat", "transform")).toBe("translateY(-4px)");
+    expect(decl(".fm-gear", "transform")).toContain("translateY(9px)");
+    expect(decl(".fm-sprite[data-playing] .fm-gear", "opacity")).toBe("1");
+    // Same grey as the headphones, because they are never both on — they are
+    // told apart by shape, which is what a silhouette is for.
+    expect(decl(".fm-hat", "fill")).toBe("var(--muted)");
+    expect(decl(".fm-hatband", "fill")).toBe("var(--accent)");
+  });
+
   it("takes the headphones off when there is nothing to listen to", () => {
     // The one thing about this character that says whether anything is playing,
     // without a word or a colour. On its head with the music on, gone without.
@@ -524,14 +565,14 @@ describe("the character", () => {
     // about two points five rows apart, and the headband opened a seam along
     // the head as the character moved. It looked like a timing fault and was
     // not; two passes went looking in the wrong place.
-    const pivot = ":is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg)";
+    const pivot = ":is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg, .fm-hat)";
     expect(decl(pivot, "transform-box")).toBe("view-box");
     expect(decl(pivot, "transform-origin")).toBe("50% 100%");
     // EVERY GROUP THAT MOVES HAS TO BE IN THAT LIST. The legs were left out
     // once and it cost the same bug twice: they scale with the torso when it
     // dances, and on the default origin a leg scales about the middle of the
     // sprite while the torso scales about its feet — so the hip opens.
-    const moving = [...new Set([...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion))"/g)]
+    const moving = [...new Set([...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion|hat))"/g)]
       .map(m => m[1]))];
     for (const g of moving) expect(pivot).toContain(`.${g}`);
     // Scoped to the groups that have to AGREE with each other. `fill-box` is
@@ -681,7 +722,7 @@ describe("the character", () => {
     // black, so a group with no rule is not a group with a subtle colour — it
     // is a black hole in the character, which is exactly what splitting the
     // legs out of the body produced until this line existed.
-    const groups = [...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion))"/g)]
+    const groups = [...component.matchAll(/className="(fm-(?:body|leg|gear|gear-motion|hat))"/g)]
       .map(m => m[1]);
     expect(groups.length).toBeGreaterThan(2);
     for (const g of new Set(groups)) {
@@ -1267,7 +1308,7 @@ describe("the character", () => {
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });

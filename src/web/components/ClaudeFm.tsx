@@ -45,7 +45,8 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, LEG_SPLIT_COL, LEG_TOP_ROW,
+  BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y,
+  LEG_SPLIT_COL, LEG_TOP_ROW,
   nextDance, nextDanceMs, WALK_SPAN_PX,
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
   type Prop, type Step,
@@ -506,6 +507,19 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
                   className={CELL_CLASS[r.cell]}
+                />
+              ))}
+            </g>
+            {/* DRAWN AFTER THE BODY, which is the whole reason it is its own group.
+                The headphones are drawn BEFORE it so they can slide down and
+                hide behind the head; a hat has to do the opposite — the brim
+                sits over the forehead, so it has to be painted on top of it. */}
+            <g className="fm-hat">
+              {spriteRects(HAT).map(r => (
+                <rect
+                  key={`h${r.y}-${r.x}`}
+                  x={HAT_X + r.x} y={HAT_Y + r.y} width={r.w} height={1}
+                  className={r.cell === "k" ? "fm-hatband" : undefined}
                 />
               ))}
             </g>

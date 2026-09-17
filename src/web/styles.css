@@ -12553,6 +12553,36 @@ input, textarea { caret-color: var(--accent); }
    which is what an unstated inherited property costs the moment the thing it
    was inherited from goes away. */
 .fm-body, .fm-leg { fill: var(--accent); }
+
+/* WHAT IT WEARS WHEN THERE IS NOTHING TO LISTEN TO.
+   The headphones leaving used to leave a bare head, and a bare head is not a
+   state — it is the absence of one. Swapping one thing for another makes the
+   change legible from across a room, and it reads as the character putting
+   something on rather than something being taken off it.
+   The same grey the headphones wear, because they are never both on: they are
+   told apart by shape, which is what a silhouette is for. The band is the
+   character's own colour, which ties the hat to whoever is under it. */
+.fm-hat { fill: var(--muted); }
+.fm-hatband { fill: var(--accent); }
+
+/* THE TWO SWAP, AND THE HAT GOES UP WHILE THE HEADPHONES COME DOWN. Straight
+   up and off, because that is the way a hat is removed and the opposite of the
+   way the headphones travel — the two motions crossing is what makes it one
+   exchange rather than two fades. */
+.fm-hat {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 140ms linear;
+}
+.fm-sprite[data-playing] .fm-hat {
+  transform: translateY(-4px);
+  opacity: 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms linear 240ms;
+}
 /* THE EYES NARROW WHEN IT IS LOOKING AT SOMETHING, and that is all they do.
 
    An earlier build also shifted them a column to say which way it was
@@ -12645,7 +12675,7 @@ input, textarea { caret-color: var(--accent); }
    so both groups pivot about (9, 13) — the middle of its feet — which is what
    "bottom centre" was always meant to mean. Identical transforms about an
    identical origin cannot drift. */
-:is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg) {
+:is(.fm-gear, .fm-gear-motion, .fm-body, .fm-leg, .fm-hat) {
   transform-box: view-box;
   transform-origin: 50% 100%;
 }
@@ -12951,7 +12981,7 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
-  .fm-walker, .fm-gear, .fm-eye { transition: none; }
+  .fm-walker, .fm-gear, .fm-eye, .fm-hat { transition: none; }
   .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
   .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
   .fm-rope[data-act="lasso"] { animation: none; }

@@ -771,6 +771,35 @@ export function nextDanceMs(rand: () => number): number {
  *  in the grid, because they are the only thing below this row and there is
  *  nothing between them. The sprite stays eighteen lines of text.
  */
+/**
+ * What it wears when there is nothing to listen to.
+ *
+ * A hat rather than nothing at all, because the headphones leaving used to
+ * leave a bare head — and a bare head is not a state, it is the absence of one.
+ * Swapping one for the other makes the change legible from across a room
+ * without a word or a colour, and it reads as the character putting something
+ * on rather than something being taken away.
+ *
+ * Its own small grid rather than more rows in the sprite: it sits ON the head
+ * rather than beside it, so weaving it into the eighteen columns would mean a
+ * letter for every square the brim overlaps and a body that has to know about
+ * a hat. Three rows, eight wide — a crown, a band, and a brim one cell wider
+ * either side, which is the least that reads as a hat at three pixels a cell.
+ *
+ *   `h` the hat   `k` its band
+ */
+export const HAT: readonly string[] = [
+  "..hhhh..",
+  "..kkkk..",
+  "hhhhhhhh",
+];
+
+/** Where it sits on the sprite: centred on the head's columns, with the brim on
+ *  the head's own top row so it covers the forehead rather than floating over
+ *  it. Checked against the head in the test rather than eyeballed. */
+export const HAT_X = 5;
+export const HAT_Y = 0;
+
 export const LEG_TOP_ROW = 11;
 export const LEG_SPLIT_COL = 9;
 
