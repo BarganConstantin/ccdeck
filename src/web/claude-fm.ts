@@ -350,9 +350,11 @@ export function nextIdleMs(rand: () => number): number {
 export type Act =
   | "walk" | "stoop" | "carry" | "windup" | "toss" | "kick" | "sit" | "watch"
   // Leaving the ledge and getting back onto it.
-  | "peer" | "fall" | "land" | "lasso" | "climb"
+  | "peer" | "fall" | "land" | "lasso" | "rope-throw" | "rope-catch" | "climb"
   // Getting onto and off something standing on the floor.
-  | "mount" | "dismount";
+  | "mount" | "dismount"
+  | "cast" | "fish" | "reel" | "stow" | "stand"
+  | "skip-ready" | "skip" | "skip-rest" | "scope-pack" | "pull-up";
 
 /** A thing on the ledge it can do something with. */
 export interface Prop {
@@ -366,6 +368,8 @@ export interface Prop {
 }
 
 export interface Step {
+  /** A stationary activity may deliberately turn toward its prop. */
+  facing?: Facing;
   /** Where the character should be by the end of this step. */
   x: number;
   /** Which surface it is standing on by the end of it. Absent means the ledge,
@@ -384,7 +388,7 @@ export interface Step {
  *  what make walking worth noticing, and they stop being that if they are the
  *  usual thing. */
 export const ACTIVITIES = [
-  { kind: "stroll", weight: 36 },
+  { kind: "stroll", weight: 44 },
   { kind: "tidy",   weight: 17 },
   { kind: "kick",   weight: 17 },
   { kind: "sit",    weight: 12 },
@@ -392,6 +396,8 @@ export const ACTIVITIES = [
   // The rarest thing it does, and the longest. Leaving the ledge is worth
   // seeing precisely because it almost never happens.
   { kind: "leave",  weight: 7 },
+  { kind: "fish",   weight: 12 },
+  { kind: "skip",   weight: 10 },
 ] as const;
 
 export type Activity = typeof ACTIVITIES[number]["kind"];
@@ -426,6 +432,7 @@ export const KICK_WINDUP_MS = 220;
  *  drifted, and nothing pointed at it because each number looked reasonable
  *  alone. The test now reads both sides. */
 export const KICK_MS = 520;
+export const BALL_FLIGHT_MS = 1600;
 
 /** How long it stands there looking at the board through the scope. Long, like
  *  sitting — this is the one activity that is ABOUT the deck rather than about
@@ -486,11 +493,49 @@ export function tidySteps(from: number, at: number): Step[] {
  * one structural difference and the reason both fit one prop shape.
  */
 export function kickSteps(from: number, at: number): Step[] {
+  // Stop one foot short: the ball must be beside the foot, not under the torso.
+  const direction = at > from ? 1 : -1;
+  const approach = at - direction * Math.min(15, Math.abs(at - from));
   const ball = (p: Partial<Prop> = {}): Prop => ({ kind: "ball", at, ...p });
   return [
-    { x: at, prop: ball(),                 act: "walk",   ms: walkMsFor(from, at) },
-    { x: at, prop: ball(),                 act: "windup", ms: KICK_WINDUP_MS },
-    { x: at, prop: ball({ leaving: true }), act: "kick",  ms: KICK_MS },
+    { x: approach, prop: ball(), act: "walk", ms: walkMsFor(from, approach) },
+    { x: approach, prop: ball(), act: "windup", ms: KICK_WINDUP_MS, facing: direction > 0 ? "right" : "left" },
+    { x: approach, prop: ball({ leaving: true }), act: "kick", ms: KICK_MS, facing: direction > 0 ? "right" : "left" },
+    { x: approach, prop: ball({ leaving: true }), act: "stand", ms: BALL_FLIGHT_MS - KICK_MS },
+  ];
+}
+
+export const SKIP_BEAT_MS = 640;
+
+/** Sit, lower the line over the minimap, wait for a bite, then pack it away
+ * before standing. The final walk makes the return to the scene explicit. */
+export function fishSteps(from: number, at: number, rand: () => number): Step[] {
+  // Leave room on the left for the rod, line and float, within the minimap.
+  const spot = Math.max(-70, Math.min(-20, at));
+  const pose = { x: spot, prop: null, facing: "left" as const };
+  return [
+    { x: spot, prop: null, act: "walk", ms: walkMsFor(from, spot) },
+    { ...pose, act: "sit", ms: 600 },
+    { ...pose, act: "cast", ms: 900 },
+    { ...pose, act: "fish", ms: 6000 + Math.round(rand() * 4000) },
+    { ...pose, act: "reel", ms: 1200 },
+    { ...pose, act: "stow", ms: 500 },
+    { ...pose, act: "stand", ms: 400 },
+    { x: 0, prop: null, act: "walk", ms: walkMsFor(spot, 0) },
+  ];
+}
+
+/** Whole rope revolutions end with both feet on the ledge. */
+export function skipSteps(from: number, at: number, rand: () => number): Step[] {
+  const spot = Math.max(-110, Math.min(-30, at));
+  const pose = { x: spot, prop: null };
+  return [
+    { ...pose, act: "walk", ms: walkMsFor(from, spot) },
+    { ...pose, act: "skip-ready", ms: 500 },
+    { ...pose, act: "skip", ms: SKIP_BEAT_MS * (6 + Math.floor(rand() * 5)) },
+    { ...pose, act: "skip-rest", ms: 600 },
+    { ...pose, act: "stand", ms: 350 },
+    { x: 0, prop: null, act: "walk", ms: walkMsFor(spot, 0) },
   ];
 }
 
@@ -500,6 +545,7 @@ export function sitSteps(from: number, at: number, rand: () => number): Step[] {
   return [
     { x: at, prop: null, act: "walk", ms: walkMsFor(from, at) },
     { x: at, prop: null, act: "sit",  ms: Math.round(SIT_MIN_MS + rand() * (SIT_MAX_MS - SIT_MIN_MS)) },
+    { x: at, prop: null, act: "stand", ms: 400 },
   ];
 }
 
@@ -513,10 +559,14 @@ export function sitSteps(from: number, at: number, rand: () => number): Step[] {
  * has noticed there is something to look at.
  */
 export function watchSteps(from: number, at: number, rand: () => number): Step[] {
+  // The tripod needs a patch of ledge to the character's left.
+  at = Math.max(-110, Math.min(0, at));
   const scope = (): Prop => ({ kind: "scope", at, held: true });
   return [
     { x: at, prop: null,    act: "walk",  ms: walkMsFor(from, at) },
     { x: at, prop: scope(), act: "watch", ms: Math.round(WATCH_MIN_MS + rand() * (WATCH_MAX_MS - WATCH_MIN_MS)) },
+    { x: at, prop: scope(), act: "scope-pack", ms: 480 },
+    { x: at, prop: null, act: "stand", ms: 240 },
   ];
 }
 
@@ -564,8 +614,9 @@ export const isMoving = (act: Act | null): boolean =>
   act != null && MOVING_ACTS.includes(act);
 
 export function facingFor(step: Step, from: number, prev: Facing): Facing {
+  if (step.facing) return step.facing;
   // Looking at the board, which is everything to the left of the minimap.
-  if (step.act === "watch") return "left";
+  if (step.act === "watch" || step.act === "scope-pack") return "left";
   if (step.x === from) return prev;
   return step.x > from ? "right" : "left";
 }
@@ -614,6 +665,8 @@ export const LAND_MS = 200;
 
 /** Swinging the rope before it is thrown. */
 export const LASSO_MS = 760;
+export const ROPE_THROW_MS = 600;
+export const ROPE_CATCH_MS = 240;
 
 /**
  * The trip off the ledge and back.
@@ -651,7 +704,10 @@ export function leaveLedgeSteps(
     { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor" },
     { x: edge,   act: "walk",  prop: null, ms: walkMsFor(second, edge),  place: "floor" },
     { x: edge,   act: "lasso", prop: null, ms: LASSO_MS, place: "floor" },
+    { x: edge,   act: "rope-throw", prop: null, ms: ROPE_THROW_MS, place: "floor" },
+    { x: edge,   act: "rope-catch", prop: null, ms: ROPE_CATCH_MS, place: "floor" },
     { x: edge,   act: "climb", prop: null, ms: climb },
+    { x: edge,   act: "pull-up", prop: null, ms: 480 },
   ];
 }
 
@@ -674,6 +730,8 @@ export function nextActivity(from: number, rand: () => number, ground?: Ground):
     case "kick": return kickSteps(from, propSpot(from, rand, span));
     case "sit":   return sitSteps(from, propSpot(from, rand, span), rand);
     case "watch": return watchSteps(from, propSpot(from, rand, span), rand);
+    case "fish": return fishSteps(from, propSpot(from, rand, span), rand);
+    case "skip": return skipSteps(from, propSpot(from, rand, span), rand);
     case "leave": {
       // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
       // height would drop the character through the floor or leave it hanging
@@ -698,18 +756,41 @@ export const LITTER: readonly string[] = [
   ".xx.",
 ];
 export const BALL: readonly string[] = [
-  ".xx.",
-  "xxxx",
-  "xxxx",
-  ".xx.",
+  "..xx..",
+  ".xsxx.",
+  "xssxxx",
+  "xxxxsx",
+  ".xxxx.",
+  "..xx..",
 ];
 
-/** The scope: narrow at the eye, wide at the far end, which is the whole of
- *  what makes five pixels read as a telescope rather than as a stick. */
+/** An upward-pointing telescope on a tripod. Two screen pixels per cell;
+ * the eyepiece on rows 8–10 meets the character's eyes, feet on row 23. */
 export const SCOPE: readonly string[] = [
-  "..xxx",
-  "xxxxx",
-  "..xxx",
+  "...xx...............",
+  "..xaax..............",
+  ".xaallx.............",
+  "xaallllx............",
+  ".xllllllx...........",
+  "..xllllllx..........",
+  "...xllllllx.........",
+  "....xllllllxx.......",
+  ".....xllllxsxx..xx..",
+  "......xllxsssx.xllxx",
+  ".......xxssssxxxllxx",
+  "........xssssssxx...",
+  ".........xssssx.....",
+  "..........xxxx......",
+  "..........xax.......",
+  ".........xxxxx......",
+  "........xx.x.xx.....",
+  "........xl.x.lx.....",
+  ".......xl..x..lx....",
+  ".......xl..x..lx....",
+  "......xl...x...lx...",
+  "......xl...x...lx...",
+  ".....xl....x....lx..",
+  "....xxx...xxx...xxx.",
 ];
 
 export const PROP_ART: Record<Prop["kind"], readonly string[]> =
@@ -845,7 +926,12 @@ export interface Obstacle { left: number; right: number; height: number }
  *  next to the ledge it throws a rope at. */
 /** How far a kicked ball travels before it is gone. The sign is the facing's;
  *  this is only the distance. */
-export const BALL_ROLL_PX = 132;
+export const BALL_ROLL_PX = 420;
+
+export function ballRollTo(at: number, facing: Facing, viewportWidth: number): number {
+  const room = facing === "right" ? viewportWidth - at - 18 : at - 18;
+  return (facing === "right" ? 1 : -1) * Math.min(BALL_ROLL_PX, Math.max(0, room));
+}
 
 export const MOUNT_MS = 260;
 export const DISMOUNT_MS = 200;

@@ -40,8 +40,10 @@ import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
+import AppearanceMenu from "./components/AppearanceMenu";
 import ClaudeFm, { type ClaudeFmHandle } from "./components/ClaudeFm";
 import { duckMsFor } from "./claude-fm";
+import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
@@ -1322,6 +1324,9 @@ function Inner() {
    *  its own onClick already toggles, and both running would close the menu and
    *  reopen it in the same gesture. */
   const soundButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [appearanceMenuOpen, setAppearanceMenuOpen] = useState(false);
+  const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
 
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
@@ -2094,6 +2099,7 @@ function Inner() {
   // panel loaders are: an initialiser is the one place a store the browser
   // won't hand over blanks the deck instead of costing a preference.
   const [theme, setTheme] = useState<Theme>(storedTheme);
+  const [characterEnabled, setCharacterEnabled] = useState(storedCharacterEnabled);
   /** The canvas's JS-read colours, snapshotted per theme rather than per node
    *  per frame (#613). The initialiser is safe to run during the first render:
    *  index.html's inline bootstrap stamps `data-theme` from the same stored
@@ -2136,6 +2142,10 @@ function Inner() {
       return samePalette(prev, next) ? prev : next;
     });
   }, [theme]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0"); } catch { /* private mode */ }
+  }, [characterEnabled]);
 
   /**
    * Put the pane where the deck wants it — and make sure it gets there.
@@ -4629,12 +4639,20 @@ function Inner() {
               )}
             </div>
             )}
-            <button
-              className="btn icon-btn"
-              onClick={() => setTheme(t => (t === "dark" ? "light" : "dark"))}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (T)`}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
+            <div className="appearance-slot">
+              <button
+                ref={appearanceButtonRef}
+                className="btn icon-btn"
+                onClick={() => {
+                  setSoundMenuOpen(false);
+                  setAppearanceMenuOpen(open => !open);
+                }}
+                title="Appearance settings"
+                aria-label={`Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}`}
+                aria-haspopup="dialog"
+                aria-expanded={appearanceMenuOpen}
+                aria-controls={appearanceMenuOpen ? "appearance-menu" : undefined}
+              >
               {theme === "dark" ? (
                 <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <circle cx="7" cy="7" r="2.5" />
@@ -4645,11 +4663,18 @@ function Inner() {
                   <path d="M11.8 8.4A5 5 0 1 1 5.6 2.2a4 4 0 0 0 6.2 6.2Z" />
                 </svg>
               )}
-              {/* No word here at any width. Every other word in the bar names
-                  a thing, and "Dark" on a light bar named an action, so it read
-                  as the mode the deck was already in. A sun and a moon need no
-                  caption, and the accessible name says which way it goes. */}
-            </button>
+              </button>
+              {appearanceMenuOpen && (
+                <AppearanceMenu
+                  theme={theme}
+                  onTheme={setTheme}
+                  characterEnabled={characterEnabled}
+                  onToggleCharacter={() => setCharacterEnabled(enabled => !enabled)}
+                  onClose={() => setAppearanceMenuOpen(false)}
+                  openerRef={appearanceButtonRef}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -5413,7 +5438,7 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          <ClaudeFm ref={fmRef} />
+          {characterEnabled && <ClaudeFm ref={fmRef} />}
         </ReactFlow>
       </main>
 

@@ -11,20 +11,21 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+const menu = readFileSync(fileURLToPath(new URL("../components/AppearanceMenu.tsx", import.meta.url)), "utf8");
 
-const THEME_BUTTON =
-  /onClick=\{\(\) => setTheme\(t => \(t === "dark" \? "light" : "dark"\)\)\}\s*title=\{`([^`]*)`\}\s*aria-label=\{`([^`]*)`\}/;
+const APPEARANCE_BUTTON =
+  /title="Appearance settings"\s*aria-label=\{`([^`]*)`\}[\s\S]*?aria-haspopup="dialog"/;
 
-describe("the theme button says what a press does (#855)", () => {
+describe("the appearance button names the settings it opens (#855)", () => {
   it("is no longer named for toggling", () => {
     expect(app).not.toMatch(/aria-label="Toggle theme"/);
   });
 
-  it("names the theme a press switches to, in the words its title uses", () => {
-    const m = THEME_BUTTON.exec(app);
+  it("reports the current appearance and opens explicit theme choices", () => {
+    const m = APPEARANCE_BUTTON.exec(app);
     expect(m).not.toBeNull();
-    const [, title, label] = m!;
-    expect(label).toBe(title.replace(/ \(T\)$/, ""));
-    expect(label).toBe('Switch to ${theme === "dark" ? "light" : "dark"} mode');
+    expect(m![1]).toBe('Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}');
+    expect(menu).toMatch(/role="radiogroup"/);
+    expect(menu).toMatch(/onClick=\{\(\) => onTheme\(choice\)\}/);
   });
 });

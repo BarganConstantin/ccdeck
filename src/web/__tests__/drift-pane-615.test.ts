@@ -90,7 +90,7 @@ function appColumnRules(): string[] {
   while ((m = rule.exec(sheet))) {
     const selector = m[1].trim();
     const body = m[2];
-    if (!selector.startsWith(".app")) continue;
+    if (!/^\.app(?=[:{\s]|$)/.test(selector)) continue;
     // A descendant or grouped selector styles something other than `.app`.
     if (/[\s,]/.test(selector)) continue;
     const cols = /grid-template-columns:\s*([^;]+);/.exec(body);

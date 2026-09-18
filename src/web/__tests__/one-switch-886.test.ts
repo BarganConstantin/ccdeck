@@ -28,7 +28,7 @@ function body(selector: string): string {
 describe("every switch is the one switch (#886)", () => {
   it("draws each role=switch as .switch with a knob inside it", () => {
     const switches = count(/role="switch"/g);
-    expect(switches, "the nine switches in the app").toBe(9);
+    expect(switches, "the ten switches in the app").toBe(10);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
