@@ -905,7 +905,7 @@ button:focus-visible { outline-offset: 1px; }
    something off a button. The slot is what gives the menu something to be
    absolute against; it adds no box and no gap of its own, so the run's 8px
    rhythm is unchanged and the button sits exactly where it always did. */
-.sound-slot { position: relative; display: flex; }
+.sound-slot, .appearance-slot { position: relative; display: flex; }
 
 /* Right-aligned to the button rather than centred on it, because this button is
    near the right edge of a bar it can never overhang. 268px is the width the
@@ -940,12 +940,61 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+.appearance-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 224px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 14px 34px rgba(0, 0, 0, 0.34);
+  animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
+  text-align: left;
+}
 /* The same two layers on white, in the light theme's slate and at its own
    shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
    third stayed black at a third on the white page (#876). */
 :root[data-theme="light"] .sound-menu {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
+:root[data-theme="light"] .appearance-menu {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+.appearance-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.appearance-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.appearance-choice {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 6px;
+  background: var(--ctl-fill);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.appearance-choice[aria-checked="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--ctl-fill));
+  color: var(--text);
+}
+.appearance-choice:hover { border-color: var(--text); color: var(--text); }
+.appearance-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-divider { height: 1px; margin: 12px 0; background: var(--line); }
+.appearance-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.appearance-switch strong, .appearance-switch small { display: block; }
+.appearance-switch strong { font-size: 12px; font-weight: 500; line-height: 1.2; }
+.appearance-switch small { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.2; }
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
@@ -9505,7 +9554,7 @@ button.qb-pace::after {
      shape, only through a selector actually written down. It carries the same
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
-  .sound-menu { animation: fadeIn 140ms ease-out; }
+  .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
 }
 
 
