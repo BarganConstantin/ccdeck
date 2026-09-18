@@ -432,6 +432,7 @@ export const KICK_WINDUP_MS = 220;
  *  drifted, and nothing pointed at it because each number looked reasonable
  *  alone. The test now reads both sides. */
 export const KICK_MS = 520;
+export const BALL_FLIGHT_MS = 1600;
 
 /** How long it stands there looking at the board through the scope. Long, like
  *  sitting — this is the one activity that is ABOUT the deck rather than about
@@ -499,7 +500,8 @@ export function kickSteps(from: number, at: number): Step[] {
   return [
     { x: approach, prop: ball(), act: "walk", ms: walkMsFor(from, approach) },
     { x: approach, prop: ball(), act: "windup", ms: KICK_WINDUP_MS, facing: direction > 0 ? "right" : "left" },
-    { x: approach, prop: ball({ leaving: true }), act: "kick", ms: KICK_MS },
+    { x: approach, prop: ball({ leaving: true }), act: "kick", ms: KICK_MS, facing: direction > 0 ? "right" : "left" },
+    { x: approach, prop: ball({ leaving: true }), act: "stand", ms: BALL_FLIGHT_MS - KICK_MS },
   ];
 }
 
@@ -924,11 +926,10 @@ export interface Obstacle { left: number; right: number; height: number }
  *  next to the ledge it throws a rope at. */
 /** How far a kicked ball travels before it is gone. The sign is the facing's;
  *  this is only the distance. */
-export const BALL_ROLL_PX = 132;
+export const BALL_ROLL_PX = 420;
 
-/** Fade before the ball leaves the visible ledge, in either direction. */
-export function ballRollTo(at: number, facing: Facing, span = WALK_SPAN_PX): number {
-  const room = facing === "right" ? -at + 15 : span + at + 15;
+export function ballRollTo(at: number, facing: Facing, viewportWidth: number): number {
+  const room = facing === "right" ? viewportWidth - at - 18 : at - 18;
   return (facing === "right" ? 1 : -1) * Math.min(BALL_ROLL_PX, Math.max(0, room));
 }
 

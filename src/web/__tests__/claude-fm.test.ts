@@ -17,7 +17,7 @@ import {
   command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME, STOPPED_STATES,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
-  ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
+  ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
   nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
@@ -819,6 +819,20 @@ describe("the character", () => {
     expect(decl(".fm-sprite", "animation")).toBeNull();
   });
 
+  it("raises only the arms on hover or keyboard focus", () => {
+    expect(component).toContain('className="fm-arms"');
+    expect(decl('.fm-arms', 'transition')).toBe('transform 160ms steps(2, end)');
+    expect(decl('.fm-sprite:is(:hover, :focus-visible) .fm-arms', 'transform')).toBe('translateY(-2px)');
+  });
+
+  it("bends to pick up objects without splaying or moving the feet", () => {
+    expect(component).toContain('(act === "land" || act === "dismount")');
+    expect(decl('.fm-walker[data-act="stoop"] .fm-sprite', 'animation')).toBeNull();
+    expect(decl('.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)', 'animation')).toBe('fm-stoop 720ms steps(2, end)');
+    expect(decl('.fm-walker[data-act="stoop"] .fm-arms', 'animation')).toBe('fm-reach 720ms steps(2, end)');
+    expect(component).not.toContain('H15V13');
+  });
+
   it("uses the original development walking animation", () => {
     expect(css).toContain('.fm-walker[data-act="walk"]');
     // Carrying something is still walking.
@@ -1176,9 +1190,8 @@ describe("the character", () => {
       return Number(/(\d+)ms/.exec(value)?.[1] ?? NaN);
     };
     const pairs: [string, number, string][] = [
-      ['.fm-walker[data-act="stoop"] .fm-sprite', STOOP_MS, "stoop"],
+      ['.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)', STOOP_MS, "stoop"],
       [".fm-held[data-toss]", TOSS_MS, "toss"],
-      ['.fm-prop[data-prop="ball"][data-leaving]', KICK_MS, "kick"],
     ];
     for (const [selector, stepMs, name] of pairs) {
       const anim = animMs(selector);
@@ -1211,19 +1224,20 @@ describe("the character", () => {
       expect(Math.abs(x - at)).toBe(15);
       expect(Math.sign(at - x)).toBe(direction === "right" ? 1 : -1);
       expect(steps[0].ms).toBe(walkMsFor(from, x));
-      const end = at + ballRollTo(at, facing);
-      expect(end).toBeGreaterThanOrEqual(-WALK_SPAN_PX - 15);
-      expect(end).toBeLessThanOrEqual(15);
+      expect(steps[2].facing).toBe(direction);
+      expect(steps[3].prop).toEqual(steps[2].prop);
+      expect(steps[2].ms + steps[3].ms).toBe(BALL_FLIGHT_MS);
     },
   );
 
-  it("keeps ball travel inside the scene even at either edge", () => {
-    for (let at = -WALK_SPAN_PX; at <= 0; at++) {
+  it.each([320, 768, 1500])("keeps the flying ball visible until it drops at viewport width %s", width => {
+    for (let at = 18; at <= width - 18; at++) {
       for (const facing of ["left", "right"] as const) {
-        const travel = ballRollTo(at, facing);
-        expect(Math.sign(travel)).toBe(facing === "right" ? 1 : -1);
-        expect(at + travel).toBeGreaterThanOrEqual(-WALK_SPAN_PX - 15);
-        expect(at + travel).toBeLessThanOrEqual(15);
+        const travel = ballRollTo(at, facing, width);
+        expect(travel * (facing === "right" ? 1 : -1)).toBeGreaterThanOrEqual(0);
+        expect(at + travel).toBeGreaterThanOrEqual(18);
+        expect(at + travel).toBeLessThanOrEqual(width - 18);
+        expect(Math.abs(travel)).toBeLessThanOrEqual(BALL_ROLL_PX);
       }
     }
   });
@@ -1263,7 +1277,7 @@ describe("the character", () => {
     // The same errand with the opposite ending — and the ball never leaves the
     // floor, which is the one structural difference and why both fit one shape.
     const steps = kickSteps(-30, -90);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "windup", "kick", "stand"]);
     expect(steps.every(s2 => !s2.prop?.held)).toBe(true);
     expect(steps.at(-1)?.prop?.leaving).toBe(true);
     // It stays where it was kicked from; the ball is what travels.
@@ -1378,17 +1392,21 @@ describe("the character", () => {
   });
 
   it("rolls a kicked ball away from the end it would otherwise pile up at", () => {
-    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toMatch(/^fm-roll 520ms/);
+    expect(decl('.fm-prop[data-prop="ball"][data-leaving]', "animation")).toBe('fm-roll var(--fm-ball-flight-ms) linear forwards');
     expect(css).toMatch(/@keyframes fm-roll/);
     // Negative: down the ledge, away from the bin corner.
     // THE SIGN IS THE FACING'S, and only the distance is fixed. This rolled a
     // hardcoded -132px, which is right exactly half the time: approach the ball
     // from the left and the kick sent it backwards, straight through the
     // character that had just kicked it.
-    expect(css).toContain("var(--fm-roll-to, -132px)");
+    expect(css).toContain("var(--fm-ball-drop)");
     expect(css).not.toMatch(/- 21px - 132px/);
-    expect(component).toContain('ballRollTo(prop.at, facing)');
-    expect(BALL_ROLL_PX).toBe(132);
+    expect(component).toContain('ballRollTo(ball.x, facingFor(step, from, "left"), window.innerWidth)');
+    expect(BALL_ROLL_PX).toBe(420);
+    const frames = /@keyframes fm-roll \{([\s\S]*?)\n\}/.exec(css)?.[1];
+    expect(frames).toBeTruthy();
+    expect(frames).not.toContain('opacity');
+    expect(BALL_FLIGHT_MS).toBeGreaterThan(KICK_MS * 2);
   });
 
   it("rests between things without going quiet enough to look broken", () => {
@@ -1425,13 +1443,13 @@ describe("the character", () => {
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
-      '.fm-walker[data-act="stoop"] .fm-sprite',
+      '.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion, .fm-arms)',
       ".fm-prop",
       ".fm-held[data-toss]",
       ".fm-eye",
     ]) expect(blocks).toContain(gone);
     expect(blocks).toMatch(/animation: none/);
-    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat \{ transition: none; \}/);
+    expect(blocks).toMatch(/\.fm-walker, \.fm-gear, \.fm-eye, \.fm-hat, \.fm-arms \{ transition: none; \}/);
     // And the state still reads, because the brightened sprite says it.
     expect(decl(".fm-sprite[data-playing]", "opacity")).toBe("1");
   });

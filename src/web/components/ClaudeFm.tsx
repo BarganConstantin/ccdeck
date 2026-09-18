@@ -45,7 +45,7 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  ballRollTo, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y, SKIP_BEAT_MS,
+  ballRollTo, BALL_FLIGHT_MS, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y, SKIP_BEAT_MS,
   LEG_SPLIT_COL, LEG_TOP_ROW, walkMsFor,
   nextDance, nextDanceMs, WALK_SPAN_PX,
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
@@ -113,6 +113,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  inside the walker once it is held — because on the floor it must stay
      *  put and in hand it must travel, and one element cannot do both. */
     const [prop, setProp] = useState<Prop | null>(null);
+    const [ballFlight, setBallFlight] = useState({ x: 0, drop: 0 });
     /** Which surface it is standing on. The ledge for all but one activity. */
     const [place, setPlace] = useState<Place>("ledge");
     /** Which way it is looking. Without it a symmetric sprite walking left is
@@ -234,6 +235,15 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         // Capture the departure point so a turn cannot compare the target
         // with itself and silently keep the previous facing.
         const from = here;
+        if (step.act === "kick") {
+          const ball = scene.current?.querySelector('.fm-prop[data-prop="ball"]')?.getBoundingClientRect();
+          if (ball) {
+            setBallFlight({
+              x: ballRollTo(ball.x, facingFor(step, from, "left"), window.innerWidth),
+              drop: Math.max(48, window.innerHeight - ball.y + 24),
+            });
+          }
+        }
         const moving = step.act === "walk" || step.act === "carry";
         const duration = moving ? walkMsFor(from, to) : step.ms;
         setWalkMs(duration);
@@ -405,6 +415,12 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     /** Everything that is not headphones, split below into torso and legs. */
     const body = spriteRects().filter(r => !GEAR_CELLS.has(r.cell));
+    const torso = body.filter(r => r.y < LEG_TOP_ROW && r.cell !== "e")
+      .map(r => {
+        if (r.y !== 8 && r.y !== 9) return r;
+        const x = Math.max(6, r.x);
+        return { ...r, x, w: Math.max(0, Math.min(12, r.x + r.w) - x) };
+      }).filter(r => r.w > 0);
 
     const press = () => {
       if (!armed) { setArmed(true); setPlaying(true); return; }
@@ -432,9 +448,10 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             data-leaving={prop.leaving ? "" : undefined}
             style={{
               "--fm-prop-x": `${prop.at}px`,
-              // Follow the foot's direction and fade inside the visible ledge.
-              "--fm-roll-to": `${ballRollTo(prop.at, facing)}px`,
-              "--fm-ball-turn": facing === "right" ? "360deg" : "-360deg",
+              "--fm-roll-to": `${ballFlight.x}px`,
+              "--fm-ball-drop": `${ballFlight.drop}px`,
+              "--fm-ball-flight-ms": `${BALL_FLIGHT_MS}ms`,
+              "--fm-ball-turn": facing === "right" ? "1080deg" : "-1080deg",
             } as CSSProperties}
           >
             {pixels(PROP_ART[prop.kind], "p")}
@@ -557,13 +574,21 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
               {body.filter(r => r.cell === "e").map(r => (
                 <rect key={`eye-bed-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} fill="var(--accent)" />
               ))}
-              {body.filter(r => r.y < LEG_TOP_ROW && r.cell !== "e").map(r => (
+              {torso.map(r => (
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
                   className={CELL_CLASS[r.cell]}
                 />
               ))}
+              {/* Arms are separate from the torso so a greeting never moves
+                  the head, feet, or the walking animation. Kept inside the
+                  body group so they still follow its dance. */}
+              <g className="fm-arms">
+                <rect x={4} y={8} width={2} height={2} />
+                <rect x={12} y={8} width={1} height={2} />
+                <rect x={13} y={8} width={1} height={2} className="fm-shade" />
+              </g>
               {/* Pupils paint last: looking right must not slide them beneath
                   the next body/shadow rectangle in SVG paint order. */}
               {body.filter(r => r.cell === "e").map(r => (
@@ -591,10 +616,10 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 <path className="fm-grip-right" d="M12 9H14V6H11V5H9V7H12Z" />
               </g>
             )}
-            {(act === "land" || act === "stoop" || act === "dismount") && (
+            {(act === "land" || act === "dismount") && (
               <g className="fm-crouch-legs">
-                <path d="M6 11H8V12H6V13H3V12H5V11Z" />
-                <path d="M10 11H12V12H15V13H12V12H10Z" />
+                <path d="M6 11H8V13H6Z" />
+                <path d="M10 11H12V13H10Z" />
               </g>
             )}
             {(["sit", "cast", "fish", "reel", "stow"] as (Act | null)[]).includes(act) && (
