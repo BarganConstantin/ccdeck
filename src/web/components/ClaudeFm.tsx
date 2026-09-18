@@ -45,8 +45,8 @@ import {
   command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
-  BALL_ROLL_PX, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y,
-  LEG_SPLIT_COL, LEG_TOP_ROW,
+  ballRollTo, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y, SKIP_BEAT_MS,
+  LEG_SPLIT_COL, LEG_TOP_ROW, walkMsFor,
   nextDance, nextDanceMs, WALK_SPAN_PX,
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
   type Prop, type Step,
@@ -76,7 +76,8 @@ function pixels(grid: readonly string[], key: string) {
   return (
     <svg viewBox={`0 0 ${w} ${grid.length}`} shapeRendering="crispEdges" aria-hidden>
       {spriteRects(grid).map(r => (
-        <rect key={`${key}${r.y}-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} />
+        <rect key={`${key}${r.y}-${r.x}`} x={r.x} y={r.y} width={r.w} height={1}
+          fill={r.cell === "s" ? "var(--fm-prop-shadow, var(--bg))" : r.cell === "l" ? "var(--fm-prop-light, var(--text))" : r.cell === "a" ? "var(--accent)" : undefined} />
       ))}
     </svg>
   );
@@ -126,6 +127,17 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  rather than as a character. */
     const [dance, setDance] = useState<Dance | null>(null);
     const [beatMs, setBeatMs] = useState(BEAT_MS);
+    const [reducedMotion, setReducedMotion] = useState(
+      () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+    );
+    useEffect(() => {
+      const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+      if (!query) return;
+      const changed = () => setReducedMotion(query.matches);
+      changed();
+      query.addEventListener("change", changed);
+      return () => query.removeEventListener("change", changed);
+    }, []);
 
     const frame = useRef<HTMLIFrameElement | null>(null);
     const duckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -184,7 +196,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     useEffect(() => () => { if (duckTimer.current) clearTimeout(duckTimer.current); }, []);
 
-    // WHAT IT DOES WITH ITSELF. Long stillness, then one of five things, then
+    // WHAT IT DOES WITH ITSELF. A rest, then an activity, then
     // long stillness again — see claude-fm.ts for why the restraint is the
     // design.
     //
@@ -201,7 +213,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     // media query that would leave the timers running for nobody.
     useEffect(() => {
       if (!probe || dead) return;
-      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+      if (reducedMotion) return;
 
       let timer: ReturnType<typeof setTimeout> | null = null;
       let here = 0;
@@ -213,16 +225,22 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       const run = (steps: Step[]) => {
         const [step, ...rest] = steps;
         if (!step) { setAct(null); setProp(null); idle(); return; }
-        setWalkMs(step.ms);
         setAct(step.act);
         setProp(step.prop);
         setPlace(step.place ?? "ledge");
-        setFacing(was => facingFor(step, here, was));
         setRiser(step.riser ?? 0);
         const to = reachable(step);
+        // React may evaluate this updater after `here` has advanced below.
+        // Capture the departure point so a turn cannot compare the target
+        // with itself and silently keep the previous facing.
+        const from = here;
+        const moving = step.act === "walk" || step.act === "carry";
+        const duration = moving ? walkMsFor(from, to) : step.ms;
+        setWalkMs(duration);
+        setFacing(was => facingFor({ ...step, x: to }, from, was));
         setX(to);
         here = to;
-        timer = setTimeout(() => run(rest), step.ms);
+        timer = setTimeout(() => run(rest), duration);
       };
 
       /**
@@ -344,6 +362,8 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         // was a trip, it must not be left standing on the canvas floor with
         // nothing scheduled to bring it home.
         setPlace("ledge");
+        setX(now => Math.max(-WALK_SPAN_PX, Math.min(0, now)));
+        setWalkMs(0);
         // Whatever it was in the middle of, it is not any more. Leaving a prop
         // on the ledge that nothing will ever come back for is the one way this
         // can litter for real.
@@ -351,14 +371,13 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setProp(null);
         setRiser(0);
       };
-    }, [probe, dead]);
+    }, [probe, dead, reducedMotion]);
 
     // IT CHANGES ITS MIND. Only while something is playing — there is nothing to
     // dance to otherwise, and a timer running for a character standing still is
     // a timer running for nothing.
     useEffect(() => {
-      if (!playing) { setDance(null); return; }
-      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+      if (!playing || reducedMotion) { setDance(null); return; }
       let timer: ReturnType<typeof setTimeout> | null = null;
       const pick = (from: Dance | null) => {
         const next = nextDance(from, Math.random);
@@ -368,7 +387,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
       pick(null);
       return () => { if (timer) clearTimeout(timer); };
-    }, [playing]);
+    }, [playing, reducedMotion]);
 
     useImperativeHandle(ref, () => ({
       duck(ms: number) {
@@ -413,10 +432,9 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             data-leaving={prop.leaving ? "" : undefined}
             style={{
               "--fm-prop-x": `${prop.at}px`,
-              // A kicked ball leaves the way the foot was pointing. Without
-              // this it always rolled left, which is backwards through the
-              // character whenever it had walked rightward to reach it.
-              "--fm-roll-to": facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`,
+              // Follow the foot's direction and fade inside the visible ledge.
+              "--fm-roll-to": `${ballRollTo(prop.at, facing)}px`,
+              "--fm-ball-turn": facing === "right" ? "360deg" : "-360deg",
             } as CSSProperties}
           >
             {pixels(PROP_ART[prop.kind], "p")}
@@ -425,12 +443,18 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         {/* THE ROPE IS NOT INSIDE THE WALKER, and it cannot be: it is fixed to
             the ledge, and the character climbs past it. A rope that travelled
             with whoever was climbing it would be a rope climbing itself. */}
-        {(act === "lasso" || act === "climb") && (
+        {(act === "lasso" || act === "rope-throw" || act === "rope-catch" || act === "climb" || act === "pull-up") && (
           <div
             className="fm-rope"
             data-act={act}
-            style={{ "--fm-rope-x": `${x}px` } as CSSProperties}
-          />
+            style={{ "--fm-rope-x": `${x}px`, "--fm-rope-ms": `${walkMs}ms` } as CSSProperties}
+          >
+            <div className="fm-rope-line" />
+            <svg className="fm-rope-hook" viewBox="0 0 9 9" shapeRendering="crispEdges" aria-hidden>
+              <path d="M4 8V3H3V1H1V3H0V5H2V4H3V6H5V4H6V5H8V3H7V1H5V3H4" />
+              <rect className="fm-rope-knot" x="3" y="6" width="3" height="2" />
+            </svg>
+          </div>
         )}
         <div
           className="fm-walker"
@@ -446,14 +470,40 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             // How high whatever it is standing on is. Zero for the floor
             // itself, and the height of the Auto-fit chip while it is up there.
             "--fm-riser": `${riser}px`,
+            "--fm-skip-beat": `${SKIP_BEAT_MS}ms`,
           } as CSSProperties}
         >
         {/* In hand, so it travels with the character — and on the way out,
             so the throw has something to animate. */}
         {prop?.held && (
-          <div className="fm-held" data-toss={prop.leaving ? "" : undefined}>
+          <div className="fm-held" data-prop={prop.kind} data-toss={prop.leaving ? "" : undefined}>
             {pixels(PROP_ART[prop.kind], "h")}
           </div>
+        )}
+        {(["cast", "fish", "reel", "stow"] as (Act | null)[]).includes(act) && (
+          <svg className="fm-fishing" viewBox="0 0 24 32" shapeRendering="crispEdges" aria-hidden>
+            <g>
+              <path d="M24 11H22V9H20V7H18V5H16V3H13V2H8" />
+              <rect className="fm-fishing-grip" x="21" y="9" width="3" height="3" />
+            </g>
+            <g className="fm-fishing-line">
+              <path d="M8 2V26" />
+              <g className="fm-float">
+                <rect x="7" y="25" width="3" height="2" />
+                <rect x="8" y="24" width="1" height="1" />
+              </g>
+            </g>
+            <path className="fm-ripple" d="M3 28H6M10 28H14M5 30H12" />
+          </svg>
+        )}
+        {(["skip-ready", "skip", "skip-rest"] as (Act | null)[]).includes(act) && (
+          <svg className="fm-skipping-rope" viewBox="0 0 26 26" shapeRendering="crispEdges" aria-hidden>
+            <path className="fm-skip-back" d="M5 18H3V8H5V5H8V2H18V5H21V8H23V18H21" />
+            <path className="fm-skip-forward" d="M5 18H3V14H5V11H8V9H18V11H21V14H23V18H21" />
+            <path className="fm-skip-front" d="M5 18H3V21H5V23H8V25H18V23H21V21H23V18H21" />
+            <path className="fm-skip-return" d="M5 18H3V19H8V20H18V19H23V18H21" />
+            <path className="fm-skip-handles" d="M5 17V19M21 17V19" />
+          </svg>
         )}
         <button
           type="button"
@@ -502,12 +552,24 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 there is nothing between them, so a row and a column is all it
                 takes. The sprite stays eighteen lines of text. */}
             <g className="fm-body">
-              {body.filter(r => r.y < LEG_TOP_ROW).map(r => (
+              {/* Fill the original eye cells before pupils move or blink.
+                  Otherwise their old positions become holes showing the canvas. */}
+              {body.filter(r => r.cell === "e").map(r => (
+                <rect key={`eye-bed-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} fill="var(--accent)" />
+              ))}
+              {body.filter(r => r.y < LEG_TOP_ROW && r.cell !== "e").map(r => (
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
                   className={CELL_CLASS[r.cell]}
                 />
+              ))}
+              {/* Pupils paint last: looking right must not slide them beneath
+                  the next body/shadow rectangle in SVG paint order. */}
+              {body.filter(r => r.cell === "e").map(r => (
+                <rect key={`eye-${r.x}`}
+                  x={r.x - (r.x >= SPRITE_W / 2 ? 1 : 0) + (facing === "right" ? 1 : 0)}
+                  y={r.y} width={r.w} height={1} className="fm-eye" />
               ))}
             </g>
             {/* DRAWN AFTER THE BODY, which is the whole reason it is its own group.
@@ -523,6 +585,24 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 />
               ))}
             </g>
+            {(act === "climb" || act === "rope-throw" || act === "rope-catch" || act === "pull-up") && (
+              <g className="fm-grip">
+                <path className="fm-grip-left" d="M5 9H4V4H7V3H9V5H6V9Z" />
+                <path className="fm-grip-right" d="M12 9H14V6H11V5H9V7H12Z" />
+              </g>
+            )}
+            {(act === "land" || act === "stoop" || act === "dismount") && (
+              <g className="fm-crouch-legs">
+                <path d="M6 11H8V12H6V13H3V12H5V11Z" />
+                <path d="M10 11H12V12H15V13H12V12H10Z" />
+              </g>
+            )}
+            {(["sit", "cast", "fish", "reel", "stow"] as (Act | null)[]).includes(act) && (
+              <g className="fm-seated-legs">
+                <path className="fm-seated-far" d="M10 10H12V11H11V14H8V13H9V11H10Z" />
+                <path d="M6 10H9V11H7V15H4V14H5V11H6Z" />
+              </g>
+            )}
             {(["left", "right"] as const).map(side => (
               <g key={side} className="fm-leg" data-side={side}>
                 {body

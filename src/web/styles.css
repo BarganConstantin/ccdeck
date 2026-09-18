@@ -6,6 +6,11 @@
   --line: #1f2229;
   --line-soft: #1a1c22;
   --text: #d8dae0;
+  /* Pixel-art metal keeps its material identity across UI themes. */
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
   /* SECONDARY READABLE TEXT — prose somebody reads to understand something,
      as distinct from metadata they glance at.
      It exists because dark had no room below the muted tier, which sits at
@@ -12340,8 +12345,8 @@ input, textarea { caret-color: var(--accent); }
   transition: transform var(--fm-walk-ms, 0ms) cubic-bezier(0.11, 0, 0.5, 0);
 }
 /* Up on the toes to make the step, and absorbing it on the way down. */
-.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-1px) scale(0.98, 1.04); }
-.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(2px) scale(1.06, 0.9); }
+.fm-walker[data-act="mount"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="dismount"] .fm-sprite { transform: translateY(3px); }
 
 /* THE DROP, AND IT IS THE ONLY MOTION HERE THAT ACCELERATES. Everything else on
    this canvas eases out, because everything else is a thing settling into
@@ -12355,20 +12360,33 @@ input, textarea { caret-color: var(--accent); }
 }
 /* Going up is work at a steady rate, not the fall run backwards. Linear. */
 .fm-walker[data-act="climb"] {
+  /* Stop with hands at the ledge; the final step pulls the hips over it. */
+  --fm-y: calc(-1 * var(--minimap-h) + 24px);
   transition: transform var(--fm-walk-ms, 0ms) linear;
 }
+.fm-walker[data-act="pull-up"] { transition: transform var(--fm-walk-ms, 0ms) steps(4, end); }
+.fm-walker[data-act="pull-up"] .fm-sprite { animation: fm-pull-up 480ms steps(2, end) forwards; }
+.fm-rope[data-act="pull-up"] .fm-rope-line { animation: fm-rope-recover 480ms steps(4, end) forwards; }
+@keyframes fm-pull-up {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+@keyframes fm-rope-recover { to { clip-path: inset(0 0 100% 0); } }
 
 /* Looking over before stepping off: it leans out over the edge. Nothing
    sensible jumps from a height it has not looked at. */
-.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-2px) rotate(-9deg); }
+.fm-walker[data-act="peer"] .fm-sprite { transform: translateX(-3px); }
 
 /* The landing absorbs. A body that arrives at speed and stops dead did not
    land, it was placed — the squash is where the energy goes, and it is the
    deepest one in this block because it is the only impact. */
-.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px) scale(1.12, 0.8); }
+.fm-walker[data-act="land"] .fm-sprite { transform: translateY(3px); }
 
 /* Winding up the throw. */
-.fm-walker[data-act="lasso"] .fm-sprite { transform: rotate(-5deg); }
+.fm-walker[data-act="lasso"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="rope-throw"] .fm-sprite { transform: translateY(-3px); }
+.fm-walker[data-act="rope-catch"] .fm-sprite { transform: translateY(2px); }
 
 /* THE ROPE. Anchored to the ledge and standing still while the character climbs
    past it — it is drawn outside the walker for exactly that reason, since a
@@ -12382,24 +12400,40 @@ input, textarea { caret-color: var(--accent); }
   right: 0;
   bottom: 0;
   transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
-  background: var(--muted);
+  width: 3px;
+  height: var(--minimap-h);
 }
-/* Spinning overhead before it is thrown: an ellipse turning about its middle
-   is a loop of rope seen from the side, and the only reason it reads as one is
-   that it is wider than it is tall. */
-.fm-rope[data-act="lasso"] {
-  width: 16px;
-  height: 7px;
-  bottom: 45px;   /* just above the head: the sprite is 42px tall */
-  background: none;
-  border: 1.5px solid var(--muted);
-  border-radius: 50%;
-  animation: fm-spin 420ms linear infinite;
+.fm-rope-line {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 6px, var(--accent) 6px 9px);
 }
-@keyframes fm-spin {
-  0%   { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(0deg)   scaleX(1); }
-  50%  { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(180deg) scaleX(0.35); }
-  100% { transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px)) rotate(360deg) scaleX(1); }
+.fm-rope-hook {
+  position: absolute; left: -12px; top: -18px;
+  width: 27px; height: 27px; overflow: visible; fill: var(--text);
+}
+.fm-rope-knot { fill: var(--accent); }
+.fm-rope[data-act="lasso"] .fm-rope-line { clip-path: inset(100% 0 0 0); }
+.fm-rope[data-act="lasso"] .fm-rope-hook { animation: fm-hook-ready 380ms steps(2, end) infinite; }
+.fm-rope[data-act="rope-throw"] .fm-rope-hook { animation: fm-hook-throw var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-throw"] .fm-rope-line { animation: fm-rope-unroll var(--fm-rope-ms) steps(10, end) both; }
+.fm-rope[data-act="rope-catch"] .fm-rope-hook { animation: fm-hook-catch var(--fm-rope-ms) steps(2, end) both; }
+@keyframes fm-hook-ready {
+  0%, 100% { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  50% { transform: translate(6px, calc(var(--minimap-h) - 45px)); }
+}
+@keyframes fm-hook-throw {
+  from { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  80% { transform: translate(0, -6px); }
+  to { transform: translate(0, 0); }
+}
+@keyframes fm-rope-unroll {
+  /* Reveal at the hook's speed without stretching the rope's pixel pattern. */
+  from { clip-path: inset(calc(var(--minimap-h) - 42px) 0 0 0); }
+  80%, to { clip-path: inset(0); }
+}
+@keyframes fm-hook-catch {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
 }
 /* Thrown and caught: a line from the ledge down to the floor, which is the
    height the character is about to cover. */
@@ -12425,13 +12459,16 @@ input, textarea { caret-color: var(--accent); }
 /* KICKED, IT GOES THE WAY THE FOOT WAS POINTING. This rolled a fixed -132px,
    which is fine exactly half the time: approach the ball from the left and the
    kick sends it backwards, straight through the character that just kicked it.
-   The distance is the same either way; only the sign follows the facing, and
-   the component writes it. */
+   The component supplies a signed distance bounded by the ledge's edge. */
 .fm-prop[data-prop="ball"][data-leaving] {
   animation: fm-roll 520ms cubic-bezier(0.12, 0.6, 0.4, 1) forwards;
 }
+.fm-prop[data-prop="ball"] svg { fill: var(--accent); }
+.fm-prop[data-prop="ball"][data-leaving] svg { animation: fm-ball-turn 520ms steps(4, end) forwards; }
+@keyframes fm-ball-turn { to { transform: rotate(var(--fm-ball-turn, -360deg)); } }
 @keyframes fm-roll {
   0%   { transform: translate(calc(var(--fm-prop-x, 0px) - 21px),         var(--fm-y)); opacity: 1; }
+  40%  { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to, -132px) * 0.45), calc(var(--fm-y) - 6px)); opacity: 1; }
   70%  { opacity: 1; }
   100% { transform: translate(calc(var(--fm-prop-x, 0px) - 21px + var(--fm-roll-to, -132px)), var(--fm-y)); opacity: 0; }
 }
@@ -12455,11 +12492,17 @@ input, textarea { caret-color: var(--accent); }
    same objection as the headphones blinking off a head and the same answer.
    The throw below is a higher-specificity rule, so a prop on its way out
    overrides this rather than fighting it. */
-.fm-held { animation: fm-draw 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fm-held { animation: fm-draw 300ms steps(3, end); }
 @keyframes fm-draw {
-  0%   { transform: translate(13px, 7px) scale(0.35); opacity: 0; }
+  0%   { transform: translate(12px, 6px); opacity: 0; }
   60%  { opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+.fm-walker[data-act="scope-pack"] .fm-held { animation: fm-scope-fold 480ms steps(4, end) forwards; }
+@keyframes fm-scope-fold {
+  0% { clip-path: inset(0); transform: translateY(0); opacity: 1; }
+  60% { clip-path: inset(0 0 50% 0); transform: translateY(0); opacity: 1; }
+  100% { clip-path: inset(0 0 50% 0); transform: translateY(6px); opacity: 0; }
 }
 
 /* The scope is held UP, at the height of the eyes, pointing away from the
@@ -12473,19 +12516,25 @@ input, textarea { caret-color: var(--accent); }
    the eye, and the overlap does the work an arm would — which is how every
    pixel character that has ever held something to its face does it. */
 .fm-held[data-prop="scope"] {
+  /* Material colours must not invert with the UI's text/background tokens:
+     the silver barrel used to become near-black in the light theme. */
+  --fm-prop-light: var(--pixel-metal-light);
+  --fm-prop-shadow: var(--pixel-metal-shadow);
   right: 34px;
-  /* The eye row, measured from the feet: a 14-row sprite at 3px a row puts row
-     four 27px up, and a 9px scope starting at 24 covers it. Moved with the
-     legs — the eyes did not change row, but the floor got further away. */
-  bottom: 24px;
-  width: 15px;
+  /* 20 × 24 cells at 2px. The tripod stands on the ledge; its eyepiece
+     occupies 26–32px above it, level with the character's eye row. */
+  bottom: 0;
+  width: 40px;
+  transform-origin: bottom right;
 }
+.fm-held[data-prop="scope"] svg { fill: var(--pixel-metal-edge); }
 /* CARRIED ON THE SIDE IT IS FACING. Held on the left while walking right, an
    object trails along behind the character, which is the other half of what
    made it look like it was going backwards. 54px sprite less the 12px object
    puts the far side at 0; the scope is 15px wide, so its mirror is 5. */
 .fm-walker[data-facing="right"] .fm-held { right: 0; }
 .fm-walker[data-facing="right"] .fm-held[data-prop="scope"] { right: 5px; }
+.fm-walker[data-facing="right"] .fm-held[data-prop="scope"] svg { transform: scaleX(-1); }
 
 /* No surface, no border, no shadow. Every other instrument on this canvas
    wears --chrome-bg and an edge because it is a panel of controls; this is one
@@ -12505,21 +12554,11 @@ input, textarea { caret-color: var(--accent); }
   background: none;
   line-height: 0;
   cursor: pointer;
-  /* Quiet until it is wanted: the canvas is for the sessions, and a bright
-     character parked on the minimap would pull the eye all day. The pointer
-     and the music both bring it up. */
-  opacity: 0.55;
-  transition: opacity 140ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  /* The character stays equally visible whether or not music is playing. */
+  opacity: 1;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .fm-sprite:hover { opacity: 1; }
-/* THE SAME QUIET COSTS DIFFERENT AMOUNTS IN THE TWO THEMES, and 0.55 is a dark
-   number. There the accent is #7dd3fc on near-black, which is still a colour at
-   just over half strength; here it is #0369a1 on #eef1f6, and dimming a dark
-   ink toward a light ground does not make it quieter — it makes it grey. Side
-   by side the light sprite had lost its blue and read as a smudge on the
-   minimap while the dark one read as a character. A higher floor is what buys
-   the same restraint, not the same number. */
-:root[data-theme="light"] .fm-sprite { opacity: 0.72; }
 .fm-sprite[data-playing] { opacity: 1; }
 /* The deck's one press convention, at the tier a control with no label wears.
    0.94 rather than the 0.97 a labelled button takes: the ink here IS the
@@ -12547,7 +12586,11 @@ input, textarea { caret-color: var(--accent); }
    the hat band cannot drift apart — they are the two marks on this character
    that have to be darker than everything around them. */
 .fm-sprite { --fm-ink: var(--bg); }
-:root[data-theme="light"] .fm-sprite { --fm-ink: var(--text); }
+:root[data-theme="light"] .fm-sprite {
+  --fm-ink: var(--text);
+  /* UI link blue is too dark for the character's large filled silhouette. */
+  --accent: var(--pixel-character-body);
+}
 
 /* The headphones, in the same --muted every glyph on this canvas is drawn in,
    and the body in the deck's accent so the character belongs to this palette
@@ -12661,18 +12704,13 @@ input, textarea { caret-color: var(--accent); }
    it sits in, without a third colour to keep in step with the palette. */
 .fm-pad { fill: var(--muted-dim); }
 
-/* IT BLINKS. Twice a minute, for about a tenth of a second, and the whole of
-   it is the eye taking the body's colour for that moment — an eye that vanishes
-   reads as a hole appearing, and an eye that closes reads as a character. The
-   window is bounded by stops half a percent either side so the change is a cut
-   rather than a fade: at 5.4s a period, half a percent is 27ms.
-   This runs whether or not anything is playing. The dance is a state; being
-   alive is not. */
-.fm-eye { animation: fm-blink 5.4s ease-in-out infinite; }
+/* A short, stepped blink keeps a dark eyelid visible. Never paint the eyes
+   blue: that erases the face altogether during the closed frame. */
+.fm-eye { animation: fm-blink 5.4s steps(1, end) infinite; }
 @keyframes fm-blink {
-  0%, 93.5%  { fill: var(--fm-ink); }
-  94%, 96.5% { fill: var(--accent); }
-  97%, 100%  { fill: var(--fm-ink); }
+  0%, 93.5%  { transform: scaleY(var(--fm-eye-h, 1)); }
+  94%, 96.5% { transform: scaleY(0.35); }
+  97%, 100%  { transform: scaleY(var(--fm-eye-h, 1)); }
 }
 
 /* ONE PIVOT FOR EVERY GROUP, and getting this wrong is invisible in the
@@ -12816,28 +12854,37 @@ input, textarea { caret-color: var(--accent); }
 }
 
 @keyframes fm-bob {
-  0%   { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
-  25%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
-  50%  { transform: translate(0.35px, 0)  scale(1.04, 0.95) rotate(3deg); }
-  75%  { transform: translate(0, -0.7px)  scale(0.98, 1.05) rotate(0deg); }
-  100% { transform: translate(-0.35px, 0) scale(1.04, 0.95) rotate(-3deg); }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(0, -1px); }
 }
 
 /* A slow lean with almost no lift — what somebody does to something calm. */
 @keyframes fm-sway {
-  0%, 100% { transform: translate(-0.5px, 0)     scale(1.02, 0.98) rotate(-5.5deg); }
-  50%      { transform: translate(0.5px, -0.15px) scale(1.02, 0.98) rotate(5.5deg); }
+  0%, 100% { transform: translate(-1px, 0); }
+  25%, 75% { transform: translate(0, 0); }
+  50% { transform: translate(1px, 0); }
 }
 
 /* Straight up and down, twice a bar, leaning the other way each time. The
    busiest of the three and the one that reads from furthest away. */
 @keyframes fm-groove {
-  0%   { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
-  20%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(-4.5deg); }
-  50%  { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
-  70%  { transform: translate(0, -0.85px) scale(0.97, 1.06) rotate(4.5deg); }
-  100% { transform: translate(0, 0)       scale(1.06, 0.93) rotate(0deg); }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, -1px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(1px, -1px); }
 }
+.fm-walker:not([data-act]) .fm-sprite[data-playing] :is(.fm-body, .fm-leg, .fm-gear-motion) {
+  animation-timing-function: steps(1, end);
+}
+
+.fm-seated-legs, .fm-crouch-legs { fill: var(--accent); }
+.fm-walker:is([data-act="land"], [data-act="stoop"], [data-act="dismount"]) .fm-leg { display: none; }
+.fm-walker[data-facing="right"] .fm-seated-legs { transform: translateX(18px) scaleX(-1); }
+.fm-seated-far { fill: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
+.fm-walker:is([data-act="sit"], [data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-leg { display: none; }
+.fm-walker:is([data-act="walk"], [data-act="carry"]) .fm-sprite { transition: none; }
 
 /* THE LEGS STEP, THEY DO NOT SWING, and the difference is the grid.
 
@@ -12883,11 +12930,16 @@ input, textarea { caret-color: var(--accent); }
 .fm-walker[data-act="climb"] .fm-leg[data-side="right"] {
   animation: fm-stride-b 620ms ease-in-out infinite;
 }
-.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms ease-in-out infinite; }
+.fm-walker[data-act="climb"] .fm-sprite { animation: fm-haul 620ms steps(2, end) infinite; }
+.fm-grip { fill: var(--accent); }
+.fm-walker[data-act="climb"] .fm-grip-left { animation: fm-grip-left 620ms steps(1, end) infinite; }
+.fm-walker[data-act="climb"] .fm-grip-right { animation: fm-grip-right 620ms steps(1, end) infinite; }
+@keyframes fm-grip-left { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+@keyframes fm-grip-right { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @keyframes fm-haul {
-  0%, 100% { transform: translateY(0)      scale(1, 1); }
-  35%      { transform: translateY(1px)    scale(1.05, 0.93); }
-  70%      { transform: translateY(-1.2px) scale(0.96, 1.06); }
+  0%, 100% { transform: translateY(0); }
+  35%      { transform: translateY(3px); }
+  70%      { transform: translateY(-3px); }
 }
 
 /* THE BODY RISES ONCE PER FOOTFALL, WHICH IS TWICE PER STRIDE — and getting
@@ -12946,21 +12998,25 @@ input, textarea { caret-color: var(--accent); }
    transition is the stoop, because it has to come back up on its own — the
    others each end when the next one starts. The whole sequence is timed in
    claude-fm.ts; these are what it looks like. */
-.fm-walker[data-act="stoop"] .fm-sprite { animation: fm-stoop 720ms ease-in-out; }
+.fm-walker[data-act="stoop"] .fm-sprite { animation: fm-stoop 720ms steps(2, end); }
 @keyframes fm-stoop {
-  0%, 100% { transform: translateY(0)   scale(1, 1); }
-  30%, 70% { transform: translateY(2px) scale(1.06, 0.86); }
+  0%, 100% { transform: translateY(0); }
+  30%, 70% { transform: translateY(3px); }
 }
 
 /* Leaning away from the throw, then into it. A character that arrives and
    tosses in one motion reads as dropping something. */
-.fm-walker[data-act="windup"] .fm-sprite { transform: rotate(-7deg); }
-.fm-walker[data-act="toss"] .fm-sprite { transform: rotate(5deg); }
+.fm-walker[data-act="windup"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="toss"] .fm-sprite { transform: translateX(3px); }
 
 /* The kick: back, then through. The wind-up above is shared with the throw;
    the follow-through is its own, further and quicker, because a kick is the
    faster of the two motions and a slow one reads as a nudge. */
-.fm-walker[data-act="kick"] .fm-sprite { transform: rotate(9deg); }
+.fm-walker[data-act="kick"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="windup"] .fm-sprite { transform: translateX(3px); }
+.fm-walker[data-facing="left"][data-act="kick"] .fm-sprite { transform: translateX(-3px); }
+.fm-walker[data-act="kick"][data-facing="left"] .fm-leg[data-side="left"] { transform: translate(-2px, -1px); }
+.fm-walker[data-act="kick"][data-facing="right"] .fm-leg[data-side="right"] { transform: translate(2px, -1px); }
 
 /* Sitting on the edge, legs over the side. The sprite drops below the line it
    stands on, which is what puts the feet over the minimap — the same pixels
@@ -12978,11 +13034,71 @@ input, textarea { caret-color: var(--accent); }
    the silhouette changes, which is the only thing a pose has to do. The squash
    goes with it, because sitting down is a body folding rather than a body being
    lowered. */
-.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(13px) scale(1.04, 0.87); }
+.fm-walker[data-act="sit"] .fm-sprite { transform: translateY(9px); }
+
+/* A rod built from grid-aligned steps; the line lowers over the minimap.
+   Keeping the seated pose through stowing prevents a jump up with gear out. */
+.fm-walker:is([data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-sprite {
+  transform: translateY(9px);
+}
+.fm-fishing {
+  position: absolute; right: 36px; bottom: -57px;
+  width: 72px; height: 96px; overflow: visible;
+  fill: none; stroke: var(--muted); stroke-width: 1;
+}
+.fm-fishing-grip { fill: var(--accent); stroke: none; }
+.fm-fishing-line { transform-origin: 8px 2px; }
+.fm-float { fill: var(--accent); stroke: none; }
+.fm-ripple { stroke: var(--accent); opacity: 0.55; }
+.fm-walker[data-act="cast"] .fm-fishing { animation: fm-unpack 900ms steps(6, end) both; }
+.fm-walker[data-act="fish"] .fm-float { animation: fm-nibble 1800ms steps(2, end) infinite; }
+.fm-walker[data-act="reel"] .fm-fishing-line { animation: fm-reel 1200ms steps(8, end) forwards; }
+.fm-walker[data-act="reel"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing-line { transform: scaleY(0.08); }
+.fm-walker[data-act="stow"] .fm-ripple { opacity: 0; }
+.fm-walker[data-act="stow"] .fm-fishing { animation: fm-pack 500ms steps(5, end) forwards; }
+@keyframes fm-unpack {
+  from { opacity: 0; transform: translate(18px, -12px); }
+  to { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes fm-pack {
+  from { opacity: 1; transform: translate(0, 0); }
+  to { opacity: 0; transform: translate(18px, -12px); }
+}
+@keyframes fm-nibble { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1px); } }
+@keyframes fm-reel { from { transform: scaleY(1); } to { transform: scaleY(0.08); } }
+
+/* Two halves of one turn: behind the head, then under the airborne feet.
+   Stepped motion keeps the rope on the same pixel grid as the character. */
+.fm-skipping-rope {
+  position: absolute; right: -12px; bottom: -6px; width: 78px; height: 78px;
+  /* The forward quarter of the turn crosses in front of the torso. */
+  z-index: 1;
+  fill: none; stroke: var(--accent); stroke-width: 1;
+}
+.fm-skip-back, .fm-skip-forward, .fm-skip-return { opacity: 0; }
+.fm-skip-handles { stroke: var(--muted); stroke-width: 2; }
+.fm-walker[data-act="skip-ready"] .fm-skipping-rope { animation: fm-unpack 500ms steps(5, end) both; }
+.fm-walker[data-act="skip-rest"] .fm-skipping-rope { animation: fm-pack 600ms steps(6, end) forwards; }
+.fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope) { animation: fm-skip-hop var(--fm-skip-beat) steps(4, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-back { animation: fm-skip-back var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-forward { animation: fm-skip-forward var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-front { animation: fm-skip-front var(--fm-skip-beat) steps(1, end) infinite; }
+.fm-walker[data-act="skip"] .fm-skip-return { animation: fm-skip-return var(--fm-skip-beat) steps(1, end) infinite; }
+@keyframes fm-skip-hop {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-3px); }
+  50% { transform: translateY(-12px); }
+  75% { transform: translateY(-6px); }
+}
+@keyframes fm-skip-back { 0% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes fm-skip-forward { 0%, 50%, 100% { opacity: 0; } 25% { opacity: 1; } }
+@keyframes fm-skip-front { 0%, 75%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes fm-skip-return { 0%, 100% { opacity: 0; } 75% { opacity: 1; } }
 
 /* Looking at the board. A small lean back, the way anybody holding something up
    to their eye stands. */
-.fm-walker[data-act="watch"] .fm-sprite { transform: rotate(-3deg); }
+.fm-walker[data-act="watch"] .fm-sprite { transform: translateX(-1px); }
 
 /* And the thing itself, out of the hand on an arc. It leaves upward and to the
    right, slows at the top the way a thrown object does, and is gone before it
@@ -12991,9 +13107,9 @@ input, textarea { caret-color: var(--accent); }
    the one second a minute it is used. */
 .fm-held[data-toss] { animation: fm-toss 620ms cubic-bezier(0.3, 0, 0.7, 1) forwards; }
 @keyframes fm-toss {
-  0%   { transform: translate(0, 0)        scale(1);    opacity: 1; }
-  55%  { transform: translate(26px, -24px) scale(0.92); opacity: 1; }
-  100% { transform: translate(46px, 4px)   scale(0.72); opacity: 0; }
+  0%   { transform: translate(0, 0); opacity: 1; }
+  55%  { transform: translate(27px, -24px); opacity: 1; }
+  100% { transform: translate(45px, 3px); opacity: 0; }
 }
 
 /* A character dancing and wandering in the corner of a monitoring tool is
@@ -13004,10 +13120,25 @@ input, textarea { caret-color: var(--accent); }
    setting rather than leaving timers running for a journey nobody sees; these
    rules are the second answer, for the case where it is turned on mid-session. */
 @media (prefers-reduced-motion: reduce) {
+  .fm-prop[data-prop="ball"][data-leaving] svg,
+  .fm-walker[data-act="scope-pack"] .fm-held,
+  .fm-walker[data-act="pull-up"] .fm-sprite,
+  .fm-rope[data-act="pull-up"] .fm-rope-line { animation: none; }
+  .fm-walker[data-act="pull-up"] { transition: none; }
+  .fm-walker:is([data-act="cast"], [data-act="stow"]) .fm-fishing,
+  .fm-walker[data-act="fish"] .fm-float,
+  .fm-walker[data-act="reel"] .fm-fishing-line,
+  .fm-walker:is([data-act="skip-ready"], [data-act="skip-rest"]) .fm-skipping-rope,
+  .fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope, .fm-skip-back, .fm-skip-front, .fm-skip-forward, .fm-skip-return) { animation: none; }
   .fm-walker, .fm-gear, .fm-eye, .fm-hat { transition: none; }
   .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
   .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
-  .fm-rope[data-act="lasso"] { animation: none; }
+  .fm-rope[data-act="lasso"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-hook,
+  .fm-rope[data-act="rope-throw"] .fm-rope-line,
+  .fm-rope[data-act="rope-catch"] .fm-rope-hook,
+  .fm-walker[data-act="climb"] .fm-grip-left,
+  .fm-walker[data-act="climb"] .fm-grip-right { animation: none; }
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"],
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"],
   .fm-walker[data-act="climb"] .fm-leg[data-side="left"],

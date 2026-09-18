@@ -18,7 +18,7 @@ import {
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
   ACTIVITIES, BALL_ROLL_PX, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
-  nextActivity, pickActivity, propSpot, sitSteps,
+  nextActivity, pickActivity, propSpot, sitSteps, fishSteps, skipSteps, SKIP_BEAT_MS, ballRollTo,
   STOOP_MS, TOSS_MS,
   tidySteps, TOSS_WINDUP_MS, walkMsFor, watchSteps, PROP_ART,
   BEAT_DRIFT, BEAT_MS, DANCE_MAX_MS, DANCE_MIN_MS, DANCES, FOCUS_ACTS,
@@ -723,7 +723,7 @@ describe("the character", () => {
   it("changes its mind only while something is playing", () => {
     // A timer running for a character standing still is a timer running for
     // nothing.
-    expect(component).toContain("if (!playing) { setDance(null); return; }");
+    expect(component).toContain("if (!playing || reducedMotion) { setDance(null); return; }");
   });
 
   it("listens to no audio, because it cannot", () => {
@@ -749,14 +749,9 @@ describe("the character", () => {
     }
   });
 
-  it("keeps its weight in both themes, which is not the same number twice", () => {
-    // 0.55 is a dark-theme number: there the accent is a bright ink on
-    // near-black and survives being halved. In light it is a dark ink on a
-    // light ground, where dimming does not make it quieter, it makes it grey —
-    // the light sprite read as a smudge on the minimap next to a dark one that
-    // read as a character.
-    expect(decl(".fm-sprite", "opacity")).toBe("0.55");
-    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBe("0.72");
+  it("stays fully visible with music off in either theme", () => {
+    expect(decl(".fm-sprite", "opacity")).toBe("1");
+    expect(decl(':root[data-theme="light"] .fm-sprite', "opacity")).toBeNull();
     // Both themes drive the same three tokens, so nothing is hard-coded to one
     // of them: the canvas shows through the eyes on either.
     expect(decl(".fm-body, .fm-leg", "fill")).toBe("var(--accent)");
@@ -785,9 +780,11 @@ describe("the character", () => {
     // everything around them, and two copies of that fact would drift.
     expect(decl(".fm-sprite", "--fm-ink")).toBe("var(--bg)");
     expect(decl(':root[data-theme="light"] .fm-sprite', "--fm-ink")).toBe("var(--text)");
-    // And the blink closes onto the body colour from whichever ink is in use.
+    expect(decl(':root[data-theme="light"] .fm-sprite', "--accent")).toBe("var(--pixel-character-body)");
+    // Blinking leaves a dark eyelid instead of erasing the face.
     const blink = /@keyframes fm-blink \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(blink).toContain("var(--fm-ink)");
+    expect(blink).toContain("scaleY(0.35)");
+    expect(blink).not.toContain("fill:");
     expect(blink).not.toContain("var(--bg)");
     expect(css).not.toMatch(/\.fm[\w-]*[^}]*#[0-9a-f]{3,6}/i);
   });
@@ -822,14 +819,13 @@ describe("the character", () => {
     expect(decl(".fm-sprite", "animation")).toBeNull();
   });
 
-  it("walks the edge in two frames, not on a curve", () => {
-    // A pixel character that eases between poses looks like a picture being
-    // tweened; one that snaps between two looks like it is taking steps. So the
-    // keyframes hold each pose for half the cycle and the timing is linear.
+  it("uses the original development walking animation", () => {
     expect(css).toContain('.fm-walker[data-act="walk"]');
     // Carrying something is still walking.
     expect(css).toContain('.fm-walker[data-act="carry"]');
-    expect(css).toMatch(/animation: fm-stride-a 440ms linear infinite/);
+    expect(decl(':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="left"]', 'animation')).toBe('fm-stride-a 440ms linear infinite');
+    expect(decl(':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-leg[data-side="right"]', 'animation')).toBe('fm-stride-b 440ms linear infinite');
+    expect(component).not.toContain('fm-walk-frames');
 
     // The curve is a compromise: pure linear starts and stops dead, a full ease
     // makes the middle race and the feet stop matching the ground. This is the
@@ -922,21 +918,25 @@ describe("the character", () => {
 
   it("looks before it steps off, and absorbs when it arrives", () => {
     // Nothing sensible jumps from a height it has not looked at.
-    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toContain("rotate(-9deg)");
+    expect(decl('.fm-walker[data-act="peer"] .fm-sprite', "transform")).toBe("translateX(-3px)");
     // A body that arrives at speed and stops dead did not land, it was placed.
     // This is the deepest squash in the block because it is the only impact.
     const land = decl('.fm-walker[data-act="land"] .fm-sprite', "transform") ?? "";
-    const [, , sy] = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(land) ?? [];
-    const sit = /scale\(([\d.]+),\s*([\d.]+)\)/.exec(
-      decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "") ?? [];
-    expect(Number(sy)).toBeLessThan(Number(sit[2]));
+    expect(land).toBe("translateY(3px)");
+    expect(component).toContain('className="fm-crouch-legs"');
   });
 
   it("always comes home, and never plans a trip it cannot measure", () => {
     const ground = { ledgeH: 152, floorSpan: 900 };
     const steps = leaveLedgeSteps(-20, ground, () => 0.5);
     expect(steps.map(s2 => s2.act)).toEqual(
-      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "climb"]);
+      ["walk", "peer", "fall", "land", "walk", "walk", "walk", "lasso", "rope-throw", "rope-catch", "climb", "pull-up"]);
+    // The character stays grounded until the hook has landed and taken weight.
+    const throwAt = steps.findIndex(step => step.act === "rope-throw");
+    expect(steps[throwAt].place).toBe("floor");
+    expect(steps[throwAt + 1].act).toBe("rope-catch");
+    expect(steps[throwAt + 1].place).toBe("floor");
+    expect(steps[throwAt + 1].ms).toBeGreaterThanOrEqual(200);
     // It ends ON THE LEDGE. Anything else strands the character on the canvas
     // floor with nothing scheduled to bring it back.
     expect(steps.at(-1)?.place).toBeUndefined();
@@ -946,7 +946,8 @@ describe("the character", () => {
     expect(steps[2].x).toBe(steps.at(-1)!.x);
     // The fall and the climb are the measured height, not a guess.
     expect(steps[2].ms).toBe(fallMsFor(152));
-    expect(steps.at(-1)!.ms).toBe(climbMsFor(152));
+    expect(steps.find(step => step.act === "climb")!.ms).toBe(climbMsFor(152));
+    expect(steps.at(-1)!.act).toBe("pull-up");
 
     // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed
     // height would drop the character through the floor or leave it hanging.
@@ -984,7 +985,7 @@ describe("the character", () => {
   it("hangs the rope from the ledge, not from the character", () => {
     // A rope that travelled with whoever was climbing it would be a rope
     // climbing itself.
-    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "climb"\) && \(/);
+    expect(component).toMatch(/\{\(act === "lasso" \|\| act === "rope-throw" \|\| act === "rope-catch" \|\| act === "climb" \|\| act === "pull-up"\) && \(/);
     const ropeAt = component.indexOf('className="fm-rope"');
     const walkerAt = component.indexOf('className="fm-walker"');
     expect(ropeAt).toBeGreaterThan(-1);
@@ -1101,13 +1102,11 @@ describe("the character", () => {
     expect(decl('.fm-walker[data-place="floor"]', "--fm-y")).toBe("calc(-1 * var(--fm-riser, 0px))");
   });
 
+
   it("takes strides rather than hopping", () => {
     // A body that rises and falls with its legs welded on is a hop. The two
     // legs run the same cycle half a beat apart, so one is always forward while
     // the other is back — which is the whole of what makes a walk a walk.
-    const walk = ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"])';
-    expect(decl(`${walk} .fm-leg[data-side="left"]`, "animation")).toBe("fm-stride-a 440ms linear infinite");
-    expect(decl(`${walk} .fm-leg[data-side="right"]`, "animation")).toBe("fm-stride-b 440ms linear infinite");
     // OPPOSITE PHASE, which is the whole point: the poses are the same two, in
     // the other order. Compared as poses rather than as lines, since the same
     // pose is written under a different percentage in each set.
@@ -1140,11 +1139,11 @@ describe("the character", () => {
   it("climbs in pulls, not as a glide", () => {
     // The rise is linear because a rope is climbed at a steady rate. Nothing
     // about the body doing it is smooth: it gathers, pulls, and reaches again.
-    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms ease-in-out infinite");
+    expect(decl('.fm-walker[data-act="climb"] .fm-sprite', "animation")).toBe("fm-haul 620ms steps(2, end) infinite");
     expect(css).toMatch(/@keyframes fm-haul/);
     // Slower than the walk — hauling your own weight is not a stroll, and the
     // cadence is most of what says so.
-    const stride = /fm-stride-a (\d+)ms linear/.exec(css)?.[1];
+    const stride = 440;
     const haul = /fm-haul (\d+)ms/.exec(css)?.[1];
     expect(Number(haul)).toBeGreaterThan(Number(stride));
     // The rise underneath it stays linear.
@@ -1199,6 +1198,67 @@ describe("the character", () => {
     expect(decl(".fm-held[data-toss]", "animation")).toMatch(/^fm-toss/);
   });
 
+  it.each([[0, -90, "left"], [-140, -30, "right"]] as const)(
+    "kicks from %s toward %s with the ball in front of the foot", (from, at, direction) => {
+      const steps = kickSteps(from, at);
+      let x = from;
+      let facing: "left" | "right" = "right";
+      for (const step of steps) {
+        facing = facingFor(step, x, facing);
+        x = step.x;
+      }
+      expect(facing).toBe(direction);
+      expect(Math.abs(x - at)).toBe(15);
+      expect(Math.sign(at - x)).toBe(direction === "right" ? 1 : -1);
+      expect(steps[0].ms).toBe(walkMsFor(from, x));
+      const end = at + ballRollTo(at, facing);
+      expect(end).toBeGreaterThanOrEqual(-WALK_SPAN_PX - 15);
+      expect(end).toBeLessThanOrEqual(15);
+    },
+  );
+
+  it("keeps ball travel inside the scene even at either edge", () => {
+    for (let at = -WALK_SPAN_PX; at <= 0; at++) {
+      for (const facing of ["left", "right"] as const) {
+        const travel = ballRollTo(at, facing);
+        expect(Math.sign(travel)).toBe(facing === "right" ? 1 : -1);
+        expect(at + travel).toBeGreaterThanOrEqual(-WALK_SPAN_PX - 15);
+        expect(at + travel).toBeLessThanOrEqual(15);
+      }
+    }
+  });
+
+  it("packs away fishing equipment before standing and walking again", () => {
+    for (const from of [-148, 0]) for (const at of [-148, -60, 0]) {
+      const steps = fishSteps(from, at, () => 0.5);
+      expect(steps.map(step => step.act)).toEqual([
+        "walk", "sit", "cast", "fish", "reel", "stow", "stand", "walk",
+      ]);
+      const seated = steps.slice(1, -1);
+      expect(seated.every(step => step.x === steps[0].x)).toBe(true);
+      expect(seated.every(step => facingFor(step, step.x, "right") === "left")).toBe(true);
+      expect(steps.every(step => step.prop === null && step.ms > 0)).toBe(true);
+      expect(steps.at(-1)?.x).toBe(0);
+      expect(steps[3].ms).toBeGreaterThanOrEqual(6000);
+      // The rod reaches 108px left of the walker's right edge, within a 202px ledge.
+      expect(steps[0].x - 108).toBeGreaterThanOrEqual(-202);
+    }
+  });
+
+  it("finishes whole rope revolutions, puts the rope away, then walks", () => {
+    for (const random of [0, 0.5, 0.999]) {
+      const steps = skipSteps(0, -148, () => random);
+      expect(steps.map(step => step.act)).toEqual([
+        "walk", "skip-ready", "skip", "skip-rest", "stand", "walk",
+      ]);
+      expect(steps[2].ms % SKIP_BEAT_MS).toBe(0);
+      expect(steps[2].ms / SKIP_BEAT_MS).toBeGreaterThanOrEqual(6);
+      expect(steps[2].ms / SKIP_BEAT_MS).toBeLessThanOrEqual(10);
+      expect(steps.slice(1, -1).every(step => step.x === steps[0].x)).toBe(true);
+      expect(steps.at(-1)?.x).toBe(0);
+    }
+  });
+
   it("sends the ball down the ledge instead of tidying it", () => {
     // The same errand with the opposite ending — and the ball never leaves the
     // floor, which is the one structural difference and why both fit one shape.
@@ -1207,28 +1267,31 @@ describe("the character", () => {
     expect(steps.every(s2 => !s2.prop?.held)).toBe(true);
     expect(steps.at(-1)?.prop?.leaving).toBe(true);
     // It stays where it was kicked from; the ball is what travels.
-    expect(steps.every(s2 => s2.x === -90)).toBe(true);
+    expect(steps.every(s2 => s2.x === -75)).toBe(true);
+    expect(steps.every(s2 => s2.prop?.at === -90)).toBe(true);
   });
 
-  it("drops far enough when sitting that the pose is not just standing lower", () => {
-    // The legs are two rows — six pixels at 3px a cell — so a drop shorter than
-    // their own height leaves them straddling the ledge line and the whole thing
-    // reads as the character standing slightly lower. Seven did exactly that.
+  it("places the hips on the ledge with a separate seated silhouette", () => {
     const drop = Number(/translateY\((\d+)px\)/.exec(
       decl('.fm-walker[data-act="sit"] .fm-sprite', "transform") ?? "")?.[1]);
     // Counted off the sprite, not assumed: the legs got a row longer once
     // already and this number had to move with them.
     const legRows = SPRITE.length - LEG_TOP_ROW;
     const legHeight = legRows * (54 / SPRITE_W);
-    expect(drop).toBeGreaterThan(legHeight);
-    // And it folds rather than being lowered.
-    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).toContain("scale(1.04, 0.87)");
+    expect(drop).toBe(legHeight);
+    // A separately drawn bent-knee silhouette replaces the standing legs.
+    expect(component).toContain('className="fm-seated-legs"');
+    // Straight, two-cell shins and flat toes, with the near foot one row lower.
+    expect(component).toContain('d="M10 10H12V11H11V14H8V13H9V11H10Z"');
+    expect(component).toContain('d="M6 10H9V11H7V15H4V14H5V11H6Z"');
+    expect(component).toContain('className="fm-seated-far"');
+    expect(decl('.fm-walker[data-act="sit"] .fm-sprite', "transform")).not.toContain("scale");
   });
 
   it("walks somewhere before it sits, and sits for a while", () => {
     // Sitting down on the spot it is already standing on reads as falling over.
     const steps = sitSteps(-10, -80, () => 0.5);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "sit", "stand"]);
     expect(steps[0].ms).toBe(walkMsFor(-10, -80));
     expect(steps[1].ms).toBeGreaterThan(steps[0].ms);
     expect(steps[1].prop).toBeNull();
@@ -1237,7 +1300,9 @@ describe("the character", () => {
   it("takes out a scope and looks at the board", () => {
     // The one activity that is ABOUT the canvas rather than about the ledge.
     const steps = watchSteps(0, -60, () => 0.5);
-    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch"]);
+    expect(steps.map(s2 => s2.act)).toEqual(["walk", "watch", "scope-pack", "stand"]);
+    expect(steps[2].prop).toEqual(steps[1].prop);
+    expect(steps[3].prop).toBeNull();
     expect(steps[1].prop?.kind).toBe("scope");
     expect(steps[1].prop?.held).toBe(true);
     // Held at the eyes and pointed away from the minimap, or the pose reads as
@@ -1249,7 +1314,12 @@ describe("the character", () => {
     const eyeRow = SPRITE.findIndex(r => r.includes("e"));
     const eyeFromFloor = (SPRITE_H - 1 - eyeRow) * CELL;
     const scopeBottom = parseFloat(decl('.fm-held[data-prop="scope"]', "bottom") ?? "");
-    const scopeH = PROP_ART.scope.length * CELL;
+    const scopeCell = parseFloat(decl('.fm-held[data-prop="scope"]', "width") ?? "") / PROP_ART.scope[0].length;
+    const scopeH = PROP_ART.scope.length * scopeCell;
+    expect(scopeBottom).toBe(0);
+    // Eyepiece rows 9–10, not merely the whole image, must meet the eye.
+    expect(scopeH - 11 * scopeCell).toBeLessThanOrEqual(eyeFromFloor);
+    expect(scopeH - 9 * scopeCell).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(scopeBottom).toBeLessThanOrEqual(eyeFromFloor);
     expect(scopeBottom + scopeH).toBeGreaterThanOrEqual(eyeFromFloor + CELL);
     expect(decl(".fm-held", "bottom")).toBe("3px");
@@ -1265,17 +1335,24 @@ describe("the character", () => {
     expect(farEnd).toBeLessThan(7 * CELL);     // and stops short of the eye
   });
 
-  it("gives every prop art, and no prop a recognisable identity", () => {
+  it("gives every prop rectangular pixel art with a supported palette", () => {
     for (const kind of ["litter", "ball", "scope"] as const) {
       const art = PROP_ART[kind];
       expect(art.length).toBeGreaterThan(1);
       const w = art[0].length;
       for (const row of art) expect(row).toHaveLength(w);
-      for (const row of art) expect(row).toMatch(/^[.x]+$/);
+      for (const row of art) expect(row).toMatch(/^[.xsla]+$/);
     }
     // A character tidying away an identifiable thing invites the question of
     // what it was, and the answer is nothing.
     expect(PROP_ART.litter).not.toEqual(PROP_ART.ball);
+  });
+
+  it("keeps the telescope silver instead of inverting its barrel with theme text", () => {
+    const scope = '.fm-held[data-prop="scope"]';
+    expect(decl(scope, "--fm-prop-light")).toBe("var(--pixel-metal-light)");
+    expect(decl(scope, "--fm-prop-shadow")).toBe("var(--pixel-metal-shadow)");
+    expect(decl(`${scope} svg`, "fill")).toBe("var(--pixel-metal-edge)");
   });
 
   it("moves the headphones with the body when they are not on the head", () => {
@@ -1310,7 +1387,7 @@ describe("the character", () => {
     // character that had just kicked it.
     expect(css).toContain("var(--fm-roll-to, -132px)");
     expect(css).not.toMatch(/- 21px - 132px/);
-    expect(component).toContain('facing === "right" ? `${BALL_ROLL_PX}px` : `${-BALL_ROLL_PX}px`');
+    expect(component).toContain('ballRollTo(prop.at, facing)');
     expect(BALL_ROLL_PX).toBe(132);
   });
 
