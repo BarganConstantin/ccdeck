@@ -34,5 +34,7 @@ describe("character appearance preference", () => {
     expect(menu).toContain('role="radio"');
     expect(menu).toContain('role="switch"');
     expect(menu).toContain('addEventListener("pointerdown", onDown, true)');
+    expect(menu).toContain("onKeyDown={moveTheme}");
+    expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
 });

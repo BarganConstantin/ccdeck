@@ -1,6 +1,8 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 import type { Theme } from "../theme";
 import { useModalDismiss } from "./use-modal-dismiss";
+
+const THEMES: Theme[] = ["light", "dark"];
 
 interface Props {
   theme: Theme;
@@ -28,12 +30,21 @@ export default function AppearanceMenu({
     return () => window.removeEventListener("pointerdown", onDown, true);
   }, [dialogRef, openerRef]);
 
+  const moveTheme = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))) return;
+    event.preventDefault();
+    const current = THEMES.indexOf(theme);
+    const next = (current + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1) + THEMES.length) % THEMES.length;
+    onTheme(THEMES[next]);
+    (event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next])?.focus();
+  };
+
   return (
     <div ref={dialogRef} id="appearance-menu" className="appearance-menu" role="dialog" aria-label="Appearance settings">
       <section aria-labelledby="appearance-theme-label">
         <h2 id="appearance-theme-label" className="appearance-label">Theme</h2>
-        <div className="appearance-choices" role="radiogroup" aria-labelledby="appearance-theme-label">
-          {(["light", "dark"] as Theme[]).map(choice => (
+        <div className="appearance-choices" role="radiogroup" aria-labelledby="appearance-theme-label" onKeyDown={moveTheme}>
+          {THEMES.map(choice => (
             <button
               key={choice}
               type="button"
