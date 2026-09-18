@@ -45,6 +45,12 @@
     "3.23.3",
     "3.23.4"
   ],
+  "3.24.1": [
+    {
+      "title": "🎛️ Appearance is one small menu now",
+      "body": "The topbar's appearance control opens a compact menu where you can choose Light or Dark and show or hide the character. The character stays on by default, and your choice is remembered."
+    }
+  ],
   "3.24.0": [
     {
       "title": "🎧 Claude FM plays from the minimap",
