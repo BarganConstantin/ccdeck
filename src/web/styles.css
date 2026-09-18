@@ -982,13 +982,15 @@ button:focus-visible { outline-offset: 1px; }
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  transition: border-color 120ms, background 140ms ease, color 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .appearance-choice[aria-checked="true"] {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, var(--ctl-fill));
+  background: var(--ctl-fill);
   color: var(--text);
 }
 .appearance-choice:hover { border-color: var(--text); color: var(--text); }
+.appearance-choice:active { transform: scale(0.97); }
 .appearance-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .appearance-divider { height: 1px; margin: 12px 0; background: var(--line); }
 .appearance-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -9555,6 +9557,8 @@ button.qb-pace::after {
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
   .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
+  .appearance-choice { transition: none; }
+  .appearance-choice:active { transform: none; }
 }
 
 

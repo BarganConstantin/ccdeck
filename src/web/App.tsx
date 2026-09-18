@@ -1326,6 +1326,7 @@ function Inner() {
   const soundButtonRef = useRef<HTMLButtonElement | null>(null);
   const [appearanceMenuOpen, setAppearanceMenuOpen] = useState(false);
   const appearanceButtonRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { if (soundMenuOpen) setAppearanceMenuOpen(false); }, [soundMenuOpen]);
 
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
@@ -4642,7 +4643,10 @@ function Inner() {
               <button
                 ref={appearanceButtonRef}
                 className="btn icon-btn"
-                onClick={() => setAppearanceMenuOpen(open => !open)}
+                onClick={() => {
+                  setSoundMenuOpen(false);
+                  setAppearanceMenuOpen(open => !open);
+                }}
                 title="Appearance settings"
                 aria-label={`Appearance settings, ${theme} theme, character ${characterEnabled ? "shown" : "hidden"}`}
                 aria-haspopup="dialog"

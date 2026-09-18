@@ -551,6 +551,7 @@ const CONTROLS: Control[] = [
   // and on the version banner, the two kinds of surface a switch sits on.
   { at: ".switch", states: [".switch:hover:not(:disabled)", '.switch[aria-checked="true"]'],
     beds: ["--panel", ...BANNER] },
+  { at: ".appearance-choice", states: [".appearance-choice:hover", '.appearance-choice[aria-checked="true"]'], beds: TOPBAR },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
@@ -732,6 +733,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ap-field select:focus-visible",
       ".ap-lan-word:focus-visible",
       ".ap-manage-input:focus-visible",
+      ".appearance-choice:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
       ".react-flow__node:focus-visible .agent-node",

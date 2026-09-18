@@ -310,6 +310,7 @@ const PRESSES: Press[] = [
   // version banner's. 0.97 rather than 0.94: the knob travels 12px inside a
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
+  [".appearance-choice:active", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
