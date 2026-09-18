@@ -38,7 +38,7 @@
 // added to the page. Every message that comes back is checked against the
 // player's origin before it is read — see the handler.
 import {
-  forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState,
+  forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState,
   type CSSProperties,
 } from "react";
 import {
@@ -51,6 +51,7 @@ import {
   type Act, type Dance, type Facing, type Ground, type Obstacle, type Place,
   type Prop, type Step,
 } from "../claude-fm";
+import { createSceneTimer } from "../claude-fm-runtime";
 
 /** What the deck's own sounds need from this: a way to get out of their way.
  *  App holds the ref and calls `duck` as it plays a chime. */
@@ -90,14 +91,32 @@ const CELL_CLASS: Record<string, string | undefined> = {
 };
 
 
-export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
+const BODY_RECTS = spriteRects().filter(r => !GEAR_CELLS.has(r.cell));
+const GEAR_RECTS = spriteRects().filter(r => GEAR_CELLS.has(r.cell));
+const EYE_RECTS = BODY_RECTS.filter(r => r.cell === "e");
+const HAT_RECTS = spriteRects(HAT);
+const TORSO_RECTS = BODY_RECTS.filter(r => r.y < LEG_TOP_ROW && r.cell !== "e")
+  .map(r => {
+    if (r.y !== 8 && r.y !== 9) return r;
+    const x = Math.max(6, r.x);
+    return { ...r, x, w: Math.max(0, Math.min(12, r.x + r.w) - x) };
+  }).filter(r => r.w > 0);
+const LEG_RECTS = {
+  left: BODY_RECTS.filter(r => r.y >= LEG_TOP_ROW && r.x < LEG_SPLIT_COL),
+  right: BODY_RECTS.filter(r => r.y >= LEG_TOP_ROW && r.x >= LEG_SPLIT_COL),
+};
+const PROP_PIXELS = {
+  litter: pixels(PROP_ART.litter, "litter"),
+  ball: pixels(PROP_ART.ball, "ball"),
+  scope: pixels(PROP_ART.scope, "scope"),
+};
+
+export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
   function ClaudeFm({ fetchImpl }, ref) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
-    /** Whether the iframe exists at all. Separate from `playing`, because a
-     *  pause keeps the player loaded and a second press should resume rather
-     *  than reload a live stream from the top. */
+    /** Buffering keeps the iframe mounted; an explicit stop releases it. */
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
 
@@ -123,6 +142,31 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
      *  top of something sitting on the canvas floor. */
     const [riser, setRiser] = useState(0);
     const scene = useRef<HTMLDivElement | null>(null);
+    const [suspended, setSuspended] = useState(() => document.hidden);
+    useEffect(() => {
+      const paused = new Set<Animation>();
+      const changed = () => {
+        if (document.hidden) {
+          for (const animation of scene.current?.getAnimations({ subtree: true }) ?? []) {
+            if (animation.playState === "running" || animation.pending) {
+              const time = animation.currentTime;
+              animation.pause();
+              if (time !== null) animation.currentTime = time;
+              paused.add(animation);
+            }
+          }
+        } else {
+          for (const animation of paused) {
+            if (animation.playState === "paused") animation.play();
+          }
+          paused.clear();
+        }
+        setSuspended(document.hidden);
+      };
+      changed();
+      document.addEventListener("visibilitychange", changed);
+      return () => document.removeEventListener("visibilitychange", changed);
+    }, [probe, dead]);
     /** Which of the three dances, and at what tempo. Changed every ten seconds
      *  or so while the music is on — one loop repeated forever reads as a GIF
      *  rather than as a character. */
@@ -172,6 +216,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       if (!armed) return;
       const onMessage = (e: MessageEvent) => {
         if (e.origin !== PLAYER_ORIGIN) return;
+        if (e.source !== frame.current?.contentWindow) return;
         const signal = readSignal(e.data);
         if (!signal) return;
         // AUTOPLAY IS ASKED FOR TWICE, because once is not reliable. The src
@@ -216,7 +261,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       if (!probe || dead) return;
       if (reducedMotion) return;
 
-      let timer: ReturnType<typeof setTimeout> | null = null;
+      const timer = createSceneTimer(document);
       let here = 0;
       setX(now => (here = now));
 
@@ -250,7 +295,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
         setFacing(was => facingFor({ ...step, x: to }, from, was));
         setX(to);
         here = to;
-        timer = setTimeout(() => run(rest), duration);
+        timer.schedule(() => run(rest), duration);
       };
 
       /**
@@ -343,7 +388,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       };
 
       const idle = () => {
-        timer = setTimeout(() => {
+        timer.schedule(() => {
           const plan = nextActivity(here, Math.random, ground());
           // A walk along the floor goes OVER whatever is standing on it. Every
           // other step is left exactly as planned — only floor walks can meet
@@ -367,7 +412,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
       idle();
       return () => {
-        if (timer) clearTimeout(timer);
+        timer.dispose();
         // Whatever it was in the middle of, it is not any more — and if that
         // was a trip, it must not be left standing on the canvas floor with
         // nothing scheduled to bring it home.
@@ -388,15 +433,15 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     // a timer running for nothing.
     useEffect(() => {
       if (!playing || reducedMotion) { setDance(null); return; }
-      let timer: ReturnType<typeof setTimeout> | null = null;
+      const timer = createSceneTimer(document);
       const pick = (from: Dance | null) => {
         const next = nextDance(from, Math.random);
         setDance(next.dance);
         setBeatMs(next.beatMs);
-        timer = setTimeout(() => pick(next.dance), nextDanceMs(Math.random));
+        timer.schedule(() => pick(next.dance), nextDanceMs(Math.random));
       };
       pick(null);
-      return () => { if (timer) clearTimeout(timer); };
+      return () => timer.dispose();
     }, [playing, reducedMotion]);
 
     useImperativeHandle(ref, () => ({
@@ -413,15 +458,6 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
 
     if (!probe || dead) return null;
 
-    /** Everything that is not headphones, split below into torso and legs. */
-    const body = spriteRects().filter(r => !GEAR_CELLS.has(r.cell));
-    const torso = body.filter(r => r.y < LEG_TOP_ROW && r.cell !== "e")
-      .map(r => {
-        if (r.y !== 8 && r.y !== 9) return r;
-        const x = Math.max(6, r.x);
-        return { ...r, x, w: Math.max(0, Math.min(12, r.x + r.w) - x) };
-      }).filter(r => r.w > 0);
-
     const press = () => {
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
@@ -430,12 +466,18 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       const next = !playing;
       setPlaying(next);
       say(command(next ? "playVideo" : "pauseVideo"));
+      if (!next) {
+        setArmed(false);
+        if (duckTimer.current) clearTimeout(duckTimer.current);
+        duckTimer.current = null;
+      }
     };
 
     return (
       <div
         ref={scene}
         className="fm"
+        data-suspended={suspended ? "" : undefined}
         data-place={place}
         style={{ "--fm-beat": `${beatMs}ms` } as CSSProperties}
       >
@@ -454,7 +496,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
               "--fm-ball-turn": facing === "right" ? "1080deg" : "-1080deg",
             } as CSSProperties}
           >
-            {pixels(PROP_ART[prop.kind], "p")}
+            {PROP_PIXELS[prop.kind]}
           </div>
         )}
         {/* THE ROPE IS NOT INSIDE THE WALKER, and it cannot be: it is fixed to
@@ -494,7 +536,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             so the throw has something to animate. */}
         {prop?.held && (
           <div className="fm-held" data-prop={prop.kind} data-toss={prop.leaving ? "" : undefined}>
-            {pixels(PROP_ART[prop.kind], "h")}
+            {PROP_PIXELS[prop.kind]}
           </div>
         )}
         {(["cast", "fish", "reel", "stow"] as (Act | null)[]).includes(act) && (
@@ -551,7 +593,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 to be hidden, because nothing was ever in front. */}
             <g className="fm-gear">
               <g className="fm-gear-motion">
-                {spriteRects().filter(r => GEAR_CELLS.has(r.cell)).map(r => (
+                {GEAR_RECTS.map(r => (
                   <rect
                     key={`g${r.y}-${r.x}`}
                     x={r.x} y={r.y} width={r.w} height={1}
@@ -571,10 +613,10 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             <g className="fm-body">
               {/* Fill the original eye cells before pupils move or blink.
                   Otherwise their old positions become holes showing the canvas. */}
-              {body.filter(r => r.cell === "e").map(r => (
+              {EYE_RECTS.map(r => (
                 <rect key={`eye-bed-${r.x}`} x={r.x} y={r.y} width={r.w} height={1} fill="var(--accent)" />
               ))}
-              {torso.map(r => (
+              {TORSO_RECTS.map(r => (
                 <rect
                   key={`b${r.y}-${r.x}`}
                   x={r.x} y={r.y} width={r.w} height={1}
@@ -591,7 +633,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
               </g>
               {/* Pupils paint last: looking right must not slide them beneath
                   the next body/shadow rectangle in SVG paint order. */}
-              {body.filter(r => r.cell === "e").map(r => (
+              {EYE_RECTS.map(r => (
                 <rect key={`eye-${r.x}`}
                   x={r.x - (r.x >= SPRITE_W / 2 ? 1 : 0) + (facing === "right" ? 1 : 0)}
                   y={r.y} width={r.w} height={1} className="fm-eye" />
@@ -602,7 +644,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
                 hide behind the head; a hat has to do the opposite — the brim
                 sits over the forehead, so it has to be painted on top of it. */}
             <g className="fm-hat">
-              {spriteRects(HAT).map(r => (
+              {HAT_RECTS.map(r => (
                 <rect
                   key={`h${r.y}-${r.x}`}
                   x={HAT_X + r.x} y={HAT_Y + r.y} width={r.w} height={1}
@@ -630,10 +672,7 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
             )}
             {(["left", "right"] as const).map(side => (
               <g key={side} className="fm-leg" data-side={side}>
-                {body
-                  .filter(r => r.y >= LEG_TOP_ROW)
-                  .filter(r => (side === "left" ? r.x < LEG_SPLIT_COL : r.x >= LEG_SPLIT_COL))
-                  .map(r => (
+                {LEG_RECTS[side].map(r => (
                     <rect
                       key={`${side}${r.y}-${r.x}`}
                       x={r.x} y={r.y} width={r.w} height={1}
@@ -669,4 +708,4 @@ export default forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       </div>
     );
   },
-);
+));

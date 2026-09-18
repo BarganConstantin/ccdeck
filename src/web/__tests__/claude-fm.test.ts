@@ -379,6 +379,29 @@ describe("absent, not broken", () => {
     expect(component).not.toContain("sessionStorage");
   });
 
+  it("releases the player on explicit stop and rejects messages from old frames", () => {
+    expect(component).toContain('if (e.source !== frame.current?.contentWindow) return;');
+    expect(component).toMatch(/if \(!next\) \{\s*setArmed\(false\);/);
+    expect(component).toContain('duckTimer.current = null;');
+  });
+
+  it("caches pixel geometry outside the memoized component", () => {
+    const start = component.indexOf('export default memo(forwardRef');
+    expect(start).toBeGreaterThan(0);
+    expect(component.indexOf('const TORSO_RECTS')).toBeLessThan(start);
+    expect(component.indexOf('const PROP_PIXELS')).toBeLessThan(start);
+    expect(component.slice(start)).not.toContain('spriteRects(');
+  });
+
+  it("pauses scene timers and visual animations without stopping music", () => {
+    expect(component).toContain('createSceneTimer(document)');
+    expect(component).toContain('timer.dispose()');
+    expect(component).toContain('data-suspended={suspended ? "" : undefined}');
+    expect(component).toContain('animation.pause()');
+    expect(component).toContain('animation.play()');
+    expect(css).toMatch(/\.fm\.fm\[data-suspended\][\s\S]*?animation-play-state:\s*paused/);
+  });
+
   it("lets a deck refuse to contact YouTube at all", () => {
     expect(server).toContain('process.env.AGENTS_DECK_NO_MUSIC === "1"');
     // The off switch answers the same shape an off-air channel does, so it
@@ -1443,7 +1466,8 @@ describe("the character", () => {
       '.fm-walker:not([data-act]) .fm-sprite[data-playing][data-dance="groove"] .fm-gear-motion',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body',
       ':is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion',
-      '.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion, .fm-arms)',
+      '.fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion)',
+      '.fm-walker[data-act="stoop"] .fm-arms',
       ".fm-prop",
       ".fm-held[data-toss]",
       ".fm-eye",

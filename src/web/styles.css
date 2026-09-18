@@ -13139,11 +13139,14 @@ input, textarea { caret-color: var(--accent); }
   .fm-walker[data-act="pull-up"] .fm-sprite,
   .fm-rope[data-act="pull-up"] .fm-rope-line { animation: none; }
   .fm-walker[data-act="pull-up"] { transition: none; }
-  .fm-walker:is([data-act="cast"], [data-act="stow"]) .fm-fishing,
+  .fm-walker[data-act="cast"] .fm-fishing,
+  .fm-walker[data-act="stow"] .fm-fishing,
   .fm-walker[data-act="fish"] .fm-float,
   .fm-walker[data-act="reel"] .fm-fishing-line,
-  .fm-walker:is([data-act="skip-ready"], [data-act="skip-rest"]) .fm-skipping-rope,
-  .fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope, .fm-skip-back, .fm-skip-front, .fm-skip-forward, .fm-skip-return) { animation: none; }
+  .fm-walker[data-act="skip-ready"] .fm-skipping-rope,
+  .fm-walker[data-act="skip-rest"] .fm-skipping-rope,
+  .fm-walker[data-act="skip"] :is(.fm-sprite, .fm-skipping-rope),
+  .fm-walker[data-act="skip"] :is(.fm-skip-back, .fm-skip-front, .fm-skip-forward, .fm-skip-return) { animation: none; }
   .fm-walker, .fm-gear, .fm-eye, .fm-hat, .fm-arms { transition: none; }
   .fm-walker[data-act="fall"], .fm-walker[data-act="climb"],
   .fm-walker[data-act="mount"], .fm-walker[data-act="dismount"] { transition: none; }
@@ -13169,10 +13172,21 @@ input, textarea { caret-color: var(--accent); }
   .fm-held,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-body,
   :is(.fm-walker[data-act="walk"], .fm-walker[data-act="carry"]) .fm-gear-motion,
-  .fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion, .fm-arms),
+  .fm-walker[data-act="stoop"] :is(.fm-body, .fm-hat, .fm-gear-motion),
+  .fm-walker[data-act="stoop"] .fm-arms,
   .fm-held[data-toss],
   .fm-eye { animation: none; }
   .fm-sprite:active { transform: none; }
+}
+
+/* This comes after every animation shorthand. Shorthands reset
+   animation-play-state, so the paused-tab override must be last. */
+.fm.fm[data-suspended] :is(.fm-walker, .fm-prop, .fm-sprite, .fm-gear,
+  .fm-gear-motion, .fm-body, .fm-leg, .fm-hat, .fm-eye, .fm-arms, .fm-held,
+  .fm-fishing, .fm-float, .fm-fishing-line, .fm-skipping-rope, .fm-skip-back,
+  .fm-skip-front, .fm-skip-forward, .fm-skip-return, .fm-rope, .fm-rope-hook,
+  .fm-rope-line, .fm-grip, .fm-grip-left, .fm-grip-right) {
+  animation-play-state: paused;
 }
 
 /* THE PLAYER. Off-screen at a real size rather than shrunk to a pixel or hidden
