@@ -2,8 +2,7 @@
 //
 // Everything here is pure and runs under node, because the parts of this
 // feature worth getting wrong are all arithmetic and string-building — what URL
-// the iframe gets, what a player message means, how long to duck for — and none
-// of them need a DOM to be checked. The component next door (components/
+// the iframe gets, what a player message means — and none of them need a DOM to be checked. The component next door (components/
 // ClaudeFm.tsx) is the part that cannot be, and it is deliberately thin.
 //
 // WHAT PLAYS is decided by the server (src/server/claude-fm.mjs): it asks
@@ -135,33 +134,6 @@ export function readSignal(raw: unknown): FmSignal | null {
     return { kind: "playing", playing: false };
   }
   return null;
-}
-
-/** Full volume, and the volume the music drops to while the deck is making a
- *  sound of its own. Not mute: the music going silent and coming back is more
- *  noticeable than the music getting quieter, and the point of ducking is to
- *  make the chime audible, not to interrupt the track. */
-export const FULL_VOLUME = 100;
-export const DUCK_VOLUME = 18;
-
-/** The tail added to a chime's own length before the music comes back up.
- *  A chime ends on a 12ms release into a room, and restoring the instant the
- *  last oscillator stops steps on it. */
-export const DUCK_TAIL_MS = 260;
-
-/**
- * How long to hold the music down for one chime.
- *
- * Derived from the figure that is about to play rather than a constant, because
- * the sound menu lets a user pick figures of quite different lengths and a
- * fixed number would either clip the long ones or leave the music quiet after
- * the short ones. Takes the notes' own schedule — `at` is an offset in seconds
- * from the start and `ms` the note's length — and finds the last moment any of
- * them is still sounding.
- */
-export function duckMsFor(notes: readonly { at: number; ms: number }[]): number {
-  const end = notes.reduce((last, n) => Math.max(last, n.at * 1000 + n.ms), 0);
-  return Math.round(end) + DUCK_TAIL_MS;
 }
 
 /**

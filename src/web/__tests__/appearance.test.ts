@@ -23,7 +23,7 @@ describe("character appearance preference", () => {
     const app = read("App.tsx");
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
-    expect(app).toContain("{characterEnabled && <ClaudeFm ref={fmRef} />}");
+    expect(app).toContain("{characterEnabled && <ClaudeFm />}");
   });
 
   it("uses a dismissible, accessible popover for the two appearance settings", () => {

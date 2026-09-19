@@ -38,11 +38,11 @@
 // added to the page. Every message that comes back is checked against the
 // player's origin before it is read — see the handler.
 import {
-  forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState,
+  memo, useCallback, useEffect, useRef, useState,
   type CSSProperties,
 } from "react";
 import {
-  command, embedSrc, FATAL_ERRORS, FULL_VOLUME, DUCK_VOLUME, GEAR_CELLS,
+  command, embedSrc, FATAL_ERRORS, GEAR_CELLS,
   listenCommand, nextActivity, nextIdleMs, PLAYER_ORIGIN, PROP_ART, readSignal,
   spriteRects, SPRITE_H, SPRITE_W,
   ballRollTo, BALL_FLIGHT_MS, BEAT_MS, crossSteps, DANCES, facingFor, HAT, HAT_X, HAT_Y, SKIP_BEAT_MS,
@@ -52,14 +52,6 @@ import {
   type Prop, type Step,
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
-
-/** What the deck's own sounds need from this: a way to get out of their way.
- *  App holds the ref and calls `duck` as it plays a chime. */
-export interface ClaudeFmHandle {
-  /** Drop the music for `ms`, then bring it back. Safe to call when nothing is
-   *  playing, which is most of the time. */
-  duck: (ms: number) => void;
-}
 
 interface Probe { live: boolean; channel: string }
 
@@ -111,8 +103,8 @@ const PROP_PIXELS = {
   scope: pixels(PROP_ART.scope, "scope"),
 };
 
-export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
-  function ClaudeFm({ fetchImpl }, ref) {
+export default memo(
+  function ClaudeFm({ fetchImpl }: { fetchImpl?: typeof fetch }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
@@ -185,7 +177,6 @@ export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
     }, []);
 
     const frame = useRef<HTMLIFrameElement | null>(null);
-    const duckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     /** One place that talks to the player, so every send is origin-targeted
      *  rather than `"*"` — a wildcard target posts the message to whatever
@@ -239,8 +230,6 @@ export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       window.addEventListener("message", onMessage);
       return () => window.removeEventListener("message", onMessage);
     }, [armed, say]);
-
-    useEffect(() => () => { if (duckTimer.current) clearTimeout(duckTimer.current); }, []);
 
     // WHAT IT DOES WITH ITSELF. A rest, then an activity, then
     // long stillness again — see claude-fm.ts for why the restraint is the
@@ -444,18 +433,6 @@ export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       return () => timer.dispose();
     }, [playing, reducedMotion]);
 
-    useImperativeHandle(ref, () => ({
-      duck(ms: number) {
-        if (!playing) return;
-        if (duckTimer.current) clearTimeout(duckTimer.current);
-        say(command("setVolume", [DUCK_VOLUME]));
-        duckTimer.current = setTimeout(() => {
-          say(command("setVolume", [FULL_VOLUME]));
-          duckTimer.current = null;
-        }, ms);
-      },
-    }), [playing, say]);
-
     if (!probe || dead) return null;
 
     const press = () => {
@@ -466,11 +443,7 @@ export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       const next = !playing;
       setPlaying(next);
       say(command(next ? "playVideo" : "pauseVideo"));
-      if (!next) {
-        setArmed(false);
-        if (duckTimer.current) clearTimeout(duckTimer.current);
-        duckTimer.current = null;
-      }
+      if (!next) setArmed(false);
     };
 
     return (
@@ -708,4 +681,4 @@ export default memo(forwardRef<ClaudeFmHandle, { fetchImpl?: typeof fetch }>(
       </div>
     );
   },
-));
+);
