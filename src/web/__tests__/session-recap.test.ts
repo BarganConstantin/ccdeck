@@ -354,10 +354,12 @@ describe("where it is drawn", () => {
   });
 
   it("keeps the pin at every zoom tier, and grows the card by nothing", () => {
-    expect(SHEET).not.toMatch(/data-detail="(mid|far)"\][^{]*\.recap-pin/);
+    expect(SHEET).not.toMatch(/data-lod="(compact|overview)"\][^{]*\.recap-pin/);
     expect(SHEET).not.toMatch(/\.agent-node \.recap-row/);
-    // The note waits out the far tier, where the card beside it is a title.
-    expect(body('.canvas-wrap[data-detail="far"] .recap-note')).toMatch(/visibility: hidden;/);
+    // The note waits out both distances, where the card beside it is a face.
+    const hidden = body('.canvas-wrap[data-lod="compact"] .recap-note-age');
+    expect(hidden).toMatch(/visibility: hidden;/);
+    expect(SHEET).toContain('.canvas-wrap[data-lod="overview"] .recap-note-text');
   });
 
   it("arrives without motion", () => {
@@ -374,9 +376,9 @@ describe("the session header's name, at the zoom where the card already says it"
       .toContain('{c.name ? <span className="cluster-label-name">{SEP + c.name}</span> : null}');
   });
 
-  it("is hidden at the full tier only", () => {
-    expect(SHEET).toMatch(/\.canvas-wrap\[data-detail="full"\] \.cluster-label-name \{\s*display: none;\s*\}/);
-    expect(SHEET).not.toMatch(/\.canvas-wrap\[data-detail="(mid|far)"\] \.cluster-label-name/);
+  it("is hidden at the detail tier only", () => {
+    expect(SHEET).toMatch(/\.canvas-wrap\[data-lod="detail"\] \.cluster-label-name \{\s*display: none;\s*\}/);
+    expect(SHEET).not.toMatch(/\.canvas-wrap\[data-lod="(compact|overview)"\] \.cluster-label-name/);
   });
 });
 

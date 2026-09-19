@@ -83,8 +83,12 @@ import { restoreLayout, type StoredLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
-import { fitViewDuration, shouldAnimateViewport } from "./viewport-motion";
+import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
+import { nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { branchSummaries, type BranchSummary } from "./node-face";
+import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
+import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { fmtCost, fmtCostRate } from "./pricing";
 // The topbar strip, the burn ticker, the selected-session ribbon and the detail
 // panel all multiply usage by a price, and all four used to multiply a whole
@@ -247,24 +251,6 @@ const BUBBLE_MS = 420;
 // Padding of the invisible session drag-handle node. Matches SessionClusters'
 // PAD so the handle lines up with the card's body (the card's header strip is
 // left uncovered so its label stays clickable).
-/** The three distances a card is read from.
- *
- *  `full` is where every tier on the card is legible. `mid` drops the 9-10px
- *  annotations, which are the first to go illegible and the last anybody needs
- *  at a distance. `far` keeps only what a graph is for at overview: which
- *  session, what state, and the shape of the tree.
- *
- *  The thresholds are where the SMALLEST tier in each group stops resolving.
- *  The sheet's floor is 9px, so at 0.55 that tier draws at 5px and at 0.35 the
- *  11px body draws at under 4 — both past the point where the glyphs carry
- *  anything, and both well inside React Flow's 0.2 minimum. */
-type ZoomDetail = "full" | "mid" | "far";
-function zoomDetail(zoom: number): ZoomDetail {
-  if (zoom < 0.35) return "far";
-  if (zoom < 0.55) return "mid";
-  return "full";
-}
-
 const GROUP_PAD = 18;
 
 const AGENT_CAP = 200;
@@ -278,6 +264,9 @@ const DONE_SESSION_GRACE_MS = 2 * 60_000;
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
 const OPENING_FIT_MS = 400;
+/** How long a focus takes to arrive (focusAgent): the fit's own pace, a little
+ *  quicker, because the reader asked for this one and is waiting on it. */
+const FOCUS_MS = 450;
 const LAYOUT_STORAGE_KEY = "agent-dag.layout";
 /** The frame the stored layout was packed into columns for — see #995. */
 const LAYOUT_FRAME_KEY = "agent-dag.layoutFrame";
@@ -664,7 +653,9 @@ const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
  *  purely so the call sites below read the way they always have. */
 const detailCategoryFor = categoryFor;
 
-type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void };
+/** `branch` is on a root only, and only while it has subagents on the canvas:
+ *  what they add up to, for the faces too small to show them one by one. */
+type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
 
 /**
  * Node data that keeps its identity while the board has not changed (#873).
@@ -681,19 +672,23 @@ const NODE_DATA = new WeakMap<GraphState, {
   revision: number;
   open: (sessionId: string) => void;
   byId: Map<string, FlowNodeData>;
+  /** The branch summaries, counted once per revision — a pass over the board
+   *  that every root's copy reads, rather than one pass per root. */
+  branches: Map<string, BranchSummary>;
 }>();
 
 function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
   let entry = NODE_DATA.get(state);
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map() };
+    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()) };
     NODE_DATA.set(state, entry);
   }
-  const { byId } = entry;
+  const { byId, branches } = entry;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
-      d = { ...a, onOpenContext };
+      const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
+      d = branch ? { ...a, onOpenContext, branch } : { ...a, onOpenContext };
       byId.set(a.id, d);
     }
     return d;
@@ -822,7 +817,12 @@ function snapshotToFlow(
         // media query drops the stroke-width half and keeps the opacity fade,
         // and it costs this component nothing: no hook, no listener, and no
         // re-render of the canvas when the preference changes.
-        style: { "--session-hue": hue, strokeWidth: selectedWidth, opacity: effectiveOpacity, transition: "var(--edge-transition)" } as React.CSSProperties,
+        //
+        // The width is multiplied by `--edge-k`, which is 1 at the detail tier
+        // and grows as the canvas zooms out below it (styles.css, `data-lod`):
+        // the ratio between a live, a settled and a selected edge is still
+        // this loop's, and only the scale is the mode's.
+        style: { "--session-hue": hue, strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)" } as React.CSSProperties,
         className: cls,
       });
     }
@@ -2873,25 +2873,43 @@ function Inner() {
   // and nobody can point at. A flag on the pane covers every node a gesture
   // can move, whichever way it moves them.
   const [dragging, setDragging] = useState(false);
-  /** HOW MUCH OF A CARD IS WORTH DRAWING AT THIS DISTANCE.
+  /** WHICH CARD IS DRAWN AT THIS DISTANCE — detail, compact or overview.
    *
-   *  The canvas zooms to 0.2 and nothing ever simplified: at that distance the
-   *  9px tier renders at 1.8px and the 10px tier at 2px, which is a smear that
-   *  still costs a layout and a paint. This is the one signal the sheet needs
-   *  to stop drawing what cannot be read.
+   *  The canvas zooms to 0.2, and below the full card every word on it is drawn
+   *  at the canvas's scale: at 0.3 the 12px name is under 4px. The two smaller
+   *  modes are faces laid out in screen pixels instead (AgentNode's NodeFace);
+   *  which one is drawn is decided in semantic-zoom.ts from what the smallest
+   *  card measures on screen, with a band either side of each threshold so a
+   *  zoom resting near one cannot flip the canvas back and forth.
    *
    *  It lives on the canvas element rather than in each node ON PURPOSE. A node
    *  that subscribed to the viewport would re-render every card on every frame
    *  of a pinch, on a surface that already runs a 200-iteration relaxation and
    *  four resting animations; this is one attribute on one element, written
-   *  only when the tier actually changes, which is a handful of times per
+   *  only when the mode actually changes, which is a handful of times per
    *  gesture at most.
    *
-   *  Nothing here changes a card's BOX. What it hides keeps its space, because
-   *  the measured height of a node is a layout input — shrinking a card at
-   *  distance would reflow the graph under the reader's hands. */
-  const [detail, setDetail] = useState<ZoomDetail>("full");
-  const detailRef = useRef<ZoomDetail>("full");
+   *  Nothing here changes a card's BOX. The faces are drawn over the card's own
+   *  rows, which keep their space, because the measured height of a node is a
+   *  layout input — shrinking a card at a distance would reflow the graph under
+   *  the reader's hands, and the auto-fit would chase it. */
+  const [lod, setLod] = useState<LodMode>("detail");
+  const lodRef = useRef<LodMode | null>(null);
+  /** The card the mode has to work for: the smallest agent card on the board,
+   *  re-measured only when a measurement moved (measuredVersionRef). */
+  const lodCardRef = useRef<{ version: number; card: CardSize } | null>(null);
+  const lodCard = useCallback((): CardSize => {
+    const version = measuredVersionRef.current;
+    if (lodCardRef.current?.version === version) return lodCardRef.current.card;
+    const sizes: CardSize[] = [];
+    for (const id of stateRef.current.agents.keys()) {
+      const m = measuredRef.current.get(id);
+      if (m) sizes.push(m);
+    }
+    const card = referenceCard(sizes);
+    lodCardRef.current = { version, card };
+    return card;
+  }, []);
   const endBubble = useCallback(() => {
     if (bubbleTimerRef.current) { window.clearTimeout(bubbleTimerRef.current); bubbleTimerRef.current = null; }
     setBubbling(false);
@@ -2952,6 +2970,11 @@ function Inner() {
     const cover = railCover(canvasRef.current);
     setRailInset(prev => (Math.abs(prev - cover) > 40 ? cover : prev));
   }, [machinePhase, usagePhase, usagePanelOpen, detailShown, canvasSize.w]);
+  // The same reading for the handlers that frame a card or place its peek:
+  // they run on a press or a hover, and asking the document again there would
+  // be a third query of what this effect has just measured.
+  const railInsetRef = useRef(railInset);
+  railInsetRef.current = railInset;
 
   // The frame fitLeft will show the board in, in flow units at full size: the
   // canvas less the rail's strip, less the fit's margins and fill. The layout
@@ -3261,6 +3284,83 @@ function Inner() {
   // sees the array that was just drawn.
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+
+  /** BRING ONE CARD, AND THE SESSION IT BELONGS TO, INTO A READABLE VIEW.
+   *
+   *  Every "take me to this card" in the deck comes through here — the ribbon,
+   *  a cluster's name, a double-click, Z, j/k, W and the session list. They each
+   *  called React Flow's `fitView` over the one node, which centres on the whole
+   *  pane — under the machine and usage panels whenever those are open — and
+   *  zooms to the canvas's 1.6 ceiling, with the rest of the session cut out of
+   *  the frame. focus-camera.ts holds the replacement: the session in the part
+   *  of the pane nobody covers, at a zoom the full card is drawn at.
+   *
+   *  AND IT TAKES THE WHEEL, the way a pan does. Asking to look at one session
+   *  is the reader choosing the view, and the auto-fit used to take it straight
+   *  back: the next tool lane or card anywhere moved layoutSig, fitLeft framed
+   *  the whole board again, and the session the reader had just gone to was a
+   *  tile once more. The chip that says auto-fit is off, and its Resume, are
+   *  the way back — the same as after a pan. */
+  const focusAgent = useCallback((id: string) => {
+    const pane = canvasRef.current;
+    const agent = stateRef.current.agents.get(id);
+    if (!pane || !agent) return;
+    const lanes = laneMap(stateRef.current);
+    const boxOf = (n: Node<FlowNodeData>, withLane: boolean): FlowBox | null => {
+      const m = measuredRef.current.get(n.id);
+      if (!m) return null;
+      // The bubbles an agent has called are drawn to its right and are part
+      // of what the reader came to see: the same allowance fitLeft makes.
+      const lane = withLane && lanes.has(n.id) ? TOOL_LANE_ALLOWANCE : 0;
+      return { x: n.position.x, y: n.position.y, width: m.width + lane, height: m.height };
+    };
+    const own = nodesRef.current.find(n => n.id === id);
+    const anchor = own ? boxOf(own, false) : null;
+    if (!anchor) return;
+    const members: FlowBox[] = [];
+    for (const n of nodesRef.current) {
+      if (n.type !== "agent" && n.type !== "recapNote") continue;
+      if ((n.data as { sessionId?: string } | undefined)?.sessionId !== agent.sessionId) continue;
+      const b = boxOf(n, n.type === "agent");
+      if (b) members.push(b);
+    }
+    const rect = pane.getBoundingClientRect();
+    const want = focusViewport({
+      pane: { width: rect.width, height: rect.height },
+      // Left: the control stack. Top: the tool filter bar. Right: whatever of
+      // the rail of floating panels is open, as the rail effect measured it.
+      insets: { top: 56, left: 72, bottom: 32, right: railInsetRef.current + 32 },
+      context: unionBox(members) ?? anchor,
+      anchor,
+    });
+    hidePeek();
+    disableAutoFit();
+    applyViewport(want, FOCUS_MS);
+    lastFitTimeRef.current = Date.now();
+    // The same insurance fitLeft takes against a tab hidden mid-flight: the
+    // visibility handler lands whatever is pending where it was going.
+    pendingFitRef.current = shouldAnimateViewport({ durationMs: FOCUS_MS, documentHidden: document.hidden })
+      ? { target: want, until: Date.now() + FOCUS_MS + 60 }
+      : null;
+  }, [applyViewport, disableAutoFit]);
+
+  // What the peek reads, through refs so the three are made once: the node's
+  // own data (branch summary included), a parent's label, and the room it may
+  // open into — the canvas less the rail of panels over its right edge.
+  const peekAgent = useCallback((id: string) => {
+    const n = nodesRef.current.find(x => x.id === id && x.type === "agent");
+    return n ? (n.data as FlowNodeData) : undefined;
+  }, []);
+  const peekLabel = useCallback((id: string) => stateRef.current.agents.get(id)?.label, []);
+  const peekBounds = useCallback(() => {
+    // The canvas's own box, not the window's: the peek belongs over the canvas,
+    // and the canvas already runs to the foot of the page.
+    const box = canvasRef.current?.getBoundingClientRect();
+    const doc = document.documentElement;
+    return box
+      ? { width: box.right - railInsetRef.current, height: box.bottom }
+      : { width: doc.clientWidth, height: doc.clientHeight };
+  }, []);
   const primarySelectedIdRef = useRef(primarySelectedId);
   primarySelectedIdRef.current = primarySelectedId;
 
@@ -3292,11 +3392,10 @@ function Inner() {
     // Fit-view to the chosen node so it lands on screen even if the user
     // had panned away.
     window.setTimeout(() => {
-      try { rf.fitView({ padding: 0.35, duration: fitViewDuration(350), nodes: [target] }); } catch {}
-      lastFitTimeRef.current = Date.now();
+      try { focusAgent(target.id); } catch {}
       if (follow) focusCanvasNode(target.id);
     }, 30);
-  }, [selectAgent, rf]);
+  }, [selectAgent, focusAgent]);
 
   /** Select a session's root and bring it on screen. Reads `nodesRef` rather
    *  than the render-scope array so callers can be memoised: the array is
@@ -3311,13 +3410,9 @@ function Inner() {
   const focusSession = useCallback((sessionId: string) => {
     selectAgent(sessionId, false);
     window.setTimeout(() => {
-      try {
-        const node = nodesRef.current.find(n => n.id === sessionId);
-        if (node) rf.fitView({ padding: 0.3, duration: fitViewDuration(500), nodes: [node] });
-        lastFitTimeRef.current = Date.now();
-      } catch {}
+      try { focusAgent(sessionId); } catch {}
     }, 60);
-  }, [selectAgent, rf]);
+  }, [selectAgent, focusAgent]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851; the rule is ownsKeystroke's).
@@ -3448,6 +3543,11 @@ function Inner() {
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();
       if (e.key === "f" || e.key === "F") handleFit();
+      // F is the whole board; Z is the one card the selection is on, framed
+      // with its session at a readable size — the ribbon's click, on a key.
+      if (e.key === "z" || e.key === "Z") {
+        if (primarySelectedIdRef.current) focusAgent(primarySelectedIdRef.current);
+      }
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
       // panel's own ‹ is the second way out and calls the same setter; Escape
@@ -3537,7 +3637,7 @@ function Inner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, togglePause]);
+  }, [requestClear, handleRelayout, handleFit, clearSelection, selectAgent, stepAgent, focusSession, focusAgent, togglePause]);
 
   /** Not a topbar readout any more — the "agents" counter went with the
    *  sessions and events ones. This is the emptiness test: zero agents is what
@@ -4286,14 +4386,8 @@ function Inner() {
             <button
               type="button"
               className="selected-ribbon"
-              title={`Fit view to ${selected.label}`}
-              onClick={() => {
-                try {
-                  const node = nodes.find(n => n.id === selected.id);
-                  if (node) rf.fitView({ padding: 0.35, duration: fitViewDuration(500), nodes: [node] });
-                  lastFitTimeRef.current = Date.now();
-                } catch {}
-              }}
+              title={`Zoom to ${selected.label} and its session (Z)`}
+              onClick={() => { try { focusAgent(selected.id); } catch {} }}
             >
               <span className={`state-pill state-${selected.state}`}>
                 {selected.state === "active" ? "live" : selected.state}
@@ -4941,7 +5035,7 @@ function Inner() {
         id="canvas"
         tabIndex={-1}
         className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}`}
-        data-detail={detail}
+        data-lod={lod}
         ref={canvasRef}
         onMouseDownCapture={releasePointerFocus}
         /* The three that say a human is working this canvas right now. They
@@ -4963,6 +5057,21 @@ function Inner() {
         onPointerDownCapture={markCanvasInput}
         onPointerUpCapture={markCanvasInput}
         onWheelCapture={markCanvasInput}
+        /* The peek is not hover-only. A card the keyboard reaches at a distance
+           opens the same card the pointer would — Tab, j/k and W all land focus
+           on a card — and closes when focus moves on. Only a focus the browser
+           would ring (`:focus-visible`): a click also focuses the card, and a
+           peek that opened under every click would cover what was clicked. */
+        onFocusCapture={e => {
+          const el = e.target as Element;
+          if (!isCanvasNodeElement(el) || lodRef.current == null || lodRef.current === "detail") return;
+          const id = el.getAttribute("data-id");
+          if (id && stateRef.current.agents.has(id) && el.matches(":focus-visible")) showPeek(id, el, "focus");
+        }}
+        onBlurCapture={e => {
+          const id = (e.target as Element).getAttribute?.("data-id");
+          if (id) hidePeek(id);
+        }}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero />
@@ -5086,8 +5195,29 @@ function Inner() {
             if (n.type === "recapNote") { selectAgent((n.data as { parentId: string }).parentId, e.shiftKey); return; }
             selectAgent(n.id, e.shiftKey);
           }}
-          onPaneClick={() => clearSelection()}
+          onPaneClick={() => { hidePeek(); clearSelection(); }}
+          // The focus a click cannot be: a click selects and opens the detail
+          // panel, which is what it has always done and still does. Two in a
+          // row also bring the card and its session into a readable view — the
+          // ribbon, a cluster's name and Z are the same move without a mouse.
+          // React Flow's own double-click zoom never reaches a card (its filter
+          // drops a dblclick inside a draggable node), so nothing else is here.
+          onNodeDoubleClick={(_, n) => {
+            if (n.type === "agent") focusAgent(n.id);
+            else if (n.type === "recapNote") focusAgent((n.data as { parentId: string }).parentId);
+          }}
+          // The peek (SessionPeek) is for the distances where the card cannot
+          // say it itself. At the detail tier the card is readable and a copy
+          // over it would be noise, so it never opens there.
+          onNodeMouseEnter={(e, n) => {
+            if (n.type !== "agent" || draggingRef.current) return;
+            if (lodRef.current == null || lodRef.current === "detail") return;
+            showPeek(n.id, e.currentTarget as Element);
+          }}
+          onNodeMouseLeave={(_, n) => hidePeek(n.id)}
           onMoveStart={e => {
+            // A pan or a zoom moves the tile out from under its peek.
+            hidePeek();
             // The pane's own gesture, and only ever that: React Flow drops a
             // move with no source event before this callback is reached. Kept
             // alongside onMove because d3-zoom raises `start` on the press and
@@ -5107,16 +5237,25 @@ function Inner() {
             if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
             // Debounce viewport persistence — pan/zoom fires many times
             // per gesture, but we only need the final state.
-            const tier = zoomDetail(vp.zoom);
-            if (tier !== detailRef.current) { detailRef.current = tier; setDetail(tier); }
-            // The zoom itself, for the far tier's title scale (#846). Written on
-            // the element rather than through state: it changes every frame of
-            // a gesture, and the sheet is the only reader.
+            // The zoom itself first, for the faces' screen-pixel layout and the
+            // edges' stroke (styles.css, `data-lod`). Written on the element
+            // rather than through state: it changes every frame of a gesture,
+            // and the sheet is the only reader.
             canvasRef.current?.style.setProperty("--zoom", String(vp.zoom));
+            const mode = nextLod(lodRef.current, vp.zoom, lodCard());
+            if (mode !== lodRef.current) {
+              lodRef.current = mode;
+              // The attribute now, the state for React with it: the face must
+              // not wait a render to appear on the frame the mode changed on.
+              canvasRef.current?.setAttribute("data-lod", mode);
+              setLod(mode);
+              if (mode === "detail") hidePeek();
+            }
             if (vpSaveTimerRef.current) window.clearTimeout(vpSaveTimerRef.current);
             vpSaveTimerRef.current = window.setTimeout(() => saveViewport(vp), 250);
           }}
           onNodeDragStart={(_, n) => {
+            hidePeek();
             // A drag must never inherit the push animation. The node under the
             // cursor is excluded by CSS, but a session drag moves its members
             // through state instead of the drag itself, and those would follow
@@ -5208,7 +5347,7 @@ function Inner() {
           {/* The stamp that keeps a click on a session's name from reading as
               the user grabbing the canvas — see the note on the component
               (#785). Same line App's own focusSession runs after its fitView. */}
-          <SessionClusters onFit={() => { lastFitTimeRef.current = Date.now(); }} />
+          <SessionClusters onFocusSession={focusAgent} />
           <ToolBursts
             agents={stateRef.current.agents}
             visibleAgentIds={visibleAgentIds}
@@ -5423,6 +5562,11 @@ function Inner() {
               so on a deck with no network this is nothing at all. */}
           {characterEnabled && <ClaudeFm />}
         </ReactFlow>
+        <SessionPeek
+          agentFor={peekAgent}
+          labelFor={peekLabel}
+          bounds={peekBounds}
+        />
       </main>
 
       {/* THE RIGHT-HAND RAILS COME AFTER THE CANVAS (#880). Both are position:
