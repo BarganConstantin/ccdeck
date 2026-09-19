@@ -940,12 +940,16 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+/* 268px, the sound menu's width: two popovers hung off one bar are one family,
+   and two theme previews side by side need the room 224px did not have. The
+   clamp keeps a phone-width window's 16px gutter; the grid inside gives. */
 .appearance-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  width: 224px;
+  width: 268px;
+  max-width: calc(100vw - 32px);
   padding: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -963,62 +967,185 @@ button:focus-visible { outline-offset: 1px; }
 :root[data-theme="light"] .appearance-menu {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), 0 14px 34px rgba(15, 23, 42, 0.16);
 }
-/* The sound menu's caption voice (.sm-tone-name), because the two popovers in
-   this bar are one family. Plain --muted rather than that caption's step off
-   it: this is the menu's only heading, and at 11px it has to clear 4.5:1 on
-   --panel on its own, which --muted does (4.70:1 dark, 7.87:1 light). 8px binds
-   it to the pair under it; 14px under the pair is the group break the divider
-   used to draw — the spacing is the separation now, as in the sound menu. */
+/* THE PANELS' OWN SHAPE. A title over a hairline, as Usage and This machine
+   open, and sections under the uppercase caption their sections use
+   (.up-section-title: 11px, 600, 0.06em, --muted — 4.70:1 dark, 7.87:1 light).
+   One 4px scale: 8 between a caption and what it names, 12 under the header,
+   16 between sections. Spacing is the only separator below the header. */
+.appearance-head {
+  margin: 0 -12px 12px;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
 .appearance-title {
-  margin: 0 0 8px;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+}
+.appearance-section + .appearance-section { margin-top: 16px; }
+.appearance-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.appearance-caption h3 {
+  margin: 0;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.13em;
-  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 16px;
   text-transform: uppercase;
 }
-.appearance-choices {
+/* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
+   where the panels put a caption's one piece of metadata. */
+.appearance-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* TWO PREVIEWS, NOT TWO WORDS. Each choice is the deck itself in that theme,
+   so it is recognised before it is read. The -4px bleed gives each choice a
+   4px plate to hover in while the previews stay on the text edge above them.
+   THE CHOSEN ONE: its frame goes to --text and doubles to 2px with a ring
+   rather than a wider border, so nothing shifts; a check stands at the end of
+   its name; the name comes up from --muted to --text. The frame is 3.16:1
+   dark / 5.32:1 light against the --ctl-edge the other one rests on, so the
+   state holds without the check or the colour. The accent stays the focus
+   ring's, which is drawn round the whole plate.
+   HOVER lifts the plate and the name, never the frame, so a pointer resting on
+   the other theme cannot pass for choosing it. No press-scale: at 118px a
+   3% shrink is a lurch, not a click. */
+.appearance-themes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 8px;
+  margin: 0 -4px;
 }
-/* BOTH CHOICES ARE CONTROLS, and look it. The unchosen one read --muted beside
-   a chosen one in --text and the accent, so the pair looked like one button and
-   one disabled one. Both now rest the way button.btn does: the label in --text
-   on the --ctl-edge boundary control-edges.test.ts holds every control to, so
-   no choice ever draws fainter than another. (--text-secondary is the prose
-   tier, and a label is not prose — text-tiers.test.ts.)
-   THE CHOSEN ONE IS A SELECTION, NOT DATA, so it is marked the way the usage
-   range strip marks its own: in the foreground, not the accent. A neutral fill,
-   and an edge in --text — 3.16:1 dark and 5.32:1 light against the --ctl-edge
-   beside it, so the state holds without the fill. The accent edge it used to
-   wear is the focus ring's colour, and one control carrying both said
-   "focused" whether it was or not.
-   Hover lifts the fill but never the edge, so the pointer resting on the other
-   choice cannot be mistaken for choosing it. The chosen rule comes after it
-   and keeps its own fill under the pointer. */
-.appearance-choice {
-  min-height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
-  color: var(--text);
+.appearance-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: transparent;
+  color: var(--muted);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color 120ms ease-out, color 120ms ease-out;
 }
-.appearance-choice:hover { background: color-mix(in srgb, var(--text) 11%, transparent); }
-.appearance-choice[aria-checked="true"] {
+.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { color: var(--text); }
+.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-preview {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-preview {
   border-color: var(--text);
-  background: color-mix(in srgb, var(--text) 15%, transparent);
+  box-shadow: 0 0 0 1px var(--text);
 }
-.appearance-choice:active { transform: scale(0.97); }
-.appearance-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.appearance-preview svg { display: block; width: 100%; height: auto; }
+.appearance-theme-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  line-height: 16px;
+}
+.appearance-check {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
+
+/* Each swatch's palette is its theme's tokens, copied: --bg for the canvas,
+   --panel for the bar, the column and the card (the bar's gradient drawn flat),
+   --line for every rule, --muted-dim for the session's tag, --accent for
+   the one bar. appearance-swatch.test.ts fails the day a token moves and its
+   copy here does not. */
+.appearance-preview[data-swatch="dark"] {
+  --tp-canvas: #0b0c10;
+  --tp-surface: #14161b;
+  --tp-rule: #1f2229;
+  --tp-mark: #50535b;
+  --tp-accent: #7dd3fc;
+}
+.appearance-preview[data-swatch="light"] {
+  --tp-canvas: #eef1f6;
+  --tp-surface: #ffffff;
+  --tp-rule: #c8cdd6;
+  --tp-mark: #7c8493;
+  --tp-accent: #0369a1;
+}
+.tp-canvas { fill: var(--tp-canvas); }
+.tp-surface { fill: var(--tp-surface); }
+.tp-rule { fill: var(--tp-rule); }
+.tp-accent { fill: var(--tp-accent); }
+/* A session is a card with its name tag sitting on its top edge, as the
+   canvas draws one; the tag is the outline in --muted-dim. */
+.tp-card, .tp-tag { stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
+.tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
+
+/* One control, the width of the card. The <label> is the target (see
+   AppearanceMenu.tsx); the -8px bleed lets its hover fill reach the card's
+   padding while the words stay on the text edge. The switch sits in the
+   label's grid row, so it centres on the label's line and not on the pair of
+   lines, and the note spans under both. */
+.appearance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+.appearance-row:hover { background: var(--ctl-fill); }
+.appearance-row-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-row-note {
+  grid-column: 1 / -1;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
+}
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says
@@ -9579,8 +9706,10 @@ button.qb-pace::after {
      popIn — a 4px lift and a scale — over whatever the reader was looking at,
      which is the case 2.3.3 is about whether the thing lifting is modal or not. */
   .sound-menu, .appearance-menu { animation: fadeIn 140ms ease-out; }
-  .appearance-choice { transition: none; }
-  .appearance-choice:active { transform: none; }
+  .appearance-theme,
+  .appearance-preview,
+  .appearance-check,
+  .appearance-row { transition: none; }
 }
 
 
@@ -12327,10 +12456,11 @@ input, textarea { caret-color: var(--accent); }
   .switch[aria-checked="true"] .switch-knob,
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
 
-  /* The chosen theme is a fill and an edge, and forced colours repaint both to
-     the same system colours the other choice gets — the pair would read as two
-     identical buttons. It fills the way an on switch does. */
-  .appearance-choice[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* A preview is a picture of a palette, and a palette repainted in system
+     colours is two identical grey boxes: it keeps its own. The chosen frame
+     takes Highlight, the way an on switch fills with it. */
+  .appearance-preview svg { forced-color-adjust: none; }
+  .appearance-theme[aria-checked="true"] .appearance-preview { forced-color-adjust: none; border-color: Highlight; box-shadow: 0 0 0 1px Highlight; }
 }
 
 /* ---------------- Claude FM ------------------------------------------------
