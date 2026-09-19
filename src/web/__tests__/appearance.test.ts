@@ -37,4 +37,16 @@ describe("character appearance preference", () => {
     expect(menu).toContain("onKeyDown={moveTheme}");
     expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
+
+  it("titles the menu for both settings and names each control from the words on screen", () => {
+    const menu = read("components/AppearanceMenu.tsx");
+    // "Theme" used to head the character switch too, which is not a theme.
+    expect(menu).toContain('<h2 className="appearance-title">Appearance</h2>');
+    expect(menu).toContain('role="radiogroup" aria-label="Theme"');
+    // One tab stop in the pair, on the theme that is set; the arrows walk it.
+    expect(menu).toContain("tabIndex={theme === choice ? 0 : -1}");
+    expect(menu).toContain('aria-labelledby="appearance-character-label"');
+    expect(menu).toContain('aria-describedby="appearance-character-note"');
+    expect(menu).not.toMatch(/aria-label="Show character"/);
+  });
 });
