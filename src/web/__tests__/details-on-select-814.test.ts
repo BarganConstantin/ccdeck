@@ -49,7 +49,9 @@ describe("selecting an agent opens its details (#814)", () => {
     // A click on a card is the one that does not (2026-09-19): it goes to the
     // session and leaves the panel to the double-click, which selects through
     // the same door with the panel's default.
-    expect(appCode).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\);\s*if \(!e\.shiftKey\) focusAgent\(id\);/);
+    expect(appCode).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
+    // And shuts a panel left open, which is stored across reloads.
+    expect(appCode).toMatch(/if \(detailShown\) \{\s*setDetailOpen\(false\);/);
     expect(appCode).toMatch(/onNodeDoubleClick=\{\(_, n\) => \{[\s\S]*?selectAgent\(id, false\);/);
     expect(body("const stepAgent = useCallback")).toMatch(/selectAgent\(target\.id, false\)/);
     expect(body("const focusSession = useCallback")).toMatch(/selectAgent\(sessionId, false\)/);

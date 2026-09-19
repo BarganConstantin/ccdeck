@@ -5264,7 +5264,19 @@ function Inner() {
             // on the root.
             const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
             selectAgent(id, e.shiftKey, false);
-            if (!e.shiftKey) focusAgent(id);
+            if (e.shiftKey) return;
+            // AND SHUTS A PANEL THAT IS ALREADY OPEN. `detailOpen` is persisted,
+            // so every deck that clicked a card under #814 has it stored open,
+            // and leaving it alone meant the next click showed it anyway — for
+            // the new selection. The frame waits a paint for the canvas the
+            // panel gives back, the way the double-click's does for the one it
+            // takes.
+            if (detailShown) {
+              setDetailOpen(false);
+              window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
+            } else {
+              focusAgent(id);
+            }
           }}
           onPaneClick={() => { hidePeek(); clearSelection(); }}
           // The details, one press past the click that went to the session:
