@@ -85,7 +85,7 @@ import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
-import { nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { fitZoomForDrawnLanes, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
@@ -2450,11 +2450,17 @@ function Inner() {
       // these rects — leave room or the last column's chips get clipped. The
       // rail's strip is not room either: a board framed into it would put its
       // last column under the machine and usage panels.
-      const zoom = Math.max(MIN_ZOOM, Math.min(
+      //
+      // Only where they are drawn, though (fitZoomForDrawnLanes): below the
+      // full card the bubbles are hidden, and room kept for them there is the
+      // band of empty canvas a board used to sit in the middle of.
+      const railWidth = railCover(pane);
+      const fitWith = (lane: number) => Math.max(MIN_ZOOM, Math.min(
         MAX_ZOOM,
-        ((paneRect.width - railCover(pane) - MARGIN * 2) / (w + TOOL_LANE_ALLOWANCE)) * FILL,
+        ((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL,
         ((paneRect.height - MARGIN * 2) / h) * FILL,
       ));
+      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));
 
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree

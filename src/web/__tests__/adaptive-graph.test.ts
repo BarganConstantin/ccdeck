@@ -14,8 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  CARD_BODY_PX, COMPACT_ENTER, COMPACT_EXIT, DEFAULT_CARD, DETAIL_ENTER_PX, DETAIL_EXIT_PX,
-  FOCUS_MAX_ZOOM, FOCUS_MIN_ZOOM, nextLod, referenceCard, type LodMode,
+  CARD_BODY_PX, COMPACT_ENTER, COMPACT_EXIT, DEFAULT_CARD, DETAIL_ENTER_PX, DETAIL_ENTER_ZOOM, DETAIL_EXIT_PX,
+  DETAIL_EXIT_ZOOM, FOCUS_MAX_ZOOM, FOCUS_MIN_ZOOM, fitZoomForDrawnLanes, nextLod, referenceCard, type LodMode,
 } from "../semantic-zoom";
 import { branchLong, branchShort, branchSummaries, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
 import { focusViewport, unionBox } from "../focus-camera";
@@ -95,6 +95,34 @@ describe("which card is drawn is decided by what it measures on screen", () => {
     expect(referenceCard([{ width: 220, height: 4 }, { width: 260, height: 126 }]).height).toBeGreaterThanOrEqual(72);
     expect(referenceCard([])).toEqual(DEFAULT_CARD);
     expect(referenceCard([{ width: 0, height: 0 }])).toEqual(DEFAULT_CARD);
+  });
+});
+
+describe("the fit keeps room for the bubbles only where they are drawn", () => {
+  it("reserves the lane when the fit lands on the full card", () => {
+    expect(fitZoomForDrawnLanes(0.8, 1)).toBe(0.8);
+    expect(fitZoomForDrawnLanes(DETAIL_ENTER_ZOOM, 0.9)).toBe(DETAIL_ENTER_ZOOM);
+  });
+
+  it("frames the drawn board where the bubbles are hidden", () => {
+    // The board beside the machine panel after R: 0.36 with the lane, 0.49
+    // without, and nothing drawn in the lane at either.
+    expect(fitZoomForDrawnLanes(0.357, 0.49)).toBe(0.49);
+    expect(nextLod(null, 0.49), "the bare fit must land where the bubbles are hidden").not.toBe("detail");
+  });
+
+  it("never lets the bare fit reach a zoom where the bubbles come back", () => {
+    // Between the two: bare would be the full card, whose bubbles the bare
+    // fit left no room for. Held under the zoom the full card is left at, so
+    // no mode the canvas is in draws them — and never below the safe fit.
+    const z = fitZoomForDrawnLanes(0.5, 0.9);
+    expect(z).toBeLessThan(DETAIL_EXIT_ZOOM);
+    expect(nextLod("detail", z)).not.toBe("detail");
+    expect(fitZoomForDrawnLanes(0.62, 0.9)).toBe(0.62);
+  });
+
+  it("is what fitLeft frames with", () => {
+    expect(app).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0));");
   });
 });
 

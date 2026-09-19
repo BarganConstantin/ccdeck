@@ -105,6 +105,35 @@ export function nextLod(prev: LodMode | null, zoom: number, card: CardSize = DEF
   return fits(card, zoom, COMPACT_ENTER) ? "compact" : "overview";
 }
 
+/** The same two thresholds as zooms, for the callers that choose a zoom rather
+ *  than read one. Detail depends on the zoom alone — its text is in layout
+ *  units — so these need no card. */
+export const DETAIL_ENTER_ZOOM = DETAIL_ENTER_PX / CARD_BODY_PX;
+export const DETAIL_EXIT_ZOOM = DETAIL_EXIT_PX / CARD_BODY_PX;
+
+/**
+ * THE FIT'S ZOOM, RESERVING THE BUBBLES' LANE ONLY WHERE THE BUBBLES ARE DRAWN.
+ *
+ * fitLeft frames the board with a 420-unit allowance beside it for the tool
+ * bubbles, which are an overlay rather than nodes and so absent from what it
+ * measures. Below the full card the bubbles are not drawn (styles.css,
+ * `data-lod`), and the allowance was framing empty canvas: on a four-session
+ * board beside the machine panel it held the fit to 0.36 where the board
+ * itself fitted at 0.49, and the board sat small in the middle of the canvas
+ * with a band of nothing above and below it.
+ *
+ * `withLanes` is the fit with the allowance and `bare` the fit without. The
+ * allowance stays wherever the fit lands at the full card, since that is where
+ * the bubbles are drawn and would otherwise run off the right edge. Otherwise
+ * the bare fit is used, held below the zoom the full card is LEFT at — under
+ * that, no mode the canvas can be in draws the bubbles — and never below the
+ * fit that reserved them, which is safe at any zoom.
+ */
+export function fitZoomForDrawnLanes(withLanes: number, bare: number): number {
+  if (withLanes >= DETAIL_ENTER_ZOOM) return withLanes;
+  return Math.max(withLanes, Math.min(bare, DETAIL_EXIT_ZOOM - 0.001));
+}
+
 /** The zoom a focused card is shown at: never below the one `detail` is
  *  entered at, with room either side so a trackpad's settle cannot tip it back
  *  out, and never above 1 — the fit's own ceiling, where a card is drawn at its
