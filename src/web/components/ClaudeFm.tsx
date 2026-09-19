@@ -52,6 +52,7 @@ import {
   type Prop, type Step,
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
+import { fmLastHeard, fmObserve, fmReport } from "../fm-debug"; // DEBUG build only
 
 interface Probe { live: boolean; channel: string }
 
@@ -183,6 +184,10 @@ export default memo(
      *  document happens to be in the frame, which is not a thing to be relaxed
      *  about even for a volume change. */
     const say = useCallback((json: string) => {
+      // DEBUG: every send, reported here so the pinned lines above stay exact.
+      if (json.includes('"listening"')) fmReport("ccdeck: frame loaded, sent listening");
+      else if (json.includes('"playVideo"')) fmReport("ccdeck: sent playVideo");
+      else if (json.includes('"pauseVideo"')) fmReport("ccdeck: sent pauseVideo");
       frame.current?.contentWindow?.postMessage(json, PLAYER_ORIGIN);
     }, []);
 
@@ -208,6 +213,7 @@ export default memo(
       const onMessage = (e: MessageEvent) => {
         if (e.origin !== PLAYER_ORIGIN) return;
         if (e.source !== frame.current?.contentWindow) return;
+        fmObserve(e.data); // DEBUG
         const signal = readSignal(e.data);
         if (!signal) return;
         // AUTOPLAY IS ASKED FOR TWICE, because once is not reliable. The src
@@ -222,6 +228,7 @@ export default memo(
         if (FATAL_ERRORS.includes(signal.code)) {
           // The stream is gone, or this channel does not allow embedding. There
           // is nothing to offer and nothing to say about it.
+          fmReport(`ccdeck: fatal player error ${signal.code}, player removed`); // DEBUG
           setArmed(false);
           setPlaying(false);
           setDead(true);
@@ -230,6 +237,31 @@ export default memo(
       window.addEventListener("message", onMessage);
       return () => window.removeEventListener("message", onMessage);
     }, [armed, say]);
+
+    // DEBUG: the frame being built or removed, the page hidden or shown, the
+    // network dropping, and a watchdog for a player that has gone quiet.
+    useEffect(() => {
+      fmReport(`ccdeck: player frame ${armed ? "built" : "not built"}`);
+      if (!armed) return;
+      const vis = () => fmReport(`page ${document.hidden ? "hidden" : "visible"}`);
+      const online = () => fmReport(`network ${navigator.onLine ? "online" : "OFFLINE"}`);
+      document.addEventListener("visibilitychange", vis);
+      window.addEventListener("online", online);
+      window.addEventListener("offline", online);
+      let quiet = false;
+      const watchdog = window.setInterval(() => {
+        const since = Date.now() - fmLastHeard();
+        if (fmLastHeard() && since > 5000 && !quiet) { quiet = true; fmReport(`player silent: no message for ${Math.round(since / 1000)}s`); }
+        if (since <= 5000 && quiet) { quiet = false; fmReport("player talking again"); }
+      }, 1000);
+      return () => {
+        document.removeEventListener("visibilitychange", vis);
+        window.removeEventListener("online", online);
+        window.removeEventListener("offline", online);
+        window.clearInterval(watchdog);
+        fmReport("ccdeck: player frame removed");
+      };
+    }, [armed]);
 
     // WHAT IT DOES WITH ITSELF. A rest, then an activity, then
     // long stillness again — see claude-fm.ts for why the restraint is the
@@ -436,6 +468,7 @@ export default memo(
     if (!probe || dead) return null;
 
     const press = () => {
+      fmReport(`ccdeck: character pressed (${!armed ? "build player" : playing ? "pauseVideo" : "playVideo"})`); // DEBUG
       if (!armed) { setArmed(true); setPlaying(true); return; }
       // Optimistic: the player confirms with onStateChange a moment later, and
       // a control that waits for a round trip before it looks pressed feels
