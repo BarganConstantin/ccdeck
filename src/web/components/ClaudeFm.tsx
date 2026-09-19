@@ -184,6 +184,10 @@ export default memo(
      *  document happens to be in the frame, which is not a thing to be relaxed
      *  about even for a volume change. */
     const say = useCallback((json: string) => {
+      // DEBUG: every send, reported here so the pinned lines above stay exact.
+      if (json.includes('"listening"')) fmReport("ccdeck: frame loaded, sent listening");
+      else if (json.includes('"playVideo"')) fmReport("ccdeck: sent playVideo");
+      else if (json.includes('"pauseVideo"')) fmReport("ccdeck: sent pauseVideo");
       frame.current?.contentWindow?.postMessage(json, PLAYER_ORIGIN);
     }, []);
 
@@ -219,7 +223,7 @@ export default memo(
         // `playVideo` the moment it is ready costs nothing when the stream is
         // already running and is the difference between a press that works and
         // a press that silently does not.
-        if (signal.kind === "ready") { fmReport("ccdeck: player ready, sent playVideo"); say(command("playVideo")); return; } // DEBUG report
+        if (signal.kind === "ready") { say(command("playVideo")); return; }
         if (signal.kind === "playing") { setPlaying(signal.playing); return; }
         if (FATAL_ERRORS.includes(signal.code)) {
           // The stream is gone, or this channel does not allow embedding. There
@@ -700,7 +704,7 @@ export default memo(
             // all would have looked exactly like one that was playing fine. The
             // frame's own load is the first moment there is anything to talk
             // to.
-            onLoad={() => { fmReport("ccdeck: frame loaded, sent listening"); say(listenCommand()); }} // DEBUG report
+            onLoad={() => say(listenCommand())}
             // The permissions the stream needs and not one more. Nothing here
             // is ever seen or pointed at — the player is parked off-screen.
             allow="autoplay; encrypted-media"
