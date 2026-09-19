@@ -2073,6 +2073,41 @@ button.btn.sm-hear {
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */
 .sd-note { margin-top: 5px; color: var(--muted); font-size: 11px; }
+/* A reading that could not be taken says so in the warning colour, the one the
+   load figures turn when the queue outgrows the cores. */
+.sd-note.sd-note-warn { color: var(--warn); }
+
+/* LOAD AND NETWORK ON ONE LINE. Two equal columns with 8px between; each
+   column's section button keeps its hover fill, but bleeds only toward its own
+   edge of the panel — the full-width bleed every other section uses would lay
+   one fill over the other. The 4px on the inner side is the same breathing room
+   the full-width button leaves around its text. */
+.sd-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 8px;
+}
+.sd-pair > .sd-section { margin-top: 0; }
+.sysdetail .sd-pair .sd-open { width: auto; }
+.sysdetail .sd-pair > .sd-section:first-child .sd-open {
+  margin: -4px 0 -4px calc(var(--pad-x) * -1);
+  padding: 4px 4px 4px var(--pad-x);
+}
+.sysdetail .sd-pair > .sd-section:last-child .sd-open {
+  margin: -4px calc(var(--pad-x) * -1) -4px 0;
+  padding: 4px var(--pad-x) 4px 4px;
+}
+
+/* WHICH WAY THE TRAFFIC GOES — only when it is not this machine's own line.
+   A sentence rather than a figure, so it is set as the notes are and spans both
+   columns. The machine it leaves through is named in --text, the one fact to
+   find at a glance; the relay, the part that costs, in --warn. */
+.sd-route { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.sd-route b { color: var(--text); font-weight: 500; }
+.sd-route-relay { color: var(--warn); }
+/* The route line sits between two sections, so the section after it takes the
+   gap every section keeps from the one before. */
+.sd-route + .sd-section { margin-top: 13px; }
 
 :is(.sysdetail, .pl-body) .sd-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* PROPORTIONAL FIGURES WHERE THE COLUMN IS PROSE. The table sets tabular for
@@ -10723,6 +10758,10 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
 .hist-rule-tag.warn { fill: var(--warn); }
 .hist-rule-tag.hot { fill: var(--err); }
 .hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+/* Where the network's route changed. Solid and quieter than the crosshair, so
+   the two never read as one thing: a mark is a fact about the past, the
+   crosshair is the pointer. */
+.hist-mark { stroke: var(--text-dim); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 
 .hist-axis {
   display: flex;
@@ -10740,6 +10779,8 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
    text-tiers.test.ts is the rule that says so. */
 .hist-at b { color: var(--text); font-weight: 600; }
 .hist-note { margin-top: 5px; font-size: 10px; color: var(--muted); }
+/* A run of route notes sits tight under the chart, one line per change. */
+.hist-note.hist-route + .hist-note.hist-route { margin-top: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   /* `popIn` scales and lifts the card, which is movement rather than a fade,

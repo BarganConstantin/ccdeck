@@ -25,6 +25,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
+import { figureText, latencyFigure, rateFigure, type Figure } from "../net-format";
 
 export interface Point { t: number; v: number }
 export interface Series {
@@ -35,8 +36,10 @@ export interface Series {
   key: string;
   label: string;
   /** Empty for a quantity that has no unit — a load average is a count of
-   *  queued work, not a percentage of anything. */
-  unit: "C" | "%" | "";
+   *  queued work, not a percentage of anything. `B/s` and `ms` are the network
+   *  section's, and are written by net-format.ts so the chart and the panel
+   *  print one reading the same way. */
+  unit: "C" | "%" | "" | "B/s" | "ms";
   /** The top of this series' scale. 100 wherever the panel draws the same
    *  number against a 0-100 track; fitted for load average, which is unbounded
    *  and whose section draws no track to contradict. */
@@ -48,6 +51,18 @@ export interface Series {
   /** Whether zero is this reading's normal value. Only throttling is. */
   restsAtZero: boolean;
   points: Point[];
+  /** Moments something outside the reading changed — the network's route —
+   *  drawn as marks on the chart, so a line that jumps where a mark sits
+   *  explains itself. */
+  changes?: { t: number; label: string; from: string | null }[];
+}
+
+/** A reading as the eye reads it: a speed in KB/s or MB/s rather than a count
+ *  of bytes, a round trip in ms, and the older units exactly as they were. */
+export function figureOf(v: number, unit: Series["unit"]): Figure {
+  if (unit === "B/s") return rateFigure(v);
+  if (unit === "ms") return latencyFigure(v);
+  return { value: String(v), unit: unit === "C" ? "°C" : unit };
 }
 export interface History { ok: boolean; sinceMs: number; stepMs: number; series: Series[] }
 
@@ -223,7 +238,7 @@ export function spanLabel(fromMs: number, toMs: number): string {
 export default function SectionHistoryModal({ group, title, onClose }: {
   /** Which section of the panel was pressed. The server keeps one ring of
    *  minute buckets for all of them and answers one section per request. */
-  group: "thermal" | "cores" | "memory" | "load";
+  group: "thermal" | "cores" | "memory" | "load" | "network";
   title: string;
   onClose: () => void;
 }) {
@@ -337,10 +352,11 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
     return () => ro.disconnect();
   }, []);
 
-  const { points, unit, warnAt, critAt, label, top, restsAtZero } = series;
+  const { points, unit, warnAt, critAt, label, top, restsAtZero, changes } = series;
   const h = restsAtZero ? H_FLAT : H;
   const { now, peak } = summary(points);
-  const suffix = unit === "C" ? "°C" : unit;
+  const nowF = now != null ? figureOf(now, unit) : null;
+  const peakF = peak != null ? figureOf(peak, unit) : null;
   const note = label === "Throttling" ? throttleNote(points, stepMs) : null;
 
   const at = hover != null ? points[hover] : null;
@@ -367,9 +383,9 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
       <div className="hist-head">
         <span className="hist-label">{label}</span>
         <span className="hist-stats">
-          {now != null && <><b>{now}</b><span>{suffix} now</span></>}
-          {peak != null && (
-            <><b className={band(peak, warnAt, critAt)}>{peak}</b><span>{suffix} peak</span></>
+          {nowF && <><b>{nowF.value}</b><span>{nowF.unit} now</span></>}
+          {peak != null && peakF && (
+            <><b className={band(peak, warnAt, critAt)}>{peakF.value}</b><span>{peakF.unit} peak</span></>
           )}
         </span>
       </div>
@@ -388,9 +404,9 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
           // would have said "over 12 minutes" of a series with twelve buckets
           // spread across three hours.
           aria-label={
-            now == null
+            nowF == null || peakF == null
               ? `${label}: nothing measured yet`
-              : `${label}: ${now}${suffix} now, peak ${peak}${suffix}, over ${
+              : `${label}: ${figureText(nowF)} now, peak ${figureText(peakF)}, over ${
                   spanLabel(points[0].t, points[points.length - 1].t)}`
           }
           onPointerMove={read}
@@ -408,6 +424,13 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
           )}
           <line className="hist-floor" x1={PAD.l} x2={w - PAD.r} y1={h - PAD.b} y2={h - PAD.b} />
 
+          {/* Where the route changed, inside the span this chart covers. */}
+          {/* Only a real change is marked: the first route seen is where
+              looking began, and a line there would claim a switch that never
+              happened. */}
+          {(changes ?? []).filter(c => c.from != null && points.length > 1 && c.t >= points[0].t && c.t <= points[points.length - 1].t).map(c => (
+            <line key={c.t} className="hist-mark" x1={xOf(c.t)} x2={xOf(c.t)} y1={PAD.t} y2={h - PAD.b} />
+          ))}
           <path className="hist-area" d={areaPath(points, w, stepMs, top, h)} />
           <path className="hist-line" d={linePath(points, w, stepMs, top, h)} />
 
@@ -431,7 +454,10 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
             beside it: two numbers in one strip, one of which changes as you
             move, is a strip nobody can read. */}
         {at ? (
-          <span className="hist-at">{clock(at.t)} — <b>{at.v}</b>{suffix}</span>
+          <span className="hist-at">{clock(at.t)} — {(() => {
+            const f = figureOf(at.v, unit);
+            return <><b>{f.value}</b>{f.unit === "%" || f.unit === "°C" || !f.unit ? f.unit : ` ${f.unit}`}</>;
+          })()}</span>
         ) : (
           <>
             <span>{points.length ? clock(points[0].t) : ""}</span>
@@ -441,6 +467,17 @@ function Chart({ series, stepMs }: { series: Series; stepMs: number }) {
       </div>
 
       {note && <div className="hist-note">{note}</div>}
+      {/* The route, newest last, the three most recent — enough to read "it
+          went through the exit node at 14:02 and came back direct at 15:10"
+          without a legend. Capitalised here rather than stored that way, so
+          the panel's own sentence can use the same words mid-line. */}
+      {changes?.slice(-3).map(c => (
+        <div key={c.t} className="hist-note hist-route">
+          {c.from == null
+            ? `Since ${clock(c.t)} — ${c.label}`
+            : `${clock(c.t)} — ${c.label.charAt(0).toUpperCase() + c.label.slice(1)}`}
+        </div>
+      ))}
     </section>
   );
 }

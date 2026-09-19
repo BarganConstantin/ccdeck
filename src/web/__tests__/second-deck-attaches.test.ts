@@ -438,7 +438,9 @@ describe("what a launcher that only asks never does", () => {
     // In the listen loop, after the bind that took, beside the other things a
     // serving process starts and an asking one must not.
     const loop = /for \(const candidate of candidates\) \{([\s\S]*?)\n  \}\n  throw listenFailure/.exec(index)?.[1] ?? "";
-    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\);[\s\S]*_prefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
+    // The metrics carry `probe: true` here and nowhere else: the network
+    // section may reach out only from a process that is actually serving.
+    expect(loop).toMatch(/await tryListen\(server, candidate, host\);[\s\S]*startSystemMetrics\(\{ probe: true \}\);[\s\S]*_prefsRead\.then\(\(\) => applyLanPrefs\(\)\)/);
     // And once: a second call site would be a second boot.
     expect([...index.matchAll(/_prefsRead\.then/g)]).toHaveLength(1);
   });
