@@ -29,7 +29,8 @@ describe("character appearance preference", () => {
   it("uses a dismissible, accessible popover for the two appearance settings", () => {
     const menu = read("components/AppearanceMenu.tsx");
     expect(menu).toContain("useModalDismiss");
-    expect(menu).toContain('role="dialog" aria-label="Appearance settings"');
+    expect(menu).toContain('role="dialog"');
+    expect(menu).toContain('aria-labelledby="appearance-title"');
     expect(menu).toContain('role="radiogroup"');
     expect(menu).toContain('role="radio"');
     expect(menu).toContain('role="switch"');
@@ -38,15 +39,29 @@ describe("character appearance preference", () => {
     expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
 
-  it("titles the menu for both settings and names each control from the words on screen", () => {
+  it("is titled for both settings, and names each control from the words on screen", () => {
     const menu = read("components/AppearanceMenu.tsx");
-    // "Theme" used to head the character switch too, which is not a theme.
-    expect(menu).toContain('<h2 className="appearance-title">Appearance</h2>');
-    expect(menu).toContain('role="radiogroup" aria-label="Theme"');
+    expect(menu).toContain('<h2 id="appearance-title" className="appearance-title">Appearance</h2>');
+    // The pair is named by its visible caption, and the key that switches it
+    // from anywhere is declared on it.
+    expect(menu).toMatch(/role="radiogroup"\s+aria-labelledby="appearance-theme-caption"\s+aria-keyshortcuts="T"/);
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
     expect(menu).toContain("tabIndex={theme === choice ? 0 : -1}");
+    // The previews are pictures; the name is the word under each.
+    expect(menu).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
     expect(menu).toContain('aria-labelledby="appearance-character-label"');
     expect(menu).toContain('aria-describedby="appearance-character-note"');
-    expect(menu).not.toMatch(/aria-label="Show character"/);
+    expect(menu).toContain(">Show character on minimap<");
+  });
+
+  it("keeps the whole Claude FM row one control, and Space and T working inside the menu", () => {
+    const menu = read("components/AppearanceMenu.tsx");
+    // The row is a <label> round the switch: a press anywhere in it reaches the
+    // switch once, and there is still one tab stop.
+    expect(menu).toMatch(/<label className="appearance-row">[\s\S]*?role="switch"[\s\S]*?<\/label>/);
+    // React Flow cancels Space on the document; the menu keeps it for its own
+    // controls. T switches the theme here too, and only without a modifier.
+    expect(menu).toContain('if (event.key === " ") { event.stopPropagation(); return; }');
+    expect(menu).toContain('event.ctrlKey || event.metaKey || event.altKey) return;');
   });
 });

@@ -310,7 +310,6 @@ const PRESSES: Press[] = [
   // version banner's. 0.97 rather than 0.94: the knob travels 12px inside a
   // 30px track, and six percent of that reads as the knob slipping.
   [".switch:active:not(:disabled)", "0.97", "transform"],
-  [".appearance-choice:active", "0.97", "transform"],
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
@@ -431,6 +430,14 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
+  // The appearance menu's Claude FM row: a <label> round the switch, the same
+  // argument as `.bw-switch` — the knob travelling and the switch's own 0.97
+  // answer the press, and a scaled row would slide the words out from under it.
+  ".appearance-row",
+  // A theme choice. Its press is answered by the whole deck changing theme and
+  // the frame moving to it; a 118px preview scaled by 3% lurches rather than
+  // clicks, and the hover plate under it already deepens.
+  ".appearance-theme",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
