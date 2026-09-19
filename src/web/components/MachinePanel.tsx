@@ -9,6 +9,13 @@
 // keeps returning to. It is a button in the icon run now, and everything the
 // meter said is one click away in here, where there is room to say it properly.
 //
+// FIVE SECTIONS, IN THE ORDER THE QUESTIONS ARRIVE. What is this machine doing
+// (CPU), what is it holding (memory), what is its line doing (network), is it
+// getting hot (thermal), and which process is responsible (the door at the
+// foot). Each is one control over one reading, and the detail that only matters
+// once — the path traffic takes — is behind the one disclosure in the panel
+// rather than printed under the figures forever.
+//
 // NO COLOUR THRESHOLD ON CPU, deliberately, and it is the most load-bearing "no"
 // here. QuotaBar turns amber at 70 and red at 90 because a quota at 90% means
 // you are about to be cut off. A CPU at 90% means the machine is doing the work
@@ -17,12 +24,22 @@
 // an indicator that alarms during the normal case teaches you to stop reading
 // it. Memory and swap keep a warning, because near-exhaustion there is real.
 //
+// THE SAME "NO" NOW COVERS LOAD AVERAGE, which used to turn amber the moment
+// the 1-minute figure passed the core count. That is not a fault condition: a
+// load average counts every runnable task and, on Linux, tasks waiting on the
+// kernel as well, so a machine running eight builds is over its cores by
+// design and stays there for an hour. The ratio is the reading worth having,
+// and it is said in words under the figures instead of coloured into an alarm.
+//
 // ABSOLUTE NUMBERS, NOT RATIOS. A percentage answers "how full", which is the
 // ambient question the meter was answering; it cannot answer "how much of how
 // much", which is the question you open a panel to ask. Everything here is in
-// bytes and cores.
+// bytes and cores — with one exception, the CPU figure beside its heading,
+// because a share of the machine's cores IS what that section measures and the
+// strip under it is the only reading in the panel with no number of its own.
 import React, { useEffect, useRef, useState } from "react";
 import SectionHistoryModal from "./SectionHistoryModal";
+import AnchoredPopover from "./AnchoredPopover";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import ProcessListModal from "./ProcessListModal";
 
@@ -138,7 +155,12 @@ interface NetRoute {
   to: "claude" | "internet";
 }
 /** Throughput is sampled all the time; latency and route only while this panel
- *  is open (system-metrics.mjs), so each can be missing for the first poll. */
+ *  is open (system-metrics.mjs), so each can be missing for the first poll.
+ *
+ *  THE THREE FIGURES ARE NOT ONE MEASUREMENT. `down` and `up` are this
+ *  machine's own counters across every physical interface it has; `api` is a
+ *  TCP handshake with one host. The section sets them apart rather than in a
+ *  row of three, and the disclosure under them says so in words. */
 interface Network {
   down: number | null;
   up: number | null;
@@ -178,6 +200,30 @@ function uptime(sec: number): string {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+/**
+ * The one condition in this snapshot worth saying at the top, or nothing.
+ *
+ * NOT A HEALTH SCORE, and not a badge that says "all good" on a quiet machine:
+ * a permanent green word is read once and then stops being read, and it would
+ * have to be computed from thresholds this app does not have for most of what
+ * it measures. Three conditions qualify, all of them measured rather than
+ * inferred, and each is already a warning colour in the section it comes from:
+ *
+ *   1. the machine is being held below full speed — `pmset` reports the limit;
+ *   2. physical memory is at the 90% the memory row already turns amber at;
+ *   3. the API host was asked and did not answer.
+ *
+ * One at a time, worst first. A stack of flags at the top of a 280px panel is
+ * a second panel, and the section each one comes from says it again in place.
+ */
+export function attentionFlag(sys: Pick<Snapshot, "thermal" | "memory" | "network">): string | null {
+  const limit = sys.thermal?.throttle?.speedLimit;
+  if (limit != null && limit < 100) return `throttled to ${limit}% of full speed`;
+  if (sys.memory && sys.memory.usedPct >= 90) return `physical memory ${Math.round(sys.memory.usedPct)}% full`;
+  if (sys.network?.api && sys.network.api.ms == null) return "the Claude API is not answering";
+  return null;
 }
 
 /**
@@ -234,20 +280,29 @@ function useSystem(): Snapshot | null {
 }
 
 /**
- * The panel's frame: its slot in the rail, its landmark name, its title and its
- * one ×.
+ * The panel's frame: its slot in the rail, its landmark name, its title, the
+ * one thing worth flagging and its one ×.
  *
  * Written once because there are two things that can be inside it — the
  * readings, and the sentence that stands in for them until the first snapshot
  * lands — and a header copied into a second branch is how one × ends up saying
  * something the other does not.
+ *
+ * THE HEAD STAYS PUT WHEN THE BODY SCROLLS. On a short window the panel is
+ * taller than its slot, and everything that scrolled away first was the part
+ * that says what you are looking at and how to close it. It is sticky against
+ * the panel's own scrollport now, on the panel's own ground, and the flag rides
+ * with it: a machine held below full speed should not be a fact you have to
+ * scroll back up to find.
  */
-function Shell({ usageOpen, leaving, sub, onClose, children }: {
+function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
   usageOpen: boolean;
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   /** The uptime and the core count, which only a measured panel has. */
   sub?: string;
+  /** The one condition worth saying at the top, or nothing at all. */
+  flag?: string | null;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -258,10 +313,13 @@ function Shell({ usageOpen, leaving, sub, onClose, children }: {
     // went from one to the other past it. The landmark takes its name from
     // the heading so the region and its title cannot disagree.
     <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-labelledby="sd-title">
-      <div className="sd-head">
-        <h2 className="sd-title" id="sd-title">This machine</h2>
-        {sub && <span className="sd-sub">{sub}</span>}
-        <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
+      <div className="sd-top">
+        <div className="sd-head">
+          <h2 className="sd-title" id="sd-title">This machine</h2>
+          {sub && <span className="sd-sub">{sub}</span>}
+          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label="Close" title="Close">×</button>
+        </div>
+        {flag && <p className="sd-flag">{flag}</p>}
       </div>
       {children}
     </aside>
@@ -315,31 +373,78 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     );
   }
 
-  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal, network } = sys;
-  const used = memory ? memory.total - memory.available : 0;
-  // Windows has no swap file in the Unix sense; what the same query reports
-  // there is commit charge, so it is named for what it is.
-  const swapLabel = platform === "win32" ? "Commit" : "Swap";
-  const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
+  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal, network, cpu } = sys;
 
   return (
-    <Shell usageOpen={usageOpen} leaving={leaving} sub={`up ${uptime(uptimeSec)} · ${cores} cores`} onClose={onClose}>
+    <Shell
+      usageOpen={usageOpen}
+      leaving={leaving}
+      sub={`up ${uptime(uptimeSec)} · ${cores} cores`}
+      flag={attentionFlag(sys)}
+      onClose={onClose}
+    >
+      <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
+      <MemorySection memory={memory} swap={swap} platform={platform} />
+      {network && <NetworkSection network={network} />}
+      <ThermalSection thermal={thermal} />
+      <Processes sys={sys} />
+    </Shell>
+  );
+}
 
-      {perCore && perCore.length > 0 && (
-        <div className="sd-section" role="group" aria-label="Cores">
-          <OpensHistory group="cores" title="Core history" action="Show core history" label="Cores">
-          {/* One column per core. The aggregate in the topbar cannot tell a
-              saturated machine from one hot single-threaded job; this can.
+/**
+ * What this machine is doing with its cores, and what is waiting for them.
+ *
+ * ONE SECTION, TWO READINGS, and they were two sections until the strip and the
+ * load average had a panel's width between them — cores at the top, load
+ * halfway down sharing a line with the network, which is a different question
+ * about a different device. A load average is a statement about the CPU's queue
+ * and it is unreadable without the core count the strip is drawing; together
+ * they answer "is this box coping" in one glance, which neither does alone.
+ *
+ * Two controls rather than one, because there are two charts: the strip opens
+ * what every core did, the figures open what the queue did. The alternative —
+ * one button over both — would open one of the two and leave the other
+ * unreachable from the block it belongs to.
+ */
+function CpuSection({ cpu, perCore, loadavg, cores }: {
+  cpu: number | null;
+  perCore: number[] | null;
+  loadavg: number[] | null;
+  cores: number;
+}) {
+  const hasStrip = !!perCore && perCore.length > 0;
+  if (!hasStrip && !loadavg) return null;
+  return (
+    <div className="sd-section sd-cpu" role="group" aria-label="CPU">
+      {hasStrip && (
+        <OpensHistory group="cores" title="Core history" action="Show core history" label="CPU"
+          value={cpu == null ? null : `${Math.round(cpu)}%`}>
+          {/* One column per logical core — what `os.cpus()` counts, which is
+              threads on a machine with SMT and physical cores on one without.
+              The aggregate beside the heading cannot tell a saturated machine
+              from one hot single-threaded job; this can.
 
               No `--n` any more: the strip counted its own columns into a
               custom property so the grid could repeat a 1fr track that many
               times, and that had no minimum — at 64 threads a column measured
               1.93px and at 128 it measured zero. The strip wraps now and the
               count is the number of children, which the layout can see for
-              itself. */}
-          <div className="sd-cores">
-            {perCore.map((v, i) => (
-              <span key={i} className="sd-core" title={`core ${i + 1}: ${v}%`}>
+              itself.
+
+              ONE ACCESSIBLE NAME FOR THE WHOLE STRIP, not one per column: a
+              pointer gets the per-core figure from each column's own tooltip,
+              and a reader who cannot hover gets the two numbers that matter —
+              how many cores there are and how hard the busiest is working —
+              without 64 nodes to step through. The chart behind the button has
+              the rest. */}
+          <div
+            className="sd-cores"
+            role="img"
+            aria-label={`${perCore!.length} logical cores, busiest at ${Math.round(Math.max(...perCore!))}%`}
+          >
+            {perCore!.map((v, i) => (
+              <span key={i} className="sd-core" title={`logical core ${i + 1} · ${v}% busy`}>
                 {/* A fraction of a full-height column, not a height (#505).
                     One element per core, restyled every 3 seconds while this
                     panel is open, so the difference between a composited
@@ -351,163 +456,229 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
               </span>
             ))}
           </div>
-          </OpensHistory>
-        </div>
+        </OpensHistory>
       )}
+      {loadavg && (
+        <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
+          <div className="sd-figs">
+            {loadavg.map((v, i) => (
+              <Fig key={i} value={v.toFixed(2)} cap={["1m", "5m", "15m"][i]} />
+            ))}
+          </div>
+          {/* The one number the strip above cannot express: past every core
+              being busy it saturates, and this says by how much the queue
+              exceeds them. No colour on it — see the note at the top of this
+              file about what a load average actually counts. */}
+          <div className="sd-note">
+            {loadavg[0] > cores
+              ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
+              : `within ${cores} cores`}
+          </div>
+        </OpensHistory>
+      )}
+    </div>
+  );
+}
 
-      <div className="sd-section" role="group" aria-label="Memory">
-        <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
-        {memory && (
-          <Row
-            label="Physical"
-            value={<><b>{bytes(used)}</b> of {bytes(memory.total)}</>}
-            pct={memory.usedPct}
-            tone={memory.usedPct >= 90 ? "warn" : "calm"}
-            note={`${bytes(memory.available)} available`}
-          />
-        )}
+/**
+ * What the machine is holding, and what is left.
+ *
+ * The used figure is the total less what the kernel says it can hand over
+ * without swapping, which is the same arithmetic the server's own `usedPct`
+ * does — not the OS's "used" column, which counts caches it would give back on
+ * demand. One definition, in one place, so the bar and the figure cannot
+ * disagree.
+ *
+ * NO NOTE UNDER SWAP. It read "paging to disk" above half full, and that is a
+ * claim about what the machine is doing right now that nothing here measures:
+ * an occupied swap file is pages that were moved out at some point, possibly
+ * hours ago, on a machine that has not touched the disk since. The rate that
+ * would justify the sentence — Linux's pswpin/pswpout, or a Windows page-fault
+ * counter — is not sampled, so the row says what it has: how much is held.
+ */
+function MemorySection({ memory, swap, platform }: {
+  memory: Memory;
+  swap: Swap | null;
+  platform: string;
+}) {
+  const used = memory.total - memory.available;
+  // Windows has no swap file in the Unix sense; what the same query reports
+  // there is commit charge, so it is named for what it is.
+  const swapLabel = platform === "win32" ? "Commit" : "Swap";
+  const swapPct = swap && swap.total > 0 ? (swap.used / swap.total) * 100 : 0;
+  return (
+    <div className="sd-section" role="group" aria-label="Memory">
+      <OpensHistory group="memory" title="Memory history" action="Show memory history" label="Memory">
+        <Row
+          label="Physical"
+          value={<><b>{bytes(used)}</b> of {bytes(memory.total)}</>}
+          pct={memory.usedPct}
+          tone={memory.usedPct >= 90 ? "warn" : "calm"}
+          note={`${bytes(memory.available)} available`}
+        />
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
             value={<><b>{bytes(swap.used)}</b> of {bytes(swap.total)}</>}
             pct={swapPct}
             tone={swapPct >= 90 ? "warn" : "calm"}
-            note={swapPct >= 50 ? "paging to disk" : undefined}
           />
         )}
-        </OpensHistory>
-      </div>
-
-      {/* LOAD AND NETWORK SHARE A LINE. Both are three short figures and a
-          note; stacked, the panel grew a section's height for two readings
-          that fit side by side, and it is the same glance — how busy is this
-          machine, and how busy is its connection. Alone (Windows has no load
-          average), either takes the full width as every section does. */}
-      {loadavg && network ? (
-        <div className="sd-section sd-pair">
-          {loadSection(loadavg, cores)}
-          <NetworkSection network={network} />
-        </div>
-      ) : loadavg ? loadSection(loadavg, cores) : network ? <NetworkSection network={network} /> : null}
-      {network?.route && <RouteLine route={network.route} />}
-
-      <ThermalSection thermal={thermal} />
-
-      <Processes sys={sys} />
-    </Shell>
-  );
-}
-
-/**
- * Is this machine getting hot, and is it being held back for it.
- *
- * The question the four sections above cannot answer. A saturated machine that
- * is cool is a machine doing work; a saturated machine that is thermally
- * limited is one where the next agent you launch makes everything slower, and
- * a load average of 67 reads identically in both cases.
- *
- * Headed "Thermal" rather than "Temperature", and that is a decision rather
- * than a hedge: on macOS the honest reading is not degrees at all — no CPU
- * sensor is readable without root, and what IS readable is how much of the
- * CPU's speed the thermal manager is currently allowing. A "Temperature"
- * heading over that would be a heading that lies on every Apple Silicon
- * install. "Thermal" holds degrees where the machine has them and the
- * consequence where it does not, and every row still says what it measured.
- *
- * Nothing is drawn when the machine publishes nothing. Not a zero, not a dash,
- * not an empty bar — the same refusal that keeps `cpu` null until two samples
- * exist. On a platform with no sensor this section has never existed.
- */
-/** Load average: the three figures and the one note the topbar bar cannot
- *  give — by how much the queue exceeds the cores. */
-function loadSection(loadavg: number[], cores: number) {
-  return (
-    <div className="sd-section" role="group" aria-label="Load average">
-      <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
-      <div className="sd-load">
-        {loadavg.map((v, i) => (
-          <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
-            <b>{v.toFixed(2)}</b>
-            <span>{["1m", "5m", "15m"][i]}</span>
-          </span>
-        ))}
-      </div>
-      {/* The one number the topbar bar cannot express: past 100% it
-          saturates, and this says by how much. */}
-      <div className="sd-note">
-        {loadavg[0] > cores
-          ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
-          : `within ${cores} cores`}
-      </div>
       </OpensHistory>
     </div>
   );
 }
 
 /**
- * What the connection is moving, and how far Claude is.
+ * What the connection is moving, how far Claude is, and — behind one press —
+ * which way any of it is going.
  *
- * The figures are set exactly as Load average's are — the number in the weight,
- * its unit and direction in the caption under it — so the two halves of the
- * line read as one kind of thing. Bytes rather than bits, like the memory
- * above (net-format.ts). The latency is a TCP handshake with the API, not a
- * request: it costs no tokens and sends nothing.
+ * THREE FIGURES, TWO MEASUREMENTS. Down and up are this machine's own interface
+ * counters, every physical wire and radio it has, differenced over five
+ * seconds. The third is a TCP handshake with one host: it costs no tokens and
+ * sends nothing, and it says nothing about the other two. Set as an even row of
+ * three they would read as one connection's three readings, so the latency sits
+ * apart at the far edge with the host in its caption, and the disclosure under
+ * them says both scopes in words.
+ *
+ * The figures are set exactly as the load average's are — the number in the
+ * weight, its unit and direction in the caption under it — so the two read as
+ * one kind of thing. Bytes rather than bits, like the memory above
+ * (net-format.ts).
  */
 function NetworkSection({ network }: { network: Network }) {
-  const { down, up, api } = network;
+  const { down, up, api, route } = network;
+  const [details, setDetails] = useState(false);
+  const latency = api && api.ms != null ? latencyFigure(api.ms) : null;
+  const rates = down != null && up != null;
   return (
     <div className="sd-section" role="group" aria-label="Network">
       <OpensHistory group="network" title="Network history" action="Show network history" label="Network">
-      {down != null && up != null ? (
-        <div className="sd-load">
-          {([["down", down], ["up", up]] as const).map(([dir, v]) => {
-            const f = rateFigure(v);
-            return (
-              <span key={dir} className="sd-load-item">
-                <b>{f.value}</b>
-                <span>{f.unit} {dir}</span>
-              </span>
-            );
-          })}
-        </div>
-      ) : (
-        // The first rate needs two readings five seconds apart.
-        <div className="sd-note">measuring…</div>
-      )}
-      {api && (
-        <div className={api.ms == null ? "sd-note sd-note-warn" : "sd-note"}>
-          {/* Short enough for the half-width column: "Claude API not
-              answering" wrapped onto two lines there. */}
-          {api.ms == null ? "Can’t reach Claude" : `Claude API ${figureText(latencyFigure(api.ms))}`}
-        </div>
-      )}
+        {(rates || latency) && (
+          <div className="sd-figs">
+            {rates && ([["down", down!], ["up", up!]] as const).map(([dir, v]) => {
+              const f = rateFigure(v);
+              return <Fig key={dir} value={f.value} cap={`${f.unit} ${dir}`} />;
+            })}
+            {latency && <Fig value={latency.value} cap={`${latency.unit} to Claude`} apart />}
+          </div>
+        )}
+        {/* The first rate needs two readings five seconds apart, and the two
+            probes do not land together: a latency that has arrived is drawn
+            rather than held back until the counters catch up. */}
+        {!rates && <div className="sd-note">measuring…</div>}
+        {api && api.ms == null && (
+          // The one network state that is a fault rather than a figure stays in
+          // the panel, never folded into the disclosure below: a connection
+          // that cannot be asked is exactly what somebody opens this to find.
+          <div className="sd-note sd-note-warn">Can’t reach Claude</div>
+        )}
       </OpensHistory>
+      {route && (
+        <>
+          {/* THE PATH IS BEHIND A PRESS, and it was two lines of sentence under
+              the figures before — "Traffic to Claude goes through Tailscale
+              exit node …, relayed via fra" — which is worth reading once and
+              then occupies the panel forever. What stays outside is the part
+              that changes what you should do: a relayed path is slower than the
+              same node reached directly, and it is named here in the warning
+              colour whether or not anybody opens the detail. */}
+          <button
+            type="button"
+            className="sd-detail"
+            id="sd-conn"
+            aria-expanded={details}
+            aria-haspopup="dialog"
+            onClick={() => setDetails(o => !o)}
+          >
+            Connection details
+            {route.relay && <span className="sd-route-relay"> · relayed</span>}
+            <i className="sd-row-more" aria-hidden>›</i>
+          </button>
+          {details && <ConnectionDetails route={route} api={api} onClose={() => setDetails(false)} />}
+        </>
+      )}
     </div>
   );
 }
 
-/**
- * Which way the traffic goes, when it is not this machine's own connection.
- *
- * Absent on a direct connection, deliberately: a line that always says "direct"
- * is read once and then never again, and missed the day it changes. When it is
- * there it names the machine the traffic leaves through, and the relay — the
- * part that costs — in the warning colour. This is the line that would have
- * explained Claude FM going silent for twenty seconds at a time.
- */
-function RouteLine({ route }: { route: NetRoute }) {
-  const through = route.kind === "tailscale-exit"
-    ? <>Tailscale exit node{route.node ? <> <b>{route.node}</b></> : null}</>
-    : route.kind === "tailscale"
-      ? <>Tailscale</>
-      : <>{route.name ? `a ${route.name} VPN` : "a VPN"}{route.iface ? ` (${route.iface})` : ""}</>;
+/** One figure: the number in the panel's reading weight, its unit and what it
+ *  measures in the caption under it. `apart` is the one break in the row —
+ *  a figure that is not measuring the same thing as the ones before it. */
+function Fig({ value, cap, apart }: { value: string; cap: string; apart?: boolean }) {
   return (
-    <p className="sd-route">
-      {route.to === "claude" ? "Traffic to Claude" : "Internet traffic"} goes through {through}
-      {route.relay && (
-        <>, <span className="sd-route-relay" title="Not reached directly: every packet also passes through one of Tailscale's relay servers, which adds its round trip twice">relayed via {route.relay}</span></>
-      )}
-    </p>
+    <span className={`sd-fig${apart ? " sd-fig-apart" : ""}`}>
+      <b>{value}</b>
+      <span className="sd-fig-cap">{cap}</span>
+    </span>
+  );
+}
+
+/** The path, in the words the server's own route label uses. */
+function pathText(route: NetRoute): string {
+  if (route.kind === "tailscale-exit") return route.node ? `Tailscale exit node ${route.node}` : "a Tailscale exit node";
+  if (route.kind === "tailscale") return "Tailscale";
+  return `${route.name ? `${route.name} ` : ""}VPN${route.iface ? ` (${route.iface})` : ""}`;
+}
+
+/**
+ * Which way the traffic goes, and what each figure above it was measuring.
+ *
+ * A popover rather than a dialog: it is four short facts about the row it hangs
+ * off, nothing here is a task, and a scrim over the canvas to read a route
+ * would be a modal for something that needs neither interruption nor protected
+ * focus. AnchoredPopover owns the placement, the Escape, the press-outside and
+ * the hand-back of focus to the button; the panel it hangs off is its boundary,
+ * so scrolling the route out of view closes it rather than leaving it floating
+ * over the canvas.
+ *
+ * Every row is a reading that exists. A direct line draws no route at all — the
+ * server reports one only when the path is not this machine's own — so this is
+ * never a surface with "direct" written on it, and it is not rendered at all
+ * when there is nothing to disclose.
+ */
+function ConnectionDetails({ route, api, onClose }: {
+  route: NetRoute;
+  api: Network["api"];
+  onClose: () => void;
+}) {
+  return (
+    <AnchoredPopover
+      anchorId="sd-conn"
+      boundaryId="system-panel"
+      id="sd-conn-pop"
+      className="sd-pop"
+      role="dialog"
+      labelledBy="sd-conn-title"
+      onClose={onClose}
+    >
+      <p className="sd-pop-title" id="sd-conn-title">Connection</p>
+      <dl className="sd-pop-rows">
+        <div className="sd-pop-row">
+          <dt>{route.to === "claude" ? "Traffic to Claude" : "Internet traffic"}</dt>
+          <dd>through {pathText(route)}</dd>
+        </div>
+        {route.relay && (
+          <div className="sd-pop-row">
+            <dt>Relay</dt>
+            <dd>
+              <span className="sd-route-relay">{route.relay}</span> — not a direct path, so every packet
+              carries one more round trip than it has to
+            </dd>
+          </div>
+        )}
+        {api && (
+          <div className="sd-pop-row">
+            <dt>Round trip</dt>
+            <dd>{api.ms == null ? `${api.host} did not answer` : `${figureText(latencyFigure(api.ms))} to open a connection to ${api.host}`}</dd>
+          </div>
+        )}
+        <div className="sd-pop-row">
+          <dt>Throughput</dt>
+          <dd>every interface on this machine, not this path alone</dd>
+        </div>
+      </dl>
+    </AnchoredPopover>
   );
 }
 
@@ -515,7 +686,7 @@ function RouteLine({ route }: { route: NetRoute }) {
  * A section of this panel that keeps a history, wrapped in the one control that
  * opens it.
  *
- * ONE control per section, never one per row. It was one per row first, and
+ * ONE control per reading, never one per row. It was one per row first, and
  * that was a mistake with a tell: every row of a section opens the SAME dialog
  * showing EVERY series in it, so the second button did nothing the first had
  * not. Two controls for one action made a section read as a list of separately
@@ -523,9 +694,12 @@ function RouteLine({ route }: { route: NetRoute }) {
  *
  * The heading goes inside the button so the whole block lights as one, and
  * keeps its `aria-hidden`: the group is already named, and the button carries
- * its own name, so the word a third time is noise.
+ * its own name, so the word a third time is noise. `value` is the exception the
+ * CPU section needs — a strip of bars with no figure anywhere — and it is the
+ * reading itself, so it is spoken by the button rather than hidden with the
+ * heading.
  */
-function OpensHistory({ group, title, action, label, children }: {
+function OpensHistory({ group, title, action, label, value, children }: {
   group: "thermal" | "cores" | "memory" | "load" | "network";
   /** What the dialog calls itself. A name for a thing. */
   title: string;
@@ -535,6 +709,8 @@ function OpensHistory({ group, title, action, label, children }: {
    *  rather than derived, because deriving it produced "Show cores history". */
   action: string;
   label: string;
+  /** The section's own reading, beside its heading, where it has one. */
+  value?: string | null;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -545,9 +721,12 @@ function OpensHistory({ group, title, action, label, children }: {
         className="sd-open"
         onClick={() => setOpen(true)}
         title={action}
-        aria-label={action}
+        aria-label={value == null ? action : `${action}, now ${value}`}
       >
-        <div className="sd-h" aria-hidden>{label} <i className="sd-row-more">›</i></div>
+        <div className="sd-h" aria-hidden>
+          {label} <i className="sd-row-more">›</i>
+          {value != null && <span className="sd-h-val">{value}</span>}
+        </div>
         {children}
       </button>
       {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
@@ -555,6 +734,35 @@ function OpensHistory({ group, title, action, label, children }: {
   );
 }
 
+/**
+ * Is this machine getting hot, and is it being held back for it.
+ *
+ * The question the sections above cannot answer. A saturated machine that is
+ * cool is a machine doing work; a saturated machine that is thermally limited
+ * is one where the next agent you launch makes everything slower, and a load
+ * average of 67 reads identically in both cases.
+ *
+ * Headed "Thermal" rather than "Temperature", and that is a decision rather
+ * than a hedge: on macOS the honest reading is not degrees at all — no CPU
+ * sensor is readable without root, and what IS readable is how much of the
+ * CPU's speed the thermal manager is currently allowing. A "Temperature"
+ * heading over that would be a heading that lies on every Apple Silicon
+ * install. "Thermal" holds degrees where the machine has them and the
+ * consequence where it does not, and every row still says what it measured.
+ *
+ * THE TRACK ENDS WHERE THE ROW TURNS RED. It was 0–100°C for every sensor,
+ * which is a limit this app invented: it put a 63°C drive at two thirds of a
+ * scale whose end means nothing, and on a chip whose own critical point is 100
+ * it was a coincidence rather than a scale. Each row is drawn against its own
+ * `critAt` — the chip's where hwmon publishes one, the 90 the server falls back
+ * to otherwise — with a mark at the temperature the fill turns amber. So a full
+ * bar is the one claim the reading supports: this row is at the point it is
+ * called critical, whoever called it.
+ *
+ * Nothing is drawn when the machine publishes nothing. Not a zero, not a dash,
+ * not an empty bar — the same refusal that keeps `cpu` null until two samples
+ * exist. On a platform with no sensor this section has never existed.
+ */
 function ThermalSection({ thermal }: { thermal: Thermal | null }) {
   if (!thermal) return null;
   const held = thermal.throttle ? throttleRow(thermal.throttle.speedLimit, thermal.heldBack) : null;
@@ -566,15 +774,17 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
             key={r.label}
             label={r.label}
             value={<><b>{r.celsius}</b> °C</>}
-            // The track is 0 to 100°C, which is the range silicon lives in, so
-            // the fill is the reading itself rather than a ratio of a number
-            // nobody would recognise.
-            pct={r.celsius}
+            pct={(r.celsius / r.critAt) * 100}
+            mark={(r.warnAt / r.critAt) * 100}
             tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
+            // What the bar is a bar OF, for the one reader who wants to know
+            // why 90 is nearly full. The scale is the app's own rule, stated as
+            // one rather than as a fact about the silicon.
+            title={`bar runs to ${r.critAt} °C · amber from ${r.warnAt} °C`}
           />
         ))}
         {held && (
-          <Row label="Throttling" value={held.value} pct={held.pct} tone={held.tone} note={held.note} />
+          <Row label="Throttling" value={<b>{held.value}</b>} pct={held.pct} tone={held.tone} note={held.note} />
         )}
       </OpensHistory>
     </div>
@@ -649,16 +859,22 @@ function Processes({ sys }: {
  * A label, a reading, a track and an optional sentence.
  *
  * `value` is a node rather than a byte pair because this row draws three
- * different kinds of reading now — "20.5 GB of 32.0 GB", "58 °C", "none" — and
+ * different kinds of reading now — "20.5 GB of 32.0 GB", "58 °C", "0%" — and
  * the memory formatting belongs to the memory section rather than to the
  * component every section shares. `tone` for the same reason: `pct >= 90` is
  * the memory rule and it was never the thermal one.
+ *
+ * `mark` is where the fill changes colour, drawn as a notch in the track so the
+ * bar is a scale with a point on it rather than a length with no units. Only
+ * the temperature rows have one: memory's amber is at nine tenths of a bar that
+ * is already full by then, and a mark there would sit under the fill's own end.
  */
-function Row({ label, value, pct, tone = "calm", note }: {
+function Row({ label, value, pct, tone = "calm", note, mark, title }: {
   label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
+  mark?: number; title?: string;
 }) {
   return (
-    <div className="sd-row">
+    <div className="sd-row" title={title}>
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
@@ -669,7 +885,7 @@ function Row({ label, value, pct, tone = "calm", note }: {
         {/* A floor of 1%, so a reading that is present but tiny still draws a
             sliver rather than reading as "no data" — but only ABOVE zero. Zero
             draws nothing, because on the thermal rows an empty track is the
-            answer: "Throttling — none" beside a bar with a mark in it says two
+            answer: "Throttling — 0%" beside a bar with a mark in it says two
             different things, and the section's whole convention is that a bar
             fills with the problem. Nothing is not a small amount of something.
             Memory never reaches zero, so it is unaffected either way. */}
@@ -677,6 +893,9 @@ function Row({ label, value, pct, tone = "calm", note }: {
           className={`sd-fill${tone === "calm" ? "" : ` ${tone}`}`}
           style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
         />
+        {mark != null && mark > 0 && mark < 100 && (
+          <span className="sd-mark" style={{ left: `${mark}%` }} aria-hidden />
+        )}
       </span>
       {note && <div className="sd-note">{note}</div>}
     </div>

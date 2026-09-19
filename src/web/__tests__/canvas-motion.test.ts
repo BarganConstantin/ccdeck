@@ -279,6 +279,11 @@ const PRESSES: Press[] = [
   // opens something, like `.sl-row` and `.bw-ep-head` above — same tier, same
   // number.
   [".sysdetail .sd-open:active", "0.97", "transform"],
+  // `Connection details` in the network section — the panel's one disclosure,
+  // a row rather than a section, and pressed at the same 0.97 as the block
+  // above it: it is a labelled control in the same panel, and a second number
+  // for a second shape would make one panel answer a press two ways.
+  [".sysdetail .sd-detail:active", "0.97", "transform"],
   // Busiest processes is `.sd-open` too now. It was the one section that could
   // not be — its column headers are buttons and a button cannot contain one —
   // and it drew eight rows with a small `more` beside the heading, each of
