@@ -41,8 +41,7 @@ import GuideModal from "./components/GuideModal";
 import { WELCOME_STEPS } from "./components/guide-art";
 import SoundMenu from "./components/SoundMenu";
 import AppearanceMenu from "./components/AppearanceMenu";
-import ClaudeFm, { type ClaudeFmHandle } from "./components/ClaudeFm";
-import { duckMsFor } from "./claude-fm";
+import ClaudeFm from "./components/ClaudeFm";
 import { CHARACTER_ENABLED_KEY, storedCharacterEnabled } from "./appearance";
 import { newTabId, PRESENCE_BEAT_MS, presenceShouldSend, tabLooking } from "./presence";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
@@ -120,7 +119,7 @@ import { emptyScope } from "./scope";
 import { ASSUMED, readProviders, type Providers } from "./providers";
 import { captureHints, finishSoundTitle } from "./provider-copy";
 import {
-  chimeFor, clampLevel, createChimePlayer, figureFor, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
+  chimeFor, clampLevel, createChimePlayer, figureIdFrom, FIGURE_KEYS, LEVEL_KEYS,
   PREVIEW_DELAY_MS, readPrefs,
   type Chime, type ChimeState, type TonePrefs, type ToneSettings,
 } from "./sound";
@@ -1237,25 +1236,6 @@ function Inner() {
   const tonePrefsRef = useRef(tonePrefs);
   tonePrefsRef.current = tonePrefs;
 
-  /** Claude FM, if it is on the canvas at all. The handle is one method: drop
-   *  the music while a chime plays. Null whenever the channel is off air or
-   *  nobody has pressed play, which is what every call below tolerates. */
-  const fmRef = useRef<ClaudeFmHandle | null>(null);
-
-  /**
-   * Get the music out of the way of the deck's own sound.
-   *
-   * The chimes are the reason the sound menu exists: they are how this deck
-   * says a turn finished or that Claude is waiting on somebody. Music playing
-   * over them does not merely make them harder to hear, it makes them
-   * indistinguishable from the track — so every chime ducks the music for
-   * exactly its own length, measured from the figure the user picked rather
-   * than from a constant that would clip the long ones.
-   */
-  const duckForChime = useCallback((chime: Chime) => {
-    const figure = figureFor(chime, tonePrefsRef.current[chime]?.figure);
-    fmRef.current?.duck(duckMsFor(figure.notes));
-  }, []);
   /** The trailing timer for the tone a changed setting plays back. */
   const previewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1281,12 +1261,12 @@ function Inner() {
     chimesRef.current?.unlock();
     if (previewRef.current !== null) clearTimeout(previewRef.current);
     previewRef.current = null;
-    if (!soon) { if (chimesRef.current?.play(chime, true)) duckForChime(chime); return; }
+    if (!soon) { chimesRef.current?.play(chime, true); return; }
     previewRef.current = setTimeout(() => {
       previewRef.current = null;
-      if (chimesRef.current?.play(chime, true)) duckForChime(chime);
+      chimesRef.current?.play(chime, true);
     }, PREVIEW_DELAY_MS);
-  }, [duckForChime]);
+  }, []);
 
   /**
    * One tone's settings, written and then played back.
@@ -2305,8 +2285,11 @@ function Inner() {
         else coalescer.live();
         // After the coalescer, and reusing its `isReplay`: a reconnect is sent
         // the whole ring, and every Stop in a day's work is in it.
+        // Over Claude FM, never under it: the chime is short and the music
+        // keeps its level. Turning the track down for each one was heard as
+        // the stream cutting out.
         const chime = chimeFor(env, isReplay);
-        if (chime && chimesRef.current?.play(chime)) duckForChime(chime);
+        if (chime) chimesRef.current?.play(chime);
       } catch { /* ignore */ }
     });
     return () => {
@@ -5438,7 +5421,7 @@ function Inner() {
           {/* Above the minimap, and absent unless there is something to play —
               ClaudeFm renders null until the server says the channel is on air,
               so on a deck with no network this is nothing at all. */}
-          {characterEnabled && <ClaudeFm ref={fmRef} />}
+          {characterEnabled && <ClaudeFm />}
         </ReactFlow>
       </main>
 

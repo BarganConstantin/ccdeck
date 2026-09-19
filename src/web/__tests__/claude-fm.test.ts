@@ -14,7 +14,7 @@ import {
   mayAskYouTube, readLiveMarks, readUntilMarks,
 } from "../../server/claude-fm.mjs";
 import {
-  command, duckMsFor, DUCK_TAIL_MS, DUCK_VOLUME, embedSrc, FATAL_ERRORS, FULL_VOLUME, STOPPED_STATES,
+  command, embedSrc, FATAL_ERRORS, STOPPED_STATES,
   listenCommand, nextIdleMs, nextWalk, PLAYER_ORIGIN, PLAYING_STATES, readSignal,
   SPRITE, SPRITE_H, SPRITE_W, spriteRects,
   ACTIVITIES, BALL_ROLL_PX, BALL_FLIGHT_MS, BIN_X, climbMsFor, crossSteps, HAT, HAT_X, HAT_Y, FALL_G, fallMsFor, KICK_MS, kickSteps, leaveLedgeSteps,
@@ -329,32 +329,21 @@ describe("talking to the player", () => {
   });
 });
 
-describe("getting out of the way of the deck's own sound", () => {
-  it("ducks rather than mutes", () => {
-    // The music going silent and coming back is more noticeable than the music
-    // getting quieter, and the point is to make the chime audible, not to
-    // interrupt the track.
-    expect(DUCK_VOLUME).toBeGreaterThan(0);
-    expect(DUCK_VOLUME).toBeLessThan(FULL_VOLUME / 3);
+describe("the deck's own sound plays over the music", () => {
+  it("never touches the player's volume", () => {
+    // Every chime used to drop the stream to a fraction of its level and bring
+    // it back a moment later, and with notifications on that dip was heard as
+    // Claude FM cutting out. The chime is a short tone on its own
+    // AudioContext; the browser mixes the two, and the music keeps going.
+    expect(component).not.toContain("setVolume");
+    expect(component).not.toContain("useImperativeHandle");
   });
 
-  it("holds the music down for the figure's own length", () => {
-    // A fixed number would clip the long figures and leave the music quiet
-    // after the short ones — and the sound menu lets a user pick either.
-    const short = duckMsFor([{ at: 0, ms: 90 }]);
-    const long = duckMsFor([{ at: 0, ms: 90 }, { at: 0.42, ms: 220 }]);
-    expect(short).toBe(90 + DUCK_TAIL_MS);
-    expect(long).toBe(640 + DUCK_TAIL_MS);
-    expect(long).toBeGreaterThan(short);
-    expect(duckMsFor([])).toBe(DUCK_TAIL_MS);
-  });
-
-  it("is wired to every chime the deck plays, and only when one sounded", () => {
-    // `play` returns false when the switch is off or the page has not been
-    // touched yet; ducking then would drop the music for nothing.
-    expect(app).toContain("if (chime && chimesRef.current?.play(chime)) duckForChime(chime);");
-    expect(app).toContain("if (chimesRef.current?.play(chime, true)) duckForChime(chime);");
-    expect(app).toContain("figureFor(chime, tonePrefsRef.current[chime]?.figure)");
+  it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
+    expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
+    expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
+    expect(app).toContain("{characterEnabled && <ClaudeFm />}");
+    expect(app).not.toMatch(/duck/i);
   });
 });
 
@@ -381,12 +370,11 @@ describe("absent, not broken", () => {
 
   it("releases the player on explicit stop and rejects messages from old frames", () => {
     expect(component).toContain('if (e.source !== frame.current?.contentWindow) return;');
-    expect(component).toMatch(/if \(!next\) \{\s*setArmed\(false\);/);
-    expect(component).toContain('duckTimer.current = null;');
+    expect(component).toMatch(/if \(!next\) setArmed\(false\);/);
   });
 
   it("caches pixel geometry outside the memoized component", () => {
-    const start = component.indexOf('export default memo(forwardRef');
+    const start = component.indexOf('export default memo(');
     expect(start).toBeGreaterThan(0);
     expect(component.indexOf('const TORSO_RECTS')).toBeLessThan(start);
     expect(component.indexOf('const PROP_PIXELS')).toBeLessThan(start);

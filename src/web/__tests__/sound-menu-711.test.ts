@@ -984,10 +984,7 @@ describe("hearing it is the point, not a nicety", () => {
   it("answers a press at once and a drag after it settles", () => {
     // The distinction that makes both usable: a slider crossing a dozen steps
     // must collapse to one figure, and a deliberate press must not feel laggy.
-    // The `if` around the play is Claude FM's: `play` returns false when the
-    // switch is off or the page has not been touched yet, and ducking the music
-    // for a chime that never sounded would drop the track for nothing.
-    expect(app).toMatch(/if \(!soon\) \{ if \(chimesRef\.current\?\.play\(chime, true\)\) duckForChime\(chime\); return; \}/);
+    expect(app).toMatch(/if \(!soon\) \{ chimesRef\.current\?\.play\(chime, true\); return; \}/);
     expect(app).toMatch(/previewRef\.current = setTimeout\(/);
     expect(app).toMatch(/\}, PREVIEW_DELAY_MS\);/);
     // A pending debounce is cancelled before either path runs, so a press and a
