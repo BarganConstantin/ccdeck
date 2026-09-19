@@ -310,6 +310,11 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).toMatch(/if \(e\.key === "z" \|\| e\.key === "Z"\) \{\s*if \(primarySelectedIdRef\.current\) focusAgent\(primarySelectedIdRef\.current\);/);
   });
 
+  it("lets no fit's late correction undo a newer camera move", () => {
+    expect(app).toMatch(/const epoch = \+\+cameraEpochRef\.current;\s*applyViewport\(want, duration\);/);
+    expect(app).toMatch(/if \(cameraEpochRef\.current !== epoch\) return;/);
+  });
+
   it("opens the peek only where the card cannot say it itself", () => {
     expect(app).toMatch(/if \(lodRef\.current == null \|\| lodRef\.current === "detail"\) return;\s*showPeek\(n\.id, e\.currentTarget as Element\);/);
     expect(app).toContain('if (mode === "detail") hidePeek();');
