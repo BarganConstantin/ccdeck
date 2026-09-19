@@ -20,7 +20,7 @@ import { usePanelPresence, isMounted } from "./panel-exit";
 import ToolModal from "./components/ToolModal";
 import SessionClusters from "./components/SessionClusters";
 import SessionGroupNode from "./components/SessionGroupNode";
-import RecapNoteNode from "./components/RecapNoteNode";
+import RecapNoteNode, { type RecapNoteData } from "./components/RecapNoteNode";
 import RecapTieEdge from "./components/RecapTieEdge";
 import ToolBursts, { mcpChipIdentity } from "./components/ToolBursts";
 import SessionSummary from "./components/SessionSummary";
@@ -3407,6 +3407,12 @@ function Inner() {
     return n ? (n.data as FlowNodeData) : undefined;
   }, []);
   const peekLabel = useCallback((id: string) => stateRef.current.agents.get(id)?.label, []);
+  const peekRecap = useCallback((id: string) => {
+    const n = nodesRef.current.find(x => x.id === id && x.type === "recapNote");
+    if (!n) return undefined;
+    const d = n.data as unknown as RecapNoteData;
+    return { recap: d.recap, hue: d.hue, sessionLabel: stateRef.current.agents.get(d.parentId)?.label };
+  }, []);
   const peekBounds = useCallback(() => {
     // The canvas's own box, not the window's: the peek belongs over the canvas,
     // and the canvas already runs to the foot of the page.
@@ -5265,7 +5271,7 @@ function Inner() {
           // say it itself. At the detail tier the card is readable and a copy
           // over it would be noise, so it never opens there.
           onNodeMouseEnter={(e, n) => {
-            if (n.type !== "agent" || draggingRef.current) return;
+            if ((n.type !== "agent" && n.type !== "recapNote") || draggingRef.current) return;
             if (lodRef.current == null || lodRef.current === "detail") return;
             showPeek(n.id, e.currentTarget as Element);
           }}
@@ -5621,6 +5627,7 @@ function Inner() {
         </ReactFlow>
         <SessionPeek
           agentFor={peekAgent}
+          recapFor={peekRecap}
           labelFor={peekLabel}
           bounds={peekBounds}
         />

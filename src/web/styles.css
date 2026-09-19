@@ -3774,9 +3774,10 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .canvas-wrap[data-lod="overview"] .lod-long { display: none; }
 .canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
 
-/* Three lines need 57px, and the title is the first to go — but only from a
-   face that has a signal to keep. A card with nothing to say under its name
-   keeps its title on the second line. */
+/* Read off the face's content box: three lines need 47px of it, and below 57
+   the title is the first to go, so a third line never sits against the edge —
+   but only from a face that has a signal to keep. A card with nothing to say
+   under its name keeps its title on the second line. */
 @container lod (max-height: 56px) {
   .lod-face[data-signal] .lod-title { display: none; }
 }
@@ -4174,16 +4175,55 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .recap-tie-end {
   fill: var(--tie);
 }
-/* Below the full card a card draws its face and nothing else. The note keeps
-   its box, so nothing under it moves, and draws only its mark. */
-.canvas-wrap[data-lod="compact"] .recap-note-age,
-.canvas-wrap[data-lod="compact"] .recap-note-close,
-.canvas-wrap[data-lod="compact"] .recap-note-text,
-.canvas-wrap[data-lod="overview"] .recap-note-age,
-.canvas-wrap[data-lod="overview"] .recap-note-close,
-.canvas-wrap[data-lod="overview"] .recap-note-text {
+/* Below the full card the note does what a card does: it keeps its box, so
+   nothing under it moves, stops painting its own rows and chrome — which draw
+   at the canvas's scale, a 3px "recap" in an empty frame — and draws its face
+   instead (RecapNoteNode), in screen pixels. */
+.canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
   visibility: hidden;
 }
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.canvas-wrap[data-lod="compact"] .lod-face.recap-face,
+.canvas-wrap[data-lod="overview"] .lod-face.recap-face {
+  display: flex;
+  justify-content: flex-start;
+  padding: 5px 8px;
+  background: var(--panel);
+  --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A note has no stripe: its hue is its edge, as it is at the full size. */
+.lod-face.recap-face::before { display: none; }
+.recap-face .recap-note-mark { flex: none; font-size: 11px; }
+.recap-face-age {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* As many lines of the recap as the face has room for, read off its content
+   box: the mark row is 15px and a line of the text 14px after a 2px gap. */
+.recap-face-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+@container lod (max-height: 72px) { .recap-face-text { -webkit-line-clamp: 3; line-clamp: 3; } }
+@container lod (max-height: 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
+@container lod (max-height: 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
+@container lod (max-height: 30px) { .recap-face-text { display: none; } }
 .recap-note-head {
   display: flex;
   align-items: center;
@@ -8611,6 +8651,26 @@ button.qb-pace::after {
   font-variant-numeric: tabular-nums;
 }
 .node-peek-failed { color: var(--err); }
+/* A recap note's peek: the note's own mark in its session's hue, and the
+   recap whole — prose, at the note's size and ink, with room for it. */
+.recap-peek {
+  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
+  width: 320px;
+}
+.recap-peek-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.recap-peek-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
 .node-peek-hint {
   margin-top: 2px;
   font-size: 11px;

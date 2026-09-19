@@ -350,6 +350,15 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).toMatch(/el\.matches\(":focus-visible"\)\) showPeek\(id, el, "focus"\)/);
   });
 
+  it("peeks a recap note as well as a card", () => {
+    // The note is the other node that is unreadable at a distance.
+    expect(app).toMatch(/if \(\(n\.type !== "agent" && n\.type !== "recapNote"\) \|\| draggingRef\.current\) return;/);
+    expect(app).toContain("recapFor={peekRecap}");
+    const peek = read("../components/SessionPeek.tsx");
+    expect(peek).toContain('if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;');
+    expect(peek).toContain('<p className="recap-peek-text">{r.recap.text}</p>');
+  });
+
   it("marks a blocked session on the one label that is 1× at every zoom", () => {
     expect(clusters).toContain('data-alarm={c.alarm ? "" : undefined}');
     expect(clusters).toContain('<span className="cluster-label-said">waiting on you: </span>');

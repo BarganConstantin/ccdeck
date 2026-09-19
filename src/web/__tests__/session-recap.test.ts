@@ -356,10 +356,12 @@ describe("where it is drawn", () => {
   it("keeps the pin at every zoom tier, and grows the card by nothing", () => {
     expect(SHEET).not.toMatch(/data-lod="(compact|overview)"\][^{]*\.recap-pin/);
     expect(SHEET).not.toMatch(/\.agent-node \.recap-row/);
-    // The note waits out both distances, where the card beside it is a face.
-    const hidden = body('.canvas-wrap[data-lod="compact"] .recap-note-age');
+    // At both distances the note is a face too: its own rows keep their box
+    // and stop painting, and the face draws in their place.
+    const hidden = body('.canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face)');
     expect(hidden).toMatch(/visibility: hidden;/);
-    expect(SHEET).toContain('.canvas-wrap[data-lod="overview"] .recap-note-text');
+    expect(SHEET).toContain('.canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face)');
+    expect(read("../components/RecapNoteNode.tsx")).toMatch(/className="lod-face recap-face" aria-hidden/);
   });
 
   it("arrives without motion", () => {

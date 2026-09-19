@@ -10,8 +10,9 @@ import { shortModel } from "../model-label";
 import { sessionDisplay } from "../session-display";
 import { useNow } from "../use-now";
 import { branchLong, stateMarkKind, type BranchSummary } from "../node-face";
-import type { AgentNodeData } from "../types";
-import { stateLabel, waitingLabel } from "./AgentNode";
+import { promptTime } from "../relative-time";
+import type { AgentNodeData, SessionRecap } from "../types";
+import { RecapMark, stateLabel, waitingLabel } from "./AgentNode";
 import { AlertMark, StateMark } from "./StateMark";
 
 /**
@@ -82,10 +83,21 @@ export function hidePeek(id?: string): void {
   emit();
 }
 
+/** What a recap note's peek needs: the recap, the session's hue for its mark,
+ *  and the name of the session it speaks for. */
+export interface PeekRecap {
+  recap: SessionRecap;
+  hue: number;
+  sessionLabel?: string;
+}
+
 interface SessionPeekProps {
   /** The card, read at the moment of rendering: the board is a mutable ref in
    *  App, and a copy passed down would be a render stale. */
   agentFor: (id: string) => (AgentNodeData & { branch?: BranchSummary }) | undefined;
+  /** The recap note with this id, for a note's peek — the other node on the
+   *  canvas that is too small to read at a distance. */
+  recapFor: (id: string) => PeekRecap | undefined;
   /** The label of a subagent's parent, for "subagent of …". */
   labelFor: (id: string) => string | undefined;
   /** The part of the window the peek may use: the canvas, less the rail of
@@ -109,26 +121,24 @@ interface SessionPeekProps {
  * anything. At the detail distance it never opens: the card itself says all of
  * this at a readable size, and a copy of it over the top would be noise.
  */
-export default function SessionPeek({ agentFor, labelFor, bounds }: SessionPeekProps) {
+export default function SessionPeek({ agentFor, recapFor, labelFor, bounds }: SessionPeekProps) {
   const t = useSyncExternalStore(subscribe, snapshot, snapshot);
   const a = t ? agentFor(t.id) : undefined;
+  const r = t && !a ? recapFor(t.id) : undefined;
   // A card that left the board while its peek was up takes the peek with it,
   // and so does one whose element React Flow unmounted.
-  const orphaned = t != null && (!a || !t.anchor.isConnected);
+  const orphaned = t != null && ((!a && !r) || !t.anchor.isConnected);
   useEffect(() => { if (orphaned && t) hidePeek(t.id); }, [orphaned, t]);
-  if (!t || !a || orphaned) return null;
-  return <PeekCard key={t.id} a={a} anchor={t.anchor} parentLabel={a.parentId ? labelFor(a.parentId) : undefined} bounds={bounds} />;
+  if (!t || orphaned) return null;
+  if (a) return <PeekCard key={t.id} a={a} anchor={t.anchor} parentLabel={a.parentId ? labelFor(a.parentId) : undefined} bounds={bounds} />;
+  if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;
+  return null;
 }
 
-function PeekCard({ a, anchor, parentLabel, bounds }: {
-  a: AgentNodeData & { branch?: BranchSummary };
-  anchor: Element;
-  parentLabel?: string;
-  bounds: () => { width: number; height: number };
-}) {
+/** Beside its anchor, placed before paint on every render: a card whose waiting
+ *  row appeared, or a recap that was rewritten, is taller than the one placed. */
+function usePlacedBeside(anchor: Element, bounds: () => { width: number; height: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  // Its own beat: the clock and the waiting duration count while it is open.
-  const now = useNow(1000);
   const place = useCallback(() => {
     const el = ref.current;
     if (!el || !anchor.isConnected) return;
@@ -138,9 +148,47 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
     el.dataset.side = p.side;
   }, [anchor, bounds]);
-  // Before paint, every render: a card whose waiting row appeared is taller
-  // than the one that was placed.
   useLayoutEffect(() => { place(); });
+  return ref;
+}
+
+/**
+ * A RECAP NOTE, READ WHOLE WITHOUT ZOOMING TO IT.
+ *
+ * The note is a node beside its card and shrinks with the canvas like one; at
+ * a distance its face has room for its mark and a line or two. This is the
+ * rest: Claude Code's sentence entire, how long ago it was written, and whose
+ * session it is — the same text the note and the detail panel carry, so again
+ * nothing that exists only here.
+ */
+function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bounds: () => { width: number; height: number } }) {
+  const ref = usePlacedBeside(anchor, bounds);
+  const now = useNow(30_000);
+  const written = promptTime(r.recap.at, now);
+  return createPortal(
+    <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek"
+      style={{ "--session-hue": r.hue } as React.CSSProperties}>
+      <div className="node-peek-head">
+        <span className="recap-peek-mark"><RecapMark />recap</span>
+        <span className="node-peek-time" title={written.title}>{written.label}</span>
+      </div>
+      {r.sessionLabel && <div className="node-peek-kind"><span>Claude Code's recap of {r.sessionLabel}</span></div>}
+      <p className="recap-peek-text">{r.recap.text}</p>
+      <p className="node-peek-hint">Double-click to zoom in · click for the session</p>
+    </div>,
+    document.body,
+  );
+}
+
+function PeekCard({ a, anchor, parentLabel, bounds }: {
+  a: AgentNodeData & { branch?: BranchSummary };
+  anchor: Element;
+  parentLabel?: string;
+  bounds: () => { width: number; height: number };
+}) {
+  const ref = usePlacedBeside(anchor, bounds);
+  // Its own beat: the clock and the waiting duration count while it is open.
+  const now = useNow(1000);
 
   const naming = sessionDisplay(a.sessionName, a.sessionTitle);
   const failed = a.tools.filter(x => x.ok === false).length;
