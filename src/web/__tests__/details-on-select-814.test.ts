@@ -50,8 +50,9 @@ describe("selecting an agent opens its details (#814)", () => {
     // session and leaves the panel to the double-click, which selects through
     // the same door with the panel's default.
     expect(appCode).toMatch(/onNodeClick=\{\(e, n\) => \{[\s\S]*?selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
-    // And shuts a panel left open, which is stored across reloads.
-    expect(appCode).toMatch(/if \(detailShown\) \{\s*setDetailOpen\(false\);/);
+    // And shuts a panel left open, which is stored across reloads — on the
+    // stored flag, not on what is showing, which after a reload is nothing.
+    expect(appCode).toMatch(/if \(detailOpen\) setDetailOpen\(false\);/);
     expect(appCode).toMatch(/onNodeDoubleClick=\{\(_, n\) => \{[\s\S]*?selectAgent\(id, false\);/);
     expect(body("const stepAgent = useCallback")).toMatch(/selectAgent\(target\.id, false\)/);
     expect(body("const focusSession = useCallback")).toMatch(/selectAgent\(sessionId, false\)/);

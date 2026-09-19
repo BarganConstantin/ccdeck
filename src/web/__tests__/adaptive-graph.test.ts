@@ -335,7 +335,7 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(app).not.toMatch(/rf\.fitView\(\{[^}]*nodes: \[/);
     expect(clusters).not.toContain("rf.fitView(");
     expect(app).toMatch(/selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
-    expect(app).toMatch(/setDetailOpen\(false\);\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);/);
+    expect(app).toMatch(/if \(detailOpen\) setDetailOpen\(false\);\s*if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);/);
     expect(app).toMatch(/if \(e\.key === "z" \|\| e\.key === "Z"\) \{\s*if \(primarySelectedIdRef\.current\) focusAgent\(primarySelectedIdRef\.current\);/);
   });
 

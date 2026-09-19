@@ -5265,14 +5265,15 @@ function Inner() {
             const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
             selectAgent(id, e.shiftKey, false);
             if (e.shiftKey) return;
-            // AND SHUTS A PANEL THAT IS ALREADY OPEN. `detailOpen` is persisted,
-            // so every deck that clicked a card under #814 has it stored open,
-            // and leaving it alone meant the next click showed it anyway — for
-            // the new selection. The frame waits a paint for the canvas the
-            // panel gives back, the way the double-click's does for the one it
-            // takes.
+            // AND SHUTS THE PANEL, whether or not it is showing. `detailOpen` is
+            // persisted, so every deck that clicked a card under #814 has it
+            // stored open — and after a reload nothing is selected, so nothing
+            // is SHOWN, and a test of what is on screen let this very click
+            // select the card and bring the stored panel up with it. The frame
+            // waits a paint only when a panel was really there, for the canvas
+            // it gives back, the way the double-click's does for the one it takes.
+            if (detailOpen) setDetailOpen(false);
             if (detailShown) {
-              setDetailOpen(false);
               window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
             } else {
               focusAgent(id);
