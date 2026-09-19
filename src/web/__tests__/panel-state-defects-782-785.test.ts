@@ -121,27 +121,36 @@ describe("#783 — the tool-category filter", () => {
 });
 
 describe("#785 — a camera move the deck made itself", () => {
-  it("is stamped, so it cannot read as the user grabbing the canvas", () => {
-    // `fitView`'s animation emits `onMove` with no source event, and
-    // `isUserViewportGesture` falls back to "was there a pointerdown recently"
-    // — which there was, because the click asking for the fit landed on
-    // `<main onPointerDownCapture={markCanvasInput}>`. Unstamped, the deck read
-    // its own move as a gesture, called disableAutoFit() and persisted it.
-    expect(clusters).toContain("rf.fitView({ padding: 0.3, duration: 500, nodes });");
-    expect(clusters).toContain("onFit?.();");
-    expect(app).toContain("<SessionClusters onFit={() => { lastFitTimeRef.current = Date.now(); }} />");
+  // `fitView`'s animation emits `onMove` with no source event, and
+  // `isUserViewportGesture` falls back to "was there a pointerdown recently" —
+  // which there was, because the click asking for the move landed on
+  // `<main onPointerDownCapture={markCanvasInput}>`. Unstamped, the deck read
+  // its own move as a gesture and turned auto-fit off behind the reader's back.
+  //
+  // The cluster label used to move the camera itself and stamp through an
+  // `onFit` prop. It asks App now, and App's focusAgent — the one routine every
+  // "go to this card" shares — moves and stamps in one place.
+  const focus = app.slice(app.indexOf("const focusAgent = useCallback("), app.indexOf("const peekAgent = useCallback("));
+
+  it("leaves the moving to App, so there is one stamp to keep right", () => {
+    expect(clusters).not.toContain("rf.fitView(");
+    expect(clusters).not.toContain("useReactFlow");
+    expect(clusters).toContain("onFocusSession?.(sessionId)");
+    expect(app).toContain("<SessionClusters onFocusSession={focusAgent} />");
   });
 
-  it("stamps after the fit and inside the try, the way App's own focusSession does", () => {
-    // A fit that threw moved no camera and has nothing to disown; stamping
-    // before it would suppress a genuine gesture that arrived in the meantime.
-    const fit = clusters.indexOf("rf.fitView({ padding: 0.3, duration: 500, nodes });");
-    const stamp = clusters.indexOf("onFit?.();");
-    const catchAt = clusters.indexOf("} catch {}", fit);
-    expect(fit).toBeGreaterThan(-1);
-    expect(stamp, "the stamp is before the fit").toBeGreaterThan(fit);
-    expect(stamp, "the stamp is outside the try").toBeLessThan(catchAt);
-    // The pattern it mirrors, one file over.
-    expect(app).toContain("lastFitTimeRef.current = Date.now();");
+  it("stamps the move after it is made, inside the routine that makes it", () => {
+    const move = focus.indexOf("applyViewport(want, FOCUS_MS);");
+    const stamp = focus.indexOf("lastFitTimeRef.current = Date.now();");
+    expect(move).toBeGreaterThan(-1);
+    expect(stamp, "the stamp is before the move").toBeGreaterThan(move);
+  });
+
+  it("turns auto-fit off on purpose, not by being mistaken for a drag", () => {
+    // Going to a session is the reader choosing the view, the same as a pan:
+    // the next layout change must not frame the whole board over it. It says
+    // so through the one door a pan uses, so the chip and its Resume appear.
+    expect(focus).toContain("disableAutoFit();");
+    expect(focus.indexOf("disableAutoFit();")).toBeLessThan(focus.indexOf("applyViewport(want, FOCUS_MS);"));
   });
 });

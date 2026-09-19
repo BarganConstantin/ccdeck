@@ -29,6 +29,9 @@ import type { AgentNodeData, TokenUsage, ToolCall, WaitingBlock } from "../types
 import { useNow } from "../use-now";
 import { recapShown } from "../session-recap";
 import { recapKey, toggleRecapDismissed, useRecapDismissed } from "../recap-note";
+import { faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { primaryDisplayFor, toolSubject } from "./ToolBursts";
+import { AlertMark, StateMark } from "./StateMark";
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -107,7 +110,7 @@ function agentCostTooltip(a: UsageBearing): string {
  *  the waiting row and the sparkline — each on a shared one-second beat, and
  *  the card itself is memoised on node data that keeps its identity until the
  *  board's revision moves. */
-function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void }>) {
+function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
   const cls = [
     "agent-node",
     `state-${data.state}`,
@@ -387,12 +390,65 @@ function AgentNode({ data, selected }: NodeProps<AgentNodeData & { onOpenContext
         })()}
       </div>
 
+      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
+
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
     </div>
   );
 }
 
 export default memo(AgentNode);
+
+/**
+ * THE CARD AS IT IS DRAWN FROM A DISTANCE — the compact and overview faces.
+ *
+ * Not the card shrunk. The canvas scales everything inside it, so a card at
+ * 0.3 draws its 12px name at under 4px however few rows it keeps; the far tier
+ * this replaces kept a state pill and one character of a name. This element is
+ * laid out in SCREEN pixels instead: the sheet sizes it to the card's box times
+ * the zoom and scales it back by the inverse (see `.lod-face`), so it covers
+ * the card exactly and its 11px type is 11px on the display at every zoom.
+ *
+ * Always in the tree, and `display: none` at the detail tier: the mode is an
+ * attribute on the canvas, so changing it re-renders no card. What it draws is
+ * the card's own data, picked down — the name, a state MARK, and the one line
+ * faceSignal decides is worth an interruption. Which lines fit is the sheet's
+ * call, per card, by container query against the face's own on-screen size.
+ *
+ * Hidden from assistive technology like the rows it stands in for: the node's
+ * accessible name is agentAriaLabel, composed from the data, and says all of
+ * this at every zoom.
+ */
+function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+  const alarm = data.kind === "root" && isAlarming(data.waiting);
+  const signal = faceSignal(data, data.branch, {
+    sayWaiting: waitingLabel,
+    describeCall: t => ({ name: primaryDisplayFor(t.name).label, subject: toolSubject(t.name, t.input) }),
+  });
+  return (
+    <div
+      className="lod-face"
+      data-kind={data.kind}
+      data-alarm={alarm ? "" : undefined}
+      data-signal={signal ? "" : undefined}
+      aria-hidden
+    >
+      <div className="lod-id">
+        <StateMark kind={stateMarkKind(data.state)} />
+        <span className="lod-name">{data.label}</span>
+        {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
+        {alarm && <AlertMark />}
+      </div>
+      {title && <div className="lod-title">{title}</div>}
+      {signal && (
+        <div className="lod-signal" data-tone={signal.tone}>
+          <span className="lod-long">{signal.long}</span>
+          <span className="lod-short">{signal.short}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The card's clock, on its own beat (#873): the one piece of the header that
  *  changes every second, and so the only piece that re-renders every second. */

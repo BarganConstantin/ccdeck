@@ -3306,53 +3306,6 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .agent-node.state-done { border-color: rgba(134,239,172,0.5); }
 .agent-node.state-err { border-color: rgba(252,165,165,0.6); }
 
-/* WHAT A CARD IS WORTH DRAWING AT A DISTANCE.
-   `data-detail` is written on the canvas by App.tsx — see zoomDetail — and
-   never by a node, so this costs no React render at all.
-
-   Everything hidden here keeps its space. `visibility` rather than `display`
-   is the whole of that: a node's measured height is an input to the layout, so
-   collapsing a card at overview zoom would reflow the graph while somebody was
-   looking at it. The card keeps its box and stops shouting through it.
-
-   What survives to the last tier is what a graph is for when you are far away
-   from it — which session, what state, and the shape of the tree. */
-.canvas-wrap[data-detail="mid"] .tool-spark-row,
-.canvas-wrap[data-detail="far"] .tool-spark-row {
-  visibility: hidden;
-}
-.canvas-wrap[data-detail="far"] .agent-node .meta,
-.canvas-wrap[data-detail="far"] .agent-node .sub,
-.canvas-wrap[data-detail="far"] .agent-node .session-name,
-.canvas-wrap[data-detail="far"] .ctx-donut,
-.canvas-wrap[data-detail="far"] .agent-node .time {
-  visibility: hidden;
-}
-/* The bubbles are a second view of the tool list and are the densest thing on
-   the canvas; at overview they are a field of 2px pills with nothing readable
-   in them. Their leader lines go with them — a line to a bubble that is not
-   drawn is worse than no line, and the tool trail is the layer this codebase
-   already calls decoration. The graph's real structure is the agent edges,
-   which are React Flow's own and are untouched here. */
-.canvas-wrap[data-detail="far"] .tool-burst,
-.canvas-wrap[data-detail="far"] .tool-conn {
-  visibility: hidden;
-}
-/* AND WHAT SURVIVES IS DRAWN BIG ENOUGH TO READ (#846). The far tier kept the
-   state pill and the name, but at the canvas's scale: at the 0.32 a real board
-   settles into, a 12px name drew at about 4px, so the tier kept exactly the line
-   a reader cannot use. The title row is scaled back up by 0.9 / zoom — about
-   11px on screen — and widened by the inverse first, so after the scale it spans
-   the card's width exactly and the name still ellipsises inside it. A transform
-   and not a font size, because a card's measured height is an input to the
-   layout (see above): the row keeps its box and only draws larger, over the
-   card's own rows, which this tier has already hidden. `--zoom` is written on
-   the canvas by App.tsx beside `data-detail`, with no render of its own. */
-.canvas-wrap[data-detail="far"] .agent-node .title {
-  width: calc(100% * var(--zoom, 1) / 0.9);
-  transform: scale(calc(0.9 / var(--zoom, 1)));
-  transform-origin: left top;
-}
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
    rules with the same specificity — so on every live node the state won both
@@ -3390,6 +3343,219 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
    `display: none` takes them out of the tree along with the view. */
 [id^="react-flow__node-desc"],
 [id^="react-flow__edge-desc"] { display: none; }
+
+/* WHICH CARD THE CANVAS DRAWS AT THIS DISTANCE.
+   `data-lod` is written on the canvas by App.tsx — semantic-zoom.ts says how it
+   is chosen — and never by a node, so changing it costs no React render at all.
+
+   NOTHING HERE CHANGES A CARD'S BOX. A node's measured size is an input to the
+   layout, so a card that shrank at a distance would reflow the graph while
+   somebody was looking at it, and every auto-fit would chase the reflow. The
+   box is kept in every mode; what is drawn in it is not. At `detail` that is
+   the card as it has always been. Below it, the card's own rows keep their
+   space and stop painting — `visibility`, not `display`, for exactly that
+   reason — and `.lod-face`, laid out in screen pixels, is drawn in their place.
+
+   This replaces `data-detail` (#846), whose far tier hid the same rows and kept
+   the title row at the canvas's scale, scaled back up by 0.9 / zoom: a state
+   pill and, beside it, whatever of the name fitted in the 22% of the width the
+   pill left — usually one character. */
+.lod-face { display: none; }
+.canvas-wrap[data-lod="compact"] .agent-node > :not(.lod-face),
+.canvas-wrap[data-lod="overview"] .agent-node > :not(.lod-face) {
+  visibility: hidden;
+}
+/* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
+   a third of a pixel and its 10px radius is three. The face draws the chrome
+   instead, in screen pixels, and the card underneath lets go of its own. Its
+   ring is MOVED rather than removed: the selection's and the keyboard's ring
+   are drawn on the face below at 2px on screen, so the card's layout-unit
+   outline — a hairline out here — only goes transparent, and overflow opens so
+   the face's ring is not clipped. (0,5,0) because the light theme's state
+   borders are (0,4,0) and must not paint through. */
+:root .canvas-wrap[data-lod="compact"] .react-flow__node .agent-node,
+:root .canvas-wrap[data-lod="overview"] .react-flow__node .agent-node {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline-color: transparent;
+  overflow: visible;
+}
+
+/* THE FACE: the card's box, in screen pixels. Sized to the box times the zoom
+   and scaled back by the inverse from the same corner, so it covers the card
+   exactly and everything inside it is laid out at 1:1 on the display — 11px is
+   11px at 0.25 and at 0.6. `--zoom` is written on the canvas by App.tsx with no
+   render of its own. The -1px corner and the +2px take in the card's border,
+   which the face now draws.
+
+   A size container, so which lines it keeps is decided per card against its
+   own on-screen box: a root card is taller than a subagent's, and a tall card
+   at a distance still has room for its title when a short one does not. */
+.canvas-wrap[data-lod="compact"] .lod-face,
+.canvas-wrap[data-lod="overview"] .lod-face {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  box-sizing: border-box;
+  width: calc((100% + 2px) * var(--zoom, 1));
+  height: calc((100% + 2px) * var(--zoom, 1));
+  transform: scale(calc(1 / var(--zoom, 1)));
+  transform-origin: left top;
+  container: lod / size;
+  overflow: hidden;
+  padding: 5px 8px 5px 10px;
+  background: var(--node-grad);
+  border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 14px;
+}
+/* The session's stripe, at the width the card's reads at 1× less a pixel —
+   the same mark in the same hue, so the face is recognisably the card. */
+.lod-face::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+/* The state's edge, on a variable rather than on `border-color`, and the one
+   state that must win — blocked on a human — on a variable of its own that the
+   border reads first. Neither competes with the face's `border` shorthand or
+   with the other theme's twin on specificity; the order is in the var() chain.
+   The state values are the card's own, theme for theme. */
+.agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
+.agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
+.agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
+:root[data-theme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
+:root[data-theme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
+:root[data-theme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
+.lod-face[data-alarm] { --lod-alarm: var(--warn); }
+.agent-node.synthetic > .lod-face { border-style: dashed; }
+.react-flow__node:hover .lod-face {
+  background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
+/* Selection and the keyboard's ring move to the face with the chrome — the
+   card's own outline is 2px of layout, which at a distance is a hairline. No
+   mode in the selectors: the face is only ever drawn at the two distances this
+   is for, and a ring gated on a canvas attribute is the shape #434 refused. */
+.agent-node.selected > .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.react-flow__node:focus-visible .lod-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The lines. The name leads at the card's own 12px weight; the title and the
+   signal are the 11px tier under it, the title in the secondary ink and the
+   signal in whatever its tone says. Each ellipsises on its own line. */
+.lod-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.lod-name,
+.lod-inline,
+.lod-title,
+.lod-signal {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lod-name { flex: 1 1 auto; }
+.lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
+/* The title in the voice the card's own session-name row uses for it. */
+.lod-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+}
+.lod-signal { color: var(--muted); }
+.lod-short { display: none; }
+.lod-face [data-tone="warn"] { color: var(--warn); }
+.lod-face [data-tone="err"] { color: var(--err); }
+.lod-face [data-tone="idle"] { color: var(--accent); }
+.state-mark { flex: none; }
+.state-mark[data-kind="live"] { color: var(--inflight); }
+.state-mark[data-kind="done"] { color: var(--ok); }
+.state-mark[data-kind="err"] { color: var(--err); }
+.alert-mark { flex: none; margin-left: auto; color: var(--warn); }
+
+/* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
+   where the card is tall enough, no title, and the short form of the signal. */
+.canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
+.canvas-wrap[data-lod="overview"] .lod-id { font-size: 11px; line-height: 14px; }
+.canvas-wrap[data-lod="overview"] .lod-title,
+.canvas-wrap[data-lod="overview"] .lod-long { display: none; }
+.canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
+
+/* Three lines need 57px, and the title is the first to go — but only from a
+   face that has a signal to keep. A card with nothing to say under its name
+   keeps its title on the second line. */
+@container lod (max-height: 56px) {
+  .lod-face[data-signal] .lod-title { display: none; }
+}
+/* One line only. A root card gives its line to the signal rather than its
+   name, because the name is already on the cluster's label at 1×, directly
+   above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
+   for. A subagent keeps its name: it has no label above it. */
+@container lod (max-height: 36px) {
+  .lod-signal,
+  .lod-title { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
+}
+/* Narrower than a mark and a short word: the mark alone, centred. Nothing is
+   truncated to three letters — the peek beside the pointer has the name, and
+   the shape of the branch is what reads at this size. */
+@container lod (max-width: 72px) {
+  .lod-name,
+  .lod-inline,
+  .lod-signal { display: none; }
+  .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
+  .lod-id { justify-content: center; }
+  .alert-mark { margin-left: 0; }
+}
+
+/* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
+   width — live, settled, selected — is multiplied by `--edge-k` inline (see
+   snapshotToFlow), 1 at `detail`, so that choice stays the edge's and only the
+   scale is the mode's: about 1.3px and up on screen instead of half of one. */
+.canvas-wrap[data-lod="compact"] { --edge-k: max(1, calc(0.9 / var(--zoom, 1))); }
+.canvas-wrap[data-lod="overview"] { --edge-k: calc(0.85 / var(--zoom, 1)); }
+/* And without the width's 200ms ease: the width now follows the zoom, so it
+   changes on every frame of a gesture, and an ease restarted on every edge on
+   every frame is a lag and a cost with nothing to show for either. The fade on
+   opacity, which is what a selection or an exit actually animates, stays. */
+.canvas-wrap[data-lod="compact"],
+.canvas-wrap[data-lod="overview"] { --edge-transition: opacity 500ms ease; }
+
+/* The bubbles are a second view of the tool list and the densest thing on the
+   canvas; below the full card they are 5px pills with nothing readable in them.
+   Their leader lines go with them — a line to a bubble that is not drawn is
+   worse than no line. The call a bubble would have named is on the face now,
+   as its signal, while it is still open. */
+.canvas-wrap[data-lod="compact"] .tool-burst,
+.canvas-wrap[data-lod="compact"] .tool-conn,
+.canvas-wrap[data-lod="overview"] .tool-burst,
+.canvas-wrap[data-lod="overview"] .tool-conn {
+  visibility: hidden;
+}
 
 .agent-node .accent-stripe {
   position: absolute;
@@ -3738,11 +3904,14 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
 .recap-tie-end {
   fill: var(--tie);
 }
-/* At the far tier a card keeps its title and nothing else. The note keeps its
-   box, so nothing under it moves, and draws only its mark. */
-.canvas-wrap[data-detail="far"] .recap-note-age,
-.canvas-wrap[data-detail="far"] .recap-note-close,
-.canvas-wrap[data-detail="far"] .recap-note-text {
+/* Below the full card a card draws its face and nothing else. The note keeps
+   its box, so nothing under it moves, and draws only its mark. */
+.canvas-wrap[data-lod="compact"] .recap-note-age,
+.canvas-wrap[data-lod="compact"] .recap-note-close,
+.canvas-wrap[data-lod="compact"] .recap-note-text,
+.canvas-wrap[data-lod="overview"] .recap-note-age,
+.canvas-wrap[data-lod="overview"] .recap-note-close,
+.canvas-wrap[data-lod="overview"] .recap-note-text {
   visibility: hidden;
 }
 .recap-note-head {
@@ -4251,13 +4420,44 @@ button.btn.icon-btn[aria-pressed="true"]:hover {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-/* The name is the pill's only when the card cannot say it. At the `full` tier
-   the root card prints the same name on a row of its own, and the pill — held
-   at its own size since #846 while the cards shrink — drew the second copy
-   larger than the first. At `mid` and `far` the card's row draws at 4-6px or
-   not at all, and the pill is where the name is read. See SessionClusters.tsx. */
-.canvas-wrap[data-detail="full"] .cluster-label-name {
+/* The name is the pill's only when the card cannot say it. At `detail` the
+   root card prints the same name on a row of its own, and the pill — held at
+   its own size since #846 while the cards shrink — drew the second copy larger
+   than the first. At `compact` and `overview` the card is a face that gives the
+   title up first, and the pill is where the name is read. See
+   SessionClusters.tsx. */
+.canvas-wrap[data-lod="detail"] .cluster-label-name {
   display: none;
+}
+/* A session stopped until a human answers says so on the one thing a cluster
+   draws at 1× at every zoom. The edge takes --warn, the app's "this one is on
+   you", and the triangle the faces use leads; the words are for a screen
+   reader, which cannot see either. */
+.cluster-label[data-alarm] {
+  border-color: var(--warn);
+}
+.cluster-label .alert-mark {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.cluster-label-branch {
+  display: none;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
+.cluster-label-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .cluster-label:hover {
   filter: brightness(1.25);
@@ -8054,6 +8254,99 @@ button.qb-pace::after {
    for. The name takes the room; the state is measured off `not read yet`, the
    longest thing it can say. */
 .ap-fold-peek { width: 244px; }
+/* THE CARD'S PEEK: the same hover card, carrying one agent card's facts at 1:1
+   beside a tile the canvas has drawn too small to say them (SessionPeek). Wider
+   than the fold's, because a session title is the widest thing it holds and
+   gets two lines to say it before it ellipsises. Nothing in it is a control, so
+   unlike the fold's it refuses the pointer — the tile under the pointer keeps
+   its hover, and a double-click on the tile still lands on the tile. */
+.node-peek {
+  width: 288px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.node-peek p { margin: 0; }
+.node-peek-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.node-peek-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.node-peek-time {
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.node-peek-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.node-peek-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.node-peek-state[data-kind="live"] { color: var(--inflight); }
+.node-peek-state[data-kind="done"] { color: var(--ok); }
+.node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-title {
+  font-size: 12px;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.node-peek-wait {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.node-peek-wait.warn { color: var(--warn); }
+.node-peek-wait > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.node-peek-wait b { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Counts and labels, which are what --muted is for; the title above is the
+   card's one piece of prose. */
+.node-peek-facts,
+.node-peek-branch {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.node-peek-failed { color: var(--err); }
+.node-peek-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .ap-fold-who { gap: 8px; justify-content: space-between; }
 .ap-fold-name {
   min-width: 0;
