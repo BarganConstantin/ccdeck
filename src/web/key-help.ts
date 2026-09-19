@@ -127,7 +127,8 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "drag", action: "move a node, and pin it where you dropped it", binds: [] },
       { cap: "shift-click", action: "add an agent to the selection", binds: [] },
-      { cap: "double-click", action: "zoom to an agent and its session", binds: [] },
+      { cap: "click", action: "a card: go to it and its session", binds: [] },
+      { cap: "double-click", action: "a card: its prompt, every tool call, tokens and timing", binds: [] },
       { cap: "hover", action: "zoomed out, a card's name, state and numbers", binds: [] },
       // #711. The speaker in the topbar used to toggle and now opens a menu, so
       // the click and M no longer mean the same thing. That divergence is the

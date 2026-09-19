@@ -1074,7 +1074,7 @@ function Inner() {
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
   const [openedToolId, setOpenedToolId] = useState<string | null>(null);
 
-  const selectAgent = useCallback((id: string, additive: boolean) => {
+  const selectAgent = useCallback((id: string, additive: boolean, inspect: boolean = !additive) => {
     setSelectedIds(prev => {
       if (!additive) return new Set([id]);
       const next = new Set(prev);
@@ -1093,7 +1093,12 @@ function Inner() {
     // detail panel; its × still closes it for now, and the next selection
     // brings it back. Shift+click only widens the spotlight, so it leaves the
     // panel as it was.
-    if (!additive) setDetailOpen(true);
+    //
+    // Except from a pointer on the canvas, which passes `inspect: false`: a
+    // click on a card goes to its session instead (onNodeClick), and the panel
+    // is the double-click's — the owner's call on 2026-09-19, over #814's for
+    // the click. j/k, the list, W, Enter and D still open it.
+    if (!additive && inspect) setDetailOpen(true);
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -5251,21 +5256,28 @@ function Inner() {
           deleteKeyCode={null}
           onNodeClick={(e, n) => {
             if (n.type === "sessionGroup") { clearSelection(); return; }
-            // A recap note speaks for its session, so a click on it selects the
-            // root — whose detail panel holds the whole recap.
-            if (n.type === "recapNote") { selectAgent((n.data as { parentId: string }).parentId, e.shiftKey); return; }
-            selectAgent(n.id, e.shiftKey);
+            // A click on a card SELECTS it and GOES TO its session — the frame
+            // focusAgent builds, the card and its session at a readable zoom —
+            // and leaves the detail panel shut: that is the double-click's, one
+            // press further in. Shift+click only widens the selection, as ever.
+            // A recap note speaks for its session, so a click on it is a click
+            // on the root.
+            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
+            selectAgent(id, e.shiftKey, false);
+            if (!e.shiftKey) focusAgent(id);
           }}
           onPaneClick={() => { hidePeek(); clearSelection(); }}
-          // The focus a click cannot be: a click selects and opens the detail
-          // panel, which is what it has always done and still does. Two in a
-          // row also bring the card and its session into a readable view — the
-          // ribbon, a cluster's name and Z are the same move without a mouse.
-          // React Flow's own double-click zoom never reaches a card (its filter
-          // drops a dblclick inside a draggable node), so nothing else is here.
+          // The details, one press past the click that went to the session:
+          // the panel opens on the card — the prompt, every tool call, tokens
+          // and timing — and the frame is built again a paint later, for the
+          // canvas the panel has just narrowed. React Flow's own double-click
+          // zoom never reaches a card (its filter drops a dblclick inside a
+          // draggable node), so nothing else answers here.
           onNodeDoubleClick={(_, n) => {
-            if (n.type === "agent") focusAgent(n.id);
-            else if (n.type === "recapNote") focusAgent((n.data as { parentId: string }).parentId);
+            if (n.type !== "agent" && n.type !== "recapNote") return;
+            const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
+            selectAgent(id, false);
+            window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
           }}
           // The peek (SessionPeek) is for the distances where the card cannot
           // say it itself. At the detail tier the card is readable and a copy

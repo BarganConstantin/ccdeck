@@ -174,7 +174,7 @@ function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bound
       </div>
       {r.sessionLabel && <div className="node-peek-kind"><span>Claude Code's recap of {r.sessionLabel}</span></div>}
       <p className="recap-peek-text">{r.recap.text}</p>
-      <p className="node-peek-hint">Double-click to zoom in · click for the session</p>
+      <p className="node-peek-hint">Click to go to the session · double-click for its details</p>
     </div>,
     document.body,
   );
@@ -230,7 +230,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         {failed > 0 && <span className="node-peek-failed"> · {failed} failed</span>}
       </p>
       {a.branch && a.branch.total > 0 && <p className="node-peek-branch">{branchLong(a.branch)}</p>}
-      <p className="node-peek-hint">Double-click to zoom in · click for details</p>
+      <p className="node-peek-hint">Click to go to the session · double-click for details</p>
     </div>,
     document.body,
   );
