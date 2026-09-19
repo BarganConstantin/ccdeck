@@ -2188,6 +2188,24 @@ function Inner() {
    *  part-way to a fit, with `getViewport` reporting a transform the deck never
    *  asked for and the drift watchdog measuring against it. */
   const pendingFitRef = useRef<{ target: { x: number; y: number; zoom: number }; until: number } | null>(null);
+  /** WHICH CAMERA MOVE IS THE LATEST ONE ANYBODY ASKED FOR. Bumped by every
+   *  frame the deck sets on purpose — a fit, a focus — and by the reader's own
+   *  pan or zoom, so that a move can tell it has been superseded.
+   *
+   *  fitLeft's trailing correction is what needs it. That check exists to land a
+   *  fit whose animation was cut short, and it could not tell "cut short" from
+   *  "replaced": a fit started by the frame change a selection causes (the
+   *  detail panel opens and the canvas narrows), then a double-click focusing a
+   *  session 100ms later — and 560ms after the fit began, its correction found
+   *  the camera somewhere it had not put it and snapped the whole board back,
+   *  over the focus. A pan made during a fit's animation was undone the same
+   *  way. The correction now lands only while its fit is still the latest. */
+  const cameraEpochRef = useRef(0);
+  /** The card the last focus framed, and when — so a re-pack that lands just
+   *  after it (the reframe effect below) can frame it again where it went. */
+  const lastFocusRef = useRef<{ id: string; at: number } | null>(null);
+  /** focusAgent, for an effect declared above it. */
+  const focusAgentRef = useRef<(id: string) => void>(() => {});
 
   // Apply restored viewport once ReactFlow's instance is ready. We skip
   // the initial fitView in that case (see <ReactFlow fitView={…}/> below).
@@ -2446,6 +2464,7 @@ function Inner() {
         y: Math.max(MARGIN, (paneRect.height - h * zoom) / 2) - minY * zoom,
         zoom,
       };
+      const epoch = ++cameraEpochRef.current;
       applyViewport(want, duration);
       lastFitTimeRef.current = Date.now();
       // Remembered only while an animation is actually running: a fit that went
@@ -2463,6 +2482,7 @@ function Inner() {
           // meantime owns the ref now, and clearing it would leave that
           // animation with nothing to land if the tab went away mid-flight.
           if (pendingFitRef.current?.target === want) pendingFitRef.current = null;
+          if (cameraEpochRef.current !== epoch) return;
           const vpNow = rf.getViewport();
           if (Math.abs(vpNow.zoom - zoom) > 0.01 || Math.abs(vpNow.x - want.x) > 2) {
             applyViewport(want, 0);
@@ -3058,6 +3078,18 @@ function Inner() {
       lanes: laneMap(stateRef.current),
     };
     if (!columnsWouldChange(nodes, edges, opts, prev, frame)) return;
+    // WHAT THE READER IS LOOKING AT, BEFORE THE BOARD MOVES UNDER IT. With the
+    // auto-fit on, the fit below frames the new arrangement and nothing needs
+    // keeping. With it off — a pan, or a focus — the camera used to stay where
+    // it was while every session moved to a new column, so selecting a card
+    // (which opens the detail panel, which narrows the canvas, which is this
+    // frame change) sent the card the reader had just clicked somewhere off
+    // the screen they were reading. A double-click to focus lost its session
+    // the same way: the focus framed where the card was a paint before the
+    // re-pack moved it.
+    const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
+    const keepId = focused ?? primarySelectedIdRef.current;
+    const keptAt = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
     for (const id of Array.from(positionsRef.current.keys())) {
       if (!pinnedRef.current.has(id)) positionsRef.current.delete(id);
     }
@@ -3075,13 +3107,26 @@ function Inner() {
       // arrangement this pass just replaced, beside a frame record saying it
       // was packed for the new window.
       saveLayout(positionsRef.current, pinnedRef.current);
-      if (autoFitDisabledRef.current) return;
+      if (autoFitDisabledRef.current) {
+        // A focus this recent is framed again, from the new arrangement.
+        if (focused) { focusAgentRef.current(focused); return; }
+        // Otherwise the selected card stays where it was on screen: the view
+        // moves by exactly as far as the re-pack moved the card.
+        const movedTo = keepId ? (pinnedRef.current.get(keepId) ?? positionsRef.current.get(keepId)) : undefined;
+        if (keptAt && movedTo && (movedTo.x !== keptAt.x || movedTo.y !== keptAt.y)) {
+          const vp = rf.getViewport();
+          cameraEpochRef.current += 1;
+          applyViewport({ x: vp.x - (movedTo.x - keptAt.x) * vp.zoom, y: vp.y - (movedTo.y - keptAt.y) * vp.zoom, zoom: vp.zoom }, 0);
+          lastFitTimeRef.current = Date.now();
+        }
+        return;
+      }
       fitLeft(500);
     }, 80);
     // `nodes` and `edges` are read, not watched: they are rebuilt four times a
     // second and this has to run when the FRAME moves, on whatever board was on
     // screen at that moment.
-  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft]);
+  }, [availableWidth, availableHeight, settled, dragging, rerender, fitLeft, rf, applyViewport]);
 
   // Invisible per-session drag-handle nodes. One per session, sized to the
   // bounding box of that session's agent nodes and rendered behind them
@@ -3335,6 +3380,8 @@ function Inner() {
     });
     hidePeek();
     disableAutoFit();
+    lastFocusRef.current = { id, at: Date.now() };
+    cameraEpochRef.current += 1;
     applyViewport(want, FOCUS_MS);
     lastFitTimeRef.current = Date.now();
     // The same insurance fitLeft takes against a tab hidden mid-flight: the
@@ -3343,6 +3390,8 @@ function Inner() {
       ? { target: want, until: Date.now() + FOCUS_MS + 60 }
       : null;
   }, [applyViewport, disableAutoFit]);
+
+  focusAgentRef.current = focusAgent;
 
   // What the peek reads, through refs so the three are made once: the node's
   // own data (branch summary included), a parent's label, and the room it may
@@ -5218,6 +5267,8 @@ function Inner() {
           onMoveStart={e => {
             // A pan or a zoom moves the tile out from under its peek.
             hidePeek();
+            // And supersedes any fit still settling — see cameraEpochRef.
+            if (isUserViewportGesture(viewportMove(e))) cameraEpochRef.current += 1;
             // The pane's own gesture, and only ever that: React Flow drops a
             // move with no source event before this callback is reached. Kept
             // alongside onMove because d3-zoom raises `start` on the press and
