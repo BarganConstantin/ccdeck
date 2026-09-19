@@ -7393,7 +7393,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // An allowlist, not a pass-through: the parameter names a section of this
       // panel and nothing else, so an unknown one is a 400 rather than an empty
       // chart that looks like a machine with nothing to report.
-      if (!["thermal", "cores", "memory", "load"].includes(group)) {
+      if (!["thermal", "cores", "memory", "load", "network"].includes(group)) {
         return send(res, 400, { ok: false, error: "unknown_group" });
       }
       return send(res, 200, historySnapshot(group));
@@ -7509,8 +7509,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // reads `transcript_path`, which Codex hooks never send — and unref'd
       // like its neighbours.
       startOutputWatch();
-      // Both timers are unref'd, so this never holds the process open.
-      startSystemMetrics();
+      // Every timer is unref'd, so this never holds the process open. `probe`
+      // lets the network section time the API and read the route while the
+      // Machine panel is open — the only caller allowed to reach out.
+      startSystemMetrics({ probe: true });
       // LAN sync, from the prefs the import read — and only from here, so a
       // deck that had it on comes back with it on, and a launcher that only
       // asked the registry never binds a port it is about to walk away from.

@@ -23,6 +23,7 @@
 // bytes and cores.
 import React, { useEffect, useRef, useState } from "react";
 import SectionHistoryModal from "./SectionHistoryModal";
+import { figureText, latencyFigure, rateFigure } from "../net-format";
 import ProcessListModal from "./ProcessListModal";
 
 /** Matches the server's CPU cadence, so the panel advances one reading per poll
@@ -127,6 +128,24 @@ interface Thermal {
    *  when it last was. Null on one that never has. */
   heldBack?: { peak: number; lastMs: number } | null;
 }
+/** The path traffic takes when it is not this machine's own connection. */
+interface NetRoute {
+  kind: "tailscale-exit" | "tailscale" | "vpn";
+  iface?: string;
+  node?: string | null;
+  relay?: string | null;
+  name?: string | null;
+  to: "claude" | "internet";
+}
+/** Throughput is sampled all the time; latency and route only while this panel
+ *  is open (system-metrics.mjs), so each can be missing for the first poll. */
+interface Network {
+  down: number | null;
+  up: number | null;
+  /** `ms` null is a host that did not answer. */
+  api: { host: string; ms: number | null } | null;
+  route: NetRoute | null;
+}
 interface Snapshot {
   ok: boolean;
   cpu: number | null;
@@ -141,6 +160,8 @@ interface Snapshot {
   /** Null on a machine that publishes nothing, and then no section is drawn at
    *  all — not 0°C, not a dash, not an empty bar. */
   thermal: Thermal | null;
+  /** Null until anything about the network has been read. */
+  network?: Network | null;
   intervalMs: number;
 }
 
@@ -294,7 +315,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     );
   }
 
-  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal } = sys;
+  const { memory, swap, perCore, loadavg, cores, uptimeSec, platform, thermal, network } = sys;
   const used = memory ? memory.total - memory.available : 0;
   // Windows has no swap file in the Unix sense; what the same query reports
   // there is commit charge, so it is named for what it is.
@@ -357,27 +378,18 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
         </OpensHistory>
       </div>
 
-      {loadavg && (
-        <div className="sd-section" role="group" aria-label="Load average">
-          <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
-          <div className="sd-load">
-            {loadavg.map((v, i) => (
-              <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
-                <b>{v.toFixed(2)}</b>
-                <span>{["1m", "5m", "15m"][i]}</span>
-              </span>
-            ))}
-          </div>
-          {/* The one number the topbar bar cannot express: past 100% it
-              saturates, and this says by how much. */}
-          <div className="sd-note">
-            {loadavg[0] > cores
-              ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
-              : `within ${cores} cores`}
-          </div>
-          </OpensHistory>
+      {/* LOAD AND NETWORK SHARE A LINE. Both are three short figures and a
+          note; stacked, the panel grew a section's height for two readings
+          that fit side by side, and it is the same glance — how busy is this
+          machine, and how busy is its connection. Alone (Windows has no load
+          average), either takes the full width as every section does. */}
+      {loadavg && network ? (
+        <div className="sd-section sd-pair">
+          {loadSection(loadavg, cores)}
+          <NetworkSection network={network} />
         </div>
-      )}
+      ) : loadavg ? loadSection(loadavg, cores) : network ? <NetworkSection network={network} /> : null}
+      {network?.route && <RouteLine route={network.route} />}
 
       <ThermalSection thermal={thermal} />
 
@@ -406,6 +418,99 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
  * not an empty bar — the same refusal that keeps `cpu` null until two samples
  * exist. On a platform with no sensor this section has never existed.
  */
+/** Load average: the three figures and the one note the topbar bar cannot
+ *  give — by how much the queue exceeds the cores. */
+function loadSection(loadavg: number[], cores: number) {
+  return (
+    <div className="sd-section" role="group" aria-label="Load average">
+      <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
+      <div className="sd-load">
+        {loadavg.map((v, i) => (
+          <span key={i} className={`sd-load-item${v > cores ? " over" : ""}`}>
+            <b>{v.toFixed(2)}</b>
+            <span>{["1m", "5m", "15m"][i]}</span>
+          </span>
+        ))}
+      </div>
+      {/* The one number the topbar bar cannot express: past 100% it
+          saturates, and this says by how much. */}
+      <div className="sd-note">
+        {loadavg[0] > cores
+          ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
+          : `within ${cores} cores`}
+      </div>
+      </OpensHistory>
+    </div>
+  );
+}
+
+/**
+ * What the connection is moving, and how far Claude is.
+ *
+ * The figures are set exactly as Load average's are — the number in the weight,
+ * its unit and direction in the caption under it — so the two halves of the
+ * line read as one kind of thing. Bytes rather than bits, like the memory
+ * above (net-format.ts). The latency is a TCP handshake with the API, not a
+ * request: it costs no tokens and sends nothing.
+ */
+function NetworkSection({ network }: { network: Network }) {
+  const { down, up, api } = network;
+  return (
+    <div className="sd-section" role="group" aria-label="Network">
+      <OpensHistory group="network" title="Network history" action="Show network history" label="Network">
+      {down != null && up != null ? (
+        <div className="sd-load">
+          {([["down", down], ["up", up]] as const).map(([dir, v]) => {
+            const f = rateFigure(v);
+            return (
+              <span key={dir} className="sd-load-item">
+                <b>{f.value}</b>
+                <span>{f.unit} {dir}</span>
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        // The first rate needs two readings five seconds apart.
+        <div className="sd-note">measuring…</div>
+      )}
+      {api && (
+        <div className={api.ms == null ? "sd-note sd-note-warn" : "sd-note"}>
+          {/* Short enough for the half-width column: "Claude API not
+              answering" wrapped onto two lines there. */}
+          {api.ms == null ? "Can’t reach Claude" : `Claude API ${figureText(latencyFigure(api.ms))}`}
+        </div>
+      )}
+      </OpensHistory>
+    </div>
+  );
+}
+
+/**
+ * Which way the traffic goes, when it is not this machine's own connection.
+ *
+ * Absent on a direct connection, deliberately: a line that always says "direct"
+ * is read once and then never again, and missed the day it changes. When it is
+ * there it names the machine the traffic leaves through, and the relay — the
+ * part that costs — in the warning colour. This is the line that would have
+ * explained Claude FM going silent for twenty seconds at a time.
+ */
+function RouteLine({ route }: { route: NetRoute }) {
+  const through = route.kind === "tailscale-exit"
+    ? <>Tailscale exit node{route.node ? <> <b>{route.node}</b></> : null}</>
+    : route.kind === "tailscale"
+      ? <>Tailscale</>
+      : <>{route.name ? `a ${route.name} VPN` : "a VPN"}{route.iface ? ` (${route.iface})` : ""}</>;
+  return (
+    <p className="sd-route">
+      {route.to === "claude" ? "Traffic to Claude" : "Internet traffic"} goes through {through}
+      {route.relay && (
+        <>, <span className="sd-route-relay" title="Not reached directly: every packet also passes through one of Tailscale's relay servers, which adds its round trip twice">relayed via {route.relay}</span></>
+      )}
+    </p>
+  );
+}
+
 /**
  * A section of this panel that keeps a history, wrapped in the one control that
  * opens it.
@@ -421,7 +526,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
  * its own name, so the word a third time is noise.
  */
 function OpensHistory({ group, title, action, label, children }: {
-  group: "thermal" | "cores" | "memory" | "load";
+  group: "thermal" | "cores" | "memory" | "load" | "network";
   /** What the dialog calls itself. A name for a thing. */
   title: string;
   /** What the BUTTON calls itself, which is not the same string: a control is
