@@ -1989,7 +1989,7 @@ button.btn.sm-hear {
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sd-row + .sd-row { margin-top: 9px; }
+.sd-row + .sd-row { margin-top: 10px; }
 /* The THERMAL section is one control (#738): pressing anywhere in it opens the
    chart of what the machine did with its heat. One button rather than one per
    row, because both rows opened the same dialog showing both series — a second
@@ -2090,6 +2090,7 @@ button.btn.sm-hear {
   color: var(--text-dim);
   transition: color 140ms ease;
 }
+.sysdetail .sd-open:hover .sd-h,
 .sysdetail .sd-open:hover .sd-row-more { color: var(--text); }
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
@@ -2150,11 +2151,19 @@ button.btn.sm-hear {
 .sd-fig { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
 .sd-fig b { font-size: 13px; font-weight: 600; }
 .sd-fig-cap { color: var(--muted); font-size: 10px; white-space: nowrap; }
-/* The figure that is not measuring what the ones before it measure. Pushed to
-   the far edge, because a fourth even column would say the three are one
-   reading of one connection: two are this machine's own interface counters and
-   this is a round trip to one host. */
-.sd-fig-apart { grid-column: 3; align-items: flex-end; text-align: right; }
+/* THE OTHER ORDER, where the three columns are three different measurements
+   rather than three samples of one: the name on top, and under it the number
+   with its unit beside it rather than below it. "112" over "KB/s down" made
+   the caption carry the unit AND the name, which is how "down" — the only word
+   in it that says what was measured — ended up last. 2px under the label
+   because a name and its reading are one object; 1px was the spacing of a
+   number over its own footnote. */
+.sd-figs-named .sd-fig { gap: 2px; }
+.sd-fig-read { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+/* Beside the number, not under it, and a tier down: a unit is part of the
+   reading, and at the number's own weight "112 KB/s" reads as five characters
+   of equal importance. */
+.sd-fig-unit { color: var(--muted); font-size: 10px; }
 
 /* 11px, the panel's reading size (#859): these are sentences — "reading this
    machine…", why a reading is missing — not labels. */

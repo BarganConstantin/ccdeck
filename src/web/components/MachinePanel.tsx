@@ -459,21 +459,33 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
         </OpensHistory>
       )}
       {loadavg && (
-        <OpensHistory group="load" title="Load history" action="Show load history" label="Load average">
-          <div className="sd-figs">
+        <OpensHistory
+          group="load" title="Load history" action="Show load history" label="Load average"
+          hint="the queue for the cores, counted in tasks rather than as a share of them"
+        >
+          {/* The figures keep the number on top and the window under it: these
+              are three samples of ONE reading rather than three named ones, and
+              the eye compares 1m with 15m down the row. The network's three ARE
+              named, and it puts the name on top for that reason. */}
+          <div
+            className="sd-figs"
+            title="The queue for this machine's cores, averaged over one, five and fifteen minutes. A count of tasks, not a share of the CPU."
+          >
             {loadavg.map((v, i) => (
               <Fig key={i} value={v.toFixed(2)} cap={["1m", "5m", "15m"][i]} />
             ))}
           </div>
-          {/* The one number the strip above cannot express: past every core
-              being busy it saturates, and this says by how much the queue
-              exceeds them. No colour on it — see the note at the top of this
-              file about what a load average actually counts. */}
-          <div className="sd-note">
-            {loadavg[0] > cores
-              ? `${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`
-              : `within ${cores} cores`}
-          </div>
+          {/* NOTHING HERE WHEN THE QUEUE FITS. It read "within 16 cores" on
+              every quiet machine, which is the core count from the panel's own
+              header and the figures' own comparison, said a third time. The
+              sentence below says something the figures cannot: by how much the
+              queue exceeds the cores once it has. No colour on it — see the
+              note at the top of this file about what a load average counts. */}
+          {loadavg[0] > cores && (
+            <div className="sd-note">
+              {`${(loadavg[0] / cores).toFixed(1)}× more work queued than cores to run it`}
+            </div>
+          )}
         </OpensHistory>
       )}
     </div>
@@ -555,12 +567,18 @@ function NetworkSection({ network }: { network: Network }) {
     <div className="sd-section" role="group" aria-label="Network">
       <OpensHistory group="network" title="Network history" action="Show network history" label="Network">
         {(rates || latency) && (
-          <div className="sd-figs">
-            {rates && ([["down", down!], ["up", up!]] as const).map(([dir, v]) => {
+          /* THE NAME ON TOP HERE, and under it the value with its unit beside
+             it. These three columns are three different measurements, so the
+             first thing each needs to say is which one it is — the same order
+             the memory rows read in, label then figure. Written the other way
+             round the caption had to carry both the unit and the name, and
+             "KB/s down" puts the unit where the name belongs. */
+          <div className="sd-figs sd-figs-named">
+            {rates && ([["Download", down!], ["Upload", up!]] as const).map(([name, v]) => {
               const f = rateFigure(v);
-              return <Fig key={dir} value={f.value} cap={`${f.unit} ${dir}`} />;
+              return <Fig key={name} value={f.value} unit={f.unit} cap={name} />;
             })}
-            {latency && <Fig value={latency.value} cap={`${latency.unit} to Claude`} apart />}
+            {latency && <Fig value={latency.value} unit={latency.unit} cap="Claude API" />}
           </div>
         )}
         {/* The first rate needs two readings five seconds apart, and the two
@@ -602,12 +620,27 @@ function NetworkSection({ network }: { network: Network }) {
   );
 }
 
-/** One figure: the number in the panel's reading weight, its unit and what it
- *  measures in the caption under it. `apart` is the one break in the row —
- *  a figure that is not measuring the same thing as the ones before it. */
-function Fig({ value, cap, apart }: { value: string; cap: string; apart?: boolean }) {
+/**
+ * One figure: the number in the panel's reading weight, and what it is.
+ *
+ * Two orders, one component. Without a `unit` the caption goes under the number
+ * — three samples of one reading, where the numbers are what you compare. With
+ * one, the caption goes on top and the unit sits beside the number: three
+ * different measurements, where the name is what you need first and the unit
+ * belongs to the figure rather than to the label under it. The row's grid is
+ * the same either way, so the columns line up down the panel.
+ */
+function Fig({ value, unit, cap }: { value: string; unit?: string; cap: string }) {
+  if (unit) {
+    return (
+      <span className="sd-fig">
+        <span className="sd-fig-cap">{cap}</span>
+        <span className="sd-fig-read"><b>{value}</b> <span className="sd-fig-unit">{unit}</span></span>
+      </span>
+    );
+  }
   return (
-    <span className={`sd-fig${apart ? " sd-fig-apart" : ""}`}>
+    <span className="sd-fig">
       <b>{value}</b>
       <span className="sd-fig-cap">{cap}</span>
     </span>
@@ -699,7 +732,7 @@ function ConnectionDetails({ route, api, onClose }: {
  * reading itself, so it is spoken by the button rather than hidden with the
  * heading.
  */
-function OpensHistory({ group, title, action, label, value, children }: {
+function OpensHistory({ group, title, action, label, value, hint, children }: {
   group: "thermal" | "cores" | "memory" | "load" | "network";
   /** What the dialog calls itself. A name for a thing. */
   title: string;
@@ -711,6 +744,13 @@ function OpensHistory({ group, title, action, label, value, children }: {
   label: string;
   /** The section's own reading, beside its heading, where it has one. */
   value?: string | null;
+  /** What the reading is, for a reader who cannot hover for the tooltip that
+   *  says the same thing. A DESCRIPTION rather than part of the name: a button
+   *  is named for what pressing it does, and "Show load history, the queue for
+   *  the cores, counted in tasks rather than as a share of them" is a sentence
+   *  where a control's name belongs. Announced after the name, and only where a
+   *  reader asks for more. */
+  hint?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -722,6 +762,7 @@ function OpensHistory({ group, title, action, label, value, children }: {
         onClick={() => setOpen(true)}
         title={action}
         aria-label={value == null ? action : `${action}, now ${value}`}
+        aria-describedby={hint ? `sd-hint-${group}` : undefined}
       >
         <div className="sd-h" aria-hidden>
           {label} <i className="sd-row-more">›</i>
@@ -729,6 +770,7 @@ function OpensHistory({ group, title, action, label, value, children }: {
         </div>
         {children}
       </button>
+      {hint && <span id={`sd-hint-${group}`} className="vis-hidden">{hint}</span>}
       {open && <SectionHistoryModal group={group} title={title} onClose={() => setOpen(false)} />}
     </>
   );
@@ -777,10 +819,15 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
             pct={(r.celsius / r.critAt) * 100}
             mark={(r.warnAt / r.critAt) * 100}
             tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
-            // What the bar is a bar OF, for the one reader who wants to know
-            // why 90 is nearly full. The scale is the app's own rule, stated as
-            // one rather than as a fact about the silicon.
-            title={`bar runs to ${r.critAt} °C · amber from ${r.warnAt} °C`}
+            // WHAT THE BAR AND THE MARK ARE, in both the places a reader can
+            // ask. The scale is stated as this app's own rule — where the row
+            // turns amber, where it turns red — and never as a claim about the
+            // silicon: `critAt` is the chip's own `temp*_crit` where hwmon
+            // publishes one and the server's 90 where it does not, and nothing
+            // in the snapshot says which. A sentence that named the hardware
+            // would be right on one machine and wrong on the next.
+            title={`bar runs 0–${r.critAt} °C · amber from ${r.warnAt} °C, red at ${r.critAt} °C`}
+            trackLabel={`${r.celsius} °C on a bar that runs to ${r.critAt} °C, amber from ${r.warnAt} °C`}
           />
         ))}
         {held && (
@@ -869,9 +916,13 @@ function Processes({ sys }: {
  * the temperature rows have one: memory's amber is at nine tenths of a bar that
  * is already full by then, and a mark there would sit under the fill's own end.
  */
-function Row({ label, value, pct, tone = "calm", note, mark, title }: {
+function Row({ label, value, pct, tone = "calm", note, mark, title, trackLabel }: {
   label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
   mark?: number; title?: string;
+  /** The bar said in words, for a reader who gets no tooltip. Only the rows
+   *  drawn against a threshold need one: a memory bar is the figure beside it,
+   *  a thermal bar is the figure against a scale that is not on screen. */
+  trackLabel?: string;
 }) {
   return (
     <div className="sd-row" title={title}>
@@ -881,7 +932,7 @@ function Row({ label, value, pct, tone = "calm", note, mark, title }: {
             the reason this panel exists. */}
         <span className="sd-row-val">{value}</span>
       </div>
-      <span className="sd-track">
+      <span className="sd-track" role={trackLabel ? "img" : undefined} aria-label={trackLabel}>
         {/* A floor of 1%, so a reading that is present but tiny still draws a
             sliver rather than reading as "no data" — but only ABOVE zero. Zero
             draws nothing, because on the thermal rows an empty track is the
