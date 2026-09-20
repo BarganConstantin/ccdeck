@@ -228,14 +228,18 @@ describe("the panel gives it a section of its own", () => {
     expect(panel).toContain('<OpensHistory group="network" title="Network history" action="Show network history" label="Network">');
   });
 
-  // THREE FIGURES, TWO MEASUREMENTS: down and up are this machine's own
-  // interface counters, the latency is one TCP handshake with one host. Three
-  // evenly set columns would read as one connection measured three ways, so the
-  // last one is set against the panel's right edge and its caption names where
-  // it went.
-  it("keeps the API round trip apart from the machine's own counters", () => {
-    expect(panel).toContain('<Fig value={latency.value} cap={`${latency.unit} to Claude`} apart />');
-    expect(css).toMatch(/\.sd-fig-apart \{ grid-column: 3; align-items: flex-end; text-align: right; \}/);
+  // THREE FIGURES, THREE MEASUREMENTS: down and up are this machine's own
+  // interface counters, the latency is one TCP handshake with one host. So each
+  // column is NAMED — the name on top, the value and its unit under it — rather
+  // than captioned "KB/s down", which put the unit where the name belongs and
+  // left three readings looking like one connection measured three ways.
+  it("names each column for what it measures", () => {
+    expect(panel).toContain('<Fig key={name} value={f.value} unit={f.unit} cap={name} />');
+    expect(panel).toContain('<Fig value={latency.value} unit={latency.unit} cap="Claude API" />');
+    expect(panel).toContain('[["Download", down!], ["Upload", up!]]');
+    // The unit belongs to the figure, a tier down from it, and never to the
+    // label above.
+    expect(css).toMatch(/\.sd-fig-unit \{ color: var\(--muted\); font-size: 10px; \}/);
   });
 
   // The sentence — "Traffic to Claude goes through Tailscale exit node …" — was
