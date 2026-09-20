@@ -740,6 +740,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
       ".react-flow__node:focus-visible .agent-node",
+      // And the same ring on the card's face at the compact and overview
+      // distances, where the card's own is a hairline of layout units.
+      ".react-flow__node:focus-visible .lod-face",
       ".selected-ribbon:focus-visible",
       ".session-list .sl-row:focus-visible",
       ".switch:focus-visible",
@@ -1053,6 +1056,12 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // name at 4.5:1, which is the identification. (It read "draggable" here
       // until #546; it is a fit-view button and never was one.)
       ".cluster-label",
+      // The same label for a session stopped until a human answers. It only
+      // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
+      // appears or moves, the label is still identified by the name written in
+      // it, and the state is also said by the triangle and, for a screen
+      // reader, in words. A state indicator on a decorative rim, not a boundary.
+      ".cluster-label[data-alarm]",
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {

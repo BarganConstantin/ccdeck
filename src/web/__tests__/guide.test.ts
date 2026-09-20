@@ -61,7 +61,7 @@ describe("a step is a picture with one line under it", () => {
     expect(WELCOME_STEPS.map(s => s.line)).toEqual([
       expect.stringMatching(/waiting/),
       expect.stringMatching(/node/),
-      expect.stringMatching(/Click any node/),
+      expect.stringMatching(/Double-click any node/),
       expect.stringMatching(/cost/),
       expect.stringMatching(/Cores, memory/),
       expect.stringMatching(/switch.*add.*share/),

@@ -55,11 +55,11 @@ The deck opens on these eight pictures the first time it runs — they are the w
 <td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-3.svg" width="440" alt="Click any node: its prompt, every tool call, tokens and timing."></td>
+<td><img src="assets/guide/welcome-3.svg" width="440" alt="Double-click any node: its prompt, every tool call, tokens and timing."></td>
 <td><img src="assets/guide/welcome-4.svg" width="440" alt="What each session costs, and how much quota is left."></td>
 </tr>
 <tr>
-<td align="center"><sub>Click any node: its prompt, every tool call, tokens and timing.</sub></td>
+<td align="center"><sub>Double-click any node: its prompt, every tool call, tokens and timing.</sub></td>
 <td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
 </tr>
 <tr>

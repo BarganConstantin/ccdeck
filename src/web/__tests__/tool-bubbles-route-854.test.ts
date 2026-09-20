@@ -36,7 +36,11 @@ describe("the bubbles stay decoration, and the keyboard has its own way in (#854
   });
 
   it("opens that panel from the keyboard, because a selection opens it (#814)", () => {
-    expect(app).toMatch(/if \(!additive\) setDetailOpen\(true\);/);
+    expect(app).toMatch(/if \(!additive && inspect\) setDetailOpen\(true\);/);
+    // A keyboard selection keeps the panel: only the pointer's click on a card
+    // passes `inspect: false`, and Enter takes the default.
+    expect(app).toMatch(/inspect: boolean = !additive/);
+    expect(app).toMatch(/selectAgent\(intent\.nodeId, intent\.additive\);/);
   });
 
   it("no longer says the bursts are written with tabIndex", () => {
