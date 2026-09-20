@@ -208,23 +208,52 @@ describe("reaching out only when asked", () => {
   });
 });
 
-describe("the panel draws it beside Load average", () => {
+describe("the panel gives it a section of its own", () => {
   const panel = read("../components/MachinePanel.tsx");
   const css = read("../styles.css");
 
-  it("shares the line with load, and takes the full width alone", () => {
-    expect(panel).toContain('<div className="sd-section sd-pair">');
-    expect(panel).toMatch(/loadavg && network \? \(/);
-    expect(css).toMatch(/\.sd-pair \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+  // It shared a line with Load average for one release, two half-width columns
+  // of three figures each. They are not one glance: a load average is a
+  // statement about the CPU's queue and belongs against the core strip, and
+  // pairing them put "how busy is the machine" and "how busy is its line" in
+  // one visual sentence. Network stands alone now and Load average sits inside
+  // the CPU block, so neither is read as a half of the other.
+  it("stands on its own, with no half-width column left behind", () => {
+    expect(panel).toContain('<div className="sd-section" role="group" aria-label="Network">');
+    expect(panel).not.toContain("sd-pair");
+    expect(css).not.toContain(".sd-pair");
   });
 
   it("opens its own history, named like every other section", () => {
     expect(panel).toContain('<OpensHistory group="network" title="Network history" action="Show network history" label="Network">');
   });
 
-  it("names the route only when the traffic is not going out directly", () => {
-    expect(panel).toContain("{network?.route && <RouteLine route={network.route} />}");
-    expect(panel).toContain('className="sd-route-relay"');
+  // THREE FIGURES, TWO MEASUREMENTS: down and up are this machine's own
+  // interface counters, the latency is one TCP handshake with one host. Three
+  // evenly set columns would read as one connection measured three ways, so the
+  // last one is set against the panel's right edge and its caption names where
+  // it went.
+  it("keeps the API round trip apart from the machine's own counters", () => {
+    expect(panel).toContain('<Fig value={latency.value} cap={`${latency.unit} to Claude`} apart />');
+    expect(css).toMatch(/\.sd-fig-apart \{ grid-column: 3; align-items: flex-end; text-align: right; \}/);
+  });
+
+  // The sentence — "Traffic to Claude goes through Tailscale exit node …" — was
+  // two lines under the figures on every poll of every session. It is behind
+  // one press now, and only when there is a path to disclose: the server
+  // reports no route at all on a direct line.
+  it("puts the path behind a press, and keeps the relay on the surface", () => {
+    expect(panel).toContain("{route && (");
+    expect(panel).toContain('className="sd-detail"');
+    expect(panel).toContain('anchorId="sd-conn"');
+    expect(panel).toContain('boundaryId="system-panel"');
+    expect(panel).toContain('<span className="sd-route-relay"> · relayed</span>');
     expect(css).toMatch(/\.sd-route-relay \{ color: var\(--warn\); \}/);
+  });
+
+  // A connection that cannot be asked is the one network state that is a fault
+  // rather than a figure, so it never moves inside the disclosure.
+  it("says an unreachable API in the panel itself", () => {
+    expect(panel).toContain('<div className="sd-note sd-note-warn">Can’t reach Claude</div>');
   });
 });
