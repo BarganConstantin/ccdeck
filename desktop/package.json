@@ -1,0 +1,18 @@
+{
+  "name": "ccdeck-desktop",
+  "private": true,
+  "version": "3.25.0",
+  "description": "ccdeck as a desktop app: the deck, a window, a tray icon and native notifications.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "icons": "node scripts/icons.mjs",
+    "start": "npm run icons && electron .",
+    "pack:mac": "npm run icons && electron-builder --mac dir --config electron-builder.config.cjs"
+  },
+  "devDependencies": {
+    "electron": "42.11.6",
+    "electron-builder": "26.15.3"
+  }
+}
