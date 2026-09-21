@@ -16,6 +16,8 @@
 npx ccdeck
 ```
 
+Or the desktop app, with the waiting count in your menu bar: **[macOS](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-arm64.dmg)** · **[Windows](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-win-x64.exe)** · **[Linux](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-x86_64.AppImage)** — [every download](#desktop-app)
+
 [![ccdeck — live agent DAG](assets/canvas.png)](assets/canvas.png)
 
 *A generated session, drawn by the deck itself — see `assets/canvas-demo.mjs`. Click through for full size.*
@@ -112,6 +114,23 @@ No config file. No account. No telemetry — nothing about your sessions is repo
 
 What the deck does write, and the short list of what does leave the machine, is in [What it touches](#what-it-touches).
 
+### Desktop app
+
+The same deck as an app: it starts the deck itself, puts an icon in the menu bar (the tray on Windows and Linux) with the number of sessions waiting on you, and, with the window closed, sends a notification wherever an open page would have played a sound, with the deck's own tone on macOS. It needs no Node.js. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
+
+| System | Download |
+| --- | --- |
+| macOS, Apple silicon | [ccdeck-mac-arm64.dmg](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-arm64.dmg) |
+| macOS, Intel | [ccdeck-mac-x64.dmg](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-mac-x64.dmg) |
+| Windows, x64 | [ccdeck-win-x64.exe](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-win-x64.exe) |
+| Linux, x86-64 | [AppImage](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-x86_64.AppImage) · [.deb](https://github.com/BarganConstantin/ccdeck/releases/latest/download/ccdeck-linux-amd64.deb) |
+
+- **macOS** — not notarised by Apple yet, so the first launch asks once: System Settings, Privacy & Security, Open Anyway. Installing from a terminal skips that step; the one-line command is under Download on the site.
+- **Windows** — installs for your user, with no admin prompt. It is not signed yet, so SmartScreen asks once: More info, then Run anyway.
+- **Linux** — the icon needs a tray to sit in: KDE and waybar have one, and GNOME needs the AppIndicator extension.
+
+The app keeps itself current from this repository's releases, and installs an update only if it carries ccdeck's own signature. It installs on Quit, never under a running session.
+
 ## Requirements
 
 - Node.js ≥ 18 — macOS, Linux and Windows. The floor is checked on every run: CI installs the packed release on Node 18 and boots it, so the badge is a measurement rather than a claim
@@ -172,7 +191,7 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
-What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
+What does go out is short and ordinary: a ~20-byte version check against the npm registry (plus one small request to confirm a version it has not seen before), installs and daily version checks for the two tools the deck manages (claude-swap from PyPI, ccusage from npm), on an Apple Silicon Mac whose sensors stay silent one release lookup and one binary download from GitHub for `macmon`, and, while the page is open, quota reads to Anthropic and OpenAI signed with your own credentials — that is where those numbers live. The [desktop app](#desktop-app) also asks this repository's GitHub releases for its own updates. With **Local network** on, which it is unless you switch it off, the deck also announces itself to other decks on your local network over UDP (port 45317) and pairs with the ones that answer — see [Local network](#local-network). `AGENTS_DECK_NO_INSTALL=1` turns off everything but the quota reads; `AGENTS_DECK_NO_DOWNLOAD=1` is the narrower version — no `uv` binary is fetched, the managed installs stay.
 
 ## Browser Watch
 
