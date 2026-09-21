@@ -41,6 +41,7 @@ import { aboutThisDeck } from "./lan-about.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
+import { launchMenuBar } from "./menubar.mjs";
 import { invokedName, renameNotice } from "./invoked-as.mjs";
 import { appendFailureStats, appendLogLine, appendsLanded, codexCwdInWorkspace, electWriters, emptyLog, flushAppends, foldsCase, writesCodexLog } from "./log-writer.mjs";
 import { historySnapshot, readProcesses, startSystemMetrics, systemSnapshot } from "./system-metrics.mjs";
@@ -7538,6 +7539,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // being installed or upgraded underneath them (#1043) — null from every
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
+      // The menu-bar icon, on a Mac whose install carries the app (#1160).
+      // From here for the reason LAN sync is: only the process that bound
+      // starts things that outlive a question. Fire-and-forget — a deck with no
+      // icon is the deck every other platform runs.
+      launchMenuBar().catch(() => {});
       return server;
     } catch (err) {
       lastErr = err;

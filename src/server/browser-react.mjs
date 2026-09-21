@@ -20,6 +20,7 @@
 // The session that opened it is still attached and can still read every other
 // tab. Only quitting takes anything back.
 import { run } from "./exec.mjs";
+import { notifyViaMenuBar } from "./menubar.mjs";
 // The one table of process names, shared with the presence probe so the reaction
 // and the "is it running" answer can never disagree about what to look for —
 // and, with it, the two questions that table cannot answer on its own: which
@@ -101,6 +102,14 @@ export const appName = key => APP[key] ?? null;
 export async function notify(title, body, platform = process.platform, deps = {}) {
   const exec = deps.run ?? run;
   if (platform === "darwin") {
+    // The menu-bar app first, when this install has one: the notification then
+    // carries ccdeck's name, icon and permission instead of Script Editor's
+    // (menubar.mjs). `null` means no app, and only that falls through to
+    // osascript — a refusal is the person's answer and is kept.
+    const viaApp = await notifyViaMenuBar(title, body, {
+      exec, platform, env: deps.env ?? process.env, root: deps.root, exists: deps.exists,
+    });
+    if (viaApp !== null) return viaApp;
     // `-e` with argv, so neither string is interpolated into the source. The
     // shell tool this descends from built its notification by interpolation and
     // that is the one place it had left the pattern it had banned everywhere

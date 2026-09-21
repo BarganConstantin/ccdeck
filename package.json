@@ -11,6 +11,7 @@
     "hook",
     "src/server",
     "dist/web",
+    "dist/native",
     "release-notes.json",
     "LICENSE",
     "README.md",
@@ -20,6 +21,7 @@
   "scripts": {
     "dev:web": "vite",
     "dev:server": "node src/server/index.mjs",
+    "build:macos": "sh native/macos/build.sh",
     "start": "node bin/agent-dag.js",
     "build": "vite build",
     "test": "vitest run",
