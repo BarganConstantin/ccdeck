@@ -59,6 +59,7 @@ import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
 import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
+import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "./board-limits";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { NotifyPermission } from "./notify";
@@ -253,14 +254,6 @@ const BUBBLE_MS = 420;
 // left uncovered so its label stays clickable).
 const GROUP_PAD = 18;
 
-const AGENT_CAP = 200;
-const AGENT_GRACE_MS = 5 * 60_000;
-// How many finished sessions stay on the canvas. Small on purpose: the board
-// is for what is happening now, and a day of sessions otherwise buries it.
-// The 2-minute grace is shorter than AGENT_GRACE_MS — a session is a bigger,
-// more obvious thing to disappear, so it should not linger once it is over.
-const DONE_SESSION_CAP = 6;
-const DONE_SESSION_GRACE_MS = 2 * 60_000;
 /** How long React Flow's own opening fit takes, when there is anyone watching
  *  it. Named because the answer to "should this animate" is asked of it too. */
 const OPENING_FIT_MS = 400;
