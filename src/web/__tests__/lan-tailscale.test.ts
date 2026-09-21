@@ -373,6 +373,23 @@ describe("the owner's own machines over Tailscale", () => {
   });
 });
 
+describe("a deck that only calls in", () => {
+  it("is said to come over Tailscale when that is the way it called", async () => {
+    // The row of a paired deck this one holds no address for — it calls, this
+    // one answers — had nothing to say which way the call came. It says what
+    // the call's own address says.
+    const a = await deck([], "Office", [], loopbackTailnet(true), { ...TS_ON, autoAccept: true });
+    const b = await deck([], "Home", [], null, {});
+    b.e.addPeer("127.0.0.1", a.e.status().port);
+    await b.e.round();
+    // Accepted, then its dial-back gone — the state after a settings write.
+    a.e.setPeers([]);
+    await b.e.round();
+    const row = (a.e.status().peers as Array<{ fp: string; waiting?: boolean; via?: string }>).find(p => p.fp === b.id.fp);
+    expect(row).toMatchObject({ waiting: true, via: "tailscale" });
+  }, 20_000);
+});
+
 describe("anybody else on the tailnet", () => {
   it("is listed and never asked or accepted unprompted", async () => {
     const a = await deck([], "Colleague", [], null, { autoAsk: false, autoAccept: false });
@@ -423,18 +440,17 @@ describe("the line under Look for my devices", () => {
 });
 
 describe("a discovery port another program holds", () => {
-  it("says so instead of running, and comes back by itself once it is free", async () => {
-    // Measured: the Tailscale extension on a Mac held UDP 45317, the bind failed
-    // with EADDRINUSE, and the engine awaited a callback that never came — it
-    // drew itself running with no socket and never scheduled a round.
+  it("keeps the deck running, says it cannot hear, and hears once the port is free", async () => {
+    // Measured: the Tailscale extension on a Mac held UDP 45317. The deck used
+    // to await a bind that never called back; then it stopped everything. It
+    // stays up now — found, dialled, syncing — and only the hearing waits.
     let taken = true;
-    const errors: string[] = [];
-    const socket = () => {
+    const socket = (o: { reuseAddr?: boolean }) => {
       const handlers = new Map<string, (...a: unknown[]) => void>();
       return {
         on(ev: string, fn: (...a: unknown[]) => void) { handlers.set(ev, fn); },
         bind(_p: number, _h: string, cb: () => void) {
-          if (!taken) { cb(); return; }
+          if (!(o?.reuseAddr && taken)) { cb(); return; }
           setTimeout(() => handlers.get("error")?.(Object.assign(new Error("bind EADDRINUSE 0.0.0.0:45317"), { code: "EADDRINUSE" })), 0);
         },
         setBroadcast() { /* nothing */ },
@@ -443,23 +459,16 @@ describe("a discovery port another program holds", () => {
       };
     };
     const s = store([]);
-    const e = createEngine({
-      ...s.deps, host: "127.0.0.1", createSocket: socket, bindRetryMs: 50,
-      onError: (w: string) => errors.push(w),
-    });
+    const e = createEngine({ ...s.deps, host: "127.0.0.1", createSocket: socket, bindRetryMs: 50 });
     running.push(e);
-    await expect(e.apply({ enabled: true, name: "Mac", secret: identityFrom("").secret })).rejects.toThrow(/EADDRINUSE/);
-    expect(e.status()).toMatchObject({ enabled: true, running: false });
-    expect(e.status().stalled).toMatch(/another program is using UDP 45317/);
-    // Nothing is listening while it is stalled: a deck is whole or plainly down.
-    expect(e.status().port).toBeNull();
+    await e.apply({ enabled: true, name: "Mac", secret: identityFrom("").secret });
+    expect(e.status()).toMatchObject({ enabled: true, running: true, stalled: null });
+    expect(e.status().port).toBeGreaterThan(0);
+    expect(e.status().deaf).toMatch(/^Another program is holding UDP 45317/);
 
     taken = false;
     const deadline = Date.now() + 3_000;
-    while (!e.status().running && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
-    expect(e.status()).toMatchObject({ running: true, stalled: null });
-    expect(e.status().port).toBeGreaterThan(0);
-    // The failed bind is the stall's to report, not a socket error besides it.
-    expect(errors).not.toContain("socket");
+    while (e.status().deaf && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+    expect(e.status().deaf).toBeNull();
   }, 10_000);
 });

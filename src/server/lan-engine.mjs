@@ -55,9 +55,9 @@ export const SYNC_MS = 60_000;
  */
 export const ASKING_MS = 8_000;
 
-/** How long to wait before trying the discovery port again after another
- *  program was holding it. The beacon's own interval: a port that frees up is
- *  picked up by the next beacon that would have gone out anyway. */
+/** How long to wait before trying the discovery port again while another
+ *  program holds it. The beacon's own interval: a port that frees up is picked
+ *  up about when the next beacon would have gone out anyway. */
 export const BIND_RETRY_MS = 30_000;
 
 /** How long one peer round may take before it is abandoned. A manifest is one
@@ -234,9 +234,15 @@ export function createEngine({
    * real one spawns the CLI, and the suite's engines have no tailnet.
    */
   tailnet = null,
-  /** How long a deck whose discovery port was taken waits to try again. A
+  /** How long a deck that cannot hear waits to try the port again. A
    *  parameter so the suite does not wait thirty seconds to see it. */
   bindRetryMs = BIND_RETRY_MS,
+  /** Which program holds the discovery port, when it is taken — see
+   *  port-holder.mjs — so the panel can name it. Nothing asks without one. */
+  portHolder = null,
+  /** Where the machine would send each broadcast, so none leaves through a
+   *  tunnel — see route-via.mjs. Absent, every broadcast goes. */
+  routes = null,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
@@ -341,6 +347,10 @@ export function createEngine({
    * is the evidence, and it is the same kind the beacon gives: a timestamp.
    */
   const spokeAt = new Map();
+  /** And the address it spoke FROM, so a deck that only ever calls in can
+   *  still be said to come over the tailnet or the local network — it has no
+   *  address of its own here, and without this its row could not say which. */
+  const spokeFrom = new Map();
   /**
    * When a connection from ANOTHER MACHINE last arrived on the sync listener.
    *
@@ -372,10 +382,22 @@ export function createEngine({
   /** The tailnet read's own timer, running only while the switch is on. */
   let tailTimer = null;
 
-  /** The next try at the discovery port, while another program holds it, and
-   *  the flag that makes that try a restart — see apply. */
-  let retryTimer = null;
-  let retryBind = false;
+  /** Who held the discovery port the last time it was asked, for as long as
+   *  this deck cannot hear: the answer does not change between two tries half a
+   *  minute apart, and on Windows asking costs a PowerShell start. Undefined
+   *  until asked, null when the machine would not say. */
+  let holder;
+
+  /** What the panel says while this deck cannot hear — see createBeacon's
+   *  `hearing`. Null whenever it can. */
+  const deafLine = () => {
+    if (!beacon || beacon.hearing()) return null;
+    const err = beacon.deafError?.();
+    if (err && err.code !== "EADDRINUSE") {
+      return `This deck cannot listen on UDP ${DISCOVERY_PORT} (${err.code ?? err.message}), so it hears no other deck announce itself. Other decks still find it and pair with it.`;
+    }
+    return `${holder ?? "Another program"} is holding UDP ${DISCOVERY_PORT}, so this deck hears no new decks. Others still find it and pair with it, and it takes the port back as soon as it is free.`;
+  };
 
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
@@ -438,7 +460,11 @@ export function createEngine({
   const serve = async (msg, ctx) => {
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
-    if (ctx?.peerFp) spokeAt.set(ctx.peerFp, now());
+    if (ctx?.peerFp) {
+      spokeAt.set(ctx.peerFp, now());
+      const from = String(ctx.sock?.remoteAddress ?? "").replace(/^::ffff:/, "");
+      if (from) spokeFrom.set(ctx.peerFp, from);
+    }
     try {
       if (msg.t === "manifest") {
         // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
@@ -872,11 +898,9 @@ export function createEngine({
       if (was.tailscale && !cfg.tailscale) {
         for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
       }
-      const restart = retryBind
-        || !was.enabled !== !cfg.enabled
+      const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
-      retryBind = false;
       if (!restart) { syncTailnet(); return; }
       this.stop();
       if (!cfg.enabled) return;
@@ -954,6 +978,20 @@ export function createEngine({
         unicast: () => (cfg.tailscale ? beaconTargets(tailnet?.snapshot?.() ?? null) : []),
         routeFor: addr => (!routeTo(addr) ? "lan" : cfg.tailscale ? "tailscale" : null),
         onPeer: () => onChange?.(),
+        // HEARING, AS OPPOSED TO RUNNING. A deck whose discovery port another
+        // program holds keeps everything else — the listener, the rounds, its
+        // own beacon — and says in the panel who has the port. Asked once per
+        // spell, behind the sentence that does not need the name.
+        rebindMs: bindRetryMs,
+        routes,
+        onHearing: now => {
+          if (now) { holder = undefined; onChange?.(); return; }
+          if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
+            holder = null;
+            void Promise.resolve().then(() => portHolder()).then(who => { holder = who ?? null; onChange?.(); }, () => {});
+          }
+          onChange?.();
+        },
         onStranger: entry => {
           const had = strangers.get(entry.fp);
           // KEYED BY MACHINE WHEN IT SAYS WHICH ONE IT IS. A computer that took
@@ -993,27 +1031,7 @@ export function createEngine({
         onError, now,
         ...(createSocket ? { createSocket } : {}),
       });
-      try {
-        await beacon.start();
-      } catch (err) {
-        // THE DISCOVERY PORT IS SOMEBODY ELSE'S, FOR NOW. Said in the panel
-        // rather than drawn as running, and tried again on its own: nothing
-        // anybody can press here frees a port another program holds, and the
-        // moment it does, this deck should simply be back. The listener goes
-        // down with it, so the deck is either whole or plainly stalled.
-        this.stop();
-        stalled = err?.code === "EADDRINUSE"
-          ? `another program is using UDP ${DISCOVERY_PORT}, the port decks find each other on — trying again every ${Math.round(bindRetryMs / 1000)} s`
-          : err?.message ?? String(err);
-        retryTimer = setTimeout(() => {
-          retryTimer = null;
-          if (!cfg.enabled) return;
-          retryBind = true;
-          void self.apply({}).catch(() => { /* stalled says why */ });
-        }, bindRetryMs);
-        retryTimer.unref?.();
-        throw err;
-      }
+      await beacon.start();
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
@@ -1326,6 +1344,11 @@ export function createEngine({
         // Said only while it is true, and it is only ever true of a deck that
         // is switched on and has no listener.
         stalled: cfg.enabled && !beacon ? stalled : null,
+        // Running, and unable to hear other decks announce — see deafLine.
+        deaf: deafLine(),
+        // Every local broadcast held back, because this machine sends its
+        // local network through a tunnel — see leavesByTunnel.
+        lanTunneled: !!beacon?.tunneled?.(),
         // When every paired deck was last asked. Null until the first round,
         // which on a deck that has just started is the honest answer.
         checkedAt: roundAt,
@@ -1354,6 +1377,7 @@ export function createEngine({
             accept: cfg.tailscaleAccept !== false,
             login: t?.self?.login ?? null,
             addr: t?.self?.ips?.[0] ?? null,
+            exitNode: !!t?.exitNode,
             // The owner's machines a beacon goes to right now.
             devices: beaconTargets(t).length,
           };
@@ -1467,6 +1491,8 @@ export function createEngine({
               // and this is when. Undefined until it has, which is a row the
               // panel draws as unknown rather than as live.
               lastSeen: spokeAt.get(t.fp),
+              // Which way it called, once it has.
+              ...(spokeFrom.has(t.fp) ? { via: routeTo(spokeFrom.get(t.fp)) ? "tailscale" : "lan" } : {}),
               // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
               // of those it is on. The card was kept and never handed over, so
               // the dialog said "it runs an older version" about a deck that
@@ -1482,8 +1508,7 @@ export function createEngine({
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;
-      if (retryTimer) clearTimeout(retryTimer);
-      retryTimer = null;
+      holder = undefined;
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;
