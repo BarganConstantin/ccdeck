@@ -11,7 +11,18 @@ module.exports = {
     // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
     buildResources: "dist/icons",
   },
-  files: ["main.mjs", "deck-link.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
+  files: ["main.mjs", "deck-link.mjs", "deck-host.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
+  // The deck itself, outside the asar archive, exactly as the npm package
+  // ships it: the app runs bin/agent-dag.js with its own binary as Node, and
+  // the deck reads its files from disk relative to itself. Build the web
+  // bundle (npm run build at the root) before packing.
+  extraResources: [
+    { from: "../bin", to: "deck/bin" },
+    { from: "../hook", to: "deck/hook" },
+    { from: "../src/server", to: "deck/src/server" },
+    { from: "../dist/web", to: "deck/dist/web" },
+    { from: "../package.json", to: "deck/package.json" },
+  ],
   // Signed by scripts/sign-mac.cjs with ccdeck's own certificate, never by
   // electron-builder — see that file for why.
   afterPack: "./scripts/sign-mac.cjs",

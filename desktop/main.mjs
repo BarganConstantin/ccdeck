@@ -17,6 +17,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
+import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -47,6 +48,8 @@ let model = null;             // TrayModel from dist/lib/tray-model.mjs
 let snapshot = { icon: "offline", waiting: 0, running: 0, title: "ccdeck", blocked: [] };
 let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let redraw = null;
+let ownDeck = null;           // the deck process this app started, if it did
+let starting = null;          // the start in flight, so two clicks start one deck
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -61,6 +64,7 @@ function ago(ms) {
 }
 
 function statusLine() {
+  if (starting) return "Starting the deck…";
   if (!deck) return "No deck running";
   if (snapshot.icon === "offline") return "Reconnecting to the deck…";
   if (snapshot.waiting > 0) return `${snapshot.waiting} session${snapshot.waiting === 1 ? "" : "s"} waiting for you`;
@@ -75,6 +79,7 @@ function buildMenu() {
     const what = b.kind === "asked" ? "asking" : "needs permission";
     items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => openWindow() });
   }
+  if (!deck && !starting) items.push({ label: "Start the deck", click: () => ensureDeck().then(() => openWindow()) });
   items.push(
     { type: "separator" },
     { label: "Open ccdeck", enabled: !!deck, click: () => openWindow() },
@@ -161,6 +166,50 @@ function attach(found) {
   });
 }
 
+/**
+ * A deck to attach to: the running one if there is one — started by
+ * `npx ccdeck`, a login item, or this app last time — otherwise one of this
+ * app's own. Waits for the new deck's discovery file, which it writes once it
+ * is listening.
+ */
+async function ensureDeck() {
+  await discover();
+  if (deck) return deck;
+  if (starting) return starting;
+  starting = (async () => {
+    scheduleRedraw();
+    const launcher = writeLauncher(process.execPath);
+    ownDeck = startDeck({
+      deckRoot: deckRoot(),
+      appBinary: process.execPath,
+      logFile: join(app.getPath("logs"), "deck-app.log"),
+      path: shellPath(),
+      launcher,
+    });
+    ownDeck.on("exit", code => { trace(`own deck exited ${code}`); ownDeck = null; discoverSoon(); });
+    for (let i = 0; i < 80 && !deck; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      await discover();
+    }
+    return deck;
+  })();
+  try { return await starting; } finally { starting = null; scheduleRedraw(); }
+}
+
+/** Stop the deck this app started, and only that one: a deck from a terminal
+ *  or a login item is somebody else's, and outlives the app. */
+async function stopOwnDeck() {
+  if (!ownDeck) return;
+  try {
+    if (deck) await deckJson(deck, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 });
+  } catch { /* asked; the kill below is the fallback */ }
+  const child = ownDeck;
+  await new Promise(r => {
+    const t = setTimeout(() => { try { child.kill(); } catch {} r(); }, 4000);
+    child.once("exit", () => { clearTimeout(t); r(); });
+  });
+}
+
 async function discover() {
   try {
     const decks = await findDecks(deckRoot());
@@ -204,11 +253,7 @@ function trace(line) {
 
 function openWindow() {
   if (!deck) {
-    dialog.showMessageBox({
-      type: "info",
-      message: "No deck is running",
-      detail: "Start one with `npx ccdeck` in a terminal. The app finds it on its own.",
-    });
+    ensureDeck().then(found => { if (found) openWindow(); });
     return;
   }
   if (win && !win.isDestroyed()) {
@@ -293,7 +338,7 @@ app.whenReady().then(async () => {
   tray.setContextMenu(buildMenu());
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
-  await discover();
+  await ensureDeck();
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); }, 10_000);
@@ -306,4 +351,13 @@ app.on("activate", () => openWindow());
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
-app.on("before-quit", () => { stream?.close(); });
+// Quit stops this app's own deck before leaving, once: the first before-quit
+// is held while the deck shuts down, the second is the real one.
+let quitting = false;
+app.on("before-quit", event => {
+  stream?.close();
+  if (quitting || !ownDeck) return;
+  event.preventDefault();
+  quitting = true;
+  stopOwnDeck().finally(() => app.quit());
+});
