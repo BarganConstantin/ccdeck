@@ -5,6 +5,7 @@
 // sessions reach the same server through the rollout watcher instead, so one
 // running server still sees both CLIs. Re-runs are safe; entries are tagged
 // with __agent-dag and de-duped.
+import { hookRuntime } from "./app-host.mjs";
 import { readFile, mkdir, unlink, rename, open, stat, chmod, realpath, readlink, utimes } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
@@ -464,7 +465,9 @@ export async function installHooks({ provider = "claude", beforeWrite = null } =
   const { settings: current, raw: before } = await readSettingsForWrite(cfg.settingsPath);
 
   const hookPath = await installHookScript(cfg.hookInstallDir);
-  const command = hookCommand(hookPath, provider);
+  // Through the desktop app's launcher when it started this deck — its own
+  // binary opens the app rather than running a script (app-host.mjs).
+  const command = hookCommand(hookPath, provider, hookRuntime());
   await ensureDir(cfg.ensureDir);
   // Discovery dir is shared across providers — always make sure it exists.
   await ensureDir(AGENT_DAG_DIR);
