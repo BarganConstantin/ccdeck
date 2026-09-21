@@ -192,7 +192,7 @@ export default function SoundMenu({
             has stopped and needs a person — is nowhere on screen. */}
         <div className="sm-setting">
           <label className="sm-switch">
-            <span className="sm-switch-label" id="sm-notify-label">Notifications</span>
+            <span className="sm-switch-label" id="sm-notify-label">Notifications while closed</span>
             <button
               type="button"
               role="switch"
@@ -200,7 +200,7 @@ export default function SoundMenu({
               aria-labelledby="sm-notify-label"
               className="switch"
               onClick={onToggleNotify}
-              title="A system notification when a session blocks on you"
+              title="With no deck tab open, a notification wherever a sound would play"
             >
               <span className="switch-knob" />
             </button>

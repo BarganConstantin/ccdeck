@@ -67,7 +67,8 @@ export const prefsPath = (home = deckDataDir()) => join(prefsDir(home), "prefs.j
  * `notifications` defaults OFF since 3.22.7. The deck's own sounds are how it
  * gets attention by default; a desktop notification is something a person
  * turns on. It defaulted on from 3.7.0 until then, and a deck that saved that
- * `true` keeps it.
+ * `true` keeps it. On, a CLOSED deck notifies wherever an open one would have
+ * played a sound (block-notify.mjs `isChimeEvent`).
  */
 export const DEFAULTS = Object.freeze({
   notifications: false,
