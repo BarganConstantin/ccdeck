@@ -11,6 +11,7 @@
 // the current call always serves from the already-installed copy. If the
 // managed install is missing/broken we fall back to the old npx path so the
 // feature still works on a fresh machine.
+import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -738,12 +739,43 @@ function discardDamagedInstall(runner, err) {
 export const userSpec = (file, args = [], platform = process.platform) =>
   spawnSpec(file, args, platform);
 
+/**
+ * The platform binary ccusage's own cli.js would run, resolved the way cli.js
+ * resolves it (`@ccusage/ccusage-<platform>-<arch>/bin/ccusage[.exe]`, from
+ * the package's own directory), or null when there is none.
+ *
+ * WINDOWS ONLY, and for one reason: cli.js starts that binary WITHOUT hiding
+ * its console. The deck runs with no console of its own (detached, or inside
+ * the desktop app), so the binary is given a new one — and with Windows
+ * Terminal as the default terminal that is a window flashing up on every
+ * usage read, measured on a Windows 10 box as a CASCADIA_HOSTING_WINDOW_CLASS
+ * hosting ccusage. Running the binary directly, with windowsHide, is what
+ * cli.js does minus the window. Elsewhere nothing flashes, and the wrapper
+ * stays in the path it has always been in.
+ *
+ * Exported for tests; `resolve` is injectable.
+ */
+export function nativeCcusage(entry, platform = process.platform, arch = process.arch, resolve = null) {
+  if (platform !== "win32" || typeof entry !== "string" || !entry) return null;
+  const pkg = arch === "arm64" ? "@ccusage/ccusage-win32-arm64" : arch === "x64" ? "@ccusage/ccusage-win32-x64" : null;
+  if (!pkg) return null;
+  try {
+    const req = resolve ?? createRequire(entry).resolve;
+    return req(`${pkg}/bin/ccusage.exe`);
+  } catch {
+    return null;
+  }
+}
+
 // One attempt with one runner. No branch gets a shell. The managed install is
 // `node <entry> …`, which never needed one; the user's own copy and the npx
 // fallback are routed through spawnSpec instead — see npxSpec and userSpec, and
 // note that `args` here ends in whatever /api/ccusage was asked for.
 function runOnce(runner, args) {
-  const { file, args: full, opts } = runner.kind === "node"
+  const native = runner.kind === "node" ? nativeCcusage(runner.entry) : null;
+  const { file, args: full, opts } = native
+    ? { file: native, args, opts: {} }
+    : runner.kind === "node"
     ? { file: process.execPath, args: [runner.entry, ...args], opts: {} }
     : runner.kind === "path"
       ? userSpec(runner.file, args)
