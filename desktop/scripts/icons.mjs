@@ -19,7 +19,8 @@
 //
 // Pure node — zlib and a hand-rolled PNG writer — so the build needs nothing
 // installed to draw them.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -146,10 +147,30 @@ export function appIconPng(size = 1024) {
   return png(size, px);
 }
 
+/**
+ * The macOS .icns, made with Apple's own sips and iconutil — so the build does
+ * not fetch electron-builder's icon toolset, a download GitHub answered with a
+ * 504 on two CI runs in a row. macOS only; elsewhere electron-builder makes the
+ * .ico and the Linux set from icon.png itself.
+ */
+export function writeIcns(outDir) {
+  const set = join(outDir, "icon.iconset");
+  rmSync(set, { recursive: true, force: true });
+  mkdirSync(set, { recursive: true });
+  const src = join(outDir, "icon.png");
+  for (const size of [16, 32, 128, 256, 512]) {
+    execFileSync("sips", ["-z", String(size), String(size), src, "--out", join(set, `icon_${size}x${size}.png`)], { stdio: "ignore" });
+    execFileSync("sips", ["-z", String(size * 2), String(size * 2), src, "--out", join(set, `icon_${size}x${size}@2x.png`)], { stdio: "ignore" });
+  }
+  execFileSync("iconutil", ["-c", "icns", set, "-o", join(outDir, "icon.icns")]);
+  rmSync(set, { recursive: true, force: true });
+}
+
 /** Write every image into `outDir`. */
 export function writeIcons(outDir) {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "icon.png"), appIconPng(1024));
+  if (process.platform === "darwin") writeIcns(outDir);
   for (const state of STATES) {
     // macOS menu bar: 16pt, with the @2x the Retina bar asks for. The
     // "Template" suffix is what makes Electron mark the image as a template.

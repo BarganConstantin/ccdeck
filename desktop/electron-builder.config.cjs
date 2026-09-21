@@ -38,6 +38,9 @@ module.exports = {
   artifactName: "${productName}-${version}-${os}-${arch}.${ext}",
   mac: {
     target: ["dmg", "zip"],
+    // Made by scripts/icons.mjs with Apple's iconutil, so no icon toolset is
+    // downloaded on the Mac runner.
+    icon: "dist/icons/icon.icns",
     identity: null,
     category: "public.app-category.developer-tools",
     // Not notarised (no Apple Developer ID), so hardened runtime buys nothing
