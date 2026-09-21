@@ -13,7 +13,6 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createPrivateKey, sign } from "node:crypto";
-import yaml from "js-yaml";
 
 function updateKey() {
   if (process.env.CCDECK_UPDATE_KEY) return process.env.CCDECK_UPDATE_KEY;
@@ -32,6 +31,9 @@ export function signManifest(doc, dir, keyPem) {
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
   const dir = process.argv[2];
   if (!dir) { console.error("usage: sign-yml.mjs <dir>"); process.exit(2); }
+  // Here and not at the top: signManifest is pure and imported by the root
+  // suite, whose install does not include desktop/'s dependencies.
+  const { default: yaml } = await import("js-yaml");
   const key = updateKey();
   const ymls = readdirSync(dir).filter(n => /^latest.*\.yml$/.test(n) && n !== "latest-mac.yml");
   for (const name of ymls) {
