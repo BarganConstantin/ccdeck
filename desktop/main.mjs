@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
+import { createUpdater } from "./updater.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -50,6 +51,7 @@ let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let redraw = null;
 let ownDeck = null;           // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
+let updater = null;           // updater.mjs, created once the app is ready
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -100,9 +102,20 @@ function buildMenu() {
     },
     { type: "separator" },
     { label: `ccdeck ${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck ${deck.version}` : ""}`, enabled: false },
+    updateItem(),
     { label: "Quit ccdeck", click: () => app.quit() },
   );
   return Menu.buildFromTemplate(items);
+}
+
+/** The update line of the menu, which says where the update is rather than
+ *  offering a button that does nothing while one is already on its way. */
+function updateItem() {
+  const u = updater?.state ?? { status: "idle" };
+  if (u.status === "ready") return { label: `Restart to update to ${u.version}`, click: () => updater.restartNow() };
+  if (u.status === "downloading") return { label: `Downloading ccdeck ${u.version}…`, enabled: false };
+  if (u.status === "checking") return { label: "Checking for updates…", enabled: false };
+  return { label: u.status === "current" ? "Up to date — check again" : "Check for updates", click: () => updater?.check() };
 }
 
 /** Redraw the icon, the count, the tooltip and the menu — coalesced, because
@@ -394,6 +407,15 @@ app.whenReady().then(async () => {
   tray.setContextMenu(buildMenu());
   // Windows and Linux: a left click opens the window, the menu is on the right.
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
+  updater = createUpdater({
+    app,
+    onChange: s => { trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`); scheduleRedraw(); },
+    log: trace,
+  });
+  // A minute after start, then four times a day. Only a built app looks: a
+  // development run has nothing to update into.
+  setTimeout(() => updater.check(), 60_000);
+  setInterval(() => updater.check(), 6 * 60 * 60_000);
   await ensureDeck();
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
@@ -408,6 +430,10 @@ app.on("activate", () => openWindow());
 // A window closing never ends the app: it keeps the tray, and the deck keeps
 // being watched. Only Quit ends it.
 app.on("window-all-closed", () => {});
+// The staged macOS update is handed to its swap script as the app leaves —
+// after its own deck has been stopped, so nothing runs from the old bundle.
+app.on("will-quit", () => { updater?.installOnQuit(); });
+
 // Quit stops this app's own deck before leaving, once: the first before-quit
 // is held while the deck shuts down, the second is the real one.
 let quitting = false;

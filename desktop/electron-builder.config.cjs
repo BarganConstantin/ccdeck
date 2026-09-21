@@ -11,7 +11,7 @@ module.exports = {
     // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
     buildResources: "dist/icons",
   },
-  files: ["main.mjs", "deck-link.mjs", "deck-host.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
+  files: ["main.mjs", "deck-link.mjs", "deck-host.mjs", "updater.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
   // The deck itself, outside the asar archive, exactly as the npm package
   // ships it: the app runs bin/agent-dag.js with its own binary as Node, and
   // the deck reads its files from disk relative to itself. Build the web
@@ -29,7 +29,15 @@ module.exports = {
   // Signed by scripts/sign-mac.cjs with ccdeck's own certificate, never by
   // electron-builder — see that file for why.
   afterPack: "./scripts/sign-mac.cjs",
+  // GitHub Releases, for electron-updater on Windows and Linux (the macOS
+  // updater reads latest-mac.json from the same place). The release itself is
+  // created by CI on a v* tag; the build never publishes.
+  publish: [{ provider: "github", owner: "BarganConstantin", repo: "ccdeck", releaseType: "release" }],
+  // One name shape for every download, with the CPU in it, so the macOS
+  // manifest and the ccdeck.dev links can name a file without guessing.
+  artifactName: "${productName}-${version}-${os}-${arch}.${ext}",
   mac: {
+    target: ["dmg", "zip"],
     identity: null,
     category: "public.app-category.developer-tools",
     // Not notarised (no Apple Developer ID), so hardened runtime buys nothing
@@ -40,5 +48,18 @@ module.exports = {
     // a real Mac — clicking the browser behind it left ccdeck on top. main.mjs
     // switches the activation policy itself instead: accessory with no window,
     // regular while one is open.
+  },
+  win: {
+    target: ["nsis"],
+  },
+  nsis: {
+    // Per-user, no admin prompt, so an update can replace it in place.
+    oneClick: true,
+    perMachine: false,
+  },
+  linux: {
+    target: ["AppImage", "deb"],
+    category: "Development",
+    maintainer: "ccdeck <https://ccdeck.dev>",
   },
 };
