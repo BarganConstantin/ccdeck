@@ -287,9 +287,21 @@ export function createBeacon({
     }
   };
 
-  const start = () => new Promise(resolve => {
+  const start = () => new Promise((resolve, reject) => {
     sock = createSocket({ type: "udp4", reuseAddr: true });
-    sock.on("error", err => { onError?.("socket", err); });
+    // A BIND THAT FAILS NEVER CALLS BACK. It arrives here as an error event
+    // instead, and this promise used to wait for the callback forever — so the
+    // engine awaiting it never scheduled a round and reported itself running
+    // with no socket at all. Measured on a Mac whose Tailscale extension held
+    // UDP 45317 (`bind EADDRINUSE`). Before the bind, an error is the start
+    // failing; after it, it is a socket that had trouble and is still up.
+    let bound = false;
+    sock.on("error", err => {
+      if (bound) { onError?.("socket", err); return; }
+      try { sock?.close(); } catch { /* never opened */ }
+      sock = null;
+      reject(err);
+    });
     sock.on("message", (msg, rinfo) => {
       // Everything about whether to care lives in lan-sync.mjs. This hands it
       // the bytes and the address and does what it is told.
@@ -345,6 +357,7 @@ export function createBeacon({
       if (noted.changed || noted.restarted) onPeer?.(noted);
     });
     sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {
+      bound = true;
       try { sock.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
       // Immediately, not on the next tick. Syncthing's rule: a deck that just
       // came up should appear now rather than up to thirty seconds later, which

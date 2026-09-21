@@ -422,3 +422,45 @@ describe("the line under the switches", () => {
     expect(tailscaleNote({ ...base, running: false, state: "NeedsLogin" })).toMatch(/signed out/);
   });
 });
+
+describe("a discovery port another program holds", () => {
+  it("says so instead of running, and comes back by itself once it is free", async () => {
+    // Measured: the Tailscale extension on a Mac held UDP 45317, the bind failed
+    // with EADDRINUSE, and the engine awaited a callback that never came — it
+    // drew itself running with no socket and never scheduled a round.
+    let taken = true;
+    const errors: string[] = [];
+    const socket = () => {
+      const handlers = new Map<string, (...a: unknown[]) => void>();
+      return {
+        on(ev: string, fn: (...a: unknown[]) => void) { handlers.set(ev, fn); },
+        bind(_p: number, _h: string, cb: () => void) {
+          if (!taken) { cb(); return; }
+          setTimeout(() => handlers.get("error")?.(Object.assign(new Error("bind EADDRINUSE 0.0.0.0:45317"), { code: "EADDRINUSE" })), 0);
+        },
+        setBroadcast() { /* nothing */ },
+        send(_m: unknown, _p: number, _a: string, cb?: (e: Error | null) => void) { cb?.(null); },
+        close() { /* nothing */ },
+      };
+    };
+    const s = store([]);
+    const e = createEngine({
+      ...s.deps, host: "127.0.0.1", createSocket: socket, bindRetryMs: 50,
+      onError: (w: string) => errors.push(w),
+    });
+    running.push(e);
+    await expect(e.apply({ enabled: true, name: "Mac", secret: identityFrom("").secret })).rejects.toThrow(/EADDRINUSE/);
+    expect(e.status()).toMatchObject({ enabled: true, running: false });
+    expect(e.status().stalled).toMatch(/another program is using UDP 45317/);
+    // Nothing is listening while it is stalled: a deck is whole or plainly down.
+    expect(e.status().port).toBeNull();
+
+    taken = false;
+    const deadline = Date.now() + 3_000;
+    while (!e.status().running && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+    expect(e.status()).toMatchObject({ running: true, stalled: null });
+    expect(e.status().port).toBeGreaterThan(0);
+    // The failed bind is the stall's to report, not a socket error besides it.
+    expect(errors).not.toContain("socket");
+  }, 10_000);
+});

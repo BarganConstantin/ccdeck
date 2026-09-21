@@ -28,7 +28,7 @@
 // accounts all work talks to its peers every minute and never asks for
 // anything.
 import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, transferChallenge } from "./lan-sync.mjs";
-import { connectToPeer, createBeacon, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
+import { connectToPeer, createBeacon, createSyncServer, DISCOVERY_PORT, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
 import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
@@ -54,6 +54,11 @@ export const SYNC_MS = 60_000;
  * not asked every eight seconds.
  */
 export const ASKING_MS = 8_000;
+
+/** How long to wait before trying the discovery port again after another
+ *  program was holding it. The beacon's own interval: a port that frees up is
+ *  picked up by the next beacon that would have gone out anyway. */
+export const BIND_RETRY_MS = 30_000;
 
 /** How long one peer round may take before it is abandoned. A manifest is one
  *  round trip on a local network; anything past this is a peer that is not
@@ -229,6 +234,9 @@ export function createEngine({
    * real one spawns the CLI, and the suite's engines have no tailnet.
    */
   tailnet = null,
+  /** How long a deck whose discovery port was taken waits to try again. A
+   *  parameter so the suite does not wait thirty seconds to see it. */
+  bindRetryMs = BIND_RETRY_MS,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
@@ -363,6 +371,11 @@ export function createEngine({
 
   /** The tailnet read's own timer, running only while the switch is on. */
   let tailTimer = null;
+
+  /** The next try at the discovery port, while another program holds it, and
+   *  the flag that makes that try a restart — see apply. */
+  let retryTimer = null;
+  let retryBind = false;
 
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
@@ -859,9 +872,11 @@ export function createEngine({
       if (was.tailscale && !cfg.tailscale) {
         for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
       }
-      const restart = !was.enabled !== !cfg.enabled
+      const restart = retryBind
+        || !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
+      retryBind = false;
       if (!restart) { syncTailnet(); return; }
       this.stop();
       if (!cfg.enabled) return;
@@ -978,7 +993,27 @@ export function createEngine({
         onError, now,
         ...(createSocket ? { createSocket } : {}),
       });
-      await beacon.start();
+      try {
+        await beacon.start();
+      } catch (err) {
+        // THE DISCOVERY PORT IS SOMEBODY ELSE'S, FOR NOW. Said in the panel
+        // rather than drawn as running, and tried again on its own: nothing
+        // anybody can press here frees a port another program holds, and the
+        // moment it does, this deck should simply be back. The listener goes
+        // down with it, so the deck is either whole or plainly stalled.
+        this.stop();
+        stalled = err?.code === "EADDRINUSE"
+          ? `another program is using UDP ${DISCOVERY_PORT}, the port decks find each other on — trying again every ${Math.round(bindRetryMs / 1000)} s`
+          : err?.message ?? String(err);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (!cfg.enabled) return;
+          retryBind = true;
+          void self.apply({}).catch(() => { /* stalled says why */ });
+        }, bindRetryMs);
+        retryTimer.unref?.();
+        throw err;
+      }
       // One read of the tailnet whatever the switch says, so a packet from a
       // tailnet address is told apart from a local one from the first minute.
       void tailnet?.freshen?.(TAILNET_IDLE_MS);
@@ -1447,6 +1482,8 @@ export function createEngine({
       if (timer) clearTimeout(timer);
       if (tailTimer) clearInterval(tailTimer);
       tailTimer = null;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;
