@@ -5,7 +5,8 @@
 // bound its end of that flow to the same port (it reuses the client's source
 // port, netstack.go forwardUDP), and the Mac's own deck could never bind 45317
 // again. Two halves are pinned here: a deck no longer sends from the port it
-// listens on, and a deck that cannot bind it names who holds it.
+// listens on, and a deck that cannot bind it keeps running — found, dialled,
+// syncing — while it names who holds the port and waits to take it back.
 import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -20,7 +21,7 @@ import { createEngine } from "../../server/lan-engine.mjs";
 import { friendlyHolder, holderFromNetstat, holderFromPowershell, holderFromSs, portHolder } from "../../server/port-holder.mjs";
 
 /** A socket that remembers the port it was bound to and what it sent. */
-function socket(opts: { failBind?: boolean } = {}) {
+function socket(opts: { failBind?: boolean; code?: string } = {}) {
   const handlers = new Map<string, (...a: unknown[]) => void>();
   const s = {
     port: -1,
@@ -28,7 +29,7 @@ function socket(opts: { failBind?: boolean } = {}) {
     closed: false,
     on(ev: string, fn: (...a: unknown[]) => void) { handlers.set(ev, fn); },
     bind(port: number, _h: string, cb: () => void) {
-      if (opts.failBind) { setTimeout(() => handlers.get("error")?.(Object.assign(new Error("bind EACCES"), { code: "EACCES" })), 0); return; }
+      if (opts.failBind) { const code = opts.code ?? "EACCES"; setTimeout(() => handlers.get("error")?.(Object.assign(new Error(`bind ${code}`), { code })), 0); return; }
       s.port = port;
       cb();
     },
@@ -51,6 +52,7 @@ describe("where a beacon leaves from", () => {
     const out = made.find(s => s.port === 0)!;
     expect(listen.sent).toEqual([]);
     expect(out.sent).toEqual(["255.255.255.255"]);
+    expect(b.hearing()).toBe(true);
     b.stop();
     expect(listen.closed && out.closed).toBe(true);
   });
@@ -66,6 +68,36 @@ describe("where a beacon leaves from", () => {
     await b.start();
     expect(made[0].port).toBe(DISCOVERY_PORT);
     expect(made[0].sent).toEqual(["255.255.255.255"]);
+    b.stop();
+  });
+
+  it("keeps announcing when it cannot listen, and listens once the port is free", async () => {
+    // The Mac this was found on: Tailscale held 45317. The deck is still found
+    // by everybody — it only cannot hear them — so it keeps shouting, and
+    // tries the port again on its own.
+    let taken = true;
+    const told: boolean[] = [];
+    const made: ReturnType<typeof socket>[] = [];
+    const b = createBeacon({
+      port: 51_234, name: "Mac", fp: fingerprint(randomBytes(32)), ifaces: () => ({}),
+      rebindMs: 30, onHearing: (h: boolean) => told.push(h),
+      createSocket: (o: { reuseAddr?: boolean }) => {
+        const s = socket({ failBind: !!o?.reuseAddr && taken, code: "EADDRINUSE" });
+        made.push(s);
+        return s;
+      },
+    });
+    await b.start();
+    expect(b.hearing()).toBe(false);
+    expect(b.deafError()?.code).toBe("EADDRINUSE");
+    const out = made.find(s => s.port === 0)!;
+    expect(out.sent).toEqual(["255.255.255.255"]);
+    taken = false;
+    const deadline = Date.now() + 2_000;
+    while (!b.hearing() && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
+    expect(b.hearing()).toBe(true);
+    // Once per change, not once per try.
+    expect(told).toEqual([false, true]);
     b.stop();
   });
 });
@@ -108,34 +140,29 @@ const running: Array<{ stop: () => void }> = [];
 afterEach(() => { for (const e of running.splice(0)) e.stop(); });
 
 describe("a deck whose discovery port is taken", () => {
-  it("names who took it, and asks only once while it stays taken", async () => {
+  it("keeps running and names who took the port, asking only once", async () => {
     let asked = 0;
     const e = createEngine({
       readAccounts: async () => ({ accounts: [] }), exportAccount: async () => null, importAccount: async () => true,
       host: "127.0.0.1", bindRetryMs: 40,
-      createSocket: () => {
-        const handlers = new Map<string, (...a: unknown[]) => void>();
-        return {
-          on(ev: string, fn: (...a: unknown[]) => void) { handlers.set(ev, fn); },
-          bind() { setTimeout(() => handlers.get("error")?.(Object.assign(new Error("bind EADDRINUSE 0.0.0.0:45317"), { code: "EADDRINUSE" })), 0); },
-          setBroadcast() { /* nothing */ }, send() { /* nothing */ }, close() { /* nothing */ },
-        };
-      },
+      createSocket: (o: { reuseAddr?: boolean }) => socket({ failBind: !!o?.reuseAddr, code: "EADDRINUSE" }),
       portHolder: async () => { asked++; return "Tailscale"; },
     });
     running.push(e);
-    await expect(e.apply({ enabled: true, name: "Mac", secret: identityFrom("").secret })).rejects.toThrow(/EADDRINUSE/);
+    await e.apply({ enabled: true, name: "Mac", secret: identityFrom("").secret });
+    // Running: the listener is up and the deck can be dialled.
+    expect(e.status()).toMatchObject({ enabled: true, running: true, stalled: null });
+    expect(e.status().port).toBeGreaterThan(0);
     const deadline = Date.now() + 2_000;
-    while (!/^Tailscale/.test(e.status().stalled ?? "") && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
-    expect(e.status().stalled).toMatch(/^Tailscale is using UDP 45317, the port decks find each other on/);
-    // Two more tries go by, and the answer is the one already had.
+    while (!/^Tailscale/.test(e.status().deaf ?? "") && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
+    expect(e.status().deaf).toMatch(/^Tailscale is holding UDP 45317, so this deck hears no new decks\./);
+    // More tries go by, and the answer is the one already had.
     await new Promise(r => setTimeout(r, 150));
     expect(asked).toBe(1);
-    expect(e.status().stalled).toMatch(/^Tailscale is using UDP 45317/);
   });
 
   it("does not tell the panel there is no other deck while it cannot look", () => {
     const SECTION = readFileSync(fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)), "utf8");
-    expect(SECTION).toMatch(/rest\.length === 0 && asks\.length === 0 && !status\?\.stalled && \(/);
+    expect(SECTION).toMatch(/rest\.length === 0 && asks\.length === 0 && !status\?\.stalled && !status\?\.deaf && \(/);
   });
 });

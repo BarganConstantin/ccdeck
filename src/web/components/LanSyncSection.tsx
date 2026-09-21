@@ -139,6 +139,10 @@ export interface LanStatus {
   /** Why there is no listener, on a deck that is switched on. Null every other
    *  time — including while it is still coming up. */
   stalled?: string | null;
+  /** Running, and unable to hear other decks announce because another program
+   *  holds the discovery port — said by the engine, with who holds it when the
+   *  machine will say. Null whenever this deck can hear. */
+  deaf?: string | null;
   name: string;
   /** Whether this deck asks the machines it finds, and whether a request that
    *  arrives is answered here or answered for you. */
@@ -1903,6 +1907,12 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               a deck anything is failing to reach, and the switch below would be
               answering a question nobody has asked yet. */}
           {on && <LanReachNote reach={status?.reach} where="panel" />}
+          {/* A DECK THAT CANNOT HEAR IS STILL A DECK. It announces, it is found,
+              it pairs and syncs; what it has lost is hearing new decks announce
+              themselves, and the one line says so and who has the port. Not the
+              warning ink: nothing here is for the reader to do, and the deck
+              takes the port back on its own. */}
+          {on && status?.deaf && <p className="ap-lan-fine">{status.deaf}</p>}
 
             {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
                 question — should I turn this on — and a deck that is already on has
@@ -2156,10 +2166,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                 </div>
                 )}
 
-                {/* Not while it is stalled: the engine is down, so the list is
-                    empty because nothing is running, and "no other deck yet"
-                    would blame the network for the line above it. */}
-                {rest.length === 0 && asks.length === 0 && !status?.stalled && (
+                {/* Not while it is stalled or cannot hear: the list is empty
+                    because of this deck, and "no other deck yet" would blame
+                    the network for the line above it. */}
+                {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && (
                   <>
                     <p className="ap-lan-fine">
                       No other deck yet. Decks on one network usually find each other on their own;

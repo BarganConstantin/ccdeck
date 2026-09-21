@@ -215,6 +215,10 @@ export function createBeacon({
    * they bind every interface, and off has to mean the deck does not act on it.
    */
   routeFor = () => "lan",
+  /** How long to wait before trying the discovery port again while another
+   *  program holds it, and who to tell when hearing stops or comes back. */
+  rebindMs = 30_000,
+  onHearing,
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -236,6 +240,22 @@ export function createBeacon({
    */
   let out = null;
   let timer = null;
+  /**
+   * Whether this deck can HEAR — whether it holds the discovery port.
+   *
+   * SEPARATE FROM RUNNING, because a deck that cannot bind 45317 is still most
+   * of a deck. It announces from its own socket, so every other deck still
+   * finds it, asks it and dials it; what it has lost is hearing them announce.
+   * Stopping the whole feature over that — which is what this did — took a
+   * working sync away from somebody whose Tailscale exit node happened to be
+   * holding the port. It keeps trying for the port instead, and takes it back
+   * the moment it is free.
+   */
+  let hearing = false;
+  let deafError = null;
+  let told = null;
+  let rebind = null;
+  let stopped = true;
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
    *  second, a deck that is never accepted is answered again on every packet
@@ -246,7 +266,7 @@ export function createBeacon({
     const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
   const announce = (also = []) => {
-    if (!sock) return;
+    if (!sock && !out) return;
     // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
     //
     // This used to send only to 255.255.255.255, on the argument that the
@@ -296,124 +316,165 @@ export function createBeacon({
     }
   };
 
-  const start = () => new Promise((resolve, reject) => {
-    sock = createSocket({ type: "udp4", reuseAddr: true });
-    // A BIND THAT FAILS NEVER CALLS BACK. It arrives here as an error event
-    // instead, and this promise used to wait for the callback forever — so the
-    // engine awaiting it never scheduled a round and reported itself running
-    // with no socket at all. Measured on a Mac whose Tailscale extension held
-    // UDP 45317 (`bind EADDRINUSE`). Before the bind, an error is the start
-    // failing; after it, it is a socket that had trouble and is still up.
+  const onMessage = (msg, rinfo) => {
+    // Everything about whether to care lives in lan-sync.mjs. This hands it
+    // the bytes and the address and does what it is told.
+    if (msg.length > MAX_BEACON_BYTES) return;
+    let via = "lan";
+    try { via = routeFor(rinfo.address); } catch { via = "lan"; }
+    if (!via) return;
+    const beacon = readBeacon(msg);
+    const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
+    // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
+    // part is the change. It used to answer only a deck already in the group,
+    // which was fine when a group existed. Now the first thing a new deck has
+    // to become is a row on somebody's screen, and it cannot become one if
+    // this deck never tells it that it exists.
+    //
+    // Measured on two real decks before any of this: deck 1 saw deck 2 the
+    // instant it started and deck 2 saw nobody, because deck 1's own
+    // immediate announce went out before deck 2 was listening. Thirty seconds
+    // of an empty list is how a working feature reads as broken.
+    //
+    // At most once every few seconds, because the obvious version is a shout
+    // storm: two decks answering each other's answers forever. A new pair
+    // converges in two extra packets.
+    const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
+      && !peers.has(beacon.fp) && !answered.has(beacon.fp);
+    if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
+      repliedAt = now();
+      answered.add(beacon.fp);
+      // A deck that reached this one over the tailnet is answered there too:
+      // a broadcast never gets back down its tunnel.
+      announce(via === "tailscale" ? [rinfo.address] : []);
+    }
+    if (verdict !== "peer") {
+      // Another deck is using this one's key — see beaconVerdict. Reported
+      // rather than fixed here: this file carries packets, and choosing a new
+      // identity for the deck belongs to whoever stores it.
+      if (verdict === "id-clash") onIdClash?.();
+      // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
+      // dropped: it is a name and an address on the same network, which is a
+      // row somebody can accept. Nothing is asked of it and nothing is
+      // offered to it until they do.
+      if (verdict === "stranger") {
+        onStranger?.({
+          fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
+          // Carried through so the list can show one row per machine rather
+          // than one per key that machine has ever held.
+          host: beacon.host, at: now(), via,
+        });
+      }
+      return;
+    }
+    const noted = notePeer(peers, beacon, rinfo.address, now(), via);
+    if (noted.changed || noted.restarted) onPeer?.(noted);
+  };
+
+  /** Tell whoever asked, once per change rather than once per try. */
+  const tell = now => {
+    if (told === now) return;
+    told = now;
+    onHearing?.(now);
+  };
+
+  /** One try at the discovery port: the listening socket, or the error that
+   *  kept it. A bind that fails never calls back; it arrives as an error. */
+  const listen = () => new Promise(resolve => {
+    let s;
+    try { s = createSocket({ type: "udp4", reuseAddr: true }); } catch (err) { resolve({ err }); return; }
     let bound = false;
-    sock.on("error", err => {
+    s.on("error", err => {
       if (bound) { onError?.("socket", err); return; }
-      try { sock?.close(); } catch { /* never opened */ }
-      sock = null;
-      reject(err);
+      try { s.close(); } catch { /* never opened */ }
+      resolve({ err });
     });
-    sock.on("message", (msg, rinfo) => {
-      // Everything about whether to care lives in lan-sync.mjs. This hands it
-      // the bytes and the address and does what it is told.
-      if (msg.length > MAX_BEACON_BYTES) return;
-      let via = "lan";
-      try { via = routeFor(rinfo.address); } catch { via = "lan"; }
-      if (!via) return;
-      const beacon = readBeacon(msg);
-      const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
-      // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
-      // part is the change. It used to answer only a deck already in the group,
-      // which was fine when a group existed. Now the first thing a new deck has
-      // to become is a row on somebody's screen, and it cannot become one if
-      // this deck never tells it that it exists.
-      //
-      // Measured on two real decks before any of this: deck 1 saw deck 2 the
-      // instant it started and deck 2 saw nobody, because deck 1's own
-      // immediate announce went out before deck 2 was listening. Thirty seconds
-      // of an empty list is how a working feature reads as broken.
-      //
-      // At most once every few seconds, because the obvious version is a shout
-      // storm: two decks answering each other's answers forever. A new pair
-      // converges in two extra packets.
-      const newToUs = beacon && verdict !== "self" && verdict !== "id-clash" && verdict !== "unreadable"
-        && !peers.has(beacon.fp) && !answered.has(beacon.fp);
-      if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
-        repliedAt = now();
-        answered.add(beacon.fp);
-        // A deck that reached this one over the tailnet is answered there too:
-        // a broadcast never gets back down its tunnel.
-        announce(via === "tailscale" ? [rinfo.address] : []);
-      }
-      if (verdict !== "peer") {
-        // Another deck is using this one's key — see beaconVerdict. Reported
-        // rather than fixed here: this file carries packets, and choosing a new
-        // identity for the deck belongs to whoever stores it.
-        if (verdict === "id-clash") onIdClash?.();
-        // A DECK NOBODY HAS ACCEPTED. It is not refused and not silently
-        // dropped: it is a name and an address on the same network, which is a
-        // row somebody can accept. Nothing is asked of it and nothing is
-        // offered to it until they do.
-        if (verdict === "stranger") {
-          onStranger?.({
-            fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
-            // Carried through so the list can show one row per machine rather
-            // than one per key that machine has ever held.
-            host: beacon.host, at: now(), via,
-          });
-        }
-        return;
-      }
-      const noted = notePeer(peers, beacon, rinfo.address, now(), via);
-      if (noted.changed || noted.restarted) onPeer?.(noted);
-    });
-    sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {
+    s.on("message", onMessage);
+    s.bind(DISCOVERY_PORT, "0.0.0.0", () => {
       bound = true;
-      try { sock.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
-      // Immediately, not on the next tick. Syncthing's rule: a deck that just
-      // came up should appear now rather than up to thirty seconds later, which
-      // is the difference between "it works" and "it seems broken" for anybody
-      // who starts two decks and watches.
-      const go = () => {
-        announce();
-        timer = setInterval(announce, ANNOUNCE_MS);
-        timer.unref?.();
-        resolve();
-      };
-      // SENT FROM A PORT OF ITS OWN, NOT FROM 45317. Nothing that hears a
-      // beacon reads the port it came from — the reply goes to 45317 whatever
-      // the source — and sending from the discovery port gave that port away.
-      // Measured on a Mac that is a Tailscale exit node: a deck elsewhere on
-      // the tailnet routed a beacon through it, and Tailscale's forwarder binds
-      // its end of every UDP flow to the CLIENT's source port (netstack.go,
-      // forwardUDP), idling it out after two minutes. A beacon every thirty
-      // seconds never idles, so the Mac's own deck could never bind 45317
-      // again. From an ephemeral port, the forwarder takes an ephemeral port.
-      let o = null;
-      try { o = createSocket({ type: "udp4" }); } catch { o = null; }
-      if (!o) { go(); return; }
-      let opened = false;
-      o.on("error", err => {
-        if (opened) { onError?.("socket", err); return; }
-        opened = true;
-        try { o.close(); } catch { /* never opened */ }
-        go();
-      });
-      o.bind(0, "0.0.0.0", () => {
-        if (opened) return;
-        opened = true;
-        try { o.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
-        out = o;
-        go();
-      });
+      try { s.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
+      resolve({ sock: s });
     });
   });
+
+  const tryListen = async () => {
+    const got = await listen();
+    if (stopped) { try { got.sock?.close(); } catch { /* gone */ } return; }
+    if (got.sock) {
+      sock = got.sock;
+      hearing = true;
+      deafError = null;
+      tell(true);
+      return;
+    }
+    hearing = false;
+    deafError = got.err;
+    tell(false);
+    rebind = setTimeout(() => { rebind = null; void tryListen(); }, rebindMs);
+    rebind.unref?.();
+  };
+
+  /**
+   * The socket beacons leave by, bound to whatever port the OS gives it.
+   *
+   * SENT FROM A PORT OF ITS OWN, NOT FROM 45317. Nothing that hears a beacon
+   * reads the port it came from — the reply goes to 45317 whatever the source
+   * — and sending from the discovery port gave that port away. Measured on a
+   * Mac that is a Tailscale exit node: a deck elsewhere on the tailnet routed a
+   * beacon through it, and Tailscale's forwarder binds its end of every UDP
+   * flow to the CLIENT's source port (netstack.go, forwardUDP), idling it out
+   * after two minutes. A beacon every thirty seconds never idles, so the Mac's
+   * own deck could never bind 45317 again. From an ephemeral port, the
+   * forwarder takes an ephemeral port.
+   */
+  const openOut = () => new Promise(resolve => {
+    let o;
+    try { o = createSocket({ type: "udp4" }); } catch { resolve(null); return; }
+    let opened = false;
+    o.on("error", err => {
+      if (opened) { onError?.("socket", err); return; }
+      opened = true;
+      try { o.close(); } catch { /* never opened */ }
+      resolve(null);
+    });
+    o.bind(0, "0.0.0.0", () => {
+      if (opened) return;
+      opened = true;
+      try { o.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
+      resolve(o);
+    });
+  });
+
+  const start = async () => {
+    stopped = false;
+    told = null;
+    await tryListen();
+    out = await openOut();
+    if (stopped) return;
+    // Immediately, not on the next tick. Syncthing's rule: a deck that just
+    // came up should appear now rather than up to thirty seconds later, which
+    // is the difference between "it works" and "it seems broken" for anybody
+    // who starts two decks and watches.
+    announce();
+    timer = setInterval(announce, ANNOUNCE_MS);
+    timer.unref?.();
+  };
 
   return {
     start,
     announce,
     peers,
+    /** Whether this deck holds the discovery port, and why not when it does
+     *  not. */
+    hearing: () => hearing,
+    deafError: () => deafError,
     stop() {
+      stopped = true;
       if (timer) clearInterval(timer);
       timer = null;
+      if (rebind) clearTimeout(rebind);
+      rebind = null;
+      hearing = false;
       try { sock?.close(); } catch { /* already closed */ }
       sock = null;
       try { out?.close(); } catch { /* already closed */ }
