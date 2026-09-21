@@ -51,6 +51,7 @@ let notifyOn = null;          // the deck's own switch, read from /api/prefs
 let redraw = null;
 let ownDeck = null;           // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
+let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
 
 // ── the tray ────────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ function ago(ms) {
 }
 
 function statusLine() {
+  if (restarting) return "Restarting the deck…";
   if (starting) return "Starting the deck…";
   if (!deck) return "No deck running";
   if (snapshot.icon === "offline") return "Reconnecting to the deck…";
@@ -103,6 +105,9 @@ function buildMenu() {
     { type: "separator" },
     { label: `ccdeck ${app.getVersion()}${deck?.version && deck.version !== app.getVersion() ? ` · deck ${deck.version}` : ""}`, enabled: false },
     updateItem(),
+    // #1163: the deck restarted from the tray, the way the page's version
+    // dialog does it, rather than Quit and a trip to the Start menu.
+    { label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: () => restartDeck() },
     { label: "Quit ccdeck", click: () => app.quit() },
   );
   return Menu.buildFromTemplate(items);
@@ -163,6 +168,8 @@ async function toggleNotifications() {
  *  pid and a new token). */
 function attach(found) {
   if (deck && found && deck.pid === found.pid && deck.token === found.token) return;
+  // A different deck answering is the restart having landed.
+  if (found && restarting) restarting = null;
   stream?.close();
   stream = null;
   deck = found ?? null;
@@ -207,6 +214,35 @@ async function ensureDeck() {
     return deck;
   })();
   try { return await starting; } finally { starting = null; scheduleRedraw(); }
+}
+
+/**
+ * Restart the deck (#1163) through the same route the page's own Restart uses,
+ * so its supervisor brings the new one up on the same port and the tray simply
+ * reattaches when the stream comes back. A deck that cannot restart itself —
+ * unsupervised, or with no log to replay — and was started by this app is
+ * stopped and started again instead; one that belongs to a terminal is left
+ * alone, and the menu says it could not.
+ */
+async function restartDeck() {
+  if (!deck || restarting) return;
+  restarting = Date.now();
+  scheduleRedraw();
+  let asked = false;
+  try {
+    const { status, json } = await deckJson(deck, "/api/restart", { method: "POST", body: {}, timeoutMs: 5000 });
+    asked = status >= 200 && status < 300 && json?.ok === true;
+  } catch { /* the socket going away mid-answer is the restart */ asked = true; }
+  if (!asked && ownDeck) {
+    await stopOwnDeck();
+    attach(null);
+    await ensureDeck();
+  }
+  if (!asked && !ownDeck) restarting = null;
+  // A restart that never lands is not left saying it is happening.
+  setTimeout(() => { if (restarting && Date.now() - restarting >= 30_000) { restarting = null; scheduleRedraw(); } }, 30_000);
+  discoverSoon(1500);
+  scheduleRedraw();
 }
 
 /** Stop the deck this app started, and only that one: a deck from a terminal
