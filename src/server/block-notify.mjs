@@ -84,6 +84,12 @@ export function isChimeEvent(raw) {
   return !!raw && (raw.hook_event_name === "Stop" || raw.hook_event_name === "Notification");
 }
 
+/** Which of the two tones it would have been — sound.ts's names, so the
+ *  desktop app can play the same one with the notification. */
+export function chimeOf(raw) {
+  return raw?.hook_event_name === "Stop" ? "done" : "needs-input";
+}
+
 /**
  * How long one session stays quiet about a FINISHED TURN after saying so.
  *
@@ -225,7 +231,7 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
       // notification daemon the last of those simply is not there. A rejected
       // promise from a notification must never take down the ingest path that
       // every hook event in the process goes through.
-      Promise.resolve(notify(title, body)).catch(err => onError?.(err));
+      Promise.resolve(notify(title, body, { chime: chimeOf(raw) })).catch(err => onError?.(err));
       return "notified";
     },
   };

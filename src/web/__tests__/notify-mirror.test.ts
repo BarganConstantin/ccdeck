@@ -75,7 +75,8 @@ describe("when it speaks", () => {
   it("says a finished turn with what the agent last said", () => {
     const { n, notify } = harness();
     expect(n.consider(STOP, { clients: 0 })).toBe("notified");
-    expect(notify).toHaveBeenCalledWith("vcrm-core — ccdeck", STOP.last_assistant_message);
+    // And which tone it stands in for, so the desktop app can play that one.
+    expect(notify).toHaveBeenCalledWith("vcrm-core — ccdeck", STOP.last_assistant_message, { chime: "done" });
   });
 
   it("says a Codex turn too, which carries no message", () => {

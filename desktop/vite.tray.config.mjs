@@ -9,9 +9,13 @@ export default defineConfig({
   logLevel: "warn",
   build: {
     lib: {
-      entry: fileURLToPath(new URL("../src/web/tray-model.ts", import.meta.url)),
+      // The tray's board, and the page's tones rendered for notifications.
+      entry: {
+        "tray-model": fileURLToPath(new URL("../src/web/tray-model.ts", import.meta.url)),
+        "chime-wav": fileURLToPath(new URL("../src/web/chime-wav.ts", import.meta.url)),
+      },
       formats: ["es"],
-      fileName: () => "tray-model.mjs",
+      fileName: (_format, name) => `${name}.mjs`,
     },
     outDir: fileURLToPath(new URL("./dist/lib", import.meta.url)),
     emptyOutDir: true,

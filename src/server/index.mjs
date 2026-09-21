@@ -386,8 +386,8 @@ function pageCount() {
 
 /** A notification for the desktop app to raise as itself, instead of the OS
  *  helper raising it as Script Editor (osascript) or PowerShell. */
-function notifyTrays(title, body) {
-  const line = `event: notify\ndata: ${JSON.stringify({ title, body })}\n\n`;
+function notifyTrays(title, body, { chime = null } = {}) {
+  const line = `event: notify\ndata: ${JSON.stringify({ title, body, chime })}\n\n`;
   for (const res of trayClients) writeSse(res, line);
   return true;
 }
@@ -3706,7 +3706,7 @@ const blockNotifier = createBlockNotifier({
   // The desktop app, while it is connected, raises the notification itself —
   // under its own name, icon and permission, with a click that opens its
   // window. Only when no app is listening does the OS helper speak.
-  notify: (title, body) => (trayClients.size > 0 ? notifyTrays(title, body) : osNotify(title, body)),
+  notify: (title, body, meta) => (trayClients.size > 0 ? notifyTrays(title, body, meta) : osNotify(title, body)),
   product: PRODUCT,
   // A function, not a boolean: this is a switch a person flips from the sound
   // menu while the deck is running, and a mute that waited for a restart would

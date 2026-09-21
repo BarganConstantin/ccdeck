@@ -9,7 +9,7 @@
   "scripts": {
     "icons": "node scripts/icons.mjs",
     "tray-model": "node ../node_modules/vite/bin/vite.js build -c vite.tray.config.mjs",
-    "prepare-app": "npm run icons && npm run tray-model",
+    "prepare-app": "npm run icons && npm run tray-model && node scripts/chimes.mjs",
     "start": "npm run prepare-app && electron .",
     "pack:mac": "npm run prepare-app && electron-builder --mac dir --config electron-builder.config.cjs"
   },

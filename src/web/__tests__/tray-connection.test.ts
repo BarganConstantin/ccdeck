@@ -125,7 +125,8 @@ describe("the tray connection", () => {
     })).toBe(200);
     await until(async () => tray.text().includes("event: notify"), "the notification");
     const frame = tray.text().split("event: notify\ndata: ")[1].split("\n")[0];
-    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core — ccdeck", body: "All tests pass." });
+    // `chime` names the tone the page would have played, so the app plays it.
+    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core — ccdeck", body: "All tests pass.", chime: "done" });
     tray.req.destroy();
   });
 

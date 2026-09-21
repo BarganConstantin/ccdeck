@@ -22,6 +22,9 @@ module.exports = {
     { from: "../src/server", to: "deck/src/server" },
     { from: "../dist/web", to: "deck/dist/web" },
     { from: "../package.json", to: "deck/package.json" },
+    // The deck's two tones, at the top of Resources where macOS looks up a
+    // notification's sound by name (scripts/chimes.mjs).
+    { from: "dist/sounds", to: "." },
   ],
   // Signed by scripts/sign-mac.cjs with ccdeck's own certificate, never by
   // electron-builder — see that file for why.

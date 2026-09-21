@@ -225,9 +225,16 @@ function discoverSoon(ms = 2000) {
 }
 
 // ── notifications ───────────────────────────────────────────────────────────
-function showNotification({ title, body }) {
+/** The tone the page would have played, as the sound the notification makes:
+ *  a file in the app's Resources on macOS (scripts/chimes.mjs). Windows and
+ *  Linux take no custom sound for an unpackaged app's notification, so there it
+ *  is the system's own. */
+const CHIME_SOUNDS = { done: "ccdeck-done.wav", "needs-input": "ccdeck-asking.wav" };
+
+function showNotification({ title, body, chime }) {
   if (!Notification.isSupported()) return;
-  const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? "") });
+  const sound = process.platform === "darwin" ? CHIME_SOUNDS[chime] : undefined;
+  const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound, silent: false });
   n.on("click", () => openWindow());
   n.show();
 }
