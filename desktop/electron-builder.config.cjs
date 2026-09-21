@@ -11,7 +11,7 @@ module.exports = {
     // icon.png (1024) lives here; electron-builder makes .icns and .ico from it.
     buildResources: "dist/icons",
   },
-  files: ["main.mjs", "updater-mac.mjs", "dist/icons/**", "package.json"],
+  files: ["main.mjs", "deck-link.mjs", "updater-mac.mjs", "dist/icons/**", "dist/lib/**", "package.json"],
   // Signed by scripts/sign-mac.cjs with ccdeck's own certificate, never by
   // electron-builder — see that file for why.
   afterPack: "./scripts/sign-mac.cjs",
