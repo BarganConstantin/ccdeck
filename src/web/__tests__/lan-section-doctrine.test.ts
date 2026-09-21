@@ -348,7 +348,9 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     // A refusal is a decision about a machine. lan-socket refuses a declined
     // deck before the engine is told anything, so the automatic yes is never
     // reached for one — and the automatic ask skips it too.
-    expect(SERVER_ENGINE).toMatch(/cfg\.autoAsk && !had && !declined\.has\(entry\.fp\)/);
+    expect(SERVER_ENGINE).toMatch(/mayAsk && !had && !declined\.has\(entry\.fp\)/);
+    // And `mayAsk` is the switch for the route the deck was heard on.
+    expect(SERVER_ENGINE).toMatch(/const mayAsk = asksOn\(entry\.via\)/);
     expect(readFileSync(
       fileURLToPath(new URL("../../server/lan-socket.mjs", import.meta.url)), "utf8",
     )).toMatch(/if \(declined\(peerFp\)\) return refuse\("declined"\)/);

@@ -278,7 +278,9 @@ describe("the row is the door", () => {
     // Laid over the row on the tone's own box, so the keyboard's ring is the
     // row's shape rather than a ring round one word of it.
     expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
-    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\{p\.name\}<\/span>/);
+    // The name, and beside it the route when that is the tailnet — both hidden
+    // from a screen reader, which the button tells once.
+    expect(SECTION).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
   });
 
   it("answers the pointer with a tone the size of the row, and nothing more", () => {

@@ -93,11 +93,42 @@ export interface Peer {
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
   pairedAt?: number | null;
+  /** How it is reached: the local network, or this person's tailnet. Absent
+   *  from a deck older than Tailscale discovery, and absent means local. */
+  via?: LanRoute;
 }
+
+/** The two ways a deck is reached. */
+export type LanRoute = "lan" | "tailscale";
 
 /** A deck that finished a handshake, or was merely heard, and that nobody here
  *  has accepted yet. */
-export interface LanStranger { fp: string; name: string; addr: string; port?: number; at: number }
+export interface LanStranger {
+  fp: string; name: string; addr: string; port?: number; at: number;
+  /** Heard or asked over the tailnet rather than the local network, and
+   *  whether from a machine on this person's own Tailscale account. */
+  via?: LanRoute;
+  own?: boolean;
+}
+
+/** Discovery over Tailscale, as the engine reports it. Null on a deck that has
+ *  no reader for it; `found: false` on a machine without Tailscale, where the
+ *  dialog shows nothing about it at all. */
+export interface LanTailscale {
+  found: boolean;
+  /** Tailscale's own word for its state: Running, Stopped, NeedsLogin… */
+  state: string | null;
+  running: boolean;
+  on: boolean;
+  ask: boolean;
+  accept: boolean;
+  /** The Tailscale account this machine is signed in to — the one whose
+   *  machines count as this person's own. */
+  login: string | null;
+  addr: string | null;
+  /** This person's machines online on the tailnet right now. */
+  devices: number;
+}
 
 export interface LanStatus {
   enabled: boolean;
@@ -116,6 +147,7 @@ export interface LanStatus {
   /** Whether paired decks are told which shared account this one is on.
    *  Absent is on, which is what the engine does with a missing setting. */
   shareActive?: boolean;
+  tailscale?: LanTailscale | null;
   fp: string | null;
   port: number | null;
   /** When a connection from another machine last arrived here. Null on a deck
@@ -647,6 +679,8 @@ export interface DeckRow {
    *  machine running more than one deck — folded into it and listed in its
    *  dialog. See oneRowPerMachine. */
   twins?: DeckRow[];
+  /** Reached over this person's tailnet rather than the local network. */
+  via?: LanRoute;
 }
 
 /** A deck that is paired, holds no address here, and reaches this one by
@@ -746,7 +780,8 @@ export function deckRows(
     rows.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "asks", state: `wants to pair · ${askedLabel(p.at, now)}`, tone: "wait", here: true,
-      hint: `${n.name} at ${p.addr} is waiting for an answer.`,
+      hint: `${n.name} at ${p.addr}${p.via === "tailscale" ? ", over Tailscale," : ""} is waiting for an answer.`,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
     });
   }
 
@@ -776,6 +811,7 @@ export function deckRows(
         hint: p.last?.error
           ? `Nothing has answered at ${where} yet — ${p.last.error}.`
           : `Dialling ${where} until something answers.`,
+        ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
       });
       continue;
     }
@@ -822,6 +858,7 @@ export function deckRows(
       // says nothing about whether that machine is switched on now, and drawing
       // it live on that evidence is the panel inventing a fact.
       here: called ? called.here : here,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
       hint: called
         ? `${n.name} calls this deck, and this deck has no address to call back on — so it can repair its logins from here, and this deck cannot repair from it. ${
             p.lastSeen == null ? "It has not called since this deck started." : `It last called ${seenLabel(p.lastSeen, now)}.`
@@ -842,7 +879,10 @@ export function deckRows(
     nearby.push({
       fp: p.fp, name: n.name, ...(n.self ? { self: n.self } : {}), addr: p.addr ?? "",
       kind: "nearby", state: "not paired yet", tone: "idle", here: true,
-      hint: `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+      hint: p.via === "tailscale"
+        ? `${n.name} at ${p.addr} is on your tailnet and nothing is shared with it.`
+        : `${n.name} at ${p.addr} is on this network and nothing is shared with it.`,
+      ...(p.via === "tailscale" ? { via: "tailscale" as const } : {}),
     });
   }
   rows.push(...nearby.sort(byName));
@@ -2000,14 +2040,19 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             row. The name drawn here is the same words the button
                             says, so a screen reader is told them once, by the
                             button. */}
-                        <span className="ap-lan-who-name" aria-hidden>{p.name}</span>
+                        <span className="ap-lan-who-name" aria-hidden>
+                          {p.name}
+                          {/* Which route, only when it is the unusual one: a row
+                              reached over the tailnet says so beside its name. */}
+                          {p.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}
+                        </span>
                         {/* Described by the row's own sentence, which sits outside the
                             button: a row reached with Tab is announced with what is
                             happening to that machine, not with its name alone. */}
                         <button type="button" className="ap-lan-who-open" aria-haspopup="dialog"
                           aria-describedby={`lan-who-state-${i}`}
                           onClick={() => setPeerOpen(p.fp)}>
-                          <span className="vis-hidden">{p.name}, details</span>
+                          <span className="vis-hidden">{p.name}{p.via === "tailscale" ? ", over Tailscale" : ""}, details</span>
                         </button>
                         {/* One node, two presentations. A row with nothing to report
                             keeps its sentence for anybody being read the list and

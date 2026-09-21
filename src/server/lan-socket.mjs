@@ -201,6 +201,20 @@ export function createBeacon({
   // restarting the deck, and a list captured at start would announce to the
   // addresses it had at breakfast.
   ifaces = () => networkInterfaces(),
+  /**
+   * Addresses to send the beacon to one by one, beside the broadcast — the
+   * owner's machines on Tailscale, whose tunnel carries no broadcast at all.
+   * Read per announce like `ifaces`, because the tailnet list is re-read while
+   * the deck runs and a machine that just came online belongs in the next one.
+   */
+  unicast = () => [],
+  /**
+   * Which way a packet from this address came: "lan", "tailscale", or null for
+   * one to ignore entirely. Null is what a tailnet packet gets while this
+   * deck's Tailscale switch is off — the sockets hear it either way, because
+   * they bind every interface, and off has to mean the deck does not act on it.
+   */
+  routeFor = () => "lan",
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -223,7 +237,7 @@ export function createBeacon({
 
     const payload = () => Buffer.from(JSON.stringify(beaconPayload({ name, fp, port, instance, host })));
 
-  const announce = () => {
+  const announce = (also = []) => {
     if (!sock) return;
     // EVERY BROADCAST ADDRESS THIS MACHINE HAS, not one.
     //
@@ -262,6 +276,15 @@ export function createBeacon({
         }
       });
     }
+    // AND ONE PACKET PER TAILNET MACHINE. Not part of the verdict above: a node
+    // that has gone to sleep since the list was read is the ordinary state of a
+    // laptop, and it says nothing about whether this deck can be discovered.
+    let direct = [];
+    try { direct = [...(unicast() ?? []), ...also]; } catch { direct = [...also]; }
+    for (const to of new Set(direct)) {
+      if (typeof to !== "string" || !to || targets.includes(to)) continue;
+      sock.send(payload(), DISCOVERY_PORT, to, () => {});
+    }
   };
 
   const start = () => new Promise(resolve => {
@@ -271,6 +294,9 @@ export function createBeacon({
       // Everything about whether to care lives in lan-sync.mjs. This hands it
       // the bytes and the address and does what it is told.
       if (msg.length > MAX_BEACON_BYTES) return;
+      let via = "lan";
+      try { via = routeFor(rinfo.address); } catch { via = "lan"; }
+      if (!via) return;
       const beacon = readBeacon(msg);
       const verdict = beaconVerdict(beacon, { selfFp: fp, selfInstance: instance, selfHost: host, trusted: trusted() });
       // ANSWER A DECK WE HAVE NEVER HEARD, once, WHOEVER IT IS — and that last
@@ -292,7 +318,9 @@ export function createBeacon({
       if (newToUs && now() - repliedAt > REPLY_COOLDOWN_MS) {
         repliedAt = now();
         answered.add(beacon.fp);
-        announce();
+        // A deck that reached this one over the tailnet is answered there too:
+        // a broadcast never gets back down its tunnel.
+        announce(via === "tailscale" ? [rinfo.address] : []);
       }
       if (verdict !== "peer") {
         // Another deck is using this one's key — see beaconVerdict. Reported
@@ -308,12 +336,12 @@ export function createBeacon({
             fp: beacon.fp, name: beacon.name, addr: rinfo.address, port: beacon.port,
             // Carried through so the list can show one row per machine rather
             // than one per key that machine has ever held.
-            host: beacon.host, at: now(),
+            host: beacon.host, at: now(), via,
           });
         }
         return;
       }
-      const noted = notePeer(peers, beacon, rinfo.address, now());
+      const noted = notePeer(peers, beacon, rinfo.address, now(), via);
       if (noted.changed || noted.restarted) onPeer?.(noted);
     });
     sock.bind(DISCOVERY_PORT, "0.0.0.0", () => {

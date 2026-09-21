@@ -109,6 +109,15 @@ export const DEFAULTS = Object.freeze({
     // of one person's machines show each other where they are working; off, and
     // paired decks read "current account hidden" instead.
     shareActive: true,
+    // FINDING THIS PERSON'S OTHER MACHINES OVER TAILSCALE, off until they turn
+    // it on: it is a new path off this machine, and the owner chooses it. Its
+    // two permissions ship on, like the local pair above, and they are narrower
+    // than those by construction — they only ever answer for a machine signed
+    // in to the same Tailscale account as this one (see tailscale.mjs), never
+    // for a colleague's node or one shared in from another tailnet.
+    tailscale: false,
+    tailscaleAsk: true,
+    tailscaleAccept: true,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -217,6 +226,11 @@ function normaliseLan(raw) {
     // Whether paired decks are told which shared account this one is on. Absent
     // is on — the default above — and only a real boolean turns it off.
     shareActive: typeof src.shareActive === "boolean" ? src.shareActive : DEFAULTS.lan.shareActive,
+    // The Tailscale switch and its two permissions. Only a real boolean
+    // overrides a default, as above.
+    tailscale: typeof src.tailscale === "boolean" ? src.tailscale : DEFAULTS.lan.tailscale,
+    tailscaleAsk: typeof src.tailscaleAsk === "boolean" ? src.tailscaleAsk : DEFAULTS.lan.tailscaleAsk,
+    tailscaleAccept: typeof src.tailscaleAccept === "boolean" ? src.tailscaleAccept : DEFAULTS.lan.tailscaleAccept,
   };
 }
 

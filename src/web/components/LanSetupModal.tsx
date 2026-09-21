@@ -41,13 +41,39 @@
 // a paragraph under it, because the default state is not where a reader needs
 // prose. A switch somebody has turned OFF is: that deck is no longer doing what
 // it says on the box, and the line under it says what that costs.
+//
+// TAILSCALE IS ITS OWN SECTION, shown only on a machine that has it. One switch
+// turns discovery over the tailnet on — off until somebody does, because it is
+// a new path off this machine — and the same two permissions as the local
+// network sit under it once it is, on by default like those. They are a second
+// pair rather than the first pair reused because the audience differs: here
+// they only ever answer for machines signed in to this person's own Tailscale
+// account, and the line under them names that account.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
 import { sameKeys, writeFailure } from "./LanSyncSection";
 import { copyText } from "../copy-text";
-import type { LanAccount, LanStatus } from "./LanSyncSection";
+import type { LanAccount, LanStatus, LanTailscale } from "./LanSyncSection";
+
+/**
+ * The one line under the Tailscale switches: what the tailnet looks like from
+ * here, and whose machines count. Exported for the suite.
+ */
+export function tailscaleNote(ts: LanTailscale): string {
+  if (!ts.running) {
+    const why = ts.state === "Stopped" ? "turned off"
+      : ts.state === "NeedsLogin" || ts.state === "NeedsMachineAuth" ? "signed out"
+      : ts.state === "Starting" ? "still starting"
+      : "not answering";
+    return `Tailscale is ${why} on this machine. Your devices are found once it is connected.`;
+  }
+  const whose = ts.login ? `signed in to ${ts.login}` : "on your own Tailscale account";
+  if (!ts.on) return `Finds the decks on your machines ${whose}, wherever they are. Nobody else on the tailnet is asked.`;
+  const count = ts.devices === 1 ? "1 of your devices is" : `${ts.devices} of your devices are`;
+  return `${count} online, ${whose}. Nobody else on the tailnet is asked.`;
+}
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
   status: LanStatus;
@@ -158,6 +184,10 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   const says = status.autoAccept !== false;
   // The same rule for the third: absent is on, which is what the engine does.
   const tells = status.shareActive !== false;
+  const ts = status.tailscale ?? null;
+  const tsOn = !!ts?.on;
+  const tsAsks = ts?.ask !== false;
+  const tsSays = ts?.accept !== false;
 
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
@@ -352,6 +382,84 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 What says it instead: the switch's label, its --warn fill, and
                 its title. The owner asked for the line gone, 2026-09-16. */}
           </div>
+
+          {ts?.found && (
+            <div className="modal-section">
+              <h3 className="lan-h">Tailscale</h3>
+              <div className="lan-switches">
+                <div className="lan-switch">
+                  <span className="lan-switch-what">Look for my devices over Tailscale</span>
+                  <button
+                    type="button"
+                    className="switch ap-auto-state"
+                    role="switch"
+                    aria-checked={tsOn}
+                    aria-label="Look for my devices over Tailscale"
+                    {...pressProps("tailscale")}
+                    onClick={() => void write(
+                      { tailscale: !tsOn },
+                      tsOn ? "stop looking over Tailscale" : "look for your devices over Tailscale",
+                      "tailscale",
+                    )}
+                    title={tsOn
+                      ? "Stop. Nothing is looked for or answered over the tailnet; decks already paired stay paired."
+                      : "Find the decks on your other machines on Tailscale, wherever they are — home, office, on the road."}
+                  >
+                    <span className="switch-knob" />
+                  </button>
+                </div>
+                {tsOn && (
+                  <>
+                    <div className="lan-switch">
+                      <span className="lan-switch-what">Ask each of my devices it finds</span>
+                      <button
+                        type="button"
+                        className="switch ap-auto-state"
+                        role="switch"
+                        aria-checked={tsAsks}
+                        aria-label="Ask each of my devices it finds over Tailscale"
+                        {...pressProps("tailscale-ask")}
+                        onClick={() => void write(
+                          { tailscaleAsk: !tsAsks },
+                          tsAsks ? "stop asking your devices automatically" : "ask your devices automatically",
+                          "tailscale-ask",
+                        )}
+                        title={tsAsks
+                          ? "Stop sending requests on their own. You press ask on the row instead."
+                          : "Send a pairing request to every deck found on your devices over Tailscale."}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+                    <div className="lan-switch">
+                      <span className="lan-switch-what">Say yes to my devices when they ask</span>
+                      <button
+                        type="button"
+                        className="switch ap-auto-state"
+                        role="switch"
+                        aria-checked={tsSays}
+                        aria-label="Say yes to my devices when they ask over Tailscale"
+                        data-tone="warn"
+                        {...pressProps("tailscale-accept")}
+                        onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                        onClick={() => void write(
+                          { tailscaleAccept: !tsSays },
+                          tsSays ? "stop accepting your devices automatically" : "accept your devices automatically",
+                          "tailscale-accept",
+                        )}
+                        title={tsSays
+                          ? "Stop saying yes for you. A device that asks waits in the panel again."
+                          : "Say yes for you when a deck on one of your own devices asks. Anybody else on the tailnet still waits for a press."}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="lan-note">{tailscaleNote(ts)}</p>
+            </div>
+          )}
         </section>
 
         {/* A WAY OUT THAT IS A DECISION. This dialog opens by itself on the

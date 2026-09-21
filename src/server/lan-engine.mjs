@@ -31,6 +31,7 @@ import { accountKey, currentFor, manifestFor, open, plan, seal, stillListed, tra
 import { connectToPeer, createBeacon, createSyncServer, MAX_FRAME_BYTES } from "./lan-socket.mjs";
 import { addTrusted, dropTrusted, identityFrom, mintInvite, pairable, readInvite, trustedPeer } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
+import { beaconTargets, routeOf, IDLE_MS as TAILNET_IDLE_MS, TAILNET_MS } from "./tailscale.mjs";
 import { randomBytes } from "node:crypto";
 import { hostname, networkInterfaces } from "node:os";
 
@@ -222,12 +223,24 @@ export function createEngine({
    *  unless the suite says loopback — a test deck has no business being
    *  reachable from the office for the seconds it runs. */
   host,
+  /**
+   * The Tailscale reader — see createTailnet in tailscale.mjs — or nothing,
+   * which is a deck that knows only the local network. Injected because the
+   * real one spawns the CLI, and the suite's engines have no tailnet.
+   */
+  tailnet = null,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
     autoAsk: true, autoAccept: true, aliases: {},
     // Tell paired decks which shared account this one is on — see currentFor.
     shareActive: true,
+    // DISCOVERY OVER TAILSCALE, off until somebody turns it on, and its own
+    // pair of permissions. They are separate from the two above because the
+    // tailnet is a different audience: the local switches answer for whoever
+    // is on this network, these only ever for machines signed in to this
+    // person's own Tailscale account — see routeOf.
+    tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
   };
   let identity = null;
   let beacon = null;
@@ -348,6 +361,38 @@ export function createEngine({
    *  asked about. */
   let listeningSince = null;
 
+  /** The tailnet read's own timer, running only while the switch is on. */
+  let tailTimer = null;
+
+  /** Whether an address is a tailnet one, and whose. Null is the local network
+   *  — and always is on a deck with no Tailscale reader. */
+  const routeTo = addr => routeOf(tailnet?.snapshot?.() ?? null, addr);
+
+  /** The two permissions that answer for one route. */
+  const asksOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAsk !== false : !!cfg.autoAsk);
+  const saysYesOn = via => (via === "tailscale" ? !!cfg.tailscale && cfg.tailscaleAccept !== false : !!cfg.autoAccept);
+
+  /**
+   * Read the tailnet on a timer while the switch is on, and not at all while it
+   * is off — the read at start covers telling a tailnet address from a local
+   * one, and the dialog's own poll covers whether Tailscale is there at all.
+   *
+   * TURNING IT ON ANNOUNCES AT ONCE, after one read, so the owner's machines
+   * hear about this one in the second after the press rather than on the next
+   * beacon, up to half a minute later.
+   */
+  const syncTailnet = () => {
+    const want = !!(beacon && tailnet && cfg.enabled && cfg.tailscale);
+    if (want && !tailTimer) {
+      void tailnet.refresh().then(() => beacon?.announce(), () => {});
+      tailTimer = setInterval(() => { void tailnet.refresh(); }, TAILNET_MS);
+      tailTimer.unref?.();
+    } else if (!want && tailTimer) {
+      clearInterval(tailTimer);
+      tailTimer = null;
+    }
+  };
+
   /** This deck's accounts in the shape the rules want. Read through the same
    *  function the panel uses, so a row can never be alive here and dead there. */
   const localAccounts = async () => {
@@ -456,8 +501,15 @@ export function createEngine({
   const askToAccept = entry => {
     if (declined.has(entry.fp)) return;
     const had = pending.get(entry.fp);
-    pending.set(entry.fp, { ...entry, at: had?.at ?? now(), lastAt: now() });
-    if (cfg.autoAccept) { engine?.accept(entry.fp); return; }
+    // WHICH SWITCH ANSWERS depends on where the deck is. A request from the
+    // tailnet is answered by the Tailscale pair, and only for a machine on this
+    // person's own Tailscale account; anything else on the tailnet waits for a
+    // press whatever either switch says. See routeOf.
+    const route = routeTo(entry.addr);
+    const via = route ? "tailscale" : "lan";
+    const own = !!route?.own;
+    pending.set(entry.fp, { ...entry, via, own, at: had?.at ?? now(), lastAt: now() });
+    if (saysYesOn(via) && (via === "lan" || own)) { engine?.accept(entry.fp); return; }
     if (!had) onChange?.();
   };
 
@@ -693,9 +745,26 @@ export function createEngine({
     // twice a round and its work counted twice.
     // The same rule the list uses. A deck that has been silent for a day is not
     // dialled once a minute forever on the chance it comes back.
-    const heard = [...beacon.peers.values()].filter(p => stillListed(p, now()));
+    //
+    // A deck heard over the tailnet is dialled only while that switch is on, and
+    // so is a row the deck added itself from a tailnet beacon. An address a
+    // person typed is theirs whatever the switch says — pairing by a typed
+    // 100.x address worked before any of this.
+    const heard = [...beacon.peers.values()]
+      .filter(p => stillListed(p, now()) && (cfg.tailscale || p.via !== "tailscale"));
     const seen = new Set(heard.map(p => `${p.addr}:${p.port}`));
-    for (const peer of [...heard, ...[...manual.values()].filter(p => !seen.has(`${p.addr}:${p.port}`))]) {
+    // AND ONE DIAL PER DECK, not one per address. A row asked from a tailnet
+    // beacon keeps that address after the same deck is heard on the local
+    // network, and both used to be dialled every round — two handshakes, and
+    // two lines of work for one machine. `learned` says which deck a row
+    // reached; the heard row already dials it by the better route.
+    const heardFps = new Set(heard.map(p => p.fp));
+    const typed = [...manual.values()].filter(p => {
+      const at = `${p.addr}:${p.port}`;
+      if (seen.has(at) || heardFps.has(learned.get(at)?.fp)) return false;
+      return cfg.tailscale || p.typed || !routeTo(p.addr);
+    });
+    for (const peer of [...heard, ...typed]) {
       // Sequential rather than parallel. The store takes one mutation at a
       // time anyway (the mutex in store-lock.mjs), and two peers healing the
       // same account at once would race for a slot number claude-swap assigns
@@ -772,18 +841,28 @@ export function createEngine({
       // this on with two rows sitting in the panel means those two as much as
       // the next one, and leaving them queued behind a setting called
       // "automatic" is the switch not doing what it says.
-      if (!was.autoAccept && cfg.autoAccept) {
-        for (const fp of [...pending.keys()]) this.accept(fp);
-      }
+      //
+      // PER ROUTE, because each pair of switches answers for its own: turning
+      // the local one on does not answer a tailnet request, and turning the
+      // Tailscale one on answers only the owner's own machines.
+      const yes = c => ({ lan: !!c.autoAccept, tailscale: !!c.tailscale && c.tailscaleAccept !== false });
+      const ask = c => ({ lan: !!c.autoAsk, tailscale: !!c.tailscale && c.tailscaleAsk !== false });
+      const turnedOn = (f, via) => !f(was)[via] && f(cfg)[via];
+      const mayAnswer = p => (p.via === "tailscale" ? turnedOn(yes, "tailscale") && p.own : turnedOn(yes, "lan"));
+      for (const [fp, p] of [...pending]) if (mayAnswer(p)) this.accept(fp);
       // The same for the other direction: switching `ask` on with four machines
       // already listed asks those four.
-      if (!was.autoAsk && cfg.autoAsk) {
-        for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub) this.accept(fp, { byHand: false });
+      const mayAsk = p => (p.via === "tailscale" ? turnedOn(ask, "tailscale") && p.own : turnedOn(ask, "lan"));
+      for (const [fp, p] of [...strangers]) if (!declined.has(fp) && !p.pub && mayAsk(p)) this.accept(fp, { byHand: false });
+      // OFF MEANS THE TAILNET GOES QUIET HERE: nobody heard over it is offered,
+      // and syncTailnet stops the reads. Decks already paired stay paired.
+      if (was.tailscale && !cfg.tailscale) {
+        for (const [fp, p] of [...strangers]) if (p.via === "tailscale") strangers.delete(fp);
       }
       const restart = !was.enabled !== !cfg.enabled
         || was.secret !== cfg.secret
         || was.name !== cfg.name;
-      if (!restart) return;
+      if (!restart) { syncTailnet(); return; }
       this.stop();
       if (!cfg.enabled) return;
       identity = identityFrom(cfg.secret);
@@ -856,6 +935,9 @@ export function createEngine({
       beacon = createBeacon({
         port, name: cfg.name, fp: identity.fp,
         trusted: () => cfg.trusted,
+        // The owner's own machines on the tailnet, while the switch is on.
+        unicast: () => (cfg.tailscale ? beaconTargets(tailnet?.snapshot?.() ?? null) : []),
+        routeFor: addr => (!routeTo(addr) ? "lan" : cfg.tailscale ? "tailscale" : null),
         onPeer: () => onChange?.(),
         onStranger: entry => {
           const had = strangers.get(entry.fp);
@@ -864,7 +946,8 @@ export function createEngine({
           // design — used to leave its old key in this map for a day, and every
           // one of them drew a row offering to pair with the same machine.
           if (entry.host) for (const [fp, p] of strangers) if (p.host === entry.host && fp !== entry.fp) strangers.delete(fp);
-          strangers.set(entry.fp, entry);
+          const own = entry.via === "tailscale" && !!routeTo(entry.addr)?.own;
+          strangers.set(entry.fp, { ...entry, own });
           // ASK IT, which is what the `ask` verb on its row does and nothing
           // more: the address goes on the dial list and the next round sends a
           // request that somebody over there still has to answer. A beacon
@@ -876,7 +959,10 @@ export function createEngine({
           // already turned away.
           // Never `byHand`: a beacon is a shout from an address nobody here
           // named, and the row it leaves may ask rather than pin.
-          if (cfg.autoAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
+          // Over the tailnet only a machine on this person's own account is
+          // asked unprompted; any other is a row for somebody to decide on.
+          const mayAsk = asksOn(entry.via) && (entry.via !== "tailscale" || own);
+          if (mayAsk && !had && !declined.has(entry.fp)) { self.accept(entry.fp, { byHand: false }); return; }
           // Only a deck that is new to us is news. A beacon every thirty
           // seconds from one already on the list is not a reason to redraw.
           if (!had) onChange?.();
@@ -893,6 +979,10 @@ export function createEngine({
         ...(createSocket ? { createSocket } : {}),
       });
       await beacon.start();
+      // One read of the tailnet whatever the switch says, so a packet from a
+      // tailnet address is told apart from a local one from the first minute.
+      void tailnet?.freshen?.(TAILNET_IDLE_MS);
+      syncTailnet();
       // A self-scheduling loop rather than one interval, because the gap
       // between rounds is not one number: see ASKING_MS.
       const tick = async () => {
@@ -1216,6 +1306,23 @@ export function createEngine({
         autoAccept: !!cfg.autoAccept,
         // Whether paired decks are told which shared account this one is on.
         shareActive: cfg.shareActive !== false,
+        // Discovery over Tailscale: whether this machine has it at all, which
+        // decides whether the dialog shows the switch, and what it can see.
+        tailscale: tailnet ? (() => {
+          const t = tailnet.snapshot?.() ?? null;
+          return {
+            found: !!tailnet.found?.(),
+            state: t?.state ?? null,
+            running: !!t?.running,
+            on: !!cfg.tailscale,
+            ask: cfg.tailscaleAsk !== false,
+            accept: cfg.tailscaleAccept !== false,
+            login: t?.self?.login ?? null,
+            addr: t?.self?.ips?.[0] ?? null,
+            // The owner's machines a beacon goes to right now.
+            devices: beaconTargets(t).length,
+          };
+        })() : null,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the
@@ -1238,7 +1345,7 @@ export function createEngine({
         // and decks merely heard. Three lists because they are three different
         // things a person does something different about.
         trusted: cfg.trusted.map(t => ({ fp: t.fp, name: t.name })),
-        pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at })),
+        pending: [...pending.values()].map(p => ({ fp: p.fp, name: p.name, addr: p.addr, at: p.at, via: p.via ?? "lan", own: !!p.own })),
         // Only the ones somebody could actually pair with right now, one row
         // per machine, newest first — see pairable, which is where the rule
         // that keeps this from becoming a wall of ghosts lives.
@@ -1250,7 +1357,10 @@ export function createEngine({
           // that has run the deck a few times holds a key per run, and every
           // one of them was a row of its own on everybody else's panel.
           const { shown, more } = pairable(heard, now(), { mine: localAddresses() });
-          return shown.map(p => ({ fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more }));
+          return shown.map(p => ({
+            fp: p.fp, name: p.name, addr: p.addr, port: p.port, at: p.at, more,
+            via: p.via ?? "lan", own: !!p.own,
+          }));
         })(),
         // Said no to, by somebody at this keyboard. Listed rather than merely
         // silenced, because a refusal nobody can see is a refusal nobody can
@@ -1296,6 +1406,9 @@ export function createEngine({
             put({
               ...p,
               id,
+              // How it is reached. A heard row says which route its last beacon
+              // took; a typed one is read from its address.
+              via: p.via ?? (routeTo(p.addr) ? "tailscale" : "lan"),
               // The fingerprint an unpair has to name. A typed row's own `fp` is
               // a placeholder built from its address and matches nothing.
               peerFp: p.manual ? met?.fp ?? null : p.fp,
@@ -1332,6 +1445,8 @@ export function createEngine({
     },
     stop() {
       if (timer) clearTimeout(timer);
+      if (tailTimer) clearInterval(tailTimer);
+      tailTimer = null;
       // A deliberate stop is not a fault, and the next start says its own.
       if (!cfg.enabled) stalled = null;
       timer = null;

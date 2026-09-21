@@ -266,10 +266,14 @@ export default function LanPeerModal({
   // machine's own words.
   const echoed = !!line && !!raw && !row.quiet && row.state.startsWith(line.text);
   const showRound = paired || row.kind === "dialling";
+  // Over the tailnet the same three sentences name it, because "on this
+  // network" about a laptop at home is the one thing the row must not say.
+  const overTailnet = (peer?.via ?? row.via) === "tailscale";
   const how = peer
-    ? peer.waiting ? null : peer.manual ? "added by address" : "on this network"
-    : row.kind === "nearby" ? "heard on this network"
-    : "asked this deck to pair";
+    ? peer.waiting ? null : peer.manual ? (overTailnet ? "added by its Tailscale address" : "added by address")
+      : overTailnet ? "over Tailscale" : "on this network"
+    : row.kind === "nearby" ? (overTailnet ? "heard over Tailscale" : "heard on this network")
+    : overTailnet ? "asked this deck to pair, over Tailscale" : "asked this deck to pair";
 
   // THE NETWORK, drawn the way the row's mark is coloured: whole and lit while
   // it answers, broken in the warning ink when the last round failed, and a
