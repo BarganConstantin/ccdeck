@@ -223,10 +223,41 @@ async function stopOwnDeck() {
   });
 }
 
+/** The version of the deck packed into this app. */
+function bundledDeckVersion() {
+  try { return JSON.parse(readFileSync(join(deckRoot(), "package.json"), "utf8")).version ?? ""; }
+  catch { return ""; }
+}
+
+/**
+ * Attach to the running deck — unless it is OLDER than the one this app
+ * carries, in which case it is replaced, exactly as a newer `ccdeck` started in
+ * a terminal replaces an older running one (running-deck.mjs `olderVersion`,
+ * the rule `secondStart` uses). An older deck may not know the tray connection
+ * at all, and would count the app as a page open forever — the notifications
+ * the app exists to deliver would never come.
+ */
 async function discover() {
   try {
     const decks = await findDecks(deckRoot());
-    attach(decks[0] ?? null);
+    const found = decks[0] ?? null;
+    if (found && !ownDeck && !starting) {
+      const { olderVersion } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href);
+      const ours = bundledDeckVersion();
+      if (olderVersion(found.version, ours)) {
+        trace(`replacing an older deck (${found.version || "unversioned"} on ${found.port}) with this app's ${ours}`);
+        await deckJson(found, "/api/shutdown", { method: "POST", body: {}, timeoutMs: 3000 }).catch(() => {});
+        // Until it has let go of its port, so the app's deck gets 4317 rather
+        // than a random one beside it.
+        for (let i = 0; i < 24; i++) {
+          if (!(await findDecks(deckRoot())).some(d => d.pid === found.pid)) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        attach(null);
+        return;
+      }
+    }
+    attach(found);
   } catch {
     attach(null);
   }
