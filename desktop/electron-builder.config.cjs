@@ -33,9 +33,11 @@ module.exports = {
   // updater reads latest-mac.json from the same place). The release itself is
   // created by CI on a v* tag; the build never publishes.
   publish: [{ provider: "github", owner: "BarganConstantin", repo: "ccdeck", releaseType: "release" }],
-  // One name shape for every download, with the CPU in it, so the macOS
-  // manifest and the ccdeck.dev links can name a file without guessing.
-  artifactName: "${productName}-${version}-${os}-${arch}.${ext}",
+  // One name per OS and CPU and NO version, so ccdeck.dev can link
+  // releases/latest/download/ccdeck-mac-arm64.dmg and never go stale. The
+  // updaters are unaffected: each release's manifests name the files in that
+  // same release, and the version is in the manifest.
+  artifactName: "${productName}-${os}-${arch}.${ext}",
   mac: {
     target: ["dmg", "zip"],
     // Made by scripts/icons.mjs with Apple's iconutil, so no icon toolset is
