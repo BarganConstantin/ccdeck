@@ -171,15 +171,31 @@ export function ruleCovers(rules, profileName) {
  * wrong one for the router at home, and this module cannot tell which one
  * somebody is sitting in. The panel says so beside it.
  */
-export function fixSteps({ category, alias, exePath }) {
+export function fixSteps({ category, alias, exePath, rules = [] }) {
   const steps = [];
-  if (profileFor(category) === "Public" && alias) {
+  const name = profileFor(category);
+  if (name === "Public" && alias) {
     steps.push(`Set-NetConnectionProfile -InterfaceAlias "${alias}" -NetworkCategory Private`);
   }
-  steps.push(
-    "New-NetFirewallRule -DisplayName \"ccdeck (local network)\" -Direction Inbound"
-    + ` -Program "${exePath}" -Action Allow -Profile Private`,
-  );
+  // THE PROFILE OF THE NETWORK THE DECK IS ON, NOT ALWAYS PRIVATE. A company
+  // LAN joined to a domain is `DomainAuthenticated`, which the firewall answers
+  // with its Domain profile, and a rule scoped to Private never applies there.
+  // Measured on a Windows box whose Ethernet is DomainAuthenticated: the rule
+  // was pasted, the panel went on saying there was none — correctly — and a
+  // second paste made a second rule that did nothing either. Domain and
+  // Private together, so a laptop that goes home keeps working there too.
+  // Public is never added: a Public network gets the category line above.
+  const profile = name === "Domain" ? "Domain,Private" : "Private";
+  // AND A RULE THAT IS ALREADY THERE IS WIDENED, NOT JOINED BY ANOTHER. The
+  // probe only returns rules for this program, so an inbound allow rule in
+  // `rules` is one of ours on the wrong profile, and a new rule beside it is
+  // the duplicate this was reported with.
+  const ours = (Array.isArray(rules) ? rules : [])
+    .some(r => r?.enabled && String(r.direction).toLowerCase() === "inbound" && String(r.action).toLowerCase() === "allow");
+  steps.push(ours
+    ? `Get-NetFirewallApplicationFilter -Program "${exePath}" | Get-NetFirewallRule | Set-NetFirewallRule -Profile ${profile}`
+    : "New-NetFirewallRule -DisplayName \"ccdeck (local network)\" -Direction Inbound"
+      + ` -Program "${exePath}" -Action Allow -Profile ${profile}`);
   return steps;
 }
 
@@ -477,8 +493,10 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
     // workaround below obvious rather than magic.
     text: name === "Public"
       ? "This network is set to Public, and Windows drops what other decks send. They can still hear this deck — that is why one of them may already show it."
-      : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
-    steps: fixSteps({ category, alias: net?.alias ?? "", exePath }),
+      : name === "Domain" && probe.rules.length
+        ? "Windows lets this deck in on Private networks only, and this one is a company (Domain) network, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine."
+        : "Windows has no inbound rule for this deck, so it drops what other decks send. They can still hear it — that is why one of them may already show this machine.",
+    steps: fixSteps({ category, alias: net?.alias ?? "", exePath, rules: probe.rules }),
   };
 }
 

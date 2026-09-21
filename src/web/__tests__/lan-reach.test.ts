@@ -232,6 +232,42 @@ describe("the command somebody is asked to paste", () => {
     expect(rule).toContain("-Direction Inbound");
     expect(rule).toContain("-Action Allow");
   });
+
+  // Measured on a Windows box whose Ethernet is DomainAuthenticated: the rule
+  // the panel offered was scoped to Private, so it never applied, the panel
+  // kept asking, and a second paste made a second rule that did nothing.
+  it("scopes the rule to Domain too on a company network", () => {
+    const [rule] = fixSteps({ category: "DomainAuthenticated", alias: "Ethernet", exePath });
+    expect(rule).toContain("-Profile Domain,Private");
+    expect(fixSteps({ category: "Private", alias: "WiFi", exePath })[0]).toMatch(/-Profile Private$/);
+    // Public is never widened into: that network gets the category line.
+    expect(fixSteps({ category: "Public", alias: "WiFi", exePath }).join("\n")).not.toContain("Domain");
+  });
+
+  it("widens the rule that is already there instead of adding another", () => {
+    const privateOnly = [{ direction: "Inbound", action: "Allow", enabled: true, profile: "Private" }];
+    const steps = fixSteps({ category: "DomainAuthenticated", alias: "Ethernet", exePath, rules: privateOnly });
+    expect(steps).toEqual([
+      `Get-NetFirewallApplicationFilter -Program "${exePath}" | Get-NetFirewallRule | Set-NetFirewallRule -Profile Domain,Private`,
+    ]);
+    expect(steps[0]).not.toContain("New-NetFirewallRule");
+  });
+
+  it("says a Private-only rule is why a company network still drops them", () => {
+    const probe = {
+      bcast: "Ethernet",
+      nets: [{ alias: "Ethernet", category: "DomainAuthenticated", v4: "Internet" }, { alias: "Tailscale", category: "Private", v4: "Internet" }],
+      profiles: [{ name: "Domain", enabled: true }, { name: "Private", enabled: true }, { name: "Public", enabled: true }],
+      rules: [{ direction: "Inbound", action: "Allow", enabled: true, profile: "Private" }],
+    };
+    const v = reachability({ platform: "win32", probe, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true, why: "no inbound rule", category: "DomainAuthenticated" });
+    expect(v.text).toMatch(/Private networks only, and this one is a company \(Domain\) network/);
+    expect(v.steps[0]).toContain("Set-NetFirewallRule -Profile Domain,Private");
+    // And once it covers Domain, the panel stops asking.
+    const fixed = { ...probe, rules: [{ ...probe.rules[0], profile: "Domain, Private" }] };
+    expect(reachability({ platform: "win32", probe: fixed, aliases: [], exePath })).toMatchObject({ blocked: false, why: "rule present" });
+  });
 });
 
 describe("the module's refusal to act", () => {
