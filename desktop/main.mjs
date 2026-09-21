@@ -13,7 +13,7 @@
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
 import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell, Tray } from "electron";
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
@@ -184,6 +184,24 @@ function showNotification({ title, body }) {
 }
 
 // ── the window ──────────────────────────────────────────────────────────────
+/** macOS: a menu-bar app with no window (no Dock tile, not in Cmd+Tab), and an
+ *  ordinary app while its window is open — so the window orders, hides and
+ *  switches like every other app's. Switched here rather than declared with
+ *  LSUIElement: an app that declared itself an agent and then turned regular
+ *  kept its window in front of the app the person had just clicked. */
+function setRegular(regular) {
+  if (process.platform !== "darwin") return;
+  app.setActivationPolicy(regular ? "regular" : "accessory");
+}
+
+/** A line to ~/Library/Logs/ccdeck-desktop.log, for the window behaviour that
+ *  only shows on a real desktop. */
+function trace(line) {
+  try {
+    appendFileSync(join(app.getPath("logs"), "ccdeck-desktop.log"), `${new Date().toISOString()} ${line}\n`);
+  } catch { /* a log that cannot be written is not worth failing over */ }
+}
+
 function openWindow() {
   if (!deck) {
     dialog.showMessageBox({
@@ -226,12 +244,17 @@ function openWindow() {
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(origin)) { event.preventDefault(); shell.openExternal(url); }
   });
-  win.once("ready-to-show", () => win?.show());
+  win.once("ready-to-show", () => {
+    win?.show();
+    app.focus({ steal: true });
+  });
+  win.on("focus", () => trace(`focus onTop=${win?.isAlwaysOnTop()}`));
+  win.on("blur", () => trace(`blur onTop=${win?.isAlwaysOnTop()} visible=${win?.isVisible()}`));
   win.on("closed", () => {
     win = null;
-    if (process.platform === "darwin") app.dock?.hide();
+    setRegular(false);
   });
-  if (process.platform === "darwin") app.dock?.show();
+  setRegular(true);
   win.loadURL(`${origin}/`);
 }
 
@@ -243,21 +266,27 @@ function readState() {
 async function firstRun() {
   const state = readState();
   if (state.askedLogin) return;
-  const { checkboxChecked } = await dialog.showMessageBox({
+  // Attached to the window when there is one — a sheet moves with it — rather
+  // than an app-modal alert, which macOS floats above every other app until
+  // it is answered.
+  const options = {
     type: "question",
     message: "ccdeck lives in the menu bar",
     detail: "It tells you when a session needs you, even with the window closed.",
     checkboxLabel: "Start ccdeck when I log in",
     checkboxChecked: true,
     buttons: ["OK"],
-  });
+  };
+  const { checkboxChecked } = win && !win.isDestroyed()
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options);
   app.setLoginItemSettings({ openAtLogin: checkboxChecked });
   writeFileSync(statePath(), JSON.stringify({ ...state, askedLogin: true }, null, 2));
 }
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  if (process.platform === "darwin") app.dock?.hide();
+  setRegular(false);
   await loadModel();
   tray = new Tray(trayImage("offline"));
   tray.setToolTip("ccdeck");
@@ -269,8 +298,8 @@ app.whenReady().then(async () => {
   // that came up while none was running.
   setInterval(() => { model?.tick(); scheduleRedraw(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
-  await firstRun();
   if (deck) openWindow();
+  await firstRun();
 });
 
 app.on("activate", () => openWindow());

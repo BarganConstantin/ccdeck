@@ -21,10 +21,10 @@ module.exports = {
     // Not notarised (no Apple Developer ID), so hardened runtime buys nothing
     // and would enforce library validation against Electron's own frameworks.
     hardenedRuntime: false,
-    extendInfo: {
-      // A menu-bar app first: the Dock tile appears only while a window is
-      // open (main.mjs shows and hides it).
-      LSUIElement: true,
-    },
+    // No LSUIElement. An app that DECLARES itself an agent and then turns
+    // regular when its window opens kept that window in front of other apps on
+    // a real Mac — clicking the browser behind it left ccdeck on top. main.mjs
+    // switches the activation policy itself instead: accessory with no window,
+    // regular while one is open.
   },
 };
