@@ -98,6 +98,27 @@ const G = glyphs(unicodeOK());
 //
 // Anything else is a start, and a start goes to the background.
 const DETACHED = process.env[DETACHED_ENV] === "1";
+
+/**
+ * How the worker (and an upgrade's replacement) is started when this
+ * supervisor has no console of its own — detached from a terminal, or run by
+ * the desktop app.
+ *
+ * ON WINDOWS, A CONSOLE PROGRAM STARTED BY A PROCESS WITH NO CONSOLE IS GIVEN A
+ * NEW ONE, and with Windows Terminal as the default terminal that new console
+ * is a window. Measured on a Windows 10 box: `npx ccdeck` put a second
+ * Windows Terminal window on screen, hosting the deck's own node.exe, after the
+ * one the user typed into. `windowsHide` alone does not stop it: with stdio
+ * inherited, libuv only asks for a hidden window, which Windows Terminal's
+ * default-terminal handoff does not honour. DETACHED_PROCESS gives the child
+ * no console at all, so there is nothing to show.
+ *
+ * Only when detached: a supervisor in the user's own terminal shares that
+ * console with its worker, and Ctrl+C has to reach both.
+ */
+const NO_CONSOLE = DETACHED && process.platform === "win32"
+  ? { detached: true, windowsHide: true }
+  : {};
 // A parent already holding our lifecycle. `process.send` exists only when
 // somebody spawned us with an IPC channel, and that somebody has armed
 // dieWithParent below and is waiting on our exit code — running away from them
@@ -197,6 +218,7 @@ function launch(respawn) {
   if (respawn && boundPort != null) args.push("--port", String(boundPort));
 
   const worker = spawn(process.execPath, args, {
+    ...NO_CONSOLE,
     // stdio inherited so the child owns the same terminal the user started:
     // same banner, same colours, same Ctrl+C. The fourth slot adds an IPC
     // channel — the only way the worker can tell us which port it got, since
@@ -498,7 +520,7 @@ function launchNpx() {
   // caret line, is not something a user of a DAG dashboard can act on. stdout
   // stays inherited — the new deck's banner, colours and URL line are the whole
   // point of the supervisor staying out of the way.
-  const started = spawn(file, argv, { stdio: ["inherit", "inherit", "pipe"], ...opts });
+  const started = spawn(file, argv, { stdio: ["inherit", "inherit", "pipe"], ...NO_CONSOLE, ...opts });
   child = started;
 
   // Held, not discarded: the moment the replacement is serving, everything it
