@@ -8976,6 +8976,9 @@ button.qb-pace::after {
   overflow-wrap: anywhere;
 }
 .ap-lan-who[data-tone="bad"] .ap-lan-who-when { color: var(--warn); }
+/* The route, beside the name of a row reached over the tailnet: a fact about
+   the path rather than about the machine, so it is set in the quiet ink. */
+.ap-lan-via { color: var(--muted); }
 .ap-lan-who[data-tone="ok"] .ap-lan-who-when { color: var(--text-dim); }
 .ap-lan-who[data-tone="wait"] .ap-lan-who-when { color: var(--accent); }
 /* A TRAFFIC LIGHT, BECAUSE THAT IS THE QUESTION. The mark said one thing —
@@ -11651,6 +11654,15 @@ button.btn.bw-rc-copy { flex: none; font-size: 10px; padding: 2px 8px; }
   font-size: 11px;
   line-height: 1.45;
   color: var(--text-dim);
+}
+/* The one fact a switch's label cannot say, under it in the quiet ink: whose
+   devices "my devices" means, and how many of them are there. */
+.lan-switch-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 /* The one switch that is about the list above it, set a step below its rows. */
 .ap-lan-picks + .lan-switch { margin-top: 10px; }

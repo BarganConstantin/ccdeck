@@ -207,6 +207,9 @@ describe("the three fields the engine authors", () => {
       autoAsk: true,
       autoAccept: false,
       shareActive: true,
+      tailscale: false,
+      tailscaleAsk: true,
+      tailscaleAccept: true,
       aliases: { "aaa-bbb-111": "Laptop" },
     });
   });

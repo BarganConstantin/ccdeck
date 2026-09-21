@@ -36,6 +36,7 @@ import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdate
 import { createPresence } from "./presence.mjs";
 import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
+import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
@@ -3815,7 +3816,13 @@ async function handlePresence(req, res) {
 // The engine is built once and told the settings; it opens and closes its own
 // sockets as those change. Nothing here touches a credential — see
 // lan-engine.mjs, which passes an opaque blob between two claude-swap commands.
+/** This machine's view of its tailnet, read through the Tailscale CLI — see
+ *  tailscale.mjs. Built whatever the switch says: the dialog asks it whether
+ *  Tailscale is here at all before anybody can turn discovery on. */
+const tailnet = createTailnet();
+
 const lanEngine = createEngine({
+  tailnet,
   // This deck's version and machine, for the decks it is paired with and
   // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
   // is read at import: it is what this process actually runs.
@@ -4023,6 +4030,11 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     autoAccept: lan.autoAccept !== false,
     // Whether paired decks are told which shared account this one is on.
     shareActive: lan.shareActive !== false,
+    // Discovery over Tailscale, off unless somebody turned it on, and the two
+    // permissions that answer for the owner's own machines there.
+    tailscale: lan.tailscale === true,
+    tailscaleAsk: lan.tailscaleAsk !== false,
+    tailscaleAccept: lan.tailscaleAccept !== false,
     // Names somebody here gave other decks. The engine only hands them to
     // the page, so a change never restarts anything.
     aliases: lan.aliases && typeof lan.aliases === "object" ? lan.aliases : {},
@@ -4247,6 +4259,9 @@ function refreshReach() {
  *  else is in the group. No passphrase, for the reason prefsPayload gives. */
 function handleLanStatus(req, res) {
   refreshReach();
+  // Behind the answer, like the reach probe: the dialog's poll is what finds a
+  // Tailscale somebody installed while the deck was running.
+  if (lanEnabled(_prefs)) void tailnet.freshen(TAILNET_IDLE_MS);
   return send(res, 200, { ok: true, ...lanEngine.status(), reach: reachSaid });
 }
 
