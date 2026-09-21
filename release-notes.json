@@ -45,6 +45,24 @@
     "3.23.3",
     "3.23.4"
   ],
+  "3.25.0": [
+    {
+      "title": "🖱️ A click goes to the session, a double-click opens the details",
+      "body": "Clicking a card frames it with the rest of its session and leaves the detail panel shut. Double-click a card to open its details; `j`/`k`, the session list, Enter and `D` still open them too."
+    },
+    {
+      "title": "🔭 Cards stay readable when you zoom out",
+      "body": "At every zoom a card shows its name, its state and anything waiting on you, instead of shrinking to a coloured pill. Hover or focus a card to see it whole. Recap notes read at a distance too, and show the full recap on hover."
+    },
+    {
+      "title": "🌐 The Machine panel shows your network",
+      "body": "A new Network section shows download, upload and the round trip to Claude's API, and names the route when traffic goes through a VPN or a Tailscale exit node. Those checks run only while the panel is open. The panel is regrouped into CPU, Memory, Network and Thermal, with a flag at the top when something needs attention."
+    },
+    {
+      "title": "🎨 See each theme before you pick it",
+      "body": "The Appearance menu shows a small preview of the deck in Light and in Dark. Claude FM also keeps its volume when a notification chime plays, instead of dipping under it."
+    }
+  ],
   "3.24.1": [
     {
       "title": "🎛️ Appearance is one small menu now",
