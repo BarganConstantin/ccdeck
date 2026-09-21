@@ -45,7 +45,8 @@ import {
   type Chime, type TonePrefs,
 } from "../sound";
 import { useModalDismiss } from "./use-modal-dismiss";
-import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
+import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
+import { inDesktopApp } from "../in-app";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -110,7 +111,10 @@ export default function SoundMenu({
      notifiers, so there is no channel to report on; the switch's own note says
      what happened instead. */
   const channel = browserChannel(notifyPermission);
-  const showChannel = notifyOn && !notifyVetoed;
+  // Not inside the desktop app: its notifications are its own, and the
+  // browser's permission that this section reports is never asked there.
+  const inApp = inDesktopApp();
+  const showChannel = notifyOn && !notifyVetoed && !inApp;
 
   const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
 
@@ -205,7 +209,7 @@ export default function SoundMenu({
               <span className="switch-knob" />
             </button>
           </label>
-          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}</p>
+          <p className="sm-note">{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}</p>
         </div>
       </div>
 

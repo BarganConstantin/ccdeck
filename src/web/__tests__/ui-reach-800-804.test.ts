@@ -87,7 +87,7 @@ describe("#801 — what the Notifications switch is saying", () => {
     // is the reason this note exists: they fire on the same moments, and the
     // difference is WHEN — sound while a tab is open, this once none is.
     expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
-    expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}");
+    expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : notifyNote(inApp)}");
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
@@ -198,8 +198,9 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Off: telling somebody to allow a channel for a feature they have just
     // switched off is asking them to work for nothing. Vetoed: the launch flag
     // silences BOTH notifiers, so the channel is moot either way — and the
-    // note above has already said what happened.
-    expect(soundMenu).toContain("const showChannel = notifyOn && !notifyVetoed;");
+    // note above has already said what happened. In the desktop app: its
+    // notifications are its own, and the browser permission is never asked.
+    expect(soundMenu).toContain("const showChannel = notifyOn && !notifyVetoed && !inApp;");
     expect(soundMenu).toContain("{showChannel && (");
     expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
     // The switch still moves under a veto, because the preference is still the

@@ -33,6 +33,14 @@ export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
  *  `isChimeEvent`). */
 export const NOTIFY_NOTE = "With no deck tab open, get a notification wherever a sound would have played.";
 
+/** The same promise inside the desktop app, where what closes is its window. */
+export const NOTIFY_NOTE_APP = "With the ccdeck window closed, get a notification wherever a sound would have played.";
+
+/** The note under the switch, for where the page is running. */
+export function notifyNote(inApp: boolean): string {
+  return inApp ? NOTIFY_NOTE_APP : NOTIFY_NOTE;
+}
+
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
  *  somebody else decided it, the press cannot undo it until the next start, and
  *  it silences BOTH notifiers — which is more than any browser setting can do.
