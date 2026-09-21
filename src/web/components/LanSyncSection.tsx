@@ -2156,7 +2156,10 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                 </div>
                 )}
 
-                {rest.length === 0 && asks.length === 0 && (
+                {/* Not while it is stalled: the engine is down, so the list is
+                    empty because nothing is running, and "no other deck yet"
+                    would blame the network for the line above it. */}
+                {rest.length === 0 && asks.length === 0 && !status?.stalled && (
                   <>
                     <p className="ap-lan-fine">
                       No other deck yet. Decks on one network usually find each other on their own;

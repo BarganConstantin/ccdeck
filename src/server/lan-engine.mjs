@@ -237,6 +237,9 @@ export function createEngine({
   /** How long a deck whose discovery port was taken waits to try again. A
    *  parameter so the suite does not wait thirty seconds to see it. */
   bindRetryMs = BIND_RETRY_MS,
+  /** Which program holds the discovery port, when it is taken — see
+   *  port-holder.mjs — so the panel can name it. Nothing asks without one. */
+  portHolder = null,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
@@ -376,6 +379,10 @@ export function createEngine({
    *  the flag that makes that try a restart — see apply. */
   let retryTimer = null;
   let retryBind = false;
+  /** Who held the port the last time it was asked, for the whole of one stall:
+   *  the answer does not change between two tries half a minute apart, and on
+   *  Windows asking costs a PowerShell start. Undefined until asked. */
+  let holder;
 
   /** Whether an address is a tailnet one, and whose. Null is the local network
    *  — and always is on a deck with no Tailscale reader. */
@@ -995,6 +1002,7 @@ export function createEngine({
       });
       try {
         await beacon.start();
+        holder = undefined;
       } catch (err) {
         // THE DISCOVERY PORT IS SOMEBODY ELSE'S, FOR NOW. Said in the panel
         // rather than drawn as running, and tried again on its own: nothing
@@ -1002,9 +1010,18 @@ export function createEngine({
         // moment it does, this deck should simply be back. The listener goes
         // down with it, so the deck is either whole or plainly stalled.
         this.stop();
-        stalled = err?.code === "EADDRINUSE"
-          ? `another program is using UDP ${DISCOVERY_PORT}, the port decks find each other on — trying again every ${Math.round(bindRetryMs / 1000)} s`
-          : err?.message ?? String(err);
+        const taken = who => `${who ?? "another program"} is using UDP ${DISCOVERY_PORT}, the port decks find each other on — trying again every ${Math.round(bindRetryMs / 1000)} s`;
+        stalled = err?.code === "EADDRINUSE" ? taken(holder) : err?.message ?? String(err);
+        // NAMED WHEN THE MACHINE WILL SAY WHO. Asked once per stall, behind the
+        // sentence that does not need it, and folded in only while it is still
+        // the sentence on screen.
+        if (err?.code === "EADDRINUSE" && holder === undefined && portHolder) {
+          holder = null;
+          void Promise.resolve().then(() => portHolder()).then(who => {
+            holder = who ?? null;
+            if (who && !beacon && cfg.enabled) stalled = taken(who);
+          }, () => {});
+        }
         retryTimer = setTimeout(() => {
           retryTimer = null;
           if (!cfg.enabled) return;

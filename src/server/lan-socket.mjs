@@ -227,6 +227,14 @@ export function createBeacon({
   const host = hostId();
   const peers = new Map();
   let sock = null;
+  /**
+   * The socket beacons LEAVE by, on a port of its own. See start.
+   *
+   * Null until it is bound, and whenever it could not be — the listening
+   * socket then sends as it always did, because a beacon from the wrong port is
+   * still a beacon and none at all is a deck nobody finds.
+   */
+  let out = null;
   let timer = null;
   /** When this deck last answered a deck it had not heard, so answering cannot
    *  become a storm, and which decks it has already answered — without the
@@ -261,10 +269,11 @@ export function createBeacon({
     // interface's own directed broadcast goes out beside it. A duplicate packet
     // costs one datagram; a missing one costs the whole feature.
     const targets = broadcastTargets(ifaces());
+    const from = out ?? sock;
     let left = targets.length;
     const failed = [];
     for (const to of targets) {
-      sock.send(payload(), DISCOVERY_PORT, to, err => {
+      from.send(payload(), DISCOVERY_PORT, to, err => {
         if (err) failed.push(`${to} (${err.code ?? err.message})`);
         // REPORTED ONLY WHEN EVERY ONE FAILED. One address being unreachable is
         // the ordinary state of a machine with a VPN up, and a panel that said
@@ -283,7 +292,7 @@ export function createBeacon({
     try { direct = [...(unicast() ?? []), ...also]; } catch { direct = [...also]; }
     for (const to of new Set(direct)) {
       if (typeof to !== "string" || !to || targets.includes(to)) continue;
-      sock.send(payload(), DISCOVERY_PORT, to, () => {});
+      from.send(payload(), DISCOVERY_PORT, to, () => {});
     }
   };
 
@@ -363,10 +372,38 @@ export function createBeacon({
       // came up should appear now rather than up to thirty seconds later, which
       // is the difference between "it works" and "it seems broken" for anybody
       // who starts two decks and watches.
-      announce();
-      timer = setInterval(announce, ANNOUNCE_MS);
-      timer.unref?.();
-      resolve();
+      const go = () => {
+        announce();
+        timer = setInterval(announce, ANNOUNCE_MS);
+        timer.unref?.();
+        resolve();
+      };
+      // SENT FROM A PORT OF ITS OWN, NOT FROM 45317. Nothing that hears a
+      // beacon reads the port it came from — the reply goes to 45317 whatever
+      // the source — and sending from the discovery port gave that port away.
+      // Measured on a Mac that is a Tailscale exit node: a deck elsewhere on
+      // the tailnet routed a beacon through it, and Tailscale's forwarder binds
+      // its end of every UDP flow to the CLIENT's source port (netstack.go,
+      // forwardUDP), idling it out after two minutes. A beacon every thirty
+      // seconds never idles, so the Mac's own deck could never bind 45317
+      // again. From an ephemeral port, the forwarder takes an ephemeral port.
+      let o = null;
+      try { o = createSocket({ type: "udp4" }); } catch { o = null; }
+      if (!o) { go(); return; }
+      let opened = false;
+      o.on("error", err => {
+        if (opened) { onError?.("socket", err); return; }
+        opened = true;
+        try { o.close(); } catch { /* never opened */ }
+        go();
+      });
+      o.bind(0, "0.0.0.0", () => {
+        if (opened) return;
+        opened = true;
+        try { o.setBroadcast(true); } catch (err) { onError?.("broadcast", err); }
+        out = o;
+        go();
+      });
     });
   });
 
@@ -379,6 +416,8 @@ export function createBeacon({
       timer = null;
       try { sock?.close(); } catch { /* already closed */ }
       sock = null;
+      try { out?.close(); } catch { /* already closed */ }
+      out = null;
     },
   };
 }
