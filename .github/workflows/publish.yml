@@ -694,11 +694,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # The text is the annotated tag's message, which is what the person
+          # releasing chose to say — often only "Bug fixes and improvements".
+          # Read through the API because this job has no checkout; a
+          # lightweight tag has no message and gets a plain line instead.
+          REF=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME")
+          if [ "$(echo "$REF" | jq -r .object.type)" = "tag" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$(echo "$REF" | jq -r .object.sha)" --jq .message > notes.md
+          else
+            echo "ccdeck $VERSION" > notes.md
+          fi
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" \
               --title "ccdeck $VERSION" \
-              --notes "Desktop app for macOS, Windows and Linux. The deck itself: \`npx ccdeck\`."
+              --notes-file notes.md
           fi
           ls -la release
