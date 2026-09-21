@@ -145,6 +145,9 @@ export function readTailnet(raw) {
   return {
     state: doc.BackendState,
     running: doc.BackendState === "Running",
+    // Whether this machine sends its traffic through an exit node — which,
+    // without local network access, takes the local network with it.
+    exitNode: !!(doc.ExitNodeStatus && typeof doc.ExitNodeStatus === "object"),
     self: {
       name: nodeName(self),
       ips: ipv4s(self.TailscaleIPs ?? doc.TailscaleIPs),

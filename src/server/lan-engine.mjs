@@ -240,6 +240,9 @@ export function createEngine({
   /** Which program holds the discovery port, when it is taken — see
    *  port-holder.mjs — so the panel can name it. Nothing asks without one. */
   portHolder = null,
+  /** Where the machine would send each broadcast, so none leaves through a
+   *  tunnel — see route-via.mjs. Absent, every broadcast goes. */
+  routes = null,
 } = {}) {
   let cfg = {
     enabled: false, name: defaultName(), secret: "", shared: [], trusted: [], port: 0,
@@ -972,6 +975,7 @@ export function createEngine({
         // own beacon — and says in the panel who has the port. Asked once per
         // spell, behind the sentence that does not need the name.
         rebindMs: bindRetryMs,
+        routes,
         onHearing: now => {
           if (now) { holder = undefined; onChange?.(); return; }
           if (holder === undefined && portHolder && beacon?.deafError?.()?.code === "EADDRINUSE") {
@@ -1334,6 +1338,9 @@ export function createEngine({
         stalled: cfg.enabled && !beacon ? stalled : null,
         // Running, and unable to hear other decks announce — see deafLine.
         deaf: deafLine(),
+        // Every local broadcast held back, because this machine sends its
+        // local network through a tunnel — see leavesByTunnel.
+        lanTunneled: !!beacon?.tunneled?.(),
         // When every paired deck was last asked. Null until the first round,
         // which on a deck that has just started is the honest answer.
         checkedAt: roundAt,
@@ -1362,6 +1369,7 @@ export function createEngine({
             accept: cfg.tailscaleAccept !== false,
             login: t?.self?.login ?? null,
             addr: t?.self?.ips?.[0] ?? null,
+            exitNode: !!t?.exitNode,
             // The owner's machines a beacon goes to right now.
             devices: beaconTargets(t).length,
           };

@@ -23,6 +23,7 @@
 // address.
 import dgram from "node:dgram";
 import { networkInterfaces } from "node:os";
+import { looksLikeTunnel } from "./route-via.mjs";
 
 /** An IPv4 dotted quad as four numbers, or null for anything that is not one. */
 /**
@@ -75,17 +76,42 @@ export function directedBroadcast(address, netmask) {
  * IPv6 broadcast address.
  */
 export function broadcastTargets(ifaces) {
-  const out = ["255.255.255.255"];
-  for (const list of Object.values(ifaces ?? {})) {
+  return broadcastPlan(ifaces).map(p => p.to);
+}
+
+/**
+ * The same targets, each with the interface whose subnet it is — null for the
+ * limited broadcast, which is nobody's. What lets a beacon be held back when
+ * the machine would send it out by some OTHER interface: see leavesByTunnel.
+ */
+export function broadcastPlan(ifaces) {
+  const out = [{ to: "255.255.255.255", iface: null }];
+  for (const [name, list] of Object.entries(ifaces ?? {})) {
     for (const ni of list ?? []) {
       if (!ni || ni.internal) continue;
       // Node 18 reports `family` as the string "IPv4"; older shapes used 4.
       if (ni.family !== "IPv4" && ni.family !== 4) continue;
       const to = directedBroadcast(ni.address, ni.netmask);
-      if (to && !out.includes(to)) out.push(to);
+      if (to && !out.some(p => p.to === to)) out.push({ to, iface: name });
     }
   }
   return out;
+}
+
+/**
+ * Would this broadcast leave the local network?
+ *
+ * A directed broadcast belongs to the interface whose subnet it is, so the
+ * machine sending it out by any other one means something rerouted the local
+ * network — a VPN, or a Tailscale exit node without local network access —
+ * and the beacon would come out on the far end of the tunnel. The limited
+ * broadcast belongs to none, so it is held back only when it would go into
+ * something that is plainly a tunnel. Unknown answers nothing: send.
+ */
+export function leavesByTunnel(target, via, isTunnel) {
+  if (!via) return false;
+  if (target.iface) return via !== target.iface;
+  return isTunnel(via);
 }
 import net from "node:net";
 import { randomBytes } from "node:crypto";
@@ -219,6 +245,12 @@ export function createBeacon({
    *  program holds it, and who to tell when hearing stops or comes back. */
   rebindMs = 30_000,
   onHearing,
+  /**
+   * Where the machine would send each broadcast — see createRouteCheck in
+   * route-via.mjs. Absent, every broadcast goes, as before; the suite's
+   * beacons have none.
+   */
+  routes = null,
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -253,6 +285,9 @@ export function createBeacon({
    */
   let hearing = false;
   let deafError = null;
+  /** Whether the last announce held back every broadcast because the local
+   *  network goes through a tunnel here — see leavesByTunnel. */
+  let tunneled = false;
   let told = null;
   let rebind = null;
   let stopped = true;
@@ -288,7 +323,13 @@ export function createBeacon({
     // broadcast is filtered, and it is what Syncthing sends — and every
     // interface's own directed broadcast goes out beside it. A duplicate packet
     // costs one datagram; a missing one costs the whole feature.
-    const targets = broadcastTargets(ifaces());
+    const plan = broadcastPlan(ifaces());
+    // Asked behind the send, and read from what was last answered: the first
+    // beacon after a start goes as it always did, and the ones after it know.
+    void routes?.want?.(plan.map(p => p.to));
+    const kept = routes ? plan.filter(p => !leavesByTunnel(p, routes.via(p.to), looksLikeTunnel)) : plan;
+    tunneled = kept.length === 0;
+    const targets = kept.map(p => p.to);
     const from = out ?? sock;
     let left = targets.length;
     const failed = [];
@@ -468,6 +509,7 @@ export function createBeacon({
      *  not. */
     hearing: () => hearing,
     deafError: () => deafError,
+    tunneled: () => tunneled,
     stop() {
       stopped = true;
       if (timer) clearInterval(timer);

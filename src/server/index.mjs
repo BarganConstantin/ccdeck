@@ -38,6 +38,7 @@ import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notifica
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
+import { createRouteCheck } from "./route-via.mjs";
 import { DISCOVERY_PORT } from "./lan-socket.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
@@ -3827,6 +3828,8 @@ const lanEngine = createEngine({
   tailnet,
   // Who holds the discovery port when it is taken, so the panel can say.
   portHolder: () => portHolder(DISCOVERY_PORT),
+  // Where each broadcast would leave by, so none goes into a VPN tunnel.
+  routes: createRouteCheck(),
   // This deck's version and machine, for the decks it is paired with and
   // nobody else. RUNNING_VERSION rather than a fresh read, for the reason it
   // is read at import: it is what this process actually runs.

@@ -128,6 +128,8 @@ export interface LanTailscale {
   addr: string | null;
   /** This person's machines online on the tailnet right now. */
   devices: number;
+  /** This machine sends its traffic through a Tailscale exit node. */
+  exitNode?: boolean;
 }
 
 export interface LanStatus {
@@ -143,6 +145,10 @@ export interface LanStatus {
    *  holds the discovery port — said by the engine, with who holds it when the
    *  machine will say. Null whenever this deck can hear. */
   deaf?: string | null;
+  /** Every local broadcast held back, because this machine sends its local
+   *  network through a tunnel — a VPN, or a Tailscale exit node without local
+   *  network access. */
+  lanTunneled?: boolean;
   name: string;
   /** Whether this deck asks the machines it finds, and whether a request that
    *  arrives is answered here or answered for you. */
@@ -547,6 +553,18 @@ export function rosterSplit(peers: Peer[], now: number): { online: Peer[]; offli
  * cannot tell "nobody yet" from "it broke", and those are the two states a
  * reader most needs told apart.
  */
+/**
+ * What to say when this machine sends its local network through a tunnel. The
+ * Tailscale case is named, with the setting that fixes it; any other VPN is
+ * said generally. Exported for the suite.
+ */
+export function tunnelNote(s: { tailscale?: LanTailscale | null }): string {
+  if (s.tailscale?.exitNode) {
+    return "Tailscale sends this machine's local network through an exit node, so decks on this network cannot find this one. Turn on Allow local network access in Tailscale's exit node menu to bring them back.";
+  }
+  return "This machine sends its local network through a VPN, so decks on this network cannot find this one. Allowing local network access in the VPN brings them back.";
+}
+
 export function sectionState(
   s: { enabled?: boolean; running?: boolean; stalled?: string | null; peers?: Peer[]; pending?: LanStranger[] } | null,
   now: number,
@@ -1913,6 +1931,11 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
               warning ink: nothing here is for the reader to do, and the deck
               takes the port back on its own. */}
           {on && status?.deaf && <p className="ap-lan-fine">{status.deaf}</p>}
+          {/* THE LOCAL NETWORK GOES THROUGH A TUNNEL HERE, so nothing on it can
+              find this deck, and the deck has stopped shouting into the tunnel
+              rather than onto somebody else's network. The one line says what
+              to change, in the words the VPN's own menu uses. */}
+          {on && status?.lanTunneled && <p className="ap-lan-fine">{tunnelNote(status)}</p>}
 
             {/* WHAT IT IS FOR, WHILE IT IS NOT DOING IT. The sentence answers one
                 question — should I turn this on — and a deck that is already on has
@@ -2169,7 +2192,7 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                 {/* Not while it is stalled or cannot hear: the list is empty
                     because of this deck, and "no other deck yet" would blame
                     the network for the line above it. */}
-                {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && (
+                {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && !status?.lanTunneled && (
                   <>
                     <p className="ap-lan-fine">
                       No other deck yet. Decks on one network usually find each other on their own;

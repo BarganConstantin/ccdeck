@@ -163,6 +163,6 @@ describe("a deck whose discovery port is taken", () => {
 
   it("does not tell the panel there is no other deck while it cannot look", () => {
     const SECTION = readFileSync(fileURLToPath(new URL("../components/LanSyncSection.tsx", import.meta.url)), "utf8");
-    expect(SECTION).toMatch(/rest\.length === 0 && asks\.length === 0 && !status\?\.stalled && !status\?\.deaf && \(/);
+    expect(SECTION).toMatch(/rest\.length === 0 && asks\.length === 0 && !status\?\.stalled && !status\?\.deaf && !status\?\.lanTunneled && \(/);
   });
 });
