@@ -83,6 +83,25 @@ describe("the desktop notification's argv", () => {
     expect(operands(s.calls[0].args)).toEqual(["-x title", "body"]);
   });
 
+  it("escapes the Linux body, which notify-send reads as markup", async () => {
+    // A finished turn quotes the agent's last reply — code and arrows as often
+    // as not. A bare `<` or `&` is a markup error on GNOME, KDE, dunst and
+    // mako, and the body goes missing. The title is plain text in the spec and
+    // is left alone.
+    const s = spy();
+    await notify("a & b — ccdeck", "if (x < 1 && y > 2) <b>done</b>", "linux", { run: s.run });
+    expect(operands(s.calls[0].args)).toEqual([
+      "a & b — ccdeck",
+      "if (x &lt; 1 &amp;&amp; y &gt; 2) &lt;b&gt;done&lt;/b&gt;",
+    ]);
+  });
+
+  it("does not escape on macOS, where the body is plain text", async () => {
+    const s = spy();
+    await notify("t", "x < 1 && y", "darwin", { run: s.run });
+    expect(operands(s.calls[0].args)).toEqual(["t", "x < 1 && y"]);
+  });
+
   it("leaves the Windows path alone, which never had the problem", async () => {
     // PowerShell gets both strings through `$env:`, so they are read at runtime
     // as data and never reach a parser. Asserted so that a later "consistency"
