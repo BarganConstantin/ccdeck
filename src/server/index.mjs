@@ -370,6 +370,27 @@ let nextSeq = 1;
 // duplicate" instead of silently dropping the live stream.
 const SEQ_EPOCH = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const sseClients = new Set();       // res handles
+// The desktop app's own connections (#1160): subscribed like any client, so
+// they receive every event, and ALSO kept here so they are never counted as a
+// page. The app reads the stream to draw its tray icon; if that counted as a
+// tab, the deck would believe a page was open whenever the app ran, and the
+// notifications a closed deck raises (block-notify.mjs) would never fire —
+// the one thing the app exists to deliver. See `pageCount`.
+const trayClients = new Set();
+
+/** Pages — deck tabs and the app's window — as opposed to the app's tray
+ *  connection, which is a reader and not somebody looking. */
+function pageCount() {
+  return sseClients.size - trayClients.size;
+}
+
+/** A notification for the desktop app to raise as itself, instead of the OS
+ *  helper raising it as Script Editor (osascript) or PowerShell. */
+function notifyTrays(title, body) {
+  const line = `event: notify\ndata: ${JSON.stringify({ title, body })}\n\n`;
+  for (const res of trayClients) writeSse(res, line);
+  return true;
+}
 
 let persistPath = null;             // absolute path to events.jsonl, or null
 
@@ -3442,6 +3463,7 @@ export function queuedBytes(res) {
  *  before they are subscribed — is a harmless no-op. */
 function dropSse(res) {
   sseClients.delete(res);
+  trayClients.delete(res);
   // Destroying the socket is what makes the request emit 'close', which is
   // where the ping interval is cleared.
   try { res.destroy(); } catch {}
@@ -3681,7 +3703,10 @@ let _prefs = { ...PREF_DEFAULTS };
 const _prefsRead = readPrefs().then(p => { _prefs = p; }).catch(() => {});
 
 const blockNotifier = createBlockNotifier({
-  notify: osNotify,
+  // The desktop app, while it is connected, raises the notification itself —
+  // under its own name, icon and permission, with a click that opens its
+  // window. Only when no app is listening does the OS helper speak.
+  notify: (title, body) => (trayClients.size > 0 ? notifyTrays(title, body) : osNotify(title, body)),
   product: PRODUCT,
   // A function, not a boolean: this is a switch a person flips from the sound
   // menu while the deck is running, and a mute that waited for a restart would
@@ -4569,7 +4594,7 @@ function pushEvent(raw, source, opts = {}) {
   // other means". The web notifier owns the case where a page exists, and this
   // owns the case where none does; the two never both fire, and neither has to
   // know the other exists. block-notify.mjs holds the gates and the cooldown.
-  blockNotifier.consider(raw, { clients: sseClients.size, replay: !!opts.replay });
+  blockNotifier.consider(raw, { clients: pageCount(), replay: !!opts.replay });
 
   // Whether a turn is running, for the away-update. Not from a replay: the log
   // is history, and a turn it shows open is one that ended in another process.
@@ -5322,7 +5347,7 @@ function handleSse(req, res) {
   // is already committed to a 200 and its own failure path is to hang up — so
   // start it, keep the router's contract of returning nothing, and make sure a
   // rejection ends the stream rather than the process.
-  resumeSse(req, res, lastId).catch(() => dropSse(res));
+  resumeSse(req, res, lastId, { tray: isTrayRequest(req) }).catch(() => dropSse(res));
 }
 
 /**
@@ -5336,7 +5361,17 @@ function handleSse(req, res) {
  * neither stream — a hole the client cannot even ask for again, its last id
  * having moved past it.
  */
-async function resumeSse(req, res, lastId) {
+/**
+ * Is this the desktop app's tray connection? Only with the deck's own token:
+ * a page cannot opt itself out of being counted, because that would let any
+ * tab switch on the closed-deck notifications over itself.
+ */
+function isTrayRequest(req) {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  return url.searchParams.get("role") === "tray" && presentsDeckToken(req.headers ?? {});
+}
+
+async function resumeSse(req, res, lastId, { tray = false } = {}) {
   let sentThrough = lastId;
   let ping = null;
   let closed = false;
@@ -5344,6 +5379,7 @@ async function resumeSse(req, res, lastId) {
     closed = true;
     if (ping) clearInterval(ping);
     sseClients.delete(res);
+    trayClients.delete(res);
   });
 
   for (;;) {
@@ -5415,6 +5451,7 @@ async function resumeSse(req, res, lastId) {
   // takes it back out of the set — the same exit writeSse uses.
   const flushed = writeResume(res, `event: replay-end\ndata: {}\n\n`);
   sseClients.add(res);
+  if (tray) trayClients.add(res);
   // Through writeSse like every other frame: on a client that has stopped
   // reading, the ping is the one thing still being written between events, and
   // it is what eventually reveals the socket as unrecoverable.
@@ -6598,7 +6635,9 @@ function handleHealth(_req, res) {
     ok: true,
     name: "agent-dag",
     seq: nextSeq - 1,
-    clients: sseClients.size,
+    clients: pageCount(),
+    // The desktop app's tray connections, which are not pages (#1160).
+    trays: trayClients.size,
     uptimeMs: Math.round(process.uptime() * 1000),
     workspace: _workspace,
     providers: _providers,
