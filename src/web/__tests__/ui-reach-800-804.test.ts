@@ -84,9 +84,9 @@ describe("#801 — what the Notifications switch is saying", () => {
 
   it("says what the switch covers, which is the only thing separating it from Sounds", () => {
     // Two identically-shaped switches whose difference lives nowhere on screen
-    // is the reason this note exists: sound fires on every finished turn, this
-    // fires only when something has stopped and needs a person.
-    expect(NOTIFY_NOTE).toBe("Notify me when a session needs my attention.");
+    // is the reason this note exists: they fire on the same moments, and the
+    // difference is WHEN — sound while a tab is open, this once none is.
+    expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
     expect(soundMenu).toContain("{notifyVetoed ? NOTIFY_VETO_NOTE : NOTIFY_NOTE}");
   });
 

@@ -184,8 +184,23 @@ export async function notify(title, body, platform = process.platform, deps = {}
   // is a broken notification rather than an execution — fixed anyway, because
   // the rule is "never let a user string be read as an option" and a rule with
   // an exception is a rule somebody will apply to the wrong call next time.
-  const r = await exec("notify-send", ["--", title, body]).catch(() => null);
+  //
+  // AND THE BODY IS ESCAPED, BECAUSE NOTIFY-SEND'S BODY IS MARKUP. The
+  // freedesktop spec lets a server read `<b>`, `<i>`, `<a>` and entities in the
+  // body, and GNOME, KDE, dunst and mako all do — so a bare `&` or `<` is a
+  // parse error there, and the usual result is an empty or missing body. That
+  // was theoretical while the body was CC's own sentence or a host name. It is
+  // not now that a finished turn quotes the agent's last reply, which is code
+  // and arrows as often as not. The summary is plain text in the spec, so the
+  // title is left as it is: escaping it would print `&amp;` on every daemon.
+  const r = await exec("notify-send", ["--", title, markupEscape(body)]).catch(() => null);
   return r?.ok === true;
+}
+
+/** Text as notify-send's body markup reads it: the three characters that can
+ *  start a tag or an entity, and nothing else. */
+export function markupEscape(text) {
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Close one tab by its exact URL. macOS only; see `available`. */

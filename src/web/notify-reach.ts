@@ -28,9 +28,10 @@
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
 /** What the switch itself covers. Says WHEN, because that is the only thing
- *  separating it from the Sound switch above it — sound fires on every finished
- *  turn, this fires only when something has stopped and needs a person. */
-export const NOTIFY_NOTE = "Notify me when a session needs my attention.";
+ *  separating it from the Sound switch above it — the two fire on the same
+ *  moments, sound while a tab is open and this once none is (block-notify.mjs
+ *  `isChimeEvent`). */
+export const NOTIFY_NOTE = "With no deck tab open, get a notification wherever a sound would have played.";
 
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
  *  somebody else decided it, the press cannot undo it until the next start, and

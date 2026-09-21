@@ -6,6 +6,12 @@
 // because raising a notification from a page requires a page, and the case this
 // whole feature exists for is the one where you walked away.
 //
+// WHAT IT SAYS IS WHAT AN OPEN DECK WOULD HAVE PLAYED. With a tab open you hear
+// a turn finish and hear Claude ask; with none open nothing plays, and those are
+// exactly the moments somebody who walked away wanted. So a closed deck stands
+// in for its own sounds rather than keeping a narrower rule of its own. See
+// `isChimeEvent`.
+//
 // The server can, and it already knows the one fact that makes it safe to:
 // `sseClients.size`. Nobody is listening means nobody is being told by any
 // other surface — the chip, the title, the favicon and the live region are all
@@ -55,30 +61,79 @@ export const OFF_ENV = "AGENTS_DECK_NO_NOTIFY";
 export const QUIET_MS = 2 * 60 * 1000;
 
 /**
- * The events that mean a session has stopped and cannot start again without a
- * human. Two of the three kinds CC emits.
+ * Would an open deck have played a tone for this?
  *
- * `permission_prompt` — it wants to run something and is waiting to be allowed.
+ * The page's rule, not a new one: `Stop` is the "turn finished" tone and every
+ * `Notification` is "Claude is asking" (src/web/sound.ts `chimeFor`).
  *
- * `agent_needs_input` — it asked a question and is waiting for the answer, with
- * the question itself in `message`. This was missing, and its absence was not a
- * small gap: on a machine running `bypassPermissions` Claude Code never asks to
- * run anything, so `permission_prompt` essentially never fires and the desktop
- * notification could not happen at all. Measured on one real log — 1683 events,
- * every one of them bypassPermissions — a single permission prompt in the whole
- * history against five of these.
+ * WIDER THAN IT USED TO BE, ON PURPOSE. This was permission prompts and
+ * questions only — `idle_prompt` and every finished turn left out, because
+ * #348 measured idle at three quarters of what CC emits. What that cost is
+ * the setup the deck's owner runs: under `bypassPermissions` Claude Code almost
+ * never raises a permission prompt (one log: 14 idle, 1 permission), so the
+ * notification this switch promised could not happen. The noise is held back
+ * by the memo instead — see `memoKeys` — and the channel is still off until
+ * somebody turns it on (deck-prefs.mjs).
  *
- * `idle_prompt` is deliberately still out: #348 measured 16 idle to 5
- * permission, and an idle prompt is a turn that ended, not a session that is
- * stuck. Three quarters noise is how a notification channel gets muted, and a
- * muted channel is worse than none because the deck goes on believing it told
- * somebody.
+ * WRITTEN TWICE BECAUSE IT HAS TO BE. sound.ts is TypeScript bundled for the
+ * browser and this runs in bare node, so neither can import the other.
+ * notify-mirror.test.ts runs both over the same events and fails the day they
+ * disagree, which is the only thing that keeps a mirrored rule a mirror.
  */
-export function isBlockingPrompt(raw) {
-  return !!raw
-    && raw.hook_event_name === "Notification"
-    && (raw.notification_type === "permission_prompt"
-      || raw.notification_type === "agent_needs_input");
+export function isChimeEvent(raw) {
+  return !!raw && (raw.hook_event_name === "Stop" || raw.hook_event_name === "Notification");
+}
+
+/**
+ * How long one session stays quiet about a FINISHED TURN after saying so.
+ *
+ * Far shorter than `QUIET_MS`, because every `Stop` is a different turn and
+ * somebody answering from the terminal can finish two inside a minute — each is
+ * the tone an open deck would have played. What this still stops is one `Stop`
+ * delivered twice: a retried hook, or a second deck feeding the same log.
+ */
+export const TURN_QUIET_MS = 10 * 1000;
+
+/**
+ * Which memo entries speak for this event: its own, and any whose having been
+ * said makes this one old news.
+ *
+ * The case with an `also` is the idle prompt. CC sends one a minute after a
+ * turn ends with the input box still empty — so after a `Stop` that was already
+ * on the desktop it says nothing new, and a second notification for the same
+ * turn a minute later is exactly the drumming that gets a channel muted. The
+ * tab plays both tones because a tone is gone in a second; a notification sits
+ * in the tray. An idle prompt whose `Stop` was NOT said — the tab was open when
+ * the turn ended and closed since — still is.
+ */
+export function memoKeys(raw) {
+  const sid = raw?.session_id ?? "";
+  if (raw?.hook_event_name === "Stop") return { own: `${sid}#turn`, also: [] };
+  if (raw?.notification_type === "idle_prompt") return { own: `${sid}#idle`, also: [`${sid}#turn`] };
+  return { own: sid, also: [] };
+}
+
+/** The quiet window this event is measured against. */
+export function quietFor(raw) {
+  return raw?.hook_event_name === "Stop" ? TURN_QUIET_MS : QUIET_MS;
+}
+
+/** Longest quoted body. macOS shows about two lines of this; the rest is
+ *  still worth having in Notification Center, but not a transcript. */
+export const TURN_BODY_MAX = 160;
+
+/**
+ * The body for a finished turn: what the agent last said, cut to what a tray
+ * shows, or a plain sentence when there is nothing to quote — Codex's `Stop`
+ * carries no message, and neither does an older Claude Code's.
+ */
+export function turnBody(raw) {
+  const said = typeof raw?.last_assistant_message === "string"
+    ? raw.last_assistant_message.replace(/\s+/g, " ").trim()
+    : "";
+  if (!said) return "Finished its turn";
+  const chars = [...said];
+  return chars.length > TURN_BODY_MAX ? `${chars.slice(0, TURN_BODY_MAX - 1).join("").trimEnd()}…` : said;
 }
 
 /**
@@ -100,7 +155,9 @@ export function isBlockingPrompt(raw) {
 export function blockNotice(raw, product) {
   const cwd = typeof raw.cwd === "string" && raw.cwd ? basename(raw.cwd) : "";
   const who = cwd || (typeof raw.session_id === "string" ? raw.session_id.slice(0, 8) : "a session");
-  const said = typeof raw.message === "string" && raw.message ? raw.message : "Needs your permission";
+  if (raw.hook_event_name === "Stop") return { title: `${who} — ${product}`, body: turnBody(raw) };
+  const fallback = raw.notification_type === "idle_prompt" ? "Waiting for your input" : "Needs your permission";
+  const said = typeof raw.message === "string" && raw.message ? raw.message : fallback;
   return { title: `${who} — ${product}`, body: said };
 }
 
@@ -111,20 +168,20 @@ export function blockNotice(raw, product) {
  * notification — a channel that fires twelve times in a second is one the user
  * turns off within the minute:
  *
- *   - a blocking prompt, per `isBlockingPrompt`
+ *   - something an open deck would have played a tone for, per `isChimeEvent`
  *   - NOTHING LISTENING. A page is a better surface than this in every way, so
  *     wherever there is one, this stays out of the way.
  *   - NOT A REPLAY. The server replays events.jsonl into itself at boot to
  *     rebuild the ring, and that log holds every permission prompt of the last
  *     50MB. Without this gate, starting the deck would announce the entire
  *     history of the machine at once.
- *   - the session has not just been announced, per `QUIET_MS`.
+ *   - the session has not just been announced, per `quietFor`.
  */
 export function shouldNotify(raw, { clients, replay, lastAt, now }) {
-  if (!isBlockingPrompt(raw)) return false;
+  if (!isChimeEvent(raw)) return false;
   if (clients > 0) return false;
   if (replay) return false;
-  if (lastAt != null && now - lastAt < QUIET_MS) return false;
+  if (lastAt != null && now - lastAt < quietFor(raw)) return false;
   return true;
 }
 
@@ -146,7 +203,7 @@ export function shouldNotify(raw, { clients, replay, lastAt, now }) {
  */
 export function createBlockNotifier({ notify, product, now = Date.now, enabled = true, onError }) {
   const isEnabled = typeof enabled === "function" ? enabled : () => enabled;
-  /** session_id → when it was last announced. Bounded by pruning on read: a
+  /** memo key (see `memoKeys`) → when it was last announced. Bounded by pruning on read: a
    *  long-lived server sees many sessions and this must not become a second
    *  ring nobody empties. */
   const seen = new Map();
@@ -156,9 +213,11 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
     consider(raw, { clients, replay = false }) {
       if (!isEnabled()) return "off";
       const at = now();
-      const id = raw?.session_id ?? "";
-      if (!shouldNotify(raw, { clients, replay, lastAt: seen.get(id), now: at })) return "skipped";
-      seen.set(id, at);
+      const { own, also } = memoKeys(raw);
+      const said = [own, ...also].map(k => seen.get(k)).filter(t => t != null);
+      const lastAt = said.length ? Math.max(...said) : undefined;
+      if (!shouldNotify(raw, { clients, replay, lastAt, now: at })) return "skipped";
+      seen.set(own, at);
       for (const [key, when] of seen) if (at - when > QUIET_MS) seen.delete(key);
       const { title, body } = blockNotice(raw, product);
       // Fire-and-forget, and the catch is not decoration. `notify` shells out —
