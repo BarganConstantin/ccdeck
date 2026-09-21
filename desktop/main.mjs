@@ -13,7 +13,7 @@
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
 import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell, Tray } from "electron";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
@@ -300,6 +300,9 @@ function openWindow() {
     setRegular(false);
   });
   setRegular(true);
+  // The page reads this to word itself for a window and to drop the browser
+  // notification section it has no use for here (src/web/in-app.ts).
+  win.webContents.setUserAgent(`${win.webContents.getUserAgent()} ccdeck-desktop/${app.getVersion()}`);
   win.loadURL(`${origin}/`);
 }
 
@@ -329,6 +332,52 @@ async function firstRun() {
   writeFileSync(statePath(), JSON.stringify({ ...state, askedLogin: true }, null, 2));
 }
 
+/**
+ * The npm deck's own login item, if one is registered: `ccdeck
+ * --install-service`, or the offer a globally installed deck makes on its
+ * first start. Beside the app's it starts a second deck at login — an older
+ * one, from a copy the app does not update — and whichever starts first is the
+ * deck both end up on. The app starts the deck itself, so it offers once to
+ * take that item away, with the deck's own code for it (login-service.mjs,
+ * the same call `ccdeck --uninstall-service` makes). Never silently: it is
+ * something the person, or a script of theirs, set up.
+ */
+async function offerToReplaceLoginItem() {
+  const state = readState();
+  if (state.askedReplaceService) return;
+  const root = deckRoot();
+  const svc = await import(pathToFileURL(join(root, "src", "server", "login-service.mjs")).href);
+  const { deckDataDir } = await import(pathToFileURL(join(root, "src", "server", "deck-home.mjs")).href);
+  let present = false;
+  if (process.platform === "win32") {
+    try {
+      const { spawnSync } = await import("node:child_process");
+      present = spawnSync("schtasks", ["/Query", "/TN", svc.SERVICE_LABEL], { windowsHide: true }).status === 0;
+    } catch { present = false; }
+  } else {
+    present = existsSync(svc.servicePath());
+  }
+  writeFileSync(statePath(), JSON.stringify({ ...readState(), askedReplaceService: true }, null, 2));
+  if (!present) return;
+  const options = {
+    type: "question",
+    message: "Another ccdeck starts when you log in",
+    detail: "It was set up by the npm version (npx ccdeck or npm i -g) and starts an older deck of its own. The app starts the deck itself, so that login item is no longer needed.",
+    buttons: ["Replace it with the app", "Keep it"],
+    defaultId: 0,
+    cancelId: 1,
+  };
+  const { response } = win && !win.isDestroyed()
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options);
+  if (response !== 0) return;
+  const out = svc.uninstallService();
+  svc.writeServiceRecord(deckDataDir(), { removed: new Date().toISOString(), version: app.getVersion(), by: "ccdeck desktop" });
+  if (out.ok) app.setLoginItemSettings({ openAtLogin: true });
+  trace(`npm login item ${out.ok ? "removed" : `not removed: ${out.reason}`} (${out.path})`);
+  scheduleRedraw();
+}
+
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   setRegular(false);
@@ -345,6 +394,7 @@ app.whenReady().then(async () => {
   setInterval(() => { if (!deck) discover(); }, 5_000);
   if (deck) openWindow();
   await firstRun();
+  await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });
 
 app.on("activate", () => openWindow());
