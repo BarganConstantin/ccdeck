@@ -126,7 +126,8 @@ describe("the tray connection", () => {
     await until(async () => tray.text().includes("event: notify"), "the notification");
     const frame = tray.text().split("event: notify\ndata: ")[1].split("\n")[0];
     // `chime` names the tone the page would have played, so the app plays it.
-    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core — ccdeck", body: "All tests pass.", chime: "done" });
+    // The title is the session alone: the app shows its own name above it.
+    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core", body: "All tests pass.", chime: "done" });
     tray.req.destroy();
   });
 

@@ -158,9 +158,15 @@ export function turnBody(raw) {
  * dimmer copy of a rule that already exists — the failure ambient-counts.ts and
  * block-announce.ts were both written to end.
  */
+/** Which session a notification is about, in the words the user has for it:
+ *  the working directory's last segment, else a short session id. */
+export function whoOf(raw) {
+  const cwd = typeof raw?.cwd === "string" && raw.cwd ? basename(raw.cwd) : "";
+  return cwd || (typeof raw?.session_id === "string" ? raw.session_id.slice(0, 8) : "a session");
+}
+
 export function blockNotice(raw, product) {
-  const cwd = typeof raw.cwd === "string" && raw.cwd ? basename(raw.cwd) : "";
-  const who = cwd || (typeof raw.session_id === "string" ? raw.session_id.slice(0, 8) : "a session");
+  const who = whoOf(raw);
   if (raw.hook_event_name === "Stop") return { title: `${who} — ${product}`, body: turnBody(raw) };
   const fallback = raw.notification_type === "idle_prompt" ? "Waiting for your input" : "Needs your permission";
   const said = typeof raw.message === "string" && raw.message ? raw.message : fallback;
@@ -231,7 +237,10 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
       // notification daemon the last of those simply is not there. A rejected
       // promise from a notification must never take down the ingest path that
       // every hook event in the process goes through.
-      Promise.resolve(notify(title, body, { chime: chimeOf(raw) })).catch(err => onError?.(err));
+      // `who` alone as well: the desktop app shows its own name above every
+      // notification, so the "— ccdeck" the title carries for osascript's sake
+      // would be said twice there.
+      Promise.resolve(notify(title, body, { chime: chimeOf(raw), who: whoOf(raw) })).catch(err => onError?.(err));
       return "notified";
     },
   };

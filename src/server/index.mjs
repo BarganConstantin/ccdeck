@@ -386,8 +386,9 @@ function pageCount() {
 
 /** A notification for the desktop app to raise as itself, instead of the OS
  *  helper raising it as Script Editor (osascript) or PowerShell. */
-function notifyTrays(title, body, { chime = null } = {}) {
-  const line = `event: notify\ndata: ${JSON.stringify({ title, body, chime })}\n\n`;
+function notifyTrays(title, body, { chime = null, who = null } = {}) {
+  // The app names itself above the notification, so the title is the session.
+  const line = `event: notify\ndata: ${JSON.stringify({ title: who ?? title, body, chime })}\n\n`;
   for (const res of trayClients) writeSse(res, line);
   return true;
 }
