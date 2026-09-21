@@ -166,10 +166,39 @@ export function writeIcns(outDir) {
   rmSync(set, { recursive: true, force: true });
 }
 
+/**
+ * The Windows .ico: a directory of PNG images, which Windows has read since
+ * Vista. Written here for the reason the .icns is made with iconutil — so the
+ * build fetches no icon toolset from GitHub, whose release downloads answered
+ * 504 on the CI runners more than once.
+ */
+export function icoFile(sizes = [16, 24, 32, 48, 64, 128, 256]) {
+  const images = sizes.map(size => ({ size, png: appIconPng(size) }));
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(images.length, 4);
+  const entries = [];
+  let offset = 6 + 16 * images.length;
+  for (const { size, png } of images) {
+    const e = Buffer.alloc(16);
+    e[0] = size >= 256 ? 0 : size; // 0 means 256
+    e[1] = size >= 256 ? 0 : size;
+    e.writeUInt16LE(1, 4);  // colour planes
+    e.writeUInt16LE(32, 6); // bits per pixel
+    e.writeUInt32LE(png.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += png.length;
+    entries.push(e);
+  }
+  return Buffer.concat([header, ...entries, ...images.map(i => i.png)]);
+}
+
 /** Write every image into `outDir`. */
 export function writeIcons(outDir) {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "icon.png"), appIconPng(1024));
+  writeFileSync(join(outDir, "icon.ico"), icoFile());
   if (process.platform === "darwin") writeIcns(outDir);
   for (const state of STATES) {
     // macOS menu bar: 16pt, with the @2x the Retina bar asks for. The

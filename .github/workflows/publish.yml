@@ -577,6 +577,21 @@ jobs:
         working-directory: desktop
         run: npm run prepare-app
 
+      # Electron itself and electron-builder's toolsets (NSIS, AppImage, fpm)
+      # come from GitHub releases, which have answered 504 on these runners.
+      # Kept between runs, most builds download nothing.
+      - name: Cache Electron and its build tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
+
       # rcodesign signs with a PEM key and needs no keychain trust — the reason
       # a self-signed certificate works at all (scripts/sign-mac.cjs). Pinned,
       # and checked against the checksum the release publishes.
@@ -587,8 +602,10 @@ jobs:
           V=0.29.0
           NAME="apple-codesign-$V-macos-universal"
           cd "$RUNNER_TEMP"
-          curl -fsSLO "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz"
-          curl -fsSLO "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz.sha256"
+          # Retried: GitHub's release downloads have answered 504 on these
+          # runners, and one refused download should not fail the build.
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 10 "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz"
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 10 "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/$NAME.tar.gz.sha256"
           test "$(shasum -a 256 "$NAME.tar.gz" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$NAME.tar.gz.sha256")"
           tar -xzf "$NAME.tar.gz"
           echo "RCODESIGN=$RUNNER_TEMP/$NAME/rcodesign" >> "$GITHUB_ENV"
@@ -613,7 +630,14 @@ jobs:
         shell: bash
         run: |
           VERSION=$(node -p "require('../package.json').version")
-          npx electron-builder ${{ matrix.build }} --config electron-builder.config.cjs --publish never -c.extraMetadata.version="$VERSION"
+          # Up to three tries, for the same 504s as above: a download that
+          # fails inside electron-builder has no retry of its own.
+          for attempt in 1 2 3; do
+            npx electron-builder ${{ matrix.build }} --config electron-builder.config.cjs --publish never -c.extraMetadata.version="$VERSION" && exit 0
+            echo "::warning::electron-builder failed (attempt $attempt), retrying in 20s"
+            sleep 20
+          done
+          exit 1
 
       - name: Sign the updates
         if: env.HAS_SIGNING == 'true'

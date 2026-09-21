@@ -56,6 +56,8 @@ module.exports = {
   },
   win: {
     target: ["nsis"],
+    // Made by scripts/icons.mjs, so no icon toolset is downloaded here either.
+    icon: "dist/icons/icon.ico",
   },
   nsis: {
     // Per-user, no admin prompt, so an update can replace it in place.
