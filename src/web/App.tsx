@@ -5775,6 +5775,10 @@ function Inner() {
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
+          /* Only where the server would do it: an unsupervised deck answers
+             501 and one without a writable log 409, and the button is not
+             offered for either (#1163). */
+          onRestart={version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those
