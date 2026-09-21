@@ -17,7 +17,7 @@ import { createBeacon, DISCOVERY_PORT } from "../../server/lan-socket.mjs";
 import { accountKey, fingerprint, hostId, identityFrom, notePeer, PRESENT_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { createEngine } from "../../server/lan-engine.mjs";
-import { tailscaleNote } from "../components/LanSetupModal";
+import { tailscaleDetail } from "../components/LanSetupModal";
 
 // ── the status document ─────────────────────────────────────────────────────
 
@@ -410,16 +410,15 @@ describe("with the Tailscale switch off", () => {
   }, 20_000);
 });
 
-describe("the line under the switches", () => {
+describe("the line under Look for my devices", () => {
   const base = { found: true, state: "Running", running: true, on: false, ask: true, accept: true, login: "owner@example.com", addr: "100.101.1.1", devices: 2 };
-  it("names the account whose machines count", () => {
-    expect(tailscaleNote(base)).toMatch(/signed in to owner@example\.com/);
-    expect(tailscaleNote({ ...base, on: true })).toMatch(/^2 of your devices are online, signed in to owner@example\.com\./);
-    expect(tailscaleNote({ ...base, on: true, devices: 1 })).toMatch(/^1 of your devices is online,/);
+  it("names the account whose machines count, and how many are online once it looks", () => {
+    expect(tailscaleDetail(base)).toBe("owner@example.com");
+    expect(tailscaleDetail({ ...base, on: true })).toBe("2 online · owner@example.com");
   });
   it("says why nothing is found while Tailscale is not connected", () => {
-    expect(tailscaleNote({ ...base, running: false, state: "Stopped" })).toMatch(/turned off/);
-    expect(tailscaleNote({ ...base, running: false, state: "NeedsLogin" })).toMatch(/signed out/);
+    expect(tailscaleDetail({ ...base, running: false, state: "Stopped" })).toBe("Tailscale is turned off on this machine");
+    expect(tailscaleDetail({ ...base, running: false, state: "NeedsLogin" })).toMatch(/signed out/);
   });
 });
 

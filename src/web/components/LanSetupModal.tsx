@@ -48,7 +48,13 @@
 // network sit under it once it is, on by default like those. They are a second
 // pair rather than the first pair reused because the audience differs: here
 // they only ever answer for machines signed in to this person's own Tailscale
-// account, and the line under them names that account.
+// account.
+//
+// NO PARAGRAPH UNDER IT EITHER, for the reason the pairing switches lost
+// theirs. What the reader needs is one fact the labels cannot say — WHICH
+// account's machines count, and how many are there — and that is a quiet line
+// under the switch's own label. The heading already says Tailscale, so the
+// labels do not say it again.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
@@ -58,21 +64,20 @@ import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus, LanTailscale } from "./LanSyncSection";
 
 /**
- * The one line under the Tailscale switches: what the tailnet looks like from
- * here, and whose machines count. Exported for the suite.
+ * The line under "Look for my devices": whose devices those are, and how many
+ * are online once it is looking — or why it cannot look. Exported for the
+ * suite.
  */
-export function tailscaleNote(ts: LanTailscale): string {
+export function tailscaleDetail(ts: LanTailscale): string {
   if (!ts.running) {
     const why = ts.state === "Stopped" ? "turned off"
       : ts.state === "NeedsLogin" || ts.state === "NeedsMachineAuth" ? "signed out"
       : ts.state === "Starting" ? "still starting"
       : "not answering";
-    return `Tailscale is ${why} on this machine. Your devices are found once it is connected.`;
+    return `Tailscale is ${why} on this machine`;
   }
-  const whose = ts.login ? `signed in to ${ts.login}` : "on your own Tailscale account";
-  if (!ts.on) return `Finds the decks on your machines ${whose}, wherever they are. Nobody else on the tailnet is asked.`;
-  const count = ts.devices === 1 ? "1 of your devices is" : `${ts.devices} of your devices are`;
-  return `${count} online, ${whose}. Nobody else on the tailnet is asked.`;
+  const whose = ts.login ?? "your Tailscale account";
+  return ts.on ? `${ts.devices} online · ${whose}` : whose;
 }
 
 export default function LanSetupModal({ status, accounts, onClose, onChanged }: {
@@ -388,13 +393,17 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
               <h3 className="lan-h">Tailscale</h3>
               <div className="lan-switches">
                 <div className="lan-switch">
-                  <span className="lan-switch-what">Look for my devices over Tailscale</span>
+                  <span className="lan-switch-what">
+                    Look for my devices
+                    <span id="lan-ts-detail" className="lan-switch-detail">{tailscaleDetail(ts)}</span>
+                  </span>
                   <button
                     type="button"
                     className="switch ap-auto-state"
                     role="switch"
                     aria-checked={tsOn}
                     aria-label="Look for my devices over Tailscale"
+                    aria-describedby="lan-ts-detail"
                     {...pressProps("tailscale")}
                     onClick={() => void write(
                       { tailscale: !tsOn },
@@ -403,7 +412,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     )}
                     title={tsOn
                       ? "Stop. Nothing is looked for or answered over the tailnet; decks already paired stay paired."
-                      : "Find the decks on your other machines on Tailscale, wherever they are — home, office, on the road."}
+                      : "Find the decks on your other machines on Tailscale, wherever they are. Only machines signed in to your Tailscale account are asked."}
                   >
                     <span className="switch-knob" />
                   </button>
@@ -411,7 +420,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 {tsOn && (
                   <>
                     <div className="lan-switch">
-                      <span className="lan-switch-what">Ask each of my devices it finds</span>
+                      <span className="lan-switch-what">Ask each device it finds</span>
                       <button
                         type="button"
                         className="switch ap-auto-state"
@@ -432,7 +441,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       </button>
                     </div>
                     <div className="lan-switch">
-                      <span className="lan-switch-what">Say yes to my devices when they ask</span>
+                      <span className="lan-switch-what">Say yes to each device that asks</span>
                       <button
                         type="button"
                         className="switch ap-auto-state"
@@ -457,7 +466,6 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   </>
                 )}
               </div>
-              <p className="lan-note">{tailscaleNote(ts)}</p>
             </div>
           )}
         </section>
