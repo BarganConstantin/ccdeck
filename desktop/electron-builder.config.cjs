@@ -65,4 +65,15 @@ module.exports = {
     category: "Development",
     maintainer: "ccdeck <https://ccdeck.dev>",
   },
+  deb: {
+    // electron-builder's own list, plus the ALSA library it leaves out: Ubuntu
+    // 24.04 renamed it libasound2t64, and without it the app does not start at
+    // all ("libasound.so.2: cannot open shared object file"), which a clean
+    // 24.04 container showed on the first install. Either name satisfies it.
+    depends: [
+      "libgtk-3-0", "libnotify4", "libnss3", "libxss1", "libxtst6", "xdg-utils",
+      "libatspi2.0-0", "libuuid1", "libsecret-1-0", "libgbm1",
+      "libasound2t64 | libasound2",
+    ],
+  },
 };
