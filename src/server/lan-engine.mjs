@@ -347,6 +347,10 @@ export function createEngine({
    * is the evidence, and it is the same kind the beacon gives: a timestamp.
    */
   const spokeAt = new Map();
+  /** And the address it spoke FROM, so a deck that only ever calls in can
+   *  still be said to come over the tailnet or the local network — it has no
+   *  address of its own here, and without this its row could not say which. */
+  const spokeFrom = new Map();
   /**
    * When a connection from ANOTHER MACHINE last arrived on the sync listener.
    *
@@ -456,7 +460,11 @@ export function createEngine({
   const serve = async (msg, ctx) => {
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
-    if (ctx?.peerFp) spokeAt.set(ctx.peerFp, now());
+    if (ctx?.peerFp) {
+      spokeAt.set(ctx.peerFp, now());
+      const from = String(ctx.sock?.remoteAddress ?? "").replace(/^::ffff:/, "");
+      if (from) spokeFrom.set(ctx.peerFp, from);
+    }
     try {
       if (msg.t === "manifest") {
         // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
@@ -1483,6 +1491,8 @@ export function createEngine({
               // and this is when. Undefined until it has, which is a row the
               // panel draws as unknown rather than as live.
               lastSeen: spokeAt.get(t.fp),
+              // Which way it called, once it has.
+              ...(spokeFrom.has(t.fp) ? { via: routeTo(spokeFrom.get(t.fp)) ? "tailscale" : "lan" } : {}),
               // AND WHAT IT SAID WHEN IT CALLED — its card, its list, and which
               // of those it is on. The card was kept and never handed over, so
               // the dialog said "it runs an older version" about a deck that

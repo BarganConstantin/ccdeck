@@ -1262,7 +1262,7 @@ function LanPeek({ anchorId, id, rows, onHold, onLet }: {
           {shown.map(r => (
             <span key={`${r.kind}:${r.fp}`} className="ap-peek-who">
               <i className="ap-nav-live" aria-hidden />
-              <span>{r.name}</span>
+              <span>{r.name}{r.via === "tailscale" && <span className="ap-lan-via"> · Tailscale</span>}</span>
             </span>
           ))}
         </div>

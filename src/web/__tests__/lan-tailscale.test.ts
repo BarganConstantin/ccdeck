@@ -373,6 +373,23 @@ describe("the owner's own machines over Tailscale", () => {
   });
 });
 
+describe("a deck that only calls in", () => {
+  it("is said to come over Tailscale when that is the way it called", async () => {
+    // The row of a paired deck this one holds no address for — it calls, this
+    // one answers — had nothing to say which way the call came. It says what
+    // the call's own address says.
+    const a = await deck([], "Office", [], loopbackTailnet(true), { ...TS_ON, autoAccept: true });
+    const b = await deck([], "Home", [], null, {});
+    b.e.addPeer("127.0.0.1", a.e.status().port);
+    await b.e.round();
+    // Accepted, then its dial-back gone — the state after a settings write.
+    a.e.setPeers([]);
+    await b.e.round();
+    const row = (a.e.status().peers as Array<{ fp: string; waiting?: boolean; via?: string }>).find(p => p.fp === b.id.fp);
+    expect(row).toMatchObject({ waiting: true, via: "tailscale" });
+  }, 20_000);
+});
+
 describe("anybody else on the tailnet", () => {
   it("is listed and never asked or accepted unprompted", async () => {
     const a = await deck([], "Colleague", [], null, { autoAsk: false, autoAccept: false });
