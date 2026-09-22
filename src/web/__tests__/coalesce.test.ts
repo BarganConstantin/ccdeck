@@ -139,6 +139,44 @@ describe("createRenderCoalescer", () => {
     expect(h.rendersAt[0]! - at).toBeLessThan(REPLAY_COALESCE_MS);
   });
 
+  it("pulls a pending replay render earlier for a live event that follows a recent render", () => {
+    // The case above starts with nothing ever rendered, so `live()` takes the
+    // render-now branch and never meets the pending timer (#1173). After any
+    // render — `replay-end` flushes, so this is every deck once its replay has
+    // landed — a live event's deadline is the window after that render, and a
+    // replay debounce pending for later has to be cleared and re-set to it.
+    // Riding along instead would hold the live event for the full 120 ms, and
+    // each further replayed event would push it back again.
+    const h = harness();
+    h.coalescer.flush();
+    const t0 = h.now();
+    h.advance(1);
+    h.coalescer.replay();               // pending for t0 + 121
+    h.advance(4);
+    h.coalescer.live();                 // inside the window after t0's render
+    h.advance(REPLAY_COALESCE_MS * 2);
+    expect(h.rendersAt).toEqual([t0, t0 + LIVE_COALESCE_MS]);
+    expect(h.pending()).toBe(0);
+  });
+
+  it("still debounces a replay that arrives after the pulled-in render", () => {
+    // The pulled-in render drew the replayed event with the live one, so there
+    // is nothing owed at t0 + 121. A replay after it gets its own debounce and
+    // one render at the end of it.
+    const h = harness();
+    h.coalescer.flush();
+    const t0 = h.now();
+    h.advance(1);
+    h.coalescer.replay();
+    h.advance(4);
+    h.coalescer.live();
+    h.advance(LIVE_COALESCE_MS - 5);
+    expect(h.rendersAt).toEqual([t0, t0 + LIVE_COALESCE_MS]);
+    h.coalescer.replay();
+    h.advance(REPLAY_COALESCE_MS * 2);
+    expect(h.rendersAt).toEqual([t0, t0 + LIVE_COALESCE_MS, t0 + LIVE_COALESCE_MS + REPLAY_COALESCE_MS]);
+  });
+
   it("flush renders at once and drops the scheduled render", () => {
     const h = harness();
     h.coalescer.replay();

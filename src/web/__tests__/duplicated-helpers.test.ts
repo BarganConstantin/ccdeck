@@ -210,8 +210,8 @@ function fmtCostLocal(usd: number): string {
     const cents = (usd * 100).toFixed(usd < 0.1 ? 1 : 0);
     if (Number(cents) < 100) return `${cents}¢`;
   }
-  if (usd < 100) return `$${usd.toFixed(2)}`;
-  if (usd < 10_000) return `$${usd.toFixed(0)}`;
+  if (usd < 100 && Number(usd.toFixed(2)) < 100) return `$${usd.toFixed(2)}`;
+  if (usd < 10_000 && Number(usd.toFixed(0)) < 10_000) return `$${usd.toFixed(0)}`;
   return `$${(usd / 1000).toFixed(1)}k`;
 }
 

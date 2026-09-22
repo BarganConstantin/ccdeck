@@ -496,3 +496,31 @@ describe("#444 — the neighbouring rules are untouched", () => {
     expect(state.toolIndex.get(toolKey("s3", "root-1"))?.agentId).toBe("s3");
   });
 });
+
+describe("a failure's preview is cut at 80 characters (#1173)", () => {
+  // `errorPreview` is the one line a failed call shows. Every assertion on it
+  // used a short message, so `shortPreview`'s cut had never run, for a string
+  // or for an object, which the reducer turns into JSON first.
+  function failed(response: unknown): string | undefined {
+    let state = sessionMidCall("sess-err", T0);
+    state = send(state, T0 + 2 * SEC, {
+      hook_event_name: "PostToolUseFailure", session_id: "sess-err", model: MODEL,
+      tool_name: "Task", tool_use_id: "tt", tool_response: response,
+    } as HookPayload);
+    return call(state, "sess-err", "tt").errorPreview;
+  }
+
+  it("keeps 79 characters of a longer message and marks the cut", () => {
+    expect(failed("e".repeat(200))).toBe("e".repeat(79) + "…");
+  });
+
+  it("keeps a message of exactly 80 characters as it is", () => {
+    expect(failed("f".repeat(80))).toBe("f".repeat(80));
+  });
+
+  it("cuts an object's JSON the same way", () => {
+    const preview = failed({ error: "x".repeat(200) })!;
+    expect(preview).toHaveLength(80);
+    expect(preview).toBe(`{"error":"${"x".repeat(69)}…`);
+  });
+});

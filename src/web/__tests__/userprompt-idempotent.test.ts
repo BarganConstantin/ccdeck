@@ -164,3 +164,27 @@ describe("UserPromptSubmit idempotence on the prompt list", () => {
     expect(state.agents.get(`${SESSION}::sub-1`)!.prompts).toEqual([]);
   });
 });
+
+describe("the opening prompt a card shows is cut at 120 characters (#1173)", () => {
+  // `firstPrompt` is what the card, the session list and SessionSummary print
+  // as the session's opening words, and it is kept for the agent's lifetime.
+  // Every assertion on it used a short prompt, so the cut had never run: it
+  // could drop the ellipsis, go one character over, or keep a pasted
+  // multi-kilobyte prompt whole, with nothing going red.
+  it("keeps 119 characters of a longer prompt and marks the cut", () => {
+    let state = start();
+    state = prompt(state, "x".repeat(300), T0 + 10);
+    const root = state.agents.get(SESSION)!;
+    expect(root.firstPrompt).toHaveLength(120);
+    expect(root.firstPrompt).toBe("x".repeat(119) + "…");
+    // The turn itself is recorded whole; only the preview is cut.
+    expect(root.prompts[0].text).toHaveLength(300);
+  });
+
+  it("keeps a prompt of exactly 120 characters as it is", () => {
+    let state = start();
+    const exact = "y".repeat(120);
+    state = prompt(state, exact, T0 + 10);
+    expect(state.agents.get(SESSION)!.firstPrompt).toBe(exact);
+  });
+});

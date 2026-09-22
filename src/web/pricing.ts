@@ -652,8 +652,17 @@ export function fmtCost(usd: number): string {
     const cents = (usd * 100).toFixed(usd < 0.1 ? 1 : 0);
     if (Number(cents) < 100) return `${cents}¢`;
   }
-  if (usd < 100) return `$${usd.toFixed(2)}`;
-  if (usd < 10_000) return `$${usd.toFixed(0)}`;
+  // The same carry at the next two boundaries (#1173): $99.995 rounds to
+  // "100.00" where the next tier prints "$100", and $9,999.50 to "10000" where
+  // it prints "$10.0k". Same fix as the cents: judge the rounded string.
+  if (usd < 100) {
+    const dollars = usd.toFixed(2);
+    if (Number(dollars) < 100) return `$${dollars}`;
+  }
+  if (usd < 10_000) {
+    const whole = usd.toFixed(0);
+    if (Number(whole) < 10_000) return `$${whole}`;
+  }
   return `$${(usd / 1000).toFixed(1)}k`;
 }
 

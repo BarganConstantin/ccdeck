@@ -364,6 +364,60 @@ describe("the by-model breakdown shows both models, not just the last one", () =
   });
 });
 
+describe("a bucket that produced nothing is not a model the card names (#1173)", () => {
+  // `agentModelIds` is what the chip's "+N", its tooltip and `spansModels` are
+  // built on, and it skips two kinds of entry: one with no model, and one whose
+  // four token classes sum to zero. Every bucket in the cases above carries
+  // tokens, so neither skip had ever run. Both reach it for real. The server's
+  // `subagents/` merge (`mergeUsageByModel`) keeps a zero bucket the main
+  // transcript's read would have filtered, and `usageByModelFromWire` passes
+  // it through. And the remainder `usageByModelEntries` prices at the agent's
+  // own model has no model at all when the agent has none. Either one, counted,
+  // is "Opus 5 +1" over a model that cost nothing: #686's misreading, small.
+  it("drops an all-zero bucket from the list, from the +N and from the spans test", () => {
+    const root = {
+      model: SONNET,
+      usage: u(1_010, 110),
+      usageByModel: { [OPUS]: u(1_000, 100), [HAIKU]: u(0, 0), [SONNET]: u(10, 10) },
+    };
+    expect(agentModelIds(root)).toEqual([OPUS, SONNET]);
+    expect(otherModelIds(root)).toEqual([OPUS]);
+    expect(spansModels(root)).toBe(true);
+  });
+
+  it("does not read one real model and one empty bucket as two", () => {
+    const root = { model: OPUS, usage: u(1_000, 100), usageByModel: { [OPUS]: u(1_000, 100), [HAIKU]: u(0, 0) } };
+    expect(spansModels(root)).toBe(false);
+    expect(otherModelIds(root)).toEqual([]);
+  });
+
+  it("lists no undefined entry for the remainder of an agent with no model", () => {
+    // The flat total is larger than the split, and the remainder goes to the
+    // agent's own model, which is not known yet — a ModelObserved that has
+    // not landed. The entry is priced (as nothing) and must not be named.
+    const root = { model: undefined, usage: u(2_000, 200), usageByModel: { [OPUS]: u(1_000, 100) } };
+    expect(usageByModelEntries(root).map(e => e.model)).toEqual([OPUS, undefined]);
+    expect(agentModelIds(root)).toEqual([OPUS]);
+  });
+
+  it("drops the zero bucket a UsageObserved carries, end to end through the reducer", () => {
+    let state = applyEvent(initialState(), env({ hook_event_name: "SessionStart", session_id: "s3" }, 1));
+    state = applyEvent(state, env({
+      hook_event_name: "UsageObserved", session_id: "s3",
+      usage: { input_tokens: 5, output_tokens: 0 },
+      usageByModel: {
+        [HAIKU]: { input_tokens: 0, output_tokens: 0 },
+        [OPUS]: { input_tokens: 5 },
+      },
+    }, 2));
+    const root = state.agents.get("s3")!;
+    // The reducer keeps the empty bucket: it describes the file as the scan
+    // read it. Leaving it out is the reader's job.
+    expect(Object.keys(root.usageByModel!)).toEqual([HAIKU, OPUS]);
+    expect(agentModelIds(root)).toEqual([OPUS]);
+  });
+});
+
 describe("what the split does not explain still costs money", () => {
   it("prices the remainder at the agent's current model rather than dropping it", () => {
     // A finished `Task` folds its subagent's tokens into its owner's flat
