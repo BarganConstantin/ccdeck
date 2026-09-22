@@ -33,6 +33,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
     // Named rather than counted, so a dialog that moves into a panel shows up
     // here as a change to read, not as the sweep below quietly growing.
     expect(nested.map(([name]) => name).sort()).toEqual([
+      "AccountProjectsModal",
       "AddAccountDialog",
       "GuideModal",
       "LanAddDeckModal",

@@ -6065,8 +6065,47 @@ async function handleClaudeAccountSwitch(req, res) {
       pathToFileURL(join(PKG_ROOT, "src/server/quota.mjs")).href
     );
     invalidateQuotaCache();
+    // Note who became active, and when, for the account-projects report. Best
+    // effort — a failed log write must never fail the switch — so it is not
+    // awaited into the response.
+    import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href)
+      .then(({ recordSwap }) => recordSwap(parsed.account, "manual"))
+      .catch(() => {});
   }
   send(res, result.ok ? 200 : 400, result);
+}
+
+// The account-projects rollup, started once and shared. Its timer is unref'd
+// inside start(), so holding the instance here never keeps the process alive.
+let _projectRollup = null;
+function getProjectRollup() {
+  if (!_projectRollup) {
+    _projectRollup = import(pathToFileURL(join(PKG_ROOT, "src/server/account-projects.mjs")).href)
+      .then(m => { const r = m.createProjectRollup(); r.start().catch(() => {}); return r; });
+  }
+  return _projectRollup;
+}
+
+/**
+ * The "Projects" report for one account: how many tokens it spent per project
+ * over a window. The server tallies only tokens (per model); the web side
+ * prices them with its own table, so cost never lives in two places. `num` is
+ * the account's slot, resolved to its `(email, org)` key here; `days` is 7, 30,
+ * or 0 for all tracked.
+ */
+async function handleAccountProjects(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const num = Number(url.searchParams.get("num"));
+  const d = Number(url.searchParams.get("days"));
+  const days = d === 30 ? 30 : d === 0 ? 0 : 7;
+  if (!Number.isInteger(num) || num <= 0) return send(res, 400, { ok: false, reason: "bad_account" });
+  const { identityForSlot } = await import(pathToFileURL(join(PKG_ROOT, "src/server/swap-log.mjs")).href);
+  const id = await identityForSlot(num);
+  if (!id) return send(res, 400, { ok: false, reason: "bad_account" });
+  const { accountKey } = await import(pathToFileURL(join(PKG_ROOT, "src/server/lan-sync.mjs")).href);
+  const rollup = await getProjectRollup();
+  const report = await rollup.report(accountKey(id.email, id.orgUuid), days);
+  send(res, 200, { ok: true, ...report });
 }
 
 function cswapAdminModule() {
@@ -6181,6 +6220,12 @@ const PINNED_MODULES = [
   "macmon.mjs",
   "hwmonitor.mjs",
   "retire-sound-hook.mjs",
+  // The account-projects report: the rollup and the swap log its attribution
+  // reads, plus lan-sync for the account key — all reached only through
+  // import() from the report's route.
+  "account-projects.mjs",
+  "swap-log.mjs",
+  "lan-sync.mjs",
 ];
 
 let _pinned = null;
@@ -7127,6 +7172,9 @@ const GUARDED_READS = new Set([
   "/api/browser-watch",
   "/api/lan",
   "/api/prefs",
+  // Per-account, per-project token spend — the user's own work, the same class
+  // of secret as the accounts list it hangs off.
+  "/api/account-projects",
 ]);
 
 function isAuthorizedMutation(req) {
@@ -7483,6 +7531,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/browser-watch") return guard(handleBrowserWatch(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch") return guard(handleBrowserWatchSettings(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/browser-watch/dismiss") return guard(handleBrowserWatchDismiss(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/account-projects") return guard(handleAccountProjects(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/claude-accounts/switch") return guard(handleClaudeAccountSwitch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts/login")  return guard(handleAccountLoginState(req, res), res);
@@ -7603,6 +7652,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // being installed or upgraded underneath them (#1043) — null from every
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
+      // The account-projects rollup: fold Claude transcripts into a per-account,
+      // per-project token tally, incrementally. Claude only — it reads Claude
+      // transcripts — best effort, and its timer is unref'd so it never holds
+      // the process open.
+      if (claude) getProjectRollup().catch(() => {});
       return server;
     } catch (err) {
       lastErr = err;
