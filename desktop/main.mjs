@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
 import { navigationFor } from "./nav.mjs";
+import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,7 @@ let ownDeck = null;           // the deck process this app started, if it did
 let starting = null;          // the start in flight, so two clicks start one deck
 let restarting = null;        // since when a restart has been asked for, until a new deck answers
 let updater = null;           // updater.mjs, created once the app is ready
+let quietSince = null;        // since when nothing is running, waiting or open (#1187)
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -227,6 +229,15 @@ async function ensureDeck() {
  */
 async function restartDeck() {
   if (!deck || restarting) return;
+  // A RESTART THIS APP IS ALREADY DOING IS THE CHEAPEST MOMENT TO UPDATE
+  // (#1187). The person asked for the deck to go down and come back; taking
+  // the app through the same second, into the version already verified and
+  // staged, costs them nothing more and saves the trip through the menu.
+  if (updater?.state.status === "ready") {
+    trace(`restart takes the staged update ${updater.state.version}`);
+    updater.restartNow();
+    return;
+  }
   restarting = Date.now();
   scheduleRedraw();
   let asked = false;
@@ -481,22 +492,55 @@ app.whenReady().then(async () => {
   if (process.platform !== "darwin") tray.on("click", () => openWindow());
   updater = createUpdater({
     app,
-    onChange: s => { trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`); scheduleRedraw(); },
+    onChange: s => {
+      trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
+      scheduleRedraw();
+      // An update that lands while the app is already quiet does not wait for
+      // the next tick to be noticed.
+      updateWhenQuiet();
+    },
     log: trace,
   });
-  // A minute after start, then four times a day. Only a built app looks: a
+  // AT EVERY START, and then four times a day. An app that is opened, used and
+  // closed the same day would never have reached a check on a six-hour timer,
+  // and the owner asked for one that is on the current version without anybody
+  // remembering to look (#1187). Fifteen seconds in, so the check is behind the
+  // window and the deck rather than in front of them. Only a built app looks: a
   // development run has nothing to update into.
-  setTimeout(() => updater.check(), 60_000);
+  setTimeout(() => updater.check(), 15_000);
   setInterval(() => updater.check(), 6 * 60 * 60_000);
   await ensureDeck();
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
-  setInterval(() => { model?.tick(); scheduleRedraw(); }, 10_000);
+  setInterval(() => { model?.tick(); scheduleRedraw(); updateWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
   if (deck) openWindow();
   await firstRun();
   await offerToReplaceLoginItem().catch(err => trace(`login item check failed: ${err?.message ?? err}`));
 });
+
+/**
+ * Install a verified update by itself, once the app has been left alone long
+ * enough (#1187) — see auto-update.mjs for what "alone" means and why.
+ *
+ * Run on the same ten-second tick that redraws the tray, so the quiet is
+ * measured from the same snapshot the icon is drawn from rather than from a
+ * clock of its own.
+ */
+function updateWhenQuiet() {
+  const where = {
+    windowFocused: !!win && !win.isDestroyed() && win.isFocused(),
+    waiting: snapshot.waiting ?? 0,
+    running: snapshot.running ?? 0,
+    busy: !!starting || !!restarting,
+    now: Date.now(),
+  };
+  quietSince = quietSinceNext(quietSince, where);
+  if (!canInstallQuietly({ status: updater?.state.status ?? "idle", quietSince, ...where })) return;
+  trace(`installing ${updater.state.version} by itself after a quiet spell`);
+  quietSince = null;
+  updater.restartNow();
+}
 
 app.on("activate", () => openWindow());
 // A window closing never ends the app: it keeps the tray, and the deck keeps

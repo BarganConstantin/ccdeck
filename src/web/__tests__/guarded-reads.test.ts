@@ -55,7 +55,15 @@ const get = (path: string, headers: Record<string, string> = {}) =>
     });
     req.on("error", reject);
     // SSE never ends on its own; the status line is all this asks for.
-    req.setTimeout(4000, () => { req.destroy(); resolve_(0); });
+    //
+    // FIFTEEN SECONDS, AND IT IS NOT A HAPPY-PATH WAIT: the status line comes
+    // back as soon as the route answers, so this number is only what a hung
+    // request costs. Four was one of them on a Windows runner — reading
+    // /api/claude-accounts spawns claude-swap, and a cold spawn there is
+    // slower than a whole answer here — and a timeout that fires resolves 0,
+    // which reads as "the deck refused the page" rather than as "this test
+    // gave up". It failed that way twice on green branches.
+    req.setTimeout(15_000, () => { req.destroy(); resolve_(0); });
     req.end();
   });
 
@@ -99,7 +107,9 @@ describe("what the deck's own page can read", () => {
   for (const path of ["/api/events", "/api/claude-accounts", "/api/claude-accounts/login", "/api/browser-watch", "/api/lan", "/api/prefs"]) {
     it(`allows ${path} for a same-origin request addressed to loopback`, async () => {
       expect(await get(path, uiHeaders())).toBe(200);
-    });
+      // Above the suite's 20s default, because the accounts routes spawn
+      // claude-swap and a first spawn on a loaded Windows runner is slow.
+    }, 30_000);
   }
 
   it("answers the sign-in route with the dialog's own state, which is idle until somebody signs in", async () => {
