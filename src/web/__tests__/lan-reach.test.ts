@@ -207,6 +207,51 @@ describe("the verdict", () => {
   });
 });
 
+describe("when Windows will not say what rules it has", () => {
+  // Measured on a domain-managed box: Get-NetFirewallApplicationFilter throws
+  // "Access is denied" for the deck's own (ordinary) user, so the rule list
+  // comes back empty even though a rule is there. Empty read as "no rule" told
+  // the machine it had none and handed it a command that added one more each
+  // time — which is exactly what happened, three duplicate Private-only rules.
+  const exePath = "C:\\Users\\me\\AppData\\Local\\Programs\\ccdeck-desktop\\ccdeck.exe";
+  const denied = (over = {}) => readProbe(JSON.stringify({
+    nets: [{ alias: "Ethernet", category: "DomainAuthenticated", v4: "Internet" }],
+    profiles: [{ name: "Domain", enabled: true }, { name: "Private", enabled: true }, { name: "Public", enabled: true }],
+    rules: [],
+    rulesReadable: false,
+    bcast: "Ethernet",
+    ...over,
+  }));
+
+  it("carries whether the rules could be read, defaulting to yes for an older probe", () => {
+    expect(denied().rulesReadable).toBe(false);
+    expect(readProbe(JSON.stringify({ nets: [], profiles: [], rules: [] })).rulesReadable).toBe(true);
+  });
+
+  it("says nothing rather than claim a rule is missing it could not look for", () => {
+    // The honest fallback: refreshReach turns a null into the measured verdict.
+    expect(reachability({ platform: "win32", probe: denied(), aliases: [], exePath })).toBeNull();
+  });
+
+  it("still trusts a measured inbound over the unreadable rules", () => {
+    const v = reachability({ platform: "win32", probe: denied(), aliases: [], exePath, inbound: Date.now() });
+    expect(v).toMatchObject({ blocked: false, why: "inbound seen" });
+  });
+
+  it("still flags a Public network, whose category was read reliably", () => {
+    const pub = denied({ nets: [{ alias: "WiFi", category: "Public", v4: "Internet" }], bcast: "WiFi" });
+    const v = reachability({ platform: "win32", probe: pub, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true });
+    expect(v.text).toContain("Public");
+  });
+
+  it("still names a genuinely missing rule when the rules WERE readable", () => {
+    const readable = denied({ rulesReadable: true });
+    const v = reachability({ platform: "win32", probe: readable, aliases: [], exePath });
+    expect(v).toMatchObject({ blocked: true, why: "no inbound rule", category: "DomainAuthenticated" });
+  });
+});
+
 describe("the command somebody is asked to paste", () => {
   const exePath = "C:\\Program Files\\nodejs\\node.exe";
 
