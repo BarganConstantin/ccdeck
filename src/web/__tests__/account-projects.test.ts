@@ -123,6 +123,20 @@ describe("per-message attribution", () => {
     expect(a.unattributed["claude-opus-5"]).toEqual({ i: 7, o: 7, cr: 0, cc: 0, c1h: 0, c5m: 0 });
   });
 
+  it("slices the window by day for the chart, projects and unattributed apart", () => {
+    const early = [{ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }];
+    const tally: Record<string, unknown> = {};
+    foldLine(tally, line("2026-09-20T10:00:00Z", "claude-opus-5", "/p", 5, 0), early);
+    foldLine(tally, line("2026-09-21T10:00:00Z", "claude-opus-5", "/p", 8, 0), early);
+    foldLine(tally, line("2026-09-15T10:00:00Z", "claude-opus-5", "/q", 3, 0), early);   // before 7d
+    const rep = reportFrom(tally, early, KEY_A, 7, ISO("2026-09-22T12:00:00Z"));
+    const chartDays = rep.daily.map((d: { day: string }) => d.day);
+    expect(chartDays).not.toContain("2026-09-15");   // outside the window
+    const d20 = rep.daily.find((d: { day: string }) => d.day === "2026-09-20");
+    expect(d20.projects[0].models["claude-opus-5"].i).toBe(5);
+    expect(rep.daily.map((d: { day: string }) => d.day)).toEqual([...chartDays].sort());  // chronological
+  });
+
   it("reads the cache-creation TTL split and skips a zero-billed block", () => {
     expect(countersFrom({ input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4, cache_creation: { ephemeral_1h_input_tokens: 1, ephemeral_5m_input_tokens: 3 } }))
       .toEqual({ i: 1, o: 2, cr: 3, cc: 4, c1h: 1, c5m: 3 });

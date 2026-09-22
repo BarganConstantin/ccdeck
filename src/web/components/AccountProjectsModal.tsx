@@ -19,12 +19,18 @@ import { useModalDismiss } from "./use-modal-dismiss";
 /** The compact per-model token counters the server sends. */
 interface Counters { i: number; o: number; cr: number; cc: number; c1h: number; c5m: number }
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
+interface DailyEntry {
+  day: string;
+  projects: Array<{ path: string; models: Record<string, Counters> }>;
+  unattributed: Record<string, Counters> | null;
+}
 interface Report {
   ok?: boolean;
   trackedSince: number | null;
   days: number;
   projects: ProjectRow[];
   unattributed: Record<string, Counters> | null;
+  daily?: DailyEntry[];
 }
 
 /** The windows, and their chip labels. 0 = everything tracked. */
@@ -96,10 +102,10 @@ function niceDate(ms: number | null): string {
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
   const [days, setDays] = useState(7);
   const [report, setReport] = useState<Report | null>(null);
-  // ccusage's per-model cost for the window, the dollar authority we anchor to.
-  // Null while loading or when ccusage could not be reached (then pricing.ts
-  // stands in). A Map from model id to its window cost.
-  const [ccByModel, setCcByModel] = useState<Map<string, number> | null>(null);
+  // The raw ccusage range for the window — the dollar authority. Null while
+  // loading or when ccusage could not be reached (then pricing.ts stands in).
+  // Per-model and per-day-per-model costs are derived from it in the memo.
+  const [ccRange, setCcRange] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -127,27 +133,41 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
         if (id !== reqId.current) return;
         setReport(j);
         const range = u as { ok?: unknown } | null;
-        if (range && range.ok !== false) {
-          const m = new Map<string, number>();
-          for (const row of modelRows(range)) m.set(row.model, row.cost);
-          setCcByModel(m);
-        } else setCcByModel(null);
+        setCcRange(range && range.ok !== false ? range : null);
         setLoading(false);
       })
       .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setLoading(false); } });
   }, [num, days]);
 
-  // Price, sort, disambiguate colliding basenames, and collapse the tail.
+  // Price, sort, disambiguate colliding basenames, collapse the tail, and slice
+  // the window by day for the chart.
   const view = useMemo(() => {
     const now = Date.now();
     if (!report) return null;
 
-    // The dollar scale per model: ccusage's window cost over our pricing.ts
-    // cost for the same model, so each model's total lands on ccusage exactly.
-    // Codex never enters — our tally holds only Claude models, and only those
-    // are looked up.
+    // ccusage's cost, the dollar authority, both over the whole window (for the
+    // list) and per day-and-model (for the chart). Codex never enters — our
+    // tally holds only Claude models, and only those are ever looked up.
+    const ccByModel = new Map<string, number>();
+    const ccByDayModel = new Map<string, number>();
+    if (ccRange) {
+      for (const row of modelRows(ccRange)) ccByModel.set(row.model, row.cost);
+      const daysArr = Array.isArray((ccRange as { days?: unknown }).days) ? (ccRange as { days: Array<Record<string, unknown>> }).days : [];
+      for (const d of daysArr) {
+        const period = typeof d.period === "string" ? d.period : "";
+        const mbs = Array.isArray(d.modelBreakdowns) ? (d.modelBreakdowns as Array<Record<string, unknown>>) : [];
+        for (const b of mbs) {
+          const mn = typeof b.modelName === "string" ? b.modelName : "";
+          const cost = typeof b.cost === "number" ? b.cost : 0;
+          if (mn && period) ccByDayModel.set(`${period}|${mn}`, (ccByDayModel.get(`${period}|${mn}`) ?? 0) + cost);
+        }
+      }
+    }
+
+    // Per-model scale over the window: ccusage cost over our pricing.ts cost, so
+    // each model's total lands on ccusage exactly. Used for the list.
     const scale = new Map<string, number>();
-    if (ccByModel) {
+    {
       const ourByModel = new Map<string, number>();
       const add = (models: Record<string, Counters>) => {
         for (const [m, c] of Object.entries(models)) ourByModel.set(m, (ourByModel.get(m) ?? 0) + costForUsage(toUsage(c), m, now).total);
@@ -174,33 +194,64 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       return parent ? `${parent}/${p.name}` : p.name;
     };
 
+    const otherColor = PALETTE[MAX_ROWS % PALETTE.length];
+    const colorForPath = new Map<string, string>();   // head projects keep their colour in the chart
     const rows: Priced[] = [];
     const head = priced.slice(0, MAX_ROWS);
     const tail = priced.slice(MAX_ROWS);
-    head.forEach((r, i) => rows.push({
-      key: r.p.path, label: labelFor(r.p), title: r.p.path,
-      cost: r.cost, tokens: r.tokens, color: PALETTE[i % PALETTE.length],
-    }));
+    head.forEach((r, i) => {
+      colorForPath.set(r.p.path, PALETTE[i % PALETTE.length]);
+      rows.push({ key: r.p.path, label: labelFor(r.p), title: r.p.path, cost: r.cost, tokens: r.tokens, color: PALETTE[i % PALETTE.length] });
+    });
     if (tail.length) {
       rows.push({
         key: "__other__",
         label: `Other · ${tail.length} project${tail.length > 1 ? "s" : ""}`,
         cost: tail.reduce((s, r) => s + r.cost, 0),
         tokens: tail.reduce((s, r) => s + r.tokens, 0),
-        color: PALETTE[MAX_ROWS % PALETTE.length],
+        color: otherColor,
         muted: true,
       });
     }
 
     const totalCost = rows.reduce((s, r) => s + r.cost, 0);
     const totalTokens = rows.reduce((s, r) => s + r.tokens, 0);
-    // The bar shares by cost, or by tokens when nothing here is priced.
     const basis = totalCost > 0 ? "cost" : "tokens";
     const denom = basis === "cost" ? totalCost : totalTokens;
-
     const un = report.unattributed ? priceModels(report.unattributed, scale, now) : null;
-    return { rows, totalCost, totalTokens, basis, denom, un, reconciled };
-  }, [report, ccByModel]);
+
+    // The per-day chart: each day a stacked column, its height the day's total,
+    // segments the same project colours as the list. Dollars reconciled per
+    // (day, model) to ccusage's own daily breakdown — the tightest anchor there
+    // is — falling back to the window scale, then pricing.ts.
+    const colorOrder = rows.map(r => r.color);
+    const chart = (report.daily ?? []).map(d => {
+      // This day's scale, per model.
+      const dayScale = new Map<string, number>();
+      const ourDayModel = new Map<string, number>();
+      const addDay = (models: Record<string, Counters>) => {
+        for (const [m, c] of Object.entries(models)) ourDayModel.set(m, (ourDayModel.get(m) ?? 0) + costForUsage(toUsage(c), m, now).total);
+      };
+      for (const p of d.projects) addDay(p.models);
+      if (d.unattributed) addDay(d.unattributed);
+      for (const [m, our] of ourDayModel) {
+        const cc = ccByDayModel.get(`${d.day}|${m}`) ?? ccByDayModel.get(`${d.day}|${bareModelId(m)}`);
+        dayScale.set(m, cc != null && our > 0 ? cc / our : (scale.get(m) ?? 1));
+      }
+      const costByColor = new Map<string, number>();
+      for (const p of d.projects) {
+        const color = colorForPath.get(p.path) ?? otherColor;
+        let cost = 0;
+        for (const [m, c] of Object.entries(p.models)) cost += costForUsage(toUsage(c), m, now).total * (dayScale.get(m) ?? 1);
+        costByColor.set(color, (costByColor.get(color) ?? 0) + cost);
+      }
+      const total = [...costByColor.values()].reduce((s, v) => s + v, 0);
+      return { day: d.day, total, costByColor };
+    });
+    const maxDay = chart.reduce((m, d) => Math.max(m, d.total), 0);
+
+    return { rows, totalCost, totalTokens, basis, denom, un, reconciled, chart, maxDay, colorOrder };
+  }, [report, ccRange]);
 
   const trackedNote = report?.trackedSince
     ? `Tracked since ${niceDate(report.trackedSince)}`
@@ -260,6 +311,30 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     <span className="ap-proj-total-tok">{fmtTokens(view.totalTokens)} tokens</span>
                     <span className="ap-proj-total-win">· {windowWord}</span>
                   </div>
+
+                  {view.chart.length > 0 && (
+                    <div className="ap-proj-days">
+                      <div className="ap-proj-days-cap">By day</div>
+                      <div className="ap-proj-days-plot" role="img"
+                        aria-label={`Spend across ${view.chart.length} day${view.chart.length > 1 ? "s" : ""}`}>
+                        {view.chart.map(d => {
+                          const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;
+                          return (
+                            <div key={d.day} className="ap-proj-day" title={`${d.day} · ${fmtCost(d.total)}`}>
+                              <div className="ap-proj-col" style={{ height: `${h}%` }}>
+                                {view.colorOrder.map((color, k) => {
+                                  const c = d.costByColor.get(color) ?? 0;
+                                  if (c <= 0 || d.total <= 0) return null;
+                                  return <span key={k} className="ap-proj-colseg"
+                                    style={{ height: `${(c / d.total) * 100}%`, background: color }} />;
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <ul className="ap-proj-list">
                     {view.rows.map(r => {

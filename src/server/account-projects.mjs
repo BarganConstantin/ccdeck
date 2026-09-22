@@ -256,7 +256,40 @@ export function reportFrom(tally, timeline, key, days, now = Date.now()) {
     days: days || 0,
     projects,
     unattributed: unAny ? unModels : null,
+    daily: dailyFrom(tally, key, cutoff),
   };
+}
+
+/**
+ * The same window, sliced by day, for the per-day chart: for each day that has
+ * work, the per-project and the unattributed model counters. The unattributed
+ * bucket is kept per day too — not to draw it, but so the client can reconcile
+ * each day to ccusage over a complete denominator.
+ */
+export function dailyFrom(tally, key, cutoff) {
+  const byDay = new Map();
+  const slot = day => { let s = byDay.get(day); if (!s) { s = { projects: {}, un: {} }; byDay.set(day, s); } return s; };
+  for (const [cwd, daysMap] of Object.entries(tally[key] ?? {})) {
+    for (const [day, models] of Object.entries(daysMap)) {
+      if (cutoff && day < cutoff) continue;
+      const dst = (slot(day).projects[cwd] ??= {});
+      for (const [m, c] of Object.entries(models)) addInto(dst[m] ??= zero(), c);
+    }
+  }
+  for (const daysMap of Object.values(tally[UNATTRIBUTED] ?? {})) {
+    for (const [day, models] of Object.entries(daysMap)) {
+      if (cutoff && day < cutoff) continue;
+      const un = slot(day).un;
+      for (const [m, c] of Object.entries(models)) addInto(un[m] ??= zero(), c);
+    }
+  }
+  return [...byDay.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([day, s]) => ({
+      day,
+      projects: Object.entries(s.projects).map(([path, models]) => ({ path, models })),
+      unattributed: Object.keys(s.un).length ? s.un : null,
+    }));
 }
 
 /**

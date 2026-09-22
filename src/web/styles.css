@@ -14040,3 +14040,12 @@ input, textarea { caret-color: var(--accent); }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
   .ap-proj-track { display: none; }
 }
+
+/* Per-day chart in the Projects report: a stacked column per day, coloured by
+   project like the list, its height the day's reconciled total. */
+.ap-proj-days { margin: 14px 0 4px; }
+.ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ap-proj-days-plot { display: flex; align-items: flex-end; gap: 2px; height: 64px; }
+.ap-proj-day { flex: 1 1 0; min-width: 3px; height: 100%; display: flex; align-items: flex-end; }
+.ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
+.ap-proj-colseg { width: 100%; display: block; }
