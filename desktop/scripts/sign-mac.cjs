@@ -54,6 +54,15 @@ module.exports = async function signMac(context) {
   const app = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
 
   if (!existsSync(certPath) || !existsSync(keyPath)) {
+    // A certificate somebody NAMED that is not there is a broken setup, not a
+    // build without one: CI names both only once it has written them. Signing
+    // ad-hoc instead would ship an app whose requirement is its own hash —
+    // which refuses every later update at check 4, and loses its notification
+    // permission — with nothing but a warning in the log (#1176). A build that
+    // names none, a fork's pull request or a local pack, is still ad-hoc.
+    if (process.env.CCDECK_SIGNING_CERT || process.env.CCDECK_SIGNING_KEY) {
+      throw new Error(`ccdeck: CCDECK_SIGNING_CERT / CCDECK_SIGNING_KEY name ${certPath} and ${keyPath}, and ${existsSync(certPath) ? keyPath : certPath} does not exist`);
+    }
     console.warn(`  • ccdeck: no signing certificate at ${certPath}; the app stays ad-hoc signed and macOS will forget its permissions on every build`);
     return;
   }
