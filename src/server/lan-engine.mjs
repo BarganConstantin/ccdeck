@@ -368,6 +368,13 @@ export function createEngine({
    *  still be said to come over the tailnet or the local network — it has no
    *  address of its own here, and without this its row could not say which. */
   const spokeFrom = new Map();
+  /** Addresses this deck added because a paired deck called in from them and
+   *  nothing here dialled it — see learnCaller. Kept until a round proves the
+   *  address answers: one that does is an ordinary dialled peer from then on
+   *  and leaves this set; one that does not is a caller this deck cannot reach
+   *  back (a strict NAT, a one-way path), and its row is taken away again so it
+   *  reverts to "calls in" rather than failing every round. */
+  const calledBack = new Set();
   /**
    * When a connection from ANOTHER MACHINE last arrived on the sync listener.
    *
@@ -474,13 +481,59 @@ export function createEngine({
    *  connection's — see sessionKey. `ctx.send` seals whatever it is handed when
    *  both ends said they seal, so nothing below has to know which kind of deck
    *  asked — see frameChannel. */
+  /** Does this deck already hold an address it dials for `fp`? A beacon row it
+   *  still hears, or a typed/learned row that answered as that deck. When
+   *  neither is true, the only way it ever reaches that deck is if the deck
+   *  keeps calling — and a called deck is never pulled from. */
+  const dialsAlready = fp => {
+    if (beacon && [...beacon.peers.values()].some(p => p.fp === fp && stillListed(p, now()))) return true;
+    for (const [at, met] of learned) if (met?.fp === fp && manual.has(at)) return true;
+    return false;
+  };
+
+  /**
+   * A PAIRED DECK THAT CALLS IN, AND NOTHING HERE DIALS IT.
+   *
+   * Accounts move only toward the deck that dials — roundWith pulls, serve only
+   * answers — so a deck this one holds no address for can offer everything and
+   * this one takes nothing. It is the exact state a deck falls into when it
+   * cannot hear beacons (a firewall, or Tailscale holding the discovery port):
+   * every peer becomes one that only calls, and no account ever arrives.
+   *
+   * The call itself is the address. The peer connected FROM somewhere and said
+   * in its hello which port it LISTENS on, and that pair is dialable. Adding it
+   * makes the next round reach the caller and pull — the same dial-back that
+   * accepting a deck and joining by invite already do, extended to a peer that
+   * simply calls. In memory, like those two: a settings write clears it and the
+   * next call re-adds it, and nothing here writes an address to disk.
+   */
+  const learnCaller = ctx => {
+    const fp = ctx?.peerFp;
+    const at = ctx?.peerAddr;
+    const port = ctx?.peerPort;
+    if (!fp || !at || !port || !engine) return;
+    if (!trustedPeer(cfg.trusted, fp)) return;
+    if (dialsAlready(fp)) return;
+    // As a row the deck ADDED ITSELF, not one a person typed: capped like every
+    // other automatic row, and — through calledBack — taken away again if the
+    // address turns out not to answer. The caller is already trusted, so the
+    // round dials and pulls without a press; `typed` decides only the cap and
+    // the undo, never the trust. See roundWith.
+    if (engine.addPeer(at, port, { typed: false })) {
+      learned.set(`${at}:${port}`, { fp, name: trustedPeer(cfg.trusted, fp)?.name || "" });
+      calledBack.add(`${at}:${port}`);
+      onChange?.();
+    }
+  };
+
   const serve = async (msg, ctx) => {
     // Before the verbs, and for every one of them: something that proved it
     // holds a key this deck accepted is talking, now.
     if (ctx?.peerFp) {
       spokeAt.set(ctx.peerFp, now());
-      const from = String(ctx.sock?.remoteAddress ?? "").replace(/^::ffff:/, "");
+      const from = ctx.peerAddr || String(ctx.sock?.remoteAddress ?? "").replace(/^::ffff:/, "");
       if (from) spokeFrom.set(ctx.peerFp, from);
+      learnCaller(ctx);
     }
     try {
       if (msg.t === "manifest") {
@@ -654,6 +707,10 @@ export function createEngine({
       // from then on, because "Constantin-PC" is what the person who typed the
       // address was trying to reach.
       learned.set(`${peer.addr}:${peer.port}`, { fp: conn.peerFp, name: conn.peerName || "" });
+      // A DIAL-BACK THAT ANSWERED IS AN ORDINARY PEER NOW. It was on trial only
+      // until it proved the deck can reach it; from here it is dialled like any
+      // other and is no longer a candidate for the undo below. See learnCaller.
+      calledBack.delete(`${peer.addr}:${peer.port}`);
 
       // TRUST ON FIRST USE, AND ONLY FOR AN ADDRESS SOMEBODY NAMED. Reaching a
       // deck we have no pin for used to mean the person at this keyboard put
@@ -782,6 +839,20 @@ export function createEngine({
       return done;
     } catch (err) {
       lastRound.set(peer.fp, { at: now(), name: peer.name, error: err.message });
+      // A DIAL-BACK THAT NEVER ANSWERED IS TAKEN AWAY AGAIN. The address came
+      // from a paired deck's inbound call, and this round was the test of
+      // whether the call can be returned. It could not — a strict NAT, a
+      // one-way path — so the row is removed rather than left to fail every
+      // minute, and the peer goes back to "calls in". Its next call tries once
+      // more. A row that answered has already left calledBack above.
+      const at = `${peer.addr}:${peer.port}`;
+      if (calledBack.has(at)) {
+        calledBack.delete(at);
+        manual.delete(at);
+        learned.delete(at);
+        lastRound.delete(peer.fp);
+        onChange?.();
+      }
       return [];
     } finally {
       conn?.sock?.destroy();

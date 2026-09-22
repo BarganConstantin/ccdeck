@@ -964,23 +964,52 @@ describe("which account a paired deck is on", () => {
     expect(peerRow(a, b.id.fp)?.offers?.current).toEqual({ hidden: true });
   }, 20_000);
 
-  it("is heard from a deck that only calls in, with its list and its card", async () => {
+  it("learns a paired caller's address and pulls from it, though nothing here dialled first", async () => {
+    // Accounts move only toward the deck that dials, so a deck this one holds
+    // no address for could offer everything and this one would take nothing —
+    // the exact state a deck falls into when it cannot hear beacons (a firewall,
+    // or Tailscale holding the discovery port). The call carries the address:
+    // this deck learns it and dials back, so a pull happens in the direction it
+    // could not start on its own.
     const MAC = { version: "3.23.0", os: "macOS 26.5", arch: "arm64" };
     const a = await deck(store(rows("on")), "Deck-A", [ON, OFF], { about: MAC });
-    const b = await deck(store([]), "Deck-B", []);
+    const sb = store([]);
+    const b = await deck(sb, "Deck-B", []);
+    // Paired both ways, so each answers the other.
     await point(a, b, b.port);
-    // Accepting dials back at the port A's hello carried; a deck behind a
-    // firewall or a VPN is one where that address never answers, which is
-    // what taking it away here stands for. B now holds no way to reach A.
+    await point(b, a, a.port);
+    // B loses its address for A — the state after a settings write, or a deck
+    // that can only ever be called. A now only calls in to B.
     b.e.setPeers([]);
+    // A calls in. B keeps the card and the offer it always did...
     await a.e.round();
-    // So to B, A is a deck that calls in, and everything B knows about it
-    // came with A's question.
-    const row = peerRow(b, a.id.fp);
-    expect(row?.waiting).toBe(true);
+    let row = peerRow(b, a.id.fp);
     expect(row?.about).toMatchObject(MAC);
     expect(row?.offers?.accounts.map((x: { key: string }) => x.key)).toEqual([OFF, ON].sort());
-    expect(row?.offers?.current).toEqual({ key: ON });
+    // ...and now learns A's address from the call, so it is no longer one-way.
+    expect(row?.waiting).not.toBe(true);
+    // The whole point: B dials A back and pulls the accounts it lacks, though
+    // nothing on B ever dialled A first.
+    await b.e.round();
+    expect(sb.imported.length).toBeGreaterThan(0);
+  }, 20_000);
+
+  it("drops a caller it cannot reach back, so it does not fail every round", async () => {
+    // The dial-back is on trial until it proves the deck can reach the caller.
+    // A strict NAT or a one-way path is a caller whose own listener never
+    // answers; the row is taken away rather than left failing, and the peer
+    // goes back to calling in.
+    const a = await deck(store([]), "Deck-A", []);
+    const b = await deck(store([]), "Deck-B", []);
+    // Paired both ways.
+    await point(a, b, b.port);
+    await point(b, a, a.port);
+    b.e.setPeers([]);           // B loses A; A only calls in
+    await a.e.round();          // A calls B → B learns A's address (on trial)
+    expect(peerRow(b, a.id.fp)?.waiting).not.toBe(true);
+    a.e.stop();                 // the address B learned no longer answers
+    await b.e.round();          // B dials back, fails → the trial row is removed
+    expect(peerRow(b, a.id.fp)?.waiting).toBe(true);
   }, 20_000);
 });
 
