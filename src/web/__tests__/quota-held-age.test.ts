@@ -38,11 +38,19 @@ if (!inside(homedir())) throw new Error(`sandbox escaped: homedir ${homedir()}`)
 
 // claude-swap's store, as activeAccountUsage() answers it. Replaced entirely, so
 // no test here reads the real store and the age of the row is ours to choose.
-const { swap } = vi.hoisted(() => ({ swap: { entry: null as unknown, collections: 0 } }));
+// `entry` may be a function of how many times the store has been read, which is
+// how a collection landing between two re-reads is spelled.
+const { swap } = vi.hoisted(() => ({
+  swap: { entry: null as unknown, collections: 0, reads: 0, collects: false },
+}));
 vi.mock("../../server/claude-accounts.mjs", () => ({
-  activeAccountUsage: async () => swap.entry,
-  // The collector declines — nothing in this file may touch the network.
-  requestCollection: async () => { swap.collections++; return false; },
+  activeAccountUsage: async () => {
+    swap.reads++;
+    return typeof swap.entry === "function" ? swap.entry(swap.reads) : swap.entry;
+  },
+  // The collector declines unless a case says it asked — nothing in this file
+  // may touch the network either way.
+  requestCollection: async () => { swap.collections++; return swap.collects; },
 }));
 
 // The `claude` CLI, which must never actually run. The seam is exec.mjs's `run`:
@@ -97,6 +105,8 @@ let mod: QuotaModule;
 beforeEach(async () => {
   swap.entry = null;
   swap.collections = 0;
+  swap.reads = 0;
+  swap.collects = false;
   cli.calls.length = 0;
   // What the CLI prints on the cold invocation this branch exists for: the
   // preamble that proves it ran, and not one quota line.
@@ -158,5 +168,66 @@ describe("a quota reading held through an empty `claude --print /usage`", () => 
     expect(cli.calls).toHaveLength(spent);
     expect(floored.fetchedAt).toBe(held.fetchedAt);
     expect(floored.stale).toBe(true);
+  });
+});
+
+// The refresh button's other route to fresher numbers, which every test that
+// drives fetchClaudeQuota had switched off by making requestCollection answer
+// false (#1169). A forced read whose store row is more than a minute old asks
+// claude-swap to collect and then re-reads the store — up to three times,
+// REREAD_GAP_MS apart — adopting the first row that is newer than the one it
+// started with. Broken, the button either hands back the old row every time or
+// never adopts the new one, and nothing about either looks like an error.
+//
+// The gaps are real `setTimeout`s, so they are faked here and only they are:
+// Date.now keeps running, which is what the rows' ages are measured against.
+describe("a refresh that asks claude-swap to collect", () => {
+  async function refresh(): Promise<Quota> {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      const pending = mod.fetchClaudeQuota({ force: true });
+      await vi.advanceTimersByTimeAsync(10_000);
+      return await pending;
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  it("adopts the row the collection wrote as soon as a re-read finds it", async () => {
+    const old = row(STORE_AGE);
+    const fresh = { ...row(5_000), lastGood: { ...old.lastGood, five_hour: { pct: 71, resets_at: "2026-08-14T18:00:00Z" } } };
+    swap.collects = true;
+    // The first read and the first re-read find the old row; the collection
+    // lands before the second re-read.
+    swap.entry = (reads: number) => (reads < 3 ? old : fresh);
+
+    const r = await refresh();
+    expect(r).toMatchObject({ ok: true, source: "claude-swap", session5hPct: 71, fetchedAt: fresh.fetchedAt });
+    expect(swap.reads, "the initial read and two re-reads, and no more once it had the row").toBe(3);
+    expect(cli.calls).toEqual([]);
+  });
+
+  it("gives up after three re-reads and serves what it had, with that row's own age", async () => {
+    // Inside STORE_TRUSTED_MS, so what it had is still claude-swap's answer
+    // and is served as one rather than marked stale; the point is that the
+    // loop ends and nothing is re-stamped on the way out.
+    const old = row(STORE_AGE);
+    swap.collects = true;
+    swap.entry = old;
+
+    const r = await refresh();
+    expect(swap.reads).toBe(4);
+    expect(r).toMatchObject({ ok: true, source: "claude-swap", session5hPct: 63, fetchedAt: old.fetchedAt });
+  });
+
+  it("does not re-read at all when claude-swap was not asked", async () => {
+    // Nothing was due, or the collector's throttle held the ask back: there is
+    // no newer row coming, and waiting 2.4 seconds for one is a stuck button.
+    swap.collects = false;
+    swap.entry = row(STORE_AGE);
+
+    await refresh();
+    expect(swap.collections).toBe(1);
+    expect(swap.reads).toBe(1);
   });
 });
