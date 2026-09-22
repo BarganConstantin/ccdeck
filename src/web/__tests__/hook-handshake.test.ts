@@ -51,6 +51,10 @@ async function listener(handler: (req: IncomingMessage, res: ServerResponse, see
   const server: Server = createServer((req, res) => {
     const entry: Seen = { method: req.method ?? "", path: req.url ?? "", body: "" };
     seen.push(entry);
+    // Decoded as a stream, so a character split across two TCP reads arrives
+    // whole: `+=` on raw Buffers would decode each one alone and put U+FFFD in
+    // the body before the hook's own decoding was ever in question.
+    req.setEncoding("utf8");
     req.on("data", c => { entry.body += c; });
     // The hook hangs up on some of the listeners below; an unhandled stream
     // error would then take the whole test worker down with it.
@@ -90,7 +94,7 @@ const EVENT = { cwd: process.cwd(), hook_event_name: "UserPromptSubmit", prompt:
  * config dir override pointed at a temp tree — the real ~/.claude is never read
  * or written by any of this, on any platform.
  */
-async function runHook(discovery: Record<string, unknown>) {
+async function runHook(discovery: Record<string, unknown>, event: Record<string, unknown> = EVENT) {
   const home = mkdtempSync(join(ROOT, "home-"));
   const dir = join(home, "agent-dag");
   mkdirSync(dir, { recursive: true });
@@ -100,7 +104,7 @@ async function runHook(discovery: Record<string, unknown>) {
     env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
     stdio: ["pipe", "ignore", "ignore"],
   });
-  child.stdin.end(JSON.stringify(EVENT));
+  child.stdin.end(JSON.stringify(event));
   await new Promise<void>((done, fail) => {
     child.on("error", fail);
     child.on("exit", () => done());
@@ -132,6 +136,47 @@ const discoveryFor = (port: number, token: string) => ({
   token,
   startedAt: new Date().toISOString(),
 });
+
+/** A registry of several records, kept so a second run sees what the first left. */
+function registryOf(records: Record<string, Record<string, unknown>>) {
+  const home = mkdtempSync(join(ROOT, "home-"));
+  const dir = join(home, "agent-dag");
+  mkdirSync(dir, { recursive: true });
+  for (const [name, record] of Object.entries(records)) {
+    writeFileSync(join(dir, name), JSON.stringify(record), "utf8");
+  }
+  return { home, dir };
+}
+
+/**
+ * Run the hook once against a registry from registryOf, optionally behind a
+ * `-r` preload — the way hook-budget.test.ts injects what this machine cannot
+ * produce on demand. Hands back the exit code and the wall time.
+ */
+async function fire(home: string, { preload }: { preload?: string } = {}) {
+  const args = [COPY, "--provider", "claude"];
+  if (preload) {
+    const file = join(home, "preload.cjs");
+    writeFileSync(file, preload, "utf8");
+    args.unshift("-r", file);
+  }
+  const t0 = Date.now();
+  const child = spawn(process.execPath, args, {
+    env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
+    stdio: ["pipe", "ignore", "ignore"],
+  });
+  child.stdin.end(JSON.stringify(EVENT));
+  const code = await new Promise<number | null>((done, fail) => {
+    child.on("error", fail);
+    child.on("exit", c => done(c));
+  });
+  return { code, wallMs: Date.now() - t0 };
+}
+
+// A numbered name, because the hook reads nothing else, and one that is not
+// the live record's name and does not contain it.
+const GHOST = `${process.pid}0.json`;
+const LIVE = `${process.pid}.json`;
 
 describe("the hook and the deck derive the same proof", () => {
   // hook.js cannot import from src/ — it runs standalone once installed — so the
@@ -192,6 +237,33 @@ describe("a deck that proves itself", () => {
     expect(nonces).toHaveLength(2);
     expect(nonces[0]).toBeTruthy();
     expect(nonces[0]).not.toBe(nonces[1]);
+  }, 10_000);
+
+  it("receives a prompt that crosses stdin's chunk boundaries character for character", async () => {
+    // Claude Code writes the event down a pipe, and the hook reads it in chunks
+    // of 64 KB or so, wherever those happen to fall. Around 360 KB of two-,
+    // three- and four-byte characters puts one across almost every boundary.
+    // hook.js decodes stdin as one UTF-8 stream (`setEncoding`), which holds a
+    // split sequence over to the next chunk; decoding each chunk alone — `+=` on
+    // the raw Buffers — turns both halves into U+FFFD. JSON.parse takes that
+    // without complaint, so nothing fails: the prompt is simply wrong on the
+    // canvas and in events.jsonl, and every replay draws it wrong again. Every
+    // other payload in the suite was small and ASCII.
+    const prompt = "é€🙂".repeat(40_000);
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    try {
+      await runHook(discoveryFor(deck.port, token), { ...EVENT, prompt });
+    } finally {
+      await deck.close();
+    }
+
+    const posts = deck.seen.filter(s => s.method === "POST");
+    expect(posts).toHaveLength(1);
+    const got = JSON.parse(posts[0].body).prompt as string;
+    expect(got.includes("\uFFFD"), "a character split across two chunks was decoded in halves").toBe(false);
+    // Compared as a boolean: a diff of two 120,000-character strings says less.
+    expect(got === prompt, "the prompt did not arrive as it was sent").toBe(true);
   }, 10_000);
 });
 
@@ -289,6 +361,82 @@ describe("a discovery file with no token at all", () => {
   }, 10_000);
 });
 
+/** A preload that makes signal 0 to `pid` fail with `code`, and leaves every other kill alone. */
+const killAnswers = (pid: number, code: string) => `
+const kill = process.kill;
+process.kill = function (pid, signal) {
+  if (pid === ${pid} && signal === 0) {
+    throw Object.assign(new Error("kill ${code}"), { code: ${JSON.stringify(code)} });
+  }
+  return kill.apply(process, arguments);
+};
+`;
+
+describe("a record whose pid is gone", () => {
+  // The one verdict here that DELETES something, and neither direction of it
+  // was asserted. The dead-pid case above checks only that the deck is told
+  // nothing, which a hook that no longer swept stale records passes too — and
+  // then every event pays to read and resolve every one of them again.
+  //
+  // The other direction is a pid this account may not signal, which is ALIVE.
+  // POSIX answers EPERM; Windows answers EACCES for a deck started elevated or
+  // under another account, the spelling libuv gives ERROR_ACCESS_DENIED. When
+  // EACCES read as dead, that deck's record was unlinked on every hook run and
+  // written back five seconds later by keepDiscovery, and the deck missed most
+  // events while its banner said it was connected. liveness-eacces.test.ts
+  // looks for the spelling in the source and tests a copy of the predicate
+  // written inside itself; neither errno can be produced here on demand, so a
+  // `-r` preload makes signal 0 answer with it, for the one pid under test, and
+  // the hook's own isAlive decides.
+  async function withDeadRecord(code: string | null) {
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    // A deck that WOULD prove itself, so a record wrongly kept is visible as
+    // requests on this port rather than only as a file left on disk.
+    const ghostToken = randomBytes(32).toString("hex");
+    const ghost = await listener(honestDeck(ghostToken));
+    const pid = await deadPid();
+    const dead = `${pid}.json`;
+    const { home, dir } = registryOf({
+      [LIVE]: discoveryFor(deck.port, token),
+      [dead]: { ...discoveryFor(ghost.port, ghostToken), pid },
+    });
+    try {
+      const { code: exit } = await fire(home, code ? { preload: killAnswers(pid, code) } : {});
+      return {
+        exit,
+        deckPosts: deck.seen.filter(s => s.method === "POST").length,
+        ghostSaw: ghost.seen.map(s => `${s.method} ${s.path.split("?")[0]}`),
+        deadKept: existsSync(join(dir, dead)),
+        liveKept: existsSync(join(dir, LIVE)),
+      };
+    } finally {
+      await deck.close();
+      await ghost.close();
+    }
+  }
+
+  it("is deleted, and the port it names is asked nothing", async () => {
+    const r = await withDeadRecord(null);
+    expect(r.exit).toBe(0);
+    expect(r.deadKept, "a dead pid's record is still on disk").toBe(false);
+    expect(r.liveKept, "the live deck's record went with it").toBe(true);
+    expect(r.ghostSaw).toEqual([]);
+    expect(r.deckPosts, "the live deck beside it missed the event").toBe(1);
+  }, 15_000);
+
+  for (const [code, kept] of [["EACCES", true], ["EPERM", true], ["ESRCH", false]] as const) {
+    it(`is ${kept ? "kept, and posted to," : "deleted"} when signal 0 answers ${code}`, async () => {
+      const r = await withDeadRecord(code);
+      expect(r.exit).toBe(0);
+      expect(r.deadKept, `${code} read the wrong way round`).toBe(kept);
+      expect(r.liveKept).toBe(true);
+      expect(r.ghostSaw).toEqual(kept ? ["GET /api/hook-challenge", "POST /api/event"] : []);
+      expect(r.deckPosts).toBe(1);
+    }, 15_000);
+  }
+});
+
 describe("a discovery file that does carry a token", () => {
   // The fallback above must not become a way around the handshake: a file that
   // advertises a token is still held to it, and a listener that answers wrongly
@@ -366,6 +514,87 @@ describe("a deck that is simply too busy to answer in time", () => {
   }, 15_000);
 });
 
+describe("a stranger that answers at a pace of its own, beside a deck that proves itself", () => {
+  // Every challenge is settled before anything is posted (#695), so a target
+  // whose challenge never settles takes the event from every deck on the
+  // machine. The silent port is covered below; these are the shapes that got
+  // past the two limits prove() has.
+  //
+  // The DEADLINE was http.request's `timeout`, which is an idle timeout. A port
+  // that sends a byte every 150ms is never idle, and a port that sends a status
+  // line and then goes quiet does go idle — but once a response has begun,
+  // destroying the request raises no error on it, so no verdict came either
+  // way. Measured with an honest deck beside such a port: the hook ran to its
+  // cap at 1938ms, the deck saw its challenge and no event, and that was every
+  // tool call for as long as the record stood. The deadline now bounds the
+  // whole answer and gives the verdict itself.
+  //
+  // The CAP is the 4096 bytes a deck's ~100-byte answer never reaches. The 200
+  // KB flood in "a stranger on the recorded port" ends its response, so it
+  // settled on its own and passed with the cap deleted; a flood that never ends
+  // is the one only the cap can stop.
+  //
+  // An event posted at all is an event posted before the cap: main()'s timer
+  // ends the process there, with nothing sent after it.
+
+  /** A 200 that writes `chunk` every `everyMs` and never ends. */
+  const streaming = (chunk: string, everyMs: number) => (_req: IncomingMessage, res: ServerResponse) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const timer = setInterval(() => res.write(chunk), everyMs);
+    res.on("close", () => clearInterval(timer));
+  };
+
+  async function beside(handler: (req: IncomingMessage, res: ServerResponse) => void) {
+    const token = randomBytes(32).toString("hex");
+    const deck = await listener(honestDeck(token));
+    const stranger = await listener(handler);
+    const { home } = registryOf({
+      [LIVE]: discoveryFor(deck.port, token),
+      [GHOST]: discoveryFor(stranger.port, randomBytes(32).toString("hex")),
+    });
+    try {
+      const { code } = await fire(home);
+      return {
+        code,
+        deckPosts: deck.seen.filter(s => s.method === "POST").length,
+        challenges: stranger.seen.length,
+      };
+    } finally {
+      await deck.close();
+      await stranger.close();
+    }
+  }
+
+  it("cuts a flood off at the cap, which is a verdict and is asked once", async () => {
+    // 64 KB every 5ms. Cut off at the cap, the port has answered — it is not a
+    // deck — and is asked once. Without the cap it runs into the deadline, which
+    // is not an answer, and is asked again: two challenges, and the event waits
+    // 800ms behind a port that was never going to be a deck.
+    const r = await beside(streaming("a".repeat(64 * 1024), 5));
+    expect(r.code).toBe(0);
+    expect(r.challenges, "the flood was not cut off at 4096 bytes").toBe(1);
+    expect(r.deckPosts, "the deck that proved itself missed the event").toBe(1);
+  }, 15_000);
+
+  it("gives up on an answer that trickles in, and the deck beside it still gets the event", async () => {
+    const r = await beside(streaming("a", 150));
+    expect(r.code).toBe(0);
+    expect(r.deckPosts, "the trickle held the event past the cap").toBe(1);
+    // A deadline, like a silent port's: retried once, then given up on.
+    expect(r.challenges).toBe(2);
+  }, 15_000);
+
+  it("gives up on an answer that starts and then stops", async () => {
+    const r = await beside((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.write('{"proof":"');
+    });
+    expect(r.code).toBe(0);
+    expect(r.deckPosts, "a half-sent answer held the event past the cap").toBe(1);
+    expect(r.challenges).toBe(2);
+  }, 15_000);
+});
+
 describe("a record no running deck is keeping, on a port that answers nothing", () => {
   // #1069. A record whose pid the OS recycled onto a live process passes the
   // only staleness test there was, for good — and when its port has something
@@ -375,33 +604,6 @@ describe("a record no running deck is keeping, on a port that answers nothing", 
   // record every five seconds (ensureDiscovery), so a record that is silent AND
   // has gone a minute unstamped is one nobody is keeping.
 
-  /** A registry of several records, kept so a second run sees what the first left. */
-  function registryOf(records: Record<string, Record<string, unknown>>) {
-    const home = mkdtempSync(join(ROOT, "home-"));
-    const dir = join(home, "agent-dag");
-    mkdirSync(dir, { recursive: true });
-    for (const [name, record] of Object.entries(records)) {
-      writeFileSync(join(dir, name), JSON.stringify(record), "utf8");
-    }
-    return { home, dir };
-  }
-
-  async function fire(home: string) {
-    const child = spawn(process.execPath, [COPY, "--provider", "claude"], {
-      env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
-      stdio: ["pipe", "ignore", "ignore"],
-    });
-    child.stdin.end(JSON.stringify(EVENT));
-    await new Promise<void>((done, fail) => {
-      child.on("error", fail);
-      child.on("exit", () => done());
-    });
-  }
-
-  // A numbered name, because the hook reads nothing else, and one that is not
-  // the live record's name and does not contain it.
-  const GHOST = `${process.pid}0.json`;
-  const LIVE = `${process.pid}.json`;
   const age = (file: string, ms: number) => {
     const then = new Date(Date.now() - ms);
     utimesSync(file, then, then);

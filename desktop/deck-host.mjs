@@ -22,14 +22,16 @@
 import { execFileSync, spawn } from "node:child_process";
 import { chmodSync, closeSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 /** Claude Code's config directory, which CLAUDE_CONFIG_DIR moves — the deck's
  *  own rule (src/server/claude-dir.mjs), restated because this runs before any
- *  deck module is loaded. */
+ *  deck module is loaded. Restated whole: trimmed and resolved, as the deck
+ *  does it. The launcher's path is written into settings.json, and a relative
+ *  one there is resolved by Claude Code against each session's own cwd. */
 export function claudeDir(env = process.env, home = homedir()) {
-  const given = env.CLAUDE_CONFIG_DIR;
-  return given && given.trim() ? given : join(home, ".claude");
+  const given = env.CLAUDE_CONFIG_DIR?.trim();
+  return given ? resolve(given) : join(home, ".claude");
 }
 
 /** The login shell's PATH, or the current one when it cannot be read. */

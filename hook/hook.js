@@ -357,13 +357,15 @@ function sameProof(got, want) {
 //
 // They are now separated by a barrier: every target is challenged, then the
 // election is decided, then the payload goes out (#695). The worst case is
-// unchanged — the challenges run in parallel, so it is still one 400ms deadline
-// followed by one 1000ms deadline. What the barrier does cost is that an honest
-// deck's POST waits for the slowest challenge in the set, which only matters
-// when some OTHER record's port accepts a connection and then says nothing. A
-// ghost port with nothing behind it refuses instantly and delays no one; one
-// with something silent behind it costs both deadlines once, and its record is
-// then forgotten if no deck has been keeping it — see forgetIfAbandoned.
+// unchanged — the challenges run in parallel, so it is still one challenge's
+// two 400ms attempts followed by one 1000ms deadline, and each 400ms bounds the
+// whole answer rather than a silence in it (see prove). What the barrier does
+// cost is that an honest deck's POST waits for the slowest challenge in the
+// set, which only matters when some OTHER record's port accepts a connection
+// and then does not answer in time. A ghost port with nothing behind it refuses
+// instantly and delays no one; one with something slow or silent behind it
+// costs both attempts once, and its record is then forgotten if no deck has
+// been keeping it — see forgetIfAbandoned.
 const CHALLENGE_TIMEOUT_MS = 400;
 const POST_TIMEOUT_MS = 1000;
 
@@ -423,6 +425,8 @@ const CAP_MS = 1900;
  */
 function prove(d, cb, attempt = 0) {
   let settled = false;
+  // Armed once the request is out, and cleared by whichever verdict comes first.
+  let deadline = null;
   // A DEADLINE IS NOT AN ANSWER, and the difference is worth one retry.
   //
   // A wrong proof, a refused connection and a 404 are all verdicts: that port
@@ -444,7 +448,12 @@ function prove(d, cb, attempt = 0) {
     settled = true;                        // this attempt is over; the next owns `cb`
     prove(d, cb, attempt + 1);
   };
-  const finish = (ok, why = null) => { if (settled) return; settled = true; cb(ok, why); };
+  const finish = (ok, why = null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(deadline);
+    cb(ok, why);
+  };
 
   if (!requiresProof(d)) return finish(true);
 
@@ -456,7 +465,6 @@ function prove(d, cb, attempt = 0) {
     port: d.port,
     path: `/api/hook-challenge?nonce=${nonce}`,
     method: "GET",
-    timeout: CHALLENGE_TIMEOUT_MS,
   }, res => {
     if (res.statusCode !== 200) { res.resume(); return res.on("end", () => finish(false)); }
     let answer = "";
@@ -476,12 +484,26 @@ function prove(d, cb, attempt = 0) {
       finish(sameProof(proof, want));
     });
   });
-  // `destroy()` on a timeout makes 'error' fire with ECONNRESET, so the two
-  // handlers have to agree on which of them is speaking: `timedOut` is what
-  // tells a deadline apart from a refusal.
-  let timedOut = false;
-  req.on("error", () => { if (timedOut) retryOnTimeout(); else finish(false); });
-  req.on("timeout", () => { timedOut = true; req.destroy(); });
+  req.on("error", () => finish(false));
+  // THE DEADLINE IS ON THE WHOLE ANSWER, not on the silences in it (#1172).
+  //
+  // This was http.request's `timeout`, which is an IDLE timeout: it fires only
+  // after that long with no bytes either way. A port that answers one byte
+  // every 150ms is never idle and never reaches the 4096-byte cap above, so its
+  // prove() never settled — and proveTargets waits for every target before
+  // anything is posted. Measured with an honest deck beside such a port: the
+  // hook ran to CAP_MS at 1938ms and the deck saw its challenge and no event,
+  // on every tool call for as long as the record stood, and the record was
+  // never forgotten either, because the "deadline" verdict forgetIfAbandoned
+  // needs never came.
+  //
+  // The idle timeout had a second hole, and a port that sends its status line
+  // and then goes quiet fell into it: once a response has begun, destroying the
+  // request raises no 'error' on it, so the verdict that used to ride on that
+  // event never arrived either. So the timer gives the verdict itself, and
+  // gives it first: the destroy's own 'error', if it raises one, finds this
+  // attempt already over.
+  deadline = setTimeout(() => { retryOnTimeout(); req.destroy(); }, CHALLENGE_TIMEOUT_MS);
   req.end();
 }
 
@@ -686,11 +708,30 @@ function post(d, body, persists, done) {
     finish(res.statusCode >= 200 && res.statusCode < 300);
   });
   req.on("finish", () => { sent = true; });
-  // `destroy()` on a timeout makes 'error' fire with ECONNRESET, as it does in
-  // prove(), so `timedOut` is what tells this process giving up apart from the
-  // writer hanging up.
-  req.on("error", () => finish(false, timedOut && sent ? "deadline" : null));
-  req.on("timeout", () => { timedOut = true; req.destroy(); });
+  // `destroy()` on a timeout makes 'error' fire with ECONNRESET — the status
+  // line has not arrived, or it would have settled this already — so `timedOut`
+  // is what tells this process giving up apart from the writer hanging up.
+  //
+  // AND THE BODY'S STATE IS READ WHEN THE DEADLINE FIRES, NOT WHEN THE ERROR
+  // ARRIVES (#1172). `timedOut && sent` was evaluated in the 'error' handler,
+  // and by the time that runs the answer is always yes: destroying a request
+  // that has been end()ed finalises its writable, which emits 'finish' — so
+  // `sent` flips to true on the way out of req.destroy(), one tick before the
+  // 'error' it causes. Measured on Node 22 against a listener that takes the
+  // headers and then stops reading, with 256MB still queued:
+  //
+  //   TIMEOUT  sent=false  writableLength=268435608
+  //   FINISH   writableFinished=true  pending=0
+  //   ERROR    ECONNRESET  sent=true      <- verdict "deadline"
+  //
+  // which made every deadline a "deadline" and left the paragraph above
+  // describing a branch that could not be taken: a writer wedged mid-read kept
+  // a log it had not received, and the deck behind it — which could have
+  // written the line — was never asked. The snapshot is the rule that paragraph
+  // states, taken at the only moment it is still true.
+  let sentByDeadline = false;
+  req.on("error", () => finish(false, timedOut && sentByDeadline ? "deadline" : null));
+  req.on("timeout", () => { timedOut = true; sentByDeadline = sent; req.destroy(); });
   req.write(body);
   req.end();
 }

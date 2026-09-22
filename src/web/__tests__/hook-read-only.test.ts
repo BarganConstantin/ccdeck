@@ -104,32 +104,69 @@ function honestDeck(token: string) {
   };
 }
 
-interface Run { stdout: string; code: number | null }
+interface Run { stdout: string; stderr: string; code: number | null }
 
 /**
  * Run the installed-shape hook with its config dir pointed at a temp tree — the
  * real ~/.claude is never read or written, on any platform. `discovery` is the
  * record to leave in the discovery dir, or null to leave the dir empty.
+ *
+ * `files` are more entries for the same dir, by name, and `env` is laid over
+ * the child's environment — `undefined` takes a variable out of it.
  */
-async function runHook(input: string, discovery: Record<string, unknown> | null): Promise<Run> {
+async function runHook(
+  input: string,
+  discovery: Record<string, unknown> | null,
+  { files = {}, env = {} }: {
+    files?: Record<string, Record<string, unknown>>;
+    env?: Record<string, string | undefined>;
+  } = {},
+): Promise<Run> {
   const home = mkdtempSync(join(ROOT, "home-"));
   const dir = join(home, "agent-dag");
   mkdirSync(dir, { recursive: true });
   if (discovery) writeFileSync(join(dir, `${process.pid}.json`), JSON.stringify(discovery), "utf8");
+  for (const [name, record] of Object.entries(files)) {
+    writeFileSync(join(dir, name), JSON.stringify(record), "utf8");
+  }
 
+  const childEnv: Record<string, string | undefined> = {
+    ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home, ...env,
+  };
+  for (const [key, value] of Object.entries(childEnv)) if (value === undefined) delete childEnv[key];
   const child = spawn(process.execPath, [COPY, "--provider", "claude"], {
-    env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home },
-    stdio: ["pipe", "pipe", "ignore"],
+    env: childEnv as NodeJS.ProcessEnv,
+    stdio: ["pipe", "pipe", "pipe"],
   });
   let stdout = "";
+  let stderr = "";
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", c => { stdout += c; });
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", c => { stderr += c; });
   child.stdin.end(input);
   const code = await new Promise<number | null>((done, fail) => {
     child.on("error", fail);
     child.on("exit", c => done(c));
   });
-  return { stdout, code };
+  return { stdout, stderr, code };
+}
+
+/** An honest deck on a port of its own, and the record that registers it. */
+async function startDeck() {
+  const token = randomBytes(16).toString("hex");
+  const deck = honestDeck(token);
+  const server: Server = createServer(deck.handler);
+  await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+  const { port } = server.address() as AddressInfo;
+  return {
+    seen: deck.seen,
+    record: { pid: process.pid, port, workspace: "", token, startedAt: new Date().toISOString() },
+    close: () => new Promise<void>(done => {
+      server.closeAllConnections?.();
+      server.close(() => done());
+    }),
+  };
 }
 
 const EVENT = JSON.stringify({
@@ -179,6 +216,84 @@ describe("the script itself, run the way Claude Code runs it", () => {
       expect(run.code, why).toBe(0);
     }
   });
+});
+
+describe("a Claude Code run the deck started itself", () => {
+  // The quota probe runs `claude --print /usage`, which is a whole Claude Code
+  // invocation and fires these hooks like any other. quota.mjs marks that run
+  // with AGENTS_DECK_INTERNAL=1 and the hook ends before it reads a byte;
+  // without it, every quota poll drew itself on the canvas as a session with no
+  // prompt and no tools, and went into events.jsonl as one. Only the variable's
+  // name appeared anywhere in the suite, so a rename on either side left every
+  // case green. The probe's half is in quota-quiet-failure.test.ts.
+  it("is not reported to any deck, which is not even challenged", async () => {
+    const deck = await startDeck();
+    try {
+      const run = await runHook(EVENT, deck.record, { env: { AGENTS_DECK_INTERNAL: "1" } });
+      expect(deck.seen).toEqual([]);
+      expect(run.code).toBe(0);
+      expect(run.stdout).toBe("");
+    } finally {
+      await deck.close();
+    }
+  });
+
+  it("is told by the value, so a session with the variable unset or 0 still reports", async () => {
+    for (const value of ["0", undefined]) {
+      const deck = await startDeck();
+      try {
+        const run = await runHook(EVENT, deck.record, { env: { AGENTS_DECK_INTERNAL: value } });
+        expect(deck.seen, `AGENTS_DECK_INTERNAL=${value}`).toEqual(["/api/event"]);
+        expect(run.code).toBe(0);
+      } finally {
+        await deck.close();
+      }
+    }
+  });
+});
+
+describe("an event the hook cannot handle", () => {
+  // THE LAST RESORT, REACHED. main() installs an `uncaughtException` handler
+  // that ends the process at 0 in silence, and since the record guard below went
+  // in, no case in this file reached it: every throw it used to catch is
+  // refused before it can happen. Two events still throw, both past the guard:
+  //
+  //   a cwd that is not a string     path.resolve: ERR_INVALID_ARG_TYPE
+  //   nesting past JSON.stringify    RangeError: JSON.parse walks nesting
+  //                                  iteratively and accepts it, stringify
+  //                                  recurses and gives up near 4,000 levels
+  //
+  // Measured with the handler deleted: exit 1 and a Node stack trace on stderr,
+  // which Claude Code puts in front of the user as `<event> hook error` on every
+  // such tool call — and nothing else in the suite failed, because every payload
+  // in it was flat. The deep one needs a deck registered to get that far: the
+  // event is only serialised once there is somebody to send it to. 20,000 levels
+  // is five times the depth stringify gives up at, so it throws on every leg
+  // however deep that platform's stack goes.
+  //
+  // These assert that the hook stays out of the transcript, and no more. Where
+  // the deep event should go is #1180: today it reaches no deck.
+  const deep = (levels: number) =>
+    `{"hook_event_name":"PostToolUse","session_id":"s1","cwd":${JSON.stringify(process.cwd())},"deep":`
+    + '{"a":'.repeat(levels) + "1" + "}".repeat(levels) + "}";
+
+  for (const [what, input] of [
+    ["an event nested deeper than JSON.stringify goes", deep(20_000)],
+    ["a cwd that is a number", '{"hook_event_name":"Stop","session_id":"s1","cwd":42}'],
+    ["a cwd that is an object", '{"cwd":{}}'],
+  ] as const) {
+    it(`exits 0 and says nothing on ${what}`, async () => {
+      const deck = await startDeck();
+      try {
+        const run = await runHook(input, deck.record);
+        expect(run.code, run.stderr.split("\n")[0]).toBe(0);
+        expect(run.stderr, "nothing reaches the host CLI's transcript").toBe("");
+        expect(run.stdout).toBe("");
+      } finally {
+        await deck.close();
+      }
+    });
+  }
 });
 
 // THE PROPERTY THIS FILE ASSERTS, ASSERTED BY RUNNING IT.
@@ -267,11 +382,10 @@ describe("a registry holding something that is not a deck record", () => {
       writeFileSync(join(reg, `${process.pid}.json`), JSON.stringify({
         pid: process.pid, port, workspace: "", token, startedAt: new Date().toISOString(),
       }), "utf8");
-      // `spawn`, not the `spawnSync` the shapes above use: this is the one test
-      // in the block whose listener has to ANSWER, and a synchronous spawn
-      // blocks the event loop that listener is on — the hook then talks to a
-      // server that cannot reply and the assertion fails for a reason that has
-      // nothing to do with the hook.
+      // `spawn`, not the `spawnSync` the shapes above use: this test's listener
+      // has to ANSWER, and a synchronous spawn blocks the event loop that
+      // listener is on — the hook then talks to a server that cannot reply and
+      // the assertion fails for a reason that has nothing to do with the hook.
       const child = spawn(process.execPath, [COPY, "--provider", "claude"], {
         env: { ...process.env, CLAUDE_CONFIG_DIR: join(dir, "claude"), HOME: dir, USERPROFILE: dir },
         stdio: ["pipe", "pipe", "pipe"],
@@ -299,26 +413,36 @@ describe("a registry holding something that is not a deck record", () => {
     }
   });
 
-  it("ignores a .json in the deck's home that is not a record at all", () => {
+  it("reads only `${pid}.json`, however much another file looks like a record", async () => {
     // DIR is ~/.claude/agent-dag/, which is the deck's old home rather than a
     // registry: prefs.json lived there and deck-home.mjs's migration leaves the
     // original where it is. The filter keeps `${pid}.json` now, so the deck's
     // 0600 private-key file is not read on every tool call.
-    const dir = mkdtempSync(join(tmpdir(), "ccdeck-hook-prefs-"));
+    //
+    // This case used to write a prefs.json with no pid in it and check for
+    // silence — which the record guard gives on its own, so it passed with the
+    // filter deleted. Each file here is a record the guard would take, naming a
+    // deck that answers its challenge: a prefs.json that happens to carry a
+    // record's fields, a name with no pid in it, and the temp file an atomic
+    // write leaves beside a record. The first deck is posted to only if one of
+    // them is read.
+    const decoy = await startDeck();
+    const deck = await startDeck();
     try {
-      const reg = join(dir, "claude", "agent-dag");
-      mkdirSync(reg, { recursive: true });
-      writeFileSync(join(reg, "prefs.json"), JSON.stringify({ lan: { secret: "PRIVATE" } }), "utf8");
-      const r = spawnSync(process.execPath, [COPY, "--provider", "claude"], {
-        input: JSON.stringify({ hook_event_name: "Stop", session_id: "s1", cwd: dir }),
-        env: { ...process.env, CLAUDE_CONFIG_DIR: join(dir, "claude"), HOME: dir, USERPROFILE: dir },
-        encoding: "utf8",
-        timeout: 10_000,
+      const run = await runHook(EVENT, deck.record, {
+        files: {
+          "prefs.json": { ...decoy.record, lan: { secret: "PRIVATE" } },
+          "deck-1.json": decoy.record,
+          [`${process.pid}.json.tmp`]: decoy.record,
+        },
       });
-      expect(r.status).toBe(0);
-      expect(String(r.stderr)).toBe("");
+      expect(run.code, run.stderr.split("\n")[0]).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(decoy.seen, "a file that is not `${pid}.json` was read as a record").toEqual([]);
+      expect(deck.seen, "the record beside them was still posted to").toEqual(["/api/event"]);
     } finally {
-      rmTempDir(dir);
+      await decoy.close();
+      await deck.close();
     }
   });
 });
