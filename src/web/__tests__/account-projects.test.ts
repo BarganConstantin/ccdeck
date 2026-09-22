@@ -12,7 +12,7 @@ import { join } from "node:path";
 // @ts-expect-error — plain .mjs server module, no types
 import { appendSwap, readSwapLog, recordSwap, seedActive, accountAtTime, trackedSince, identityForSlot } from "../../server/swap-log.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, UNATTRIBUTED } from "../../server/account-projects.mjs";
+import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, projectPath, UNATTRIBUTED } from "../../server/account-projects.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -45,6 +45,17 @@ describe("who was active when", () => {
     expect(accountAtTime([], 1)).toBeNull();
     expect(trackedSince(TIMELINE)).toBe(TIMELINE[0].at);
     expect(trackedSince([])).toBeNull();
+  });
+
+  it("treats a stop marker as a gap: work inside it belongs to no account", () => {
+    const withGap = [
+      { at: ISO("2026-09-22T09:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" },
+      { at: ISO("2026-09-22T10:00:00Z"), slot: 0, email: "", orgUuid: "", source: "stop" },   // deck went down
+      { at: ISO("2026-09-22T14:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, // and came back
+    ];
+    expect(accountAtTime(withGap, ISO("2026-09-22T09:30:00Z"))?.email).toBe("a@x.com"); // before the gap
+    expect(accountAtTime(withGap, ISO("2026-09-22T12:00:00Z"))).toBeNull();             // inside the gap
+    expect(accountAtTime(withGap, ISO("2026-09-22T15:00:00Z"))?.email).toBe("a@x.com"); // after it resumed
   });
 
   it("round-trips the log and skips a torn last line", async () => {
@@ -110,6 +121,20 @@ describe("per-message attribution", () => {
     expect(b.projects[0].models["claude-opus-5"].i).toBe(10);
     // The pre-tracking message is the accountless bucket, on every report.
     expect(a.unattributed["claude-opus-5"]).toEqual({ i: 7, o: 7, cr: 0, cc: 0, c1h: 0, c5m: 0 });
+  });
+
+  it("slices the window by day for the chart, projects and unattributed apart", () => {
+    const early = [{ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }];
+    const tally: Record<string, unknown> = {};
+    foldLine(tally, line("2026-09-20T10:00:00Z", "claude-opus-5", "/p", 5, 0), early);
+    foldLine(tally, line("2026-09-21T10:00:00Z", "claude-opus-5", "/p", 8, 0), early);
+    foldLine(tally, line("2026-09-15T10:00:00Z", "claude-opus-5", "/q", 3, 0), early);   // before 7d
+    const rep = reportFrom(tally, early, KEY_A, 7, ISO("2026-09-22T12:00:00Z"));
+    const chartDays = rep.daily.map((d: { day: string }) => d.day);
+    expect(chartDays).not.toContain("2026-09-15");   // outside the window
+    const d20 = rep.daily.find((d: { day: string }) => d.day === "2026-09-20");
+    expect(d20.projects[0].models["claude-opus-5"].i).toBe(5);
+    expect(rep.daily.map((d: { day: string }) => d.day)).toEqual([...chartDays].sort());  // chronological
   });
 
   it("reads the cache-creation TTL split and skips a zero-billed block", () => {
@@ -192,5 +217,68 @@ describe("the incremental scan", () => {
     await rollup.tick();
     const rep = await rollup.report(KEY_A, 0);
     expect(rep.projects[0].name).toBe("widget");
+  });
+
+  it("fences off the time the deck was down, so that work is unattributed not mis-charged", async () => {
+    const root = await tmp();
+    const projects = join(root, "projects");
+    const slug = join(projects, "-Users-c-p");
+    await mkdir(slug, { recursive: true });
+    const file = join(slug, "s.jsonl");
+    // One message before the deck went down, one during the downtime.
+    await writeFile(file,
+      line("2026-09-05T10:00:00Z", "claude-opus-5", "/Users/c/p", 10, 0) + "\n" +
+      line("2026-09-20T10:00:00Z", "claude-opus-5", "/Users/c/p", 7, 0) + "\n", "utf8");
+    const swapLog = join(await tmp(), "swap.jsonl");
+    await appendSwap({ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, swapLog);
+    // A state file whose last heartbeat is well before now: the deck was down.
+    const stateFile = join(await tmp(), "st.json");
+    await writeFile(stateFile, JSON.stringify({ version: 1, cursors: {}, tally: {}, lastAlive: ISO("2026-09-10T00:00:00Z") }), "utf8");
+
+    const rollup = createProjectRollup({
+      now: () => ISO("2026-09-22T00:00:00Z"),   // ~12 days after lastAlive → a gap
+      roots: [projects], state: stateFile, swapLog, storeRoot: join(await tmp(), "none"),
+    });
+    await rollup.tick();
+
+    const rep = await rollup.report(KEY_A, 0);
+    // The pre-downtime message is the account's; the downtime one is nobody's.
+    expect(rep.projects[0].models["claude-opus-5"].i).toBe(10);
+    expect(rep.unattributed["claude-opus-5"].i).toBe(7);
+    // A stop marker was written at the last heartbeat.
+    expect((await readSwapLog(swapLog)).some((e: { source: string }) => e.source === "stop")).toBe(true);
+  });
+});
+
+describe("a worktree counts under its repo", () => {
+  it("maps a .claude/worktrees/<name> cwd back to the repo, either separator", () => {
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees/account-projects")).toBe("/Users/c/Desktop/agents-deck");
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees/x/src/web")).toBe("/Users/c/Desktop/agents-deck");
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees")).toBe("/Users/c/Desktop/agents-deck");  // the worktrees dir itself
+    expect(projectPath("C:\\code\\repo\\.claude\\worktrees\\feat")).toBe("C:\\code\\repo");
+    expect(projectPath("/Users/c/Desktop/agents-deck")).toBe("/Users/c/Desktop/agents-deck");  // not a worktree, unchanged
+    expect(projectPath("")).toBe("");
+  });
+
+  it("folds worktree work into the one repo row, not a row per worktree", () => {
+    const tally: Record<string, unknown> = {};
+    foldLine(tally, line("2026-09-22T10:00:00Z", "claude-opus-5", "/Users/c/agents-deck", 10, 0), TIMELINE);
+    foldLine(tally, line("2026-09-22T10:01:00Z", "claude-opus-5", "/Users/c/agents-deck/.claude/worktrees/feat-a", 5, 0), TIMELINE);
+    foldLine(tally, line("2026-09-22T10:02:00Z", "claude-opus-5", "/Users/c/agents-deck/.claude/worktrees/feat-b", 3, 0), TIMELINE);
+    const rep = reportFrom(tally, TIMELINE, KEY_A, 0, ISO("2026-09-22T12:00:00Z"));
+    expect(rep.projects).toHaveLength(1);
+    expect(rep.projects[0].name).toBe("agents-deck");
+    expect(rep.projects[0].models["claude-opus-5"].i).toBe(18);   // 10 + 5 + 3, one row
+  });
+});
+
+describe("Codex stays out of it", () => {
+  it("scans only Claude's projects directory, never ~/.codex", () => {
+    const roots: string[] = transcriptRoots("/home/me", {});
+    expect(roots.length).toBeGreaterThan(0);
+    for (const r of roots) {
+      expect(r.endsWith("/projects") || r.endsWith("\\projects")).toBe(true);
+      expect(r.includes(".codex")).toBe(false);
+    }
   });
 });

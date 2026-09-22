@@ -14028,7 +14028,11 @@ input, textarea { caret-color: var(--accent); }
   background: var(--bg-soft);
   border: 1px dashed var(--line);
 }
-.ap-proj-unattributed .ap-proj-name { color: var(--muted); }
+.ap-proj-un-labels { display: flex; flex-direction: column; min-width: 0; }
+.ap-proj-un-title { font-size: 13px; color: var(--text); }
+.ap-proj-un-tag { font-size: 11px; color: var(--muted); }
+.ap-proj-un-cost { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.ap-proj-un-tok { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 5ch; }
 .ap-proj-unattributed .ap-proj-note { grid-column: 1 / -1; margin-top: 2px; }
 
 .ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
@@ -14040,3 +14044,43 @@ input, textarea { caret-color: var(--accent); }
   .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
   .ap-proj-track { display: none; }
 }
+
+/* Per-day chart in the Projects report: a stacked column per day, coloured by
+   project like the list, its height the day's reconciled total. */
+.ap-proj-days { margin: 14px 0 4px; }
+.ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ap-proj-days-plot { display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; height: 64px; }
+.ap-proj-day {
+  flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
+  display: flex; align-items: flex-end;
+  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
+.ap-proj-colseg { width: 100%; display: block; }
+.ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+
+/* Click a day column for its own breakdown; keyboard-focusable as a button.
+   Hover brightens (not a ring); selection and focus draw the accent ring. */
+.ap-proj-day:hover .ap-proj-col { filter: brightness(1.12); }
+.ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
+.ap-proj-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.ap-proj-day-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.ap-proj-day-detail-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--text); margin-bottom: 6px;
+}
+.ap-proj-day-detail-total { font-variant-numeric: tabular-nums; }
+.ap-proj-day-detail-row {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content;
+  align-items: center; gap: 8px; padding: 2px 0;
+}
+.ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }

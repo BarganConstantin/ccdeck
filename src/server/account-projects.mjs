@@ -27,7 +27,7 @@ import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./installer.mjs";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
-import { readSwapLog, accountAtTime, trackedSince, seedActive } from "./swap-log.mjs";
+import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
  *  before tracking began, or a gap. Shown once, apart from any real account, so
@@ -43,6 +43,9 @@ export function statePath(home = homedir()) {
 const MAX_CHUNK = 1 << 20;           // 1 MiB reads, so a cold 100 MB transcript never loads whole
 const RETAIN_DAYS = 60;              // covers the 30-day window with margin; older days are pruned
 const DEFAULT_INTERVAL_MS = 20_000;  // a pass every 20 s; each is stat + append-only reads
+const HEARTBEAT_MS = 300_000;        // persist "last seen alive" at most this often when idle
+const GAP_MS = 600_000;              // a boot more than this after the last heartbeat means the
+                                     // deck was down; that stretch is fenced off as unattributed
 
 /** The two directories Claude Code writes transcripts under: the configured one
  *  and the default, since a deck launched from a desktop shortcut may resolve
@@ -110,6 +113,21 @@ function cwdFromSlug(slug) {
 }
 
 /**
+ * The project a cwd belongs to. A git worktree lives at
+ * `<repo>/.claude/worktrees/<name>`, so work done in one is counted under the
+ * repo it is a checkout of — otherwise the same project splits into a row per
+ * worktree ("agents-deck" and "account-projects" for one repo, #1200 review).
+ * Handles both path separators, for a Windows cwd. Anything not in a worktree
+ * is returned unchanged.
+ */
+export function projectPath(cwd) {
+  if (typeof cwd !== "string" || !cwd) return "";
+  // Strip `.claude/worktrees` and anything under it — the worktree name, a
+  // path inside it, or nothing at all (a session run in the worktrees dir).
+  return cwd.replace(/[\\/]\.claude[\\/]worktrees(?:[\\/].*)?$/, "");
+}
+
+/**
  * Fold one transcript line into the tally. A line with no usage block, no
  * parseable timestamp, or that is not JSON leaves the tally untouched — the
  * same tolerance the whole-file scanners have.
@@ -128,7 +146,8 @@ export function foldLine(tally, line, timeline, fallbackCwd) {
   const c = countersFrom(usage);
   if (!(c.i || c.o || c.cr || c.cc)) return;   // a usage block that billed nothing
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
-  const cwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : (fallbackCwd || "");
+  const rawCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : (fallbackCwd || "");
+  const cwd = projectPath(rawCwd);   // a worktree counts under the repo it checks out
   const who = accountAtTime(timeline, ts);
   const key = who ? accountKey(who.email, who.orgUuid) : UNATTRIBUTED;
   const day = localDay(ts);
@@ -237,7 +256,44 @@ export function reportFrom(tally, timeline, key, days, now = Date.now()) {
     days: days || 0,
     projects,
     unattributed: unAny ? unModels : null,
+    daily: dailyFrom(tally, key, cutoff),
   };
+}
+
+/**
+ * The same window, sliced by day, for the per-day chart: for each day that has
+ * work, the per-project and the unattributed model counters. The unattributed
+ * bucket is kept per day too — not to draw it, but so the client can reconcile
+ * each day to ccusage over a complete denominator.
+ */
+export function dailyFrom(tally, key, cutoff) {
+  const byDay = new Map();
+  const slot = day => { let s = byDay.get(day); if (!s) { s = { projects: {}, un: {} }; byDay.set(day, s); } return s; };
+  for (const [cwd, daysMap] of Object.entries(tally[key] ?? {})) {
+    for (const [day, models] of Object.entries(daysMap)) {
+      if (cutoff && day < cutoff) continue;
+      const dst = (slot(day).projects[cwd] ??= {});
+      for (const [m, c] of Object.entries(models)) addInto(dst[m] ??= zero(), c);
+    }
+  }
+  // Unattributed folds ONLY into days that already have attributed work — it
+  // feeds the per-day reconciliation denominator but must not raise a column of
+  // its own, or the chart grows an empty bar for every day of pre-tracking
+  // history (all of it unattributed).
+  for (const daysMap of Object.values(tally[UNATTRIBUTED] ?? {})) {
+    for (const [day, models] of Object.entries(daysMap)) {
+      const s = byDay.get(day);
+      if (!s) continue;
+      for (const [m, c] of Object.entries(models)) addInto(s.un[m] ??= zero(), c);
+    }
+  }
+  return [...byDay.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([day, s]) => ({
+      day,
+      projects: Object.entries(s.projects).map(([path, models]) => ({ path, models })),
+      unattributed: Object.keys(s.un).length ? s.un : null,
+    }));
 }
 
 /**
@@ -311,6 +367,15 @@ export function createProjectRollup({
     running = true;
     try {
       await load();
+      const nowMs = now();
+      // The deck was down between the last heartbeat and this boot. Fence that
+      // stretch off so work timestamped inside it is unattributed rather than
+      // charged to whoever was active when the deck closed — the user may have
+      // switched accounts by hand while nothing was recording. Written before
+      // the seed so the order is stop → start.
+      if (state.lastAlive && nowMs - state.lastAlive > GAP_MS) {
+        await markGap(state.lastAlive + 1, swapLog);
+      }
       await seedActive({ now, path: swapLog, root: storeRoot });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(roots);
@@ -318,6 +383,13 @@ export function createProjectRollup({
       // Forget cursors for files that are gone, so the map cannot grow forever.
       const alive = new Set(files);
       for (const p of Object.keys(state.cursors)) if (!alive.has(p)) { delete state.cursors[p]; dirty = true; }
+      // Heartbeat: record that the deck was alive now, so a later boot can see
+      // how long it was down. Cheap when nothing else changed — only bumped
+      // (and so only persisted) once every HEARTBEAT_MS while idle.
+      if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
+        state.lastAlive = nowMs;
+        dirty = true;
+      }
       await persist();
     } finally { running = false; }
   }
