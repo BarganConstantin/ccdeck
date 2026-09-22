@@ -566,6 +566,15 @@ async function runTick() {
   // invalidating on those would throw away readings the deck paid a subprocess
   // for, every interval, forever.
   if (result.switched) forgetAccountScopedCaches();
+  // Record the move for the account-projects report. Only on a real switch, and
+  // best effort — the tick must not fail because a log line did not append. The
+  // slot is resolved from the store inside recordSwap, so cswap's `to` need not
+  // be threaded through here.
+  if (result.switched) {
+    import("./swap-log.mjs")
+      .then(({ recordSwap }) => recordSwap(result.to, "auto"))
+      .catch(() => {});
+  }
   _lastTick = { at: Date.now(), ...result };
 }
 

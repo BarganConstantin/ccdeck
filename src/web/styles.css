@@ -13942,3 +13942,101 @@ input, textarea { caret-color: var(--accent); }
   border: 0;
   pointer-events: none;
 }
+
+/* ─── Account "Projects" report modal ──────────────────────────────────────
+   Where one account spent its work, per project (AccountProjectsModal.tsx).
+   Reuses .modal / .modal-backdrop for the shell; everything below is scoped to
+   the report so it cannot bleed into the usage modals it sits beside. */
+.ap-proj-modal { width: min(680px, 94vw); }
+
+.ap-proj-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+.ap-proj-titlewrap { min-width: 0; margin-right: auto; }
+.ap-proj-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.ap-proj-sub {
+  font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42ch;
+}
+
+.ap-proj-close { margin-left: 2px; }
+
+.ap-proj-body { padding: 16px; overflow-y: auto; }
+
+.ap-proj-state { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
+.ap-proj-error { color: var(--text); }
+.ap-proj-note { color: var(--text-dim); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+
+/* The one-glance stacked bar: 100% of this account's spend on the window. */
+.ap-proj-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-inset);
+  border: 1px solid var(--line);
+}
+.ap-proj-seg { height: 100%; min-width: 2px; }
+.ap-proj-seg + .ap-proj-seg { box-shadow: inset 1px 0 0 rgba(0,0,0,0.18); }
+
+.ap-proj-totals {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 12px 0 4px;
+}
+.ap-proj-total-cost { font-size: 18px; font-weight: 650; color: var(--text); }
+.ap-proj-total-tok { font-size: 12px; color: var(--muted); }
+.ap-proj-total-win { font-size: 12px; color: var(--text-dim); }
+
+.ap-proj-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.ap-proj-row {
+  display: grid;
+  grid-template-columns: 10px minmax(80px, 1fr) minmax(64px, 2fr) max-content max-content;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+  border-top: 1px solid var(--line-soft);
+}
+.ap-proj-row:first-child { border-top: none; }
+.ap-proj-row.muted .ap-proj-name { color: var(--muted); font-style: italic; }
+.ap-proj-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ap-proj-name {
+  font-size: 13px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ap-proj-track {
+  height: 6px; border-radius: 3px;
+  background: var(--panel-inset);
+  overflow: hidden;
+}
+.ap-proj-fill { display: block; height: 100%; border-radius: 3px; }
+.ap-proj-cost { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+.ap-proj-tok  { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; min-width: 5ch; }
+
+.ap-proj-unattributed {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content max-content;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+}
+.ap-proj-unattributed .ap-proj-name { color: var(--muted); }
+.ap-proj-unattributed .ap-proj-note { grid-column: 1 / -1; margin-top: 2px; }
+
+.ap-proj-foot { margin-top: 14px; font-size: 11px; color: var(--text-dim); text-align: right; }
+
+/* Phone: the track column is the first thing to go; keep name + numbers. */
+@media (max-width: 520px) {
+  .ap-proj-head { flex-wrap: wrap; }
+  .ap-proj-sub { max-width: 100%; }
+  .ap-proj-row { grid-template-columns: 10px minmax(60px, 1fr) max-content max-content; }
+  .ap-proj-track { display: none; }
+}
