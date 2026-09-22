@@ -34,7 +34,7 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, withShared, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
@@ -3961,6 +3961,19 @@ const lanEngine = createEngine({
     // The Linux fix lines name this number, so a verdict taken before the
     // listener had one is missing half of them — see forgetReach.
     forgetReach();
+  },
+  // An account arrived from a paired deck, and this deck now offers it too
+  // (#1188). Written before the engine hears it, so a restart between the two
+  // leaves the tick on disk rather than only in the running engine's copy.
+  onShared: async key => {
+    try {
+      const before = _prefs;
+      _prefs = await updatePrefs(withShared(key));
+      if (_prefs?.lan?.shared === before?.lan?.shared) return;   // it was already ticked
+      await lanEngine.apply({ shared: _prefs.lan.shared });
+    } catch (err) {
+      console.error(`${PRODUCT}: lan sync could not share the account it just received:`, err?.message ?? err);
+    }
   },
   // A deck was accepted or unpaired. Written straight through, because the
   // trusted list is the whole of who this deck will talk to and a list that

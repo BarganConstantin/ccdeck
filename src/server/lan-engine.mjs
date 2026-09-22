@@ -194,9 +194,26 @@ export function heardCurrent(raw, list) {
  * Injected rather than imported so a test can run a whole round — two engines,
  * two fake stores, one real socket pair — without claude-swap on the machine.
  */
+/**
+ * Whether an account this round just placed is ticked for sharing here (#1188).
+ *
+ * ONLY AN ADD: a heal needed the tick to happen at all — roundWith asks for a
+ * heal only for an account this deck already shares — so there is nothing to
+ * add for one, and an account healed after somebody unticked it must not be
+ * ticked again behind them.
+ *
+ * ONLY FROM THE LOCAL NETWORK: the reasoning for the default is that the login
+ * came from the group and the group therefore has it, and a tailnet can reach
+ * further than one person's own machines. Sharing there stays a decision
+ * somebody makes rather than one an arrival makes for them.
+ */
+export function ticksOnArrival(step, via) {
+  return !!step?.key && step.action === "add" && via !== "tailscale";
+}
+
 export function createEngine({
   readAccounts, exportAccount, importAccount,
-  onChange, onError, onIdentity, onPort, onTrust, onDial, now = Date.now,
+  onChange, onError, onIdentity, onPort, onTrust, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
    * lan-socket exposes it — and for one more that only showed up in use.
@@ -562,6 +579,10 @@ export function createEngine({
   const waitingOnSomebody = () =>
     [...lastRound.values()].some(r => r?.error === "waiting for the other deck to accept this one");
 
+  /** How this deck reached that peer. A beacon row says so; a typed address is
+   *  read from the routing table, the way the peer list reads it. */
+  const viaOf = peer => peer.via ?? (routeTo(peer.addr) ? "tailscale" : "lan");
+
   /** Ask one peer what it has, and heal whatever it can heal. */
   const roundWith = async peer => {
     let conn = null;
@@ -738,6 +759,22 @@ export function createEngine({
         // than as a healthy one.
         const got = await importAccount(blob, step);
         const ok = got === true || got?.ok === true;
+        // AN ACCOUNT THAT ARRIVED HERE IS SHARED ONWARD (#1188). People forget
+        // to tick it, and a group where one machine can heal the others and the
+        // others can heal nobody is the shape that costs them: the second
+        // machine to lose the same login has to go back to the first, which may
+        // be asleep or on another network. Nothing new is exposed — the login
+        // came FROM the group, so the group has it.
+        //
+        // ONLY AN ADD, and only from the local network. A heal already needed
+        // the tick to happen at all (the filter above), so there is nothing to
+        // add for one; and a tailnet reaches further than the person's own
+        // machines, which is a decision they make for themselves rather than
+        // one an arrival makes for them.
+        if (ok && ticksOnArrival(step, viaOf(peer))) {
+          try { await onShared?.(step.key); }
+          catch { /* the account is here; the tick is retried the next time one arrives */ }
+        }
         done.push({ ...step, ok, why: ok ? null : (got?.why ?? "import failed") });
       }
       lastRound.set(peer.fp, { at: now(), name: peer.name, offered: theirs.accounts.length, done });
