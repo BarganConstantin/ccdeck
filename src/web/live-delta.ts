@@ -47,6 +47,27 @@ export const NO_DELTA: LiveDelta = {
 export interface CountableAgent extends UsageBearing {
   kind?: string;
   sessionId?: string;
+  /** The deck never saw this session begin (reducer.ts, #677). */
+  synthetic?: boolean;
+}
+
+/** A root whose usage has not been reported yet, as opposed to one at zero.
+ *
+ *  The reducer creates a root holding no tokens, and a session's cumulative
+ *  totals land seconds later, when the server's transcript or rollout scan
+ *  emits UsageObserved. For a session the deck watched start, those zeros are
+ *  true: it has spent nothing, and its first turn is spending. For a synthetic
+ *  root — a session that joined late, one reborn after pruneDoneSessions
+ *  evicted it, every live session after Clear — they mean "not known yet", and
+ *  the UsageObserved that follows restates the session's whole history. Left in
+ *  the map at $0, that restatement is a rise under a baseline that caught the
+ *  root before it landed, and both callers count it (#1173). Left out, the
+ *  session joins the map once its usage has landed, which both already treat
+ *  as a newcomer whose history is not theirs to claim. */
+function usageUnknown(a: CountableAgent): boolean {
+  if (!a.synthetic) return false;
+  const u = a.usage;
+  return u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens <= 0;
 }
 
 /**
@@ -54,12 +75,13 @@ export interface CountableAgent extends UsageBearing {
  *
  * This is the baseline captured when a reading lands, and the same function
  * produces the "now" side of the comparison — one shape, one place, so the two
- * cannot drift apart.
+ * cannot drift apart. It is also what the header's $/min samples (#987).
  */
 export function boardBySession(agents: Iterable<CountableAgent>, now?: number): Map<string, SessionUsage> {
   const out = new Map<string, SessionUsage>();
   for (const a of agents) {
     if (a.kind !== "root" || !a.sessionId) continue;
+    if (usageUnknown(a)) continue;
     const c = agentCost(a, now);
     out.set(a.sessionId, {
       cost: c.total,

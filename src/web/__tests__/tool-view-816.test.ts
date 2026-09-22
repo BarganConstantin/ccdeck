@@ -118,6 +118,37 @@ describe("show all, and copy (#816)", () => {
     expect(shown[0].text.endsWith("…")).toBe(true);
   });
 
+  // The two cases above are both over budget, so clip's last line — the one
+  // that says "nothing held back" — had never run (#1173). It is the answer for
+  // almost every block the dialog shows, an Edit, a short Bash, a small Read,
+  // and a wrong one puts "show all" under each of them, or drops the last line
+  // of a block that exactly fills the budget.
+  it("shows a block that fits in full, with nothing to show all of", () => {
+    const lines = [{ text: "one" }, { text: "two" }, { text: "three" }];
+    expect(clip(lines, false)).toEqual({ shown: lines, cut: false });
+  });
+
+  it("shows exactly the line budget in full, and holds back the line after it", () => {
+    const at = Array.from({ length: CLIP_LINES }, () => ({ text: "a" }));
+    expect(clip(at, false)).toEqual({ shown: at, cut: false });
+    const over = [...at, { text: "a" }];
+    expect(clip(over, false)).toEqual({ shown: at, cut: true });
+  });
+
+  it("shows exactly the character budget in full, and cuts the line that crosses it", () => {
+    // A newline counts one character, so 2,999 + 1 + 3,000 is the budget to the
+    // character. One more and the second line is cut to the room left, with
+    // the ellipsis marking where.
+    expect(CLIP_CHARS).toBe(6_000);
+    const fits = [{ text: "p".repeat(2_999) }, { text: "q".repeat(3_000) }];
+    expect(clip(fits, false)).toEqual({ shown: fits, cut: false });
+
+    const crosses = [{ text: "p".repeat(2_999) }, { text: "q".repeat(3_001) }];
+    const { shown, cut } = clip(crosses, false);
+    expect(cut).toBe(true);
+    expect(shown).toEqual([{ text: "p".repeat(2_999) }, { text: "q".repeat(3_000) + "…" }]);
+  });
+
   it("reads a block's lines the same way whether it is a diff or text", () => {
     expect(linesOf({ text: "a\nb" })).toEqual([{ text: "a" }, { text: "b" }]);
   });
