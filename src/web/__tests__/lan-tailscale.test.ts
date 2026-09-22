@@ -385,8 +385,10 @@ describe("a deck that only calls in", () => {
     // Accepted, then its dial-back gone — the state after a settings write.
     a.e.setPeers([]);
     await b.e.round();
-    const row = (a.e.status().peers as Array<{ fp: string; waiting?: boolean; via?: string }>).find(p => p.fp === b.id.fp);
-    expect(row).toMatchObject({ waiting: true, via: "tailscale" });
+    // A now learns B's address from the call and will dial it back, so the row
+    // is no longer one-way — but it still says which way the call came.
+    const row = (a.e.status().peers as Array<{ fp: string; peerFp?: string; via?: string }>).find(p => (p.peerFp ?? p.fp) === b.id.fp);
+    expect(row).toMatchObject({ via: "tailscale" });
   }, 20_000);
 });
 

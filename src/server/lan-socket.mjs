@@ -967,6 +967,15 @@ export function createSyncServer({
       if (!frame) return refuse("a sealed frame did not open");
       handlers?.(frame, {
         sock, peerFp, key, sealed: !!chan,
+        // Where this deck dials the caller BACK. A deck that only ever calls in
+        // is one this deck holds no address for, so it could receive nothing —
+        // accounts move only toward the deck that dials (see roundWith). The
+        // address the caller connected from, and the port it said it listens
+        // on, are a dialable pair the engine can add so the next round reaches
+        // it. `peerAddr` is the source of this very connection; `peerPort` came
+        // from the hello, not the ephemeral source port.
+        peerAddr: from(sock),
+        peerPort,
         send: obj => sendFrame(sock, chan ? chan.wrap(obj) : obj),
       });
     }, refuse));
