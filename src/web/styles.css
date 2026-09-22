@@ -14051,3 +14051,27 @@ input, textarea { caret-color: var(--accent); }
 .ap-proj-colseg { width: 100%; display: block; }
 .ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
 .ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }
+
+/* Click a day column for its own breakdown. */
+.ap-proj-day { cursor: pointer; }
+.ap-proj-day:hover .ap-proj-col,
+.ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
+.ap-proj-day-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+}
+.ap-proj-day-detail-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--text); margin-bottom: 6px;
+}
+.ap-proj-day-detail-total { font-variant-numeric: tabular-nums; }
+.ap-proj-day-detail-row {
+  display: grid;
+  grid-template-columns: 10px 1fr max-content;
+  align-items: center; gap: 8px; padding: 2px 0;
+}
+.ap-proj-day-detail-name { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-proj-day-detail-cost { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }

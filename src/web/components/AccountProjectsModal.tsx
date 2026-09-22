@@ -119,6 +119,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   // loading or when ccusage could not be reached (then pricing.ts stands in).
   // Per-model and per-day-per-model costs are derived from it in the memo.
   const [ccRange, setCcRange] = useState<unknown>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -129,6 +130,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const id = ++reqId.current;
     setLoading(true);
     setError(null);
+    setSelectedDay(null);   // a new window is a fresh chart
     // The window the tally used: today back N-1 days (60 for "all", matching
     // the rollup's retention). ccusage is asked for the same span so the two
     // agree day-for-day.
@@ -327,13 +329,16 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
 
                   {view.chart.length > 0 && (
                     <div className="ap-proj-days">
-                      <div className="ap-proj-days-cap">By day</div>
+                      <div className="ap-proj-days-cap">By day{view.chart.length > 1 ? " · click a bar" : ""}</div>
                       <div className="ap-proj-days-plot" role="img"
                         aria-label={`Spend across ${view.chart.length} day${view.chart.length > 1 ? "s" : ""}`}>
                         {view.chart.map(d => {
                           const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;
+                          const on = selectedDay === d.day;
                           return (
-                            <div key={d.day} className="ap-proj-day" title={`${d.day} · ${fmtCost(d.total)}`}>
+                            <div key={d.day} className={`ap-proj-day${on ? " selected" : ""}`}
+                              title={`${d.day} · ${fmtCost(d.total)}`}
+                              onClick={() => setSelectedDay(s => (s === d.day ? null : d.day))}>
                               <div className="ap-proj-col" style={{ height: `${h}%` }}>
                                 {view.colorOrder.map((color, k) => {
                                   const c = d.costByColor.get(color) ?? 0;
@@ -353,6 +358,26 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                           ))}
                         </div>
                       ); })()}
+                      {(() => {
+                        const d = selectedDay ? view.chart.find(x => x.day === selectedDay) : null;
+                        if (!d) return null;
+                        const parts = view.rows.map(r => ({ r, c: d.costByColor.get(r.color) ?? 0 })).filter(x => x.c > 0);
+                        return (
+                          <div className="ap-proj-day-detail">
+                            <div className="ap-proj-day-detail-head">
+                              <span>{niceDate(Date.parse(`${d.day}T00:00:00`))}</span>
+                              <span className="ap-proj-day-detail-total">{fmtCost(d.total)}</span>
+                            </div>
+                            {parts.map(({ r, c }) => (
+                              <div key={r.key} className="ap-proj-day-detail-row">
+                                <span className="ap-proj-dot" style={{ background: r.color }} aria-hidden="true" />
+                                <span className="ap-proj-day-detail-name">{r.label}</span>
+                                <span className="ap-proj-day-detail-cost">{fmtCost(c)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 

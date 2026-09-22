@@ -387,6 +387,14 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // A day column in the Projects report's chart, clickable to reveal that day's
+  // breakdown. It stays out of the transform convention for the reason a thin
+  // bar always does: a 3-to-26px column scaled on press moves out from under
+  // the pointer, and the width is data (the day's share of the plot), not a
+  // control's own size. The feedback it gives instead is a box-shadow ring it
+  // keeps through hover and while selected — the same "brightness held through
+  // the gesture" answer `.cluster-label` gives.
+  ".ap-proj-day",
   ".cluster-label",
   // A row in the share picker, which is a <label> and not a second
   // control: it carries `cursor: pointer` because the whole row is the

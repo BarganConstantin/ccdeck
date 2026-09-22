@@ -276,11 +276,15 @@ export function dailyFrom(tally, key, cutoff) {
       for (const [m, c] of Object.entries(models)) addInto(dst[m] ??= zero(), c);
     }
   }
+  // Unattributed folds ONLY into days that already have attributed work — it
+  // feeds the per-day reconciliation denominator but must not raise a column of
+  // its own, or the chart grows an empty bar for every day of pre-tracking
+  // history (all of it unattributed).
   for (const daysMap of Object.values(tally[UNATTRIBUTED] ?? {})) {
     for (const [day, models] of Object.entries(daysMap)) {
-      if (cutoff && day < cutoff) continue;
-      const un = slot(day).un;
-      for (const [m, c] of Object.entries(models)) addInto(un[m] ??= zero(), c);
+      const s = byDay.get(day);
+      if (!s) continue;
+      for (const [m, c] of Object.entries(models)) addInto(s.un[m] ??= zero(), c);
     }
   }
   return [...byDay.entries()]
