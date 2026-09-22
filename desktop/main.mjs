@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deckJson, findDecks, openTrayStream } from "./deck-link.mjs";
 import { shellPath, startDeck, writeLauncher } from "./deck-host.mjs";
+import { navigationFor } from "./nav.mjs";
 import { createUpdater } from "./updater.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -368,13 +369,17 @@ function openWindow() {
     },
   });
   // Anything that leaves the deck opens in the person's own browser — a
-  // login flow, a docs link — never inside this window.
+  // login flow, a docs link — never inside this window, and anything that is
+  // not a web page is not opened at all (nav.mjs).
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) shell.openExternal(url);
+    if (navigationFor(url, origin) !== "block") shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(origin)) { event.preventDefault(); shell.openExternal(url); }
+    const where = navigationFor(url, origin);
+    if (where === "stay") return;
+    event.preventDefault();
+    if (where === "external") shell.openExternal(url);
   });
   win.once("ready-to-show", () => {
     win?.show();
