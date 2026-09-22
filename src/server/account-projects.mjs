@@ -113,6 +113,21 @@ function cwdFromSlug(slug) {
 }
 
 /**
+ * The project a cwd belongs to. A git worktree lives at
+ * `<repo>/.claude/worktrees/<name>`, so work done in one is counted under the
+ * repo it is a checkout of — otherwise the same project splits into a row per
+ * worktree ("agents-deck" and "account-projects" for one repo, #1200 review).
+ * Handles both path separators, for a Windows cwd. Anything not in a worktree
+ * is returned unchanged.
+ */
+export function projectPath(cwd) {
+  if (typeof cwd !== "string" || !cwd) return "";
+  // Strip `.claude/worktrees` and anything under it — the worktree name, a
+  // path inside it, or nothing at all (a session run in the worktrees dir).
+  return cwd.replace(/[\\/]\.claude[\\/]worktrees(?:[\\/].*)?$/, "");
+}
+
+/**
  * Fold one transcript line into the tally. A line with no usage block, no
  * parseable timestamp, or that is not JSON leaves the tally untouched — the
  * same tolerance the whole-file scanners have.
@@ -131,7 +146,8 @@ export function foldLine(tally, line, timeline, fallbackCwd) {
   const c = countersFrom(usage);
   if (!(c.i || c.o || c.cr || c.cc)) return;   // a usage block that billed nothing
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
-  const cwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : (fallbackCwd || "");
+  const rawCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : (fallbackCwd || "");
+  const cwd = projectPath(rawCwd);   // a worktree counts under the repo it checks out
   const who = accountAtTime(timeline, ts);
   const key = who ? accountKey(who.email, who.orgUuid) : UNATTRIBUTED;
   const day = localDay(ts);

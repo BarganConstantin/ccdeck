@@ -12,7 +12,7 @@ import { join } from "node:path";
 // @ts-expect-error — plain .mjs server module, no types
 import { appendSwap, readSwapLog, recordSwap, seedActive, accountAtTime, trackedSince, identityForSlot } from "../../server/swap-log.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, UNATTRIBUTED } from "../../server/account-projects.mjs";
+import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, projectPath, UNATTRIBUTED } from "../../server/account-projects.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -233,6 +233,28 @@ describe("the incremental scan", () => {
     expect(rep.unattributed["claude-opus-5"].i).toBe(7);
     // A stop marker was written at the last heartbeat.
     expect((await readSwapLog(swapLog)).some((e: { source: string }) => e.source === "stop")).toBe(true);
+  });
+});
+
+describe("a worktree counts under its repo", () => {
+  it("maps a .claude/worktrees/<name> cwd back to the repo, either separator", () => {
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees/account-projects")).toBe("/Users/c/Desktop/agents-deck");
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees/x/src/web")).toBe("/Users/c/Desktop/agents-deck");
+    expect(projectPath("/Users/c/Desktop/agents-deck/.claude/worktrees")).toBe("/Users/c/Desktop/agents-deck");  // the worktrees dir itself
+    expect(projectPath("C:\\code\\repo\\.claude\\worktrees\\feat")).toBe("C:\\code\\repo");
+    expect(projectPath("/Users/c/Desktop/agents-deck")).toBe("/Users/c/Desktop/agents-deck");  // not a worktree, unchanged
+    expect(projectPath("")).toBe("");
+  });
+
+  it("folds worktree work into the one repo row, not a row per worktree", () => {
+    const tally: Record<string, unknown> = {};
+    foldLine(tally, line("2026-09-22T10:00:00Z", "claude-opus-5", "/Users/c/agents-deck", 10, 0), TIMELINE);
+    foldLine(tally, line("2026-09-22T10:01:00Z", "claude-opus-5", "/Users/c/agents-deck/.claude/worktrees/feat-a", 5, 0), TIMELINE);
+    foldLine(tally, line("2026-09-22T10:02:00Z", "claude-opus-5", "/Users/c/agents-deck/.claude/worktrees/feat-b", 3, 0), TIMELINE);
+    const rep = reportFrom(tally, TIMELINE, KEY_A, 0, ISO("2026-09-22T12:00:00Z"));
+    expect(rep.projects).toHaveLength(1);
+    expect(rep.projects[0].name).toBe("agents-deck");
+    expect(rep.projects[0].models["claude-opus-5"].i).toBe(18);   // 10 + 5 + 3, one row
   });
 });
 
