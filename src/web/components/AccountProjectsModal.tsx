@@ -11,6 +11,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { costForUsage, fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
+import { modelRows } from "../usage-from-ccusage";
+import { bareModelId } from "../model-id";
 import type { TokenUsage } from "../types";
 import { useModalDismiss } from "./use-modal-dismiss";
 
@@ -51,14 +53,34 @@ function toUsage(c: Counters): TokenUsage {
   };
 }
 
-/** Price a project's whole model spread and count its billed tokens. */
-function priceModels(models: Record<string, Counters>, now: number): { cost: number; tokens: number } {
-  let cost = 0, tokens = 0;
+/** Count a project's billed tokens. */
+function tokensOf(models: Record<string, Counters>): number {
+  let t = 0;
+  for (const c of Object.values(models)) t += c.i + c.o + c.cr + c.cc;  // c1h/c5m are a split OF cc, not extra
+  return t;
+}
+
+/**
+ * Price a project's model spread, with the dollars anchored to ccusage.
+ *
+ * ccusage is the one cost authority on the machine, so its per-model total for
+ * the window is the truth; `scale` carries `ccusageCost / ourCost` per model.
+ * pricing.ts then only decides the SPLIT between projects within a model (a
+ * ratio, robust even when its absolute rates have drifted from ccusage). A
+ * model ccusage did not price — or a failed fetch — has scale 1, so the report
+ * falls back to pricing.ts alone rather than showing nothing.
+ */
+function priceModels(models: Record<string, Counters>, scale: Map<string, number>, now: number): { cost: number; tokens: number } {
+  let cost = 0;
   for (const [model, c] of Object.entries(models)) {
-    cost += costForUsage(toUsage(c), model, now).total;
-    tokens += c.i + c.o + c.cr + c.cc;   // c1h/c5m are a split OF cc, not extra
+    cost += costForUsage(toUsage(c), model, now).total * (scale.get(model) ?? 1);
   }
-  return { cost, tokens };
+  return { cost, tokens: tokensOf(models) };
+}
+
+/** Format a local date as the `YYYYMMDD` /api/ccusage insists on. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /** A row ready to draw: priced, named, coloured. `other` folds the small tail;
@@ -74,6 +96,10 @@ function niceDate(ms: number | null): string {
 export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
   const [days, setDays] = useState(7);
   const [report, setReport] = useState<Report | null>(null);
+  // ccusage's per-model cost for the window, the dollar authority we anchor to.
+  // Null while loading or when ccusage could not be reached (then pricing.ts
+  // stands in). A Map from model id to its window cost.
+  const [ccByModel, setCcByModel] = useState<Map<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -84,9 +110,30 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const id = ++reqId.current;
     setLoading(true);
     setError(null);
-    fetch(`/api/account-projects?num=${num}&days=${days}`, { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((j: Report) => { if (id === reqId.current) { setReport(j); setLoading(false); } })
+    // The window the tally used: today back N-1 days (60 for "all", matching
+    // the rollup's retention). ccusage is asked for the same span so the two
+    // agree day-for-day.
+    const span = days === 0 ? 60 : days;
+    const since = ymd(new Date(Date.now() - (span - 1) * 86_400_000));
+    const until = ymd(new Date());
+    const rep = fetch(`/api/account-projects?num=${num}&days=${days}`, { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
+    // ccusage is best-effort: a failure leaves us on pricing.ts rather than
+    // blocking the report on a subprocess.
+    const usage = fetch(`/api/ccusage?since=${since}&until=${until}`, { credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null);
+    Promise.all([rep, usage])
+      .then(([j, u]: [Report, unknown]) => {
+        if (id !== reqId.current) return;
+        setReport(j);
+        const range = u as { ok?: unknown } | null;
+        if (range && range.ok !== false) {
+          const m = new Map<string, number>();
+          for (const row of modelRows(range)) m.set(row.model, row.cost);
+          setCcByModel(m);
+        } else setCcByModel(null);
+        setLoading(false);
+      })
       .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setLoading(false); } });
   }, [num, days]);
 
@@ -94,8 +141,28 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const view = useMemo(() => {
     const now = Date.now();
     if (!report) return null;
+
+    // The dollar scale per model: ccusage's window cost over our pricing.ts
+    // cost for the same model, so each model's total lands on ccusage exactly.
+    // Codex never enters — our tally holds only Claude models, and only those
+    // are looked up.
+    const scale = new Map<string, number>();
+    if (ccByModel) {
+      const ourByModel = new Map<string, number>();
+      const add = (models: Record<string, Counters>) => {
+        for (const [m, c] of Object.entries(models)) ourByModel.set(m, (ourByModel.get(m) ?? 0) + costForUsage(toUsage(c), m, now).total);
+      };
+      for (const p of report.projects) add(p.models);
+      if (report.unattributed) add(report.unattributed);
+      for (const [m, ourTotal] of ourByModel) {
+        const cc = ccByModel.get(m) ?? ccByModel.get(bareModelId(m));
+        if (cc != null && ourTotal > 0) scale.set(m, cc / ourTotal);
+      }
+    }
+    const reconciled = scale.size > 0;
+
     const priced = report.projects
-      .map(p => ({ p, ...priceModels(p.models, now) }))
+      .map(p => ({ p, ...priceModels(p.models, scale, now) }))
       .sort((a, b) => (b.cost - a.cost) || (b.tokens - a.tokens));
 
     // Two projects with the same folder name are told apart by their parent.
@@ -131,9 +198,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     const basis = totalCost > 0 ? "cost" : "tokens";
     const denom = basis === "cost" ? totalCost : totalTokens;
 
-    const un = report.unattributed ? priceModels(report.unattributed, now) : null;
-    return { rows, totalCost, totalTokens, basis, denom, un };
-  }, [report]);
+    const un = report.unattributed ? priceModels(report.unattributed, scale, now) : null;
+    return { rows, totalCost, totalTokens, basis, denom, un, reconciled };
+  }, [report, ccByModel]);
 
   const trackedNote = report?.trackedSince
     ? `Tracked since ${niceDate(report.trackedSince)}`
@@ -224,7 +291,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     </div>
                   )}
 
-                  <div className="ap-proj-foot">{trackedNote}</div>
+                  <div className="ap-proj-foot">
+                    {view.reconciled ? "Dollars from ccusage, split by activity" : "Dollars estimated (ccusage unavailable)"} · {trackedNote}
+                  </div>
                 </>
               )}
             </>

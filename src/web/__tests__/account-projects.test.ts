@@ -12,7 +12,7 @@ import { join } from "node:path";
 // @ts-expect-error — plain .mjs server module, no types
 import { appendSwap, readSwapLog, recordSwap, seedActive, accountAtTime, trackedSince, identityForSlot } from "../../server/swap-log.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, UNATTRIBUTED } from "../../server/account-projects.mjs";
+import { foldLine, reportFrom, countersFrom, localDay, windowCutoff, createProjectRollup, transcriptRoots, UNATTRIBUTED } from "../../server/account-projects.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey } from "../../server/lan-sync.mjs";
 
@@ -45,6 +45,17 @@ describe("who was active when", () => {
     expect(accountAtTime([], 1)).toBeNull();
     expect(trackedSince(TIMELINE)).toBe(TIMELINE[0].at);
     expect(trackedSince([])).toBeNull();
+  });
+
+  it("treats a stop marker as a gap: work inside it belongs to no account", () => {
+    const withGap = [
+      { at: ISO("2026-09-22T09:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" },
+      { at: ISO("2026-09-22T10:00:00Z"), slot: 0, email: "", orgUuid: "", source: "stop" },   // deck went down
+      { at: ISO("2026-09-22T14:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, // and came back
+    ];
+    expect(accountAtTime(withGap, ISO("2026-09-22T09:30:00Z"))?.email).toBe("a@x.com"); // before the gap
+    expect(accountAtTime(withGap, ISO("2026-09-22T12:00:00Z"))).toBeNull();             // inside the gap
+    expect(accountAtTime(withGap, ISO("2026-09-22T15:00:00Z"))?.email).toBe("a@x.com"); // after it resumed
   });
 
   it("round-trips the log and skips a torn last line", async () => {
@@ -192,5 +203,46 @@ describe("the incremental scan", () => {
     await rollup.tick();
     const rep = await rollup.report(KEY_A, 0);
     expect(rep.projects[0].name).toBe("widget");
+  });
+
+  it("fences off the time the deck was down, so that work is unattributed not mis-charged", async () => {
+    const root = await tmp();
+    const projects = join(root, "projects");
+    const slug = join(projects, "-Users-c-p");
+    await mkdir(slug, { recursive: true });
+    const file = join(slug, "s.jsonl");
+    // One message before the deck went down, one during the downtime.
+    await writeFile(file,
+      line("2026-09-05T10:00:00Z", "claude-opus-5", "/Users/c/p", 10, 0) + "\n" +
+      line("2026-09-20T10:00:00Z", "claude-opus-5", "/Users/c/p", 7, 0) + "\n", "utf8");
+    const swapLog = join(await tmp(), "swap.jsonl");
+    await appendSwap({ at: ISO("2026-09-01T00:00:00Z"), slot: 1, email: "a@x.com", orgUuid: "O1", source: "start" }, swapLog);
+    // A state file whose last heartbeat is well before now: the deck was down.
+    const stateFile = join(await tmp(), "st.json");
+    await writeFile(stateFile, JSON.stringify({ version: 1, cursors: {}, tally: {}, lastAlive: ISO("2026-09-10T00:00:00Z") }), "utf8");
+
+    const rollup = createProjectRollup({
+      now: () => ISO("2026-09-22T00:00:00Z"),   // ~12 days after lastAlive → a gap
+      roots: [projects], state: stateFile, swapLog, storeRoot: join(await tmp(), "none"),
+    });
+    await rollup.tick();
+
+    const rep = await rollup.report(KEY_A, 0);
+    // The pre-downtime message is the account's; the downtime one is nobody's.
+    expect(rep.projects[0].models["claude-opus-5"].i).toBe(10);
+    expect(rep.unattributed["claude-opus-5"].i).toBe(7);
+    // A stop marker was written at the last heartbeat.
+    expect((await readSwapLog(swapLog)).some((e: { source: string }) => e.source === "stop")).toBe(true);
+  });
+});
+
+describe("Codex stays out of it", () => {
+  it("scans only Claude's projects directory, never ~/.codex", () => {
+    const roots: string[] = transcriptRoots("/home/me", {});
+    expect(roots.length).toBeGreaterThan(0);
+    for (const r of roots) {
+      expect(r.endsWith("/projects") || r.endsWith("\\projects")).toBe(true);
+      expect(r.includes(".codex")).toBe(false);
+    }
   });
 });

@@ -27,7 +27,7 @@ import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./installer.mjs";
 import { claudeConfigDir } from "./claude-dir.mjs";
 import { accountKey } from "./lan-sync.mjs";
-import { readSwapLog, accountAtTime, trackedSince, seedActive } from "./swap-log.mjs";
+import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap } from "./swap-log.mjs";
 
 /** The pseudo-account for messages the swap log cannot place — everything
  *  before tracking began, or a gap. Shown once, apart from any real account, so
@@ -43,6 +43,9 @@ export function statePath(home = homedir()) {
 const MAX_CHUNK = 1 << 20;           // 1 MiB reads, so a cold 100 MB transcript never loads whole
 const RETAIN_DAYS = 60;              // covers the 30-day window with margin; older days are pruned
 const DEFAULT_INTERVAL_MS = 20_000;  // a pass every 20 s; each is stat + append-only reads
+const HEARTBEAT_MS = 300_000;        // persist "last seen alive" at most this often when idle
+const GAP_MS = 600_000;              // a boot more than this after the last heartbeat means the
+                                     // deck was down; that stretch is fenced off as unattributed
 
 /** The two directories Claude Code writes transcripts under: the configured one
  *  and the default, since a deck launched from a desktop shortcut may resolve
@@ -311,6 +314,15 @@ export function createProjectRollup({
     running = true;
     try {
       await load();
+      const nowMs = now();
+      // The deck was down between the last heartbeat and this boot. Fence that
+      // stretch off so work timestamped inside it is unattributed rather than
+      // charged to whoever was active when the deck closed — the user may have
+      // switched accounts by hand while nothing was recording. Written before
+      // the seed so the order is stop → start.
+      if (state.lastAlive && nowMs - state.lastAlive > GAP_MS) {
+        await markGap(state.lastAlive + 1, swapLog);
+      }
       await seedActive({ now, path: swapLog, root: storeRoot });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
       const files = await listTranscripts(roots);
@@ -318,6 +330,13 @@ export function createProjectRollup({
       // Forget cursors for files that are gone, so the map cannot grow forever.
       const alive = new Set(files);
       for (const p of Object.keys(state.cursors)) if (!alive.has(p)) { delete state.cursors[p]; dirty = true; }
+      // Heartbeat: record that the deck was alive now, so a later boot can see
+      // how long it was down. Cheap when nothing else changed — only bumped
+      // (and so only persisted) once every HEARTBEAT_MS while idle.
+      if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
+        state.lastAlive = nowMs;
+        dirty = true;
+      }
       await persist();
     } finally { running = false; }
   }

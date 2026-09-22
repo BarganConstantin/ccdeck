@@ -148,9 +148,12 @@ export async function seedActive({ now = Date.now, root, path } = {}) {
 
 /**
  * Which account was active at millisecond `ts`: the last entry at or before it.
- * Null when `ts` precedes every entry — that message is from before tracking
- * began and cannot be attributed. `entries` must be sorted oldest-first, as
- * `readSwapLog` returns them.
+ * Null when `ts` precedes every entry — before tracking began — OR when the
+ * governing entry is a `stop` marker, which the rollup writes to fence off the
+ * time the deck was not running: nothing recorded who was active then, so work
+ * with a timestamp inside a stop→start gap is honestly unattributable rather
+ * than charged to whichever account happened to be active when the deck closed.
+ * `entries` must be sorted oldest-first, as `readSwapLog` returns them.
  */
 export function accountAtTime(entries, ts) {
   if (!Array.isArray(entries) || !entries.length) return null;
@@ -163,7 +166,19 @@ export function accountAtTime(entries, ts) {
     else hi = mid - 1;
   }
   const e = entries[ans];
+  if (e.source === "stop") return null;   // inside a gap the deck was not running
   return { email: e.email, orgUuid: e.orgUuid, slot: e.slot };
+}
+
+/** Fence off a stretch of time as "the deck was not running" from `at`, so
+ *  work timestamped after it is unattributed until the next real entry. */
+export async function markGap(at, path = swapLogPath()) {
+  try {
+    await appendSwap({ at, slot: 0, email: "", orgUuid: "", source: "stop" }, path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The earliest instant the log covers — what the report shows as "tracked
