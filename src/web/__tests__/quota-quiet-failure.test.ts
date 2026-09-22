@@ -26,6 +26,8 @@ import { join } from "node:path";
 const world = vi.hoisted(() => ({
   /** Every `run(cmd, args)` the module made. */
   calls: [] as string[][],
+  /** The options each of those calls passed, in the same order. */
+  opts: [] as Array<{ env?: Record<string, string | undefined> }>,
   /** What `run` answers next. */
   reply: { ok: false, code: "ENOENT", stdout: "", stderr: "" } as Record<string, unknown>,
 }));
@@ -34,8 +36,9 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
   const real = await importOriginal<Record<string, unknown>>();
   return {
     ...real,
-    run: async (cmd: string, args: string[] = []) => {
+    run: async (cmd: string, args: string[] = [], opts: { env?: Record<string, string | undefined> } = {}) => {
       world.calls.push([cmd, ...args]);
+      world.opts.push(opts);
       return { killed: false, timedOut: false, ...world.reply };
     },
   };
@@ -75,6 +78,7 @@ let spy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   world.calls.length = 0;
+  world.opts.length = 0;
   world.reply = { ok: false, code: "ENOENT", stdout: "", stderr: "" };
   said = [];
   forgetQuotaFailureNotice();
@@ -196,5 +200,21 @@ describe("a Claude Code that is there and answering badly", () => {
     await fetchClaudeQuota({ force: true });
 
     expect(said.filter(l => l.includes("not logged in"))).toHaveLength(2);
+  }, 30_000);
+});
+
+describe("the probe's own Claude Code run", () => {
+  it("tells the hooks it fires that it is the deck's, so they report nothing", async () => {
+    // `claude --print /usage` is a whole Claude Code invocation and fires the
+    // hooks the deck installed. AGENTS_DECK_INTERNAL=1 in its environment is
+    // what makes hook.js end before reading the event; without it every quota
+    // poll drew itself on the canvas as a session with no prompt and no tools.
+    // The hook's half is in hook-read-only.test.ts. This is the other half: a
+    // rename here, or a spawn helper that rebuilds the environment, and the
+    // hook never sees the variable.
+    await fetchClaudeQuota({ force: true });
+    const i = world.calls.findIndex(c => c.slice(1).join(" ") === "--print /usage");
+    expect(i, "the probe never ran `claude --print /usage`").toBeGreaterThanOrEqual(0);
+    expect(world.opts[i].env?.AGENTS_DECK_INTERNAL).toBe("1");
   }, 30_000);
 });
