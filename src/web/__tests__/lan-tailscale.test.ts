@@ -342,6 +342,15 @@ const announce = (to: { sock: ReturnType<typeof deafSocket> }, from: { e: { stat
     i: "00".repeat(8), h: hostId({ hostname: `host-${name}`, home: "/home/x" }),
   })), "127.0.0.1");
 
+/** One beacon from a deck that is not running, arriving from `addr` — which is
+ *  what decides the route it is filed under: 127.0.0.1 is in the fake tailnet
+ *  below, anything else is the local wire. */
+const hear = (to: { sock: ReturnType<typeof deafSocket> }, id: { fp: string }, name: string, addr: string) =>
+  to.sock.deliver(Buffer.from(JSON.stringify({
+    m: "CCDK", v: PROTOCOL, n: name, f: id.fp, p: 50_000,
+    i: "00".repeat(8), h: hostId({ hostname: `host-${name}`, home: "/home/x" }),
+  })), addr);
+
 const TS_ON = { tailscale: true, tailscaleAsk: true, tailscaleAccept: true };
 
 describe("the owner's own machines over Tailscale", () => {
@@ -426,6 +435,77 @@ describe("with the Tailscale switch off", () => {
     // Turning it on answers the owner's own machine that is already waiting.
     await b.e.apply(TS_ON);
     expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+  }, 20_000);
+
+  // AND TURNING IT OFF, WHICH WAS THE HALF NOBODY DROVE (#1171). Every case
+  // above either builds a deck with the switch already in the position it
+  // wants or presses the switch ON; the press that turns it off goes through
+  // its own line in `apply` and had never run. What it owes the person who
+  // pressed it is three things at once — the tailnet machines leave the panel,
+  // the tailnet stops being read, and nothing that was already paired is
+  // disturbed — and a regression in any one of them is invisible from the
+  // other two.
+  it("takes the tailnet machines off the list, stops reading, and leaves a pairing alone", async () => {
+    let reads = 0;
+    const inner = loopbackTailnet(false);
+    const tailnet = { ...inner, refresh: async () => { reads += 1; } };
+    const b = await deck([], "Office", [], tailnet, TS_ON);
+    // Turning it on reads once, which is what makes "no further read" below a
+    // count that could have moved rather than a zero that never could.
+    expect(reads).toBe(1);
+
+    // A pairing made over the tailnet, in the form that survives a restart:
+    // what `apply` is handed and what index.mjs writes to prefs.json.
+    const paired = identityFrom("");
+    await b.e.apply({ trusted: [{ fp: paired.fp, pub: paired.pub, name: "Laptop" }] });
+
+    // Two machines shouting, one down the tunnel and one on the local wire.
+    // Neither is asked for — both switches that could are off for a node that
+    // is not this owner's — so both sit in the panel as strangers, which is
+    // the list the press has to act on.
+    const overTailnet = identityFrom("");
+    const overLan = identityFrom("");
+    hear(b, overTailnet, "Tailnet-PC", "127.0.0.1");
+    hear(b, overLan, "Desk-PC", "192.168.1.9");
+    // By fingerprint, because the panel's order is by when each was last heard
+    // and two beacons in the same millisecond do not order themselves; which
+    // route each was filed under is the claim.
+    expect(Object.fromEntries((b.e.status().strangers as Array<{ fp: string; via: string }>).map(s => [s.fp, s.via])))
+      .toEqual({ [overTailnet.fp]: "tailscale", [overLan.fp]: "lan" });
+
+    await b.e.apply({ tailscale: false });
+
+    // The tunnel goes quiet here: the machine heard over it is gone from the
+    // panel, and the one on the local wire is untouched — this switch is about
+    // one route, not about discovery.
+    expect((b.e.status().strangers as Array<{ fp: string }>).map(s => s.fp)).toEqual([overLan.fp]);
+    // And a deck already paired stays paired. Turning discovery off is not
+    // unpairing, and a person who lost their machines by pressing it would have
+    // no way to know that from the panel.
+    expect(b.e.status().trusted).toMatchObject([{ fp: paired.fp }]);
+    expect(b.e.status().tailscale).toMatchObject({ on: false });
+
+    // Nothing is read over the tunnel any more, including on the next settings
+    // write, which runs the same sync line again.
+    await b.e.apply({ autoAsk: false });
+    expect(reads, "the tailnet was still being read after the switch went off").toBe(1);
+
+    // And a machine that shouts down the tunnel after the press is not heard at
+    // all, while the local wire still is: the route itself is closed, not just
+    // the list filtered once.
+    hear(b, identityFrom(""), "Tailnet-Later", "127.0.0.1");
+    const later = identityFrom("");
+    hear(b, later, "Desk-Later", "192.168.1.10");
+    // Sorted, because the panel's order is by when each was last heard and two
+    // beacons in the same millisecond do not order themselves; WHICH decks are
+    // listed is the claim here.
+    expect((b.e.status().strangers as Array<{ fp: string }>).map(s => s.fp).sort())
+      .toEqual([overLan.fp, later.fp].sort());
+
+    // Pressed again, it reads again — so the count above was a stopped clock
+    // rather than a broken one.
+    await b.e.apply(TS_ON);
+    expect(reads).toBe(2);
   }, 20_000);
 });
 

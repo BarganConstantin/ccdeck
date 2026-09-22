@@ -1112,6 +1112,55 @@ describe("the invite, which is one piece of text and every address", () => {
     expect(readInvite(old), "a token from before the flag is still an invite").not.toBeNull();
     expect(readInvite(old).provesBack).toBe(false);
   });
+
+  // WHAT A PASTED TOKEN IS ALLOWED TO BE (#1171). The case above pastes junk
+  // that never decodes; these are tokens that DO decode, into something this
+  // deck must not act on. It matters because a token is the one control that
+  // pairs two decks with no press on either side: `join` dials every address in
+  // it and pins whatever answers. Anything that gets past this reader is a
+  // machine somebody else chose.
+  it("refuses a token that decodes into something this deck must not act on", async () => {
+    const { mintInvite, readInvite, INVITE_PREFIX, PROTOCOL } = await import("../../server/lan-sync.mjs");
+    const good = mintInvite({ addrs: ["10.0.0.4:5000"], name: "x" });
+    const body = JSON.parse(Buffer.from(good.token.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
+    const token = (o: unknown) => INVITE_PREFIX + Buffer.from(JSON.stringify(o), "utf8").toString("base64url");
+    // The control: the same builder, unedited, is an invite — so every refusal
+    // below is about what was changed and not about how it was built.
+    expect(readInvite(token(body))).not.toBeNull();
+
+    for (const [what, edit] of [
+      // Another wire version is another protocol, whatever it says about
+      // itself. The version check is the coarse one; `pb` above is the fine one.
+      ["another PROTOCOL", { ...body, v: PROTOCOL + 1 }],
+      ["no version at all", { ...body, v: undefined }],
+      // The code is what a person reads out loud to the other machine. A token
+      // without one, or with one that is not six digits, pairs on nothing.
+      ["no code", { ...body, c: undefined }],
+      ["a code that is not six digits", { ...body, c: "12345" }],
+      ["a code that is not a string", { ...body, c: 482100 }],
+      // No expiry is an invite that never runs out, which is the one thing an
+      // invite may not be.
+      ["no expiry", { ...body, x: undefined }],
+      ["an expiry that is not a number", { ...body, x: "soon" }],
+      // Nothing to dial: an empty list, and a list of things that are not
+      // addresses, are both a token that can only mislead the person who
+      // pasted it. Both spellings of "no port", because they are refused by
+      // two different lines — one has no separator to split on at all.
+      ["no addresses", { ...body, a: [] }],
+      ["addresses with no port", { ...body, a: ["10.0.0.4", "10.0.0.4:"] }],
+      ["a port outside the range", { ...body, a: ["10.0.0.4:70000"] }],
+    ] as Array<[string, unknown]>) {
+      expect(readInvite(token(edit)), what).toBeNull();
+    }
+
+    // AND A TOKEN TOO LONG TO BE ONE. `MAX_INVITE_ADDRS` caps what is acted on
+    // after the parse; this is the cap on the parse itself, so a megabyte of
+    // base64 pasted into the field is refused before it is decoded rather than
+    // after.
+    const huge = token({ ...body, n: "x".repeat(4_000) });
+    expect(huge.length).toBeGreaterThan(2_048);
+    expect(readInvite(huge), "a 4 KB token was decoded and read").toBeNull();
+  });
 });
 
 describe("the list of decks nearby, which was a wall of ghosts", () => {

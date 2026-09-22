@@ -348,35 +348,37 @@ describe("a deck of this version and one of #810's, which seals and does not mix
   }, 20_000);
 });
 
+/** A listener, and a dial to it through a relay that passes each line to `edit`. */
+async function through(edit: (line: string, way: Way) => string) {
+  const me = sync.identityFrom("") as Id;
+  const caller = sync.identityFrom("") as Id;
+  const heard: Frame[] = [];
+  const errors: string[] = [];
+  const s = socket.createSyncServer({
+    fp: me.fp, pub: me.pub, secret: me.secret, name: "Listener", host: "127.0.0.1", prefer: PORTS.listener,
+    trusted: () => [{ fp: caller.fp, pub: caller.pub, name: "Caller" }],
+    handlers: (msg: Frame) => { heard.push(msg); },
+    onError: (_what: string, err: Error) => errors.push(err.message),
+  });
+  running.push(s);
+  const port = await s.start();
+  await relay(port, PORTS.relay2, edit);
+  const dial = socket.connectToPeer({
+    host: "127.0.0.1", port: PORTS.relay2, fp: caller.fp, pub: caller.pub, secret: caller.secret,
+    name: "Caller", timeoutMs: 3_000,
+  });
+  return { dial, heard, errors };
+}
+
+/** One frame of one type changed on its way through, going one way. */
+const bend = (way: Way, t: string, fn: (f: Frame) => void) => (line: string, w: Way) => {
+  if (w !== way) return line;
+  const f = JSON.parse(line);
+  if (f.t === t) fn(f);
+  return JSON.stringify(f);
+};
+
 describe("between two decks of this version, the mark taken off or a key taken out or swapped", () => {
-  /** A listener, and a dial to it through a relay that passes each line to `edit`. */
-  async function through(edit: (line: string, way: Way) => string) {
-    const me = sync.identityFrom("") as Id;
-    const caller = sync.identityFrom("") as Id;
-    const heard: Frame[] = [];
-    const errors: string[] = [];
-    const s = socket.createSyncServer({
-      fp: me.fp, pub: me.pub, secret: me.secret, name: "Listener", host: "127.0.0.1", prefer: PORTS.listener,
-      trusted: () => [{ fp: caller.fp, pub: caller.pub, name: "Caller" }],
-      handlers: (msg: Frame) => { heard.push(msg); },
-      onError: (_what: string, err: Error) => errors.push(err.message),
-    });
-    running.push(s);
-    const port = await s.start();
-    await relay(port, PORTS.relay2, edit);
-    const dial = socket.connectToPeer({
-      host: "127.0.0.1", port: PORTS.relay2, fp: caller.fp, pub: caller.pub, secret: caller.secret,
-      name: "Caller", timeoutMs: 3_000,
-    });
-    return { dial, heard, errors };
-  }
-  /** One frame of one type changed on its way through, going one way. */
-  const bend = (way: Way, t: string, fn: (f: Frame) => void) => (line: string, w: Way) => {
-    if (w !== way) return line;
-    const f = JSON.parse(line);
-    if (f.t === t) fn(f);
-    return JSON.stringify(f);
-  };
   /** The four bytes that say "mixes", overwritten, which leaves a challenge
    *  exactly the shape one of #810's decks sends. */
   const unmark = (f: Frame) => { f.challenge = String(f.challenge).replace(/65706831(?=\.seal1$)/, "00000000"); };
@@ -469,6 +471,35 @@ describe("between two decks of this version, the mark taken off or a key taken o
     expect(peer.peerFp).toBe(me.fp);
     expect(heard).toEqual([]);
   }, 30_000);
+});
+
+// WHAT THE DIALLER CHECKS IN THE ANSWER (#1171).
+//
+// Every edit in the describe above is caught by the LISTENER, which refuses
+// the caller's proof — so the dialler's own two checks on what comes back had
+// never run. Both matter more than they look. The public key arrives in the
+// clear in every challenge, so anything on the network can present a paired
+// deck's key and pass the pin; what stops it is the dialler checking the proof
+// that comes back in `ok`, and checking that the challenge's fingerprint is the
+// one its key hashes to. These cases leave the caller's half of the handshake
+// alone and bend only the answer.
+describe("what the dialler checks in the answer", () => {
+  it("refuses an `ok` whose proof is not the listener's", async () => {
+    // One character of the reply proof, changed. The listener already accepted
+    // the caller, so nothing but the dialler's own check stands in the way.
+    const flip = (f: Frame) => { f.proof = (f.proof[0] === "0" ? "1" : "0") + String(f.proof).slice(1); };
+    const { dial, heard } = await through(bend("down", "ok", flip));
+    await expect(dial).rejects.toThrow("that deck could not prove its own key");
+    expect(heard).toEqual([]);
+  });
+
+  it("refuses a challenge whose fingerprint is not the one its key hashes to", async () => {
+    // The shape somebody announcing as one deck and proving as another takes.
+    // Refused before any key is derived, and before the pin is consulted.
+    const { dial, heard } = await through(bend("down", "challenge", f => { f.fp = sync.identityFrom("").fp; }));
+    await expect(dial).rejects.toThrow("bad challenge");
+    expect(heard).toEqual([]);
+  });
 });
 
 describe("the key and the mark, on their own", () => {
