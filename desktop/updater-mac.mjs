@@ -79,8 +79,8 @@ export function bundleOf(exePath) {
 }
 
 /** The running app's designated requirement, as codesign prints it. */
-async function designatedRequirement(appPath) {
-  const { stderr, stdout } = await run("codesign", ["-d", "-r-", appPath]);
+async function designatedRequirement(appPath, execFileImpl = run) {
+  const { stderr, stdout } = await execFileImpl("codesign", ["-d", "-r-", appPath]);
   const line = `${stdout}\n${stderr}`.split("\n").find(l => l.startsWith("designated => "));
   if (!line) throw new Error("the running app has no designated requirement");
   return line.slice("designated => ".length);
@@ -97,27 +97,41 @@ export async function checkForUpdate({ manifestUrl, currentVersion, arch = proce
   return { version: manifest.version, file, url: new URL(file.url, manifestUrl).href };
 }
 
-/** Download, verify, unpack and check the identity. Returns the staged app. */
-export async function stageUpdate(update, { runningApp, fetchImpl = fetch }) {
+/**
+ * Download, verify, unpack and check the identity. Returns the staged app.
+ *
+ * `execFileImpl` and `publicKeyPem` are there for the tests, which have no
+ * ccdeck-signed bundle and no update key to hand.
+ */
+export async function stageUpdate(update, { runningApp, fetchImpl = fetch, execFileImpl = run, publicKeyPem = UPDATE_PUBLIC_KEY }) {
   const res = await fetchImpl(update.url, { redirect: "follow" });
   if (!res.ok) throw new Error(`download ${res.status}`);
   const bytes = Buffer.from(await res.arrayBuffer());
-  if (!verifyZip(bytes, update.file)) throw new Error("the download failed its hash or signature check");
+  if (!verifyZip(bytes, update.file, publicKeyPem)) throw new Error("the download failed its hash or signature check");
 
   const dir = await mkdtemp(join(tmpdir(), "ccdeck-update-"));
-  const zip = join(dir, "update.zip");
-  await writeFile(zip, bytes);
-  // ditto, not unzip: it keeps the bundle's symlinks and extended attributes,
-  // which the code signature covers.
-  await run("ditto", ["-x", "-k", zip, join(dir, "app")]);
-  const entry = (await readdir(join(dir, "app"))).find(n => n.endsWith(".app"));
-  if (!entry) throw new Error("the update holds no .app");
-  const staged = join(dir, "app", entry);
+  try {
+    const zip = join(dir, "update.zip");
+    await writeFile(zip, bytes);
+    // ditto, not unzip: it keeps the bundle's symlinks and extended attributes,
+    // which the code signature covers.
+    await execFileImpl("ditto", ["-x", "-k", zip, join(dir, "app")]);
+    const entry = (await readdir(join(dir, "app"))).find(n => n.endsWith(".app"));
+    if (!entry) throw new Error("the update holds no .app");
+    const staged = join(dir, "app", entry);
 
-  // Check 4: same identity as the app that is running.
-  const requirement = await designatedRequirement(runningApp);
-  await run("codesign", ["--verify", "--deep", "--strict", `-R=${requirement}`, staged]);
-  return { staged, dir };
+    // Check 4: same identity as the app that is running.
+    const requirement = await designatedRequirement(runningApp, execFileImpl);
+    await execFileImpl("codesign", ["--verify", "--deep", "--strict", `-R=${requirement}`, staged]);
+    return { staged, dir };
+  } catch (err) {
+    // A refused update is thrown away here, because nothing else knows where it
+    // is: the caller only ever hears of a dir that staged. Left behind, every
+    // refused check — a dev build is refused at check 4 every six hours —
+    // leaves the zip and the unpacked app in the temp directory (#1176).
+    await discard(dir).catch(() => {});
+    throw err;
+  }
 }
 
 /**

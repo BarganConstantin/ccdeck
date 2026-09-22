@@ -119,8 +119,13 @@ export function createUpdater({ app, onChange, log = () => {}, feed = process.en
     }
   }
 
-  /** "Restart to update": quit into the new version now. */
+  /** "Restart to update": quit into the new version now — and only into one
+   *  that is ready. electron-updater's quitAndInstall installs whatever it
+   *  downloaded, signed by ccdeck's key or not, so the menu offering this only
+   *  while ready is not the only thing between a refused download and an
+   *  install (#1176). */
   function restartNow() {
+    if (state.status !== "ready") return;
     if (process.platform === "darwin") { app.quit(); return; }
     auto?.quitAndInstall(false, true);
   }

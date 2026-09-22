@@ -23,7 +23,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — plain .mjs server module, no types
-import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS } from "../../server/lan-engine.mjs";
+import { ASKING_MS, createEngine, defaultName, localAddresses, MAX_AUTO_PEERS, SYNC_MS, ticksOnArrival } from "../../server/lan-engine.mjs";
 import { parseAddress } from "../components/LanSyncSection";
 // @ts-expect-error — plain .mjs server module, no types
 import { accountKey, hostId, identityFrom, PROTOCOL } from "../../server/lan-sync.mjs";
@@ -1539,5 +1539,90 @@ describe("two rounds at once", () => {
     // Deck-C's login moved once, by the round.
     expect(theirs.exported).toEqual([5]);
     expect(mine.imported).toEqual(["ccdeck2:slot-5"]);
+  }, 20_000);
+});
+
+// An account that ARRIVES here is offered onward, because people forget to tick
+// it and a group where one machine heals everybody and nobody heals it back is
+// the shape that costs them (#1188). The login came from the group, so nothing
+// new is exposed by holding it out; what IS the person's decision — an untick
+// afterwards, and whether a tailnet counts — is left to them.
+describe("an account that arrives over the network", () => {
+  const NEW = K("new@sapec.md", "org-9");
+
+  /** A deck whose tick list is written back the way index.mjs writes it. */
+  async function receiver(s: ReturnType<typeof store>, shared: string[], over = {}) {
+    const ticked: string[] = [];
+    const d = await deck(s, "Deck-A", shared, {
+      onShared: async (key: string) => {
+        ticked.push(key);
+        if (!shared.includes(key)) shared.push(key);
+        await d.e.apply({ shared });
+      },
+      ...over,
+    });
+    return { ...d, ticked, shared };
+  }
+
+  it("is ticked for sharing here, so this deck can heal the next one", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+
+    expect((await a.e.round()).map((d: { action: string }) => d.action)).toEqual(["add"]);
+    expect(a.ticked).toEqual([NEW]);
+    // And the engine is running on the new list, not only the file: what this
+    // deck offers a third machine from here on includes the account it was
+    // given.
+    expect(a.e.status().shared).toContain(NEW);
+  }, 20_000);
+
+  it("is not ticked when the import failed, because nothing arrived", async () => {
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")], {
+      importAccount: async () => ({ ok: false, why: "import refused" }),
+    });
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+
+    expect((await a.e.round()).map((d: { ok: boolean }) => d.ok)).toEqual([false]);
+    expect(a.ticked).toEqual([]);
+  }, 20_000);
+
+  it("keeps the person's untick: the tick happens on arrival and never again", async () => {
+    // The account is here after the first round, so `syncAction` answers
+    // nothing for it in the second — which is what makes the default a
+    // one-time decision rather than a fight with whoever unticked it.
+    const mine = store([{ num: 1, email: "claude1@sapec.md", orgUuid: "org-1", alive: true }]);
+    const theirs = store([{ num: 4, email: "new@sapec.md", orgUuid: "org-9", alive: true }]);
+    const a = await receiver(mine, [K("claude1@sapec.md", "org-1")]);
+    const b = await deck(theirs, "Deck-B", [NEW]);
+    await point(a, b, b.port);
+    await a.e.round();
+
+    // The person unticks it, as they may untick any account.
+    mine.rows.push({ num: 2, email: "new@sapec.md", orgUuid: "org-9", alive: true });
+    const kept = a.shared.filter(k => k !== NEW);
+    await a.e.apply({ shared: kept });
+    a.ticked.length = 0;
+
+    await a.e.round();
+    expect(a.ticked).toEqual([]);
+    expect(a.e.status().shared).not.toContain(NEW);
+  }, 20_000);
+
+  it("is ticked for an add from the local network, and for nothing else", () => {
+    // The rule on its own, because the one case a round cannot stage is a peer
+    // reached over the tailnet: routeOf answers by address, and no test can
+    // hold a 100.x one. An add from the local network is the whole of it.
+    expect(ticksOnArrival({ key: NEW, action: "add" }, "lan")).toBe(true);
+    expect(ticksOnArrival({ key: NEW, action: "add" }, "tailscale")).toBe(false);
+    // A heal is an account this deck already shares — there is nothing to tick
+    // — and an unticked one is never healed in the first place.
+    expect(ticksOnArrival({ key: NEW, action: "heal" }, "lan")).toBe(false);
+    expect(ticksOnArrival({ action: "add" }, "lan")).toBe(false);
   }, 20_000);
 });
