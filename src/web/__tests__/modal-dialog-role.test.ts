@@ -41,7 +41,7 @@ describe("the deck's modals", () => {
     // The sixteenth is the guide — the two picture tours share one dialog —
     // and the seventeenth is a deck's own dialog, opened from its row in
     // Local network.
-    expect(MODALS.length).toBe(17);
+    expect(MODALS.length).toBe(18);
   });
 
   it("never calls the dismiss scrim a dialog", () => {

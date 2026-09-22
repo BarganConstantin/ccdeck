@@ -8,6 +8,7 @@
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
 import { useCallback, useEffect, useRef, useState } from "react";
+import AccountProjectsModal from "./AccountProjectsModal";
 import AddAccountDialog from "./AddAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -488,6 +489,10 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
   // path and neither has to explain the other.
   const [shareSetOpen, setShareSetOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  // The account whose "Projects" report is open, by slot number, or null. A
+  // full modal rather than an inline popover: the report carries a chart, a
+  // list and per-window totals that a menu-sized panel would crush.
+  const [projectsFor, setProjectsFor] = useState<number | null>(null);
   // A move into an occupied slot relocates an account the user never picked.
   // Nothing else on screen says so — both accounts simply appear where they
   // were not — so the moved row says it, in its own freshness line.
@@ -1584,6 +1589,13 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                           title={`Copy this account to another ${PRODUCT}. Anyone who has the text can use the account — treat it as the password. The other deck stops accepting it after 10 minutes; that does not make an escaped copy safe.`}
                           onClick={() => makeShare(a.num)}
                         >{busy === `share-${a.num}` ? "Sharing…" : "Share"}</button>
+                        {/* Where this account spent its work, per project. Opens a
+                            full modal — the report is a chart and a list, not a
+                            menu-sized thing — so the popover closes behind it. */}
+                        <button type="button" role="menuitem" className="ap-menu-item"
+                          title="See how much this account worked in each project"
+                          onClick={() => { setProjectsFor(a.num); closeMenu(a.num); }}
+                        >Projects</button>
                         {/* Holding an account out only matters while something is
                             rotating, so it is offered with it. Putting one BACK is
                             offered whenever an account is out (#519): the row says
@@ -1881,6 +1893,19 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
           copyText={copyText}
         />
       )}
+      {projectsFor != null && (() => {
+        const a = (data?.accounts ?? []).find(x => x.num === projectsFor);
+        // The account may have vanished (removed while the menu was open); close
+        // rather than open an empty report.
+        if (!a) { setProjectsFor(null); return null; }
+        return (
+          <AccountProjectsModal
+            num={a.num}
+            name={a.alias ?? a.email ?? `account ${a.num}`}
+            onClose={() => setProjectsFor(null)}
+          />
+        );
+      })()}
     </aside>
   );
 }

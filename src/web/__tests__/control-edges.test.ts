@@ -736,6 +736,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ap-field select:focus-visible",
       ".ap-lan-word:focus-visible",
       ".ap-manage-input:focus-visible",
+      // The Projects report's day column: its selection ring and its keyboard
+      // focus ring are the whole of its boundary — the bar itself has no box.
+      ".ap-proj-day.selected .ap-proj-col",
+      ".ap-proj-day:focus-visible",
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",
