@@ -76,13 +76,29 @@ vi.mock("../../server/exec.mjs", () => ({
   runDetached: () => {},
 }));
 
+// What the two download URLs answer. Every case starts from the honest pair,
+// and the checksum cases swap one side for what a broken mirror, a captive
+// portal or a tampered release would serve. `null` is a response that is not
+// ok — a 404, a 502 — which `download` turns into null for the caller.
+const served: { sum: string | null; archive: Buffer | null } = { sum: null, archive: null };
+const honest = () => {
+  served.sum = `${ARCHIVE_SHA}  asset\n`;
+  served.archive = ARCHIVE;
+};
+
 let fetches = 0;
 vi.stubGlobal("fetch", async (url: string) => {
   fetches++;
   const u = String(url);
   if (u.includes("api.github.com")) return { ok: true, json: async () => ({ tag_name: VERSION }) };
-  if (u.endsWith(".sha256")) return { ok: true, text: async () => `${ARCHIVE_SHA}  asset\n` };
-  return { ok: true, arrayBuffer: async () => new Uint8Array(ARCHIVE).buffer };
+  if (u.endsWith(".sha256")) {
+    const sum = served.sum;
+    return sum === null ? { ok: false, status: 404 } : { ok: true, text: async () => sum };
+  }
+  const archive = served.archive;
+  return archive === null
+    ? { ok: false, status: 502 }
+    : { ok: true, arrayBuffer: async () => new Uint8Array(archive).buffer };
 });
 
 // uv-bootstrap resolves ~/.agents-deck at import time via os.homedir(), which
@@ -143,6 +159,7 @@ beforeEach(() => {
   copyRuns.is = true;
   spawned.length = 0;
   fetches = 0;
+  honest();
   delete process.env.AGENTS_DECK_NO_DOWNLOAD;
 });
 
@@ -276,5 +293,61 @@ describe("where the archive is unpacked", () => {
   it("is gone afterwards, wherever it was", async () => {
     await bootstrapUv();
     expect(existsSync(staged!)).toBe(false);
+  });
+});
+
+describe("a download that cannot be verified", () => {
+  // The checksum is the only thing standing between a network response and an
+  // executable run under the user's account — automatically, at boot, whenever
+  // claude-swap needs installing. Every refusal below has to happen before
+  // anything is unpacked, copied, made executable or run, so each case asserts
+  // the absence of all four and not just the reason.
+  //
+  // Every other case in this file is served the right digest, which is how the
+  // comparison and both of its refusals went without a single run.
+  const TOOLS = join(FAKE_HOME, ".agents-deck", "tools");
+
+  function expectNothingWritten() {
+    expect(staged, "the archive was unpacked").toBeNull();
+    expect(spawned, "something downloaded was run").toEqual([]);
+    expect(readdirSync(UV_DIR), "a binary reached the uv directory").toEqual([]);
+    expect(readdirSync(TOOLS).filter(n => n.startsWith("uv-staging-")), "a staging dir was left").toEqual([]);
+  }
+
+  it("refuses an archive whose digest is not the published one", async () => {
+    // A well-formed digest of something else: the archive was swapped, or
+    // truncated on the way, and the published sum is telling the truth.
+    served.sum = `${createHash("sha256").update("a different archive").digest("hex")}  asset\n`;
+
+    expect(await bootstrapUv()).toEqual({ ok: false, reason: "checksum_mismatch" });
+    expectNothingWritten();
+  });
+
+  it("refuses when there is no digest to check against", async () => {
+    // No published sum means no way to know what was downloaded. A 404, the
+    // body of an error page and an empty file all say the same thing, and none
+    // of them may be read as "nothing to disagree with".
+    for (const sum of [null, "Not Found", "", `${ARCHIVE_SHA.slice(0, 63)}  asset\n`]) {
+      served.sum = sum;
+      expect(await bootstrapUv(), `sum ${JSON.stringify(sum)}`).toEqual({ ok: false, reason: "no_checksum" });
+      expectNothingWritten();
+    }
+  });
+
+  it("refuses when the archive itself did not download", async () => {
+    served.archive = null;
+
+    expect(await bootstrapUv()).toEqual({ ok: false, reason: "download_failed" });
+    expectNothingWritten();
+  });
+
+  it("accepts the digest in upper case, which is still the same digest", async () => {
+    // The comparison is on the lower-cased sum, so a mirror that publishes
+    // `A1B2…` is not a mismatch. Pinned from the accepting side, since the
+    // refusals above cannot tell a normalisation from its absence.
+    served.sum = `${ARCHIVE_SHA.toUpperCase()}  asset\n`;
+
+    expect(await bootstrapUv()).toMatchObject({ ok: true, bin: BIN, version: VERSION });
+    expect(readFileSync(BIN)).toEqual(PAYLOAD);
   });
 });

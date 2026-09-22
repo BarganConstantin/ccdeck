@@ -268,6 +268,94 @@ describe("the ladder, when asking did not work", () => {
   });
 });
 
+// Every case above passes `goneMs: 0` with a clock that never moves, so the
+// wait after a successful ask — the loop that decides whether a deck that said
+// yes has actually gone — never went round once. It is the difference between
+// "stopped" and a supervisor SIGTERM'd and then SIGKILL'd mid-drain: queued
+// event appends lost, no goodbye on the LAN, and "(killed — it did not answer)"
+// on screen for a deck that was doing exactly what it was asked.
+describe("the wait after the deck said yes", () => {
+  /** A clock that moves only when the code under test sleeps, so the deadline
+   *  is crossed by the loop itself and not by how fast the machine is. */
+  function clock() {
+    let t = 0;
+    const slept: number[] = [];
+    return {
+      now: () => t,
+      sleep: async (ms: number) => { slept.push(ms); t += ms; },
+      slept,
+    };
+  }
+  const answered = async () => ({ ok: true, status: 200, old: false });
+
+  it("keeps looking until the deck has gone, and never reaches for a signal", async () => {
+    // The shutdown takes a moment — the listener closes, the registration is
+    // unlinked, the LAN is told — so the pid is still there on the first
+    // three looks and gone on the fourth.
+    const c = clock();
+    let looks = 0;
+    const kills: unknown[] = [];
+    const out = await stopDeck({ pid: 11, port: 4317, token: "t", parent: 9 }, {
+      ask: answered,
+      alive: () => ++looks <= 3,
+      kill: (...a: unknown[]) => { kills.push(a); },
+      now: c.now, sleep: c.sleep, goneMs: 3000, platform: "linux",
+    });
+    expect(out).toEqual({ ok: true, how: "asked" });
+    expect(kills).toEqual([]);
+    // Once between each look, at the loop's own pace.
+    expect(c.slept).toEqual([50, 50, 50]);
+  });
+
+  it("escalates only once the deadline has passed, and then parent first", async () => {
+    // A deck that said yes and is still there after three seconds is stuck in
+    // its own shutdown. Only then is it signalled — and the supervisor first,
+    // or it would put the worker straight back.
+    const c = clock();
+    const kills: [number, string, number][] = [];
+    const out = await stopDeck({ pid: 11, port: 4317, token: "t", parent: 9 }, {
+      ask: answered,
+      alive: () => true,
+      kill: (pid: number, sig: string) => { kills.push([pid, sig, c.now()]); },
+      now: c.now, sleep: c.sleep, goneMs: 3000, platform: "linux",
+    });
+    expect(out).toMatchObject({ ok: false, how: "stuck" });
+    expect(kills.map(([pid, sig]) => [pid, sig])).toEqual([
+      [9, "SIGTERM"], [11, "SIGTERM"], [9, "SIGKILL"], [11, "SIGKILL"],
+    ]);
+    // Not a moment before the deadline, and a full deadline again between the
+    // polite rung and the forceful one.
+    expect(kills[0][2]).toBeGreaterThanOrEqual(3000);
+    expect(kills[2][2] - kills[0][2]).toBeGreaterThanOrEqual(3000);
+  });
+
+  it("signals only the worker of a deck nobody supervises", async () => {
+    // `parent` is null for an unsupervised deck. The ladder still runs, on the
+    // one pid there is, and never on a pid it would have to make up.
+    const kills: [number, string][] = [];
+    await stopDeck({ pid: 11, port: 4317, token: "t", parent: null }, {
+      ask: async () => ({ ok: false, status: 0, old: false, reason: "timeout" }),
+      alive: () => true,
+      kill: (pid: number, sig: string) => { kills.push([pid, sig]); },
+      now: () => 0, sleep: async () => {}, goneMs: 0, platform: "linux",
+    });
+    expect(kills).toEqual([[11, "SIGTERM"], [11, "SIGKILL"]]);
+  });
+
+  it("names the refusal when the deck answered and would not go", async () => {
+    // A token that no longer matches the discovery record reads as a 401, and
+    // "could not stop pid 11 — http 401" points at the record rather than at
+    // the process — which is where the fault is.
+    const out = await stopDeck({ pid: 11, port: 4317, token: "t", parent: 9 }, {
+      ask: async () => ({ ok: false, status: 401, old: false }),
+      alive: () => true,
+      kill: () => {},
+      now: () => 0, sleep: async () => {}, goneMs: 0, platform: "linux",
+    });
+    expect(out).toEqual({ ok: false, how: "stuck", reason: "http 401" });
+  });
+});
+
 describe("which deck --stop ends", () => {
   it("ends every deck unless one is named, since a start keeps only one", () => {
     // A second deck here is a leftover from before the one-deck rule, and an

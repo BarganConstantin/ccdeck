@@ -12,10 +12,13 @@
 // `keepDiscovery` writes it back within five seconds. The deck goes on saying
 // it is connected while almost every event goes to a file nobody is reading.
 //
-// Source assertions plus one behavioural check. The errno cannot be produced on
-// the machine running this suite — that is the whole difficulty of the bug —
-// so what is pinned is that no site is left asking the POSIX question alone.
-import { describe, it, expect } from "vitest";
+// Source assertions, plus the shared probe itself run against every answer it
+// can be given. EACCES cannot be produced for real on the machine running this
+// suite — that is the whole difficulty of the bug — so the sweep pins that no
+// site is left asking the POSIX question alone, and the probe that
+// registeredDecks, the boot lock and `--stop` all decide by is handed each errno
+// through a spy on process.kill.
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -66,20 +69,54 @@ describe("every liveness probe accepts both spellings of 'not allowed'", () => {
 });
 
 describe("what the probe answers for pids it can actually see", () => {
+  // THE REAL ONE. This case used to define its own `alive` closure and test
+  // that, so the probe every caller shares — deck-probe.mjs, which
+  // registeredDecks, the boot lock's stale check and stopDeck's wait all decide
+  // by — never ran once on a pid that was gone. Its catch could have answered
+  // true for everything, and the suite would have stayed green while every
+  // `ccdeck --stop` climbed all three rungs and reported "stuck".
   it("says yes for this process and no for one that is gone", async () => {
-    // The half that can be measured here: the predicate still answers the two
-    // ordinary cases correctly after gaining the second errno.
     // @ts-expect-error — .mjs server module, no types
+    const { isProcessAlive } = await import("../../server/deck-probe.mjs");
     const { spawn } = await import("node:child_process");
     const child = spawn(process.execPath, ["-e", "process.exit(0)"], { stdio: "ignore" });
     const code = await new Promise<number>(r => child.on("close", c => r(c ?? 0)));
     expect(code).toBe(0);
 
-    const alive = (pid: number) => {
-      try { process.kill(pid, 0); return true; }
-      catch (e) { const err = e as NodeJS.ErrnoException; return err.code === "EPERM" || err.code === "EACCES"; }
-    };
-    expect(alive(process.pid)).toBe(true);
-    expect(alive(child.pid!)).toBe(false);
+    expect(isProcessAlive(process.pid)).toBe(true);
+    expect(isProcessAlive(child.pid!)).toBe(false);
   }, 15_000);
+});
+
+describe("what the probe answers for pids it is not allowed to signal", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  /** process.kill failing with `code`, the way libuv reports it. */
+  const refusing = (code: string) => vi.spyOn(process, "kill").mockImplementation(() => {
+    throw Object.assign(new Error(`kill ${code}`), { code });
+  });
+
+  it("reads 'not allowed' as alive, in both platforms' spellings", async () => {
+    // @ts-expect-error — .mjs server module, no types
+    const { isProcessAlive } = await import("../../server/deck-probe.mjs");
+    // POSIX: another account's deck. Windows: an elevated one, or another
+    // account's — OpenProcess is denied and libuv says EACCES. Read as dead,
+    // the next start launches a second deck beside it, `--stop` says nothing
+    // is running, and hooks unlink its discovery file.
+    refusing("EPERM");
+    expect(isProcessAlive(4242)).toBe(true);
+    vi.restoreAllMocks();
+    refusing("EACCES");
+    expect(isProcessAlive(4242)).toBe(true);
+  });
+
+  it("reads 'no such process' as gone, and nothing else as alive by accident", async () => {
+    // @ts-expect-error — .mjs server module, no types
+    const { isProcessAlive } = await import("../../server/deck-probe.mjs");
+    const kill = refusing("ESRCH");
+    expect(isProcessAlive(4242)).toBe(false);
+    // Signal 0, which delivers nothing: the probe must never be the thing that
+    // ends the process it is asking about.
+    expect(kill).toHaveBeenCalledWith(4242, 0);
+  });
 });
