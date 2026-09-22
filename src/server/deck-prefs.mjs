@@ -415,6 +415,32 @@ export async function updatePrefs(mutate, home = deckDataDir(), deps = {}) {
   return queued(() => save(mutate, home, deps));
 }
 
+/**
+ * The two `mutate`s the three callers above hand updatePrefs, named so that the
+ * callers and prefs-update-1041.test.ts run the same function. The suite used to
+ * carry its own copy of each closure and test the copy (#1168), which stays
+ * green however the one in index.mjs is edited.
+ */
+
+/** `lan.manual` with `entry` on the end, or no change when it is there already.
+ *  What `onDial` and the accept route both write. */
+export function withManualEntry(entry) {
+  return prev => {
+    const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
+    return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
+  };
+}
+
+/** `lan.aliases` with `fp` called `name`, or without `fp` when the name is
+ *  empty. The alias route's write; the whole map, rebuilt from the one read. */
+export function withAlias(fp, name) {
+  return prev => {
+    const next = { ...(prev?.lan?.aliases ?? {}) };
+    if (name) next[fp] = name; else delete next[fp];
+    return { lan: { aliases: next } };
+  };
+}
+
 /** One read-modify-write, behind every other one. Both entry points go through
  *  here so there is a single queue and a single merge. */
 function queued(job) {

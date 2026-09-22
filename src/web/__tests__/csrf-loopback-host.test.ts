@@ -138,6 +138,19 @@ describe("isTrustedRead under DNS rebinding", () => {
     expect(isTrustedRead({ host: "192.168.1.5:4317", secFetchSite: "same-origin" })).toBe(false);
   });
 
+  it("refuses a rebound page that sends only a Referer, which is all Safari 16.0-16.3 sends", () => {
+    // A same-origin GET carries no Origin, and that browser sends no fetch
+    // metadata, so the Referer is the only thing marking this as a page. It was
+    // not counted, and the request was measured as a client that is not a
+    // browser: every read the data gate does not list answered it (#1168).
+    expect(isTrustedRead({ host: "attacker.example:4317", referer: "http://attacker.example:4317/" })).toBe(false);
+    // The same page on the same browser, addressed to the deck itself.
+    expect(isTrustedRead({ host: HOST, referer: `http://${HOST}/` })).toBe(true);
+    // A link to the deck clicked on some other page carries that page as its
+    // Referer. The Host is still the deck's, so it is still the deck's UI.
+    expect(isTrustedRead({ host: HOST, referer: "https://evil.example/" })).toBe(true);
+  });
+
   it("lets the deck's own page read on every loopback spelling", () => {
     expect(isTrustedRead({ host: HOST, secFetchSite: "same-origin" })).toBe(true);
     expect(isTrustedRead({ origin: `http://${HOST}`, host: HOST, secFetchSite: "same-origin" })).toBe(true);
@@ -229,6 +242,23 @@ describe("the rebinding gate in front of the routing table", () => {
     }
   });
 
+  // The same page on Safari 16.0-16.3: no Origin on a same-origin GET, no fetch
+  // metadata at all, and a Referer that agrees with the Host on the attacker's
+  // name. Before #1168 this was measured as a client that is not a browser, so
+  // only the reads the data gate lists were refused — and those only because
+  // that gate tests the Host before it reads the Referer. /api/health answered
+  // with the workspace path, /api/hook-challenge with a proof, / with the page.
+  const reboundByReferer = {
+    Host: "attacker.example:4317",
+    Referer: "http://attacker.example:4317/",
+  };
+
+  it("refuses every read from a rebound page that sends only a Referer", async () => {
+    for (const path of READS) {
+      expect(await call(path, reboundByReferer), `${path} answered a rebound page`).toBe(403);
+    }
+  });
+
   it("still answers the deck's own page", async () => {
     const ui = {
       Host: `127.0.0.1:${port}`,
@@ -239,6 +269,11 @@ describe("the rebinding gate in front of the routing table", () => {
     expect(await call("/api/events?since=0", ui)).toBe(200);
     // The Host the browser sends follows the URL bar, not the socket.
     expect(await call("/api/health", { ...ui, Host: "localhost:4317", Origin: "http://localhost:4317" })).toBe(200);
+    // And the page on the browser that sends only a Referer, which that header
+    // now marks as a page: its Host is a loopback one, so it reads as before.
+    const referer = { Host: `127.0.0.1:${port}`, Referer: `http://127.0.0.1:${port}/` };
+    expect(await call("/api/health", referer)).toBe(200);
+    expect(await call("/api/events?since=0", referer)).toBe(200);
   });
 
   it("still answers a client that sends no browser headers at all", async () => {

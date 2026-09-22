@@ -26,7 +26,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { connect, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -43,7 +43,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 }
 
 // @ts-expect-error — plain .mjs module, no types
-const { startServer } = await import("../../server/index.mjs");
+const { startServer, hookToken, challengeProof } = await import("../../server/index.mjs");
 
 let server: Server;
 let port: number;
@@ -193,5 +193,91 @@ describe("a body past readBody's 64 KB cap", () => {
       }).on("error", () => done(null)).end();
     });
     expect(health).toBe(200);
+  });
+});
+
+// THE REFUSALS ON THE ROUTES THAT ASK FOR NOTHING (#1168). /api/event and
+// /api/hook-challenge answer any local process with no credential, and the
+// router's own first line answers anything at all — so each of these is a
+// request somebody who holds nothing can send, and none of them had ever been
+// sent to a real server.
+describe("what the credential-free routes refuse", () => {
+  function call(method: string, path: string, body?: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> {
+    return new Promise((done, fail) => {
+      const req = request({ host: "127.0.0.1", port, path, method, headers }, res => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", c => { text += c; });
+        res.on("end", () => done({ status: res.statusCode ?? 0, body: text }));
+      });
+      req.on("error", fail);
+      req.end(body);
+    });
+  }
+  const seqNow = async () => JSON.parse((await call("GET", "/api/health")).body).seq as number;
+
+  it("answers a body that is not JSON with 400, and the deck is still there to say so again", async () => {
+    // `end` is a listener the event loop calls after the route has returned, so
+    // `guard` cannot reach it: the try around JSON.parse is the only thing that
+    // stops one garbage POST from being an uncaughtException — the whole deck,
+    // its stream, its ingest and its log, for one request from any process.
+    const before = await seqNow();
+    for (const garbage of ["{not json", "", "undefined"]) {
+      const r = await call("POST", "/api/event", garbage, { "Content-Type": "application/json" });
+      expect(r.status, JSON.stringify(garbage)).toBe(400);
+      expect(JSON.parse(r.body)).toEqual({ error: "invalid json" });
+    }
+    // Nothing was pushed for any of them.
+    expect(await seqNow()).toBe(before);
+  });
+
+  it("takes any JSON value as an event, and the ring still reads back as JSON", async () => {
+    // Valid JSON that is not an object is still a body the hook's route has to
+    // survive: the parse succeeds and everything past it has to cope.
+    for (const value of ["null", "42", '"str"', "[]"]) {
+      const r = await call("POST", "/api/event", value, { "Content-Type": "application/json" });
+      expect(r.status, value).toBe(200);
+      const out = JSON.parse(r.body);
+      expect(out.ok, value).toBe(true);
+      expect(Number.isInteger(out.seq), value).toBe(true);
+    }
+    const ring = await call("GET", "/api/events?since=0", undefined, { "x-ccdeck-token": hookToken() });
+    expect(ring.status).toBe(200);
+    expect(Array.isArray(JSON.parse(ring.body))).toBe(true);
+  });
+
+  it("refuses a nonce that is missing or longer than the handshake ever sends", async () => {
+    // The proof oracle answers anybody by design, so the bound on its input is
+    // the one thing it asks of the caller.
+    for (const path of ["/api/hook-challenge", "/api/hook-challenge?nonce=", `/api/hook-challenge?nonce=${"x".repeat(257)}`]) {
+      const r = await call("GET", path);
+      expect(r.status, path.slice(0, 40)).toBe(400);
+      expect(JSON.parse(r.body)).toEqual({ error: "bad nonce" });
+    }
+    // And the longest one it takes is answered with the proof itself.
+    const nonce = "x".repeat(256);
+    const ok = await call("GET", `/api/hook-challenge?nonce=${nonce}`);
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(ok.body).proof).toBe(challengeProof(hookToken(), nonce));
+  });
+
+  it("answers a request target no URL parser takes with 400, and stays up", async () => {
+    // `GET // HTTP/1.1` gets through Node's parser and throws in `new URL`
+    // against any base. requestUrl answers null for it (request-url.test.ts);
+    // this is the router doing something with that null. Over a raw socket,
+    // because node:http will not send a path it considers malformed.
+    const reply = await new Promise<string>((done, fail) => {
+      const sock = connect(port, "127.0.0.1");
+      let text = "";
+      sock.setEncoding("utf8");
+      sock.on("data", c => { text += c; });
+      sock.on("end", () => done(text));
+      sock.on("error", fail);
+      sock.write(`GET // HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`);
+    });
+    expect(reply).toMatch(/^HTTP\/1\.1 400 /);
+    // Read as text rather than parsed: the answer is chunked on the wire.
+    expect(reply).toContain(JSON.stringify({ error: "bad request target" }));
+    expect((await call("GET", "/api/health")).status).toBe(200);
   });
 });
