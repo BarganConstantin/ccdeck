@@ -2,9 +2,11 @@
 // it on mount. Kept out of App.tsx — the way minimap.ts is — so the derivation
 // can be tested without React, React Flow or a DOM.
 //
-// Reading the value is still App.tsx's job: it owns the storage key, the v1
-// migration and the debounced write. What lives here is the pure half, which is
-// also the half that was quadratic.
+// Reading and writing the value is still App.tsx's job: it owns the storage
+// keys and the debounced write. What lives here is the pure half — the stored
+// format, its v1 migration, the save merge and the stored frame's check (#1174)
+// — which is also the half that was quadratic.
+import type { Frame } from "./layout";
 
 /**
  * Where every node sits, and which of those the user placed by hand.
@@ -51,4 +53,62 @@ export function restoreLayout(stored: StoredLayout): RestoredLayout {
     if (pins.has(id)) pinned.set(id, at);
   }
   return { positions, pinned };
+}
+
+type Point = { x: number; y: number };
+
+/** The entries of a stored id → point map that are points. Anything else — a
+ *  string coordinate, a null, a missing y — is dropped rather than handed to
+ *  the canvas, which would place a card at NaN. */
+function pointsOf(map: unknown): Array<[string, Point]> {
+  return Object.entries((map ?? {}) as Record<string, Point>)
+    .filter(([, v]) => v && typeof v.x === "number" && typeof v.y === "number");
+}
+
+/**
+ * The stored layout string as a {@link StoredLayout}, or an empty one when
+ * there is nothing usable — absent, not JSON, or not an object.
+ *
+ * Two formats are in the wild. v1 stored a bare id → point map of drags only,
+ * and it is read as all-pinned so an upgrade keeps whatever the user had
+ * arranged. v2 is `{ v: 2, positions, pins }`, written by
+ * {@link serializeLayout}.
+ */
+export function parseStoredLayout(raw: string | null): StoredLayout {
+  const empty: StoredLayout = { positions: [], pins: [] };
+  if (!raw) return empty;
+  let obj: unknown;
+  try { obj = JSON.parse(raw); } catch { return empty; }
+  if (!obj || typeof obj !== "object") return empty;
+  if (!("v" in obj)) {
+    const entries = pointsOf(obj);
+    return { positions: entries, pins: entries.map(([id]) => id) };
+  }
+  const v2 = obj as { positions?: unknown; pins?: unknown };
+  return { positions: pointsOf(v2.positions), pins: Array.isArray(v2.pins) ? v2.pins : [] };
+}
+
+/**
+ * The v2 string for the canvas's two maps. Pinned positions are written after
+ * the auto ones, so where both hold an id the drag wins over the layout.
+ */
+export function serializeLayout(positions: Map<string, Point>, pinned: Map<string, Point>): string {
+  const obj: Record<string, Point> = {};
+  for (const [id, pos] of positions) obj[id] = pos;
+  for (const [id, pos] of pinned) obj[id] = pos;   // a drag wins over the layout
+  return JSON.stringify({ v: 2, positions: obj, pins: Array.from(pinned.keys()) });
+}
+
+/**
+ * The stored frame string as a {@link Frame}, or null. Only a positive numeric
+ * width and height count: a frame of zero is "not measured yet", and the
+ * reframe effect compares nothing against a null (#995).
+ */
+export function parseLayoutFrame(raw: string | null): Frame | null {
+  if (!raw) return null;
+  let f: { width?: unknown; height?: unknown } | null;
+  try { f = JSON.parse(raw); } catch { return null; }
+  if (!(typeof f?.width === "number" && typeof f?.height === "number")) return null;
+  if (!(f.width > 0 && f.height > 0)) return null;
+  return { width: f.width, height: f.height };
 }

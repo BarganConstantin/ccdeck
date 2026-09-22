@@ -27,6 +27,10 @@ const SERVER = fileURLToPath(new URL("../../server/", import.meta.url));
 const WEB = fileURLToPath(new URL("../", import.meta.url));
 const src = (root: string, file: string) => readFileSync(join(root, file), "utf8");
 
+// ONE CAME BACK. panel-exit.ts's `nextPhase` was one of the nine, and #1174
+// exported it again for panel-exit.test.ts, which holds its transition table.
+// It has a reader outside its own file now, so it is not in the list below.
+//
 // file, symbol, the declaration that must survive, and the in-file read that
 // still needs it.
 const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegExp, reader: RegExp][] = [
@@ -36,7 +40,6 @@ const UNEXPORTED: [dir: string, file: string, symbol: string, declaration: RegEx
   [SERVER, "stop-deck.mjs",         "STOP_GONE_MS",        /^const STOP_GONE_MS = 3000;$/m,          /goneMs = STOP_GONE_MS/],
   [SERVER, "supervisor.mjs",        "CRASH_BACKOFF_MS",    /^const CRASH_BACKOFF_MS = 1000;$/m,      /backoffMs = CRASH_BACKOFF_MS/],
   [SERVER, "index.mjs",             "awayUpdateTick",      /^async function awayUpdateTick\(\) \{$/m, /setInterval\(\(\) => \{ awayUpdateTick\(\)/],
-  [WEB,    "panel-exit.ts",         "nextPhase",           /^function nextPhase\(open: boolean, phase: PanelPhase\): PanelPhase \{$/m, /nextPhase\(open, p\)/],
   [WEB,    "spend-rate.ts",         "SPEND_MIN_SPAN_MS",   /^const SPEND_MIN_SPAN_MS = 60_000;$/m,   /spanMs < SPEND_MIN_SPAN_MS/],
   [WEB,    "usage-from-ccusage.ts", "sessionIdFromPeriod", /^function sessionIdFromPeriod\(period: string\): string \{$/m, /= sessionIdFromPeriod\(period\)/],
 ];

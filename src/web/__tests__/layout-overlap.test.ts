@@ -61,6 +61,39 @@ describe("autoLayout — nodes never share space", () => {
     expect(b1.position.y).toBeGreaterThan(600 + H);        // and cleared
   });
 
+  it("clears the lowest of two cards dragged out of one session, whichever comes first", () => {
+    // Two drags in one session is the ordinary case — a fan-out arranged by
+    // hand — and the session's pinned box has to be the union of both. Run
+    // with the pins each way round: a box that kept only the first pin fails
+    // one order and a box that kept only the last fails the other, and either
+    // one stacks the next session straight through the lower card.
+    const measured = sizes(["a1", "a2", "a3", "b1"]);
+    for (const [low, high] of [["a2", "a3"], ["a3", "a2"]]) {
+      const nodes = [agent("a1", "sa"), agent("a2", "sa"), agent("a3", "sa"), agent("b1", "sb")];
+      const pinned = new Map([[low, { x: 0, y: 600 }], [high, { x: 0, y: 200 }]]);
+
+      const out = autoLayout(nodes, [], { measured, pinned });
+      const where = (id: string) => out.find(n => n.id === id)!.position;
+      expect(overlaps(out, measured), `${low} low`).toEqual([]);
+      expect(where(low)).toEqual({ x: 0, y: 600 });
+      expect(where(high)).toEqual({ x: 0, y: 200 });
+      expect(where("b1").y, `${low} low`).toBeGreaterThan(600 + H);
+    }
+  });
+
+  it("keeps a session's two pins in its column's band when only one of them is", () => {
+    // The union's left edge is the leftmost card, so one pin parked far to the
+    // right does not take the box out of column 0 — the card still in the
+    // column is what the next session has to clear.
+    const nodes = [agent("a1", "sa"), agent("a2", "sa"), agent("a3", "sa"), agent("b1", "sb")];
+    const measured = sizes(["a1", "a2", "a3", "b1"]);
+    const pinned = new Map([["a2", { x: 0, y: 600 }], ["a3", { x: 1200, y: 100 }]]);
+
+    const out = autoLayout(nodes, [], { measured, pinned });
+    expect(overlaps(out, measured)).toEqual([]);
+    expect(out.find(n => n.id === "b1")!.position.y).toBeGreaterThan(600 + H);
+  });
+
   it("does not stack the next session below a pin parked beside the column", () => {
     // A pin's coordinate is a canvas one; the session it belongs to is packed
     // from its own origin. Folding the pin's absolute offset into the session's

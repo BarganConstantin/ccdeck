@@ -21,6 +21,7 @@ import { knownLanes, laneKey, toggleLane } from "../lane-open";
 import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
+import { copyText } from "../copy-text";
 import {
   type Failure,
   RELOAD_SLOW,
@@ -411,36 +412,6 @@ function LaneBar({ lane, nowSec, frozen }: { lane: Lane; nowSec: number; frozen?
       </span>
     </div>
   );
-}
-
-/**
- * Copy text, and say whether it worked.
- *
- * navigator.clipboard is undefined outside a secure context and can sit
- * unresolved while the browser decides on permission — which leaves a Copy
- * button silently dead. Race it, then fall back to the old selection trick.
- * Same shape as the version banner's copy, for the same reason.
- */
-async function copyText(text: string): Promise<boolean> {
-  let ok = false;
-  try {
-    ok = await Promise.race([
-      navigator.clipboard?.writeText(text).then(() => true) ?? Promise.resolve(false),
-      new Promise<boolean>(r => window.setTimeout(() => r(false), 500)),
-    ]);
-  } catch { ok = false; }
-  if (ok) return true;
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-    document.body.appendChild(ta);
-    ta.select();
-    ok = document.execCommand("copy");
-    ta.remove();
-  } catch { ok = false; }
-  return ok;
 }
 
 interface Props {

@@ -80,7 +80,7 @@ import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, pruneDone
 import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
-import { restoreLayout, type StoredLayout } from "./stored-layout";
+import { parseLayoutFrame, parseStoredLayout, restoreLayout, serializeLayout, type StoredLayout } from "./stored-layout";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM, parseStoredViewport, type StoredViewport } from "./stored-viewport";
 import { selfPressAccepted, selfPressProps } from "./panel-press";
 import { isUserViewportGesture } from "./viewport-intent";
@@ -429,26 +429,14 @@ function saveMachinePanelOpen(open: boolean): void {
   try { window.localStorage.setItem(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0"); } catch {}
 }
 
+/** The stored arrangement. The format, its v1 migration and what a garbled
+ *  value reads as are parseStoredLayout's (#1174); the try is for the storage
+ *  read itself, which can throw on its own. */
 function loadLayout(): StoredLayout {
-  const empty: StoredLayout = { positions: [], pins: [] };
-  if (typeof window === "undefined") return empty;
+  if (typeof window === "undefined") return { positions: [], pins: [] };
   try {
-    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!raw) return empty;
-    const obj = JSON.parse(raw) as
-      | Record<string, { x: number; y: number }>
-      | { v: 2; positions: Record<string, { x: number; y: number }>; pins: string[] };
-
-    // v1 stored a bare id → point map of drags only. Read it as all-pinned so
-    // an upgrade keeps whatever the user had arranged.
-    if (!("v" in obj)) {
-      const entries = Object.entries(obj).filter(([, v]) => v && typeof v.x === "number" && typeof v.y === "number");
-      return { positions: entries, pins: entries.map(([id]) => id) };
-    }
-    const entries = Object.entries(obj.positions ?? {})
-      .filter(([, v]) => v && typeof v.x === "number" && typeof v.y === "number");
-    return { positions: entries, pins: Array.isArray(obj.pins) ? obj.pins : [] };
-  } catch { return empty; }
+    return parseStoredLayout(window.localStorage.getItem(LAYOUT_STORAGE_KEY));
+  } catch { return { positions: [], pins: [] }; }
 }
 
 function saveLayout(
@@ -457,12 +445,7 @@ function saveLayout(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const obj: Record<string, { x: number; y: number }> = {};
-    for (const [id, pos] of positions) obj[id] = pos;
-    for (const [id, pos] of pinned) obj[id] = pos;   // a drag wins over the layout
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
-      v: 2, positions: obj, pins: Array.from(pinned.keys()),
-    }));
+    window.localStorage.setItem(LAYOUT_STORAGE_KEY, serializeLayout(positions, pinned));
   } catch { /* quota / private mode — ignore */ }
 }
 
@@ -484,12 +467,7 @@ function saveLayout(
 function loadLayoutFrame(): Frame | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(LAYOUT_FRAME_KEY);
-    if (!raw) return null;
-    const f = JSON.parse(raw);
-    if (!(typeof f?.width === "number" && typeof f?.height === "number")) return null;
-    if (!(f.width > 0 && f.height > 0)) return null;
-    return { width: f.width, height: f.height };
+    return parseLayoutFrame(window.localStorage.getItem(LAYOUT_FRAME_KEY));
   } catch { return null; }
 }
 
