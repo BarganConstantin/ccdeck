@@ -431,6 +431,22 @@ export function withManualEntry(entry) {
   };
 }
 
+/**
+ * `lan.shared` with `key` on the end, or no change when it is already there.
+ *
+ * The tick an account gets when it ARRIVES over the local network (#1188): the
+ * group already has that login, so a deck that was just given one is as useful
+ * to the next machine as the deck that gave it. Only on arrival — an untick
+ * afterwards is the person's answer and nothing re-ticks it, because an account
+ * this deck already holds is never added again.
+ */
+export function withShared(key) {
+  return prev => {
+    const shared = Array.isArray(prev?.lan?.shared) ? prev.lan.shared : [];
+    return !key || shared.includes(key) ? null : { lan: { shared: [...shared, key] } };
+  };
+}
+
 /** `lan.aliases` with `fp` called `name`, or without `fp` when the name is
  *  empty. The alias route's write; the whole map, rebuilt from the one read. */
 export function withAlias(fp, name) {
