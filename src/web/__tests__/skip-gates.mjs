@@ -113,11 +113,12 @@ export const CONDITIONS = {
     // about the machine. The inventory test pins that step's existence for
     // exactly this reason.
     //
-    // Three sites now, and each raises the stakes: theme-first-paint's one case
+    // Four sites now, and each raises the stakes: theme-first-paint's one case
     // reads the built page, tarball-install-smoke's nine PACK that build and run
-    // what comes out, and notices-bundle's four read the built chunks to decide
+    // what comes out, notices-bundle's four read the built chunks to decide
     // what THIRD_PARTY_NOTICES.md must attribute — an artifact question with a
-    // licensing answer, which no amount of reading the sources can settle. A leg
+    // licensing answer, which no amount of reading the sources can settle — and
+    // guarded-reads' six ask the running server for those files. A leg
     // that stops building loses the only coverage the shipped package has, so
     // this condition answering `true` in CI is the single most expensive silent
     // skip in the register.
@@ -193,6 +194,10 @@ export const GATES = [
   // without dist/web does not boot at all, which would make this a timeout
   // rather than a failure with a reason.
   { file: "tarball-install-smoke.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 9 },
+  // #1168's static-serving block: the headers, the encodings, the SPA fallback
+  // and the traversal spellings, asked of serveStatic through the socket. What
+  // it serves is the build, so without one there is nothing to ask it about.
+  { file: "guarded-reads.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 6 },
 ];
 
 /**

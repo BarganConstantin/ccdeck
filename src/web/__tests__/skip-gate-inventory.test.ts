@@ -195,8 +195,10 @@ describe("the register of conditionally-skipped cases", () => {
     // notices must attribute. The number is stated rather than derived on
     // purpose: it is the one place a new probe gate has to be acknowledged by a
     // human, and this file going red on the day one lands is the acknowledgement.
+    // Eight since #1168 added a fourth — guarded-reads.test.ts's static-serving
+    // block, which asks serveStatic for the built files through the socket.
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(7);
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(8);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The remaining probe site is the read-only-directory one, the only probe with

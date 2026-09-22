@@ -34,7 +34,7 @@ import { createOutputWatch } from "./output-watch.mjs";
 import { RECAP_MARK, foldRecapLine } from "./session-recap.mjs";
 import { AWAY_BOOT_GRACE_MS, AWAY_RECHECK_MS, AWAY_TICK_MS, awayGate, awayUpdateStep } from "./auto-update.mjs";
 import { createPresence } from "./presence.mjs";
-import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, writePrefs } from "./deck-prefs.mjs";
+import { DEFAULTS as PREF_DEFAULTS, cleanAlias, isAliasKey, lanEnabled, notificationsOn, notificationsVetoed, publicPrefs, readPrefs, updatePrefs, withAlias, withManualEntry, writePrefs } from "./deck-prefs.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet, IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { portHolder } from "./port-holder.mjs";
@@ -3982,10 +3982,7 @@ const lanEngine = createEngine({
       // is the WHOLE array, so a stale one wins. Pressing accept on a heard deck
       // at the moment an invite round fires this dropped the dialled address out
       // of `lan.manual`, which is the failure the comment above describes.
-      _prefs = await updatePrefs(prev => {
-        const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-        return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-      });
+      _prefs = await updatePrefs(withManualEntry(entry));
       // AND RECONCILE THE ENGINE'S DIAL LIST with what was just written. The
       // disk is now right, but `setPeers` replaces the list wholesale from
       // `_prefs` on every settings write — so a write that raced this one, and
@@ -4360,12 +4357,7 @@ async function handleLanPeer(req, res) {
         // Inside the job, like `onDial` — the same whole-array patch computed
         // from the same stale copy, and the same address lost when two of them
         // land in one turn.
-        try {
-          _prefs = await updatePrefs(prev => {
-            const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-            return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-          });
-        }
+        try { _prefs = await updatePrefs(withManualEntry(entry)); }
         catch { /* it is dialled this session; the next accept re-adds it */ }
       }
       return send(res, 200, { ok: true, added, ...lanEngine.status() });
@@ -4391,11 +4383,7 @@ async function handleLanPeer(req, res) {
     case "alias": {
       if (!isAliasKey(fp)) return send(res, 400, { ok: false, reason: "bad_request" });
       const name = cleanAlias(body.name);
-      _prefs = await updatePrefs(prev => {
-        const next = { ...(prev?.lan?.aliases ?? {}) };
-        if (name) next[fp] = name; else delete next[fp];
-        return { lan: { aliases: next } };
-      });
+      _prefs = await updatePrefs(withAlias(fp, name));
       await lanEngine.apply({ aliases: _prefs.lan.aliases });
       return send(res, 200, { ok: true, ...lanEngine.status() });
     }
@@ -6756,10 +6744,25 @@ export function requestUrl(rawUrl) {
 // So the Host check runs for every method now. What it asks is only the
 // rebinding question — did this request arrive addressed to a name that can
 // only ever be this machine — and it asks it of browser-shaped requests alone,
-// meaning anything carrying an Origin or fetch metadata. A client sending
-// neither is not a page and has no ambient authority to borrow: that is
-// hook/hook.js, a plain Node http.request from the user's own machine, and it
-// keeps reaching the deck under whatever name it used before.
+// meaning anything carrying an Origin, fetch metadata or a Referer. A client
+// sending none of them is not a page and has no ambient authority to borrow:
+// that is hook/hook.js, a plain Node http.request from the user's own machine,
+// and it keeps reaching the deck under whatever name it used before.
+//
+// THE REFERER IS ON THAT LIST because on one browser it is the only mark a page
+// leaves (#1168). A same-origin GET carries no Origin, and Safari 16.0-16.3
+// sends no Sec-Fetch-Site — the premise isAuthorizedDataRead's fallback is
+// built on — so a rebound page on that browser sent `Host: attacker.example:
+// 4317` and `Referer: http://attacker.example:4317/` and nothing else, was not
+// browser-shaped by the test as it stood, and was answered. Measured against a
+// running deck before this line changed: /api/health (the absolute workspace
+// path), /api/hook-challenge (the proof oracle, which handleHookChallenge says
+// a rebound page cannot see), /api/system/processes and the page itself all
+// answered 200. The guarded reads held only because isAuthorizedDataRead
+// happens to test the Host before it reads the Referer. No client of this
+// server that is not a browser sends a Referer — hook.js, the desktop app and
+// bin/ send none — so nothing that reached the deck before is turned away by
+// this, and the deck's own page names a loopback Host whatever it sends.
 //
 // Deliberately not part of this: the Sec-Fetch-Site test that isTrustedMutation
 // applies. `cross-site` on a read is an ordinary top-level navigation — a link
@@ -6767,9 +6770,10 @@ export function requestUrl(rawUrl) {
 // the deck's own UI on the deck's own origin, which is not an attack and used
 // to work. Rebinding does not need that test either: a rebound page's requests
 // report `same-origin`, and it is the Host that gives it away.
-export function isTrustedRead({ origin, host, secFetchSite } = {}) {
+export function isTrustedRead({ origin, host, secFetchSite, referer } = {}) {
   const browserShaped = (typeof origin === "string" && origin !== "")
-    || (typeof secFetchSite === "string" && secFetchSite.trim() !== "");
+    || (typeof secFetchSite === "string" && secFetchSite.trim() !== "")
+    || (typeof referer === "string" && referer.trim() !== "");
   if (!browserShaped) return true;
   return isLoopbackHost(host);
 }
@@ -7377,6 +7381,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       origin: req.headers.origin,
       host: req.headers.host,
       secFetchSite: req.headers["sec-fetch-site"],
+      referer: req.headers.referer,
     })) {
       return send(res, 403, { error: "cross-site request blocked" });
     }

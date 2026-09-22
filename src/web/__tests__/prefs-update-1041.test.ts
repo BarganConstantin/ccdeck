@@ -61,7 +61,7 @@ if (!resolve(process.env.HOME!).startsWith(resolve(DIR))) throw new Error("sandb
 
 interface Prefs { lan: { manual: string[]; aliases: Record<string, string>; trusted: Array<{ fp: string }> } }
 // @ts-expect-error — plain .mjs server module, no types
-const { readPrefs, updatePrefs, writePrefs } = await import("../../server/deck-prefs.mjs");
+const { readPrefs, updatePrefs, withAlias, withManualEntry, writePrefs } = await import("../../server/deck-prefs.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { lanApplyFields } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -81,18 +81,16 @@ afterAll(() => {
 
 // ── 1. the patch is a function of the file ──────────────────────────────────
 
+// The patches are the routes' own, imported rather than written out here. They
+// used to be copies of index.mjs's closures, and a copy is tested against
+// deck-prefs.mjs while the route it was copied from is free to change (#1168).
+// lan-routes.test.ts drives the alias route itself, through the socket.
+
 /** `onDial` and the accept route, in one shape, because they are one shape. */
-const addManual = (entry: string) => updatePrefs((prev: Prefs) => {
-  const manual = Array.isArray(prev?.lan?.manual) ? prev.lan.manual : [];
-  return manual.includes(entry) ? null : { lan: { manual: [...manual, entry] } };
-}, DIR);
+const addManual = (entry: string) => updatePrefs(withManualEntry(entry), DIR);
 
 /** The alias route. */
-const setAlias = (fp: string, name: string) => updatePrefs((prev: Prefs) => {
-  const next = { ...(prev?.lan?.aliases ?? {}) };
-  if (name) next[fp] = name; else delete next[fp];
-  return { lan: { aliases: next } };
-}, DIR);
+const setAlias = (fp: string, name: string) => updatePrefs(withAlias(fp, name), DIR);
 
 describe("two writes of one field inside one turn", () => {
   it("loses one when the patch is computed outside the job, which is what happened", async () => {
