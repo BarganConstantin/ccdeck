@@ -530,8 +530,6 @@ app.whenReady().then(async () => {
 function updateWhenQuiet() {
   const where = {
     windowFocused: !!win && !win.isDestroyed() && win.isFocused(),
-    waiting: snapshot.waiting ?? 0,
-    running: snapshot.running ?? 0,
     busy: !!starting || !!restarting,
     now: Date.now(),
   };
