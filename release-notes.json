@@ -50,6 +50,12 @@
     "3.26.4",
     "3.26.5"
   ],
+  "3.27.0": [
+    {
+      "title": "📊 Projects: where each account spent its work",
+      "body": "Each account card's ⋯ menu now breaks its cost down by project, over 7d / 30d / all."
+    }
+  ],
   "3.25.0": [
     {
       "title": "🖱️ A click goes to the session, a double-click opens the details",
