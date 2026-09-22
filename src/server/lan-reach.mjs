@@ -31,25 +31,35 @@
 // suite can run it on any platform. That is the same division lan-sync.mjs and
 // lan-socket.mjs already keep, for the same reason.
 
-/** What the probe asks Windows for. Three reads, none of them privileged —
- *  measured: `Get-NetConnectionProfile`, `Get-NetFirewallProfile` and
- *  `Get-NetFirewallApplicationFilter` all answer for an ordinary user, while
- *  `Get-NetFirewallPortFilter` returns "Access is denied". So the rule this
- *  looks for is scoped to a PROGRAM rather than to a port, which is also the
- *  only kind that keeps working: the sync listener's port is ephemeral and is
- *  a different number after every restart. */
+/** What the probe asks Windows for. `Get-NetConnectionProfile` and
+ *  `Get-NetFirewallProfile` answer for an ordinary user; `Get-NetFirewallPortFilter`
+ *  returns "Access is denied", which is why the rule this looks for is scoped
+ *  to a PROGRAM rather than a port — also the only kind that keeps working,
+ *  since the sync listener's port is ephemeral and different after every
+ *  restart. `Get-NetFirewallApplicationFilter` answers on many machines but is
+ *  denied on some domain-managed ones, so it is wrapped and its failure carried
+ *  through as `rulesReadable=$false` rather than silently read as "no rule". */
 export const PROBE_PS = [
   "$ErrorActionPreference='SilentlyContinue'",
   "$nets = @(Get-NetConnectionProfile | ForEach-Object { [pscustomobject]@{ alias=$_.InterfaceAlias; category=[string]$_.NetworkCategory; v4=[string]$_.IPv4Connectivity } })",
   "$profiles = @(Get-NetFirewallProfile | ForEach-Object { [pscustomobject]@{ name=[string]$_.Name; enabled=[bool]$_.Enabled } })",
-  "$rules = @(Get-NetFirewallApplicationFilter | Where-Object { $_.Program -eq $env:CCDECK_EXE } | ForEach-Object { $_ | Get-NetFirewallRule } | ForEach-Object { [pscustomobject]@{ direction=[string]$_.Direction; action=[string]$_.Action; enabled=[bool]$_.Enabled; profile=[string]$_.Profile } })",
+  // AN EMPTY LIST HAS TWO MEANINGS, AND THEY ARE OPPOSITE. `Get-NetFirewallApplicationFilter`
+  // answers for an ordinary user on some machines and throws "Access is denied"
+  // on others (a domain-managed box, measured). With errors silenced it came
+  // back empty either way — and empty was read as "no rule", so a machine whose
+  // rule the deck simply could not see was told, wrongly, that it had none, and
+  // handed a command that added one more every time it was run. Wrapped so the
+  // throw is caught and reported as `rulesReadable=$false`: the difference
+  // between "there is no rule" and "I was not allowed to look".
+  "$rulesReadable=$true",
+  "try { $rules = @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -eq $env:CCDECK_EXE } | ForEach-Object { $_ | Get-NetFirewallRule } | ForEach-Object { [pscustomobject]@{ direction=[string]$_.Direction; action=[string]$_.Action; enabled=[bool]$_.Enabled; profile=[string]$_.Profile } }) } catch { $rulesReadable=$false; $rules=@() }",
   // WHICH INTERFACE IS THE LAN, asked of the routing table rather than guessed
   // from a name. The beacon goes to 255.255.255.255, so the interface that
   // carries the broadcast IS the one this feature lives or dies on — and on a
   // machine with Tailscale beside wifi the two have different categories, so
   // picking the wrong one reports Private and clears a machine that is blocked.
   "$bcast = [string](Find-NetRoute -RemoteIPAddress 255.255.255.255 | Select-Object -First 1 -ExpandProperty InterfaceAlias)",
-  "[pscustomobject]@{ nets=$nets; profiles=$profiles; rules=$rules; bcast=$bcast } | ConvertTo-Json -Depth 4 -Compress",
+  "[pscustomobject]@{ nets=$nets; profiles=$profiles; rules=$rules; rulesReadable=$rulesReadable; bcast=$bcast } | ConvertTo-Json -Depth 4 -Compress",
 ].join("; ");
 
 /**
@@ -88,6 +98,9 @@ export function readProbe(stdout) {
       enabled: r.enabled === true,
       profile: typeof r.profile === "string" ? r.profile : "",
     })),
+    // True unless the probe said it could not read the rules — and true for an
+    // older probe that did not report it, which kept working as it always did.
+    rulesReadable: raw.rulesReadable !== false,
     bcast: typeof raw.bcast === "string" ? raw.bcast.trim() : "",
   };
 }
@@ -479,6 +492,16 @@ export function reachability({ platform, probe, aliases = [], exePath = "", inbo
   if (ruleCovers(probe.rules, name)) {
     return { blocked: false, why: "rule present", category, alias: net?.alias ?? "" };
   }
+  // COULD NOT READ THE RULES, SO CANNOT SAY THERE IS NONE. An empty list here
+  // is "Access is denied", not "no rule" (see PROBE_PS), so claiming a missing
+  // rule would be a guess dressed as a read — and the command that guess hands
+  // over adds a duplicate rule on a machine that may already be covered. On a
+  // Public network the fix is the category, which was read reliably, so that
+  // verdict still stands; anywhere else the honest answer is the measurement,
+  // which `refreshReach` falls back to when this returns null.
+  // Only an EMPTY list is ambiguous — a rule in hand was plainly readable,
+  // whatever the flag says.
+  if (!probe.rulesReadable && probe.rules.length === 0 && name !== "Public") return null;
   return {
     blocked: true,
     why: "no inbound rule",
