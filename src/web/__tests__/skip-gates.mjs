@@ -114,7 +114,7 @@ export const CONDITIONS = {
     // exactly this reason.
     //
     // Four sites now, and each raises the stakes: theme-first-paint's one case
-    // reads the built page, tarball-install-smoke's nine PACK that build and run
+    // reads the built page, tarball-install-smoke's ten PACK that build and run
     // what comes out, notices-bundle's four read the built chunks to decide
     // what THIRD_PARTY_NOTICES.md must attribute — an artifact question with a
     // licensing answer, which no amount of reading the sources can settle — and
@@ -203,7 +203,7 @@ export const GATES = [
   // so a leg that has not built has nothing honest to pack — and a tarball
   // without dist/web does not boot at all, which would make this a timeout
   // rather than a failure with a reason.
-  { file: "tarball-install-smoke.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 9 },
+  { file: "tarball-install-smoke.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 10 },
   // #1168's static-serving block: the headers, the encodings, the SPA fallback
   // and the traversal spellings, asked of serveStatic through the socket. What
   // it serves is the build, so without one there is nothing to ask it about.
