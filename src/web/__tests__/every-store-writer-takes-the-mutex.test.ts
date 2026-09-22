@@ -70,7 +70,17 @@ mkdirSync(join(DIR, "cswap"), { recursive: true });
 // moment it was reached, and a recorder that appends before it does anything
 // else answers exactly that.
 const { proc } = vi.hoisted(() => ({
-  proc: { calls: [] as string[][] },
+  proc: {
+    calls: [] as string[][],
+    // What claude-swap's own write does to sequence.json while the command
+    // runs, for the cases that are about what a read AFTER it sees. Null for
+    // every case that only asks when a child was reached.
+    writes: null as null | ((args: string[]) => void),
+    // How a command ends, for the cases that are about a refusal. Answering
+    // per argv rather than globally, since a roster read may spawn a collector
+    // of its own beside the mutation under test.
+    fails: null as null | ((args: string[]) => Record<string, unknown> | null),
+  },
 }));
 
 vi.mock("../../server/exec.mjs", async (importOriginal) => {
@@ -80,6 +90,9 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
     ...real,
     run: async (_cmd: string, args: string[] = []) => {
       proc.calls.push(args);
+      proc.writes?.(args);
+      const bad = proc.fails?.(args);
+      if (bad) return { ...okay, ...bad };
       // The tick parses this; anything else is happy with silence.
       if (args[0] === "auto") {
         return { ...okay, stdout: JSON.stringify({ event: "no-switch", reason: "cooldown" }) };
@@ -95,9 +108,10 @@ vi.mock("../../server/exec.mjs", async (importOriginal) => {
 });
 
 // @ts-expect-error — plain .mjs server module, no types
-const { withStoreLock } = await import("../../server/cswap-admin.mjs");
+const { withStoreLock, moveAccount } = await import("../../server/cswap-admin.mjs");
 // @ts-expect-error — plain .mjs server module, no types
-const { switchClaudeAccount, seedFirstAccount } = await import("../../server/claude-accounts.mjs");
+const { switchClaudeAccount, seedFirstAccount, fetchClaudeAccounts, invalidateClaudeAccountsCache } =
+  await import("../../server/claude-accounts.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const auto = await import("../../server/cswap-auto.mjs");
 
@@ -141,6 +155,8 @@ async function whileTheStoreIsBusy(body: () => Promise<void>) {
 
 beforeEach(() => {
   proc.calls.length = 0;
+  proc.writes = null;
+  proc.fails = null;
 });
 
 afterAll(async () => {
@@ -241,5 +257,128 @@ describe("the mutex itself", () => {
     const second = switchClaudeAccount(3).then(() => { order.push("switch"); });
     await Promise.all([first, second]);
     expect(order).toEqual(["held", "switch"]);
+  });
+});
+
+// Two more writers of the same sequence.json, driven rather than read (#1169).
+//
+// Their bounds are tested and their lock and invalidation were pinned as SOURCE
+// TEXT — remaining-forced-read-guards.test.ts slices setAccountEnabled's body
+// and looks for the two names in it, which a lock taken around the wrong call
+// passes just as well. What follows is the same claim made by running them: the
+// child is not reached while somebody else holds the store, and the roster the
+// press just made wrong is gone by the time the panel asks again.
+describe("holding an account out of rotation", () => {
+  const seq = join(DIR, "cswap", "sequence.json");
+  /** Two accounts, 1 active, with 2 in or out of the rotation. */
+  const store = (twoIsHeld = false) => writeFileSync(seq, JSON.stringify({
+    activeAccountNumber: 1,
+    accounts: { 1: { email: "a@b.c" }, 2: { email: "d@e.f", ...(twoIsHeld ? { disabled: true } : {}) } },
+  }));
+  const held = (rows: { num: number; disabled: boolean }[]) => rows.find(r => r.num === 2)?.disabled;
+
+  it("refuses an account number that is not one, without reaching for the lock", async () => {
+    // Same argument as the switch route above: the validation is what lets this
+    // hand a number to a subprocess at all, and a bad one is answered now
+    // rather than behind a lock somebody else is holding.
+    await whileTheStoreIsBusy(async () => {
+      expect(await auto.setAccountEnabled("2; rm -rf /", true)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(await auto.setAccountEnabled(0, false)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(await auto.setAccountEnabled(1000, false)).toMatchObject({ ok: false, reason: "bad_account" });
+      expect(proc.calls).toEqual([]);
+    });
+  });
+
+  it("waits for the mutation already running before it writes the flag", async () => {
+    // `cswap disable N` is a read-modify-write of sequence.json, which is the
+    // pair the mutex exists for — and this was the one mutation that did not
+    // take it.
+    let holding!: Promise<{ ok: boolean }>;
+    await whileTheStoreIsBusy(async () => {
+      holding = auto.setAccountEnabled(2, false);
+      await rest(60);
+      expect(ran("disable"), "a disable was spawned beside an in-flight store mutation").toEqual([]);
+    });
+    expect(await holding).toMatchObject({ ok: true });
+    expect(ran("disable")).toEqual([["disable", "2"]]);
+  });
+
+  it("puts an account back in with the other spelling of the same command", async () => {
+    expect(await auto.setAccountEnabled(2, true)).toMatchObject({ ok: true });
+    expect(ran("enable")).toEqual([["enable", "2"]]);
+    expect(ran("disable")).toEqual([]);
+  });
+
+  it("repeats what claude-swap refused, rather than reporting a hold that happened", async () => {
+    proc.fails = args => (args[0] === "disable" ? { ok: false, code: 1, stderr: "no such account\n" } : null);
+    expect(await auto.setAccountEnabled(9, false))
+      .toEqual({ ok: false, reason: "command_failed", detail: "no such account" });
+  });
+
+  it("drops the roster it has just made wrong, so the press is not a no-op for a minute", async () => {
+    // The documented bug, driven: the panel polls every 15 s and each poll
+    // stamps the read, so `now - _lastReadAt >= FORCE_POLL_MS` (60 s) is a
+    // quantity the reload after the press can never reach. Without the
+    // invalidation the forced read is refused and hands back the roster from
+    // before the press — the chip does not move and nothing has failed.
+    store(false);
+    proc.writes = args => { if (args[0] === "disable") store(true); };
+    invalidateClaudeAccountsCache();
+    const before = await fetchClaudeAccounts();
+    expect(held(before.accounts), "the fixture starts with account 2 in the rotation").toBe(false);
+
+    expect(await auto.setAccountEnabled(2, false)).toMatchObject({ ok: true });
+
+    const after = await fetchClaudeAccounts({ force: true });
+    expect(held(after.accounts)).toBe(true);
+  });
+});
+
+describe("moving an account to another slot", () => {
+  const seq = join(DIR, "cswap", "sequence.json");
+  const store = (accounts: Record<number, string>) => writeFileSync(seq, JSON.stringify({
+    activeAccountNumber: 2,
+    accounts: Object.fromEntries(Object.entries(accounts).map(([n, email]) => [n, { email }])),
+  }));
+
+  it("waits for the mutation already running before it reorders the store", async () => {
+    store({ 2: "d@e.f", 3: "g@h.i" });
+    let moving!: Promise<{ ok: boolean }>;
+    await whileTheStoreIsBusy(async () => {
+      moving = moveAccount(2, 3);
+      await rest(60);
+      expect(ran("move"), "a move was spawned beside an in-flight store mutation").toEqual([]);
+    });
+    await moving;
+    expect(ran("move")).toEqual([["move", "2", "3"]]);
+  });
+
+  it("reads the store on both sides of the move and reports the trade that happened", async () => {
+    // moveOutcome is pure and tested on hand-built pairs; what it is given is
+    // not. The two reads must straddle the command — a `before` taken after it
+    // would show the move already done and report every move as a relocation
+    // into an empty slot.
+    store({ 2: "d@e.f", 3: "g@h.i" });
+    proc.writes = args => {
+      if (args[0] === "move") store({ 2: "g@h.i", 3: "d@e.f" });
+    };
+    expect(await moveAccount(2, 3)).toMatchObject({ ok: true, from: 2, to: 3, swapped: true });
+  });
+
+  it("says a move into a free slot is not a trade", async () => {
+    store({ 2: "d@e.f" });
+    proc.writes = args => { if (args[0] === "move") store({ 3: "d@e.f" }); };
+    expect(await moveAccount(2, 3)).toMatchObject({ ok: true, from: 2, to: 3, swapped: false });
+  });
+
+  it("reports a refused move rather than the store it then reads", async () => {
+    // The store is untouched on a refusal, so the two reads agree and
+    // moveOutcome would answer `to: null` — which reads as "it went somewhere
+    // unexpected" rather than as "claude-swap said no".
+    store({ 2: "d@e.f", 3: "g@h.i" });
+    proc.fails = args => (args[0] === "move" ? { ok: false, code: 1, stderr: "slot 3 is locked\n" } : null);
+    const r = await moveAccount(2, 3);
+    expect(r).toMatchObject({ ok: false, reason: "move_failed" });
+    expect(r.detail).toContain("slot 3 is locked");
   });
 });
