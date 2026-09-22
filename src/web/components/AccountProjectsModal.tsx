@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
-import { reconcile, type Counters } from "../account-projects-reconcile";
+import { reconcile, type Counters, type CcCell } from "../account-projects-reconcile";
 import { useModalDismiss } from "./use-modal-dismiss";
 
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
@@ -147,8 +147,8 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     // ── ccusage: the dollar authority, per (day, model), Claude only ─────────
     // Only Claude model breakdowns are read, so Codex cost never reconciles into
     // a project nor into the window total.
-    const ccByDayModel = new Map<string, number>();   // `${day}|${model}` -> cost
-    let ccWindowTotal = 0;
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+    const ccByDayModel = new Map<string, CcCell>();   // `${day}|${model}` -> { cost, tokens }
     if (ccRange) {
       const daysArr = Array.isArray((ccRange as { days?: unknown }).days) ? (ccRange as { days: Array<Record<string, unknown>> }).days : [];
       for (const d of daysArr) {
@@ -156,16 +156,22 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
         const mbs = Array.isArray(d.modelBreakdowns) ? (d.modelBreakdowns as Array<Record<string, unknown>>) : [];
         for (const b of mbs) {
           const mn = typeof b.modelName === "string" ? b.modelName : "";
-          const cost = typeof b.cost === "number" ? b.cost : 0;
           if (!period || !/claude/i.test(mn)) continue;
-          ccByDayModel.set(`${period}|${mn}`, (ccByDayModel.get(`${period}|${mn}`) ?? 0) + cost);
-          ccWindowTotal += cost;
+          const key = `${period}|${mn}`;
+          const cur = ccByDayModel.get(key);
+          const u = cur ? cur.usage : { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
+          u.inputTokens += num(b.inputTokens);
+          u.outputTokens += num(b.outputTokens);
+          u.cacheReadTokens += num(b.cacheReadTokens);
+          u.cacheCreateTokens += num(b.cacheCreationTokens);
+          if (cur) cur.cost += num(b.cost);
+          else ccByDayModel.set(key, { cost: num(b.cost), usage: u });
         }
       }
     }
-    // The reconciliation math lives in a pure, tested module (the invariant is
-    // Σ project = Σ day = total, and attributed + unattributed = ccusage total).
-    const rec = reconcile(report.daily ?? [], report.unattributed, ccByDayModel, ccWindowTotal, now);
+    // The reconciliation math lives in a pure, tested module: our tokens priced
+    // at ccusage's own per-token rate, per day, so nothing inflates or leaks in.
+    const rec = reconcile(report.daily ?? [], report.unattributed, ccByDayModel, now);
 
     // Names, with a colliding basename told apart by its parent.
     const nameOf = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path || "(unknown)";
