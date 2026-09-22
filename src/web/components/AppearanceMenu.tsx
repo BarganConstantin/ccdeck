@@ -48,7 +48,8 @@ interface Props {
 export default function AppearanceMenu({
   theme, onTheme, characterEnabled, onToggleCharacter, onClose, openerRef,
 }: Props) {
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  // A popover: the canvas stays in view around it, so its letters stay live.
+  const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 

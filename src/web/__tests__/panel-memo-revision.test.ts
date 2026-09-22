@@ -55,6 +55,7 @@ import {
   applyEvent, initialState, pruneDoneSessions, sweepStaleSessions, STALE_SESSION_MS,
 } from "../reducer";
 import type { GraphState } from "../reducer";
+import { boardSessionTable } from "../board-usage";
 import type { HookEnvelope, HookPayload } from "../types";
 
 /** The shipped constants, from App.tsx — the point is the deck as it runs, not
@@ -105,13 +106,13 @@ function memo<T>(compute: () => T, deps: () => unknown[]): () => T {
   };
 }
 
-/** The shape of `bySessions` in UsagePanel, cut down to what this is about: one
- *  row per root, carrying the state that draws the dot and the tokens that are
- *  supposed to sum to the total printed above the table. */
+/** `bySessions` in UsagePanel: the real fold, not a cut-down copy of it. It
+ *  used to be re-typed here — one row per root with the state that draws the
+ *  dot and the tokens that are supposed to sum to the total above the table —
+ *  and a re-typed fold keeps passing after the real one changes, so it now
+ *  calls the shipped function (#1175). */
 const sessionRows = (state: GraphState) =>
-  [...state.agents.values()]
-    .filter(a => a.kind === "root")
-    .map(a => ({ sessionId: a.sessionId, state: a.state, tokens: a.usage.inputTokens + a.usage.outputTokens }));
+  boardSessionTable(state.agents.values()).map(r => ({ ...r, tokens: r.inputTokens + r.outputTokens }));
 
 describe("the sweeps move revision and leave lastSeq alone", () => {
   it("evicts a finished session on the shipped constants without touching lastSeq", () => {

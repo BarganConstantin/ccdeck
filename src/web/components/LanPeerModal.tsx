@@ -28,7 +28,7 @@
 // anything the row could not.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { pressState } from "../panel-press";
+import { armedPress, pressState } from "../panel-press";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { askedLabel, CONFIRM_GAP_MS, exchangeLanes, roundLabel, seenLabel, silenceNote, versionOrder } from "./LanSyncSection";
 import type { DeckAbout, DeckRow, Lane, LanAccount, LanStatus, RowSource } from "./LanSyncSection";
@@ -632,8 +632,12 @@ export default function LanPeerModal({
                           {...press(`unpair:${fpT}`)}
                           onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
                           onClick={() => {
-                            if (armedTwin !== fpT) { setArmedTwin(fpT); armedAt.current = Date.now(); return; }
-                            if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                            const now = Date.now();
+                            const press = armedPress({
+                              armedFor: armedTwin, target: fpT, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                            });
+                            if (press === "arm") { setArmedTwin(fpT); armedAt.current = now; return; }
+                            if (press === "ignore") return;
                             setArmedTwin(null);
                             void run(() => onUnpair(fpT));
                           }}
@@ -686,9 +690,13 @@ export default function LanPeerModal({
               // repeat never reaches the click at all.
               onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
               onClick={() => {
-                if (!armed) { setArmed(true); armedAt.current = Date.now(); return; }
+                const now = Date.now();
+                const press = armedPress({
+                  armedFor: armed ? row.fp : null, target: row.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                });
+                if (press === "arm") { setArmed(true); armedAt.current = now; return; }
                 // A double-click is one decision, not two — the row's rule.
-                if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                if (press === "ignore") return;
                 setArmed(false);
                 void run(onVerb);
               }}

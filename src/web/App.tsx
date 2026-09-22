@@ -12,7 +12,7 @@ import ReactFlow, {
   useStoreApi,
   type ReactFlowState,
 } from "reactflow";
-import AgentNode, { agentAriaLabel, waitingSentence } from "./components/AgentNode";
+import AgentNode, { waitingSentence } from "./components/AgentNode";
 import { shortModel, modelFamily } from "./model-label";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -34,7 +34,9 @@ import {
   restartLandingStep, restartSafety, upgradeFailureId,
 } from "./restart";
 import { copyText } from "./copy-text";
-import { isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { laneMap, snapshotToFlow, type FlowNodeData } from "./canvas-flow";
+import { exportFileName, sessionExport } from "./session-export";
+import { canvasModalOpen, isBrowserChord, isTypingTarget, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import ClearConfirm from "./components/ClearConfirm";
 import KeyboardHelp from "./components/KeyboardHelp";
 import GuideModal from "./components/GuideModal";
@@ -48,9 +50,9 @@ import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { clearActionFor, type ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape, stepTarget } from "./canvas-keys";
-import { liveNodeIds, pruneSelection, pruneStaleEntries, measuredNodeIds } from "./prune";
+import { pruneSelection, sweepTick } from "./prune";
 import { spotlightUnion } from "./spotlight";
-import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
+import { type Provisional } from "./placement";
 import { createRenderCoalescer } from "./coalesce";
 import { createPauseGate } from "./pause";
 import { readStored } from "./storage";
@@ -59,7 +61,6 @@ import { CENSUS_CHANNEL, joinCensus, tooManyTabs } from "./tab-census";
 import { PRODUCT } from "./brand";
 import { ambientSignal, FAVICON_HREF, type AmbientSignal } from "./ambient";
 import { blockedSessions, nextWaiting, runningSessionCount } from "./ambient-counts";
-import { AGENT_CAP, AGENT_GRACE_MS, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS } from "./board-limits";
 import { blockedAnnouncement, nextAnnouncement } from "./block-announce";
 import { blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { NotifyPermission } from "./notify";
@@ -75,8 +76,8 @@ const BrowserWatchModal = lazy(() => import("./components/BrowserWatchModal"));
 import LanPairRequestModal, { nextRequest } from "./components/LanPairRequestModal";
 import { LAN_POLL_OFF_MS, LAN_POLL_ON_MS, withAliases } from "./components/LanSyncSection";
 import type { LanStranger } from "./components/LanSyncSection";
-import { autoLayout, bubblePush, columnsWouldChange, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps, type Frame } from "./layout";
-import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, pruneDoneSessions, pruneOldAgents, sessionHue, settlesInFlightCall, STALE_SESSION_MS, sweepStaleSessions, sweepStaleTools, type GraphState } from "./reducer";
+import { columnsWouldChange, type Frame } from "./layout";
+import { applyEvent, findToolOnBoard, initialState, noteDroppedEvents, settlesInFlightCall, type GraphState } from "./reducer";
 import { isAgentVisible, computeVisibleIds, anyTouches } from "./visibility";
 import { SESSION_GROUP_TYPE, minimapNodeColor, type MinimapNode } from "./minimap";
 import { paletteReader, readPalette, samePalette, type Palette } from "./palette";
@@ -87,7 +88,6 @@ import { isUserViewportGesture } from "./viewport-intent";
 import { shouldAnimateViewport } from "./viewport-motion";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { fitZoomForDrawnLanes, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
-import { branchSummaries, type BranchSummary } from "./node-face";
 import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
 import SessionPeek, { hidePeek, showPeek } from "./components/SessionPeek";
 import { fmtCost, fmtCostRate } from "./pricing";
@@ -99,8 +99,8 @@ import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
-import { isRecapDismissed, isRecapNoteId, recapKey, recapNoteId, useRecapNotesVersion } from "./recap-note";
-import { versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
+import { useRecapNotesVersion } from "./recap-note";
+import { noticeIsOpen, noticeKeyFor, versionChipLabel, versionChipTitle, versionNoticeLabel } from "./version-chip";
 // #712. What to show, and what to record as seen, is decided there rather
 // than here: it is the one part of this feature that can be wrong, and a
 // pure function over what the store said, what is running and what shipped
@@ -155,13 +155,6 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
-/** A recap note's size before React Flow has measured it — the sheet's width,
- *  and about a card's height — and the gap it keeps to the left of its card:
- *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
- *  would put it. */
-const RECAP_NOTE_W = 300;
-const RECAP_NOTE_H = 130;
-const RECAP_NOTE_GAP = 160;
 
 /** The class React Flow puts on the wrapper it renders around every node — the
  *  element it makes tabbable, not the .agent-node card AgentNode draws inside
@@ -503,58 +496,21 @@ function clearStoredLayout(): void {
   try { window.localStorage.removeItem(LAYOUT_FRAME_KEY); } catch {}
 }
 
-/** Build a portable JSON snapshot of a single session (root + every
- *  subagent) and trigger a browser download. Useful for offline analysis,
- *  bug reports, or just keeping a record of a noteworthy run. */
+/** Build a portable JSON snapshot of a single session (root + every subagent)
+ *  and trigger a browser download.
+ *
+ *  What goes IN the file, and what the file is called, are session-export.ts's
+ *  — the format is the half people keep, and it was unreachable by any test
+ *  while it lived in here (#1175). This is the download around it. */
 function exportSessionJson(state: GraphState, sessionId: string): void {
-  const root = state.agents.get(sessionId);
-  if (!root) return;
-  const agents: AgentNodeData[] = [];
-  for (const a of state.agents.values()) {
-    if (a.sessionId === sessionId) agents.push(a);
-  }
-  const payload = {
-    schemaVersion: 1,
-    exportedAt: new Date().toISOString(),
-    sessionId,
-    label: root.label,
-    cwd: root.cwd,
-    startedAt: root.startedAt,
-    endedAt: root.endedAt,
-    model: root.model,
-    agents: agents.map(a => ({
-      id: a.id,
-      kind: a.kind,
-      label: a.label,
-      parentId: a.parentId,
-      state: a.state,
-      startedAt: a.startedAt,
-      endedAt: a.endedAt,
-      model: a.model,
-      cwd: a.cwd,
-      usage: a.usage,
-      prompts: a.prompts,
-      // Strip the heavy `input`/`response` fields by default to keep the
-      // file portable. Tool name + timing + ok flag are usually enough.
-      tools: a.tools.map(t => ({
-        id: t.id,
-        name: t.name,
-        inputPreview: t.inputPreview,
-        startedAt: t.startedAt,
-        endedAt: t.endedAt,
-        ok: t.ok,
-        errorPreview: t.errorPreview,
-        usage: t.usage,
-      })),
-    })),
-  };
+  const payload = sessionExport(state, sessionId, new Date().toISOString());
+  if (!payload) return;
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const safeLabel = (root.label || "session").replace(/[^a-z0-9._-]/gi, "_");
   a.href = url;
-  a.download = `${PRODUCT}-${safeLabel}-${sessionId.slice(0, 8)}.json`;
+  a.download = exportFileName(payload.label, sessionId);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -623,366 +579,6 @@ const DETAIL_CAT_LABEL: Record<DetailCategory, string> = {
 /** The detail panel's name for the shared bucket lookup. Kept as a local alias
  *  purely so the call sites below read the way they always have. */
 const detailCategoryFor = categoryFor;
-
-/** `branch` is on a root only, and only while it has subagents on the canvas:
- *  what they add up to, for the faces too small to show them one by one. */
-type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
-
-/**
- * Node data that keeps its identity while the board has not changed (#873).
- *
- * This was `{ ...a, now, onOpenContext }`: a fresh object for every card on every
- * 250ms tick, so React Flow's memoised node wrapper never bailed and every card
- * and its sparkline re-rendered four times a second on an idle board. The
- * reducer bumps `state.revision` on every change it makes to an agent, so a copy
- * taken at one revision is still true until the next — and the cards, memoised
- * on it, sit still between events. Time reaches them through the leaves that
- * print it, on their own beat (use-now.ts).
- */
-const NODE_DATA = new WeakMap<GraphState, {
-  revision: number;
-  open: (sessionId: string) => void;
-  byId: Map<string, FlowNodeData>;
-  /** The branch summaries, counted once per revision — a pass over the board
-   *  that every root's copy reads, rather than one pass per root. */
-  branches: Map<string, BranchSummary>;
-}>();
-
-function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
-  let entry = NODE_DATA.get(state);
-  if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()) };
-    NODE_DATA.set(state, entry);
-  }
-  const { byId, branches } = entry;
-  return a => {
-    let d = byId.get(a.id);
-    if (!d) {
-      const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
-      d = branch ? { ...a, onOpenContext, branch } : { ...a, onOpenContext };
-      byId.set(a.id, d);
-    }
-    return d;
-  };
-}
-
-/**
- * How much room each agent's bubbles need.
- *
- * ToolBursts keeps the last four tools as a permanent trail — no time-based
- * culling — so an agent that has called a tool occupies its lane for as long as
- * it is on the canvas, and every pass that places a box has to be told. Without
- * it the next rank is placed 160px away and lands on top of bubbles that reach
- * 420px out, and the repair passes — which run far more often than dagre does —
- * pack the neighbours straight back over the chips.
- *
- * A named function rather than four lines inside snapshotToFlow because the
- * reframe effect has to ask layout.ts the same question about the same board
- * (#995), and a second copy of this loop is a second thing to keep in step.
- */
-function laneMap(state: GraphState): Map<string, number> {
-  const lanes = new Map<string, number>();
-  for (const a of state.agents.values()) {
-    if (a.tools.length > 0) lanes.set(a.id, Math.min(4, a.tools.length));
-  }
-  return lanes;
-}
-
-function snapshotToFlow(
-  state: GraphState,
-  now: number,
-  availableWidth: number,
-  availableHeight: number,
-  pinned: Map<string, { x: number; y: number }>,
-  measured: Map<string, { width: number; height: number }>,
-  prevSessionSize: Map<string, { w: number; h: number }>,
-  onBubble: (sessions: string[]) => void,
-  /** False while the page is still mounting and measuring. */
-  settled: boolean,
-  /**
-   * A drag is in progress.
-   *
-   * Dragging a card out of its session makes that session's bounding box
-   * bigger, which is indistinguishable from the session growing — so the push
-   * fired on every pointer move and shoved the other sessions around while the
-   * user was still holding the mouse down. The new size is still recorded, so
-   * letting go does not then trigger a push for a change the user made by hand.
-   */
-  dragging: boolean,
-  positions: Map<string, { x: number; y: number }>,
-  /** Ids in `positions` that hold a placeholder rather than a laid-out spot. */
-  provisional: Provisional,
-  layoutSig: string,
-  lastLayoutSigRef: { current: string },
-  selectedIds: Set<string>,
-  lineage: Set<string> | null,
-  visibleIds: Set<string>,
-  onOpenContext: (sessionId: string) => void,
-): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
-  const nodes: Node<FlowNodeData>[] = [];
-  const edges: Edge[] = [];
-  const dataFor = nodeDataFor(state, onOpenContext);
-  for (const a of state.agents.values()) {
-    if (!visibleIds.has(a.id)) continue;
-    const exiting = a.exitAt != null;
-    // Spotlight: out-of-lineage agents fade hard when a selection is active.
-    const spotlitOut = lineage != null && !lineage.has(a.id);
-    const cls = [
-      exiting ? "rf-exiting" : "",
-      spotlitOut ? "rf-spotlit-out" : "",
-    ].filter(Boolean).join(" ") || undefined;
-    // ReactFlow's createNodeInternals wipes width/height from internals on
-    // every setNodes call — and we re-pass `nodes` on every `now` tick.
-    // Without supplying them on the node prop, RF flips `initialized=false`
-    // → `visibility:hidden` until ResizeObserver re-fires. Under live event
-    // storms RO lags multiple frames → nodes persistently invisible while
-    // tool bursts (which read positions directly) keep rendering. Pull
-    // cached measurements through so internals survive the rewrite.
-    const m = measured.get(a.id);
-    nodes.push({
-      id: a.id,
-      type: "agent",
-      position: { x: 0, y: 0 },
-      data: dataFor(a),
-      className: cls,
-      // Composed, not read off the card: see agentAriaLabel (#853).
-      ariaLabel: agentAriaLabel(a, now),
-      ...(m ? { width: m.width, height: m.height } : null),
-    });
-    if (a.parentId && visibleIds.has(a.parentId)) {
-      const hue = sessionHue(a.sessionId);
-      const fading = exiting;
-      // Selected-edge emphasis: thicker stroke + animated for edges that
-      // touch any selected agent (multi-select: any in the set counts).
-      const isSelectedEdge = selectedIds.size > 0 && (selectedIds.has(a.id) || selectedIds.has(a.parentId));
-      // Spotlight: edges entirely outside the lineage fade too.
-      const spotlitOutEdge = lineage != null && !lineage.has(a.id) && !lineage.has(a.parentId);
-      const baseWidth = a.state === "active" ? 2 : 1.5;
-      const selectedWidth = isSelectedEdge ? baseWidth + 1.5 : baseWidth;
-      const effectiveOpacity = fading
-        ? 0.2
-        : spotlitOutEdge ? 0.12 : 1;
-      // The class picks the tier, the tier picks the lightness. Which of the
-      // two an edge wears is a state this loop owns; how bright that state has
-      // to be to survive its canvas is the sheet's, and used to be decided
-      // here at a value tuned for #0b0c10 (1.19:1 on white at its worst hue).
-      const cls = [
-        "sess-edge",
-        a.state === "active" ? "sess-live" : "sess-idle",
-        fading ? "rf-edge-exiting" : "",
-        isSelectedEdge ? "rf-edge-selected" : "",
-      ].filter(Boolean).join(" ");
-      edges.push({
-        id: `e:${a.parentId}->${a.id}`,
-        source: a.parentId,
-        target: a.id,
-        animated: (a.state === "active" || isSelectedEdge) && !fading,
-        type: "smoothstep",
-        // No edge label — the target node already displays the agent name.
-        // The transition is named here and valued in the stylesheet. An inline
-        // style outranks every selector, so the literal string this used to
-        // carry could not be answered by a `prefers-reduced-motion` rule at
-        // all (#357) — a reader who asked for less motion still got 200ms of
-        // stroke-width travel on every edge that gained or lost a selection.
-        // `--edge-transition` moves that decision into styles.css, where the
-        // media query drops the stroke-width half and keeps the opacity fade,
-        // and it costs this component nothing: no hook, no listener, and no
-        // re-render of the canvas when the preference changes.
-        //
-        // The width is multiplied by `--edge-k`, which is 1 at the detail tier
-        // and grows as the canvas zooms out below it (styles.css, `data-lod`):
-        // the ratio between a live, a settled and a selected edge is still
-        // this loop's, and only the scale is the mode's.
-        style: { "--session-hue": hue, strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)" } as React.CSSProperties,
-        className: cls,
-      });
-    }
-    // Claude Code's recap, as a node of its own beside the root — RecapNoteNode
-    // holds why a node and not something drawn over the canvas. Built only while
-    // the recap still describes the session and nobody has put it away, and tied
-    // to the root by an edge FROM the note, which is also what makes dagre rank
-    // it to the left of the card.
-    const recap = a.kind === "root" ? recapShown(a) : null;
-    const noteKey = recap ? recapKey(a.sessionId, recap.at) : null;
-    if (recap && noteKey && !isRecapDismissed(noteKey)) {
-      const noteId = recapNoteId(a.id);
-      const hue = sessionHue(a.sessionId);
-      const mn = measured.get(noteId);
-      // A second shape of node in an array typed for cards. Every reader here
-      // that treats a node's data as a card's checks the node's type first —
-      // the frame, the minimap, the click, the j/k step.
-      nodes.push({
-        id: noteId,
-        type: "recapNote",
-        position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, parentId: a.id, recap, noteKey, hue },
-        className: spotlitOut ? "rf-spotlit-out" : undefined,
-        selectable: false,
-        // Not a keyboard stop either, like the session drag handles: Enter on a
-        // focused node selects its id, and a note's id is not an agent's. Its ×
-        // is still a button, and still reached by Tab.
-        focusable: false,
-        ariaLabel: `Claude Code's recap for ${a.label}`,
-        ...(mn ? { width: mn.width, height: mn.height } : null),
-      } as unknown as (typeof nodes)[number]);
-      edges.push({
-        id: `e:recap:${a.id}`,
-        source: noteId,
-        target: a.id,
-        type: "recapTie",
-        className: "recap-edge",
-        // Decoration: not a stop for Tab. It draws no hit area to click either
-        // (RecapTieEdge renders none, and the sheet gives it no pointer).
-        focusable: false,
-        style: { "--session-hue": hue } as React.CSSProperties,
-      });
-    }
-  }
-  // Only rerun dagre when the structure or measured sizes actually change.
-  // Between layouts, reuse cached positions so per-event renders don't shift
-  // nodes — that was the source of canvas flicker + drag-snap-back.
-  // A structural change no longer reshuffles the canvas. Nodes that already
-  // have a position keep it — the arrangement on screen is one the user has
-  // been reading, and rebuilding it under them costs more than the tidier
-  // result is worth. Only nodes without a position are laid out, and only
-  // nodes that end up overlapping get moved. The relayout button (R) is the
-  // way to ask for a full reflow.
-  const lanes = laneMap(state);
-  // A lane appearing is a structural change, so it invalidates the cached
-  // arrangement the way a new node or a re-measured card does.
-  //
-  // Without this the reservation was applied on exactly one frame per node —
-  // the frame it first appears, which is the frame it has just been created by
-  // SessionStart and has called nothing, so its lane is zero. It then made
-  // forty tool calls, grew 420px sideways, and nothing ever reconsidered its
-  // neighbours. Clamping at four bubbles is what keeps this cheap: the string
-  // stops changing after an agent's fourth tool call.
-  const sig = `${layoutSig}#lanes:${laneSignature(lanes)}`;
-  // A node holding a placeholder counts as missing however real its entry in
-  // `positions` looks — see placement.ts. Without that, the one write that
-  // exists to keep a node on screen for a frame was also the write that told
-  // this filter the node had been laid out.
-  // A recap note that is not on the board forgets where the layout put it, so
-  // the next one is placed beside its card as the card sits THEN — a note put
-  // away before its card moved must not come back to where the card used to
-  // be. Where somebody DRAGGED one is a pin, and pins are kept (liveNodeIds).
-  const shownNotes = new Set(nodes.filter(n => n.type === "recapNote").map(n => n.id));
-  for (const id of Array.from(positions.keys())) {
-    if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {
-      positions.delete(id);
-      provisional.delete(id);
-    }
-  }
-  const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
-  if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
-    if (missing.length > 0) {
-      // A card joining a session already on the canvas goes beside that session
-      // as it sits now, not where a layout from scratch would have it.
-      const laidOut = joinSessions(
-        autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
-        pinned,
-        id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
-      );
-      for (const n of laidOut) if (isUnplaced(n.id, positions, provisional)) recordPlacement(n.id, n.position, positions, provisional);
-      // Finished sessions are pruned as they complete, so the column they were
-      // in has holes while new work keeps being appended underneath. Offer the
-      // arrivals those holes first, and past them whichever of a column's foot
-      // or a new column to the right lets the fit show the board largest.
-      fillGapsWithNewSessions(
-        nodes, positions, pinned, measured,
-        // Cards only: a recap note joins a session that is already here, and
-        // offered a hole it was taken for a session of its own and dropped in
-        // a gap at the foot of some column, nowhere near its card.
-        new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,
-        { width: availableWidth, height: availableHeight },
-      );
-      // A recap note joining a card that is already on the canvas goes to the
-      // LEFT of that card, where R puts it too. It is tied to its root by an
-      // edge, but a card somebody has dragged is pinned, and dagre lays out only
-      // what still flows — so the note was laid out on its own and the overlap
-      // pass slid it underneath the card. Placed from the card, it cannot be.
-      for (const n of missing) {
-        if (n.type !== "recapNote") continue;
-        const rootId = (n.data as { parentId?: string } | undefined)?.parentId;
-        if (!rootId) continue;
-        const root = pinned.get(rootId) ?? (isUnplaced(rootId, positions, provisional) ? undefined : positions.get(rootId));
-        if (!root) continue;
-        const nw = measured.get(n.id)?.width ?? RECAP_NOTE_W;
-        const nh = measured.get(n.id)?.height ?? RECAP_NOTE_H;
-        const rh = measured.get(rootId)?.height ?? RECAP_NOTE_H;
-        recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
-      }
-    }
-    separateOverlaps(nodes, positions, pinned, measured, lanes);
-    lastLayoutSigRef.current = sig;
-  }
-  // A session that just fanned out subagents is wider and taller than it was a
-  // frame ago, and is now sitting on whatever was beside it. separateOverlaps
-  // would clear that by sliding the covered session down past the whole grown
-  // block; this nudges the neighbours aside by the least that works, which is
-  // both shorter and legible as a cause — the box grew, so the others moved.
-  // Self-gating: returns immediately unless something actually grew.
-  const bubbled = bubblePush(nodes, positions, pinned, measured, prevSessionSize, !settled || dragging, lanes);
-  if (bubbled.length > 0) onBubble(bubbled);
-  // Evict cached positions for agents that aren't in state.agents anymore.
-  // Stale positions for invisible-but-still-tracked agents are KEPT so a
-  // transient flicker out of visibleIds (e.g. one frame where isAgentVisible
-  // is false during a state transition) doesn't lose the position and snap
-  // the node to {0,0} on return — that was causing "nodes vanish on action
-  // change" while bursts (which gate on visibleIds) also disappeared.
-  // Like the pins below, this is guarded on a non-empty graph: positions are
-  // restored from storage before the event log has replayed, so pruning them
-  // against an empty agent map would wipe the whole saved arrangement on every
-  // page load and re-derive it with dagre.
-  const live = liveNodeIds(state.agents.values());
-  pruneStaleEntries(positions, live);
-  // A mark normally lives one frame — the pass it asks for clears it — but an
-  // agent that leaves between the stamp and that pass would leave its id in the
-  // set for the life of the tab, which is the leak the size cache below had.
-  pruneStaleEntries(provisional, live);
-  // Drop pins for agents that are gone. Pinned positions are restored from
-  // localStorage on every load, so without this a drag from some previous run
-  // outlives the agent it belonged to and keeps claiming that spot on the
-  // canvas — where a later session, laid out from the top, gets stacked
-  // straight onto it.
-  pruneStaleEntries(pinned, live);
-  // Drop measurements for nodes that no longer exist. This cache is not
-  // restored from storage, but it is not rebuilt either: nothing but the Clear
-  // button ever removed an id, so a tab left open for days holds a size for
-  // every agent and every session that has ever been on the canvas. columnGap()
-  // takes the widest measured node of all, and a session drag handle is as wide
-  // as the whole session box, so a single long-gone session kept the gap
-  // between columns at its width for the rest of the tab's life.
-  pruneStaleEntries(measured, measuredNodeIds(state.agents.values()));
-  // Never silently drop a visible node — if its position is missing, place
-  // it at {0,0} for THIS frame and force a fresh layout pass on the next
-  // frame by invalidating lastLayoutSigRef. The previous skip-this-frame
-  // strategy caused the catastrophic "every node vanished while bursts
-  // remained" symptom when, for whatever reason, positions got out of sync
-  // with state.agents (the bursts gate on visibleAgentIds + positions; the
-  // node renderer gated on positions only, so the two halves disagreed).
-  const finalNodes: typeof nodes = [];
-  let missingPosition = false;
-  for (const n of nodes) {
-    let p = pinned.get(n.id) ?? positions.get(n.id);
-    if (!p) {
-      p = stampPlaceholder(n.id, positions, provisional);
-      missingPosition = true;
-    }
-    finalNodes.push({ ...n, position: p });
-  }
-  if (missingPosition) {
-    // Force the layout branch above to run again on the next render, even if
-    // nothing else changed. The stamp is recorded as provisional, so that pass
-    // sees the node in `missing` and hands it to dagre — which is what the
-    // invalidation was always meant to buy and never did while a placeholder
-    // was indistinguishable from a placement, leaving separateOverlaps as the
-    // only thing that ever touched the node and the x=0 column as the only
-    // place it could be.
-    lastLayoutSigRef.current = "";
-  }
-  return { nodes: finalNodes, edges };
-}
 
 export default function App() {
   return (
@@ -1555,9 +1151,11 @@ function Inner() {
   const providersRef = useRef(providers);
   providersRef.current = providers;
   // Keyed to the version it is about, so dismissing today's notice does not
-  // silence next month's release.
-  const noticeKey = notice ? `${notice.kind}:${notice.to}` : "";
-  const noticeOpen = notice != null && versionDismissed !== noticeKey;
+  // silence next month's release — and, through `noticeOpen`, does not turn
+  // off restart-to-update for good either (#804). The rule is version-chip.ts's
+  // so it can be driven (#1175).
+  const noticeKey = noticeKeyFor(notice);
+  const noticeOpen = noticeIsOpen(notice, versionDismissed);
   // Two idempotent halves rather than one toggle (#715). The chip used to flip
   // this, which was fine while flipping it was all the chip did; it now opens
   // the release notes as well, and a click that opens a modal AND silently
@@ -2305,45 +1903,17 @@ function Inner() {
     const id = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      // Both sweeps run on STALE_SESSION_MS because they are asking the same
-      // question — is this session still there? — about two things that die
-      // together. #436: the tool sweep used to ask it on a ninety-second clock of
-      // its own, which meant the deck failed a session's tool calls an hour and a
-      // half before it was willing to call that session gone, and stamped a red ×
-      // on every `Bash` slower than a minute and a half. Order between the two is
-      // immaterial: neither writes `lastEventAt`, which is what both read.
-      let changed = sweepStaleTools(stateRef.current, t, STALE_SESSION_MS);
-      // And the session above those tools, when nothing at all has been heard
-      // from it in STALE_SESSION_MS. A terminal killed while a permission prompt
-      // was up sends no final event, so its root stays `active` and its
-      // `waiting` block stays lit — on the tab title and the favicon, which have
-      // no age printed on them to give the staleness away. Runs on this tick
-      // rather than one of its own: the periodic mechanism the three sweeps
-      // below already share is the whole of what this needed.
-      if (sweepStaleSessions(stateRef.current, t, STALE_SESSION_MS)) changed = true;
-      // AND THE SERVER IS TOLD WHAT LEFT (#1024). Both pruners below drop whole
-      // sessions, and the server keeps two caches that gate an emit on "has this
-      // changed" — a session's name and each subagent's model. Nothing told them
-      // the page had forgotten a session, so a session evicted while idle and
-      // then resumed never got a `SessionNamed` again and showed as unnamed in
-      // the sidebar and on the card for the rest of the day, recoverable only by
-      // reloading the tab. #445's own measurement: 7 of 20 evicted sessions went
-      // on to emit more events.
-      //
-      // One POST for the whole tick rather than one per session, because the two
-      // pruners run back to back and a cap coming down by six is six ids, not
-      // six requests.
-      const forgotten: string[] = [];
-      const forget = (sid: string) => { forgotten.push(sid); };
-      // Prune long-finished agents so memory doesn't grow over multi-day
-      // sessions. Keeps most-recent AGENT_CAP — past 5 minutes since done.
-      if (pruneOldAgents(stateRef.current, t, AGENT_CAP, AGENT_GRACE_MS, forget)) changed = true;
-      // Keep the canvas to the last few finished sessions, so a long day of
-      // work doesn't bury the running ones under everything already done.
-      if (pruneDoneSessions(stateRef.current, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget)) changed = true;
+      // Every sweep this tick runs, on the shipped constants, with the whole
+      // sessions they evicted collected — see sweepTick in prune.ts, which is
+      // where the order, the constants and the #1024 collection can be run by
+      // a test (#1175).
+      const { changed, forgotten } = sweepTick(stateRef.current, t);
       if (forgotten.length > 0) {
-        // Failure is not worth reporting and not worth retrying: the worst it
-        // costs is the state this fixes, which is what every deck had before.
+        // The server drops its change-gated name and model caches for these,
+        // or a session evicted while idle and then resumed shows as unnamed for
+        // the rest of the day (#1024). Failure is not worth reporting and not
+        // worth retrying: the worst it costs is the state this fixes, which is
+        // what every deck had before.
         fetch("/api/forget", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -3573,8 +3143,15 @@ function Inner() {
       // a toggle, so it has to be able to close what it opened; over any OTHER
       // modal it would stack a second one, which is what this gate is for.
       // Escape is unaffected — it is answered further up, through modalStack.
+      //
+      // And the gate asks the stack as well as modalOpenRef (#1175): the nine
+      // dialogs a panel opens — processes, history, add, share, the LAN four,
+      // a pairing request, the clear prompt — have no flag in this component,
+      // so the ref alone let R wipe the layout behind every one of them.
       if (shortcutBlocked({
-        key: e.key, modalOpen: modalOpenRef.current, sheetOpen: keyHelpOpenRef.current,
+        key: e.key,
+        modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
+        sheetOpen: keyHelpOpenRef.current,
       })) return;
       if (e.key === " ") { e.preventDefault(); togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");

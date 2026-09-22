@@ -166,3 +166,31 @@ export function shortcutBlocked(
   if (!modalOpen) return false;
   return !(key === "?" && sheetOpen);
 }
+
+/**
+ * Whether a dialog covers the canvas, which is the `modalOpen` the gate above
+ * is handed.
+ *
+ * App.tsx used to hand it a hand-kept OR of its own eight dialog flags, and the
+ * deck had seventeen dialogs. The nine it did not list are opened from inside
+ * a panel — Machine's process list and history charts, the accounts panel's
+ * add and share, the four LAN dialogs, a pairing request, and the clear prompt
+ * itself — and none of their flags live in App. So with one of them open and
+ * focus on its prose, or on a control the mouse had just focused, R cleared
+ * every pin behind the scrim, C raised the clear prompt over it and Space
+ * paused the stream (#1175).
+ *
+ * Escape never had that hole, because it asks modalStack, which every dialog
+ * joins through useModalDismiss. So the gate asks it too, and a dialog written
+ * next year is covered by being a dialog at all. `appModal` stays in the OR for
+ * the one commit in which it knows more than the stack: App's flags are read
+ * during render and a dialog joins the stack in an effect after it.
+ *
+ * `dialogDepth` counts dialogs, not popovers — see dialogDepth in
+ * modal-dismiss.ts for why a popover leaves the letters live.
+ */
+export function canvasModalOpen(
+  { appModal, dialogDepth }: { appModal: boolean; dialogDepth: number },
+): boolean {
+  return appModal || dialogDepth > 0;
+}

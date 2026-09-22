@@ -390,11 +390,17 @@ describe("the threshold and the wiring", () => {
   it("runs on the tick that already carries the other three sweeps", () => {
     // The one reason #341 gave for shipping without a TTL that is actually a
     // cost — "it would mean inventing a periodic mechanism" — was already paid:
-    // App.tsx runs sweepStaleTools and both pruners on a 250ms interval. A sweep
-    // nobody calls is a sweep that fixes nothing, and no test that drives the
-    // reducer directly would ever notice.
+    // the tick runs sweepStaleTools and both pruners on a 250ms interval. A
+    // sweep nobody calls is a sweep that fixes nothing, and no test that drives
+    // the reducer directly would ever notice.
+    //
+    // The four of them are `sweepTick` in prune.ts since #1175, which is what
+    // App.tsx's interval calls — and that composition is driven rather than
+    // read, in forget-pruned-session-1024.test.ts.
     const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-    expect(app).toMatch(/sweepStaleSessions\(stateRef\.current, t, STALE_SESSION_MS\)/);
-    expect(app).toMatch(/import \{[^}]*sweepStaleSessions[^}]*\} from "\.\/reducer"/);
+    const sweep = readFileSync(fileURLToPath(new URL("../prune.ts", import.meta.url)), "utf8");
+    expect(sweep).toMatch(/sweepStaleSessions\(state, t, STALE_SESSION_MS\)/);
+    expect(sweep).toMatch(/import \{[\s\S]*?sweepStaleSessions[\s\S]*?\} from "\.\/reducer"/);
+    expect(app).toMatch(/sweepTick\(stateRef\.current, t\)/);
   });
 });

@@ -116,7 +116,9 @@ export default function SoundMenu({
   const inApp = inDesktopApp();
   const showChannel = notifyOn && !notifyVetoed && !inApp;
 
-  const dialogRef = useModalDismiss<HTMLDivElement>(onClose);
+  // A popover, so the canvas letters stay live under it — V and M included,
+  // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
+  const dialogRef = useModalDismiss<HTMLDivElement>(onClose, { popover: true });
 
   // The one dismissal rule a popover owns that the hook does not. On window and
   // in the capture phase, so a press on a control that stops propagation still

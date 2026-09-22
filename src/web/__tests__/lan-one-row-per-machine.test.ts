@@ -111,8 +111,9 @@ describe("the dialog lists every deck at the address", () => {
   });
 
   it("unpairs a folded deck with the same two presses as everywhere else", () => {
-    expect(MODAL).toMatch(/if \(armedTwin !== fpT\) \{ setArmedTwin\(fpT\); armedAt\.current = Date\.now\(\); return; \}/);
-    expect(MODAL).toMatch(/if \(Date\.now\(\) - armedAt\.current < CONFIRM_GAP_MS\) return;/);
+    expect(MODAL).toMatch(/armedFor: armedTwin, target: fpT, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmedTwin\(fpT\); armedAt\.current = now; return; \}/);
+    expect(MODAL).toMatch(/if \(press === "ignore"\) return;/);
     expect(MODAL).toMatch(/void run\(\(\) => onUnpair\(fpT\)\)/);
     // A held key is one decision, as it is on the dialog's own unpair.
     expect(MODAL).toMatch(/lan-twin-do[\s\S]{0,200}onKeyDown=\{e => \{ if \(e\.repeat\) e\.preventDefault\(\); \}\}/);

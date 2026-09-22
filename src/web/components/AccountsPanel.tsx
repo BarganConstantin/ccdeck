@@ -18,7 +18,7 @@ import { type SwapNote, manageAfterMove, slotChoices } from "../account-move";
 import { type PickerCommit, slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
 import { laneSplit } from "../lane-view";
 import { knownLanes, laneKey, toggleLane } from "../lane-open";
-import { focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
+import { armedPress, focusDropped, pressAccepted, pressState, rescueSelectors } from "../panel-press";
 import { ALIAS_MAX_LENGTH, aliasSave } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { copyText } from "../copy-text";
@@ -1620,15 +1620,20 @@ export default function AccountsPanel({ onClose, leaving }: Props) {
                             ? "This deletes the stored credentials for this account"
                             : "Remove this account from claude-swap"}
                           onClick={() => {
-                            if (confirmRemove !== a.num) {
+                            const now = Date.now();
+                            const press = armedPress({
+                              armedFor: confirmRemove, target: a.num,
+                              armedAt: removeArmedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                            });
+                            if (press === "arm") {
                               setConfirmRemove(a.num);
-                              removeArmedAt.current = Date.now();
+                              removeArmedAt.current = now;
                               window.setTimeout(() => setConfirmRemove(c => (c === a.num ? null : c)), 4000);
                               return;
                             }
                             // A double-click is one decision, not two: its second
                             // press lands before anybody could have read `Confirm`.
-                            if (Date.now() - removeArmedAt.current < CONFIRM_GAP_MS) return;
+                            if (press === "ignore") return;
                             setConfirmRemove(null);
                             admin({ action: "remove", account: a.num }, `rm-${a.num}`).then(out => {
                               load(true);
