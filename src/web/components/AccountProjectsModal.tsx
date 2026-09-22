@@ -9,15 +9,11 @@
 // unattributable, shown apart so a total is never quietly inflated.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { costForUsage, fmtCost } from "../pricing";
+import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
-import { modelRows } from "../usage-from-ccusage";
-import { bareModelId } from "../model-id";
-import type { TokenUsage } from "../types";
+import { reconcile, type Counters } from "../account-projects-reconcile";
 import { useModalDismiss } from "./use-modal-dismiss";
 
-/** The compact per-model token counters the server sends. */
-interface Counters { i: number; o: number; cr: number; cc: number; c1h: number; c5m: number }
 interface ProjectRow { path: string; name: string; models: Record<string, Counters> }
 interface DailyEntry {
   day: string;
@@ -51,43 +47,30 @@ const PALETTE = [
 const UNATTRIBUTED_COLOR = "var(--usage-zinc)";
 const MAX_ROWS = 6;
 
-function toUsage(c: Counters): TokenUsage {
-  return {
-    inputTokens: c.i, outputTokens: c.o,
-    cacheReadTokens: c.cr, cacheCreateTokens: c.cc,
-    cacheCreate1hTokens: c.c1h, cacheCreate5mTokens: c.c5m,
-  };
-}
-
-/** Count a project's billed tokens. */
-function tokensOf(models: Record<string, Counters>): number {
-  let t = 0;
-  for (const c of Object.values(models)) t += c.i + c.o + c.cr + c.cc;  // c1h/c5m are a split OF cc, not extra
-  return t;
-}
-
-/**
- * Price a project's model spread, with the dollars anchored to ccusage.
- *
- * ccusage is the one cost authority on the machine, so its per-model total for
- * the window is the truth; `scale` carries `ccusageCost / ourCost` per model.
- * pricing.ts then only decides the SPLIT between projects within a model (a
- * ratio, robust even when its absolute rates have drifted from ccusage). A
- * model ccusage did not price — or a failed fetch — has scale 1, so the report
- * falls back to pricing.ts alone rather than showing nothing.
- */
-function priceModels(models: Record<string, Counters>, scale: Map<string, number>, now: number): { cost: number; tokens: number } {
-  let cost = 0;
-  for (const [model, c] of Object.entries(models)) {
-    cost += costForUsage(toUsage(c), model, now).total * (scale.get(model) ?? 1);
-  }
-  return { cost, tokens: tokensOf(models) };
-}
-
 /** Format a local date as the `YYYYMMDD` /api/ccusage insists on. */
 function ymd(d: Date): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/** fmtCost with thousands grouping for the whole-dollar tier, so a five-figure
+ *  Unattributed reads `$1,897` and not `$1897`. Local to this modal — the shared
+ *  fmtCost is used app-wide and left untouched. */
+function fmtCostGrouped(usd: number): string {
+  const s = fmtCost(usd);
+  const m = /^\$(\d{4,})$/.exec(s);   // only the "$1897" integer tier needs it
+  return m ? `$${Number(m[1]).toLocaleString("en-US")}` : s;
+}
+
+/** A share as a compact percent: `61%`, `0.16%`, `<0.01%`. */
+function pctLabel(part: number, whole: number): string {
+  if (whole <= 0 || part <= 0) return "0%";
+  const p = (part / whole) * 100;
+  if (p < 0.01) return "<0.01%";
+  if (p < 1) return `${p.toFixed(2)}%`;
+  if (p < 10) return `${p.toFixed(1)}%`;
+  return `${Math.round(p)}%`;
+}
+
 
 /** A `YYYY-MM-DD` day as a compact `M/D` axis label. */
 function dayLabel(day: string): string {
@@ -154,19 +137,19 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
       .catch((e: Error) => { if (id === reqId.current) { setError(e.message || "Could not load"); setLoading(false); } });
   }, [num, days]);
 
-  // Price, sort, disambiguate colliding basenames, collapse the tail, and slice
-  // the window by day for the chart.
+  // One reconciliation, per day, aggregated — so period, project, day and
+  // selected-day totals are the same dollars summed different ways and cannot
+  // disagree. See the block comments for the invariant.
   const view = useMemo(() => {
     const now = Date.now();
     if (!report) return null;
 
-    // ccusage's cost, the dollar authority, both over the whole window (for the
-    // list) and per day-and-model (for the chart). Codex never enters — our
-    // tally holds only Claude models, and only those are ever looked up.
-    const ccByModel = new Map<string, number>();
-    const ccByDayModel = new Map<string, number>();
+    // ── ccusage: the dollar authority, per (day, model), Claude only ─────────
+    // Only Claude model breakdowns are read, so Codex cost never reconciles into
+    // a project nor into the window total.
+    const ccByDayModel = new Map<string, number>();   // `${day}|${model}` -> cost
+    let ccWindowTotal = 0;
     if (ccRange) {
-      for (const row of modelRows(ccRange)) ccByModel.set(row.model, row.cost);
       const daysArr = Array.isArray((ccRange as { days?: unknown }).days) ? (ccRange as { days: Array<Record<string, unknown>> }).days : [];
       for (const d of daysArr) {
         const period = typeof d.period === "string" ? d.period : "";
@@ -174,98 +157,66 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
         for (const b of mbs) {
           const mn = typeof b.modelName === "string" ? b.modelName : "";
           const cost = typeof b.cost === "number" ? b.cost : 0;
-          if (mn && period) ccByDayModel.set(`${period}|${mn}`, (ccByDayModel.get(`${period}|${mn}`) ?? 0) + cost);
+          if (!period || !/claude/i.test(mn)) continue;
+          ccByDayModel.set(`${period}|${mn}`, (ccByDayModel.get(`${period}|${mn}`) ?? 0) + cost);
+          ccWindowTotal += cost;
         }
       }
     }
+    // The reconciliation math lives in a pure, tested module (the invariant is
+    // Σ project = Σ day = total, and attributed + unattributed = ccusage total).
+    const rec = reconcile(report.daily ?? [], report.unattributed, ccByDayModel, ccWindowTotal, now);
 
-    // Per-model scale over the window: ccusage cost over our pricing.ts cost, so
-    // each model's total lands on ccusage exactly. Used for the list.
-    const scale = new Map<string, number>();
-    {
-      const ourByModel = new Map<string, number>();
-      const add = (models: Record<string, Counters>) => {
-        for (const [m, c] of Object.entries(models)) ourByModel.set(m, (ourByModel.get(m) ?? 0) + costForUsage(toUsage(c), m, now).total);
-      };
-      for (const p of report.projects) add(p.models);
-      if (report.unattributed) add(report.unattributed);
-      for (const [m, ourTotal] of ourByModel) {
-        const cc = ccByModel.get(m) ?? ccByModel.get(bareModelId(m));
-        if (cc != null && ourTotal > 0) scale.set(m, cc / ourTotal);
-      }
-    }
-    const reconciled = scale.size > 0;
-
-    const priced = report.projects
-      .map(p => ({ p, ...priceModels(p.models, scale, now) }))
-      .sort((a, b) => (b.cost - a.cost) || (b.tokens - a.tokens));
-
-    // Two projects with the same folder name are told apart by their parent.
+    // Names, with a colliding basename told apart by its parent.
+    const nameOf = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path || "(unknown)";
     const seen = new Map<string, number>();
-    for (const r of priced) seen.set(r.p.name, (seen.get(r.p.name) ?? 0) + 1);
-    const labelFor = (p: ProjectRow): string => {
-      if ((seen.get(p.name) ?? 0) <= 1) return p.name;
-      const parent = p.path.replace(/[\\/]+$/, "").split(/[\\/]/).slice(-2, -1)[0];
-      return parent ? `${parent}/${p.name}` : p.name;
+    for (const a of rec.projects) seen.set(nameOf(a.path), (seen.get(nameOf(a.path)) ?? 0) + 1);
+    const labelFor = (path: string): string => {
+      const base = nameOf(path);
+      if ((seen.get(base) ?? 0) <= 1) return base;
+      const parent = path.replace(/[\\/]+$/, "").split(/[\\/]/).slice(-2, -1)[0];
+      return parent ? `${parent}/${base}` : base;
     };
 
     const otherColor = PALETTE[MAX_ROWS % PALETTE.length];
-    const colorForPath = new Map<string, string>();   // head projects keep their colour in the chart
+    const colorForPath = new Map<string, string>();
     const rows: Priced[] = [];
-    const head = priced.slice(0, MAX_ROWS);
-    const tail = priced.slice(MAX_ROWS);
-    head.forEach((r, i) => {
-      colorForPath.set(r.p.path, PALETTE[i % PALETTE.length]);
-      rows.push({ key: r.p.path, label: labelFor(r.p), title: r.p.path, cost: r.cost, tokens: r.tokens, color: PALETTE[i % PALETTE.length] });
+    const head = rec.projects.slice(0, MAX_ROWS);
+    const tail = rec.projects.slice(MAX_ROWS);
+    head.forEach((a, i) => {
+      colorForPath.set(a.path, PALETTE[i % PALETTE.length]);
+      rows.push({ key: a.path, label: labelFor(a.path), title: a.path, cost: a.cost, tokens: a.tokens, color: PALETTE[i % PALETTE.length] });
     });
     if (tail.length) {
       rows.push({
         key: "__other__",
         label: `Other · ${tail.length} project${tail.length > 1 ? "s" : ""}`,
-        cost: tail.reduce((s, r) => s + r.cost, 0),
-        tokens: tail.reduce((s, r) => s + r.tokens, 0),
+        title: tail.map(a => nameOf(a.path)).join(", "),
+        cost: tail.reduce((s, a) => s + a.cost, 0),
+        tokens: tail.reduce((s, a) => s + a.tokens, 0),
         color: otherColor,
         muted: true,
       });
     }
 
-    const totalCost = rows.reduce((s, r) => s + r.cost, 0);
-    const totalTokens = rows.reduce((s, r) => s + r.tokens, 0);
+    const totalCost = rec.totalCost;
+    const totalTokens = rec.totalTokens;
     const basis = totalCost > 0 ? "cost" : "tokens";
     const denom = basis === "cost" ? totalCost : totalTokens;
-    const un = report.unattributed ? priceModels(report.unattributed, scale, now) : null;
 
-    // The per-day chart: each day a stacked column, its height the day's total,
-    // segments the same project colours as the list. Dollars reconciled per
-    // (day, model) to ccusage's own daily breakdown — the tightest anchor there
-    // is — falling back to the window scale, then pricing.ts.
+    // The per-day chart maps the reconciled per-project day costs onto colours.
     const colorOrder = rows.map(r => r.color);
-    const chart = (report.daily ?? []).map(d => {
-      // This day's scale, per model.
-      const dayScale = new Map<string, number>();
-      const ourDayModel = new Map<string, number>();
-      const addDay = (models: Record<string, Counters>) => {
-        for (const [m, c] of Object.entries(models)) ourDayModel.set(m, (ourDayModel.get(m) ?? 0) + costForUsage(toUsage(c), m, now).total);
-      };
-      for (const p of d.projects) addDay(p.models);
-      if (d.unattributed) addDay(d.unattributed);
-      for (const [m, our] of ourDayModel) {
-        const cc = ccByDayModel.get(`${d.day}|${m}`) ?? ccByDayModel.get(`${d.day}|${bareModelId(m)}`);
-        dayScale.set(m, cc != null && our > 0 ? cc / our : (scale.get(m) ?? 1));
-      }
+    const chart = rec.perDay.map(d => {
       const costByColor = new Map<string, number>();
-      for (const p of d.projects) {
-        const color = colorForPath.get(p.path) ?? otherColor;
-        let cost = 0;
-        for (const [m, c] of Object.entries(p.models)) cost += costForUsage(toUsage(c), m, now).total * (dayScale.get(m) ?? 1);
+      for (const [path, cost] of d.byPath) {
+        const color = colorForPath.get(path) ?? otherColor;
         costByColor.set(color, (costByColor.get(color) ?? 0) + cost);
       }
-      const total = [...costByColor.values()].reduce((s, v) => s + v, 0);
-      return { day: d.day, total, costByColor };
+      return { day: d.day, total: d.total, costByColor };
     });
     const maxDay = chart.reduce((m, d) => Math.max(m, d.total), 0);
 
-    return { rows, totalCost, totalTokens, basis, denom, un, reconciled, chart, maxDay, colorOrder };
+    return { rows, totalCost, totalTokens, basis, denom, un: rec.unattributed, reconciled: rec.reconciled, chart, maxDay, colorOrder };
   }, [report, ccRange]);
 
   const trackedNote = report?.trackedSince
@@ -317,7 +268,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       if (pct <= 0) return null;
                       return <span key={r.key} className="ap-proj-seg"
                         style={{ width: `${pct}%`, background: r.color }}
-                        title={`${r.label} · ${fmtCost(r.cost)}`} />;
+                        title={`${r.label} · ${fmtCost(r.cost)} · ${pctLabel(r.cost, view.totalCost)}${r.tokens ? ` · ${fmtTokens(r.tokens)} tokens` : ""}`} />;
                     })}
                   </div>
 
@@ -335,19 +286,21 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         {view.chart.map(d => {
                           const h = view.maxDay > 0 ? (d.total / view.maxDay) * 100 : 0;
                           const on = selectedDay === d.day;
+                          const parts = view.rows.map(r => ({ label: r.label, c: d.costByColor.get(r.color) ?? 0 })).filter(x => x.c > 0);
+                          const spoken = `${niceDate(Date.parse(`${d.day}T00:00:00`))}, ${fmtCost(d.total)}. ${parts.map(p => `${p.label} ${fmtCost(p.c)}`).join(", ")}`;
                           return (
-                            <div key={d.day} className={`ap-proj-day${on ? " selected" : ""}`}
-                              title={`${d.day} · ${fmtCost(d.total)}`}
+                            <button key={d.day} type="button" className={`ap-proj-day${on ? " selected" : ""}`}
+                              aria-pressed={on} aria-label={spoken} title={`${d.day} · ${fmtCost(d.total)}`}
                               onClick={() => setSelectedDay(s => (s === d.day ? null : d.day))}>
-                              <div className="ap-proj-col" style={{ height: `${h}%` }}>
+                              <span className="ap-proj-col" style={{ height: `${h}%` }}>
                                 {view.colorOrder.map((color, k) => {
                                   const c = d.costByColor.get(color) ?? 0;
                                   if (c <= 0 || d.total <= 0) return null;
                                   return <span key={k} className="ap-proj-colseg"
                                     style={{ height: `${(c / d.total) * 100}%`, background: color }} />;
                                 })}
-                              </div>
-                            </div>
+                              </span>
+                            </button>
                           );
                         })}
                       </div>
@@ -389,7 +342,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         <li key={r.key} className={`ap-proj-row${r.muted ? " muted" : ""}`}>
                           <span className="ap-proj-dot" style={{ background: r.color }} aria-hidden="true" />
                           <span className="ap-proj-name" title={r.title ?? r.label}>{r.label}</span>
-                          <span className="ap-proj-track" aria-hidden="true">
+                          <span className="ap-proj-track" title={`${pctLabel(r.cost, view.totalCost)} of tracked cost`}>
                             <span className="ap-proj-fill" style={{ width: `${pct}%`, background: r.color }} />
                           </span>
                           <span className="ap-proj-cost">{fmtCost(r.cost)}</span>
@@ -399,20 +352,21 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                     })}
                   </ul>
 
-                  {view.un && (view.un.cost > 0 || view.un.tokens > 0) && (
+                  {view.un && (
                     <div className="ap-proj-unattributed">
                       <span className="ap-proj-dot" style={{ background: UNATTRIBUTED_COLOR }} aria-hidden="true" />
-                      <span className="ap-proj-name">Unattributed</span>
-                      <span className="ap-proj-cost">{fmtCost(view.un.cost)}</span>
-                      <span className="ap-proj-tok">{fmtTokens(view.un.tokens)}</span>
-                      <div className="ap-proj-note">
-                        Work no account could be tied to — from before tracking, or a gap. Not counted in the totals above.
+                      <div className="ap-proj-un-labels">
+                        <span className="ap-proj-un-title">Unattributed usage</span>
+                        <span className="ap-proj-un-tag">Excluded from the project totals</span>
                       </div>
+                      <span className="ap-proj-un-cost">{fmtCostGrouped(view.un.cost)}</span>
+                      <span className="ap-proj-un-tok">{fmtTokens(view.un.tokens)}</span>
+                      <div className="ap-proj-note">Work no account could be tied to — from before tracking, or a gap.</div>
                     </div>
                   )}
 
                   <div className="ap-proj-foot">
-                    {view.reconciled ? "Dollars from ccusage, split by activity" : "Dollars estimated (ccusage unavailable)"} · {trackedNote}
+                    {view.reconciled ? "Dollars from ccusage · split by activity" : "Dollars estimated · ccusage unavailable"} · {trackedNote}
                   </div>
                 </>
               )}
