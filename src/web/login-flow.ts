@@ -107,3 +107,40 @@ export function restoreWarning(
     ? `This machine is now signed in as ${who} — the account you were using could not be put back. Switch back from the accounts panel.`
     : "The account you were using could not be put back — check which account this machine is signed in as from the accounts panel.";
 }
+
+// ── leaving the dialog while a sign-in is on the server (#1175) ─────────────
+
+/** The admin request closing the dialog sends, or null when there is nothing
+ *  to say. */
+export type LoginExitRequest = { action: "login-cancel" } | null;
+
+/**
+ * What closing the sign-in dialog has to tell the server.
+ *
+ * `claude auth login` runs on the server and OUTLIVES this component, so a
+ * dialog that simply unmounts leaves a child holding the next attempt hostage
+ * for the rest of its five minutes — and, if the sign-in got far enough to
+ * move the machine onto the new account, leaves it there. The cancel kills the
+ * child and puts the previous account back, which is why every exit that is not
+ * a finished sign-in sends it: ×, Escape, the backdrop, and Done.
+ *
+ * NOTHING WAS STARTED, NOTHING IS CANCELLED. The dialog opens on a primer — the
+ * sign-in begins on a press, never on arriving — so closing an untouched dialog
+ * must not reach the server at all, let alone cancel a sign-in another tab is
+ * running.
+ *
+ * AND `done` IS AN EXIT WITH NOTHING LEFT TO UNDO. The server's registration
+ * put the previous account back as its last act (registerSignedIn), so a cancel
+ * here would queue a second `cswap switch` to the account the machine is
+ * already on, behind the store lock, for nothing. It is also the one state
+ * where the two exits used to disagree: × sent the cancel and Done did not, so
+ * the same success screen did two different things depending on which control
+ * the reader happened to reach for.
+ */
+export function exitRequest(
+  { started, state }: { started: boolean; state: LoginServerState | null | undefined },
+): LoginExitRequest {
+  if (!started) return null;
+  if (state === "done") return null;
+  return { action: "login-cancel" };
+}

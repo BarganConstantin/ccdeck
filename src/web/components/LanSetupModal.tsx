@@ -59,7 +59,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { pressState } from "../panel-press";
-import { sameKeys, writeFailure } from "./LanSyncSection";
+import { nextShared, settlePending, writeFailure } from "./LanSyncSection";
 import { copyText } from "../copy-text";
 import type { LanAccount, LanStatus, LanTailscale } from "./LanSyncSection";
 
@@ -124,10 +124,12 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   // The server has caught up with the last thing we sent, so it is the truth
-  // again and the optimistic copy is retired. Without this the boxes would keep
-  // showing what was SENT even after the deck refused it.
+  // again and the optimistic copy is retired. A REFUSED write is retired where
+  // it is answered, in the box's onChange below — the server never catches up
+  // with a list it did not store, so waiting for it here kept the boxes
+  // showing what was sent for as long as the dialog stayed open (#1175).
   useEffect(() => {
-    if (pending.current && sameKeys(pending.current, status.shared ?? [])) pending.current = null;
+    pending.current = settlePending(pending.current, status.shared ?? [], null);
   }, [status.shared]);
 
   const write = useCallback(async (lan: Record<string, unknown>, what: string, tag = "write") => {
@@ -272,13 +274,16 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     type="checkbox"
                     checked={shared.has(a.key)}
                     onChange={e => {
-                      const next = new Set(pending.current ?? status.shared ?? []);
-                      if (e.target.checked) next.add(a.key); else next.delete(a.key);
-                      pending.current = [...next];
+                      const next = nextShared(pending.current, status.shared ?? [], a.key, e.target.checked);
+                      pending.current = next;
                       void write(
-                        { shared: [...next] },
+                        { shared: next },
                         e.target.checked ? "share that account" : "stop sharing that account",
-                      );
+                      ).then(ok => {
+                        // Only the newest tick settles: an older one's answer is
+                        // about a list a later tick has already replaced.
+                        if (pending.current === next) pending.current = settlePending(next, status.shared ?? [], { ok });
+                      });
                     }}
                   />
                   <span className="ap-lan-pick-name">{a.email}</span>

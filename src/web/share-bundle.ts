@@ -90,6 +90,34 @@ export function pickerRows(accounts: NamedAccount[]): PickerRow[] {
 }
 
 /**
+ * Which accounts go into the bundle: every one on the roster the user has not
+ * taken out, in the roster's order.
+ *
+ * The picker opens with everything ticked, so it holds the EXCLUSIONS and
+ * derives this from the live roster on every render (#1175). An account that
+ * leaves the store while the dialog is open — the panel repolls every fifteen
+ * seconds, and claude-swap rewriting sequence.json reads as a moment where it
+ * is gone — drops out of the list, and comes back ticked when it returns; one
+ * the user unticked stays out through all of it. Each account in the result is
+ * a live OAuth login on the clipboard, so this list is the whole of what the
+ * user agreed to put there.
+ */
+export function pickedAccounts(accounts: ReadonlyArray<{ num: number }>, unpicked: readonly number[]): number[] {
+  return accounts.filter(a => !unpicked.includes(a.num)).map(a => a.num);
+}
+
+/** One press on a row's box: take it out, or put it back. */
+export function toggleUnpicked(unpicked: readonly number[], num: number): number[] {
+  return unpicked.includes(num) ? unpicked.filter(n => n !== num) : [...unpicked, num];
+}
+
+/** The admin request a share press sends, or null when nothing is picked — a
+ *  bundle of nothing is not a request worth making. */
+export function shareRequest(picked: readonly number[]): { action: "share"; accounts: number[] } | null {
+  return picked.length ? { action: "share", accounts: [...picked] } : null;
+}
+
+/**
  * The sentence above the picker, which is the one that has to land before the
  * copy and not after it.
  *
@@ -115,6 +143,29 @@ export interface ImportResult {
   org?: string;
   num: string | null;
   state: ImportState;
+}
+
+/** What a result row is known by. The address alone is not enough: one
+ *  address under two organizations is two accounts to claude-swap, and the
+ *  import reports each on a row of its own. */
+export function importRowKey(r: { email: string; org?: string }): string {
+  return `${r.email}|${r.org ?? ""}`;
+}
+
+/**
+ * The result list once "update anyway" has answered for one of its rows.
+ *
+ * The row it names is replaced where it stands and every other row is left
+ * alone. And a list that is no longer on screen stays gone (#1175): "Import
+ * another" sets it to null while the request can still be out, and turning
+ * that null into a list — `rows ?? []` was the first spelling — flipped the
+ * paste form the user had just asked for back to a success screen reading
+ * "Nothing to import."
+ */
+export function replaceImportRow(
+  rows: ImportResult[] | null, key: string, fresh: ImportResult,
+): ImportResult[] | null {
+  return rows ? rows.map(r => (importRowKey(r) === key ? fresh : r)) : rows;
 }
 
 /**

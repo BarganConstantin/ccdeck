@@ -24,6 +24,8 @@ import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const app = read("../App.tsx");
+/** The node-and-edge half of the canvas, out of App.tsx since #1175. */
+const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");
 const clusters = read("../components/SessionClusters.tsx");
 const css = read("../styles.css").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -321,7 +323,8 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("scales edges by the mode, not by a width of their own", () => {
-    expect(app).toContain("strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`");
+    // The edge is built in canvas-flow.ts since #1175.
+    expect(flow).toContain("strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`");
     expect(css).toMatch(/\.canvas-wrap\[data-lod="overview"\] \{ --edge-k: calc\(0\.85 \/ var\(--zoom, 1\)\); \}/);
   });
 

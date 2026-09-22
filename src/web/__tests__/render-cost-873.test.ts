@@ -17,18 +17,22 @@ import { subscribeNow, nowAt } from "../use-now";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
+/** The node-building half of the canvas moved out of App.tsx for #1175, so the
+ *  two rules below are read where they now live. */
+const flow = read("../canvas-flow.ts");
 const node = read("../components/AgentNode.tsx");
 const bursts = read("../components/ToolBursts.tsx");
 
 describe("node data holds still between events (#873)", () => {
   it("no longer puts the clock in a card's data", () => {
+    expect(flow).not.toMatch(/data: \{ \.\.\.a, now/);
     expect(app).not.toMatch(/data: \{ \.\.\.a, now/);
-    expect(app).toMatch(/data: dataFor\(a\),/);
+    expect(flow).toMatch(/data: dataFor\(a\),/);
   });
 
   it("reuses a card's data until the board's revision moves", () => {
-    expect(app).toMatch(/entry\.revision !== state\.revision/);
-    expect(app).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext\);/);
+    expect(flow).toMatch(/entry\.revision !== state\.revision/);
+    expect(flow).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext\);/);
   });
 
   it("does not rebuild the session handles on the clock either", () => {

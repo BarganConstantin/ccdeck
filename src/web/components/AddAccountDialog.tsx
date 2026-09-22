@@ -25,13 +25,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
-import { isLoginOver, loginEndNotice, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
+import { exitRequest, isLoginOver, loginEndNotice, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
 import { createLoginAnnouncer } from "../login-announce";
 import { explainFailure } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { type ImportResult, importSummary, outcomeWord } from "../share-bundle";
+import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -134,9 +134,13 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
     // A live `claude auth login` on the server outlives this component, and an
     // abandoned one holds the next attempt hostage for five minutes. Cancelling
     // also puts the previous account back if the sign-in already completed.
-    if (startedRef.current) admin({ action: "login-cancel" }).catch(() => {});
+    // Which exits send it is login-flow.ts's rule, so it can be driven and so
+    // that every exit takes the same one — × and Done used to disagree on the
+    // success screen (#1175).
+    const req = exitRequest({ started: startedRef.current, state: login?.state });
+    if (req) admin(req).catch(() => {});
     onClose();
-  }, [onClose]);
+  }, [onClose, login?.state]);
 
   // `close`, not `onClose`: Escape has to cancel the sign-in running on the
   // server, exactly as the × does.
@@ -267,7 +271,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
    * over the whole paste.
    */
   const forceOne = useCallback(async (row: ImportResult) => {
-    const key = `${row.email}|${row.org ?? ""}`;
+    const key = importRowKey(row);
     // The same guard the two submits above take, from the same helper: this
     // button is never disabled either, so a second press reaches the handler.
     if (!selfPressAccepted(busyRef.current)) return;
@@ -296,11 +300,8 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
       return;
     }
     const fresh = ((out.results ?? []) as ImportResult[])[0];
-    // Only into a list that is still on screen. `rows ?? []` turned a dismissed
-    // result — "Import another" sets it to null — into an empty ARRAY, which is
-    // truthy, so the paste form the user had just asked for flipped back to a
-    // success screen reading "Nothing to import."
-    if (fresh) setImported(rows => (rows ? rows.map(r => (`${r.email}|${r.org ?? ""}` === key ? fresh : r)) : rows));
+    // Only into a list that is still on screen — see replaceImportRow.
+    if (fresh) setImported(rows => replaceImportRow(rows, key, fresh));
     onChanged();
   }, [onChanged]);
 
@@ -391,7 +392,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                     : " was already managed, so its stored credentials were replaced."}
                 </p>
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
-                <button type="button" className="btn primary" onClick={onClose}>Done</button>
+                <button type="button" className="btn primary" onClick={close}>Done</button>
               </div>
             ) : login?.state === "awaiting_code" || login?.state === "registering" ? (
               <>
@@ -505,7 +506,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
               {imported.length > 0 && (
                 <ul className="aa-results">
                   {imported.map(r => {
-                    const key = `${r.email}|${r.org ?? ""}`;
+                    const key = importRowKey(r);
                     return (
                       <li key={key} className={`aa-result ${r.state}`}>
                         <span className="aa-result-who">{r.email || (r.num ? `slot ${r.num}` : "an account")}</span>
@@ -541,7 +542,7 @@ export default function AddAccountDialog({ onClose, onChanged }: Props) {
                 <strong> update anyway</strong>.
               </p>
               <div className="aa-actions">
-                <button type="button" className="btn primary" onClick={onClose}>Done</button>
+                <button type="button" className="btn primary" onClick={close}>Done</button>
                 <button type="button" className="btn"
                   onClick={() => { bundleRef.current = ""; setRowError(null); setImported(null); }}>
                   Import another

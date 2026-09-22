@@ -154,3 +154,41 @@ export function versionNoticeLabel(n: VersionNoticeCopy): string {
   const does = n.open ? "show what's new" : "show what's new and the notice";
   return `Version v${n.from}, ${what} — ${does}`;
 }
+
+// ── which update a dismissal was about (#1175) ──────────────────────────────
+
+/** A notice as the × remembers it: which drift it reports, and about which
+ *  version. `from` is not part of the identity — the running version is the
+ *  one that moves when the deck finally restarts, and a dismissal has to
+ *  survive that without silencing the release it was never about. */
+export type DismissableNotice = { kind: VersionNoticeCopy["kind"]; to: string };
+
+/**
+ * What the banner's × writes down, and what a later banner is compared against.
+ *
+ * KEYED TO THE VERSION, not to the notice. Dismissing v1.50 must not silence
+ * v1.51 — a deck whose reader once pressed × would otherwise never be told
+ * about an update again, and, through `noticeIsOpen` below, would never restart
+ * itself to take one either (#804): the deck restarts only while the banner
+ * that offers to stop it is on screen. Lose the version out of this string and
+ * every future release goes by in silence, on a deck that looks healthy.
+ *
+ * The kind is in it too, because "installed on disk, restart to pick it up" and
+ * "there is a newer one on npm" are two different pieces of news about the same
+ * version, and putting one away does not answer the other.
+ */
+export function noticeKeyFor(notice: DismissableNotice | null): string {
+  return notice ? `${notice.kind}:${notice.to}` : "";
+}
+
+/**
+ * Whether the banner is showing: there is news, and this is not the news that
+ * was put away.
+ *
+ * `dismissed` is the stored key — "" when nothing has been dismissed, which is
+ * also what the chip writes to bring the banner back, and what a notice's own
+ * key can never be.
+ */
+export function noticeIsOpen(notice: DismissableNotice | null, dismissed: string): boolean {
+  return notice != null && dismissed !== noticeKeyFor(notice);
+}

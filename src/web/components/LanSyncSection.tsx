@@ -37,7 +37,7 @@
 // every machine at once.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { pressAccepted, pressState } from "../panel-press";
+import { armedPress, pressAccepted, pressState } from "../panel-press";
 import { placeBeside } from "../popover-place";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
@@ -470,10 +470,56 @@ export function writeFailure(what: string, out: { ok?: boolean; reason?: string 
 
 /** Two lists of account keys, same members or not. Order is not meaning here:
  *  the server stores what it is sent, and the panel sends a Set. */
-export function sameKeys(a: string[], b: string[]): boolean {
+export function sameKeys(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const seen = new Set(a);
   return b.every(k => seen.has(k));
+}
+
+/**
+ * The list one tick in "Share these accounts" sends.
+ *
+ * Built from what the dialog last SENT while that is still unconfirmed, and
+ * from the server's list otherwise. `status.shared` only moves once a write has
+ * landed AND the poll after it has returned, so a second tick inside that window
+ * built from the server's list would silently drop the first one's account.
+ */
+export function nextShared(
+  pending: readonly string[] | null, server: readonly string[], key: string, checked: boolean,
+): string[] {
+  const next = new Set(pending ?? server);
+  if (checked) next.add(key); else next.delete(key);
+  return [...next];
+}
+
+/**
+ * What the share boxes draw from after news arrives: the list last sent, or —
+ * as null — the server's own.
+ *
+ * `lastWrite` is the answer to the newest share write, or null when the news
+ * is only a fresh read of the server's list. Three outcomes:
+ *
+ *   * REFUSED, or never answered: the deck stored nothing, so the server's list
+ *     is the truth again and the boxes go back to it (#1175). Keeping what was
+ *     sent drew an unticked login as not offered while the deck went on
+ *     offering it — and the next tick re-sent the refused state with it.
+ *   * The server's list MATCHES what was sent: it has caught up, and the
+ *     optimistic copy is retired.
+ *   * Accepted but not matching yet: kept. The server stores the list it is
+ *     sent as it is, so a list that still differs after an accepted write is a
+ *     read that left before the write landed — and going back to it would let
+ *     the next tick build from it, which is the race `nextShared` exists for.
+ *
+ * Hands back the very list it was given when it keeps it, so a caller can tell
+ * by identity whether a newer tick has replaced it since.
+ */
+export function settlePending<T extends readonly string[]>(
+  pending: T | null, server: readonly string[], lastWrite: { ok: boolean } | null,
+): T | null {
+  if (pending == null) return null;
+  if (lastWrite != null && !lastWrite.ok) return null;
+  if (sameKeys(pending, server)) return null;
+  return pending;
 }
 
 /** What this deck is offering, and until when. */
@@ -2110,15 +2156,19 @@ export default function LanSyncSection({ accounts, onChanged, view, onOpen, onBa
                             className={`ap-manage-btn ap-lan-do danger${armed === p.fp ? " armed" : ""}`}
                             {...pressProps(`unpair:${p.fp}`)}
                             onClick={() => {
-                              if (armed !== p.fp) {
+                              const now = Date.now();
+                              const press = armedPress({
+                                armedFor: armed, target: p.fp, armedAt: armedAt.current, now, gapMs: CONFIRM_GAP_MS,
+                              });
+                              if (press === "arm") {
                                 setArmed(p.fp);
-                                armedAt.current = Date.now();
+                                armedAt.current = now;
                                 window.setTimeout(() => setArmed(a => (a === p.fp ? null : a)), 4_000);
                                 return;
                               }
                               // A double-click is one decision, not two: its second
                               // press lands before anybody could have read `confirm`.
-                              if (Date.now() - armedAt.current < CONFIRM_GAP_MS) return;
+                              if (press === "ignore") return;
                               setArmed(null);
                               void answer("unpair", p.fp, "unpair that deck");
                             }}

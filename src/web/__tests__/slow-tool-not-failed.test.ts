@@ -263,6 +263,9 @@ describe("a session that genuinely died mid-call", () => {
 
 describe("the cutoff App.tsx drives the sweep with", () => {
   const app = () => readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  /** The tick's sweeps are `sweepTick` in prune.ts since #1175 — the call site
+   *  moved out of App.tsx, and forget-pruned-session-1024.test.ts drives it. */
+  const sweep = () => readFileSync(fileURLToPath(new URL("../prune.ts", import.meta.url)), "utf8");
 
   it("is the session-silence window and not a shorter one of its own", () => {
     // Everything above takes the window as an argument, so it can only ever say
@@ -271,13 +274,14 @@ describe("the cutoff App.tsx drives the sweep with", () => {
     // being wrong — which is exactly how a ninety-second constant sat under a
     // ninety-minute rule. #350 pins its own call site the same way, and for the
     // same reason.
-    expect(app()).toMatch(/sweepStaleTools\(stateRef\.current, t, STALE_SESSION_MS\)/);
+    expect(sweep()).toMatch(/sweepStaleTools\(state, t, STALE_SESSION_MS\)/);
   });
 
   it("no longer keeps a separate ninety-second tool constant", () => {
     // Two windows for one question is what the bug was. There is one now, and it
     // is the one with the reasoning written under it.
     expect(app()).not.toMatch(/STALE_TOOL_MS/);
+    expect(sweep()).not.toMatch(/STALE_TOOL_MS/);
   });
 });
 

@@ -324,9 +324,11 @@ describe("the row is the door", () => {
     // Arming records when. A second press sooner than CONFIRM_GAP_MS lands
     // before anybody could have read `sure?`, so it confirms nothing — on the
     // row, and in the dialog.
-    expect(MODAL).toMatch(/if \(!armed\) \{ setArmed\(true\); armedAt\.current = Date\.now\(\); return; \}/);
+    // The rule itself is armedPress's, and arm-confirm.test.ts drives it.
+    expect(MODAL).toMatch(/armedFor: armed \? row\.fp : null, target: row\.fp, armedAt: armedAt\.current, now, gapMs: CONFIRM_GAP_MS,/);
+    expect(MODAL).toMatch(/if \(press === "arm"\) \{ setArmed\(true\); armedAt\.current = now; return; \}/);
     for (const src of [MODAL, SECTION]) {
-      expect(src).toMatch(/if \(Date\.now\(\) - armedAt\.current < CONFIRM_GAP_MS\) return;/);
+      expect(src).toMatch(/if \(press === "ignore"\) return;/);
     }
     expect(SECTION).toMatch(/export const CONFIRM_GAP_MS = \d+;/);
   });

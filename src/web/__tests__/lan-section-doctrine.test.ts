@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   askedLabel, checkedLabel, deckRows, faultText, isOnline, leftLabel, parseAddress, roundLabel,
-  rosterSplit, sameKeys, sectionState, writeFailure, ONLINE_MS,
+  nextShared, rosterSplit, sameKeys, sectionState, settlePending, writeFailure, ONLINE_MS,
 } from "../components/LanSyncSection";
 
 const SRC = readFileSync(
@@ -192,6 +192,80 @@ describe("what we last sent, against what the server says", () => {
   });
 });
 
+// #1175. "Share these accounts" decides which logins this deck offers its paired
+// decks, and the boxes draw from an optimistic copy of what was last sent. The
+// two halves below are that copy's whole life: how a tick builds it, and what
+// retires it.
+describe("the list a share tick sends", () => {
+  it("adds the ticked account to the server's list", () => {
+    expect(nextShared(null, ["a"], "b", true)).toEqual(["a", "b"]);
+  });
+
+  it("builds a second tick on the first, not on a poll that has not caught up", () => {
+    // The race: the first tick sent [a, b], the poll still says [a]. Built from
+    // the poll, the second tick would send [a, c] and silently drop b.
+    expect(nextShared(["a", "b"], ["a"], "c", true)).toEqual(["a", "b", "c"]);
+  });
+
+  it("takes the unticked account out", () => {
+    expect(nextShared(null, ["a", "b"], "a", false)).toEqual(["b"]);
+    expect(nextShared(["a", "b"], ["a", "b", "c"], "a", false)).toEqual(["b"]);
+  });
+
+  it("does not add an account twice", () => {
+    expect(nextShared(null, ["a"], "a", true)).toEqual(["a"]);
+  });
+});
+
+describe("when the boxes go back to the server's list", () => {
+  it("retires the copy once the server has what was sent", () => {
+    expect(settlePending(["a", "b"], ["a", "b"], { ok: true })).toBeNull();
+    // A poll with the same members in another order has caught up just the same.
+    expect(settlePending(["a", "b"], ["b", "a"], null)).toBeNull();
+  });
+
+  it("retires it when the deck refused the write, whatever the server says", () => {
+    // Refused, the deck stored nothing, and the server never catches up with a
+    // list it did not store — so waiting for it kept the box showing what was
+    // SENT for as long as the dialog stayed open: "not shared" over a login
+    // the deck went on offering, and the next tick re-sent the refusal.
+    expect(settlePending(["a", "b"], ["a"], { ok: false })).toBeNull();
+    // Unticked and refused: the box goes back to ticked, which is the truth.
+    expect(settlePending(["b"], ["a", "b"], { ok: false })).toBeNull();
+  });
+
+  it("keeps it after an accepted write until the server's list agrees", () => {
+    // The server stores the list it is sent as it is (normaliseLan keeps every
+    // string), so a list that still differs after an accepted write is a read
+    // that left before the write landed. Going back to it would let the next
+    // tick build from it — the race nextShared exists for.
+    const sent = ["a", "b"];
+    expect(settlePending(sent, ["a"], { ok: true })).toBe(sent);
+    expect(settlePending(sent, ["a"], null)).toBe(sent);
+    // So a key the server dropped keeps its box until the next read agrees — a
+    // case that cannot arise while the server stores what it is sent.
+    const withDead = ["a", "dead"];
+    expect(settlePending(withDead, ["a"], { ok: true })).toBe(withDead);
+  });
+
+  it("has nothing to retire when nothing was sent", () => {
+    expect(settlePending(null, ["a"], { ok: false })).toBeNull();
+    expect(settlePending(null, ["a"], null)).toBeNull();
+  });
+
+  it("walks one refused untick the way the dialog runs it", () => {
+    // Shared: a and b. The user unticks a, the deck refuses. The box must read
+    // a as shared again, and the next tick must be built from the server's list.
+    const server = ["a", "b"];
+    let pending: string[] | null = nextShared(null, server, "a", false);
+    const sent = pending;
+    expect(new Set(pending ?? server).has("a")).toBe(false);
+    if (pending === sent) pending = settlePending(sent, server, { ok: false });
+    expect(new Set(pending ?? server).has("a")).toBe(true);
+    expect(nextShared(pending, server, "c", true)).toEqual(["a", "b", "c"]);
+  });
+});
+
 describe("the three rules the panel above it already keeps", () => {
   it("commits on a press and never on a blur", () => {
     // `appear as` saved on blur, and `by address` parsed on blur and threw the
@@ -279,10 +353,14 @@ describe("the three rules the panel above it already keeps", () => {
     // poll after it has returned, so a second tick inside that window rebuilt
     // its Set from before the first one and silently dropped an account.
     expect(MODAL).toMatch(/new Set\(pending\.current \?\? status\.shared \?\? \[\]\)/);
-    expect(MODAL).toMatch(/pending\.current = \[\.\.\.next\]/);
+    expect(MODAL).toMatch(/const next = nextShared\(pending\.current, status\.shared \?\? \[\], a\.key, e\.target\.checked\);\s*pending\.current = next;/);
     // And retires the optimistic copy once the server agrees with it, or the
-    // boxes would keep showing what was sent even after the deck refused it.
-    expect(MODAL).toMatch(/sameKeys\(pending\.current, status\.shared \?\? \[\]\)/);
+    // boxes would keep showing what was sent even after the deck refused it —
+    // both the poll's half and the refusal's, which is answered where the write
+    // is, and only for the newest tick (#1175). The rule is settlePending's,
+    // driven above.
+    expect(MODAL).toMatch(/pending\.current = settlePending\(pending\.current, status\.shared \?\? \[\], null\);/);
+    expect(MODAL).toMatch(/\)\.then\(ok => \{[\s\S]{0,200}?if \(pending\.current === next\) pending\.current = settlePending\(next, status\.shared \?\? \[\], \{ ok \}\);/);
   });
 
   it("says which state a press is in with a word, because aria-busy paints nothing", () => {

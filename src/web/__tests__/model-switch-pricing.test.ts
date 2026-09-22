@@ -42,6 +42,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { costForUsage } from "../pricing";
+import { boardModelTable } from "../board-usage";
 import { applyEvent, initialState } from "../reducer";
 import {
   agentCost, agentModelIds, agentUnpricedTokens, otherModelIds,
@@ -320,34 +321,32 @@ describe("a mostly-Sonnet session that ends on Opus costs $3.0075, not $7.5075",
 
 describe("the by-model breakdown shows both models, not just the last one", () => {
   it("gives the session a row per model, each with the tokens that model produced", async () => {
-    // The exact fold the usage panel's `byModel` memo runs — it iterates
-    // `usageByModelEntries(a)` rather than agents, and this is that loop with
-    // the React removed so a plain-Node suite can reach it.
+    // The panel's own fold, called. This used to re-type the `byModel` memo's
+    // loop here "with the React removed", which passed just as happily after
+    // the real memo changed — so the fold moved to board-usage.ts and this is
+    // the shipped function over a board built from a real transcript (#1175).
     const path = writeSwitchingTranscript("by-model.jsonl", OPUS, SONNET);
     const { root } = await deckState(path, SONNET);
 
-    const rows = new Map<string, { tokens: number; cost: number }>();
-    for (const e of usageByModelEntries(root)) {
-      const key = e.model ?? "__unknown__";
-      const row = rows.get(key) ?? { tokens: 0, cost: 0 };
-      row.tokens += e.usage.inputTokens + e.usage.outputTokens;
-      row.cost += costForUsage(e.usage, e.model, NOW).total;
-      rows.set(key, row);
-    }
+    const rows = new Map(boardModelTable([root], NOW).map(r => [r.model, r]));
 
     // Two rows. Before this landed there was one, reading `Sonnet 5 · 1.1M ·
     // $3.00`, with no Opus row anywhere on the panel to say the tokens had ever
     // belonged to another model.
     expect([...rows.keys()].sort()).toEqual([OPUS, SONNET]);
-    expect(rows.get(OPUS)!.tokens).toBe(1_100_000);
-    expect(rows.get(SONNET)!.tokens).toBe(1_100);
-    expect(rows.get(OPUS)!.cost).toBeCloseTo(7.5, 9);
-    expect(rows.get(SONNET)!.cost).toBeCloseTo(0.003, 9);
+    const tokens = (model: string) => rows.get(model)!.inputTokens + rows.get(model)!.outputTokens;
+    expect(tokens(OPUS)).toBe(1_100_000);
+    expect(tokens(SONNET)).toBe(1_100);
+    expect(rows.get(OPUS)!.cost.total).toBeCloseTo(7.5, 9);
+    expect(rows.get(SONNET)!.cost.total).toBeCloseTo(0.003, 9);
+    // One session, so each row counts its one share of it.
+    expect(rows.get(OPUS)!.agentCount).toBe(1);
+    expect(rows.get(SONNET)!.agentCount).toBe(1);
 
     // The rows sum to the figure the strip above them prints.
-    const sum = [...rows.values()].reduce((n, r) => n + r.cost, 0);
+    const sum = [...rows.values()].reduce((n, r) => n + r.cost.total, 0);
     expect(sum).toBeCloseTo(agentCost(root, NOW).total, 9);
-    expect([...rows.values()].reduce((n, r) => n + r.tokens, 0))
+    expect([...rows.values()].reduce((n, r) => n + r.inputTokens + r.outputTokens, 0))
       .toBe(root.usage.inputTokens + root.usage.outputTokens);
   });
 
@@ -649,13 +648,18 @@ describe("no cost surface multiplies a whole session by its last model", () => {
   });
 
   it("keys the usage panel's model table on the split rather than on one field", () => {
+    // The fold is board-usage.ts's since #1175 — the panel calls it, and the
+    // case above drives it. The row key comes from an ENTRY:
+    // `const key = a.model ?? UNKNOWN_MODEL` is what produced a single Sonnet
+    // row for a session that spent a million tokens on Opus.
+    const table = srcOf("board-usage.ts");
+    expect(table).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
+    expect(table).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
+    expect(table).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
+    // And the panel has no fold of its own left to disagree with it.
     const panel = srcOf("components/UsagePanel.tsx");
-    // The row key comes from an ENTRY now. `const key = a.model ?? UNKNOWN_MODEL`
-    // is what produced a single Sonnet row for a session that spent a million
-    // tokens on Opus.
-    expect(panel).not.toMatch(/const key = a\.model \?\? UNKNOWN_MODEL/);
-    expect(panel).toMatch(/for \(const e of usageByModelEntries\(a\)\)/);
-    expect(panel).toMatch(/const key = e\.model \?\? UNKNOWN_MODEL/);
+    expect(panel).toMatch(/const byModel = boardModelTable\(state\.agents\.values\(\)\);/);
+    expect(panel).not.toMatch(/usageByModelEntries/);
   });
 
   it("carries the split from the scanner to the client on the usage event", () => {

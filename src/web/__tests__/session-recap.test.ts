@@ -296,9 +296,12 @@ describe("where it is drawn", () => {
     // true and not put away, and tied to it by an edge from note to root.
     const appSrc = read("../App.tsx");
     expect(appSrc).toContain("const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote: RecapNoteNode };");
-    expect(appSrc).toContain('type: "recapNote",');
-    expect(appSrc).toMatch(/source: noteId,\s*target: a\.id,\s*type: "recapTie",\s*className: "recap-edge",/);
     expect(appSrc).toContain("const edgeTypes = { recapTie: RecapTieEdge };");
+    // The node and its tie are built in canvas-flow.ts since #1175 — App.tsx
+    // registers the two renderers, and the snapshot decides what to draw.
+    const flowSrc = read("../canvas-flow.ts");
+    expect(flowSrc).toContain('type: "recapNote",');
+    expect(flowSrc).toMatch(/source: noteId,\s*target: a\.id,\s*type: "recapTie",\s*className: "recap-edge",/);
     const noteSrc = read("../components/RecapNoteNode.tsx");
     expect(noteSrc).toContain('role="note"');
     expect(noteSrc).toContain('<Handle type="source" position={Position.Right}');
@@ -424,11 +427,11 @@ describe("the note is a node the layout, the frame and the caches can see", () =
   it("arrives beside its card: kept out of the new-session gap filler, placed after it", () => {
     // A pinned card is left out of dagre, and the gap filler took a lone note
     // for a new session's block; both put the note far from its card.
-    const appSrc = read("../App.tsx");
-    expect(appSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
-    expect(appSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
+    const flowSrc = read("../canvas-flow.ts");
+    expect(flowSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
+    expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
     // And a note that was closed forgets its laid-out spot unless it was dragged.
-    expect(appSrc).toContain("if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
+    expect(flowSrc).toContain("if (isRecapNoteId(id) && !shownNotes.has(id) && !pinned.has(id)) {");
     expect(isRecapNoteId(recapNoteId("s1"))).toBe(true);
     expect(isRecapNoteId("s1")).toBe(false);
   });
