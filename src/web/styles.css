@@ -14045,7 +14045,9 @@ input, textarea { caret-color: var(--accent); }
    project like the list, its height the day's reconciled total. */
 .ap-proj-days { margin: 14px 0 4px; }
 .ap-proj-days-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-.ap-proj-days-plot { display: flex; align-items: flex-end; gap: 2px; height: 64px; }
-.ap-proj-day { flex: 1 1 0; min-width: 3px; height: 100%; display: flex; align-items: flex-end; }
+.ap-proj-days-plot { display: flex; align-items: flex-end; justify-content: flex-start; gap: 2px; height: 64px; }
+.ap-proj-day { flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%; display: flex; align-items: flex-end; }
 .ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
 .ap-proj-colseg { width: 100%; display: block; }
+.ap-proj-days-axis { display: flex; justify-content: flex-start; gap: 2px; margin-top: 4px; }
+.ap-proj-axis-cell { flex: 1 1 0; min-width: 3px; max-width: 26px; font-size: 10px; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: visible; }

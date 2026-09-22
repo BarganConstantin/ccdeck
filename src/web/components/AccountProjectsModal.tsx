@@ -89,6 +89,19 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** A `YYYY-MM-DD` day as a compact `M/D` axis label. */
+function dayLabel(day: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(day);
+  return m ? `${Number(m[1])}/${Number(m[2])}` : day;
+}
+
+/** Which day columns get a printed label: the ends, and an even scatter
+ *  between, so a 60-day axis is not a wall of overlapping dates. */
+function labelledDays(count: number): (i: number) => boolean {
+  const step = Math.max(1, Math.ceil(count / 6));
+  return i => i === 0 || i === count - 1 || i % step === 0;
+}
+
 /** A row ready to draw: priced, named, coloured. `other` folds the small tail;
  *  `unattributed` is the accountless bucket, shown apart from the bar. */
 interface Priced { key: string; label: string; title?: string; cost: number; tokens: number; color: string; muted?: boolean }
@@ -333,6 +346,13 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                           );
                         })}
                       </div>
+                      {(() => { const show = labelledDays(view.chart.length); return (
+                        <div className="ap-proj-days-axis" aria-hidden="true">
+                          {view.chart.map((d, i) => (
+                            <div key={d.day} className="ap-proj-axis-cell">{show(i) ? dayLabel(d.day) : ""}</div>
+                          ))}
+                        </div>
+                      ); })()}
                     </div>
                   )}
 
