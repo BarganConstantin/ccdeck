@@ -48,7 +48,11 @@
     "3.26.1",
     "3.26.3",
     "3.26.4",
-    "3.26.5"
+    "3.26.5",
+    "3.27.6",
+    "3.27.7",
+    "3.28.0",
+    "3.28.1"
   ],
   "3.27.0": [
     {
@@ -66,6 +70,28 @@
     {
       "title": "💰 Project costs now match Usage",
       "body": "Project cost totals no longer count the same Claude request once for every content block. Existing project history is rebuilt automatically so the totals align with the Usage panel."
+    }
+  ],
+  "3.27.3": [
+    {
+      "title": "🎵 Station selection works in the desktop app",
+      "body": "The music station picker now opens inside ccdeck instead of relying on the operating system popup, so choosing a station works reliably in the Electron app."
+    }
+  ],
+  "3.27.4": [
+    {
+      "title": "✅ Desktop picker release checks are green",
+      "body": "The station picker now keeps the same keyboard, motion, focus, and layout behavior as the rest of ccdeck across desktop and browser builds."
+    }
+  ],
+  "3.27.5": [
+    {
+      "title": "🧭 The welcome tour stays dismissed",
+      "body": "Electron now remembers that you completed the onboarding tour at the deck level, so an update or loopback port change no longer shows the same tour again."
+    },
+    {
+      "title": "🎵 The station picker has a clearer finish",
+      "body": "The music selector has a tighter trigger, a purposeful chevron, and more deliberate option spacing so it reads like a native part of Appearance."
     }
   ],
   "3.25.0": [
