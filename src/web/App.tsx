@@ -4082,7 +4082,7 @@ function Inner() {
           );
         })()}
         {selected && (
-          <button type="button" className="selected-ribbon" onClick={removeSelectedNode}
+          <button type="button" className="btn danger" onClick={removeSelectedNode}
             title={`Remove ${selected.label} from this board`} aria-label={`Remove ${selected.label} from the board`}>
             Remove node
           </button>
