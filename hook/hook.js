@@ -688,7 +688,13 @@ function forgetIfAbandoned(d, done) {
  */
 function post(d, body, persists, done) {
   let settled = false;
-  const finish = (ok, why = null) => { if (settled) return; settled = true; done(ok, why); };
+  let sendDeadline = null;
+  const finish = (ok, why = null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(sendDeadline);
+    done(ok, why);
+  };
   // Whether the kernel has taken the whole body, and whether it was this
   // process's deadline rather than the writer that ended the exchange — the
   // two facts the last paragraph above sorts an error by.
@@ -707,7 +713,6 @@ function post(d, body, persists, done) {
     res.resume();
     finish(res.statusCode >= 200 && res.statusCode < 300);
   });
-  req.on("finish", () => { sent = true; });
   // `destroy()` on a timeout makes 'error' fire with ECONNRESET — the status
   // line has not arrived, or it would have settled this already — so `timedOut`
   // is what tells this process giving up apart from the writer hanging up.
@@ -730,9 +735,29 @@ function post(d, body, persists, done) {
   // written the line — was never asked. The snapshot is the rule that paragraph
   // states, taken at the only moment it is still true.
   let sentByDeadline = false;
+  const expire = () => {
+    if (settled) return;
+    timedOut = true;
+    sentByDeadline = sent;
+    req.destroy();
+  };
   req.on("error", () => finish(false, timedOut && sentByDeadline ? "deadline" : null));
-  req.on("timeout", () => { timedOut = true; sentByDeadline = sent; req.destroy(); });
+  req.on("timeout", expire);
+  req.on("finish", () => {
+    sent = true;
+    clearTimeout(sendDeadline);
+    sendDeadline = null;
+  });
   req.write(body);
+  // `http.request`'s timeout is an idle-socket timeout. While a large body is
+  // still being accepted into kernel buffers, those writes keep resetting it
+  // even if the peer application stopped reading. Bound the send phase itself
+  // so that a wedged writer can still hand the log to the next deck inside the
+  // hook's process cap. Once `finish` says the kernel took the whole body, this
+  // timer is cleared and the existing idle timeout remains the only deadline
+  // on a slow answer, preserving #1133's no-duplicate rule. (#1195)
+  sendDeadline = setTimeout(expire, POST_TIMEOUT_MS);
+  sendDeadline.unref?.();
   req.end();
 }
 
