@@ -667,6 +667,10 @@ export function createEngine({
         // The key pinned when this deck was accepted, so a second machine
         // answering at that address is refused rather than talked to.
         expectPub: trustedPeer(cfg.trusted, peer.fp)?.pub ?? null,
+        // Invite-only still dials the rows it has — an invite-paired deck is one
+        // of them — but tells the far end it is not asking, so a row that turns
+        // out to be a stranger is refused there instead of becoming a request.
+        ask: cfg.pairingMode !== "invite",
         sealFrames, ephemeral,
       });
       // A SECOND READER ON THE SAME SOCKET, AND IT HAS TO KEEP THE SAME CAP.
@@ -758,7 +762,9 @@ export function createEngine({
       // A deck we DO have a pin for was checked before this line: connectToPeer
       // was given expectPub and refuses a different key at that address.
       if (!trustedPeer(cfg.trusted, conn.peerFp)) {
-        if (cfg.pairingMode === "invite") throw new Error("pair by invite is required");
+        // Said as this deck's own setting, not as a fault: the row the panel
+        // draws for it is a state the owner chose (see WIRE_ANSWERS).
+        if (cfg.pairingMode === "invite") throw new Error("this deck pairs only by invite");
         if (!peer.typed || wasUnpaired(conn.peerFp)) {
           // The same row the listener's own `onPending` draws, from the other
           // direction: this deck dialled rather than being dialled, and the
@@ -1087,6 +1093,9 @@ export function createEngine({
         // told no again rather than becoming a row somebody has to answer
         // twice. The socket sends the reason; this only knows the name.
         declined: fp => declined.has(fp),
+        // Read on every handshake rather than captured, so switching the mode
+        // takes effect on the next caller without restarting the listener.
+        inviteOnly: () => cfg.pairingMode === "invite",
         // The same helper the outbound round uses, because a deck that called
         // in and a deck this one called have proved exactly the same thing —
         // see askToAccept.

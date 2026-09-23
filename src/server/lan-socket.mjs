@@ -36,6 +36,10 @@ import { looksLikeTunnel } from "./route-via.mjs";
 const REFUSALS = Object.freeze({
   pending: "waiting for the other deck to accept this one",
   declined: "that deck said no",
+  "invite only": "that deck pairs only by invite",
+  // Sent back to a caller that said it was not asking, so the far end's answer
+  // is about the caller's own setting — the same words its own round uses.
+  "not asking": "this deck pairs only by invite",
   impostor: "that deck has this one pinned under a different key",
   "bad proof": "the other deck refused this one's proof",
 });
@@ -605,6 +609,10 @@ export function createSyncServer({
    *  silent wait — they are the same frame otherwise, and only one of them ever
    *  comes right by waiting. */
   declined = () => false,
+  /** Does this deck pair only by invite? Then a deck it has not met, holding no
+   *  invite, is told so instead of "pending": nobody here will ever be shown a
+   *  request to accept, and a caller left waiting on one waits for good. */
+  inviteOnly = () => false,
   /** The invite this deck is currently offering, or null. A caller that proves
    *  it holds the code is somebody the owner handed a token to, so it is paired
    *  on arrival rather than queued behind a press. */
@@ -690,6 +698,9 @@ export function createSyncServer({
     let peerPub = null;
     let peerName = "";
     let peerPort = null;
+    // Whether the caller said it is NOT asking to pair — an invite-only deck
+    // reaching an address it already had. See the unknown-deck branch below.
+    let peerNoAsk = false;
     let key = null;
     // Carrying this deck's marks — that it seals, and that it mixes a key pair
     // of its own into the key — inside the one field the handshake already
@@ -815,6 +826,7 @@ export function createSyncServer({
           // of a fixed 288px column and left a complete, plausible sentence.
           peerName = cleanName(msg.name, "");
           peerPort = Number.isInteger(msg.port) && msg.port > 0 && msg.port < 65_536 ? msg.port : null;
+          peerNoAsk = msg.ask === false;
           // MIXED WHEN BOTH CHALLENGES SAY SO, and only then: the two strings
           // the proofs bind decide it, never whether a field turned up. Once
           // both say so, a hello with no usable key is refused rather than
@@ -925,6 +937,19 @@ export function createSyncServer({
           // do — the deck that asked is told, so its own panel can stop saying
           // "waiting" about a question that has been answered.
           if (declined(peerFp)) return refuse("declined");
+          // AN INVITE-ONLY DECK, and this caller brought none (a caller that
+          // did was paired above). Answered rather than queued: the engine
+          // records no request in this mode, so "pending" would leave the other
+          // deck's panel saying "waiting for them to say yes" about a question
+          // nobody here will ever see. After "declined", which is the more
+          // specific answer about this one deck.
+          if (inviteOnly()) return refuse("invite only");
+          // A CALLER THAT IS NOT ASKING. An invite-only deck still dials the
+          // addresses it already had, because an invite-paired deck is one of
+          // them; one that turns out not to know it must not become a request
+          // here — with the accept switch on, that request would have pinned a
+          // deck whose owner said it pairs only by invite.
+          if (peerNoAsk) return refuse("not asking");
 
           // A REAL DECK WE HAVE NOT MET. It finished a handshake, so it is not
           // a port scan, and it told us a name and an address a person can
@@ -1038,6 +1063,11 @@ export function createSyncServer({
  */
 export function connectToPeer({
   host, port, fp, pub, secret, name, myPort = null, code = null, timeoutMs = HANDSHAKE_MS,
+  /** False when this deck is reaching an address it already had WITHOUT asking
+   *  to pair — an invite-only deck's round. Sent only when false, so every other
+   *  hello is byte-for-byte what it was, and a deck that predates the field
+   *  reads past it the way it reads past `epk`. */
+  ask = true,
   /** The public key we pinned for this deck the first time, or null for a deck
    *  we are meeting — an address somebody typed. */
   expectPub = null,
@@ -1089,6 +1119,7 @@ export function connectToPeer({
       // reads past a field it does not know, and one of this version answers.
       sendFrame(sock, {
         t: "hello", fp, pub, name, port: myPort, challenge: myChallenge, ...(myEpk ? { epk: myEpk } : {}),
+        ...(ask === false ? { ask: false } : {}),
       });
     });
 

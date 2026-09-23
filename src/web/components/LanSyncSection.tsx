@@ -249,6 +249,10 @@ export interface RoundLine { text: string; tone: "bad" | "idle" | "ok" }
 const WIRE_ANSWERS: Record<string, RoundLine> = {
   "waiting for the other deck to accept this one": { text: "waiting for them to say yes", tone: "idle" },
   "that deck said no": { text: "it said no", tone: "bad" },
+  // Invite-only, from both ends. Neither is a fault, so neither is red: the
+  // other deck chose it, or this one did, and an invite is the way through.
+  "that deck pairs only by invite": { text: "it pairs only by invite", tone: "idle" },
+  "this deck pairs only by invite": { text: "needs an invite · your setting", tone: "idle" },
 };
 
 /**
