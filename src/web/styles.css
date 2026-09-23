@@ -1876,6 +1876,35 @@ button.btn.sm-hear {
    drew 48px between the version chip and the blocked-session chip where every
    other role boundary in it is 24. */
 .topbar .status:empty { display: none; }
+/* WHERE THE MONTH GIVES WAY (#737). The readout clips from the left when the
+   bar is short, and the monthly phrase is ~180px of a bar whose 1440px budget
+   (see .tb-word) had 11px to spare. Measured in Chromium with a node selected,
+   it clipped 111px off the left at 1440: the wordmark and most of the version
+   chip. With a blocked session as well it clipped 175px there, 12 of them out
+   of "this month" itself; and with only a blocked session, at 400px, the
+   first 143px of the phrase went — the period and the token count both. A
+   figure without its period is the one thing #737 said must not ship, and the
+   version chip is a control, which this bar never gives up for a readout.
+   So the phrase leaves whole, in the two places it does not fit. Under 920px,
+   which covers the phone bar (spending its readout on the alarm) and the band
+   above it where the wordmark comes back: a blocked session and a paused pill
+   fit beside the phrase from about 880. And while a node is selected under
+   1760px, where the ribbon and its Remove button have spent the room: every
+   member on the bar fits from 1720. Each bound carries 40px of headroom for
+   faces wider than the one measured. The Usage panel is one keystroke away (U)
+   and says the same number with more beside it.
+   The strip goes with it when the pill is not there either, for the reason the
+   :empty rule above gives: an empty flex item still takes both gaps. After the
+   base rules, and not in the 640 block at the top of the topbar section, where
+   `.month-usage`'s own `display` would win on source order. */
+@media (max-width: 919px) {
+  .topbar .status .month-usage,
+  .topbar .status:not(:has(.pill)) { display: none; }
+}
+@media (max-width: 1759px) {
+  .topbar:has(.selected-ribbon) .status .month-usage,
+  .topbar:has(.selected-ribbon) .status:not(:has(.pill)) { display: none; }
+}
 /* ---------------- machine detail ----------------
    Docked in the right rail, in the same slot family as the usage panel, rather
    than floating over the canvas. The two queue instead of overlapping: alone,
