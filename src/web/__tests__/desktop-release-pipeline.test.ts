@@ -309,3 +309,35 @@ describe("the macOS signature the build makes", () => {
     });
   });
 });
+
+// What a Linux download needs from the system before the app runs a line of
+// its own code. Both of these shipped, and both read to the person as the file
+// doing nothing at all:
+//
+//   · the AppImage runtime. Left to its default, electron-builder still packs
+//     the 2020 AppImageKit runtime, which dlopens libfuse.so.2 — and Ubuntu
+//     24.04 and up, Fedora 40 and up and Arch install no libfuse2. The one
+//     file ccdeck.dev offers first then prints "AppImages require FUSE to run"
+//     to a terminal nobody opened, and exits.
+//   · the name the desktop entry, the WM class and Electron's Wayland app_id
+//     are matched on. StartupWMClass said "ccdeck" — the product name — while
+//     the entry and the app_id both said ccdeck-desktop, so the hint meant to
+//     tie a running window to its entry named a class no window of ours has.
+describe("what a Linux download needs from the system", () => {
+  it("packs an AppImage runtime that brings its own FUSE", () => {
+    const appimage = (config as { toolsets?: { appimage?: string } }).toolsets?.appimage;
+    expect(appimage, "toolsets.appimage unset — the build falls back to the libfuse2 runtime").toBeDefined();
+    expect(appimage, '"0.0.0" IS the libfuse2 runtime, by that name').not.toBe("0.0.0");
+    expect(appimage, "an appimage toolset is named by version").toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("gives the entry file, the WM class and the app_id one name", () => {
+    const meta = require("../../../desktop/package.json");
+    expect(config.linux?.syncDesktopName, "without this the entry file is named for the executable and the WM class for the product").toBe(true);
+    // Electron's app_id on Wayland is the packaged package.json name, and
+    // both the entry filename and StartupWMClass follow desktopName. The three
+    // have to be one string or GNOME shows a running ccdeck as an unnamed
+    // window with a blank icon instead of the one it was launched from.
+    expect(meta.desktopName, "desktopName must be the name Electron reports as app_id").toBe(meta.name);
+  });
+});
