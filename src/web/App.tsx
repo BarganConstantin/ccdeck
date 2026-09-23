@@ -2048,11 +2048,21 @@ function Inner() {
 
   // A pick of the station already playing changes nothing, as it did before
   // custom stations: counting it would restart the stream under the person.
+  // A station marked unavailable is the exception, because picking it is the
+  // retry — the mark comes off and the counter moves, so ClaudeFm asks again,
+  // whether it is the station already set or one somebody came back to.
   const pickFmSource = useCallback((next: FmSelection) => {
-    if (next === fmSource) return;
+    const retryId = customFmId(next);
+    const retry = retryId !== null && unavailableFmStations.has(retryId);
+    if (next === fmSource && !retry) return;
+    if (retry) {
+      setUnavailableFmStations(current => {
+        const rest = new Set(current); rest.delete(retryId); return rest;
+      });
+    }
     setFmSource(next);
     setFmPlayRequest(count => count + 1);
-  }, [fmSource]);
+  }, [fmSource, unavailableFmStations]);
 
   const markFmStationAvailability = useCallback((selection: FmSelection, unavailable: boolean) => {
     const id = customFmId(selection);

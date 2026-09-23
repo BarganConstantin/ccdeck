@@ -68,7 +68,10 @@ describe("the sound popover's shadow on the light theme (#876)", () => {
 describe("no floating surface keeps a black shadow on white", () => {
   it("answers the light theme for every dialog and popover this batch touched", () => {
     // `.modal` carries both dialogs this batch touched since #874 put them on it.
-    for (const sel of [".sound-menu", ".modal"]) {
+    // The Appearance menu's station list is a surface floating over the
+    // controls under it, and kept a black 0.22 of its own until it took the
+    // anchored popover's two layers and their light answer.
+    for (const sel of [".sound-menu", ".modal", ".appearance-source-list"]) {
       const base = decl(sel, "box-shadow")!;
       const themed = /var\(--shadow-\d\)/.test(base) && !BLACK.test(base);
       expect(themed || decl(`${LIGHT}${sel}`, "box-shadow") !== null, `${sel}: ${base}`).toBe(true);

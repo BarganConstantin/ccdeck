@@ -875,7 +875,11 @@ export default memo(
           className="fm-sprite"
           data-playing={playing ? "" : undefined}
           data-dance={playing ? dance ?? DANCES[0] : undefined}
-          aria-pressed={playing}
+          /* The name says the state, so there is no aria-pressed beside it.
+             The two together were read as "Stop Claude FM, pressed" — a verb
+             for the next press and a state for the last one, and nothing to
+             say which "pressed" meant. The verb flips with `playing`, the way
+             the title does, and is the whole of what a reader needs. */
           onClick={press}
           title={playing ? `Stop ${label}` : `Play ${label} — streams from ${from}`}
           aria-label={playing ? `Stop ${label}` : `Play ${label}`}
