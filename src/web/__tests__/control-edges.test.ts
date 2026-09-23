@@ -673,9 +673,16 @@ const EXEMPT_RINGS = new Set([
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
  *  a control's, or ANY element's focus indicator, since 2.4.11 is owed to
- *  whatever the keyboard can reach and not only to things with a class. */
+ *  whatever the keyboard can reach and not only to things with a class.
+ *
+ *  That includes focus the DOM does not hold. In a combobox the arrows move an
+ *  `aria-activedescendant` highlight through options that are never focused
+ *  themselves, so `:focus-visible` never matches one — and the station list's
+ *  highlight sat outside this sweep as a 1.2:1 tint. `data-highlighted` is
+ *  that focus's spelling in this sheet. */
+const VIRTUAL_FOCUS = /\[data-highlighted="true"\]/;
 const RING_RULES = RULES.filter(rule => {
-  if (!isControlRule(rule.selector) && !/:focus-visible/.test(rule.selector)) return false;
+  if (!isControlRule(rule.selector) && !/:focus-visible/.test(rule.selector) && !VIRTUAL_FOCUS.test(rule.selector)) return false;
   if (selectors(rule.selector).every(s => EXEMPT_RINGS.has(s))) return false;
   // A rule that declares a border is measured as a border above; the ring, if
   // it has one too, is the extra on top.
@@ -743,6 +750,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
       ".ap-proj-day:focus-visible",
+      // The station list's keyboard highlight, which is focus the DOM does not
+      // hold — see VIRTUAL_FOCUS.
+      '.appearance-source-option[data-highlighted="true"]',
       ".appearance-theme:focus-visible",
       ".cat-filter:focus-visible",
       ".ctx-donut:focus-visible",

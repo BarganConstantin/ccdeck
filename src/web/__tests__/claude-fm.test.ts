@@ -1558,8 +1558,14 @@ describe("the character", () => {
   });
 
   it("says its state to a reader who cannot see it dance", () => {
-    expect(component).toContain("aria-pressed={playing}");
+    // In the name, and only there. The verb flips with `playing`; aria-pressed
+    // beside it made a second, conflicting report — "Stop Claude FM, pressed"
+    // — so a stable name and a pressed state, or a flipping name alone, and
+    // this is the second.
     expect(component).toContain("aria-label={playing ? `Stop ${label}` : `Play ${label}`}");
+    const sprite = component.slice(component.indexOf('className="fm-sprite"'), component.indexOf("<svg viewBox={`0 0 ${SPRITE_W}"));
+    expect(sprite).toContain("aria-label={playing ?");
+    expect(sprite).not.toContain("aria-pressed");
     // The active station's real name is also carried by the hidden YouTube frame.
     expect(component).toContain("title={label}");
     // And says where the sound comes from before anybody presses it: YouTube

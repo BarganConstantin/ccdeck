@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FocusEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import { LEVEL_MAX, LEVEL_MIN, LEVEL_STEP } from "../sound";
@@ -15,6 +15,7 @@ const THEMES: Theme[] = ["light", "dark"];
 const THEME_NAME: Record<Theme, string> = { light: "Light", dark: "Dark" };
 const FM_SOURCES = FM_SOURCE_OPTIONS;
 const NAME_MISSING = "Give the station a name.";
+const LINK_UNUSABLE = "Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.";
 
 /**
  * The deck at a distance, in one theme's own colours: the top bar, the
@@ -82,6 +83,16 @@ export default function AppearanceMenu({
       unavailable: unavailableFmStations.has(station.id),
     })),
   ];
+  // The list as the runs it is drawn in — Claude FM on its own, then each
+  // group's options together — so a group can be a real role="group" named by
+  // its header. The options keep their flat index: it is what their ids, the
+  // highlight and aria-activedescendant are all keyed on.
+  const sourceRuns: { group?: string; indexes: number[] }[] = [];
+  fmSources.forEach((source, index) => {
+    const last = sourceRuns[sourceRuns.length - 1];
+    if (last && last.group === source.group) last.indexes.push(index);
+    else sourceRuns.push({ group: source.group, indexes: [index] });
+  });
   const [sourceOpen, setSourceOpen] = useState(false);
   const [highlightedSource, setHighlightedSource] = useState(() => Math.max(0, fmSources.findIndex(source => source.value === fmSource)));
   const [addingStation, setAddingStation] = useState(false);
@@ -90,7 +101,11 @@ export default function AppearanceMenu({
   const [stationError, setStationError] = useState("");
   const [renamingStation, setRenamingStation] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState("");
   const sourceTriggerRef = useRef<HTMLButtonElement>(null);
+  const stationNameRef = useRef<HTMLInputElement>(null);
+  const stationUrlRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const sourceListRef = useRef<HTMLDivElement>(null);
   const activeCustomId = customFmId(fmSource);
   const activeCustomStation = activeCustomId ? customFmStations.find(station => station.id === activeCustomId) : undefined;
@@ -122,9 +137,22 @@ export default function AppearanceMenu({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [sourceOpen]);
 
+  // FOCUS LEAVING THE PICKER CLOSES ITS LIST, the way a press outside it does
+  // above. A blur with nowhere to go — no relatedTarget — is a press on the
+  // list itself or the window losing focus, and neither is leaving.
+  const closeOnLeave = (event: FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget as Node | null;
+    if (next && !event.currentTarget.contains(next)) setSourceOpen(false);
+  };
+
+  // AN UNAVAILABLE STATION IS CHOSEN LIKE ANY OTHER, and choosing it is the
+  // retry: App clears the mark and starts it again. Refusing it left a station
+  // that failed once stuck for the session — it could not be picked, and
+  // Rename and Remove act on the picked station, so it could not be renamed or
+  // removed either.
   const chooseSource = (index: number) => {
     const source = fmSources[index];
-    if (!source || ("unavailable" in source && source.unavailable)) return;
+    if (!source) return;
     setHighlightedSource(index);
     onFmSource(source.value);
     setSourceOpen(false);
@@ -132,9 +160,22 @@ export default function AppearanceMenu({
   };
 
   const moveSource = (event: KeyboardEvent<HTMLButtonElement>) => {
+    // ESCAPE IS THE LIST'S ONLY WHILE THERE IS A LIST. The dialog answers
+    // Escape from App's listener on window, so stopping it here stops it
+    // reaching the dialog at all — and focus comes back to this trigger after
+    // every pick, add, rename and remove, so a closed picker swallowing it
+    // made "Close (Esc)" dead in the place focus most often is.
     if (isEscapeKey(event.key)) {
+      if (!sourceOpen) return;
       event.preventDefault();
       event.stopPropagation();
+      setSourceOpen(false);
+      return;
+    }
+    // Tab leaves with the list closed rather than into it. The list scrolls,
+    // so the dialog's trap and the browser both count it as a stop of its own,
+    // and focus parked there has no options it can move between.
+    if (event.key === "Tab") {
       setSourceOpen(false);
       return;
     }
@@ -163,13 +204,18 @@ export default function AppearanceMenu({
 
   const addStation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Each refusal puts focus in the field it is about. The message is read out
+    // as an alert, and the field is where the fix is typed — left on Add, the
+    // keyboard had to go and find it.
     if (!stationName.trim()) {
       setStationError(NAME_MISSING);
+      stationNameRef.current?.focus();
       return;
     }
     const station = newCustomFmStation(stationName, stationUrl);
     if (!station) {
-      setStationError("Use an https YouTube live or channel link, or a .mp3, .aac, .ogg or .m3u8 stream.");
+      setStationError(LINK_UNUSABLE);
+      stationUrlRef.current?.focus();
       return;
     }
     onAddFmStation(station);
@@ -181,9 +227,17 @@ export default function AppearanceMenu({
     backToPicker();
   };
 
+  // A blank name is said, not ignored: Save on an empty field used to do
+  // nothing at all, which reads as a dead button. It gets the add form's own
+  // sentence, and focus stays in the field.
   const saveRename = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeCustomId || !renameValue.trim()) return;
+    if (!activeCustomId) return;
+    if (!renameValue.trim()) {
+      setRenameError(NAME_MISSING);
+      renameInputRef.current?.focus();
+      return;
+    }
     onRenameFmStation(activeCustomId, renameValue);
     setRenamingStation(false);
     backToPicker();
@@ -222,6 +276,27 @@ export default function AppearanceMenu({
     if ((event.target as Element).getAttribute("role") === "radio") {
       event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[THEMES.indexOf(next)]?.focus();
     }
+  };
+
+  const sourceOption = (index: number) => {
+    const source = fmSources[index];
+    const unavailable = "unavailable" in source && source.unavailable;
+    return (
+      <div
+        key={source.value}
+        className="appearance-source-option"
+        role="option"
+        id={`appearance-fm-option-${index}`}
+        aria-selected={fmSource === source.value}
+        data-highlighted={highlightedSource === index || undefined}
+        data-unavailable={unavailable || undefined}
+        onMouseEnter={() => setHighlightedSource(index)}
+        onClick={() => chooseSource(index)}
+      >
+        <span>{source.label}</span>
+        {fmSource === source.value && <span aria-hidden>✓</span>}
+      </div>
+    );
   };
 
   return createPortal(
@@ -301,7 +376,7 @@ export default function AppearanceMenu({
         <div className="appearance-controls">
           <div className="appearance-source-row">
             <label htmlFor="appearance-fm-source">Station</label>
-            <div className={`appearance-source-picker${sourceOpen ? " is-open" : ""}`}>
+            <div className={`appearance-source-picker${sourceOpen ? " is-open" : ""}`} onBlur={closeOnLeave}>
             <button
               ref={sourceTriggerRef}
               type="button"
@@ -310,7 +385,7 @@ export default function AppearanceMenu({
               role="combobox"
               aria-haspopup="listbox"
               aria-expanded={sourceOpen}
-              aria-controls="appearance-fm-source-list"
+              aria-controls={sourceOpen ? "appearance-fm-source-list" : undefined}
               aria-activedescendant={sourceOpen ? `appearance-fm-option-${highlightedSource}` : undefined}
               aria-describedby="appearance-fm-source-note"
               onClick={() => setSourceOpen(open => !open)}
@@ -321,26 +396,15 @@ export default function AppearanceMenu({
             </button>
             {sourceOpen && (
               <div ref={sourceListRef} id="appearance-fm-source-list" className="appearance-source-list" role="listbox" aria-label="Music stations">
-                {fmSources.map((source, index) => (
-                  <div key={source.value}>
-                    {source.group && (index === 0 || fmSources[index - 1].group !== source.group) && (
-                      <div className="appearance-source-group" role="presentation">{source.group}</div>
-                    )}
-                    <div
-                      className="appearance-source-option"
-                      role="option"
-                      id={`appearance-fm-option-${index}`}
-                      aria-selected={fmSource === source.value}
-                      aria-disabled={("unavailable" in source && source.unavailable) || undefined}
-                      data-highlighted={highlightedSource === index || undefined}
-                      onMouseEnter={() => setHighlightedSource(index)}
-                      onClick={() => chooseSource(index)}
-                    >
-                      <span>{source.label}</span>
-                      {fmSource === source.value && <span aria-hidden>✓</span>}
-                    </div>
+                {/* A group is a role="group" named by its header, the APG's
+                    grouped listbox: the header alone, as a presentation row,
+                    was a word a screen reader never tied to what is under it. */}
+                {sourceRuns.map((run, runIndex) => run.group ? (
+                  <div key={`group-${runIndex}`} role="group" aria-labelledby={`appearance-fm-group-${runIndex}`}>
+                    <div id={`appearance-fm-group-${runIndex}`} className="appearance-source-group" role="presentation">{run.group}</div>
+                    {run.indexes.map(sourceOption)}
                   </div>
-                ))}
+                ) : run.indexes.map(sourceOption))}
               </div>
             )}
             </div>
@@ -358,37 +422,47 @@ export default function AppearanceMenu({
             </button>
             {activeCustomStation && !renamingStation && (
               <>
-                <button type="button" className="btn" onClick={() => { setRenameValue(activeCustomStation.name); setRenamingStation(true); }}>Rename</button>
+                <button type="button" className="btn" onClick={() => { setRenameValue(activeCustomStation.name); setRenameError(""); setRenamingStation(true); }}>Rename</button>
                 <button type="button" className="btn danger" onClick={() => { onRemoveFmStation(activeCustomStation.id); backToPicker(); }}>Remove</button>
               </>
             )}
           </div>
+          {/* Each field is named by words that stay on screen. The name field
+              used to carry its name as a placeholder, which is gone the moment
+              anything is typed — so a half-filled form no longer said which
+              box was which. A <label> round each one names it to a reader too,
+              so no field needs an aria-label of its own. */}
           {addingStation && (
             <form className="appearance-station-form" onSubmit={addStation} noValidate>
-              <input
-                className="ap-manage-input"
-                value={stationName}
-                onChange={event => setStationName(event.target.value)}
-                placeholder="Station name"
-                aria-label="Station name"
-                aria-invalid={stationError === NAME_MISSING || undefined}
-                aria-describedby={stationError === NAME_MISSING ? "appearance-station-error" : undefined}
-                maxLength={STATION_NAME_MAX}
-                autoFocus
-              />
-              <input
-                className="ap-manage-input"
-                value={stationUrl}
-                onChange={event => setStationUrl(event.target.value)}
-                placeholder="https://…"
-                aria-label="Station link"
-                aria-invalid={(stationError !== "" && stationError !== NAME_MISSING) || undefined}
-                aria-describedby={stationError && stationError !== NAME_MISSING ? "appearance-station-error" : undefined}
-                inputMode="url"
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={STATION_URL_MAX}
-              />
+              <label className="appearance-station-field">
+                <span>Station name</span>
+                <input
+                  ref={stationNameRef}
+                  className="ap-manage-input"
+                  value={stationName}
+                  onChange={event => setStationName(event.target.value)}
+                  aria-invalid={stationError === NAME_MISSING || undefined}
+                  aria-describedby={stationError === NAME_MISSING ? "appearance-station-error" : undefined}
+                  maxLength={STATION_NAME_MAX}
+                  autoFocus
+                />
+              </label>
+              <label className="appearance-station-field">
+                <span>Link</span>
+                <input
+                  ref={stationUrlRef}
+                  className="ap-manage-input"
+                  value={stationUrl}
+                  onChange={event => setStationUrl(event.target.value)}
+                  placeholder="https://…"
+                  aria-invalid={(stationError !== "" && stationError !== NAME_MISSING) || undefined}
+                  aria-describedby={stationError && stationError !== NAME_MISSING ? "appearance-station-error" : undefined}
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={STATION_URL_MAX}
+                />
+              </label>
               <button type="submit" className="btn primary">Add</button>
               {/* After the button, so the grid keeps Add beside the link and the
                   message takes a row of its own under both. */}
@@ -396,10 +470,23 @@ export default function AppearanceMenu({
             </form>
           )}
           {activeCustomStation && renamingStation && (
-            <form className="appearance-station-form is-rename" onSubmit={saveRename}>
-              <input className="ap-manage-input" value={renameValue} onChange={event => setRenameValue(event.target.value)} aria-label="Station name" maxLength={STATION_NAME_MAX} autoFocus />
+            <form className="appearance-station-form is-rename" onSubmit={saveRename} noValidate>
+              <label className="appearance-station-field">
+                <span>Station name</span>
+                <input
+                  ref={renameInputRef}
+                  className="ap-manage-input"
+                  value={renameValue}
+                  onChange={event => setRenameValue(event.target.value)}
+                  aria-invalid={renameError !== "" || undefined}
+                  aria-describedby={renameError ? "appearance-rename-error" : undefined}
+                  maxLength={STATION_NAME_MAX}
+                  autoFocus
+                />
+              </label>
               <button type="submit" className="btn primary">Save</button>
               <button type="button" className="btn" onClick={() => { setRenamingStation(false); backToPicker(); }}>Cancel</button>
+              {renameError && <p id="appearance-rename-error" className="appearance-station-error" role="alert">{renameError}</p>}
             </form>
           )}
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
