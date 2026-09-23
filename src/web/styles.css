@@ -958,6 +958,16 @@ button:focus-visible { outline-offset: 1px; }
   animation: popIn 140ms cubic-bezier(0.22,1,0.36,1);
   text-align: left;
 }
+.modal.appearance-modal {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(560px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
 /* The same two layers on white, in the light theme's slate and at its own
    shadow weights (0.10 and 0.16, --shadow-1's and --shadow-2's). Black at a
    third stayed black at a third on the white page (#876). */
@@ -973,34 +983,58 @@ button:focus-visible { outline-offset: 1px; }
    One 4px scale: 8 between a caption and what it names, 12 under the header,
    16 between sections. Spacing is the only separator below the header. */
 .appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 -12px 12px;
-  padding: 0 12px 10px;
+  padding: 2px 16px 14px;
   border-bottom: 1px solid var(--line-soft);
 }
 .appearance-title {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 22px;
+}
+.appearance-heading { min-width: 0; }
+.appearance-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
   line-height: 16px;
 }
-.appearance-section + .appearance-section { margin-top: 16px; }
+.appearance-close {
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px -4px 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+.appearance-close:hover { color: var(--text); }
+.appearance-section + .appearance-section { margin-top: 20px; }
 .appearance-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .appearance-caption h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
   line-height: 16px;
-  text-transform: uppercase;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.appearance-section-note {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 16px;
 }
 /* The sound menu's key cap (.sm-foot kbd), in the caption's right-hand slot
    where the panels put a caption's one piece of metadata. */
@@ -1032,15 +1066,15 @@ button:focus-visible { outline-offset: 1px; }
 .appearance-themes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 -4px;
+  gap: 12px;
+  margin: 0;
 }
 .appearance-theme {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  padding: 4px;
+  padding: 8px;
   border: 0;
   border-radius: var(--r-panel);
   background: transparent;
@@ -1053,20 +1087,26 @@ button:focus-visible { outline-offset: 1px; }
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 .appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .appearance-theme[aria-checked="true"] { color: var(--text); }
 .appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .appearance-preview {
   display: block;
   overflow: hidden;
   border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-ctl);
+  border-radius: calc(var(--r-ctl) + 2px);
   transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
 }
 .appearance-theme[aria-checked="true"] .appearance-preview {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
-.appearance-preview svg { display: block; width: 100%; height: auto; }
+.appearance-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
 .appearance-theme-name {
   display: flex;
   align-items: center;
@@ -1127,8 +1167,8 @@ button:focus-visible { outline-offset: 1px; }
   align-items: center;
   column-gap: 12px;
   row-gap: 2px;
-  margin: 0 -8px;
-  padding: 6px 8px;
+  margin: 0;
+  padding: 10px 0 2px;
   border-radius: var(--r-ctl);
   cursor: pointer;
   transition: background-color 120ms ease-out;
@@ -1142,9 +1182,45 @@ button:focus-visible { outline-offset: 1px; }
 }
 .appearance-row-note {
   grid-column: 1 / -1;
+  /* Also used on a bare <p> under the volume row, outside the grid — so the
+     margin is reset here rather than left to the UA's paragraph default. */
+  margin: 0;
   color: var(--text-dim);
   font-size: 11px;
   line-height: 16px;
+}
+.appearance-source-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--bg) 34%, var(--panel));
+}
+.appearance-source-row > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.appearance-source-row .sm-select {
+  min-height: 30px;
+  padding-right: 8px;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-source-row .sm-select:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
+}
+.appearance-source-row .sm-select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
@@ -1470,9 +1546,12 @@ button.btn.sm-hear {
    `font-size: 11px; color: var(--text)` — (0,1,0) against this rule's (0,2,0),
    so both declarations were dead and its comment described a span that has
    never been drawn that way. Reading either rule alone gave the wrong answer
-   about what ships. The span is rendered in exactly one place, SoundMenu.tsx's
-   `.sound-menu` subtree, so the descendant selector loses nothing. */
-.sound-menu .sm-read {
+   about what ships. Descendant-scoped on purpose, and now to TWO menus: the
+   span is rendered in SoundMenu.tsx's subtree and, since the Claude FM volume
+   row, in AppearanceMenu.tsx's — the same reading in the same shape, so the
+   same rule. */
+.sound-menu .sm-read,
+.appearance-menu .sm-read {
   min-width: 34px;
   text-align: right;
   color: var(--muted);

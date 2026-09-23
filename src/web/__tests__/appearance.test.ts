@@ -23,18 +23,25 @@ describe("character appearance preference", () => {
     const app = read("App.tsx");
     expect(app).toContain("useState(storedCharacterEnabled)");
     expect(app).toContain('localStorage.setItem(CHARACTER_ENABLED_KEY, characterEnabled ? "1" : "0")');
-    expect(app).toContain("{characterEnabled && <ClaudeFm />}");
+    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
   });
 
-  it("uses a dismissible, accessible popover for the two appearance settings", () => {
+  it("uses a dismissible, accessible centered modal for the two appearance settings", () => {
     const menu = read("components/AppearanceMenu.tsx");
+    const styles = read("styles.css");
     expect(menu).toContain("useModalDismiss");
     expect(menu).toContain('role="dialog"');
+    expect(menu).toContain('aria-modal="true"');
+    expect(menu).toContain('className="modal-backdrop appearance-backdrop"');
+    expect(menu).toContain('className="modal appearance-menu appearance-modal"');
     expect(menu).toContain('aria-labelledby="appearance-title"');
     expect(menu).toContain('role="radiogroup"');
     expect(menu).toContain('role="radio"');
     expect(menu).toContain('role="switch"');
-    expect(menu).toContain('addEventListener("pointerdown", onDown, true)');
+    expect(menu).toContain('onClick={onClose}');
+    expect(styles).toContain(".modal.appearance-modal");
+    expect(styles).toContain("max-height: calc(100vh - 32px)");
+    expect(styles).toContain("overflow: auto");
     expect(menu).toContain("onKeyDown={moveTheme}");
     expect(menu).toContain('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"');
   });
@@ -51,6 +58,8 @@ describe("character appearance preference", () => {
     expect(menu).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
     expect(menu).toContain('aria-labelledby="appearance-character-label"');
     expect(menu).toContain('aria-describedby="appearance-character-note"');
+    expect(menu).toContain('aria-describedby="appearance-fm-source-note"');
+    expect(menu).toContain('aria-describedby="appearance-fm-volume-note"');
     expect(menu).toContain(">Show character on minimap<");
   });
 

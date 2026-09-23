@@ -52,8 +52,33 @@ import {
   type Prop, type Step,
 } from "../claude-fm";
 import { createSceneTimer } from "../claude-fm-runtime";
+import type { FmSource } from "../appearance";
 
-interface Probe { live: boolean; channel: string }
+interface Probe { live: boolean; channel: string; video?: string }
+
+const SOURCE_LABEL: Record<FmSource, string> = {
+  "claude-fm": "Claude FM",
+  "lofi-relax": "Lofi Girl relax/study",
+  "lofi-game": "Lofi Girl chill/game",
+  "lofi-vibe": "Lofi Girl vibe/chill",
+  "lofi-sleep": "Lofi Girl sleep/chill",
+  "radio-mix": "Radio Mix Live",
+  "best-of-nostalgia": "Best of Nostalgia Live",
+  "good-life-radio": "The Good Life Radio Live",
+  "cafe-music-bgm": "Cafe Music BGM Live",
+};
+
+const LIVE_ENDPOINT: Record<FmSource, string | null> = {
+  "claude-fm": null,
+  "lofi-relax": null,
+  "lofi-game": null,
+  "lofi-vibe": null,
+  "lofi-sleep": null,
+  "radio-mix": "/api/live-radio-mix",
+  "best-of-nostalgia": "/api/best-of-nostalgia",
+  "good-life-radio": "/api/good-life-radio",
+  "cafe-music-bgm": "/api/cafe-music-bgm",
+};
 
 /** What each grid cell is drawn as. A map here rather than a chain of
  *  comparisons in the markup below, because unstyled-class.test.ts reads every
@@ -104,13 +129,14 @@ const PROP_PIXELS = {
 };
 
 export default memo(
-  function ClaudeFm({ fetchImpl }: { fetchImpl?: typeof fetch }) {
+  function ClaudeFm({ fetchImpl, volume, source = "claude-fm" }: { fetchImpl?: typeof fetch; volume: number; source?: FmSource }) {
     const [probe, setProbe] = useState<Probe | null>(null);
     /** Set once and never unset: the player told us it cannot play here. */
     const [dead, setDead] = useState(false);
     /** Buffering keeps the iframe mounted; an explicit stop releases it. */
     const [armed, setArmed] = useState(false);
     const [playing, setPlaying] = useState(false);
+    const sourceRef = useRef(source);
 
     /** Where along the minimap's top edge it is standing, in pixels left of
      *  the right-hand end. Zero is where it starts. */
@@ -186,18 +212,63 @@ export default memo(
       frame.current?.contentWindow?.postMessage(json, PLAYER_ORIGIN);
     }, []);
 
+    /** The slider's level, readable at SEND time. The "ready" handler below
+     *  lives behind an [armed, say] effect, so a prop read straight would be
+     *  the volume as it was when the listener attached — a drag finished
+     *  before the player answered would be silently reverted on ready. */
+    const volumeRef = useRef(volume);
+    volumeRef.current = volume;
+
+    // HOW LOUD, WHILE IT PLAYS. `setVolume` is a plain command: the player
+    // accepts it and reports nothing, so there is nothing to listen for here —
+    // the volume changes infoDelivery carries are exactly the payloads
+    // readSignal already ignores, and reading the level BACK would only
+    // re-introduce the optimistic-state flapping that handler spent a comment
+    // ruling out. A prop in the deps rather than the ref, because a ref cannot
+    // ask for the re-run a slider drag needs. The send this makes the moment
+    // `armed` flips is allowed to be dropped — the player is not ready yet —
+    // because the ready handshake below repeats it.
+    useEffect(() => {
+      if (!armed) return;
+      say(command("setVolume", [volume]));
+    }, [volume, armed, say]);
+
     // WHETHER THERE IS ANYTHING TO PLAY. One request, on mount, and the answer
     // is cached by the server for everyone else. A failure is indistinguishable
     // from "not live" on purpose: both mean nothing renders.
     useEffect(() => {
       let alive = true;
       const get = fetchImpl ?? fetch;
-      get("/api/claude-fm")
-        .then(r => r.ok ? r.json() : null)
-        .then(a => { if (alive && a?.live && a?.channel) setProbe({ live: true, channel: a.channel }); })
-        .catch(() => { /* no music today */ });
+      const sourceChanged = sourceRef.current !== source;
+      sourceRef.current = source;
+      setProbe(null);
+      setDead(false);
+      setArmed(sourceChanged);
+      setPlaying(sourceChanged);
+      const liveEndpoint = LIVE_ENDPOINT[source];
+      if (liveEndpoint) {
+        get(liveEndpoint)
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+          })
+          .catch(() => { /* no music today */ });
+      } else if (source !== "claude-fm") {
+        const station = source.replace("lofi-", "");
+        get(`/api/lofi-girl?station=${encodeURIComponent(station)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(a => {
+            if (alive && a?.video) setProbe({ live: true, channel: "", video: a.video });
+          })
+          .catch(() => { /* no music today */ });
+      } else {
+        get("/api/claude-fm")
+          .then(r => r.ok ? r.json() : null)
+          .then(a => { if (alive && a?.live && a?.channel) setProbe({ live: true, channel: a.channel }); })
+          .catch(() => { /* no music today */ });
+      }
       return () => { alive = false; };
-    }, [fetchImpl]);
+    }, [fetchImpl, source]);
 
     // WHAT THE PLAYER SAYS BACK, once the iframe's onLoad below has opened the
     // conversation. The origin check is the whole security of this listener:
@@ -217,7 +288,14 @@ export default memo(
         // `playVideo` the moment it is ready costs nothing when the stream is
         // already running and is the difference between a press that works and
         // a press that silently does not.
-        if (signal.kind === "ready") { say(command("playVideo")); return; }
+        if (signal.kind === "ready") {
+          // The volume goes FIRST: the stream's first audible moment is at the
+          // level the menu says, not at whatever the player remembers from its
+          // own store — there is no window at the wrong loudness to notice.
+          say(command("setVolume", [volumeRef.current]));
+          say(command("playVideo"));
+          return;
+        }
         if (signal.kind === "playing") { setPlaying(signal.playing); return; }
         if (FATAL_ERRORS.includes(signal.code)) {
           // The stream is gone, or this channel does not allow embedding. There
@@ -544,8 +622,8 @@ export default memo(
           data-dance={playing ? dance ?? DANCES[0] : undefined}
           aria-pressed={playing}
           onClick={press}
-          title={playing ? "Stop Claude FM" : "Play Claude FM — streams from YouTube"}
-          aria-label={playing ? "Stop Claude FM" : "Play Claude FM"}
+          title={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]} — streams from YouTube`}
+          aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}
         >
           <svg viewBox={`0 0 ${SPRITE_W} ${SPRITE_H}`} shapeRendering="crispEdges" aria-hidden>
             {/* Two groups so the body can bob while the cups hold still — a
@@ -657,12 +735,12 @@ export default memo(
           </svg>
         </button>
         </div>
-        {armed && probe.channel && (
+        {armed && (probe.channel || probe.video) && (
           <iframe
             ref={frame}
             className="fm-frame"
-            title="Claude FM"
-            src={embedSrc(probe.channel, window.location.origin)}
+            title={SOURCE_LABEL[source]}
+            src={embedSrc(probe.channel, window.location.origin, probe.video)}
             // THE HANDSHAKE GOES HERE AND NOWHERE ELSE, and the first build had
             // it the wrong way round: it waited for `onReady` and answered that
             // with `listening`. `onReady` is not something the player

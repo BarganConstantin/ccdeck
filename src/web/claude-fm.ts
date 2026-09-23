@@ -34,9 +34,9 @@ export const PLAYER_ORIGIN = "https://www.youtube-nocookie.com";
  * `origin` is the page's, which is what the JS API asks for so the player can
  * check who is talking to it.
  */
-export function embedSrc(channel: string, origin: string): string {
+export function embedSrc(channel: string, origin: string, video?: string): string {
   const q = new URLSearchParams({
-    channel,
+    ...(video ? {} : { channel }),
     enablejsapi: "1",
     autoplay: "1",
     playsinline: "1",
@@ -46,7 +46,7 @@ export function embedSrc(channel: string, origin: string): string {
     modestbranding: "1",
     origin,
   });
-  return `${PLAYER_ORIGIN}/embed/live_stream?${q.toString()}`;
+  return `${PLAYER_ORIGIN}/embed/${video ? encodeURIComponent(video) : "live_stream"}?${q.toString()}`;
 }
 
 /** One command for the player's postMessage API. */

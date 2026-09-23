@@ -316,8 +316,12 @@ describe("talking to the player", () => {
     expect(component).toContain("onLoad={() => say(listenCommand())}");
     // And asks for play once the player answers: `autoplay=1` inside the click
     // that built the frame is everything the autoplay policy asks for, and the
-    // player still came up unstarted on a real deck.
-    expect(component).toContain('if (signal.kind === "ready") { say(command("playVideo")); return; }');
+    // player still came up unstarted on a real deck. The slider's level goes
+    // FIRST, so the stream's first audible moment is already at the menu's
+    // volume rather than the player's own remembered one.
+    expect(component).toMatch(
+      /signal\.kind === "ready"\) \{\s*say\(command\("setVolume", \[volumeRef\.current\]\)\);\s*say\(command\("playVideo"\)\);\s*return;/,
+    );
     expect(component).not.toMatch(/kind === "ready"\) \{ say\(listenCommand\(\)\)/);
   });
 
@@ -330,19 +334,25 @@ describe("talking to the player", () => {
 });
 
 describe("the deck's own sound plays over the music", () => {
-  it("never touches the player's volume", () => {
+  it("only the slider touches the player's volume", () => {
     // Every chime used to drop the stream to a fraction of its level and bring
     // it back a moment later, and with notifications on that dip was heard as
     // Claude FM cutting out. The chime is a short tone on its own
     // AudioContext; the browser mixes the two, and the music keeps going.
-    expect(component).not.toContain("setVolume");
+    // setVolume exists now — the Appearance menu's slider drives it — so the
+    // blanket absence check below had to become a narrower one: exactly the two
+    // senders fm-volume.test.ts names (the ready handshake and the live
+    // retune), both passing the user's own level, and nothing that moves it on
+    // a chime's behalf.
+    expect(component.match(/command\("setVolume"/g) ?? []).toHaveLength(2);
+    expect(component).not.toMatch(/duck/i);
     expect(component).not.toContain("useImperativeHandle");
   });
 
   it("plays a chime and leaves Claude FM alone, live and in the sound menu", () => {
     expect(app).toContain("if (chime) chimesRef.current?.play(chime);");
     expect(app).toContain("if (!soon) { chimesRef.current?.play(chime, true); return; }");
-    expect(app).toContain("{characterEnabled && <ClaudeFm />}");
+    expect(app).toContain("{characterEnabled && <ClaudeFm volume={fmVolume} source={fmSource} />}");
     expect(app).not.toMatch(/duck/i);
   });
 });
@@ -358,7 +368,7 @@ describe("absent, not broken", () => {
   it("builds no iframe until somebody presses play", () => {
     // A page that starts making noise on load is a bug, and an iframe that
     // exists has already called Google whether or not anybody asked.
-    expect(component).toContain("{armed && probe.channel && (");
+    expect(component).toContain("{armed && (probe.channel || probe.video) && (");
     expect(component).toMatch(/if \(!armed\) \{ setArmed\(true\); setPlaying\(true\); return; \}/);
     expect(component).not.toMatch(/useEffect\([^)]*setArmed\(true\)/);
   });
@@ -1468,7 +1478,7 @@ describe("the character", () => {
 
   it("says its state to a reader who cannot see it dance", () => {
     expect(component).toContain("aria-pressed={playing}");
-    expect(component).toMatch(/aria-label=\{playing \? "Stop Claude FM" : "Play Claude FM"\}/);
+    expect(component).toContain("aria-label={playing ? `Stop ${SOURCE_LABEL[source]}` : `Play ${SOURCE_LABEL[source]}`}");
     // And says where the sound comes from before anybody presses it.
     expect(component).toContain("streams from YouTube");
   });
