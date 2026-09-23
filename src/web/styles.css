@@ -1151,16 +1151,28 @@ button:focus-visible { outline-offset: 1px; }
 }
 .appearance-source-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .appearance-source-row > label {
   color: var(--muted);
   font-size: 12px;
+  font-weight: 500;
   line-height: 18px;
 }
-.appearance-source-row .sm-select { min-height: 28px; }
+.appearance-source-row .sm-select {
+  min-height: 30px;
+  padding-right: 8px;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.appearance-source-row .sm-select:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--sm-fill));
+}
+.appearance-source-row .sm-select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
 
 /* THE TWO SWITCHES. Tighter than the menu's own 12px column, because they are
    one group and the tone sections below are two others — the gap is what says

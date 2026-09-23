@@ -182,7 +182,7 @@ export default function AppearanceMenu({
             </optgroup>
           </select>
         </div>
-        <p className="appearance-row-note" id="appearance-fm-source-note">Used when the minimap character plays music.</p>
+        <p className="appearance-row-note" id="appearance-fm-source-note">Live audio source for the minimap character.</p>
         {/* THE WHOLE ROW IS THE TARGET, and still one control. A <label> hands a
             press anywhere in it to the switch exactly once — a press on the
             switch itself is the switch's own and the label does not repeat it —
