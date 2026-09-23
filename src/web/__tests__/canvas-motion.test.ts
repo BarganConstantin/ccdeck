@@ -339,6 +339,7 @@ const PRESSES: Press[] = [
   ["button.qb-pace:active", "0.97", "transform"],
   // The one press on the live account's notice, a labelled control.
   [".ap-notice-fix:active", "0.97", "transform"],
+  [".ap-proj-copy:active", "0.97", "transform"],
   [".aa-tab:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],

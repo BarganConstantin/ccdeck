@@ -571,6 +571,7 @@ const CONTROLS: Control[] = [
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
   { at: ".ap-manage-input", states: [".ap-manage-input:hover"], beds: ACCOUNTS },
+  { at: ".ap-proj-copy", states: [".ap-proj-copy:hover"], beds: ["--panel"] },
   { at: ".ap-manage-btn", states: [".ap-manage-btn:hover:not(:disabled)"], beds: ACCOUNTS },
   { at: ".ap-manage-btn.danger", fillFrom: ".ap-manage-btn",
     states: [".ap-manage-btn.danger:hover:not(:disabled)", ".ap-manage-btn.danger.armed"], beds: ACCOUNTS },
@@ -737,6 +738,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".ap-field select:focus-visible",
       ".ap-lan-word:focus-visible",
       ".ap-manage-input:focus-visible",
+      ".ap-proj-copy:focus-visible",
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
