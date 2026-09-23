@@ -12,7 +12,7 @@
 // The tray icon is the favicon of a closed tab: the same four marks, the same
 // count, computed by the page's own reducer (src/web/tray-model.ts, bundled to
 // dist/lib by vite.tray.config.mjs) over the same event stream.
-import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -386,6 +386,7 @@ function openWindow(steal = true) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: join(here, "preload.cjs"),
       // The page's chimes: in a browser they wait for the first click to
       // unlock audio. An app the person opened on purpose need not.
       autoplayPolicy: "no-user-gesture-required",
@@ -429,6 +430,74 @@ function openWindow(steal = true) {
 function statePath() { return join(app.getPath("userData"), "desktop-state.json"); }
 function readState() {
   try { return JSON.parse(readFileSync(statePath(), "utf8")); } catch { return {}; }
+}
+
+// Custom notification audio is local app data. The renderer never gets a
+// filesystem path; it can only address opaque ids through the preload bridge.
+function notificationAudioPath() { return join(app.getPath("userData"), "notification-audio.json"); }
+function validAssetId(id) { return typeof id === "string" && /^[a-zA-Z0-9._-]{1,96}$/.test(id); }
+const NOTIFICATION_AUDIO_MAX_BYTES = 1024 * 1024;
+const NOTIFICATION_AUDIO_MAX_SECONDS = 5;
+const NOTIFICATION_AUDIO_MIMES = new Set(["audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3", "audio/ogg", "audio/webm", "audio/mp4"]);
+function cleanAsset(asset) {
+  if (!asset || !validAssetId(asset.id) || typeof asset.name !== "string") return null;
+  const name = asset.name.trim().slice(0, 80);
+  if (!name) return null;
+  if (asset.kind === "tts") {
+    if (typeof asset.text !== "string" || !asset.text.trim() || asset.text.length > 180) return null;
+    if (typeof asset.voiceURI !== "string" || asset.voiceURI.length > 240) return null;
+    if (!Number.isFinite(asset.rate) || asset.rate < 0.5 || asset.rate > 2) return null;
+    if (!Number.isFinite(asset.pitch) || asset.pitch < 0.5 || asset.pitch > 2) return null;
+    return { id: asset.id, name, kind: "tts", text: asset.text.trim(), voiceURI: asset.voiceURI, rate: asset.rate, pitch: asset.pitch };
+  }
+  if (asset.kind !== "audio" || typeof asset.mime !== "string" || !NOTIFICATION_AUDIO_MIMES.has(asset.mime)) return null;
+  if (!Number.isFinite(asset.duration) || asset.duration <= 0 || asset.duration > NOTIFICATION_AUDIO_MAX_SECONDS) return null;
+  if (!Number.isFinite(asset.normalizationGain) || asset.normalizationGain <= 0 || asset.normalizationGain > 16) return null;
+  const bytes = asset.bytes instanceof ArrayBuffer
+    ? Buffer.from(new Uint8Array(asset.bytes))
+    : ArrayBuffer.isView(asset.bytes)
+      ? Buffer.from(asset.bytes.buffer, asset.bytes.byteOffset, asset.bytes.byteLength)
+      : null;
+  if (!bytes || bytes.byteLength <= 0 || bytes.byteLength > NOTIFICATION_AUDIO_MAX_BYTES) return null;
+  return { id: asset.id, name, kind: "audio", mime: asset.mime, duration: asset.duration, normalizationGain: asset.normalizationGain, bytes };
+}
+function readNotificationAudio() {
+  try {
+    const parsed = JSON.parse(readFileSync(notificationAudioPath(), "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function wireAsset(asset) {
+  if (!asset || asset.kind !== "audio" || typeof asset.bytes !== "string") return asset;
+  const bytes = Buffer.from(asset.bytes, "base64");
+  return { ...asset, bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };
+}
+function diskAsset(asset) {
+  if (!asset || asset.kind !== "audio") return asset;
+  const bytes = Buffer.isBuffer(asset.bytes) ? asset.bytes : Buffer.from(asset.bytes ?? []);
+  return { ...asset, bytes: bytes.toString("base64") };
+}
+function writeNotificationAudio(assets) {
+  writeFileSync(notificationAudioPath(), `${JSON.stringify(assets, null, 2)}\n`, "utf8");
+}
+function installNotificationAudioIpc() {
+  ipcMain.handle("ccdeck:notification-audio:list", () => readNotificationAudio().map(wireAsset));
+  ipcMain.handle("ccdeck:notification-audio:get", (_event, id) => {
+    if (!validAssetId(id)) return null;
+    const found = readNotificationAudio().find(asset => asset?.id === id);
+    return found ? wireAsset(found) : null;
+  });
+  ipcMain.handle("ccdeck:notification-audio:put", (_event, asset) => {
+    const clean = cleanAsset(asset);
+    if (!clean) throw new Error("Invalid notification audio asset.");
+    const assets = readNotificationAudio().filter(existing => existing?.id !== asset.id);
+    assets.push(diskAsset(clean));
+    writeNotificationAudio(assets);
+  });
+  ipcMain.handle("ccdeck:notification-audio:remove", (_event, id) => {
+    if (!validAssetId(id)) return;
+    writeNotificationAudio(readNotificationAudio().filter(asset => asset?.id !== id));
+  });
 }
 
 /** How long a question waits for the window to reach the screen before it is
@@ -592,6 +661,7 @@ async function offerToReplaceLoginItem() {
 
 // ── lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  installNotificationAudioIpc();
   setRegular(false);
   updateNoticeVersion = readState().readyUpdateNoticeVersion ?? null;
   await loadModel();

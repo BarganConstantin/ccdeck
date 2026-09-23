@@ -1,3 +1,5 @@
+import { CUSTOM_TARGET_PEAK, type CustomNotificationAsset, type CustomSelections } from "./notification-audio";
+
 // The two moments worth hearing, played by the deck itself.
 //
 // This used to be a `Stop` hook written into the user's settings.json running
@@ -511,6 +513,13 @@ export function createChimePlayer(opts: {
    *  shape as `enabled`, and for the same reason: the player is built once, on
    *  mount, and the settings move under it for the life of the tab. */
   prefs?: () => TonePrefs;
+  /** A local custom asset chosen for either tone. The asset bytes themselves
+   * live in IndexedDB in a browser and the desktop app's userData directory. */
+  customSelection?: () => CustomSelections;
+  loadCustom?: (id: string) => Promise<CustomNotificationAsset | null>;
+  /** Missing/deleted/corrupt custom audio returns the tone to its built-in
+   * default, and the owner persists that fallback. */
+  onCustomFailure?: (chime: Chime, id: string) => void;
   ctor?: Ctor | null;
   onState?: (s: ChimeState) => void;
 } = { enabled: () => true }) {
@@ -555,10 +564,9 @@ export function createChimePlayer(opts: {
    * `unlocked` is NOT waived with it — that one is the browser's rule, not the
    * deck's, and nothing here can override it.
    */
-  function play(chime: Chime, audition = false) {
-    if ((!audition && !opts.enabled()) || !ctx || ctx.state !== "running") return false;
-    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
-    const figure = figureFor(chime, tone.figure);
+  function playFigure(chime: Chime, tone: ToneSettings, figureId = tone.figure) {
+    if (!ctx || ctx.state !== "running") return false;
+    const figure = figureFor(chime, figureId);
     const peak = peakFor(tone.level, figure);
     const now = ctx.currentTime;
     for (const note of figure.notes) {
@@ -592,5 +600,66 @@ export function createChimePlayer(opts: {
     return true;
   }
 
-  return { unlock, play, state, get context() { return ctx; } };
+  async function playCustomAsset(id: string, tone: ToneSettings): Promise<boolean | "locked"> {
+    if (!opts.loadCustom) return false;
+    let asset: CustomNotificationAsset | null;
+    try { asset = await opts.loadCustom(id); }
+    catch { return false; }
+    if (!asset) return false;
+
+    if (asset.kind === "tts") {
+      if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return false;
+      const utterance = new SpeechSynthesisUtterance(asset.text);
+      const voices = window.speechSynthesis.getVoices();
+      utterance.voice = voices.find(v => v.voiceURI === asset.voiceURI) ?? null;
+      utterance.rate = asset.rate;
+      utterance.pitch = asset.pitch;
+      // The existing level owns custom voices too. Map the notification gain
+      // band to SpeechSynthesis' 0..1 volume without adding a second control.
+      utterance.volume = Math.min(1, gainForLevel(tone.level) / GAIN_CEILING);
+      try { window.speechSynthesis.speak(utterance); return true; }
+      catch { return false; }
+    }
+
+    if (!ctx || ctx.state !== "running") return "locked";
+    try {
+      const decoded = await ctx.decodeAudioData(asset.bytes.slice(0));
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      source.buffer = decoded;
+      // Import measured the file's peak once. Applying that gain here makes
+      // every imported file land at the same target before the user's existing
+      // per-tone level is applied.
+      const normalized = asset.normalizationGain * (gainForLevel(tone.level) / CUSTOM_TARGET_PEAK);
+      gain.gain.setValueAtTime(Math.max(0.0001, normalized), ctx.currentTime);
+      source.connect(gain).connect(ctx.destination);
+      source.start(ctx.currentTime);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function play(chime: Chime, audition = false) {
+    if (!audition && !opts.enabled()) return false;
+    const tone = (opts.prefs?.() ?? DEFAULT_PREFS)[chime] ?? DEFAULT_PREFS[chime];
+    const customId = opts.customSelection?.()[chime] ?? null;
+    if (customId && opts.loadCustom) {
+      void playCustomAsset(customId, tone).then(ok => {
+        if (ok) return;
+        opts.onCustomFailure?.(chime, customId);
+        playFigure(chime, { ...tone, figure: DEFAULT_FIGURE_ID }, DEFAULT_FIGURE_ID);
+      });
+      return true;
+    }
+    if (!ctx || ctx.state !== "running") return false;
+    return playFigure(chime, tone);
+  }
+
+  function previewCustom(id: string, level = DEFAULT_LEVEL) {
+    void playCustomAsset(id, { level: clampLevel(level), figure: DEFAULT_FIGURE_ID });
+    return true;
+  }
+
+  return { unlock, play, previewCustom, state, get context() { return ctx; } };
 }

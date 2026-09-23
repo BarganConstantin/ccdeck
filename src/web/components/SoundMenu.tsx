@@ -39,7 +39,7 @@
 // elsewhere in the topbar would otherwise fire against a menu that is still up.
 // The opener is excluded from it — its own onClick already toggles, and letting
 // both run would close the menu and immediately reopen it.
-import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import {
   CHIME_ORDER, FIGURE_SETS, LEVEL_MAX, LEVEL_MIN, LEVEL_STEP,
   type Chime, type TonePrefs,
@@ -47,6 +47,11 @@ import {
 import { useModalDismiss } from "./use-modal-dismiss";
 import { browserChannel, notifyNote, NOTIFY_VETO_NOTE, type NotifyPermission } from "../notify-reach";
 import { inDesktopApp } from "../in-app";
+import {
+  sameCustomSelection,
+  type CustomNotificationAsset,
+  type CustomSelections,
+} from "../notification-audio";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -75,6 +80,15 @@ interface Props {
   onFigure: (chime: Chime, id: string) => void;
   /** Play this tone now, at what it is currently set to. */
   onPreview: (chime: Chime) => void;
+  customAssets: CustomNotificationAsset[];
+  customSelections: CustomSelections;
+  onBuiltInSelected: (chime: Chime) => void;
+  onCustomSelected: (chime: Chime, id: string) => void;
+  onImportCustom: (file: File) => Promise<void>;
+  onCreateVoice: (input: { name: string; text: string; voiceURI: string; rate: number; pitch: number }) => Promise<void>;
+  onRenameCustom: (id: string, name: string) => Promise<void>;
+  onPreviewCustom: (id: string) => void;
+  onDeleteCustom: (id: string) => Promise<void>;
   /** The deck's OTHER way of interrupting you, and the reason it is in this
    *  menu rather than a settings panel of its own: this popover is already
    *  "how loudly does this deck interrupt me", and notifications were the only
@@ -105,6 +119,8 @@ interface Props {
 
 export default function SoundMenu({
   onClose, soundOn, onToggleSound, prefs, onLevel, onFigure, onPreview, openerRef,
+  customAssets, customSelections, onBuiltInSelected, onCustomSelected, onImportCustom,
+  onCreateVoice, onRenameCustom, onPreviewCustom, onDeleteCustom,
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify,
 }: Props) {
   /* The channel, and whether it is worth drawing at all. A veto silences both
@@ -115,6 +131,91 @@ export default function SoundMenu({
   // browser's permission that this section reports is never asked there.
   const inApp = inDesktopApp();
   const showChannel = notifyOn && !notifyVetoed && !inApp;
+  const [customError, setCustomError] = useState("");
+  const [voiceName, setVoiceName] = useState("Custom voice");
+  const [voiceText, setVoiceText] = useState("Your turn");
+  const [voiceURI, setVoiceURI] = useState("");
+  const [voiceRate, setVoiceRate] = useState(1);
+  const [voicePitch, setVoicePitch] = useState(1);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sharedCustomId = sameCustomSelection(customSelections);
+  const sharedCustomName = customAssets.find(asset => asset.id === sharedCustomId)?.name ?? "the same custom sound";
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const refresh = () => {
+      const next = window.speechSynthesis.getVoices();
+      setVoices(next);
+      setVoiceURI(current => current || next[0]?.voiceURI || "");
+    };
+    refresh();
+    window.speechSynthesis.addEventListener("voiceschanged", refresh);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
+  }, []);
+
+  const runCustom = async (work: () => Promise<void>) => {
+    setCustomError("");
+    try { await work(); }
+    catch (error) { setCustomError(error instanceof Error ? error.message : "Custom audio could not be saved."); }
+  };
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+    recordingTimerRef.current = null;
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+  };
+
+  const startRecording = async () => {
+    setCustomError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setCustomError("Microphone recording is unavailable in this browser.");
+      return;
+    }
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setCustomError("Microphone access was denied or unavailable."); return; }
+    if (recorderRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+    try {
+      const format = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"]
+        .find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
+      const chunks: Blob[] = [];
+      recorderRef.current = recorder;
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onerror = () => setCustomError("Recording failed. Please try again.");
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        const shouldSave = recorderRef.current === recorder;
+        if (shouldSave) recorderRef.current = null;
+        setRecording(false);
+        if (!shouldSave || !chunks.length) return;
+        const mime = recorder.mimeType.split(";")[0];
+        const extension = mime === "audio/mp4" ? "m4a" : mime === "audio/ogg" ? "ogg" : "webm";
+        const file = new File(chunks, `Recorded voice.${extension}`, { type: mime });
+        void runCustom(() => onImportCustom(file));
+      };
+      recorder.start(200);
+      setRecording(true);
+      // Stop just before the five-second limit to allow encoder/container overhead.
+      recordingTimerRef.current = setTimeout(stopRecording, 4400);
+    } catch {
+      recorderRef.current = null;
+      stream.getTracks().forEach(track => track.stop());
+      setCustomError("This browser cannot record a supported audio format.");
+    }
+  };
+
+  useEffect(() => () => {
+    if (recordingTimerRef.current !== null) clearTimeout(recordingTimerRef.current);
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (recorder?.state === "recording") recorder.stop();
+  }, []);
 
   // A popover, so the canvas letters stay live under it — V and M included,
   // which are this menu's own keys (see dialogDepth in modal-dismiss.ts).
@@ -357,12 +458,23 @@ export default function SoundMenu({
               <select
                 id={figureId}
                 className="sm-select"
-                value={tone.figure}
-                onChange={e => onFigure(chime, e.target.value)}
+                value={customSelections[chime] ? `custom:${customSelections[chime]}` : tone.figure}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value.startsWith("custom:")) onCustomSelected(chime, value.slice(7));
+                  else { onBuiltInSelected(chime); onFigure(chime, value); }
+                }}
               >
                 {FIGURE_SETS[chime].map(f => (
                   <option key={f.id} value={f.id}>{f.label}</option>
                 ))}
+                {customAssets.length > 0 && (
+                  <optgroup label="Custom">
+                    {customAssets.map(asset => (
+                      <option key={asset.id} value={`custom:${asset.id}`}>{asset.name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
@@ -371,6 +483,88 @@ export default function SoundMenu({
         );
       })}
       </div>
+
+      {sharedCustomId && (
+        <p className="sm-custom-warning" role="status">
+          Both tones use “{sharedCustomName}”. They may be harder to tell apart.
+        </p>
+      )}
+
+      <section className="sm-custom" aria-labelledby="sm-custom-title">
+        <div className="sm-custom-head">
+          <h3 id="sm-custom-title">Custom sounds</h3>
+          <span>Local only</span>
+        </div>
+        <label className="sm-file">
+          <span>Import WAV, MP3 or OGG</span>
+          <input
+            type="file"
+            accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/ogg,.wav,.mp3,.ogg"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              e.currentTarget.value = "";
+              if (file) void runCustom(() => onImportCustom(file));
+            }}
+          />
+        </label>
+
+        <div className="sm-record">
+          <span>Record a voice (up to 5 seconds)</span>
+          {recording ? (
+            <button type="button" className="btn sm-custom-action" onClick={stopRecording}>Stop &amp; save</button>
+          ) : (
+            <button type="button" className="btn sm-custom-action" onClick={() => void startRecording()}>Record with microphone</button>
+          )}
+        </div>
+
+        <details className="sm-voice">
+          <summary>Add spoken voice</summary>
+          <div className="sm-voice-fields">
+            <label>Name<input value={voiceName} maxLength={80} onChange={e => setVoiceName(e.target.value)} /></label>
+            <label>Text<input value={voiceText} maxLength={180} onChange={e => setVoiceText(e.target.value)} /></label>
+            <label>Voice
+              <select value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
+                <option value="">System default</option>
+                {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
+              </select>
+            </label>
+            <div className="sm-voice-pair">
+              <label>Rate<input type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(Number(e.target.value))} /></label>
+              <label>Pitch<input type="number" min="0.5" max="2" step="0.1" value={voicePitch} onChange={e => setVoicePitch(Number(e.target.value))} /></label>
+            </div>
+            <button
+              type="button"
+              className="btn sm-custom-action"
+              onClick={() => void runCustom(async () => {
+                await onCreateVoice({ name: voiceName, text: voiceText, voiceURI, rate: voiceRate, pitch: voicePitch });
+                setVoiceText("Your turn");
+              })}
+            >
+              Add voice
+            </button>
+          </div>
+        </details>
+
+        {customAssets.length > 0 && (
+          <div className="sm-custom-list">
+            {customAssets.map(asset => (
+              <div className="sm-custom-item" key={asset.id}>
+                <input
+                  aria-label={`Rename ${asset.name}`}
+                  defaultValue={asset.name}
+                  maxLength={80}
+                  onBlur={e => void runCustom(() => onRenameCustom(asset.id, e.target.value))}
+                  onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                />
+                <span>{asset.kind === "audio" ? `${asset.duration.toFixed(1)}s` : "Voice"}</span>
+                <button type="button" className="btn sm-custom-icon" onClick={() => onPreviewCustom(asset.id)}>Play</button>
+                <button type="button" className="btn sm-custom-icon" onClick={() => void runCustom(() => onDeleteCustom(asset.id))}>Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {customError && <p className="sm-custom-error" role="alert">{customError}</p>}
+      </section>
 
       {/* The key, drawn as a key. It was a sentence about a letter, which is
           the one shape a reader does not scan for when they are looking for a
