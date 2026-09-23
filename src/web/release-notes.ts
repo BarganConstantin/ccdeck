@@ -95,12 +95,23 @@ export const RELEASE_NOTES_SEEN_KEY = "agent-dag.releaseNotesSeen";
 // "equal". __tests__/release-notes.test.ts holds this against the server's copy
 // over a matrix of version strings, so the two cannot drift apart; brand.ts and
 // src/server/brand.mjs are the same arrangement one layer down.
+//
+// ONE RULE IS NOW DELIBERATELY DIFFERENT, and it is named in that file rather
+// than left to be discovered. #976 gave `isOlder` semver's prerelease rule — a
+// prerelease sorts BELOW the release it precedes — because a deck stranded on
+// `3.23.0-rc.1` that read `3.23.0` as older produced no upgrade notice when the
+// release shipped and could not be brought back off the candidate from inside
+// the product. This side keeps the old answer on purpose: the question here is
+// which notes a user has already read, and a prerelease of 1.46.0 carries
+// 1.46.0's notes. The matrix sweep therefore asks for agreement on every pair
+// that carries no prerelease, and pins the prerelease pairs by name.
 
-/** A version string, split the way self-update.mjs splits one: on dots, and on
- *  the `-`/`+` that start a prerelease or build tag, with anything that is not
- *  a number counted as zero. `1.0.0-rc1` and `1.0.0` therefore compare equal,
- *  which is the existing behaviour and is right for this: a prerelease of a
- *  version carries the same notes as the version. */
+/** A version string, split on dots and on the `-`/`+` that start a prerelease
+ *  or build tag, with anything that is not a number counted as zero.
+ *  `1.0.0-rc1` and `1.0.0` therefore compare equal — which is what this side
+ *  wants, since a prerelease of a version carries the same notes as the
+ *  version, and is the one rule on which this no longer matches
+ *  self-update.mjs's `isOlder` (see the header, and #976). */
 function segments(v: string): number[] {
   return v.split(/[.\-+]/).map(n => parseInt(n, 10)).map(n => Number.isNaN(n) ? 0 : n);
 }

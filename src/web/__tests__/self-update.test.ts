@@ -79,10 +79,51 @@ describe("isOlder", () => {
     expect(isOlder("1.30.7", "1.30.7")).toBe(false);
   });
 
-  it("pads missing segments and survives prerelease tails", () => {
+  it("pads missing segments", () => {
     expect(isOlder("1.30", "1.30.1")).toBe(true);
     expect(isOlder("1.30.1", "1.30")).toBe(false);
-    expect(isOlder("1.31.0-beta.1", "1.31.0")).toBe(false); // 1.31.0.0 vs 1.31.0
+  });
+
+  it("sorts a prerelease below the release it precedes", () => {
+    // This line read `expect(isOlder("1.31.0-beta.1", "1.31.0")).toBe(false)`,
+    // annotated `// 1.31.0.0 vs 1.31.0` — a correct description of what the
+    // segmentation did and a wrong answer (#976). Splitting on `[.\-+]` gave
+    // the prerelease FOUR numbers against the release's three, so it sorted
+    // above the release it precedes, and the release sorted below it.
+    //
+    // `autoUpdate` defaults on. A deck sitting on a prerelease therefore saw no
+    // upgrade when the real release shipped — no notice, nothing in the banner,
+    // and no way to come back off it from inside the product. That is the half
+    // of #976 that survives the dist-tag fix: publish.yml stops `latest` being
+    // moved onto a candidate, and nothing but this stops a tester's deck being
+    // stranded on one they installed by hand.
+    expect(isOlder("1.31.0-beta.1", "1.31.0")).toBe(true);
+    expect(isOlder("1.31.0", "1.31.0-beta.1")).toBe(false);
+  });
+
+  it("orders two prereleases of one release by their own identifiers", () => {
+    expect(isOlder("1.31.0-rc.1", "1.31.0-rc.2")).toBe(true);
+    expect(isOlder("1.31.0-rc.2", "1.31.0-rc.1")).toBe(false);
+    expect(isOlder("1.31.0-rc.1", "1.31.0-rc.1")).toBe(false);
+  });
+
+  it("still compares the release numbers first", () => {
+    // A prerelease of a LATER release is genuinely newer, and must stay so —
+    // the prerelease rule is a tie-break within one release triple, not a
+    // blanket demotion. Were it a blanket one, a deck on 3.22.15 offered
+    // 3.23.0-beta.1 would be told nothing was available, which is a different
+    // way of being wrong about the same pair.
+    expect(isOlder("3.22.15", "3.23.0-beta.1")).toBe(true);
+    expect(isOlder("3.23.0-beta.1", "3.22.15")).toBe(false);
+  });
+
+  it("leaves build metadata reading as it always has", () => {
+    // `+` is not a prerelease and is not treated as one. This repo has never
+    // published a build tag and the behaviour is inherited rather than chosen;
+    // it is pinned so that #976's change to the `-` side is visibly NOT a
+    // change to this side.
+    expect(isOlder("1.0.0", "1.0.0+build.7")).toBe(true);
+    expect(isOlder("1.0.0+build.7", "1.0.0")).toBe(false);
   });
 
   it("never claims an order it cannot compute", () => {
