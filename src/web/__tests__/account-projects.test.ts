@@ -145,6 +145,19 @@ describe("per-message attribution", () => {
     expect(Object.keys(tally).length).toBe(0);
   });
 
+  it("counts one usage record per API request, not every content block", () => {
+    const tally: Record<string, unknown> = {};
+    const first = JSON.stringify({
+      type: "assistant", requestId: "req-1", apiBlockIndex: 0, timestamp: "2026-09-22T10:00:00Z",
+      cwd: "/p", message: { model: "claude-opus-5", usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 0 } },
+    });
+    const repeated = first.replace('"apiBlockIndex":0', '"apiBlockIndex":1');
+    foldLine(tally, first, TIMELINE);
+    foldLine(tally, repeated, TIMELINE);
+    const report = reportFrom(tally, TIMELINE, KEY_A, 0, ISO("2026-09-22T12:00:00Z"));
+    expect(report.projects[0].models["claude-opus-5"]).toEqual({ i: 10, o: 5, cr: 100, cc: 0, c1h: 0, c5m: 0 });
+  });
+
   it("windows by day and collapses the unattributed bucket across projects", () => {
     // A timeline that starts before both messages, so both attribute to A and
     // the only thing separating them is the day window.
@@ -196,7 +209,7 @@ describe("the incremental scan", () => {
 
     // The tally persisted to disk.
     const disk = JSON.parse(await readFile(stateFile, "utf8"));
-    expect(disk.version).toBe(1);
+    expect(disk.version).toBe(2);
     expect(disk.tally[KEY_A]["/Users/c/agents-deck"]).toBeTruthy();
     expect(disk.cursors[file]).toBeGreaterThan(0);
   });
