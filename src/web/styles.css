@@ -2061,10 +2061,10 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    selection changes nothing in the readout: the bounds are set so that the
    case that needs the most room already fits wherever the phrase is shown.
    That case is a blocked session and a selected node whose ribbon is at its
-   cap, measured in Chromium with Remove node out of the bar (with it, the
-   words band below needed 1720 and the glyph band 1260). Two bands come out
-   of that, because the words (#836) arrive at 1440 and spend about 390px at
-   once:
+   cap, measured in Chromium since Remove node left the bar for the detail
+   panel (#1242; while it was here, the words band below needed 1720 and the
+   glyph band 1260). Two bands come out of that, because the words (#836)
+   arrive at 1440 and spend about 390px at once:
      under 1440   glyphs only, and everything fits from 1090
      from 1440    with the words, everything fits from 1600
    Each bound carries 40px of headroom for faces wider than the one measured,
