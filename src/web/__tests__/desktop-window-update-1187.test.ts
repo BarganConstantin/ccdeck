@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { matchesReadyUpdate, restartReadyUpdate } from "../../../desktop/window-update.mjs";
-import { readDesktopUpdate, readyDesktopUpdate } from "../desktop-update";
-import { desktopAppVersion } from "../in-app";
+import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate } from "../desktop-update";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 

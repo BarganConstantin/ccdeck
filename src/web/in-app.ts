@@ -11,11 +11,3 @@
 export function inDesktopApp(ua: string = typeof navigator === "undefined" ? "" : navigator.userAgent): boolean {
   return /\bccdeck-desktop\/\d/.test(ua);
 }
-
-/** The desktop app's own version, from the same user-agent token, or null in a
- *  browser. Not the deck's: the app can be attached to a deck it did not start
- *  (`npx ccdeck`, an npm login item) at another version entirely, and its
- *  update moves the app, so "from" has to be the app's number (#1187). */
-export function desktopAppVersion(ua: string = typeof navigator === "undefined" ? "" : navigator.userAgent): string | null {
-  return /\bccdeck-desktop\/(\d[^\s]*)/.exec(ua)?.[1] ?? null;
-}

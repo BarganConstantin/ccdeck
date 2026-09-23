@@ -99,8 +99,8 @@ import { fmtCost, fmtCostRate } from "./pricing";
 // usage-models.ts (#686).
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
-import { desktopAppVersion, inDesktopApp } from "./in-app";
-import { readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
+import { inDesktopApp } from "./in-app";
+import { desktopAppVersion, readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
