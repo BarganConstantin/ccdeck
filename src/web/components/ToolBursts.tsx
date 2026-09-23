@@ -551,8 +551,10 @@ const CODEX_PRIMARY_LABEL: Record<string, string> = CODEX_TOOL_LABEL;
 const LABEL_MAX = 18;
 
 /** Cut on code points, so a surrogate pair is never split in half — the same
- *  rule the cluster header's own truncation follows. */
-function cutLabel(label: string): string {
+ *  rule the cluster header's own truncation follows. Exported so a test
+ *  asserting a drawn label derives the cut from here rather than hand-computing
+ *  it, and cannot drift from LABEL_MAX the way a literal would. */
+export function cutLabel(label: string): string {
   const cp = [...label];
   return cp.length <= LABEL_MAX ? label : cp.slice(0, LABEL_MAX - 1).join("") + "…";
 }
