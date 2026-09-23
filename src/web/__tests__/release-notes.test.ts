@@ -896,7 +896,8 @@ describe("how App.tsx wires it up", () => {
     // itself is decideWelcome's, pinned as a pure function below; what the
     // effect owes is to ask it and to obey every one of its three answers.
     const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
-    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen: readTourSeen\(store\), decision \}\);/);
+    expect(effect).toMatch(/let tourSeen = readTourSeen\(store\);/);
+    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen, decision \}\);/);
     expect(effect).toMatch(/if \(plan\.tour\) setTourOpen\(true\);/);
     // NOT marked on open. The deck reloads its own tab when the bundle
     // changes and updates itself while nobody is looking, so a tour marked on
