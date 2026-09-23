@@ -101,11 +101,15 @@ export default function AppearanceMenu({
         onClick={event => event.stopPropagation()}
         onKeyDown={onMenuKey}
       >
-      {/* Built like the deck's own panels — Usage, This machine: a title over a
-          hairline, then sections under uppercase captions — so it reads as part
-          of this app rather than a settings form any app could have. */}
       <div className="appearance-head">
         <h2 id="appearance-title" className="appearance-title">Appearance</h2>
+        <button
+          type="button"
+          className="glyph-btn appearance-close"
+          onClick={onClose}
+          aria-label="Close appearance settings"
+          title="Close (Esc)"
+        >×</button>
       </div>
 
       <section className="appearance-section" aria-labelledby="appearance-theme-caption">
@@ -170,6 +174,15 @@ export default function AppearanceMenu({
             </optgroup>
             <optgroup label="📻 Radio Mix">
               <option value="radio-mix">📡 Live radio mix</option>
+            </optgroup>
+            <optgroup label="📻 Best of Nostalgia">
+              <option value="best-of-nostalgia">📼 Best of nostalgia live</option>
+            </optgroup>
+            <optgroup label="📻 The Good Life Radio">
+              <option value="good-life-radio">🌴 The Good Life Radio</option>
+            </optgroup>
+            <optgroup label="☕ Cafe Music BGM">
+              <option value="cafe-music-bgm">☕ Cafe music BGM</option>
             </optgroup>
           </select>
         </div>

@@ -963,7 +963,7 @@ button:focus-visible { outline-offset: 1px; }
   top: auto;
   right: auto;
   z-index: auto;
-  width: min(540px, calc(100vw - 32px));
+  width: min(500px, calc(100vw - 32px));
   max-width: none;
   max-height: calc(100vh - 32px);
   overflow: auto;
@@ -983,6 +983,9 @@ button:focus-visible { outline-offset: 1px; }
    One 4px scale: 8 between a caption and what it names, 12 under the header,
    16 between sections. Spacing is the only separator below the header. */
 .appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 -12px 12px;
   padding: 0 12px 10px;
   border-bottom: 1px solid var(--line-soft);
@@ -995,6 +998,14 @@ button:focus-visible { outline-offset: 1px; }
   letter-spacing: 0.02em;
   line-height: 16px;
 }
+.appearance-close {
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px -4px 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+.appearance-close:hover { color: var(--text); }
 .appearance-section + .appearance-section { margin-top: 16px; }
 .appearance-caption {
   display: flex;
@@ -1076,7 +1087,12 @@ button:focus-visible { outline-offset: 1px; }
   border-color: var(--text);
   box-shadow: 0 0 0 1px var(--text);
 }
-.appearance-preview svg { display: block; width: 100%; height: auto; }
+.appearance-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
 .appearance-theme-name {
   display: flex;
   align-items: center;
