@@ -527,6 +527,9 @@ const CONTROLS: Control[] = [
   // version banner
   { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
   { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
+  // The Undo row keeps the banner's shape on a plain --bg-soft bed, and its
+  // button trades the amber edge for the controls' own.
+  { at: ".ver-banner.note .ver-act", states: [".ver-banner.note .ver-act:hover:not(:disabled)"], beds: ["--bg-soft"] },
   // The auto-restart switch is the shared one since #886. Armed, it fills with
   // the banner's warning colour, measured here on the banner's own beds.
   { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
@@ -779,7 +782,7 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // they were made secondary, which is a control gaining an edge rather than
     // the parser finding one.
     expect(EDGED_CONTROLS.length).toBeGreaterThan(50);
-    expect(EDGED_CONTROLS.length).toBeLessThan(92);
+    expect(EDGED_CONTROLS.length).toBeLessThan(96);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

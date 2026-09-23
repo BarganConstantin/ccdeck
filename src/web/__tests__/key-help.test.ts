@@ -52,7 +52,7 @@ const BOUND = [...HANDLER.matchAll(/e\.key === "((?:[^"\\]|\\.)*)"/g)].map(m => 
 /** The keys that have one spelling rather than two. Every letter is bound as
  *  both cases, because a Caps-locked keyboard sends the upper one for the same
  *  press; Space, `?` and Escape have no other case to bind. */
-const SINGLE_CASE = [" ", "?", "escape"];
+const SINGLE_CASE = [" ", "?", "escape", "delete"];
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -75,8 +75,9 @@ describe("every key the deck binds is written down where a user can find it", ()
     expect([...new Set(BOUND.map(lower))].sort())
       // W since #825: the session waiting on you. B, S and V since #826: the
       // three topbar panels that were pointer-only. Z with the adaptive graph:
-      // the selected card and its session, framed at a readable zoom.
-      .toEqual([" ", "?", "a", "b", "c", "d", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // the selected card and its session, framed at a readable zoom. Delete
+      // since Remove from board left the topbar for the detail panel.
+      .toEqual([" ", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {

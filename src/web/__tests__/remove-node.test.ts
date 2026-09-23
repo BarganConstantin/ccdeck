@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { collectBursts } from "../components/ToolBursts";
 import type { AgentNodeData } from "../types";
-import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, visibleBoard } from "../remove-node";
+import { readRemovedNodes, removalHiddenIds, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
 
 const nodes = [
   { id: "a", data: { sessionId: "a" } },
@@ -113,5 +113,89 @@ describe("the canvas wiring (#1237)", () => {
     const sig = /const layoutSig = useMemo\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
     expect(sig).toMatch(/if \(!isAgentVisible\(a, now\) \|\| removedAgentIds\.has\(a\.id\)\) continue;/);
     expect(sig).toMatch(/removedAgentIds\]\);$/);
+  });
+});
+
+// ── undo, the way back, and the alarm (the audit of #1210) ─────────────────
+//
+// Remove node shipped as one click in the topbar with no undo, and the only
+// way back was Clear. A removed session that started waiting was still counted
+// by the alarm and still listed, and clicking either selected a card that was
+// not drawn.
+
+describe("bringing removed cards back", () => {
+  it("takes the named ids out and leaves the rest removed", () => {
+    const removed = new Set(["a", "b::sub", "c"]);
+    expect([...withoutRemovals(removed, ["a", "c"])]).toEqual(["b::sub"]);
+    // A new set: the old one is React state and is never mutated.
+    expect([...removed]).toEqual(["a", "b::sub", "c"]);
+  });
+
+  it("answers with the same set when nothing it names was removed, so the caller can skip the write", () => {
+    const removed = new Set(["a"]);
+    expect(withoutRemovals(removed, ["b", "c"])).toBe(removed);
+    expect(withoutRemovals(removed, [])).toBe(removed);
+  });
+
+  it("calls a removed session back when it starts waiting, and only that one", () => {
+    const hidden = new Set(["s1", "s1::sub", "s3"]);
+    expect(sessionsCalledBack([{ id: "s1" }, { id: "s2" }], hidden)).toEqual(["s1"]);
+    expect(sessionsCalledBack([{ id: "s2" }], hidden)).toEqual([]);
+    expect(sessionsCalledBack([{ id: "s1" }], new Set())).toEqual([]);
+  });
+});
+
+describe("where Remove lives and what follows it", () => {
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
+  const css = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+
+  it("is gone from the topbar and sits with the card's own verbs in the detail panel", () => {
+    expect(app).not.toMatch(/>\s*Remove node\s*</);
+    const detail = /function Detail\([\s\S]*?\n}\n/.exec(app)?.[0] ?? "";
+    expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>Remove from board<\/button>/);
+    expect(app).toMatch(/onRemove=\{removeSelectedNode\}/);
+    // Undoable, so not dressed as the one destructive .btn the sheet reserves
+    // red for.
+    expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);
+  });
+
+  it("is one key from a selection, since a plain click shuts the panel it lives in", () => {
+    expect(app).toMatch(/if \(e\.key === "Delete"\) removeSelectedRef\.current\(\);/);
+    expect(app).toMatch(/removeSelectedRef\.current = removeSelectedNode;/);
+  });
+
+  it("offers Undo, names it for what it undoes, and moves focus onto it", () => {
+    expect(app).toMatch(/className="ver-banner note"/);
+    expect(app).toMatch(/aria-label=\{`Undo removing \$\{removalNotice\.label\}`\}\s+onClick=\{undoRemoval\}\s*>Undo<\/button>/);
+    expect(app).toMatch(/if \(lastRemoval\) \(undoRef\.current \?\? canvasRef\.current\)\?\.focus\(\);/);
+  });
+
+  it("says the removal through a region that is mounted before the words arrive", () => {
+    expect(app).toMatch(/<div className="vis-hidden" role="status" aria-atomic="true">\s*\{removalNotice \? `\$\{removalNotice\.label\} removed from the board\.` : ""\}/);
+  });
+
+  it("puts a card back where it was on Undo, with its selection", () => {
+    const undo = /const undoRemoval = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
+    expect(undo).toMatch(/if \(pin\) pinnedRef\.current\.set\(id, pin\);/);
+    expect(undo).toMatch(/if \(position\) positionsRef\.current\.set\(id, position\);/);
+    expect(undo).toMatch(/selectAgent\(id, false\)/);
+  });
+
+  it("brings a waiting session back instead of leaving the alarm pointing at nothing", () => {
+    expect(app).toMatch(/const back = sessionsCalledBack\(waitingSessions, removedAgentIds\);\s*if \(back\.length > 0\) bringBack\(back\);/);
+  });
+
+  it("keeps a removed session in the session list, marked, as the way back", () => {
+    expect(app).toMatch(/onSelect=\{openSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
+    expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
+    expect(list).toMatch(/\{removed && <span className="sl-removed">off the board<\/span>\}/);
+    expect(list).toMatch(/Bring back \{count\} removed \{count === 1 \? "card" : "cards"\}/);
+    expect(css).toMatch(/\.session-list \.sl-row\.removed \.sl-label \{ color: var\(--muted\); \}/);
+  });
+
+  it("forgets the Undo on Clear", () => {
+    const clear = /const handleClear = useCallback\([\s\S]*?\n  \}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
+    expect(clear).toMatch(/setLastRemoval\(null\);/);
   });
 });
