@@ -147,16 +147,19 @@ describe("the tray's connection to the deck", () => {
       res.write('event: hook\ndata: {"seq":1}\n\n');
       res.write('event: replay-end\ndata: \n\n');
       res.write('event: notify\ndata: {"title":"agent","body":"waiting"}\n\n');
+      res.write('event: desktop-update-restart\ndata: {"version":"3.28.0"}\n\n');
       res.write("event: hook\ndata: not json\n\n");
     });
     const hooks: unknown[] = [];
     const notices: unknown[] = [];
+    const restarts: unknown[] = [];
     let connected = 0, live = 0;
     const stream = openTrayStream(deck, {
       connected: () => { connected++; },
       live: () => { live++; },
       hook: (e: unknown) => hooks.push(e),
       notify: (n: unknown) => notices.push(n),
+      restartUpdate: (request: unknown) => restarts.push(request),
     });
     await vi.waitFor(() => expect(notices).toHaveLength(1));
     stream.close();
@@ -168,6 +171,7 @@ describe("the tray's connection to the deck", () => {
     expect(live).toBe(1);
     expect(hooks).toEqual([{ seq: 1 }]);       // the unparseable frame is dropped, the stream is not
     expect(notices).toEqual([{ title: "agent", body: "waiting" }]);
+    expect(restarts).toEqual([{ version: "3.28.0" }]);
   });
 
   it("keeps trying when the deck refuses the stream, and stops when it is closed", async () => {

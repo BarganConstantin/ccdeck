@@ -100,6 +100,7 @@ import { fmtCost, fmtCostRate } from "./pricing";
 import { agentCost, otherModelIds } from "./usage-models";
 import { fmtTokens } from "./token-format";
 import { inDesktopApp } from "./in-app";
+import { readDesktopUpdate, readyDesktopUpdate, type DesktopUpdateState } from "./desktop-update";
 import { injectedPrompt, typedPrompts } from "./injected-prompt";
 import { recapShown } from "./session-recap";
 import { useRecapNotesVersion } from "./recap-note";
@@ -926,6 +927,8 @@ function Inner() {
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
   const [version, setVersion] = useState<VersionInfo | null>(null);
+  const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateState | null>(null);
+  const [desktopUpdateRestarting, setDesktopUpdateRestarting] = useState(false);
   const [versionDismissed, setVersionDismissed] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(VERSION_DISMISSED_KEY) ?? ""; } catch { return ""; }
@@ -985,6 +988,35 @@ function Inner() {
   // "restarting…" until the five-minute poll came round — and in a background
   // tab, where visibilitychange never fires, that was the only thing left.
   useEffect(() => { if (live) loadVersion(); }, [live, loadVersion]);
+  useEffect(() => {
+    if (!inDesktopApp()) return;
+    let cancelled = false;
+    fetch("/api/desktop-update")
+      .then(r => r.ok ? r.json() : null)
+      .then(value => {
+        if (cancelled) return;
+        const next = readDesktopUpdate(value);
+        if (next) setDesktopUpdate(next);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const readyAppUpdate = readyDesktopUpdate(desktopUpdate);
+  const askDesktopUpdateRestart = useCallback(async (updateVersion: string) => {
+    if (desktopUpdateRestarting) return;
+    setDesktopUpdateRestarting(true);
+    try {
+      const response = await fetch("/api/desktop-update/restart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ version: updateVersion }),
+      });
+      if (!response.ok) setDesktopUpdateRestarting(false);
+    } catch {
+      setDesktopUpdateRestarting(false);
+    }
+  }, [desktopUpdateRestarting]);
 
   // ── who is looking ────────────────────────────────────────────────────────
   // The server updates the deck on its own while nobody is looking at it
@@ -1939,6 +1971,16 @@ function Inner() {
       replayActiveRef.current = false;
       coalescer.flush();
       setLiveSince(Date.now());
+    });
+    es.addEventListener("desktop-update", (e) => {
+      if (!inDesktopApp()) return;
+      try {
+        const next = readDesktopUpdate(JSON.parse((e as MessageEvent).data));
+        if (next) {
+          setDesktopUpdate(next);
+          if (next.status !== "ready") setDesktopUpdateRestarting(false);
+        }
+      } catch { /* ignore */ }
     });
     es.addEventListener("hook", (e) => {
       try {
@@ -3809,7 +3851,19 @@ function Inner() {
                 behind stays behind until somebody upgrades it, and while this
                 branch is the one on screen it is the ONLY way back into a
                 dismissed dialog. */}
-            {notice ? (
+            {readyAppUpdate ? (
+              <button
+                type="button"
+                className="v stale"
+                onClick={openReleaseNotes}
+                aria-haspopup="dialog"
+                aria-label={`ccdeck v${readyAppUpdate.version} is ready to update and restart`}
+                title={`ccdeck v${readyAppUpdate.version} is downloaded and verified · click to update and restart`}
+              >
+                v{chipVersion} → v{readyAppUpdate.version}
+                <span className="v-dot" aria-hidden />
+              </button>
+            ) : notice ? (
               <button
                 type="button"
                 className="v stale"
@@ -5438,10 +5492,13 @@ function Inner() {
           running={chipVersion}
           onClose={() => setReleaseNotes(null)}
           onTour={() => { setReleaseNotes(null); setTourOpen(true); }}
+          updateVersion={readyAppUpdate?.version}
+          updateBusy={desktopUpdateRestarting}
+          onUpdateRestart={readyAppUpdate ? () => { void askDesktopUpdateRestart(readyAppUpdate.version); } : undefined}
           /* Only where the server would do it: an unsupervised deck answers
              501 and one without a writable log 409, and the button is not
              offered for either (#1163). */
-          onRestart={version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
+          onRestart={!readyAppUpdate && version?.canRestart ? () => { setReleaseNotes(null); void askRestart(); } : undefined}
         />
       )}
       {/* After the release notes and before the clear prompt. Both of those

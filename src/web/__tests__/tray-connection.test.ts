@@ -141,4 +141,18 @@ describe("the tray connection", () => {
     tray.req.destroy();
     page.req.destroy();
   });
+
+  it("relays desktop update state and restart requests", async () => {
+    const tray = await stream("/events?role=tray");
+    const page = await stream("/events");
+    await until(async () => (await health()).clients === 1 && (await health()).trays === 1, "update clients to subscribe");
+    expect(await post("/api/desktop-update", { status: "ready", version: "3.28.0" }, true)).toBe(200);
+    await until(async () => page.text().includes("event: desktop-update"), "the update state");
+    expect(tray.text()).not.toContain("event: desktop-update\n");
+    expect(await post("/api/desktop-update/restart", { version: "3.28.1" }, true)).toBe(409);
+    expect(await post("/api/desktop-update/restart", { version: "3.28.0" }, true)).toBe(202);
+    await until(async () => tray.text().includes("event: desktop-update-restart"), "the restart request");
+    tray.req.destroy();
+    page.req.destroy();
+  });
 });

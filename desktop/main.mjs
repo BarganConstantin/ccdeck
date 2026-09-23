@@ -22,6 +22,7 @@ import { navigationFor } from "./nav.mjs";
 import { canInstallQuietly, quietSinceNext } from "./auto-update.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
+import { restartReadyUpdate } from "./window-update.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -187,10 +188,22 @@ function attach(found) {
   stream = openTrayStream(deck, {
     connected: () => { model.reset(); model.setConnected(true); scheduleRedraw(); },
     hook: env => { model.apply(env); scheduleRedraw(); },
-    live: () => { refreshPrefs(); },
+    live: () => { refreshPrefs(); publishUpdateState(); },
     notify: n => showNotification(n),
+    restartUpdate: request => {
+      const version = request?.version;
+      if (restartReadyUpdate(updater, version)) trace(`window requested verified update ${version}`);
+      else trace(`ignored window update request ${version ?? "without a version"}`);
+    },
     lost: () => { model.setConnected(false); scheduleRedraw(); discoverSoon(); },
   });
+}
+
+function publishUpdateState() {
+  if (!deck || !updater) return;
+  const { status, version = null } = updater.state;
+  deckJson(deck, "/api/desktop-update", { method: "POST", body: { status, version } })
+    .catch(err => trace(`could not publish update state: ${err?.message ?? err}`));
 }
 
 /**
@@ -605,6 +618,7 @@ app.whenReady().then(async () => {
     onChange: s => {
       trace(`update: ${s.status}${s.version ? ` ${s.version}` : ""}${s.error ? ` — ${s.error}` : ""}`);
       scheduleRedraw();
+      publishUpdateState();
       offerReadyUpdate();
       // An update that lands while the app is already quiet does not wait for
       // the next tick to be noticed.
