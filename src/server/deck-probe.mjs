@@ -70,7 +70,13 @@ export function challengeProof(token, nonce) {
 export function challengeDeck(port, token) {
   return new Promise(resolve => {
     let settled = false;
-    const finish = ok => { if (settled) return; settled = true; resolve(ok); };
+    let deadline;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      if (deadline) clearTimeout(deadline);
+      resolve(ok);
+    };
     const nonce = randomBytes(16).toString("hex");
     const want = challengeProof(token, nonce);
     const req = httpRequest({
@@ -98,6 +104,14 @@ export function challengeDeck(port, token) {
     });
     req.on("error", () => finish(false));
     req.on("timeout", () => req.destroy());
+    // `http.request`'s timeout is an idle timeout: a listener can keep this
+    // request alive forever by trickling bytes, and once a response has begun
+    // destroying the request does not reliably emit `error`. Bound the whole
+    // challenge instead, and settle before closing the socket. (#1179)
+    deadline = setTimeout(() => {
+      finish(false);
+      req.destroy();
+    }, DECK_CHALLENGE_TIMEOUT_MS);
     req.end();
   });
 }
